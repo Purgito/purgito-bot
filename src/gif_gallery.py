@@ -673,6 +673,15 @@ $('add-form').addEventListener('submit', async (e) => {
         const grid = $('grid');
         const empty = grid.querySelector('.empty');
         if (empty) grid.innerHTML = '';
+        if (data.evicted_id != null) {
+          const stale = grid.querySelector(`[data-gid="${data.evicted_id}"]`);
+          if (stale) {
+            if (stale.dataset.type === 'preview') cntPreview = Math.max(0, cntPreview - 1);
+            else cntLink = Math.max(0, cntLink - 1);
+            stale.remove();
+          }
+          pool = pool.filter(g => g.id !== data.evicted_id);
+        }
         pool.unshift(data.gif);
         const card = mkCard(data.gif);
         const firstCard = grid.querySelector('.card');

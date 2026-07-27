@@ -702,6 +702,13 @@ class MusicPlayer:
         self.current = None
         self._play_start = 0.0
         self._prefetch = None
+        for task in self._bg_tasks:
+            task.cancel()
+        # voice_client.stop() dispara el after-callback igual que un fin de canción
+        # natural (discord.py llama _call_after() en todos los casos) -- sin esto
+        # _after() reprogramaba _advance(), que ya con la cola vacía mandaba un
+        # segundo embed de "cola vacía" después del de /stop o /leave.
+        self._loop = None
         if self.voice_client:
             if self.voice_client.is_playing() or self.voice_client.is_paused():
                 self.voice_client.stop()

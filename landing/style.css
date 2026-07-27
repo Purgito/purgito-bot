@@ -218,10 +218,23 @@ code { font-family: var(--font-mono); }
 
 /* ── hero ────────────────────────────────────────────── */
 .hero {
-  max-width: 860px;
+  max-width: var(--maxw);
   margin: 0 auto;
   padding: clamp(3.5rem, 9vw, 6.5rem) 1.4rem 4rem;
   text-align: center;
+  background: radial-gradient(ellipse 55% 60% at 72% 30%,
+              rgba(139, 110, 245, 0.13), transparent 70%);
+}
+.hero-inner {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .hero-inner { grid-template-columns: 1.1fr 0.9fr; }
+  .hero-copy { text-align: left; }
+  .hero-copy .hero-sub,
+  .hero-copy .ticker { margin-left: 0; margin-right: 0; }
 }
 .hero-title {
   font-size: clamp(2rem, 6.2vw, 3.6rem);
@@ -287,11 +300,192 @@ code { font-family: var(--font-mono); }
   100% { transform: translate(0, 0); }
 }
 
+/* ── mockup de Discord (UI genérica recreada en CSS) ─── */
+.discord-mock {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem;
+  background: #313338;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 22px 60px -30px rgba(0, 0, 0, 0.85);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.dm-msg { display: flex; gap: 0.8rem; }
+.dm-body { min-width: 0; flex: 1; }
+.dm-avatar {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  background: #454a52;
+}
+.dm-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dm-avatar-bot { background: linear-gradient(120deg, var(--accent), var(--accent-hot)); }
+.dm-avatar-bot::before { content: "P"; }
+.dm-avatar-u1 { background: #4d5560; }
+.dm-avatar-u2 { background: #5a4d60; }
+.dm-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.dm-name { font-weight: 600; font-size: 0.95rem; color: #f2f3f5; }
+.dm-badge {
+  padding: 0.05rem 0.3rem;
+  background: var(--accent);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.dm-time { color: #949ba4; font-size: 0.72rem; }
+.dm-text { margin-top: 0.1rem; color: #dbdee1; }
+.dm-cmd {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: rgba(139, 110, 245, 0.16);
+  padding: 0 0.3rem;
+  border-radius: 4px;
+}
+/* variante embed: borde en la paleta propia, no el blurple de Discord */
+.dm-embed {
+  max-width: 380px;
+  margin-top: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  background: #2b2d31;
+  border-left: 3px solid var(--accent-hot);
+  border-radius: 4px;
+}
+.dm-embed-title { font-weight: 600; font-size: 0.92rem; color: #f2f3f5; }
+.dm-embed-desc { margin-top: 0.25rem; color: #b5bac1; font-size: 0.85rem; }
+/* variante imagen adjunta */
+.dm-attach {
+  max-width: 320px;
+  margin-top: 0.5rem;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dm-attach img { width: 100%; }
+
+/* Placeholder cuando falta un asset (el onerror del img activa .missing) */
+.shot.missing {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  background: var(--surface);
+  border: 1.5px dashed var(--border);
+  border-radius: 8px;
+}
+.shot.missing::after {
+  content: attr(data-file);
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: center;
+  word-break: break-all;
+}
+
+/* Frame tipo "ventana" para screenshots del panel */
+.window-frame {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 22px 60px -30px rgba(0, 0, 0, 0.85);
+}
+.window-bar {
+  display: flex;
+  gap: 6px;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.window-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.window-frame .shot img { width: 100%; }
+.window-frame .shot.missing {
+  min-height: 240px;
+  border: none;
+  border-radius: 0;
+}
+
+/* Flotado suave del mockup del hero */
+.hero-mock { animation: floaty 7s ease-in-out infinite; }
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
 /* ── secciones genéricas ─────────────────────────────── */
 .section {
   max-width: var(--maxw);
   margin: 0 auto;
   padding: clamp(3rem, 7vw, 5rem) 1.4rem;
+}
+
+/* ── showcase (features principales con demo visual) ── */
+.showcase {
+  display: grid;
+  gap: clamp(3rem, 6vw, 4.5rem);
+  margin-top: 2.6rem;
+}
+.show-row {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+@media (min-width: 760px) {
+  .show-row { grid-template-columns: 1fr 1fr; }
+  /* filas pares: visual a la izquierda, texto a la derecha */
+  .show-row:nth-child(even) .show-copy { order: 2; }
+}
+.show-title {
+  font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+  margin-bottom: 0.3rem;
+}
+.show-title code {
+  font-size: 0.9em;
+  color: var(--accent);
+  background: rgba(139, 110, 245, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 5px;
+}
+.show-copy .card-text { font-size: 1.02rem; }
+.show-visual { min-width: 0; }
+
+/* Fade + slide-in al entrar en viewport. La clase js-reveal la agrega el
+   script solo si hay IntersectionObserver y sin reduced-motion, así el
+   contenido nunca queda oculto sin JS. */
+.js-reveal .reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+.js-reveal .reveal.in {
+  opacity: 1;
+  transform: none;
 }
 
 /* ── features ────────────────────────────────────────── */
@@ -483,6 +677,7 @@ code { font-family: var(--font-mono); }
   * { transition: none !important; }
   .ticker-cursor { animation: none; }
   .ticker-text.glitch { animation: none; color: var(--text); }
+  .hero-mock { animation: none; }
   .btn-primary:hover,
   .btn-secondary:hover,
   .card:hover { transform: none; }

@@ -256,7 +256,7 @@ class Gifs(commands.Cog):
             )
             return
 
-        inserted = await save_gif_url(interaction.guild.id, final_url)
+        inserted, _ = await save_gif_url(interaction.guild.id, final_url)
         total = await count_gif_urls(interaction.guild.id)
         if inserted:
             await interaction.followup.send(

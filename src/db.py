@@ -515,10 +515,12 @@ async def wipe_gifs(guild_id: int) -> int:
     return deleted
 
 
-async def save_gif_url(guild_id: int, url: str) -> bool:
+async def save_gif_url(guild_id: int, url: str) -> tuple[bool, int | None]:
+    """Devuelve (inserted, evicted_id). evicted_id es el id del GIF más viejo
+    desalojado por haber llegado al límite del guild, o None si no hubo desalojo."""
     u = (url or "").strip()
     if not u:
-        return False
+        return False, None
     max_gifs = _limit_for_guild(
         guild_id,
         "MAX_GIFS_PER_GUILD_FREE",
@@ -527,6 +529,7 @@ async def save_gif_url(guild_id: int, url: str) -> bool:
         4_000,
     )
     db = await get_db()
+    evicted_id: int | None = None
     evicted_url: str | None = None
     async with _db_lock:
         async with db.execute(
@@ -547,7 +550,7 @@ async def save_gif_url(guild_id: int, url: str) -> bool:
                     oldest = await cur.fetchone()
                 if oldest:
                     await db.execute("DELETE FROM corpus_gifs WHERE id=?", (oldest[0],))
-                    evicted_url = oldest[1]
+                    evicted_id, evicted_url = oldest[0], oldest[1]
         cursor = await db.execute(
             "INSERT OR IGNORE INTO corpus_gifs (guild_id, url) VALUES (?, ?)",
             (guild_id, u),
@@ -556,7 +559,7 @@ async def save_gif_url(guild_id: int, url: str) -> bool:
         await db.commit()
     if evicted_url:
         await r2.delete_url(evicted_url)
-    return inserted
+    return inserted, evicted_id
 
 
 async def get_gif_by_url(guild_id: int, url: str) -> dict | None:

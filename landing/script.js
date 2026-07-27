@@ -171,3 +171,27 @@
     })
     .catch(renderLogin);
 })();
+
+/* Fade + slide-in de las filas del showcase al entrar en viewport.
+   Solo se activa (clase js-reveal en <html>) si hay IntersectionObserver y
+   sin prefers-reduced-motion; en cualquier otro caso el contenido queda
+   visible desde el inicio. */
+
+(function () {
+  var rows = document.querySelectorAll('.reveal');
+  if (!rows.length || !('IntersectionObserver' in window)) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  document.documentElement.classList.add('js-reveal');
+
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  rows.forEach(function (row) { io.observe(row); });
+})();

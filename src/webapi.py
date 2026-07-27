@@ -319,13 +319,15 @@ async def _gif_add_impl(request: web.Request, guild_id: int) -> web.Response:
     url = (data.get("url") or "").strip() if data else ""
     if not url or not _valid_gif_url(url):
         return web.json_response({"error": "url inválida o no permitida"}, status=400)
-    inserted = await save_gif_url(guild_id, url)
+    inserted, evicted_id = await save_gif_url(guild_id, url)
     total = await count_gif_urls(guild_id)
     resp = {"inserted": inserted, "total": total}
     if inserted:
         gif = await get_gif_by_url(guild_id, url)
         if gif:
             resp["gif"] = gif
+        if evicted_id is not None:
+            resp["evicted_id"] = evicted_id
     return web.json_response(resp)
 
 
