@@ -42,52 +42,36 @@
 
   <!-- ── HERO ────────────────────────────────────────── -->
   <header class="hero" id="top">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <h1 class="hero-title">Purgito lee tu servidor y responde como uno más del grupo.</h1>
-        <p class="hero-sub">
-          Un bot de Discord con chat que aprende el estilo de tu comunidad y le contesta
-          igual de raro. De paso genera memes con las imágenes que ustedes suben, guarda GIFs,
-          pone música y avisa cuando sale un video nuevo en YouTube.
-        </p>
+    <div class="hero-copy">
+      <h1 class="hero-title">Purgito lee tu servidor y responde como uno más del grupo.</h1>
+      <p class="hero-sub">
+        Un bot de Discord con chat que aprende el estilo de tu comunidad y le contesta
+        igual de raro. De paso genera memes con las imágenes que ustedes suben, guarda GIFs,
+        pone música y avisa cuando sale un video nuevo en YouTube.
+      </p>
 
-        <!-- Ticker: elemento firma -->
-        <div class="ticker" role="img" aria-label="Ejemplos de frases generadas por el bot">
-          <span class="ticker-prompt">&gt;&nbsp;</span><span class="ticker-text" id="ticker-text"></span><span class="ticker-cursor" id="ticker-cursor">▌</span>
-        </div>
-
-        <a class="btn btn-primary btn-lg" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920&permissions=414539926720&scope=bot%20applications.commands">
-          Añadir a Discord
-        </a>
-        <p class="hero-note">Gratis. Sin tarjeta. Lo configuras en un par de minutos.</p>
+      <!-- Ticker: elemento firma -->
+      <div class="ticker" role="img" aria-label="Ejemplos de frases generadas por el bot">
+        <span class="ticker-prompt">&gt;&nbsp;</span><span class="ticker-text" id="ticker-text"></span><span class="ticker-cursor" id="ticker-cursor">▌</span>
       </div>
 
-      <!-- Mockup decorativo: la copy del hero ya cuenta lo mismo -->
-      <div class="hero-visual" aria-hidden="true">
-        <div class="discord-mock hero-mock">
-          <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-u1">L</span>
-            <div class="dm-body">
-              <div class="dm-meta"><span class="dm-name">lore</span><span class="dm-time">hoy a las 21:46</span></div>
-              <p class="dm-text">purgito y tú qué opinas de todo esto</p>
-            </div>
-          </div>
-          <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-            <div class="dm-body">
-              <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 21:46</span></div>
-              <p class="dm-text">posiblemente tengan razón o posiblemente yo esté</p>
-            </div>
-          </div>
-          <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-            <div class="dm-body">
-              <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 21:47</span></div>
-              <div class="dm-embed">
-                <p class="dm-embed-title">Video nuevo en el canal</p>
-                <p class="dm-embed-desc">«mi setup definitivo (ahora sí)» — se acaba de subir</p>
-              </div>
-            </div>
+      <a class="btn btn-primary btn-lg" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920&permissions=414539926720&scope=bot%20applications.commands">
+        Añadir a Discord
+      </a>
+      <p class="hero-note">Gratis. Sin tarjeta. Lo configuras en un par de minutos.</p>
+    </div>
+
+    <div class="hero-visual">
+      <div class="discord-mock" aria-hidden="true">
+        <div class="discord-mock-msg">
+          <img class="discord-mock-avatar" src="assets/avatar.webp" alt="">
+          <div>
+            <p class="discord-mock-head">
+              <span class="discord-mock-name">Purgito</span>
+              <span class="discord-mock-badge">BOT</span>
+              <span class="discord-mock-time">Hoy a las 23:41</span>
+            </p>
+            <p class="discord-mock-text">creo que me perdí como en la parte tres del server</p>
           </div>
         </div>
       </div>
@@ -102,103 +86,90 @@
       <!-- Showcase: las 4 features principales con demo visual -->
       <div class="showcase">
 
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title">Chat que aprende</h3>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3 class="card-title">Chat que aprende</h3>
             <p class="card-tag">cadenas de Markov</p>
             <p class="card-text">Lee los mensajes de los canales que le permitas y arma respuestas imitando cómo escribe tu server. Cada comunidad suena distinta.</p>
           </div>
-          <div class="show-visual">
+          <div class="showcase-visual">
             <div class="discord-mock" aria-hidden="true">
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-u2">M</span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">mika</span><span class="dm-time">hoy a las 14:20</span></div>
-                  <p class="dm-text">alguien me explica qué pasó anoche</p>
-                </div>
-              </div>
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 14:20</span></div>
-                  <p class="dm-text">al final terminamos hablando de cualquier cosa menos del</p>
+              <div class="discord-mock-msg">
+                <img class="discord-mock-avatar" src="assets/avatar.webp" alt="">
+                <div>
+                  <p class="discord-mock-head">
+                    <span class="discord-mock-name">Purgito</span>
+                    <span class="discord-mock-badge">BOT</span>
+                    <span class="discord-mock-time">Hoy a las 14:20</span>
+                  </p>
+                  <p class="discord-mock-text">al final terminamos hablando de cualquier cosa menos del</p>
                 </div>
               </div>
             </div>
           </div>
-        </article>
+        </div>
 
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title">Editor de embeds</h3>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3 class="card-title">Editor de embeds</h3>
             <p class="card-tag">sin código, desde el panel</p>
             <p class="card-text">Arma embeds y mensajes con botones interactivos —incluyendo botones que asignan roles— con preview en vivo y plantillas guardables.</p>
           </div>
-          <div class="show-visual">
-            <div class="window-frame">
-              <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
-              <div class="shot" data-file="landing/assets/panel-embeds.png">
-                <img src="assets/panel-embeds.png" alt="Editor de embeds en el panel de Purgito" onerror="this.parentElement.classList.add('missing');this.remove()">
-              </div>
+          <div class="showcase-visual">
+            <div class="showcase-frame">
+              <div class="showcase-frame-bar"><span></span><span></span><span></span></div>
+              <div class="asset-placeholder">Falta landing/assets/panel-embeds.png</div>
             </div>
           </div>
-        </article>
+        </div>
 
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title"><code>/momo</code> y <code>/meme</code></h3>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3 class="card-title"><code>/momo</code> y <code>/meme</code></h3>
             <p class="card-tag">caption por IA</p>
             <p class="card-text">Toma imágenes que la comunidad va guardando y les pone un caption generado por IA. Memes hechos con el material del propio server.</p>
           </div>
-          <div class="show-visual">
+          <div class="showcase-visual">
             <div class="discord-mock" aria-hidden="true">
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-u1">R</span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">rex</span><span class="dm-time">hoy a las 18:02</span></div>
-                  <p class="dm-text"><span class="dm-cmd">/momo</span></p>
-                </div>
-              </div>
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 18:02</span></div>
-                  <div class="dm-attach shot" data-file="landing/assets/meme-demo.png">
-                    <img src="assets/meme-demo.png" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
-                  </div>
+              <div class="discord-mock-msg">
+                <img class="discord-mock-avatar" src="assets/avatar.webp" alt="">
+                <div>
+                  <p class="discord-mock-head">
+                    <span class="discord-mock-name">Purgito</span>
+                    <span class="discord-mock-badge">BOT</span>
+                    <span class="discord-mock-time">Hoy a las 18:02</span>
+                  </p>
+                  <p class="discord-mock-text">se me chispoteó</p>
+                  <div class="asset-placeholder">Falta landing/assets/meme-demo.png</div>
                 </div>
               </div>
             </div>
           </div>
-        </article>
+        </div>
 
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title">Galería de GIFs</h3>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3 class="card-title">Galería de GIFs</h3>
             <p class="card-tag">una por servidor</p>
             <p class="card-text">Cada servidor arma su propia colección de GIFs, con una galería web para verlos y administrarlos sin salir del navegador.</p>
           </div>
-          <div class="show-visual">
+          <div class="showcase-visual">
             <div class="discord-mock" aria-hidden="true">
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-u2">S</span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">sol</span><span class="dm-time">hoy a las 23:11</span></div>
-                  <p class="dm-text">manden el del gato por favor</p>
-                </div>
-              </div>
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 23:11</span></div>
-                  <div class="dm-attach shot" data-file="landing/assets/gif-demo.gif">
-                    <img src="assets/gif-demo.gif" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
-                  </div>
+              <div class="discord-mock-msg">
+                <img class="discord-mock-avatar" src="assets/avatar.webp" alt="">
+                <div>
+                  <p class="discord-mock-head">
+                    <span class="discord-mock-name">Purgito</span>
+                    <span class="discord-mock-badge">BOT</span>
+                    <span class="discord-mock-time">Hoy a las 23:11</span>
+                  </p>
+                  <p class="discord-mock-text">tengo el gif exacto para esto</p>
+                  <div class="asset-placeholder">Falta landing/assets/gif-demo.gif</div>
                 </div>
               </div>
             </div>
           </div>
-        </article>
+        </div>
 
       </div>
 
