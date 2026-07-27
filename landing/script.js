@@ -172,26 +172,26 @@
     .catch(renderLogin);
 })();
 
-/* Fade + slide-in de las filas del showcase al entrar en viewport. Con
-   prefers-reduced-motion las filas se marcan visibles de inmediato. */
+/* Fade + slide-in de las filas del showcase al entrar en viewport.
+   Solo se activa (clase js-reveal en <html>) si hay IntersectionObserver y
+   sin prefers-reduced-motion; en cualquier otro caso el contenido queda
+   visible desde el inicio. */
 
 (function () {
-  var rows = document.querySelectorAll('.showcase-row');
-  if (!rows.length) return;
+  var rows = document.querySelectorAll('.reveal');
+  if (!rows.length || !('IntersectionObserver' in window)) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    rows.forEach(function (r) { r.classList.add('is-visible'); });
-    return;
-  }
+  document.documentElement.classList.add('js-reveal');
 
-  var obs = new IntersectionObserver(function (entries) {
+  var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
       if (entry.isIntersecting) {
-        entry.target.classList.add('is-visible');
-        obs.unobserve(entry.target);
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.2 });
+  }, { threshold: 0.15 });
 
-  rows.forEach(function (r) { obs.observe(r); });
+  rows.forEach(function (row) { io.observe(row); });
 })();
