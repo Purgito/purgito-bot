@@ -188,6 +188,20 @@ CREATE TABLE IF NOT EXISTS reaction_pool (
 );
 CREATE INDEX IF NOT EXISTS idx_reaction_pool_guild ON reaction_pool(guild_id);
 
+CREATE TABLE IF NOT EXISTS chat_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE TABLE IF NOT EXISTS guild_bot_style (
+    guild_id INTEGER PRIMARY KEY,
+    nick TEXT,
+    avatar_url TEXT,
+    banner_url TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS premium_guilds (
     guild_id INTEGER PRIMARY KEY,
     added_at TEXT NOT NULL,
@@ -287,6 +301,14 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna locale ya existe en settings")
+    # Canal donde Purgito publica sus anuncios de actualizaciones (dashboard INICIO).
+    try:
+        await _db.execute(
+            "ALTER TABLE settings ADD COLUMN updates_channel_id INTEGER"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna updates_channel_id ya existe en settings")
     try:
         await _db.execute(
             "ALTER TABLE guild_auto_refeed ADD COLUMN welcome_channel_id INTEGER"
@@ -990,6 +1012,120 @@ async def list_ignored_channels(guild_id: int) -> list[int]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
+
+
+async def set_chat_enabled(guild_id: int, enabled: bool) -> None:
+    """Prende/apaga solo la respuesta a menciones, sin tocar chat_channel_id
+    (a diferencia de set_chat_mode, que pisa las dos columnas)."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO settings (guild_id, chat_mode_enabled) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "    chat_mode_enabled=excluded.chat_mode_enabled",
+            (guild_id, 1 if enabled else 0),
+        )
+        await db.commit()
+
+
+# Canales de participación proactiva del chat (multi-select del dashboard).
+# Sin filas para el guild = comportamiento histórico (habla en cualquier canal
+# no ignorado); con filas, solo habla espontáneamente en esos canales.
+
+
+async def add_chat_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO chat_channels (guild_id, channel_id) VALUES (?, ?)",
+            (guild_id, channel_id),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_chat_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM chat_channels WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_chat_channels(guild_id: int) -> list[int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id FROM chat_channels WHERE guild_id=? ORDER BY channel_id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
+async def get_updates_channel(guild_id: int) -> int | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT updates_channel_id FROM settings WHERE guild_id=?", (guild_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row[0] if row else None
+
+
+async def set_updates_channel(guild_id: int, channel_id: int | None) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO settings (guild_id, updates_channel_id) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "    updates_channel_id=excluded.updates_channel_id",
+            (guild_id, channel_id),
+        )
+        await db.commit()
+
+
+async def count_corpus_by_channel(guild_id: int) -> list[dict]:
+    """Mensajes aprendidos por canal, de mayor a menor (stats de INICIO)."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id, COUNT(*) FROM corpus_messages "
+        "WHERE guild_id=? GROUP BY channel_id ORDER BY COUNT(*) DESC",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"channel_id": r[0], "count": r[1]} for r in rows]
+
+
+async def get_bot_style(guild_id: int) -> dict:
+    db = await get_db()
+    async with db.execute(
+        "SELECT nick, avatar_url, banner_url FROM guild_bot_style WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if not row:
+        return {"nick": None, "avatar_url": None, "banner_url": None}
+    return {"nick": row[0], "avatar_url": row[1], "banner_url": row[2]}
+
+
+async def set_bot_style(
+    guild_id: int, nick: str | None, avatar_url: str | None, banner_url: str | None
+) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO guild_bot_style (guild_id, nick, avatar_url, banner_url, updated_at) "
+            "VALUES (?, ?, ?, ?, datetime('now')) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "    nick=excluded.nick, avatar_url=excluded.avatar_url, "
+            "    banner_url=excluded.banner_url, updated_at=excluded.updated_at",
+            (guild_id, nick, avatar_url, banner_url),
+        )
+        await db.commit()
 
 
 async def is_channel_ignored(guild_id: int, channel_id: int) -> bool:

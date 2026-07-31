@@ -23,6 +23,7 @@ from db import (
     get_random_reaction,
     get_welcome_channel_id,
     is_channel_ignored,
+    list_chat_channels,
     save_corpus_and_user_message,
     upsert_channel_refeed_status,
 )
@@ -115,6 +116,12 @@ class Chat(commands.Cog):
 
         if not (mention_bot or reply_to_bot):
             if message.guild and auto_generate:
+                # Allowlist del dashboard: con canales configurados, la
+                # participación espontánea queda restringida a esos canales.
+                # Sin filas, comportamiento histórico (cualquier canal no ignorado).
+                allowed = await list_chat_channels(message.guild.id)
+                if allowed and message.channel.id not in allowed:
+                    return
                 try:
                     if random.random() < 0.45:
                         gif_url = await get_live_gif(message.guild.id)

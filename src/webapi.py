@@ -1,6 +1,7 @@
 """Web API pública: galería de GIFs + health check + panel de configuración multi-guild."""
 
 import asyncio
+import base64
 import hashlib
 import html
 import json
@@ -39,8 +40,11 @@ from config import (
     POLAR_SERVER,
     POLAR_WEBHOOK_SECRET,
     PURGATORY_GUILD_ID,
+    REPO_URL,
     SESSION_COOKIE_DOMAIN,
     SESSION_SECRET,
+    SUPPORT_URL,
+    DOCS_URL,
     WEB_PORT,
     env_int,
     get_invite_url,
@@ -50,6 +54,7 @@ from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.youtube import get_latest_video
 from db import (
     add_button_action,
+    add_chat_channel,
     add_embed_template,
     add_frase_especial,
     add_ignored_channel,
@@ -72,18 +77,27 @@ from db import (
     list_embed_templates,
     list_frases_especiales,
     normalize_embeds_json,
+    count_corpus_by_channel,
+    count_guild_corpus_messages,
+    get_bot_style,
+    get_updates_channel,
+    list_chat_channels,
     list_gif_urls,
     list_ignored_channels,
     list_meme_schedules,
     list_premium_guilds,
     list_reaction_pool,
     list_youtube_subs,
+    remove_chat_channel,
     remove_ignored_channel,
     remove_meme_schedule,
     remove_reaction_from_pool,
     remove_youtube_sub,
     save_gif_url,
+    set_bot_style,
+    set_chat_enabled,
     set_chat_mode,
+    set_updates_channel,
     set_youtube_mention_role,
     update_embed_template,
     update_last_video_id,
@@ -97,6 +111,7 @@ from layout_v2 import (
 from message_options import sanitize_send_options, send_kwargs
 from pages.panel import PANEL_HTML
 from pages.selector import SELECTOR_HTML
+from pages.dash import DASH_HTML, PERFIL_HTML
 from utils import LRUDict
 import r2
 
@@ -383,7 +398,7 @@ async def _gallery(request: web.Request) -> web.Response:
     if DASHBOARD_ENABLED and "panel." in host:
         session = await get_session(request)
         if session.get("user_id"):
-            raise web.HTTPFound("/servers")
+            raise web.HTTPFound("/es/perfil")
         raise web.HTTPFound("/auth/login")
     return web.Response(
         text=GIF_GALLERY_HTML, content_type="text/html", charset="utf-8"
@@ -478,7 +493,8 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
             "client_id": DISCORD_CLIENT_ID,
             "redirect_uri": f"{DASHBOARD_BASE_URL}/auth/callback",
             "response_type": "code",
-            "scope": "identify guilds",
+            # email: solo para mostrarlo en el dropdown de perfil del panel.
+            "scope": "identify email guilds",
             "state": state,
         }
     )
@@ -550,6 +566,8 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     session["user_id"] = user["id"]
     session["username"] = user.get("global_name") or user.get("username") or "admin"
     session["avatar_url"] = _avatar_url(user)
+    # Puede venir vacío en sesiones creadas antes de sumar el scope email.
+    session["email"] = user.get("email") or ""
     # Solo server-side (cookie cifrada): se usa para consultar /users/@me/guilds.
     session["access_token"] = access
     # Precarga el cache con los guilds recién obtenidos: /users/@me/guilds tiene un
@@ -564,7 +582,7 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
         # Venía de un link /share/{id} sin sesión: retomar el flujo con el
         # share a cuestas para que el selector lo propague al panel.
         raise web.HTTPFound(f"/servers?share={pending_share}")
-    raise web.HTTPFound("/servers")
+    raise web.HTTPFound("/es/perfil")
 
 
 async def _auth_logout(request: web.Request) -> web.StreamResponse:
@@ -651,7 +669,7 @@ def _versioned_static(html_text: str) -> str:
 
 async def _dashboard(request: web.Request) -> web.StreamResponse:
     # Mantiene bookmarks viejos funcionando.
-    raise web.HTTPFound("/servers")
+    raise web.HTTPFound("/es/perfil")
 
 
 async def _servers_page(request: web.Request) -> web.Response:
@@ -672,6 +690,48 @@ async def _server_page(request: web.Request) -> web.Response:
     return web.Response(text=body, content_type="text/html", charset="utf-8")
 
 
+# ---------------- Páginas del rediseño (/es/perfil, /es/dashboard/:id) -------
+
+# Invitación genérica (sin guild preseleccionado): se corta en guild_id porque
+# disable_guild_select con guild vacío rompe el authorize de Discord.
+_GENERIC_INVITE = get_invite_url("").split("&guild_id=")[0]
+
+
+def _shell_vars(html_text: str, session) -> str:
+    """Rellena los placeholders comunes del navbar/footer del rediseño."""
+    replaces = {
+        "{{USERNAME}}": html.escape(str(session.get("username", ""))),
+        "{{AVATAR_URL}}": html.escape(str(session.get("avatar_url", ""))),
+        "{{EMAIL}}": html.escape(str(session.get("email") or "")),
+        "{{USER_ID}}": html.escape(str(session.get("user_id") or "")),
+        "{{SUPPORT_URL}}": html.escape(SUPPORT_URL),
+        "{{DOCS_URL}}": html.escape(DOCS_URL),
+        "{{REPO_URL}}": html.escape(REPO_URL),
+        "{{LANDING_URL}}": html.escape(LANDING_URL),
+        "{{INVITE_URL}}": html.escape(_GENERIC_INVITE),
+    }
+    for k, v in replaces.items():
+        html_text = html_text.replace(k, v)
+    return html_text
+
+
+async def _perfil_page(request: web.Request) -> web.Response:
+    session = await get_session(request)
+    body = _versioned_static(_shell_vars(PERFIL_HTML, session))
+    return web.Response(text=body, content_type="text/html", charset="utf-8")
+
+
+async def _dash_page(request: web.Request) -> web.Response:
+    guild_id = _to_int(request.match_info.get("guild_id"))
+    if guild_id is None:
+        raise web.HTTPNotFound()
+    session = await get_session(request)
+    body = _versioned_static(
+        _shell_vars(DASH_HTML, session).replace("{{GUILD_ID}}", str(guild_id))
+    )
+    return web.Response(text=body, content_type="text/html", charset="utf-8")
+
+
 # ---------------- API: guilds del usuario ----------------
 
 
@@ -684,6 +744,8 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
         return web.json_response({"error": "sesión expirada, inicia sesión de nuevo"}, status=401)
     bot = request.app["bot"]
     bot_guild_ids = {g.id for g in bot.guilds}
+    # Nota del plan premium (ej. "Polar — mensual") para la tab Facturación.
+    premium_notes = {g["guild_id"]: g["note"] for g in await list_premium_guilds()}
     configured, available = [], []
     for g in manage:
         gid = int(g["id"])
@@ -702,6 +764,7 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
                     "icon_url": icon_url,
                     "member_count": getattr(bot_guild, "member_count", None),
                     "is_premium": is_premium_guild(gid),
+                    "premium_note": premium_notes.get(gid),
                 }
             )
         else:
@@ -723,7 +786,17 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
 async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
     # guild_api ya garantiza que el bot está en el guild.
     guild = _bot_guild(request, guild_id)
-    channels = [{"id": str(c.id), "name": c.name} for c in guild.text_channels]
+    channels = []
+    for c in guild.text_channels:
+        perms = c.permissions_for(guild.me)
+        channels.append(
+            {
+                "id": str(c.id),
+                "name": c.name,
+                # Para marcar "canal sin permisos" en los selectores del dashboard.
+                "can_send": perms.view_channel and perms.send_messages,
+            }
+        )
     return web.json_response({"channels": channels})
 
 
@@ -758,6 +831,11 @@ async def _api_chat_put(request: web.Request, guild_id: int) -> web.Response:
     data = await _json_body(request)
     if data is None or not isinstance(data.get("enabled"), bool):
         return web.json_response({"error": "body inválido"}, status=400)
+    if "channel_id" not in data:
+        # Dashboard nuevo: el toggle solo prende/apaga la respuesta a menciones,
+        # sin pisar el chat_channel_id legacy que administra el panel viejo.
+        await set_chat_enabled(guild_id, data["enabled"])
+        return web.json_response({"ok": True})
     channel_id = None
     if data.get("channel_id") is not None:
         channel_id = _to_int(data["channel_id"])
@@ -797,6 +875,194 @@ async def _api_corpus_delete(request: web.Request, guild_id: int) -> web.Respons
         return web.json_response({"error": "channel_id inválido"}, status=400)
     removed = await remove_ignored_channel(guild_id, channel_id)
     return web.json_response({"removed": removed})
+
+
+# ---------------- API: dashboard nuevo (chat-channels, updates, stats, estilo) --
+
+
+@guild_api
+async def _api_chat_channels_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    channels = [
+        {"id": str(cid), "name": _channel_name(guild, cid)}
+        for cid in await list_chat_channels(guild_id)
+    ]
+    return web.json_response({"channels": channels})
+
+
+@guild_api
+async def _api_chat_channels_post(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    channel_id = _to_int(data.get("channel_id")) if data else None
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    added = await add_chat_channel(guild_id, channel_id)
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_chat_channels_delete(request: web.Request, guild_id: int) -> web.Response:
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    removed = await remove_chat_channel(guild_id, channel_id)
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_updates_get(request: web.Request, guild_id: int) -> web.Response:
+    channel_id = await get_updates_channel(guild_id)
+    return web.json_response({"channel_id": str(channel_id) if channel_id else None})
+
+
+@guild_api
+async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    channel_id = None
+    if data.get("channel_id") is not None:
+        channel_id = _to_int(data["channel_id"])
+        if channel_id is None:
+            return web.json_response({"error": "channel_id inválido"}, status=400)
+    await set_updates_channel(guild_id, channel_id)
+    return web.json_response({"ok": True})
+
+
+@guild_api
+async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
+    """Métricas del bot en el guild para la tab INICIO del dashboard."""
+    guild = _bot_guild(request, guild_id)
+    per_channel = await count_corpus_by_channel(guild_id)
+    return web.json_response(
+        {
+            "corpus_total": await count_guild_corpus_messages(guild_id),
+            "corpus_by_channel": [
+                {
+                    "channel_id": str(r["channel_id"]),
+                    "name": _channel_name(guild, r["channel_id"]),
+                    "count": r["count"],
+                }
+                for r in per_channel[:8]
+            ],
+            "reactions": len(await list_reaction_pool(guild_id)),
+            "gifs": await count_gif_urls(guild_id),
+            "frases": len(await list_frases_especiales(guild_id)),
+            "member_count": getattr(guild, "member_count", None),
+        }
+    )
+
+
+_STYLE_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+
+
+def _valid_r2_url(url) -> bool:
+    pub = r2.public_url()
+    return isinstance(url, str) and bool(pub) and url.startswith(pub.rstrip("/") + "/")
+
+
+async def _r2_image_datauri(request: web.Request, url: str) -> str | None:
+    """Baja una imagen ya subida a R2 y la vuelve data URI (formato que pide
+    la API de Discord para avatar/banner)."""
+    try:
+        async with request.app["http"].get(url) as r:
+            if r.status != 200:
+                return None
+            data = await r.read()
+    except (aiohttp.ClientError, asyncio.TimeoutError):
+        log.exception("No se pudo bajar %s de R2 para el estilo del bot", url)
+        return None
+    ext = _sniff_image(data)
+    if ext is None:
+        return None
+    return f"data:{_STYLE_MIME[ext]};base64,{base64.b64encode(data).decode()}"
+
+
+@guild_api
+async def _api_style_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    me = guild.me
+    style = await get_bot_style(guild_id)
+    return web.json_response(
+        {
+            **style,
+            "current_nick": (me.nick or me.name) if me else None,
+            "current_avatar_url": str(me.display_avatar.url) if me else None,
+        }
+    )
+
+
+@guild_api
+async def _api_style_put(request: web.Request, guild_id: int) -> web.Response:
+    """Aplica el estilo del bot en el guild: apodo vía Member.edit y
+    avatar/banner por PATCH /guilds/{id}/members/@me con las imágenes que el
+    modal ya subió a R2 (mismo uploader que el editor de embeds).
+
+    Solo se tocan avatar/banner si la clave viene en el body (checkboxes
+    "Editar Avatar"/"Editar Banner" del modal); null explícito = remover."""
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    nick = str(data.get("nick") or "").strip()[:32]
+    guild = _bot_guild(request, guild_id)
+    current = await get_bot_style(guild_id)
+    profile_patch: dict = {}
+    avatar_url = current["avatar_url"]
+    banner_url = current["banner_url"]
+    for key, field in (("avatar_url", "avatar"), ("banner_url", "banner")):
+        if key not in data:
+            continue
+        url = data[key]
+        if url is not None and not _valid_r2_url(url):
+            return web.json_response(
+                {"error": f"{key} inválida: sube la imagen desde el panel"}, status=400
+            )
+        if url is None:
+            profile_patch[field] = None
+        else:
+            datauri = await _r2_image_datauri(request, url)
+            if datauri is None:
+                return web.json_response(
+                    {"error": "no se pudo leer la imagen subida, intenta de nuevo"},
+                    status=502,
+                )
+            profile_patch[field] = datauri
+        if key == "avatar_url":
+            avatar_url = url
+        else:
+            banner_url = url
+
+    try:
+        if guild.me and (guild.me.nick or "") != nick:
+            await guild.me.edit(nick=nick or None)
+    except discord.Forbidden:
+        return web.json_response(
+            {"error": "el bot no tiene permiso para cambiar su apodo en este servidor"},
+            status=403,
+        )
+    except discord.HTTPException as e:
+        return web.json_response(
+            {"error": f"Discord rechazó el apodo: {e.text or e}"}, status=400
+        )
+
+    warning = None
+    if profile_patch:
+        # ponytail: request crudo — discord.py 2.7 no expone avatar/banner de
+        # guild para bots; si Discord lo rechaza se guarda igual la URL (sirve
+        # para el preview del panel) y se avisa por warning.
+        try:
+            await request.app["bot"].http.request(
+                discord.http.Route(
+                    "PATCH", "/guilds/{guild_id}/members/@me", guild_id=guild_id
+                ),
+                json=profile_patch,
+            )
+        except discord.HTTPException as e:
+            warning = f"Discord no aceptó el avatar/banner: {e.text or e}"
+            log.warning("PATCH members/@me falló en guild %s: %s", guild_id, e)
+
+    await set_bot_style(guild_id, nick or None, avatar_url, banner_url)
+    return web.json_response({"ok": True, "warning": warning})
 
 
 # ---------------- API: reacciones ----------------
@@ -1924,6 +2190,23 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get("/server/{guild_id}", require_login(_server_page))
         app.router.add_get("/server/{guild_id}/{category}", require_login(_server_page))
 
+        # Páginas del rediseño. El prefijo de idioma acepta los 5 del selector;
+        # el contenido por ahora es el mismo (español) para todos.
+        loc = "{locale:es|en|ru|ja|de}"
+        app.router.add_get(f"/{loc}/perfil", require_login(_perfil_page))
+        app.router.add_get(
+            f"/{loc}/perfil/{{ptab:facturacion|conexiones}}",
+            require_login(_perfil_page),
+        )
+        app.router.add_get(
+            f"/{loc}/dashboard/{{guild_id:\\d+}}", require_login(_dash_page)
+        )
+        app.router.add_get(
+            f"/{loc}/dashboard/{{guild_id:\\d+}}"
+            "/{tab:inicio|chat|gifs|memes|embeds|premium}",
+            require_login(_dash_page),
+        )
+
         # API del panel (guild_api verifica login + manage_guild por dentro)
         app.router.add_get("/api/me/guilds", _api_me_guilds)
         base = "/api/server/{guild_id}"
@@ -1931,6 +2214,16 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get(f"{base}/roles", _api_roles)
         app.router.add_get(f"{base}/settings/chat", _api_chat_get)
         app.router.add_put(f"{base}/settings/chat", _api_chat_put)
+        app.router.add_get(f"{base}/settings/chat-channels", _api_chat_channels_get)
+        app.router.add_post(f"{base}/settings/chat-channels", _api_chat_channels_post)
+        app.router.add_delete(
+            f"{base}/settings/chat-channels/{{channel_id}}", _api_chat_channels_delete
+        )
+        app.router.add_get(f"{base}/settings/updates", _api_updates_get)
+        app.router.add_put(f"{base}/settings/updates", _api_updates_put)
+        app.router.add_get(f"{base}/stats", _api_stats)
+        app.router.add_get(f"{base}/style", _api_style_get)
+        app.router.add_put(f"{base}/style", _api_style_put)
         app.router.add_get(f"{base}/settings/corpus", _api_corpus_get)
         app.router.add_post(f"{base}/settings/corpus", _api_corpus_post)
         app.router.add_delete(

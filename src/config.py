@@ -115,6 +115,11 @@ SESSION_COOKIE_DOMAIN = os.getenv("SESSION_COOKIE_DOMAIN", "").strip() or None
 LANDING_ORIGINS = frozenset(
     o.strip().rstrip("/") for o in os.getenv("LANDING_ORIGINS", "").split(",") if o.strip()
 )
+# Links del navbar/footer del panel (rediseño dashboard/perfil). Configurables
+# en urls.env; los defaults apuntan a destinos que existen hoy.
+SUPPORT_URL = os.getenv("SUPPORT_URL", "https://purgito.app").rstrip("/")
+DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/docs").rstrip("/")
+REPO_URL = os.getenv("REPO_URL", "https://github.com/punkyyy01/bot-discord-purg").rstrip("/")
 
 # --- Polar.sh (compra de premium) ---
 POLAR_ACCESS_TOKEN = _env_compact("POLAR_ACCESS_TOKEN")
