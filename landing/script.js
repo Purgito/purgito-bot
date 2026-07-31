@@ -78,13 +78,31 @@
 
 (function () {
   var PANEL = 'https://panel.purgito.app';
+  var LANGS = ['es', 'en', 'ru', 'ja', 'de'];
+
+  // Idioma del path (purgito.app/es/…); si la landing se sirve sin prefijo,
+  // cae al idioma del navegador y por último a español.
+  function locale() {
+    var seg = location.pathname.split('/')[1];
+    if (LANGS.indexOf(seg) !== -1) return seg;
+    var nav = (navigator.language || 'es').slice(0, 2).toLowerCase();
+    return LANGS.indexOf(nav) !== -1 ? nav : 'es';
+  }
+
+  // Entrada al panel: la lista de servidores del perfil, no el selector viejo.
+  var DASHBOARD = PANEL + '/' + locale() + '/perfil';
+
+  var navDash = document.getElementById('nav-dash');
+  if (navDash) navDash.href = DASHBOARD;
+
   var slot = document.getElementById('auth-slot');
   if (!slot) return;
 
   function renderLogin() {
     var a = document.createElement('a');
     a.className = 'btn btn-login';
-    a.href = PANEL + '/auth/login?from=landing';
+    // El locale viaja para volver a purgito.app/es tras el callback, no a la raíz.
+    a.href = PANEL + '/auth/login?from=landing&locale=' + locale();
     a.textContent = 'Iniciar sesión con Discord';
     slot.appendChild(a);
   }
@@ -131,7 +149,7 @@
     menu.appendChild(sep);
 
     [
-      { href: PANEL + '/servers', label: 'Panel de administración' },
+      { href: DASHBOARD, label: 'Dashboard' },
       { href: PANEL + '/auth/logout', label: 'Cerrar sesión' }
     ].forEach(function (item) {
       var a = document.createElement('a');

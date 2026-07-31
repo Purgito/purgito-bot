@@ -130,6 +130,10 @@ _ADMINISTRATOR = 1 << 3
 _MANAGE_GUILD = 1 << 5
 _GUILDS_CACHE_TTL = 300.0
 _PUBLIC_GETS = ("/", "/api/gifs", "/health", "/terms", "/privacy")
+# Idiomas del sitio (mismo set que el selector de la landing y del panel). Se
+# usan como prefijo de ruta (/es/perfil) y como whitelist del locale que la
+# landing propaga en el login.
+_LOCALES = ("es", "en", "ru", "ja", "de")
 
 
 def _client_ip(request: web.Request) -> str:
@@ -486,6 +490,10 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
     # solo el literal "landing" habilita volver a LANDING_URL tras el callback.
     if request.query.get("from") == "landing":
         session["post_login_redirect"] = "landing"
+        # Idioma desde el que se inició sesión, para volver a purgito.app/es y
+        # no a la raíz. Mismo criterio: whitelist de códigos, no una URL.
+        locale = request.query.get("locale", "")
+        session["post_login_locale"] = locale if locale in _LOCALES else ""
     state = secrets.token_urlsafe(24)
     session["oauth_state"] = state
     params = urlencode(
@@ -576,7 +584,8 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     # panel responde 401 → el JS redirige a /auth/login como si no hubiera sesión.
     _user_guilds_cache[user["id"]] = (time.monotonic() + _GUILDS_CACHE_TTL, manage)
     if session.pop("post_login_redirect", None) == "landing":
-        raise web.HTTPFound(LANDING_URL)
+        locale = session.pop("post_login_locale", "")
+        raise web.HTTPFound(f"{LANDING_URL}/{locale}" if locale else LANDING_URL)
     pending_share = session.pop("pending_share", None)
     if pending_share:
         # Venía de un link /share/{id} sin sesión: retomar el flujo con el
@@ -672,7 +681,12 @@ async def _dashboard(request: web.Request) -> web.StreamResponse:
     raise web.HTTPFound("/es/perfil")
 
 
-async def _servers_page(request: web.Request) -> web.Response:
+async def _servers_page(request: web.Request) -> web.StreamResponse:
+    # El selector viejo dejó de ser la entrada del panel: /es/perfil lo
+    # reemplaza. Sigue vivo solo para el flujo de /share/{id}, que necesita
+    # elegir servidor y propagar el embed al editor del panel clásico.
+    if not request.query.get("share"):
+        raise web.HTTPFound("/es/perfil")
     session = await get_session(request)
     body = _versioned_static(
         SELECTOR_HTML.replace(
@@ -2192,7 +2206,7 @@ async def start_web_server(bot: commands.Bot) -> None:
 
         # Páginas del rediseño. El prefijo de idioma acepta los 5 del selector;
         # el contenido por ahora es el mismo (español) para todos.
-        loc = "{locale:es|en|ru|ja|de}"
+        loc = "{locale:" + "|".join(_LOCALES) + "}"
         app.router.add_get(f"/{loc}/perfil", require_login(_perfil_page))
         app.router.add_get(
             f"/{loc}/perfil/{{ptab:facturacion|conexiones}}",

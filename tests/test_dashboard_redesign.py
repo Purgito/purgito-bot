@@ -1,6 +1,8 @@
-"""Tests de los helpers de DB del rediseño del dashboard (chat_channels,
-guild_bot_style, updates_channel_id, stats por canal). DB en memoria inyectada
-en db._db, mismo patrón que test_trim_corpus.py."""
+"""Tests del rediseño del dashboard: helpers de DB (chat_channels,
+guild_bot_style, updates_channel_id, stats por canal) y el flujo de entrada al
+panel (/servers redirige a /es/perfil salvo en el flujo de share; el locale del
+login viaja por whitelist). DB en memoria inyectada en db._db, mismo patrón que
+test_trim_corpus.py."""
 
 import asyncio
 
@@ -8,6 +10,7 @@ import aiosqlite
 import pytest
 
 import db
+import webapi
 
 _GUILD = 1
 
@@ -96,3 +99,59 @@ def test_count_corpus_by_channel_orders_desc(memory_db):
         ]
 
     asyncio.run(run())
+
+
+# ---------------- Flujo de entrada al panel ----------------
+#
+# El selector viejo (/servers) dejó de ser la entrada: la landing y el
+# post-login mandan a /es/perfil. /servers sobrevive solo para /share/{id},
+# que necesita elegir servidor antes de abrir el editor de embeds.
+
+
+class _FakeRequest:
+    def __init__(self, query=None):
+        self.query = query or {}
+
+
+def test_servers_redirects_to_perfil_without_share():
+    with pytest.raises(webapi.web.HTTPFound) as exc:
+        asyncio.run(webapi._servers_page(_FakeRequest()))
+    assert exc.value.location == "/es/perfil"
+
+
+def test_servers_keeps_selector_for_share_flow(monkeypatch):
+    async def fake_get_session(request):
+        return {"username": "fram", "avatar_url": "a"}
+
+    monkeypatch.setattr(webapi, "get_session", fake_get_session)
+    resp = asyncio.run(webapi._servers_page(_FakeRequest({"share": "abc12345"})))
+    assert resp.status == 200
+    assert "selector-page" in resp.text
+
+
+# El locale del login viaja por whitelist, igual que ?from=landing: un valor
+# arbitrario nunca debe convertirse en destino del redirect (open redirect).
+
+
+def _run_login(monkeypatch, query):
+    session = {}
+
+    async def fake_get_session(request):
+        return session
+
+    monkeypatch.setattr(webapi, "get_session", fake_get_session)
+    with pytest.raises(webapi.web.HTTPFound):
+        asyncio.run(webapi._auth_login(_FakeRequest(query)))
+    return session
+
+
+def test_login_stores_whitelisted_locale(monkeypatch):
+    session = _run_login(monkeypatch, {"from": "landing", "locale": "de"})
+    assert session["post_login_locale"] == "de"
+
+
+def test_login_rejects_arbitrary_locale(monkeypatch):
+    session = _run_login(
+        monkeypatch, {"from": "landing", "locale": "https://evil.com"}
+    )
+    assert session["post_login_locale"] == ""

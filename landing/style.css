@@ -129,6 +129,8 @@ code { font-family: var(--font-mono); }
 }
 .btn-lg { font-size: 1.05rem; padding: 0.95rem 1.9rem; }
 .nav-cta { padding: 0.6rem 1.1rem; font-size: 0.9rem; }
+/* Entrada al panel, mismo tamaño compacto que el resto de acciones del nav. */
+.nav-dash { padding: 0.6rem 1.1rem; font-size: 0.9rem; }
 
 /* ── auth en el nav (login / avatar + dropdown) ──────── */
 .nav-right {
@@ -665,6 +667,9 @@ code { font-family: var(--font-mono); }
   .nav-right { gap: 0.5rem; }
   /* Nav angosto: el pill queda avatar + chevron; el nombre vive en el menú. */
   .auth-name { display: none; }
+  /* El acceso al panel sobrevive en el menú de perfil (logueado) o tras el
+     login (anónimo): en móvil no compite por espacio con el CTA. */
+  .nav-dash { display: none; }
   .btn-login { padding: 0.55rem 0.75rem; font-size: 0.82rem; }
   .wordmark span { font-size: 1.05rem; }
   .ticker { min-height: 4.2rem; }

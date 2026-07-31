@@ -10,7 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css">
+  <!-- Rutas absolutas: la misma página se sirve en / y bajo prefijo de idioma
+       (purgito.app/es), donde las rutas relativas resolverían a /es/style.css. -->
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
@@ -31,6 +33,9 @@
       <span>Purgito</span>
     </a>
     <div class="nav-right">
+      <!-- Entrada al panel. El href trae el idioma por defecto; script.js lo
+           reescribe al locale del path (purgito.app/es → /es/perfil). -->
+      <a class="btn btn-secondary nav-dash" id="nav-dash" href="https://panel.purgito.app/es/perfil">Dashboard</a>
       <!-- Estado de sesión: lo inyecta script.js ya resuelto (login o avatar),
            nunca se renderiza un estado provisorio que luego cambie de golpe. -->
       <div id="auth-slot" class="auth-slot"></div>
@@ -73,14 +78,14 @@
             </div>
           </div>
           <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
+            <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
             <div class="dm-body">
               <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 21:46</span></div>
               <p class="dm-text">posiblemente tengan razón o posiblemente yo esté</p>
             </div>
           </div>
           <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
+            <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
             <div class="dm-body">
               <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 21:47</span></div>
               <div class="dm-embed">
@@ -118,7 +123,7 @@
                 </div>
               </div>
               <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
+                <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
                 <div class="dm-body">
                   <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 14:20</span></div>
                   <p class="dm-text">al final terminamos hablando de cualquier cosa menos del</p>
@@ -138,7 +143,7 @@
             <div class="window-frame">
               <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
               <div class="shot" data-file="landing/assets/panel-embeds.png">
-                <img src="assets/panel-embeds.png" alt="Editor de embeds en el panel de Purgito" onerror="this.parentElement.classList.add('missing');this.remove()">
+                <img src="/assets/panel-embeds.png" alt="Editor de embeds en el panel de Purgito" onerror="this.parentElement.classList.add('missing');this.remove()">
               </div>
             </div>
           </div>
@@ -160,11 +165,11 @@
                 </div>
               </div>
               <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
+                <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
                 <div class="dm-body">
                   <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 18:02</span></div>
                   <div class="dm-attach shot" data-file="landing/assets/meme-demo.png">
-                    <img src="assets/meme-demo.png" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
+                    <img src="/assets/meme-demo.png" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
                   </div>
                 </div>
               </div>
@@ -188,11 +193,11 @@
                 </div>
               </div>
               <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
+                <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
                 <div class="dm-body">
                   <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 23:11</span></div>
                   <div class="dm-attach shot" data-file="landing/assets/gif-demo.gif">
-                    <img src="assets/gif-demo.gif" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
+                    <img src="/assets/gif-demo.gif" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
                   </div>
                 </div>
               </div>
@@ -302,7 +307,7 @@
       </div>
 
       <p class="premium-cta">
-        <a class="btn btn-secondary" href="https://panel.purgito.app">Activar Premium en el panel</a>
+        <a class="btn btn-secondary" href="https://panel.purgito.app/es/perfil">Activar Premium en el panel</a>
       </p>
       <p class="premium-note">El premium queda asociado al servidor, no a tu cuenta. Se activa desde el panel.</p>
     </section>
@@ -327,6 +332,6 @@
     <span class="footer-note">Código abierto · Licencia MIT</span>
   </footer>
 
-  <script src="script.js"></script>
+  <script src="/script.js"></script>
 </body>
 </html>
