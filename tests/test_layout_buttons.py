@@ -12,7 +12,6 @@ import discord
 import pytest
 
 import db
-import webapi
 from cogs.layout_buttons import LayoutButtons, register_button_actions
 
 
@@ -66,24 +65,6 @@ def test_cog_load_skips_malformed_action_data(memory_db):
     view = bot.add_view.call_args.args[0]
     assert len(view.children) == 1
     assert view.children[0].custom_id == "purgito_role_toggle_ok"
-
-
-def test_register_role_buttons_persists_and_registers_live(memory_db):
-    bot = MagicMock()
-    bot.add_view = MagicMock()
-    assignments = [{"custom_id": "purgito_role_toggle_abc", "role_id": 7}]
-    asyncio.run(webapi._register_role_buttons(bot, 42, assignments))
-    row = asyncio.run(db.get_button_action("purgito_role_toggle_abc"))
-    assert row["guild_id"] == 42
-    assert json.loads(row["action_data"])["role_id"] == 7
-    bot.add_view.assert_called_once()
-
-
-def test_register_role_buttons_noop_when_no_assignments(memory_db):
-    bot = MagicMock()
-    bot.add_view = MagicMock()
-    asyncio.run(webapi._register_role_buttons(bot, 42, []))
-    bot.add_view.assert_not_called()
 
 
 def test_purge_guild_data_removes_button_actions(memory_db):

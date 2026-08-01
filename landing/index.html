@@ -1,337 +1,382 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Purgito — el bot que aprende cómo habla tu servidor</title>
-  <meta name="description" content="Bot de Discord con chat que imita el estilo de tu comunidad, memes generados con IA, galería de GIFs, música y avisos de YouTube.">
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-
-  <!-- Rutas absolutas: la misma página se sirve en / y bajo prefijo de idioma
-       (purgito.app/es), donde las rutas relativas resolverían a /es/style.css. -->
-  <link rel="stylesheet" href="/style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Purgito — Un bot que imita tu comunidad</title>
+<meta name="description" content="Purgito aprende del humor de tu servidor de Discord — mensajes, gifs — y responde imitando su estilo. Gratis para siempre.">
+<meta name="theme-color" content="#13c4d8">
+<link rel="icon" href="/assets/icon.png">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-  <!-- ── NAV ─────────────────────────────────────────── -->
-  <nav class="nav">
-    <a class="wordmark" href="#top">
-      <svg class="wordmark-mark" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
-        <rect x="1" y="1" width="24" height="24" rx="7" fill="url(#g)"></rect>
-        <path d="M7 9.5 L11 13 L7 16.5" fill="none" stroke="#0B0C10" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-        <line x1="13" y1="17" x2="19" y2="17" stroke="#0B0C10" stroke-width="2.2" stroke-linecap="round"></line>
-        <defs>
-          <linearGradient id="g" x1="0" y1="0" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#8B6EF5"></stop>
-            <stop offset="1" stop-color="#FF3D7F"></stop>
-          </linearGradient>
-        </defs>
-      </svg>
-      <span>Purgito</span>
+<!-- El gradiente del hero vive detrás de todo: el navbar flota encima. -->
+<div id="bg" aria-hidden="true"></div>
+
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<!-- ── NAVBAR ────────────────────────────────────────────── -->
+<nav class="nav" id="top">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/es/" aria-label="Purgito, ir al inicio">
+      <img class="nav-logo" src="/assets/icon.png" alt="" onerror="this.remove()">
+      <span class="nav-brand-name">Purgito</span>
     </a>
+
+    <span class="nav-sep" aria-hidden="true"></span>
+
+    <a class="nav-topgg" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener" aria-label="Purgito en top.gg">
+      <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+        <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+        <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+      </svg>
+      <span>.gg</span>
+    </a>
+
+    <div class="nav-links">
+      <a class="nav-link" href="/es/docs">Documentación</a>
+      <a class="nav-link" href="/es/premium">Premium</a>
+    </div>
+
     <div class="nav-right">
-      <!-- Entrada al panel. El href trae el idioma por defecto; script.js lo
-           reescribe al locale del path (purgito.app/es → /es/perfil). -->
-      <a class="btn btn-secondary nav-dash" id="nav-dash" href="https://panel.purgito.app/es/perfil">Dashboard</a>
-      <!-- Estado de sesión: lo inyecta script.js ya resuelto (login o avatar),
-           nunca se renderiza un estado provisorio que luego cambie de golpe. -->
+      <!-- Selector de idioma: el prefijo del path cambia con la elección. -->
+      <div class="lang" data-lang-picker>
+        <button type="button" class="lang-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="lang-code" data-lang-code>ES</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="lang-menu" role="menu" hidden>
+          <a class="lang-item" role="menuitemradio" href="/es/" data-lang="es"><span class="radio" aria-hidden="true"></span>Español</a>
+          <a class="lang-item" role="menuitemradio" href="/en/" data-lang="en"><span class="radio" aria-hidden="true"></span>English</a>
+          <a class="lang-item" role="menuitemradio" href="/ru/" data-lang="ru"><span class="radio" aria-hidden="true"></span>Русский</a>
+          <a class="lang-item" role="menuitemradio" href="/ja/" data-lang="ja"><span class="radio" aria-hidden="true"></span>日本語</a>
+          <a class="lang-item" role="menuitemradio" href="/de/" data-lang="de"><span class="radio" aria-hidden="true"></span>Deutsch</a>
+        </div>
+      </div>
+
+      <a class="nav-link nav-dash" id="nav-dash" href="#">Dashboard</a>
+
+      <!-- Slot de sesión: arranca vacío y se rellena ya resuelto (sin parpadeo). -->
       <div id="auth-slot" class="auth-slot"></div>
-      <a class="btn btn-primary nav-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920&permissions=414539926720&scope=bot%20applications.commands">
-        Añadir a Discord
-      </a>
     </div>
-  </nav>
+  </div>
+</nav>
 
-  <!-- ── HERO ────────────────────────────────────────── -->
-  <header class="hero" id="top">
-    <div class="hero-inner">
-      <div class="hero-copy">
-        <h1 class="hero-title">Purgito lee tu servidor y responde como uno más del grupo.</h1>
-        <p class="hero-sub">
-          Un bot de Discord con chat que aprende el estilo de tu comunidad y le contesta
-          igual de raro. De paso genera memes con las imágenes que ustedes suben, guarda GIFs,
-          pone música y avisa cuando sale un video nuevo en YouTube.
-        </p>
+<!-- ── HERO ──────────────────────────────────────────────── -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <h1 class="hero-title">Un bot que<br>imita tu comunidad</h1>
+      <p class="hero-sub">Aprende del humor de tu servidor — mensajes, gifs</p>
 
-        <!-- Ticker: elemento firma -->
-        <div class="ticker" role="img" aria-label="Ejemplos de frases generadas por el bot">
-          <span class="ticker-prompt">&gt;&nbsp;</span><span class="ticker-text" id="ticker-text"></span><span class="ticker-cursor" id="ticker-cursor">▌</span>
-        </div>
-
-        <a class="btn btn-primary btn-lg" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920&permissions=414539926720&scope=bot%20applications.commands">
-          Añadir a Discord
+      <div class="hero-actions">
+        <a class="btn btn-accent" href="/es/invitar">Invitar a Purgito</a>
+        <a class="btn" href="https://discord.gg/purgito" target="_blank" rel="noopener">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+          Servidor de soporte
         </a>
-        <p class="hero-note">Gratis. Sin tarjeta. Lo configuras en un par de minutos.</p>
       </div>
 
-      <!-- Mockup decorativo: la copy del hero ya cuenta lo mismo -->
-      <div class="hero-visual" aria-hidden="true">
-        <div class="discord-mock hero-mock">
-          <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-u1">L</span>
-            <div class="dm-body">
-              <div class="dm-meta"><span class="dm-name">lore</span><span class="dm-time">hoy a las 21:46</span></div>
-              <p class="dm-text">purgito y tú qué opinas de todo esto</p>
-            </div>
-          </div>
-          <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-            <div class="dm-body">
-              <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 21:46</span></div>
-              <p class="dm-text">posiblemente tengan razón o posiblemente yo esté</p>
-            </div>
-          </div>
-          <div class="dm-msg">
-            <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-            <div class="dm-body">
-              <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 21:47</span></div>
-              <div class="dm-embed">
-                <p class="dm-embed-title">Video nuevo en el canal</p>
-                <p class="dm-embed-desc">«mi setup definitivo (ahora sí)» — se acaba de subir</p>
-              </div>
-            </div>
-          </div>
+      <p class="hero-hint">Invítalo <svg class="hint-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c5-1 9-5 13-11M17 5h3v3"/></svg></p>
+    </div>
+
+    <!-- Elemento decorativo: sin diseño en el boceto, armado a mano. -->
+    <div class="hero-deco" aria-hidden="true">
+      <svg viewBox="0 0 420 320" class="deco-svg">
+        <defs>
+          <radialGradient id="dg1" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity=".55"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="dg2" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="var(--accent-2)" stop-opacity=".45"/>
+            <stop offset="100%" stop-color="var(--accent-2)" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle class="deco-blob" cx="250" cy="130" r="120" fill="url(#dg1)"/>
+        <circle class="deco-blob deco-blob-b" cx="140" cy="200" r="105" fill="url(#dg2)"/>
+        <circle class="deco-ring" cx="210" cy="160" r="118" fill="none" stroke="var(--accent)" stroke-opacity=".28" stroke-width="1.5" stroke-dasharray="3 9"/>
+        <circle class="deco-ring deco-ring-b" cx="210" cy="160" r="86" fill="none" stroke="var(--accent-soft)" stroke-opacity=".2" stroke-width="1" stroke-dasharray="2 14"/>
+        <g class="deco-spark" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-opacity=".85">
+          <path d="M330 62v22M319 73h22"/>
+          <path d="M96 96v14M89 103h14"/>
+          <path d="M300 246v16M292 254h16"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Terminal: componente firma que ya existía, reutilizado tal cual. -->
+  <div class="wrap">
+    <div class="ticker" role="img" aria-label="Ejemplos de frases generadas por el bot">
+      <span class="ticker-prompt">&gt;&nbsp;</span><span class="ticker-text" id="ticker-text"></span><span class="ticker-cursor" id="ticker-cursor">▌</span>
+    </div>
+  </div>
+</header>
+
+<main id="contenido">
+
+  <!-- ── FEATURES ────────────────────────────────────────── -->
+  <section class="wrap features">
+
+    <article class="box feat reveal">
+      <div class="feat-copy">
+        <h2 class="h2">Interactúa con Purgito</h2>
+        <span class="badge">Gratis para siempre</span>
+        <p class="feat-text">
+          Analiza los mensajes de los canales habilitados y responde imitando el estilo de
+          tu comunidad. Sin traducción ni interpretación — aprende directamente del
+          patrón del texto.
+        </p>
+        <div class="feat-actions">
+          <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
         </div>
+      </div>
+
+      <div class="feat-media">
+        <figure class="shot shot-tilt">
+          <img src="/assets/purgito-comando-help.png" alt="El comando /help de Purgito en Discord" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <!-- Sin asset todavía: dos placeholders con la misma caja que las shots. -->
+      <div class="feat-minis">
+        <figure class="shot shot-ph shot-tilt-l">
+          <span>gif de Purgito respondiendo con un gif</span>
+        </figure>
+        <figure class="shot shot-ph shot-tilt-r">
+          <span>gif de Purgito respondiendo con un mensaje</span>
+        </figure>
+      </div>
+    </article>
+
+    <article class="box feat feat-flip reveal">
+      <div class="feat-copy">
+        <h2 class="h2">Editor de Embeds</h2>
+        <span class="badge">Gratis para siempre</span>
+        <p class="feat-text">
+          Diseña embeds y mensajes con botones interactivos —incluyendo botones que asignan
+          roles— con vista previa en tiempo real. Cada diseño queda guardado como plantilla, lista
+          para reutilizar cuando quieras.
+        </p>
+        <div class="feat-actions">
+          <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+          <a class="btn btn-sm dash-link" href="#">Dashboard</a>
+        </div>
+      </div>
+      <div class="feat-media">
+        <figure class="shot shot-tilt-l">
+          <img src="/assets/editor-embeds.png" alt="Editor de embeds con vista previa en tiempo real" loading="lazy" decoding="async">
+        </figure>
+      </div>
+    </article>
+
+    <article class="box feat reveal">
+      <div class="feat-copy">
+        <h2 class="h2">Galería de gifs</h2>
+        <span class="badge">Gratis para siempre</span>
+        <p class="feat-text">
+          Cada servidor arma su propia colección guardando los GIFs que se van compartiendo
+          en los canales. Se administra desde una galería web, sin comandos ni tener que buscar el
+          mensaje original.
+        </p>
+        <div class="feat-actions">
+          <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+          <a class="btn btn-sm dash-link" href="#">Dashboard</a>
+        </div>
+      </div>
+      <div class="feat-media">
+        <figure class="shot shot-tilt">
+          <img src="/assets/galeria-gifs.png" alt="Galería web de GIFs guardados del servidor" loading="lazy" decoding="async">
+        </figure>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ── FAQ ─────────────────────────────────────────────── -->
+  <section class="wrap faq" aria-label="Preguntas frecuentes">
+
+    <details class="q">
+      <summary>Cómo invito a Purgito a mi servidor?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <ol>
+          <li>Asegúrate de tener el permiso "Gestionar servidor" (Manage Server) en el servidor donde quieres invitar a Purgito.</li>
+          <li>Haz clic en "Invitar a Purgito" (arriba en esta página).</li>
+          <li>Selecciona tu servidor y dale a "Continuar".</li>
+          <li>No desmarques ningún permiso y dale a "Autorizar".</li>
+        </ol>
+        <p>Listo — ya deberías ver tu servidor en el Dashboard (panel.purgito.app).</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Cómo cancelo o gestiono mi suscripción?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          El pago se procesa a través de Polar, nuestro proveedor de pagos (Merchant of Record) — la
+          gestión de la suscripción ocurre ahí, no en este panel. Al suscribirte, Polar te envía un correo de
+          confirmación con acceso a tu portal de cliente. Desde ese portal puedes cancelar la suscripción,
+          cambiar de plan entre mensual y anual, o consultar tus recibos, en el momento que lo necesites. Si no
+          encuentras el correo, revisa las carpetas de spam o promociones.
+        </p>
+        <p>
+          Si cancelas, el acceso Premium se mantiene activo hasta el final del período ya pagado. Después de
+          esa fecha, la suscripción no se renueva y el servidor pasa automáticamente al plan gratuito.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Donar en Ko-fi me da algo dentro del bot?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          No — donar en Ko-fi es un apoyo directo y voluntario al desarrollo de Purgito, sin ningún beneficio
+          dentro del bot ni del servidor. Si buscas desbloquear funciones (memes automáticos, más capacidad de
+          memoria, GIFs, etc.), eso se activa con Premium, no con una donación en Ko-fi.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Purgito entiende cualquier idioma?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          Sí — Purgito no traduce ni interpreta el idioma, aprende directamente el patrón del texto que lee.
+          Funciona igual en español, inglés o cualquier mezcla que se hable en tu servidor, sin que tengas que
+          configurar nada.
+        </p>
+        <figure class="shot shot-ph faq-ph">
+          <span>gif de Purgito enviando mensajes en varios idiomas</span>
+        </figure>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary>Purgito es de código abierto?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          Sí, con una condición. El código de Purgito está publicado en GitHub bajo licencia MIT — puedes verlo,
+          estudiarlo, modificarlo y hasta levantar tu propia instancia para uso personal o de tu servidor, todo
+          gratis y sin pedir permiso. La única restricción, agregada con la llamada "Commons Clause", es que no
+          puedes vender el software ni cobrar por un servicio cuyo valor dependa en gran parte de él — por
+          ejemplo, tomar este código para montar tu propio bot de pago o cobrar por alojarlo a terceros. Fuera de
+          esa restricción puntual, es código abierto de verdad.
+        </p>
+      </div>
+    </details>
+
+  </section>
+
+  <!-- ── CTA FINAL ───────────────────────────────────────── -->
+  <section class="wrap">
+    <div class="box cta">
+      <h2 class="h2 cta-title">Pruébalo</h2>
+      <div class="cta-actions">
+        <a class="btn btn-accent btn-lg" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito</a>
+        <a class="btn btn-lg dash-link" href="#">Dashboard <svg class="i arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-5-6 6 6-6 6"/></svg></a>
       </div>
     </div>
-  </header>
+  </section>
 
-  <main>
-    <!-- ── FEATURES ──────────────────────────────────── -->
-    <section class="section features" aria-labelledby="features-title">
-      <h2 class="section-title" id="features-title">Qué hace</h2>
+</main>
 
-      <!-- Showcase: las 4 features principales con demo visual -->
-      <div class="showcase">
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="wrap box foot-inner">
 
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title">Chat que aprende</h3>
-            <p class="card-tag">cadenas de Markov</p>
-            <p class="card-text">Lee los mensajes de los canales que le permitas y arma respuestas imitando cómo escribe tu server. Cada comunidad suena distinta.</p>
-          </div>
-          <div class="show-visual">
-            <div class="discord-mock" aria-hidden="true">
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-u2">M</span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">mika</span><span class="dm-time">hoy a las 14:20</span></div>
-                  <p class="dm-text">alguien me explica qué pasó anoche</p>
-                </div>
-              </div>
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 14:20</span></div>
-                  <p class="dm-text">al final terminamos hablando de cualquier cosa menos del</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title">Editor de embeds</h3>
-            <p class="card-tag">sin código, desde el panel</p>
-            <p class="card-text">Arma embeds y mensajes con botones interactivos —incluyendo botones que asignan roles— con preview en vivo y plantillas guardables.</p>
-          </div>
-          <div class="show-visual">
-            <div class="window-frame">
-              <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
-              <div class="shot" data-file="landing/assets/panel-embeds.png">
-                <img src="/assets/panel-embeds.png" alt="Editor de embeds en el panel de Purgito" onerror="this.parentElement.classList.add('missing');this.remove()">
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title"><code>/momo</code> y <code>/meme</code></h3>
-            <p class="card-tag">caption por IA</p>
-            <p class="card-text">Toma imágenes que la comunidad va guardando y les pone un caption generado por IA. Memes hechos con el material del propio server.</p>
-          </div>
-          <div class="show-visual">
-            <div class="discord-mock" aria-hidden="true">
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-u1">R</span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">rex</span><span class="dm-time">hoy a las 18:02</span></div>
-                  <p class="dm-text"><span class="dm-cmd">/momo</span></p>
-                </div>
-              </div>
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 18:02</span></div>
-                  <div class="dm-attach shot" data-file="landing/assets/meme-demo.png">
-                    <img src="/assets/meme-demo.png" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="show-row reveal">
-          <div class="show-copy">
-            <h3 class="show-title">Galería de GIFs</h3>
-            <p class="card-tag">una por servidor</p>
-            <p class="card-text">Cada servidor arma su propia colección de GIFs, con una galería web para verlos y administrarlos sin salir del navegador.</p>
-          </div>
-          <div class="show-visual">
-            <div class="discord-mock" aria-hidden="true">
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-u2">S</span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">sol</span><span class="dm-time">hoy a las 23:11</span></div>
-                  <p class="dm-text">manden el del gato por favor</p>
-                </div>
-              </div>
-              <div class="dm-msg">
-                <span class="dm-avatar dm-avatar-bot"><img src="/assets/bot-avatar.png" alt="" onerror="this.remove()"></span>
-                <div class="dm-body">
-                  <div class="dm-meta"><span class="dm-name">Purgito</span><span class="dm-badge">BOT</span><span class="dm-time">hoy a las 23:11</span></div>
-                  <div class="dm-attach shot" data-file="landing/assets/gif-demo.gif">
-                    <img src="/assets/gif-demo.gif" alt="" onerror="this.parentElement.classList.add('missing');this.remove()">
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </article>
-
-      </div>
-
-      <div class="feature-grid">
-
-        <article class="card">
-          <div class="card-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2.5 17a24 24 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49 49 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24 24 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49 49 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path>
-              <path d="m10 15 5-3-5-3z"></path>
-            </svg>
-          </div>
-          <h3 class="card-title">Avisos de YouTube</h3>
-          <p class="card-tag">video nuevo</p>
-          <p class="card-text">Sigue los canales que elijas y manda un mensaje al servidor apenas suben un video, con mención de rol opcional.</p>
-        </article>
-
-        <article class="card">
-          <div class="card-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9"></circle>
-              <path d="M12 7v5l3 2"></path>
-            </svg>
-          </div>
-          <h3 class="card-title">Anuncios programados</h3>
-          <p class="card-tag">a la hora que quieras</p>
-          <p class="card-text">Deja mensajes automáticos que salen a una hora fija o cada cierto intervalo. Útil para recordatorios y rutinas del server.</p>
-        </article>
-
-        <article class="card">
-          <div class="card-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
-          </div>
-          <h3 class="card-title">Música</h3>
-          <p class="card-tag">YouTube · SoundCloud</p>
-          <p class="card-text">Reproduce en el canal de voz desde YouTube o SoundCloud. Pega una URL o busca por nombre y artista.</p>
-        </article>
-
-      </div>
-    </section>
-
-    <!-- ── PREMIUM ───────────────────────────────────── -->
-    <section class="section premium" aria-labelledby="premium-title">
-      <h2 class="section-title" id="premium-title">Free y Premium</h2>
-      <p class="section-sub">Todo lo de arriba funciona gratis. Premium sube los límites y desbloquea los memes automáticos.</p>
-
-      <div class="table-wrap">
-        <table class="compare">
-          <thead>
-            <tr>
-              <th scope="col" class="th-feature">Función</th>
-              <th scope="col">Free</th>
-              <th scope="col" class="th-premium">Premium</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Memes automáticos programados</th>
-              <td class="no">—</td>
-              <td class="yes">Sí</td>
-            </tr>
-            <tr>
-              <th scope="row">Mensajes en memoria (corpus)</th>
-              <td>15.000</td>
-              <td class="hl">50.000</td>
-            </tr>
-            <tr>
-              <th scope="row">Mensajes por usuario en memoria</th>
-              <td>2.000</td>
-              <td class="hl">8.000</td>
-            </tr>
-            <tr>
-              <th scope="row">GIFs guardados</th>
-              <td>1.500</td>
-              <td class="hl">4.000</td>
-            </tr>
-            <tr>
-              <th scope="row">Imágenes para memes</th>
-              <td>75</td>
-              <td class="hl">200</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="price-row">
-        <div class="price-card">
-          <p class="price-plan">Mensual</p>
-          <p class="price-amount">$4.99<span>/mes</span></p>
-          <p class="price-trial">7 días de prueba gratis</p>
+    <div class="foot-cols">
+      <div class="foot-brand">
+        <div class="foot-name">
+          <img class="nav-logo" src="/assets/icon.png" alt="" onerror="this.remove()">
+          <span>Purgito Bot</span>
         </div>
-        <div class="price-card">
-          <p class="price-plan">Anual</p>
-          <p class="price-amount">$39.99<span>/año</span></p>
-          <p class="price-trial">dos meses menos que pagar mes a mes</p>
+
+        <div class="foot-social">
+          <a href="https://discord.gg/purgito" target="_blank" rel="noopener" aria-label="Discord">
+            <svg class="i" viewBox="0 0 24 24"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+          </a>
+          <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+          </a>
+          <a href="https://ko-fi.com/punkyyy01" target="_blank" rel="noopener" aria-label="Ko-fi">
+            <svg class="i" viewBox="0 0 24 24"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+          </a>
         </div>
+
+        <p class="foot-by">
+          Hecho por
+          <a class="chip" href="https://github.com/punkyyy01" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+            punkyyy01
+          </a>
+        </p>
       </div>
 
-      <p class="premium-cta">
-        <a class="btn btn-secondary" href="https://panel.purgito.app/es/perfil">Activar Premium en el panel</a>
-      </p>
-      <p class="premium-note">El premium queda asociado al servidor, no a tu cuenta. Se activa desde el panel.</p>
-    </section>
+      <nav class="foot-col" aria-label="Recursos">
+        <h3>Recursos</h3>
+        <a href="/es/docs">Documentación</a>
+        <a href="/es/estado">Estado</a>
+        <a href="/es/guia">Guía</a>
+      </nav>
 
-    <!-- ── CTA FINAL ─────────────────────────────────── -->
-    <section class="section final-cta" aria-labelledby="final-title">
-      <h2 class="section-title" id="final-title">Súmalo y deja que aprenda</h2>
-      <p class="section-sub">Mientras más lee tu servidor, más suena como ustedes.</p>
-      <a class="btn btn-primary btn-lg" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920&permissions=414539926720&scope=bot%20applications.commands">
-        Añadir a Discord
-      </a>
-    </section>
-  </main>
+      <nav class="foot-col" aria-label="Purgito">
+        <h3>Purgito</h3>
+        <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener">Código</a>
+        <a href="https://discord.gg/purgito" target="_blank" rel="noopener">Soporte</a>
+      </nav>
 
-  <!-- ── FOOTER ──────────────────────────────────────── -->
-  <footer class="footer">
-    <span class="footer-brand">Purgito</span>
-    <nav class="footer-links" aria-label="Legal">
-      <a href="https://panel.purgito.app/terms">Términos</a>
-      <a href="https://panel.purgito.app/privacy">Privacidad</a>
-    </nav>
-    <span class="footer-note">Código abierto · Licencia MIT</span>
-  </footer>
+      <nav class="foot-col" aria-label="Legal">
+        <h3>Legal</h3>
+        <a href="/terms">Términos</a>
+        <a href="/privacy">Privacidad</a>
+        <a href="/es/reembolsos">Reembolsos</a>
+      </nav>
+    </div>
 
-  <script src="/script.js"></script>
+    <hr class="foot-rule">
+
+    <div class="foot-bottom">
+      <div class="foot-actions">
+        <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+        <a class="btn btn-sm" href="https://top.gg/bot/1471724794411089920/vote" target="_blank" rel="noopener">
+          <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M2 6h9v4H7.5v6H2z"></path>
+            <path fill="currentColor" d="M11 6h11v4h-7v3h-4z" opacity=".6"></path>
+          </svg>
+          Votar
+        </a>
+      </div>
+
+      <div class="foot-end">
+        <!-- Selector de idioma duplicado, mismo comportamiento que el del navbar. -->
+        <div class="lang lang-up" data-lang-picker>
+          <button type="button" class="lang-btn" aria-haspopup="true" aria-expanded="false">
+            <span class="lang-code" data-lang-code>ES</span>
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="lang-menu" role="menu" hidden>
+            <a class="lang-item" role="menuitemradio" href="/es/" data-lang="es"><span class="radio" aria-hidden="true"></span>Español</a>
+            <a class="lang-item" role="menuitemradio" href="/en/" data-lang="en"><span class="radio" aria-hidden="true"></span>English</a>
+            <a class="lang-item" role="menuitemradio" href="/ru/" data-lang="ru"><span class="radio" aria-hidden="true"></span>Русский</a>
+            <a class="lang-item" role="menuitemradio" href="/ja/" data-lang="ja"><span class="radio" aria-hidden="true"></span>日本語</a>
+            <a class="lang-item" role="menuitemradio" href="/de/" data-lang="de"><span class="radio" aria-hidden="true"></span>Deutsch</a>
+          </div>
+        </div>
+
+        <a class="to-top" href="#top" aria-label="Volver arriba">
+          <svg class="i" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg>
+        </a>
+
+        <p class="foot-copy">© Purgito 2026 · No afiliado con Discord Inc.</p>
+      </div>
+    </div>
+
+  </div>
+</footer>
+
+<script src="/script.js"></script>
 </body>
 </html>

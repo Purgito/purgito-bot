@@ -1,4 +1,4 @@
-"""Tests del editor de embeds: validate_embed_payload (webapi.py), CRUD de
+"""Tests del editor de embeds: validate_embed_payload (embeds_core.py), CRUD de
 embed_templates con límite free y chequeo de propiedad por guild_id (IDOR), y
 la rama embed_json vs texto plano en el envío de anuncios programados. Usa una
 DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db."""
@@ -19,7 +19,7 @@ from layout_v2 import (
     build_layout_view,
     validate_layout_v2_payload,
 )
-from webapi import validate_embed_payload, validate_embeds_payload
+from embeds_core import validate_embed_payload, validate_embeds_payload
 
 
 @pytest.fixture

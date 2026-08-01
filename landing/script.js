@@ -1,6 +1,37 @@
 'use strict';
 
-/* Ticker del hero: frases cortas que parodian a un bot de Markov de primer
+/* Homepage de purgito.app — vainilla, sin dependencias.
+   Cuatro bloques independientes: si uno falla, los otros siguen andando. */
+
+var LANGS = ['es', 'en', 'ru', 'ja', 'de'];
+
+/* Idioma del path (purgito.app/es/…); si la landing se sirve sin prefijo,
+   cae al idioma del navegador y por último a español. */
+function locale() {
+  var seg = location.pathname.split('/')[1];
+  if (LANGS.indexOf(seg) !== -1) return seg;
+  var nav = (navigator.language || 'es').slice(0, 2).toLowerCase();
+  return LANGS.indexOf(nav) !== -1 ? nav : 'es';
+}
+
+/* Abre/cierra un popover: click afuera y Escape lo cierran. Lo comparten el
+   selector de idioma y el menú de perfil. */
+function popover(btn, menu, container) {
+  function setOpen(open) {
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  }
+  btn.addEventListener('click', function () { setOpen(menu.hidden); });
+  document.addEventListener('click', function (e) {
+    if (!menu.hidden && !container.contains(e.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !menu.hidden) { setOpen(false); btn.focus(); }
+  });
+  return setOpen;
+}
+
+/* ── Ticker del hero: frases cortas que parodian a un bot de Markov de primer
    orden entrenado en chat de Discord. Tipeo + glitch corto, vainilla, sin
    librerías. Respeta prefers-reduced-motion (cambio directo, sin animación). */
 
@@ -71,29 +102,51 @@
   }
 })();
 
-/* Estado de sesión en el nav: consulta la sesión compartida con el panel y
+/* ── Selector de idioma (navbar y footer). El código visible sale del idioma
+   activo y cada enlace reescribe solo el prefijo del path, conservando el
+   resto de la ruta. */
+
+(function () {
+  var current = locale();
+  var seg = location.pathname.split('/')[1];
+  // Si el path ya venía con prefijo, el resto es lo que sigue; si no, todo.
+  var rest = LANGS.indexOf(seg) !== -1
+    ? location.pathname.slice(seg.length + 1)
+    : location.pathname;
+
+  document.querySelectorAll('[data-lang-picker]').forEach(function (picker) {
+    var btn = picker.querySelector('.lang-btn');
+    var menu = picker.querySelector('.lang-menu');
+    if (!btn || !menu) return;
+
+    var code = picker.querySelector('[data-lang-code]');
+    if (code) code.textContent = current.toUpperCase();
+
+    menu.querySelectorAll('.lang-item').forEach(function (item) {
+      var lang = item.dataset.lang;
+      item.href = '/' + lang + (rest || '/') + location.search + location.hash;
+      item.setAttribute('aria-checked', String(lang === current));
+    });
+
+    popover(btn, menu, picker);
+  });
+})();
+
+/* ── Estado de sesión en el nav: consulta la sesión compartida con el panel y
    renderiza login o avatar+dropdown. El slot arranca vacío y aparece ya
    resuelto (sin parpadeo). Cualquier fallo del fetch degrada en silencio al
    botón de login — nunca un error visible ni romper el resto de la página. */
 
 (function () {
   var PANEL = 'https://panel.purgito.app';
-  var LANGS = ['es', 'en', 'ru', 'ja', 'de'];
-
-  // Idioma del path (purgito.app/es/…); si la landing se sirve sin prefijo,
-  // cae al idioma del navegador y por último a español.
-  function locale() {
-    var seg = location.pathname.split('/')[1];
-    if (LANGS.indexOf(seg) !== -1) return seg;
-    var nav = (navigator.language || 'es').slice(0, 2).toLowerCase();
-    return LANGS.indexOf(nav) !== -1 ? nav : 'es';
-  }
+  var LOC = locale();
 
   // Entrada al panel: la lista de servidores del perfil, no el selector viejo.
-  var DASHBOARD = PANEL + '/' + locale() + '/perfil';
+  var DASHBOARD = PANEL + '/' + LOC + '/perfil';
 
-  var navDash = document.getElementById('nav-dash');
-  if (navDash) navDash.href = DASHBOARD;
+  document.querySelectorAll('#nav-dash, .dash-link').forEach(function (a) {
+    a.href = DASHBOARD;
+  });
 
   var slot = document.getElementById('auth-slot');
   if (!slot) return;
@@ -102,8 +155,10 @@
     var a = document.createElement('a');
     a.className = 'btn btn-login';
     // El locale viaja para volver a purgito.app/es tras el callback, no a la raíz.
-    a.href = PANEL + '/auth/login?from=landing&locale=' + locale();
-    a.textContent = 'Iniciar sesión con Discord';
+    a.href = PANEL + '/auth/login?from=landing&locale=' + LOC;
+
+    a.innerHTML = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>';
+    a.appendChild(document.createTextNode('Iniciar sesión con Discord'));
     slot.appendChild(a);
   }
 
@@ -129,56 +184,72 @@
     name.textContent = data.username || 'Usuario';
     btn.appendChild(name);
 
-    var chev = document.createElement('span');
-    chev.className = 'auth-chevron';
+    var chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chev.setAttribute('class', 'chev');
+    chev.setAttribute('viewBox', '0 0 24 24');
     chev.setAttribute('aria-hidden', 'true');
-    chev.textContent = '▾';
+    chev.innerHTML = '<path d="M6 9l6 6 6-6"/>';
     btn.appendChild(chev);
 
     var menu = document.createElement('div');
     menu.className = 'auth-menu';
     menu.hidden = true;
 
-    var head = document.createElement('p');
-    head.className = 'auth-menu-name';
-    head.textContent = data.username || 'Usuario';
+    // Cabecera: foto, nick y email del usuario logueado.
+    var head = document.createElement('div');
+    head.className = 'auth-menu-head';
+    if (data.avatar_url) {
+      var big = document.createElement('img');
+      big.src = data.avatar_url;
+      big.alt = '';
+      head.appendChild(big);
+    }
+    var ident = document.createElement('div');
+    var nick = document.createElement('p');
+    nick.className = 'auth-menu-name';
+    nick.textContent = data.username || 'Usuario';
+    ident.appendChild(nick);
+    if (data.email) {
+      var mail = document.createElement('p');
+      mail.className = 'auth-menu-mail';
+      mail.textContent = data.email;
+      ident.appendChild(mail);
+    }
+    head.appendChild(ident);
     menu.appendChild(head);
 
-    var sep = document.createElement('hr');
-    sep.className = 'auth-menu-sep';
-    menu.appendChild(sep);
-
+    // null = separador entre grupos, tal cual el boceto.
     [
       { href: DASHBOARD, label: 'Dashboard' },
-      { href: PANEL + '/auth/logout', label: 'Cerrar sesión' }
+      null,
+      { href: 'https://discord.gg/purgito', label: 'Soporte' },
+      { href: '/' + LOC + '/docs', label: 'Documentación' },
+      null,
+      { href: '/' + LOC + '/premium', label: 'Premium' },
+      { href: PANEL + '/auth/logout', label: 'Cerrar sesión', danger: true }
     ].forEach(function (item) {
-      var a = document.createElement('a');
-      a.className = 'auth-menu-item';
-      a.href = item.href;
-      a.textContent = item.label;
-      menu.appendChild(a);
-    });
-
-    function setOpen(open) {
-      menu.hidden = !open;
-      btn.setAttribute('aria-expanded', String(open));
-    }
-    btn.addEventListener('click', function () {
-      setOpen(menu.hidden);
-    });
-    document.addEventListener('click', function (e) {
-      if (!menu.hidden && !wrap.contains(e.target)) setOpen(false);
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !menu.hidden) {
-        setOpen(false);
-        btn.focus();
+      if (!item) {
+        var hr = document.createElement('hr');
+        hr.className = 'auth-menu-sep';
+        menu.appendChild(hr);
+        return;
       }
+      var a = document.createElement('a');
+      a.className = 'auth-menu-item' + (item.danger ? ' danger' : '');
+      a.href = item.href;
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.setAttribute('aria-hidden', 'true');
+      a.appendChild(dot);
+      a.appendChild(document.createTextNode(item.label));
+      menu.appendChild(a);
     });
 
     wrap.appendChild(btn);
     wrap.appendChild(menu);
     slot.appendChild(wrap);
+
+    popover(btn, menu, wrap);
   }
 
   fetch(PANEL + '/api/public/me', { credentials: 'include' })
@@ -190,7 +261,7 @@
     .catch(renderLogin);
 })();
 
-/* Fade + slide-in de las filas del showcase al entrar en viewport.
+/* ── Fade + slide-in de las secciones al entrar en viewport.
    Solo se activa (clase js-reveal en <html>) si hay IntersectionObserver y
    sin prefers-reduced-motion; en cualquier otro caso el contenido queda
    visible desde el inicio. */

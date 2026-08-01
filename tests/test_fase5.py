@@ -1,7 +1,7 @@
 """Tests de la Fase 5 del editor de embeds: opciones de envío finas
 (silencioso / restricción de menciones), formato wrapper de embed_json,
-subida de imágenes a R2 (sniffing + dedup por contenido) y custom_ids
-distintos al duplicar botones de rol. DB SQLite en memoria, sin tocar
+subida de imágenes a R2 (sniffing + dedup por contenido, ahora en
+embeds_core.py) y custom_ids distintos al duplicar botones de rol. DB SQLite en memoria, sin tocar
 data/bot.db."""
 
 import asyncio
@@ -13,8 +13,8 @@ import discord
 import pytest
 
 import db
+import embeds_core
 import r2
-import webapi
 from cogs.anuncios import Anuncios
 from layout_v2 import assign_button_custom_ids
 from message_options import sanitize_send_options, send_kwargs
@@ -161,33 +161,6 @@ def test_scheduled_without_options_sends_plain_kwargs(memory_db):
     assert "silent" not in kwargs and "allowed_mentions" not in kwargs
 
 
-# ─── _extract_content: opciones guardadas dentro del JSON ────────────────────
-
-
-def test_extract_content_classic_wraps_only_with_options():
-    mode, payload, _p, err = webapi._extract_content(
-        {"embeds": [{"title": "t"}], "send_options": {"silent": True}}
-    )
-    assert err is None and mode == "classic_embed"
-    data = json.loads(payload)
-    assert data["embeds"] == [{"title": "t"}]
-    assert data["send_options"]["silent"] is True
-
-    # Sin opciones: lista plana, igual que antes de la Fase 5.
-    _m, payload2, _p2, err2 = webapi._extract_content({"embeds": [{"title": "t"}]})
-    assert err2 is None
-    assert isinstance(json.loads(payload2), list)
-
-
-def test_extract_content_layout_embeds_options_in_dict():
-    layout = {"blocks": [{"type": "text", "content": "x"}]}
-    mode, payload, _p, err = webapi._extract_content(
-        {"content_mode": "layout_v2", "layout": layout, "send_options": {"restrict_mentions": True}}
-    )
-    assert err is None and mode == "layout_v2"
-    assert json.loads(payload)["send_options"]["restrict_mentions"] is True
-
-
 # ─── Subida de imágenes: sniffing y dedup por contenido ──────────────────────
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
@@ -197,12 +170,12 @@ WEBP = b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 32
 
 
 def test_sniff_image_formats():
-    assert webapi._sniff_image(PNG) == ".png"
-    assert webapi._sniff_image(JPG) == ".jpg"
-    assert webapi._sniff_image(GIF) == ".gif"
-    assert webapi._sniff_image(WEBP) == ".webp"
-    assert webapi._sniff_image(b"hola esto no es una imagen") is None
-    assert webapi._sniff_image(b"") is None
+    assert embeds_core.sniff_image(PNG) == ".png"
+    assert embeds_core.sniff_image(JPG) == ".jpg"
+    assert embeds_core.sniff_image(GIF) == ".gif"
+    assert embeds_core.sniff_image(WEBP) == ".webp"
+    assert embeds_core.sniff_image(b"hola esto no es una imagen") is None
+    assert embeds_core.sniff_image(b"") is None
 
 
 def test_store_upload_same_bytes_same_url(monkeypatch):
@@ -213,14 +186,14 @@ def test_store_upload_same_bytes_same_url(monkeypatch):
         return f"https://pub.example/{guild_id}/{url.split(':')[1]}{ext}"
 
     monkeypatch.setattr(r2, "upload_image_bytes_sync", fake_upload)
-    url1 = asyncio.run(webapi._store_upload(PNG, 1, ".png"))
-    url2 = asyncio.run(webapi._store_upload(PNG, 1, ".png"))
+    url1 = asyncio.run(embeds_core.store_upload(PNG, 1, ".png"))
+    url2 = asyncio.run(embeds_core.store_upload(PNG, 1, ".png"))
     # Misma imagen -> misma key derivada del contenido -> misma URL (el
     # segundo put pisa el primero en R2, no queda objeto duplicado).
     assert url1 == url2
     assert calls[0] == calls[1]
     # Contenido distinto -> URL distinta.
-    url3 = asyncio.run(webapi._store_upload(GIF, 1, ".gif"))
+    url3 = asyncio.run(embeds_core.store_upload(GIF, 1, ".gif"))
     assert url3 != url1
 
 
