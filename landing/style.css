@@ -287,7 +287,7 @@ button { font: inherit; cursor: pointer; }
   position: absolute;
   right: 0;
   top: calc(100% + 0.5rem);
-  min-width: 11rem;
+  min-width: 15rem;
   padding: 0.375rem;
   background: var(--popover);
   border: 1px solid var(--border);
@@ -318,6 +318,19 @@ button { font: inherit; cursor: pointer; }
 .lang-item[aria-checked="true"] .radio {
   background: var(--accent);
   border-color: var(--accent);
+}
+
+/* Idiomas sin traducción: visibles, atenuados y sin hover. */
+.lang-item[aria-disabled="true"] { opacity: .45; cursor: default; }
+.lang-item[aria-disabled="true"]:hover { background: none; color: var(--text-dim); }
+.soon {
+  margin-left: auto;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* ── sesión ── */
@@ -455,7 +468,8 @@ button { font: inherit; cursor: pointer; }
 .ticker {
   display: flex;
   align-items: baseline;
-  max-width: 46rem;
+  max-width: 64rem;
+  margin-inline: auto;
   min-height: 3.4rem;
   padding: 1.1rem 1.3rem;
   background: var(--surface);

@@ -104,9 +104,11 @@ function popover(btn, menu, container) {
 
 /* ── Selector de idioma (navbar y footer). El código visible sale del idioma
    activo y cada enlace reescribe solo el prefijo del path, conservando el
-   resto de la ruta. */
+   resto de la ruta. Los idiomas sin traducción se muestran atenuados y no
+   navegan — la lista viene del <head> (window.READY_LANGS). */
 
 (function () {
+  var READY = window.READY_LANGS || ['es'];
   var current = locale();
   var seg = location.pathname.split('/')[1];
   // Si el path ya venía con prefijo, el resto es lo que sigue; si no, todo.
@@ -124,6 +126,13 @@ function popover(btn, menu, container) {
 
     menu.querySelectorAll('.lang-item').forEach(function (item) {
       var lang = item.dataset.lang;
+      if (READY.indexOf(lang) === -1) {
+        // Sin href no es clickeable ni enfocable: queda visible pero inerte.
+        item.removeAttribute('href');
+        item.setAttribute('aria-disabled', 'true');
+        item.insertAdjacentHTML('beforeend', '<span class="soon">Próximamente</span>');
+        return;
+      }
       item.href = '/' + lang + (rest || '/') + location.search + location.hash;
       item.setAttribute('aria-checked', String(lang === current));
     });
@@ -222,7 +231,7 @@ function popover(btn, menu, container) {
     [
       { href: DASHBOARD, label: 'Dashboard' },
       null,
-      { href: 'https://discord.gg/purgito', label: 'Soporte' },
+      { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte' },
       { href: '/' + LOC + '/docs', label: 'Documentación' },
       null,
       { href: '/' + LOC + '/premium', label: 'Premium' },

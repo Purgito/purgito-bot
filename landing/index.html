@@ -8,6 +8,25 @@
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css">
+
+<!-- Sin prefijo de idioma en el path: elige el idioma del navegador con
+     traducción disponible y cae a español. Va en el <head> para redirigir
+     antes de pintar nada. -->
+<script>
+/* ponytail: agregar 'en','ru','ja','de' aquí cuando exista su traducción —
+   habilita a la vez el redirect y su ítem en el selector de idioma. */
+window.READY_LANGS = ['es'];
+(function () {
+  if (/^\/(es|en|ru|ja|de)(\/|$)/.test(location.pathname)) return;
+  var want = navigator.languages || [navigator.language || ''];
+  var pick = 'es';
+  for (var i = 0; i < want.length; i++) {
+    var l = String(want[i]).slice(0, 2).toLowerCase();
+    if (window.READY_LANGS.indexOf(l) !== -1) { pick = l; break; }
+  }
+  location.replace('/' + pick + location.pathname + location.search + location.hash);
+})();
+</script>
 </head>
 <body>
 
@@ -72,8 +91,8 @@
       <p class="hero-sub">Aprende del humor de tu servidor — mensajes, gifs</p>
 
       <div class="hero-actions">
-        <a class="btn btn-accent" href="/es/invitar">Invitar a Purgito</a>
-        <a class="btn" href="https://discord.gg/purgito" target="_blank" rel="noopener">
+        <a class="btn btn-accent" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">Invitar a Purgito</a>
+        <a class="btn" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
           Servidor de soporte
         </a>
@@ -131,7 +150,7 @@
           patrón del texto.
         </p>
         <div class="feat-actions">
-          <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+          <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
         </div>
       </div>
 
@@ -162,7 +181,7 @@
           para reutilizar cuando quieras.
         </p>
         <div class="feat-actions">
-          <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+          <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
           <a class="btn btn-sm dash-link" href="#">Dashboard</a>
         </div>
       </div>
@@ -183,7 +202,7 @@
           mensaje original.
         </p>
         <div class="feat-actions">
-          <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+          <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
           <a class="btn btn-sm dash-link" href="#">Dashboard</a>
         </div>
       </div>
@@ -275,7 +294,7 @@
     <div class="box cta">
       <h2 class="h2 cta-title">Pruébalo</h2>
       <div class="cta-actions">
-        <a class="btn btn-accent btn-lg" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito</a>
+        <a class="btn btn-accent btn-lg" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito</a>
         <a class="btn btn-lg dash-link" href="#">Dashboard <svg class="i arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-5-6 6 6-6 6"/></svg></a>
       </div>
     </div>
@@ -295,7 +314,7 @@
         </div>
 
         <div class="foot-social">
-          <a href="https://discord.gg/purgito" target="_blank" rel="noopener" aria-label="Discord">
+          <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener" aria-label="Discord">
             <svg class="i" viewBox="0 0 24 24"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
           </a>
           <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener" aria-label="GitHub">
@@ -325,7 +344,7 @@
       <nav class="foot-col" aria-label="Purgito">
         <h3>Purgito</h3>
         <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener">Código</a>
-        <a href="https://discord.gg/purgito" target="_blank" rel="noopener">Soporte</a>
+        <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">Soporte</a>
       </nav>
 
       <nav class="foot-col" aria-label="Legal">
@@ -340,7 +359,7 @@
 
     <div class="foot-bottom">
       <div class="foot-actions">
-        <a class="btn btn-sm" href="/es/invitar"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
+        <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar</a>
         <a class="btn btn-sm" href="https://top.gg/bot/1471724794411089920/vote" target="_blank" rel="noopener">
           <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M2 6h9v4H7.5v6H2z"></path>
