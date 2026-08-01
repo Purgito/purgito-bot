@@ -172,8 +172,59 @@ window.READY_LANGS = ['es'];
       </div>
 
       <div class="feat-media">
-        <figure class="shot shot-tilt">
-          <img src="/assets/purgito-comando-help.png" alt="El comando /help de Purgito en Discord" loading="lazy" decoding="async">
+        <!-- Mockup de Discord en DOM real, no una captura: el texto queda
+             vectorial y no se pixela al hacer zoom ni en pantallas 2x. -->
+        <figure class="shot shot-tilt dc">
+          <div class="dc-reply">
+            <span class="dc-reply-line" aria-hidden="true"></span>
+            <img class="dc-av dc-av-sm" src="/assets/icon.png" alt="" onerror="this.remove()">
+            <span class="dc-user dc-user-b">Frambuesa</span>
+            <span class="dc-tag">MTC</span>
+            <span class="dc-dim">ha utilizado</span>
+            <span class="dc-slash">/help</span>
+          </div>
+
+          <div class="dc-msg">
+            <img class="dc-av" src="/assets/icon.png" alt="" onerror="this.remove()">
+            <div class="dc-body">
+              <div class="dc-head">
+                <span class="dc-user">Purgito</span>
+                <span class="dc-app">APP</span>
+                <span class="dc-time">21:49</span>
+              </div>
+
+              <div class="dc-embed">
+                <p class="dc-embed-title">📖 ¿Qué es Purgito?</p>
+                <p><b>Purgito</b> es el bot del servidor: aprende a hablar como la comunidad usando
+                  cadenas de Markov entrenadas con los propios mensajes del server, reproduce
+                  música, guarda los GIFs que se comparten en una galería pública y avisa cuando
+                  tus creadores favoritos de YouTube publican contenido nuevo.</p>
+                <p>Desde el panel web también puedes armar embeds y mensajes con botones
+                  interactivos —incluyendo botones que asignan un rol— sin escribir código.</p>
+                <p>Todos los comandos son <b>slash commands</b> (<code class="dc-code">/</code>) — escribe
+                  <code class="dc-code">/</code> en el chat y Discord te va a mostrar las opciones con
+                  autocompletado. La única excepción es <code class="dc-code">!ping</code>, que es un
+                  comando de texto clásico.</p>
+                <p>Usa los botones de abajo para ver los comandos de cada sección.</p>
+                <p class="dc-field">⚙️ Panel web</p>
+                <p>Configura Purgito desde el navegador:
+                  <span class="dc-link">https://panel.purgito.app/</span></p>
+                <p class="dc-foot">Comandos disponibles en Purgito | Soporte · usa los botones de abajo</p>
+              </div>
+
+              <div class="dc-btns">
+                <span class="dc-btn dc-btn-primary">🏠 Inicio</span>
+                <span class="dc-btn">🎵 Música</span>
+                <span class="dc-btn">🤖 Markov / Chat</span>
+                <span class="dc-btn">😌 Memes ⭐</span>
+              </div>
+              <div class="dc-btns">
+                <span class="dc-btn">📺 YouTube</span>
+                <span class="dc-btn">⚙️ Administración</span>
+                <span class="dc-btn">🧩 Panel web</span>
+              </div>
+            </div>
+          </div>
         </figure>
       </div>
 
