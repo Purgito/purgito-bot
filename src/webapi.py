@@ -12,6 +12,8 @@ que NO puede morir mientras el sitio se rediseña desde cero:
 - OAuth2 de Discord + sesión: no es "página", es la capa de autenticación de la
   que dependen los dos endpoints de premium (``guild_api`` exige sesión con
   permiso de administrar el guild). Sin esto el checkout es inalcanzable.
+- ``/api/me``: quién soy. El navbar de la landing lo consulta por CORS para
+  pintar la variante con sesión (nick + avatar) o el botón de login.
 
 Todo lo demás (galería de GIFs, páginas del panel, APIs de settings/embeds/gifs,
 subida de imágenes, admin) se eliminó junto con el frontend.
@@ -311,6 +313,27 @@ async def _auth_logout(request: web.Request) -> web.StreamResponse:
     raise web.HTTPFound(LANDING_URL)
 
 
+async def _api_me(request: web.Request) -> web.Response:
+    """Quién soy. Lo consume el navbar de la landing (purgito.app) por CORS con
+    credentials: la cookie de sesión es del apex (.purgito.app), así que llega
+    igual desde otro subdominio.
+
+    Sin sesión responde 200 con logged_in=False, nunca 401: el navbar solo
+    decide qué variante pintar y un 401 ensuciaría la consola del navegador.
+    """
+    session = await get_session(request)
+    body = {"logged_in": False}
+    if session.get("user_id"):
+        body = {
+            "logged_in": True,
+            "name": session.get("username", ""),
+            "avatar_url": session.get("avatar_url", ""),
+            "email": session.get("email", ""),
+        }
+    # no-store obligatorio: la respuesta es por usuario y delante hay Cloudflare.
+    return web.json_response(body, headers={"Cache-Control": "no-store"})
+
+
 async def _auth_error(request: web.Request) -> web.Response:
     # HTML autocontenido: la hoja de estilos del panel ya no existe.
     if request.query.get("reason") == "no_guilds":
@@ -539,6 +562,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get("/auth/callback", _auth_callback)
         app.router.add_get("/auth/logout", _auth_logout)
         app.router.add_get("/auth/error", _auth_error)
+        app.router.add_get("/api/me", _api_me)
 
         base = "/api/server/{guild_id}"
         app.router.add_get(f"{base}/premium", _api_premium_get)

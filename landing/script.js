@@ -162,7 +162,7 @@ function popover(btn, menu, container) {
 
   function renderLogin() {
     var a = document.createElement('a');
-    a.className = 'btn btn-login';
+    a.className = 'nav-link btn-login';
     // El locale viaja para volver a purgito.app/es tras el callback, no a la raíz.
     a.href = PANEL + '/auth/login?from=landing&locale=' + LOC;
 
@@ -190,7 +190,7 @@ function popover(btn, menu, container) {
     }
     var name = document.createElement('span');
     name.className = 'auth-name';
-    name.textContent = data.username || 'Usuario';
+    name.textContent = data.name || 'Usuario';
     btn.appendChild(name);
 
     var chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -216,7 +216,7 @@ function popover(btn, menu, container) {
     var ident = document.createElement('div');
     var nick = document.createElement('p');
     nick.className = 'auth-menu-name';
-    nick.textContent = data.username || 'Usuario';
+    nick.textContent = data.name || 'Usuario';
     ident.appendChild(nick);
     if (data.email) {
       var mail = document.createElement('p');
@@ -261,7 +261,7 @@ function popover(btn, menu, container) {
     popover(btn, menu, wrap);
   }
 
-  fetch(PANEL + '/api/public/me', { credentials: 'include' })
+  fetch(PANEL + '/api/me', { credentials: 'include' })
     .then(function (res) { return res.json(); })
     .then(function (data) {
       if (data && data.logged_in) renderUser(data);
