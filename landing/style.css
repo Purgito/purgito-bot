@@ -607,6 +607,9 @@ button { font: inherit; cursor: pointer; }
 @media (max-width: 900px) { .foot-cols { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .foot-cols { grid-template-columns: 1fr; } }
 
+/* Cada bloque centra su propio contenido; el grid de 4 columnas no cambia. */
+.foot-brand { display: flex; flex-direction: column; align-items: center; }
+
 .foot-name {
   display: flex;
   align-items: center;
@@ -644,7 +647,13 @@ button { font: inherit; cursor: pointer; }
 .chip:hover { background: var(--surface); }
 .chip .i { width: 1.1rem; height: 1.1rem; fill: currentColor; }
 
-.foot-col { display: flex; flex-direction: column; gap: 0.6rem; }
+.foot-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+}
 .foot-col h3 {
   font-family: var(--font-head);
   font-weight: 600;
