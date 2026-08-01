@@ -397,10 +397,10 @@ button { font: inherit; cursor: pointer; }
 .auth-menu-item:hover { background: var(--surface); color: var(--text); }
 .auth-menu-item.danger { color: var(--danger); }
 .auth-menu-item.danger:hover { background: hsl(0 62.8% 51% / .12); color: var(--danger); }
-.auth-menu-item .dot {
-  width: 1rem; height: 1rem; flex: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+.auth-menu-item .menu-i {
+  width: 1.1rem; height: 1.1rem; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 
 /* ══════════════════ HERO ══════════════════ */

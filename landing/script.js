@@ -31,6 +31,26 @@ function popover(btn, menu, container) {
   return setOpen;
 }
 
+/* Íconos outline de 24×24 — mismo trazo que el resto del sitio. El color y el
+   grosor salen del CSS (.menu-i), acá solo viven los paths. */
+var ICONS = {
+  grid: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>' +
+        '<path d="m5.6 5.6 3.2 3.2m6.4 6.4 3.2 3.2m0-12.8-3.2 3.2m-6.4 6.4-3.2 3.2"/>',
+  book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+  star: '<path d="M12 3 14.3 8.8 20.6 9.2 15.7 13.2 17.3 19.3 12 15.9 6.7 19.3 8.3 13.2 3.4 9.2 9.7 8.8Z"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>'
+};
+
+function svgIcon(paths) {
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'menu-i');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.innerHTML = paths;
+  return svg;
+}
+
 /* ── Ticker del hero: frases cortas que parodian a un bot de Markov de primer
    orden entrenado en chat de Discord. Tipeo + glitch corto, vainilla, sin
    librerías. Respeta prefers-reduced-motion (cambio directo, sin animación). */
@@ -229,13 +249,13 @@ function popover(btn, menu, container) {
 
     // null = separador entre grupos, tal cual el boceto.
     [
-      { href: DASHBOARD, label: 'Dashboard' },
+      { href: DASHBOARD, label: 'Dashboard', icon: ICONS.grid },
       null,
-      { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte' },
-      { href: '/' + LOC + '/docs', label: 'Documentación' },
+      { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte', icon: ICONS.help },
+      { href: '/' + LOC + '/docs', label: 'Documentación', icon: ICONS.book },
       null,
-      { href: '/' + LOC + '/premium', label: 'Premium' },
-      { href: PANEL + '/auth/logout', label: 'Cerrar sesión', danger: true }
+      { href: '/' + LOC + '/premium', label: 'Premium', icon: ICONS.star },
+      { href: PANEL + '/auth/logout', label: 'Cerrar sesión', icon: ICONS.logout, danger: true }
     ].forEach(function (item) {
       if (!item) {
         var hr = document.createElement('hr');
@@ -246,10 +266,7 @@ function popover(btn, menu, container) {
       var a = document.createElement('a');
       a.className = 'auth-menu-item' + (item.danger ? ' danger' : '');
       a.href = item.href;
-      var dot = document.createElement('span');
-      dot.className = 'dot';
-      dot.setAttribute('aria-hidden', 'true');
-      a.appendChild(dot);
+      a.appendChild(svgIcon(item.icon));
       a.appendChild(document.createTextNode(item.label));
       menu.appendChild(a);
     });
