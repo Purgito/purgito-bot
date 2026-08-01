@@ -14,8 +14,12 @@
   /* ── color: fondo y superficies ── */
   --bg: rgb(0, 0, 1);
   /* Glow radial del acento sobre el gradiente teal: rompe el negro plano
-     detrás del hero sin competir con las cards. */
+     detrás del hero sin competir con las cards. Tres blooms superpuestos en
+     cianes vecinos (196 más azul, 174 más verde) para que el halo tenga
+     profundidad en vez de leerse como un solo blob. */
   --bg-hero:
+    radial-gradient(38rem 22rem at 22% 5rem, hsl(196 80% 52% / .13), transparent 70%),
+    radial-gradient(34rem 20rem at 78% 1rem, hsl(174 72% 46% / .11), transparent 70%),
     radial-gradient(58rem 30rem at 50% -4rem, hsl(186 84% 46% / .18), transparent 72%),
     linear-gradient(175deg, #0e343b 0%, var(--bg) 75%);
   --surface: #ffffff0d;
@@ -149,6 +153,30 @@ button { font: inherit; cursor: pointer; }
 }
 @media (min-width: 1024px) { .h2 { font-size: var(--t-5xl); } }
 
+/* Texto con gradiente de la paleta (cian → blanco). El color plano queda de
+   fallback si el navegador no soporta background-clip: text. */
+.grad {
+  color: var(--accent-2);
+  background: linear-gradient(100deg, var(--accent) 0%, var(--accent-2) 35%, #fff 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .grad { color: transparent; -webkit-text-fill-color: transparent; }
+}
+
+/* Referencias técnicas del copy: comandos, hosts, nombres de permiso. */
+.cmd {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-raised);
+  color: var(--accent-soft);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  white-space: nowrap;
+}
+
 /* ══ botones ══ */
 .btn {
   display: inline-flex;
@@ -205,7 +233,27 @@ button { font: inherit; cursor: pointer; }
 @media (min-width: 768px) { .box { padding: 2.5rem 4rem; } }
 
 /* ══════════════════ NAVBAR ══════════════════ */
-.nav { position: relative; z-index: 30; }
+/* Fijo arriba con fondo propio: el gradiente teal es de la sección hero, no
+   del navbar, así que sin esto el contenido se vería pasar por debajo apenas
+   se scrollea hacia el negro plano. Los dropdowns son descendientes del nav,
+   así que quedan por encima solos. */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgb(10 10 12 / .8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-card);
+}
+
+/* Sin backdrop-filter el fondo translúcido deja leer el contenido de atrás. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav { background: #0a0a0c; }
+}
+
+/* Sin esto el navbar fijo tapa el destino del skip link. */
+#contenido, #top { scroll-margin-top: 6rem; }
 .nav-inner {
   display: flex;
   align-items: center;
@@ -598,6 +646,23 @@ button { font: inherit; cursor: pointer; }
   font-weight: 500;
 }
 .q summary::-webkit-details-marker { display: none; }
+
+/* Ícono por pregunta, mismo patrón que el dropdown de perfil pero con el
+   fondo circular tintado del acento. */
+.q-i {
+  display: grid;
+  place-items: center;
+  width: 2rem; height: 2rem;
+  flex: none;
+  border-radius: 999px;
+  background: hsl(186 84% 46% / .12);
+  color: var(--accent-2);
+}
+.q-i svg {
+  width: 1.05rem; height: 1.05rem;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
 .q summary .chev { margin-left: auto; color: var(--text-muted); }
 .q[open] summary .chev { transform: rotate(180deg); }
 

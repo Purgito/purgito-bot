@@ -6,6 +6,23 @@
 <title>Purgito — Un bot que imita tu comunidad</title>
 <meta name="description" content="Purgito aprende del humor de tu servidor de Discord — mensajes, gifs — y responde imitando su estilo. Gratis para siempre.">
 <meta name="theme-color" content="#13c4d8">
+
+<!-- Preview al compartir el link (Discord, X, etc.). Las URLs de imagen van
+     absolutas a propósito: varios crawlers de preview no resuelven relativas. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Purgito">
+<meta property="og:url" content="https://purgito.app/">
+<meta property="og:title" content="Purgito — Un bot que imita tu comunidad">
+<meta property="og:description" content="Purgito aprende del humor de tu servidor de Discord — mensajes, gifs — y responde imitando su estilo. Gratis para siempre.">
+<meta property="og:image" content="https://purgito.app/assets/og-purgito.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Purgito">
+<!-- summary y no summary_large_image: thumbnail cuadrado y compacto a la
+     derecha del texto, en vez de un banner ancho debajo. -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png">
+
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css">
 
@@ -87,7 +104,7 @@ window.READY_LANGS = ['es'];
 <header class="hero">
   <div class="wrap hero-inner">
     <div class="hero-copy">
-      <h1 class="hero-title">Un bot que<br>imita tu comunidad</h1>
+      <h1 class="hero-title">Un bot que<br><span class="grad">imita tu comunidad</span></h1>
       <p class="hero-sub">Aprende del humor de tu servidor — mensajes, gifs</p>
 
       <div class="hero-actions">
@@ -219,20 +236,20 @@ window.READY_LANGS = ['es'];
   <section class="wrap faq" aria-label="Preguntas frecuentes">
 
     <details class="q">
-      <summary>Cómo invito a Purgito a mi servidor?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M21 11h-6"/></svg></span>Cómo invito a Purgito a mi servidor?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
       <div class="a">
         <ol>
-          <li>Asegúrate de tener el permiso "Gestionar servidor" (Manage Server) en el servidor donde quieres invitar a Purgito.</li>
+          <li>Asegúrate de tener el permiso "Gestionar servidor" (<code class="cmd">Manage Server</code>) en el servidor donde quieres invitar a Purgito.</li>
           <li>Haz clic en "Invitar a Purgito" (arriba en esta página).</li>
           <li>Selecciona tu servidor y dale a "Continuar".</li>
           <li>No desmarques ningún permiso y dale a "Autorizar".</li>
         </ol>
-        <p>Listo — ya deberías ver tu servidor en el Dashboard (panel.purgito.app).</p>
+        <p>Listo — ya deberías ver tu servidor en el Dashboard (<code class="cmd">panel.purgito.app</code>).</p>
       </div>
     </details>
 
     <details class="q">
-      <summary>Cómo cancelo o gestiono mi suscripción?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h3"/></svg></span>Cómo cancelo o gestiono mi suscripción?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
       <div class="a">
         <p>
           El pago se procesa a través de Polar, nuestro proveedor de pagos (Merchant of Record) — la
@@ -249,7 +266,7 @@ window.READY_LANGS = ['es'];
     </details>
 
     <details class="q">
-      <summary>Donar en Ko-fi me da algo dentro del bot?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20.5S4 16 4 10.8A3.8 3.8 0 0 1 12 7.7a3.8 3.8 0 0 1 8 3.1c0 5.2-8 9.7-8 9.7Z"/></svg></span>Donar en Ko-fi me da algo dentro del bot?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
       <div class="a">
         <p>
           No — donar en Ko-fi es un apoyo directo y voluntario al desarrollo de Purgito, sin ningún beneficio
@@ -260,7 +277,7 @@ window.READY_LANGS = ['es'];
     </details>
 
     <details class="q">
-      <summary>Purgito entiende cualquier idioma?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/></svg></span>Purgito entiende cualquier idioma?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
       <div class="a">
         <p>
           Sí — Purgito no traduce ni interpreta el idioma, aprende directamente el patrón del texto que lee.
@@ -274,7 +291,7 @@ window.READY_LANGS = ['es'];
     </details>
 
     <details class="q">
-      <summary>Purgito es de código abierto?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 17-5-5 5-5M16 7l5 5-5 5"/></svg></span>Purgito es de código abierto?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
       <div class="a">
         <p>
           Sí, con una condición. El código de Purgito está publicado en GitHub bajo licencia MIT — puedes verlo,
@@ -310,7 +327,7 @@ window.READY_LANGS = ['es'];
       <div class="foot-brand">
         <div class="foot-name">
           <img class="nav-logo" src="/assets/icon.png" alt="" onerror="this.remove()">
-          <span>Purgito Bot</span>
+          <span class="grad">Purgito Bot</span>
         </div>
 
         <div class="foot-social">
