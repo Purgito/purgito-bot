@@ -13,13 +13,27 @@
 :root {
   /* ── color: fondo y superficies ── */
   --bg: rgb(0, 0, 1);
-  --bg-hero: linear-gradient(175deg, #0e343b 0%, var(--bg) 75%);
+  /* Glow radial del acento sobre el gradiente teal: rompe el negro plano
+     detrás del hero sin competir con las cards. */
+  --bg-hero:
+    radial-gradient(58rem 30rem at 50% -4rem, hsl(186 84% 46% / .18), transparent 72%),
+    linear-gradient(175deg, #0e343b 0%, var(--bg) 75%);
   --surface: #ffffff0d;
   --surface-100: #ffffff1a;
   --surface-200: #ffffff33;
   --popover: #0b0a0b;
   --border: #29282a;
-  --discord-gray: #1c1d23;
+
+  /* Jerarquía de profundidad en 3 niveles: lienzo (--bg) → card
+     (--surface-card) → contenido interno de la card (--surface-raised).
+     Cada salto tiene que leerse solo, sin depender del borde. */
+  --surface-card: #141418;
+  --surface-raised: #1e1f26;
+  --border-card: #ffffff14;
+  /* ponytail: sombra negra sobre lienzo casi negro casi no se ve — el salto de
+     luminosidad y el borde hacen el trabajo. Se nota bajo el glow del hero, y
+     queda lista si el fondo alguna vez sube de negro puro. */
+  --shadow-card: 0 8px 24px rgb(0 0 0 / .4);
 
   /* ── color: acento (cian, derivado del mascota #77c7c8) ── */
   --accent: hsl(186 84% 46%);        /* #13c4d8 — fondos de CTA */
@@ -173,7 +187,8 @@ button { font: inherit; cursor: pointer; }
   width: fit-content;
   padding: 0.125rem 0.625rem;
   border-radius: 999px;
-  background: hsl(186 84% 46% / 0.28);
+  background: hsl(186 84% 46% / 0.12);
+  border: 1px solid hsl(186 84% 46% / 0.35);
   color: var(--accent-soft);
   font-size: var(--t-xs);
   font-weight: 600;
@@ -181,8 +196,10 @@ button { font: inherit; cursor: pointer; }
 
 /* ══ card ══ */
 .box {
-  background: var(--surface);
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
   padding: 1.5rem 2rem;
 }
 @media (min-width: 768px) { .box { padding: 2.5rem 4rem; } }
@@ -470,7 +487,7 @@ button { font: inherit; cursor: pointer; }
   margin-inline: auto;
   min-height: 3.4rem;
   padding: 1.1rem 1.3rem;
-  background: var(--surface);
+  background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 0 0 1px hsl(186 84% 46% / .08),
@@ -527,7 +544,7 @@ button { font: inherit; cursor: pointer; }
 .shot {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--discord-gray);
+  background: var(--surface-raised);
   overflow: hidden;
   transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out;
 }
@@ -546,7 +563,7 @@ button { font: inherit; cursor: pointer; }
   place-items: center;
   min-height: 12rem;
   padding: 1.5rem;
-  background: var(--surface);
+  background: var(--surface-raised);
   border-style: dashed;
   color: var(--text-muted);
   font-size: var(--t-sm);
@@ -562,7 +579,7 @@ button { font: inherit; cursor: pointer; }
 }
 
 .q {
-  background: var(--surface);
+  background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   transition: background-color var(--dur);
