@@ -1,0 +1,92 @@
+<!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
+<main id="contenido" class="wrap premium">
+
+  <header class="premium-head">
+    <h1 class="premium-title">Purgito Premium</h1>
+    <p class="premium-sub">Apoya a Purgito y obtén beneficios exclusivos</p>
+  </header>
+
+  <div class="plans">
+
+    <article class="box plan">
+      <h2 class="plan-name">Purgito</h2>
+      <p class="plan-price">
+        <span class="plan-amount">$0</span><span class="plan-per">/por siempre</span>
+      </p>
+
+      <dl class="perks">
+        <div class="perk"><dt>Memes automáticos</dt><dd>No disponible</dd></div>
+        <div class="perk"><dt>Mensajes en memoria</dt><dd>15.000</dd></div>
+        <div class="perk"><dt>Mensajes de usuario</dt><dd>2.000</dd></div>
+        <div class="perk"><dt>GIFs guardados</dt><dd>1.500</dd></div>
+        <div class="perk"><dt>Imágenes para memes</dt><dd>75</dd></div>
+        <div class="perk"><dt>Plantillas de embeds</dt><dd>20</dd></div>
+        <div class="perk"><dt>Anuncios programados</dt><dd>3</dd></div>
+      </dl>
+
+      <div class="plan-foot">
+        <a class="btn btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
+          <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
+        </a>
+      </div>
+    </article>
+
+    <article class="box plan plan-premium">
+      <h2 class="plan-name">Purgito Premium</h2>
+      <p class="plan-price">
+        <span class="plan-amount" id="plan-amount">$4.99</span><span class="plan-per" id="plan-per">/mensual</span>
+      </p>
+
+      <dl class="perks">
+        <div class="perk"><dt>Memes automáticos</dt><dd>Disponible</dd></div>
+        <div class="perk"><dt>Mensajes en memoria</dt><dd>50.000</dd></div>
+        <div class="perk"><dt>Mensajes de usuario</dt><dd>8.000</dd></div>
+        <div class="perk"><dt>GIFs guardados</dt><dd>4.000</dd></div>
+        <div class="perk"><dt>Imágenes para memes</dt><dd>200</dd></div>
+        <div class="perk"><dt>Plantillas de embeds</dt><dd>50</dd></div>
+        <div class="perk"><dt>Anuncios programados</dt><dd>10</dd></div>
+      </dl>
+
+      <div class="plan-foot">
+        <p class="plan-trial" id="plan-trial">7 días gratis</p>
+
+        <!-- El checkout real necesita un guild_id que esta página no tiene: el
+             botón solo enruta al panel (login → selector de servidores), donde
+             vive la activación. El href estático es el fallback sin JS. -->
+        <a class="btn btn-accent btn-lg plan-cta js-subscribe"
+           href="https://panel.purgito.app/auth/login?from=landing&amp;locale=es">Subscribirse</a>
+
+        <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
+          <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
+          <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual</button>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <p class="plans-legal">
+    Al continuar aceptas los <a href="/es/terminos">Términos</a>,
+    <a href="/es/reembolsos">Políticas de Reembolso</a> y la
+    <a href="/es/privacidad">Política de Privacidad</a>.
+  </p>
+
+  <section class="box donate">
+    <div class="donate-copy">
+      <h2 class="donate-title">Dona la cantidad que desees</h2>
+      <p class="donate-sub">También puedes apoyarme donando en mi Ko-Fi</p>
+      <p class="donate-fine">Donar es completamente voluntario. No se recibirá nada dentro del bot.</p>
+    </div>
+    <a class="donate-kofi" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+    </a>
+  </section>
+
+  <p class="donate-legal">
+    Al donar o suscribirte, tú aceptas los términos y políticas.
+    Contacta a <a href="mailto:billing@purgito.app">billing@purgito.app</a> para más detalles.
+  </p>
+
+</main>

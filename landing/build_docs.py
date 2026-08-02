@@ -75,6 +75,18 @@ PAGES = [
     },
 ]
 
+# Páginas que no salen de un markdown: el cuerpo se escribe a mano en
+# landing/pages/ y acá solo se le pega el navbar/footer/head compartido.
+HTML_PAGES = [
+    {
+        "slug": "premium",
+        "src": "premium.html",
+        "title": "Purgito Premium",
+        "meta": "Apoya a Purgito y obtén beneficios exclusivos: más memoria, "
+        "más GIFs, memes automáticos y plantillas de embeds.",
+    },
+]
+
 
 # ── markdown → html ──────────────────────────────────────────────────────────
 
@@ -170,16 +182,7 @@ SHELL = """<!DOCTYPE html>
 
 {nav}
 
-<main id="contenido" class="doc wrap">
-  <header class="doc-head">
-    <h1 class="doc-title">{title}</h1>
-    <p class="doc-date">Última actualización: {date}</p>
-    <div class="doc-body doc-intro">
-{intro}
-    </div>
-  </header>
-{toc}{sections}
-</main>
+{body}
 
 {footer}
 
@@ -223,14 +226,41 @@ def build_page(page, nav, footer):
             % (i, html.escape(name), body)
         )
 
+    body = (
+        '<main id="contenido" class="doc wrap">\n'
+        '  <header class="doc-head">\n'
+        '    <h1 class="doc-title">%s</h1>\n'
+        '    <p class="doc-date">Última actualización: %s</p>\n'
+        '    <div class="doc-body doc-intro">\n%s\n    </div>\n'
+        "  </header>\n%s%s\n</main>"
+        % (
+            html.escape(title),
+            html.escape(date),
+            intro,
+            build_toc(sections, descs),
+            "\n".join(blocks),
+        )
+    )
     return SHELL.format(
         title=html.escape(title),
         meta=html.escape(page["meta"]),
-        date=html.escape(date),
         nav=nav,
-        intro=intro,
-        toc=build_toc(sections, descs),
-        sections="\n".join(blocks),
+        body=body,
+        footer=footer,
+    )
+
+
+def build_html_page(page, nav, footer):
+    """Página con cuerpo escrito a mano (landing/pages/*.html).
+
+    Solo aporta el navbar, el footer y el <head> — el resto sale del archivo
+    tal cual. Existe para que esas piezas no se dupliquen fuera de index.html.
+    """
+    return SHELL.format(
+        title=html.escape(page["title"]),
+        meta=html.escape(page["meta"]),
+        nav=nav,
+        body=(LANDING / "pages" / page["src"]).read_text("utf-8").strip(),
         footer=footer,
     )
 
@@ -248,9 +278,10 @@ def main():
     footer = chunk_of(index, r'<footer class="footer">.*?</footer>')
     check = "--check" in sys.argv
 
-    for page in PAGES:
+    todo = [(p, build_page) for p in PAGES] + [(p, build_html_page) for p in HTML_PAGES]
+    for page, build in todo:
         out = LANDING / "es" / page["slug"] / "index.html"
-        page_html = build_page(page, nav, footer)
+        page_html = build(page, nav, footer)
         if check:
             if not out.exists() or out.read_text("utf-8") != page_html:
                 sys.exit("%s está desactualizado — corre build_docs.py" % out)

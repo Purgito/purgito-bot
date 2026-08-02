@@ -177,14 +177,24 @@ function svgIcon(paths) {
     a.href = DASHBOARD;
   });
 
+  // El locale viaja para volver a purgito.app/es tras el callback, no a la raíz.
+  var LOGIN = PANEL + '/auth/login?from=landing&locale=' + LOC;
+
+  /* "Subscribirse" de /es/premium: sin sesión manda a login, con sesión al
+     selector de servidores. El checkout real es por guild y vive en el panel;
+     esta página no lo duplica, solo enruta hacia allá. */
+  function setSubscribe(href) {
+    document.querySelectorAll('.js-subscribe').forEach(function (a) { a.href = href; });
+  }
+
   var slot = document.getElementById('auth-slot');
   if (!slot) return;
 
   function renderLogin() {
+    setSubscribe(LOGIN);
     var a = document.createElement('a');
     a.className = 'nav-link btn-login';
-    // El locale viaja para volver a purgito.app/es tras el callback, no a la raíz.
-    a.href = PANEL + '/auth/login?from=landing&locale=' + LOC;
+    a.href = LOGIN;
 
     a.innerHTML = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>';
     a.appendChild(document.createTextNode('Iniciar sesión con Discord'));
@@ -192,6 +202,7 @@ function svgIcon(paths) {
   }
 
   function renderUser(data) {
+    setSubscribe(DASHBOARD);
     var wrap = document.createElement('div');
     wrap.className = 'auth-wrap';
 
@@ -285,6 +296,42 @@ function svgIcon(paths) {
       else renderLogin();
     })
     .catch(renderLogin);
+})();
+
+/* ── Toggle Mensual/Anual de /es/premium. Solo cambia lo que se muestra
+   (precio, sufijo y el aviso de prueba gratis): la página es informativa y no
+   guarda estado — el ciclo real se elige en el checkout del panel. */
+
+(function () {
+  var toggle = document.getElementById('plan-toggle');
+  if (!toggle) return;
+
+  var PLANS = {
+    mensual: { amount: '$4.99', per: '/mensual', trial: true },
+    anual: { amount: '$39.99', per: '/anual', trial: false }
+  };
+
+  var amount = document.getElementById('plan-amount');
+  var per = document.getElementById('plan-per');
+  var trial = document.getElementById('plan-trial');
+  var opts = toggle.querySelectorAll('.toggle-opt');
+
+  toggle.addEventListener('click', function (e) {
+    var btn = e.target.closest('.toggle-opt');
+    if (!btn) return;
+    var plan = PLANS[btn.dataset.plan];
+    if (!plan) return;
+
+    opts.forEach(function (b) {
+      var on = b === btn;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+
+    amount.textContent = plan.amount;
+    per.textContent = plan.per;
+    trial.hidden = !plan.trial;
+  });
 })();
 
 /* ── Fade + slide-in de las secciones al entrar en viewport.

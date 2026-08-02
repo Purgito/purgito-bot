@@ -949,6 +949,115 @@ body:has(.doc) .doc { flex: 1; }
 
 @media (min-width: 1024px) { .doc-title { font-size: var(--t-5xl); } }
 
+/* ══════════════════ /es/premium ══════════════════
+   Cuerpo en landing/pages/premium.html, ensamblado por build_docs.py. */
+
+.premium {
+  max-width: 64rem;
+  padding-top: 4rem;
+  padding-bottom: var(--gap-section);
+}
+body:has(.premium) { display: flex; flex-direction: column; }
+body:has(.premium) .premium { flex: 1; }
+
+.premium-head { margin-bottom: 2.5rem; }
+.premium-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: var(--t-4xl);
+  line-height: 1.1;
+  color: var(--text);
+}
+.premium-sub { margin-top: 0.75rem; color: var(--text-dim); }
+@media (min-width: 1024px) { .premium-title { font-size: var(--t-5xl); } }
+
+.plans { display: grid; gap: 1.5rem; }
+@media (min-width: 768px) { .plans { grid-template-columns: 1fr 1fr; } }
+
+/* Grid en vez de flex: las dos tarjetas comparten alto y el pie queda
+   alineado aunque el de premium tenga trial + toggle y el free no. */
+.plan {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  padding: 1.75rem;
+}
+.plan-premium { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+.plan-name {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: var(--t-2xl);
+  color: var(--text);
+  text-align: center;
+}
+.plan-price { margin-top: 0.5rem; text-align: center; }
+.plan-amount { font-family: var(--font-head); font-size: var(--t-4xl); font-weight: 700; color: var(--text); }
+.plan-per { font-size: var(--t-sm); color: var(--text-muted); }
+
+.perks { margin: 1.75rem 0 0; display: grid; gap: 0.6rem; align-content: start; }
+.perk {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border-card);
+  font-size: var(--t-sm);
+}
+.perk:last-child { border-bottom: 0; }
+.perk dt { color: var(--text-dim); }
+.perk dd { margin: 0; color: var(--text); font-weight: 500; white-space: nowrap; }
+
+.plan-foot { margin-top: 1.75rem; display: grid; justify-items: center; gap: 0.75rem; }
+.plan-cta { width: 100%; }
+.plan-trial { font-size: var(--t-sm); color: var(--accent-2); }
+.plan-trial[hidden] { display: none; }
+
+.plan-toggle { display: flex; gap: 0.5rem; }
+.toggle-opt {
+  padding: 0.35rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-dim);
+  font-size: var(--t-sm);
+  transition: background-color var(--dur), color var(--dur), border-color var(--dur);
+}
+.toggle-opt:hover { background: var(--surface); color: var(--text); }
+.toggle-opt.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-2);
+}
+
+.plans-legal, .donate-legal {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+}
+.plans-legal a, .donate-legal a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.plans-legal a:hover, .donate-legal a:hover { color: var(--accent); }
+
+.donate {
+  margin-top: 3.5rem;
+  padding: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+.donate-title { font-family: var(--font-head); font-weight: 600; font-size: var(--t-xl); color: var(--text); }
+.donate-sub { margin-top: 0.35rem; font-size: var(--t-sm); color: var(--text-dim); }
+.donate-fine { margin-top: 0.5rem; font-size: var(--t-xs); color: var(--text-muted); }
+.donate-kofi { flex: none; color: var(--text-dim); transition: color var(--dur), transform var(--dur); }
+.donate-kofi:hover { color: var(--accent-2); transform: translateY(-2px); }
+.donate-kofi .i { width: 2.5rem; height: 2.5rem; fill: currentColor; }
+
 /* ══════════════════ reveal al hacer scroll ══════════════════ */
 .js-reveal .reveal {
   opacity: 0;
