@@ -202,8 +202,20 @@ button { font: inherit; cursor: pointer; }
 
 /* El cian es demasiado claro para texto blanco: tinta oscura encima
    (mismo criterio que la variante `success` de la referencia). */
-.btn-accent { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn-accent {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  /* Pulso perpetuo: un anillo que respira y se disuelve, sin mover el botón
+     ni empujar el layout (box-shadow no ocupa espacio). */
+  animation: pulse-accent 3.2s ease-in-out infinite;
+}
 .btn-accent:hover { background: var(--accent-2); }
+
+@keyframes pulse-accent {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(186 84% 46% / .45); }
+  50%      { box-shadow: 0 0 0 12px hsl(186 84% 46% / 0); }
+}
 
 .btn .i { width: 1.25rem; height: 1.25rem; fill: currentColor; flex: none; }
 .btn .arrow { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -476,6 +488,7 @@ button { font: inherit; cursor: pointer; }
    la cuenta (box-sizing: border-box), así que la sección siguiente arranca
    justo en el borde inferior de la pantalla, ni un pixel antes. */
 .hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -561,6 +574,34 @@ button { font: inherit; cursor: pointer; }
 .ticker-text.glitch { animation: glitch 220ms steps(2) 1; color: var(--accent); }
 .ticker-cursor { color: var(--accent); flex: none; animation: blink 1s steps(1) infinite; }
 
+/* ── indicador de scroll ── */
+.scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 2rem;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  width: 20px;
+  height: 2.2rem;
+  padding-top: 6px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  opacity: .7;
+  pointer-events: none;
+}
+.scroll-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: scroll-bounce 2.5s ease-in-out infinite;
+}
+@keyframes scroll-bounce {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50%      { transform: translateY(0.85rem); opacity: .35; }
+}
+
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes glitch {
   0%   { transform: translate(0, 0); }
@@ -602,13 +643,30 @@ button { font: inherit; cursor: pointer; }
 @media (max-width: 640px) { .feat-minis { grid-template-columns: 1fr; } }
 
 .shot {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  overflow: hidden;
   transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out;
 }
-.shot img { width: 100%; height: auto; }
+/* Halo: la misma imagen desenfocada asomando por detrás. La URL llega por
+   --shot-img desde el HTML; sin esa variable el pseudo-elemento no pinta nada,
+   así que los placeholders quedan intactos. El radio va en la imagen y no en
+   un overflow: hidden, que recortaría el halo. */
+.shot::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -2rem;
+  background-image: var(--shot-img);
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.05);
+  filter: blur(64px);
+  opacity: .6;
+  pointer-events: none;
+}
+.shot img { width: 100%; height: auto; border-radius: inherit; }
 .shot-tilt   { transform: rotate(2deg); }
 .shot-tilt-l { transform: rotate(-2deg); }
 .shot-tilt-r { transform: rotate(1.5deg); }
@@ -685,8 +743,44 @@ button { font: inherit; cursor: pointer; }
 .faq-ph { max-width: 34rem; margin-inline: auto; transform: none; }
 
 /* ══════════════════ CTA ══════════════════ */
-.cta { text-align: center; margin-bottom: var(--gap-section); }
-.cta-title { margin-bottom: 1.5rem; }
+.cta {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  margin-bottom: var(--gap-section);
+  /* background-image y no background: el color de card lo pone .box. */
+  background-image: linear-gradient(135deg,
+    hsl(186 84% 46% / .18) 0%,
+    hsl(200 70% 40% / .10) 45%,
+    hsl(174 72% 46% / .16) 100%);
+}
+/* Dos blobs asomando desde esquinas opuestas, recortados por el overflow. */
+.cta::before,
+.cta::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  width: 26rem;
+  height: 26rem;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+.cta::before { top: -13rem; left: -8rem; background: hsl(186 84% 46% / .22); }
+.cta::after { bottom: -13rem; right: -8rem; background: hsl(200 75% 45% / .18); }
+.cta-title, .cta-actions { position: relative; z-index: 1; }
+
+/* Sheen: blanco → tinte del acento → blanco, no un degradado de dos puntas. */
+.cta-title {
+  margin-bottom: 1.5rem;
+  background: linear-gradient(100deg, #fff 12%, var(--accent-soft) 50%, #fff 88%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .cta-title { color: transparent; -webkit-text-fill-color: transparent; }
+}
+
 .cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
 
 /* ══════════════════ FOOTER ══════════════════ */
@@ -713,6 +807,20 @@ button { font: inherit; cursor: pointer; }
   font-size: var(--t-2xl);
   color: var(--text);
 }
+/* Marca del footer: un gradiente por palabra, encadenados — el segundo
+   arranca en el tono donde terminó el primero. Todo dentro del cian/teal. */
+.foot-word-a, .foot-word-b {
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+/* background-image y no el atajo background: el atajo resetea
+   background-clip a border-box y el texto saldría como una barra sólida. */
+.foot-word-a { background-image: linear-gradient(95deg, var(--accent) 0%, var(--accent-2) 100%); }
+.foot-word-b { background-image: linear-gradient(95deg, var(--accent-2) 0%, var(--accent-soft) 100%); }
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .foot-word-a, .foot-word-b { color: transparent; -webkit-text-fill-color: transparent; }
+}
+
 .foot-social { display: flex; gap: 1rem; margin-top: 1.25rem; }
 .foot-social .i {
   width: 1.6rem; height: 1.6rem;
