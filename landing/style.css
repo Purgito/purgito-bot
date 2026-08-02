@@ -12,7 +12,7 @@
 
 :root {
   /* ── color: fondo y superficies ── */
-  --bg: rgb(0, 0, 1);
+  --bg: #0B0C0D;
   /* Glow radial del acento sobre el gradiente teal: rompe el negro plano
      detrás del hero sin competir con las cards. Tres blooms superpuestos en
      cianes vecinos (196 más azul, 174 más verde) para que el halo tenga
@@ -25,15 +25,20 @@
   --surface: #ffffff0d;
   --surface-100: #ffffff1a;
   --surface-200: #ffffff33;
-  --popover: #0b0a0b;
-  --border: #29282a;
+
+  /* Gris azulado de la paleta. No se usa directo casi en ningún lado: es la
+     materia prima de superficies, bordes y texto secundario, siempre mezclado
+     hacia --bg o hacia --text. */
+  --slate: #5A6C73;
 
   /* Jerarquía de profundidad en 3 niveles: lienzo (--bg) → card
      (--surface-card) → contenido interno de la card (--surface-raised).
      Cada salto tiene que leerse solo, sin depender del borde. */
-  --surface-card: #141418;
-  --surface-raised: #1e1f26;
-  --border-card: #ffffff14;
+  --surface-card: color-mix(in srgb, var(--slate) 18%, var(--bg));    /* ≈ #191d1f */
+  --surface-raised: color-mix(in srgb, var(--slate) 33%, var(--bg));  /* ≈ #252c2f */
+  --popover: color-mix(in srgb, var(--slate) 10%, var(--bg));
+  --border: color-mix(in srgb, var(--slate) 42%, var(--bg));
+  --border-card: color-mix(in srgb, var(--slate) 40%, transparent);
   /* ponytail: sombra negra sobre lienzo casi negro casi no se ve — el salto de
      luminosidad y el borde hacen el trabajo. Se nota bajo el glow del hero, y
      queda lista si el fondo alguna vez sube de negro puro. */
@@ -42,13 +47,16 @@
   /* ── color: acento (cian, derivado del mascota #77c7c8) ── */
   --accent: hsl(186 84% 46%);        /* #13c4d8 — fondos de CTA */
   --accent-2: hsl(186 84% 62%);      /* #4ddff0 — texto/iconos sobre oscuro */
-  --accent-soft: hsl(186 59% 85%);   /* #c2ebef — texto de badges */
+  --accent-soft: #76A6A6;            /* teal apagado: detalles secundarios */
   --accent-ink: #04191c;             /* texto sobre fondo de acento */
 
   /* ── color: texto ── */
-  --text: hsl(210 20% 98%);
-  --text-dim: #a3a3a3;
-  --text-muted: hsl(217 10% 65%);
+  --text: #F2EDE4;
+  /* Derivados de --slate para que el texto no quede gris neutro sobre una
+     base cálida. --text-muted mezcla hacia --text a propósito: #5A6C73 puro
+     da 3.6:1 sobre --bg y no pasa AA para texto chico. */
+  --text-dim: color-mix(in srgb, var(--text) 62%, var(--slate));    /* ≈ #b8bcb9 */
+  --text-muted: color-mix(in srgb, var(--slate) 65%, var(--text));  /* ≈ #8f999a */
   --danger: hsl(0 62.8% 51%);
   --blurple: #5865f2;
   --blurple-dark: #454fbf;
@@ -72,7 +80,7 @@
   --leading: 1.5;
 
   /* ── spacing y formas ── */
-  --wrap: 80rem;             /* max-w-7xl */
+  --wrap: 88rem;             /* ensanchado; el tope evita lineas incomodas */
   --pad: 0.75rem;            /* p-3 */
   --pad-md: 1.25rem;         /* md:p-5 */
   --gap-section: 7rem;       /* gap-28 */
@@ -125,11 +133,15 @@ button { font: inherit; cursor: pointer; }
 }
 .skip:focus { left: 0.5rem; }
 
-/* Gradiente del hero, detrás de todo. */
+/* Wash del hero, detrás de todo. Va de punta a punta de la pantalla — el
+   inset lo ata al viewport, no al .wrap — y ahora cubre el hero entero (que
+   mide 100dvh) más un resto que se disuelve dentro de la primera sección.
+   Antes topaba en 760px y dejaba una banda de negro plano antes del pliegue. */
 #bg {
   position: absolute;
   inset: 0 0 auto 0;
-  height: min(100svh, 760px);
+  height: calc(100svh + 8rem);
+  height: calc(100dvh + 8rem);
   background-image: var(--bg-hero);
   z-index: -1;
   pointer-events: none;
@@ -158,7 +170,7 @@ button { font: inherit; cursor: pointer; }
    fallback si el navegador no soporta background-clip: text. */
 .grad {
   color: var(--accent-2);
-  background: linear-gradient(100deg, var(--accent) 0%, var(--accent-2) 35%, #fff 90%);
+  background: linear-gradient(100deg, var(--accent) 0%, var(--accent-2) 35%, var(--text) 90%);
   -webkit-background-clip: text;
   background-clip: text;
 }
@@ -254,7 +266,7 @@ button { font: inherit; cursor: pointer; }
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgb(10 10 12 / .8);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-card);
@@ -262,7 +274,7 @@ button { font: inherit; cursor: pointer; }
 
 /* Sin backdrop-filter el fondo translúcido deja leer el contenido de atrás. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .nav { background: #0a0a0c; }
+  .nav { background: var(--bg); }
 }
 
 /* Sin esto el navbar fijo tapa el destino del skip link. */
@@ -275,7 +287,7 @@ button { font: inherit; cursor: pointer; }
   max-width: var(--wrap);
   margin-inline: auto;
   padding-inline: var(--pad);
-  color: #d4d4d4;
+  color: var(--text-dim);
   user-select: none;
 }
 @media (min-width: 768px) { .nav-inner { padding-inline: var(--pad-md); } }
@@ -515,7 +527,7 @@ button { font: inherit; cursor: pointer; }
   font-weight: 600;
   font-size: var(--t-5xl);
   line-height: 1.05;
-  color: #f5f5f5;
+  color: var(--text);
   overflow-wrap: break-word;
 }
 @media (min-width: 768px) { .hero-title { font-size: var(--t-6xl); } }
@@ -773,7 +785,7 @@ button { font: inherit; cursor: pointer; }
 /* Sheen: blanco → tinte del acento → blanco, no un degradado de dos puntas. */
 .cta-title {
   margin-bottom: 1.5rem;
-  background: linear-gradient(100deg, #fff 12%, var(--accent-soft) 50%, #fff 88%);
+  background: linear-gradient(100deg, var(--text) 12%, var(--accent-soft) 50%, var(--text) 88%);
   -webkit-background-clip: text;
   background-clip: text;
 }
