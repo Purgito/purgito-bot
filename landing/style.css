@@ -1013,8 +1013,11 @@ body:has(.premium) .premium { flex: 1; }
 .plan-trial { font-size: var(--t-sm); color: var(--accent-2); }
 .plan-trial[hidden] { display: none; }
 
-.plan-toggle { display: flex; align-items: center; gap: 0.5rem; }
+/* El margin extra es para el badge flotante del plan anual, que asoma por
+   encima del borde superior del botón. */
+.plan-toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
 .toggle-opt {
+  position: relative;
   padding: 0.35rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1029,6 +1032,18 @@ body:has(.premium) .premium { flex: 1; }
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
+}
+.toggle-opt .badge {
+  position: absolute;
+  top: -0.2rem;
+  right: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  /* Mismo tono que .badge, pero opaco: flota sobre el borde del botón y el
+     12% translúcido dejaría pasar la línea (y el relleno de acento cuando
+     Anual está activo). --surface-card es el fondo de la tarjeta. */
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
+  pointer-events: none;
 }
 
 .plans-legal, .donate-legal {
