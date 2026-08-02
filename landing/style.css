@@ -875,6 +875,80 @@ button { font: inherit; cursor: pointer; }
 
 .foot-copy { font-size: var(--t-sm); color: var(--text-muted); }
 
+/* ══════════ páginas legales (/es/terminos, /es/privacidad, …) ══════════
+   HTML generado por landing/build_docs.py desde docs/*.md — no editar a mano. */
+
+/* Wash del hero recortado: acá no hay hero de 100dvh que acompañar. */
+.bg-short { height: 26rem; }
+
+/* Reembolsos es muy corto: sin esto el footer queda flotando a media página. */
+body:has(.doc) { display: flex; flex-direction: column; }
+body:has(.doc) .doc { flex: 1; }
+
+.doc {
+  max-width: 56rem;          /* prosa legible; --wrap (88rem) es para el grid */
+  padding-top: 4rem;
+  padding-bottom: var(--gap-section);
+  display: grid;
+  gap: 1.5rem;
+}
+
+.doc-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: var(--t-4xl);
+  line-height: 1.15;
+  color: var(--text);
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.doc-date {
+  margin: 1.25rem 0 1.5rem;
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+}
+
+.doc-toc, .doc-sec { padding: 1.5rem; }
+/* El navbar es sticky: sin esto los anchors dejan el título tapado. */
+.doc-sec { scroll-margin-top: calc(var(--nav-h) + 1rem); }
+
+.doc-toc h2, .doc-sec-title {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: var(--t-xl);
+  color: var(--text);
+}
+.doc-toc h2 { margin-bottom: 1rem; }
+.doc-sec-title { margin-bottom: 0.75rem; }
+
+.doc-toc ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+.doc-toc a {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  transition: background-color var(--dur);
+}
+.doc-toc a:hover { background: var(--surface); }
+.doc-toc a:hover .toc-t { color: var(--accent-2); }
+.toc-t { display: block; color: var(--text); font-weight: 500; transition: color var(--dur); }
+.toc-d { display: block; font-size: var(--t-sm); color: var(--text-muted); }
+
+/* Cuerpo de una sección (y del intro): lo que emite el convertidor. */
+.doc-body { display: grid; gap: 0.75rem; }
+.doc-body h3 {
+  margin-top: 0.5rem;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: var(--t-lg);
+  color: var(--text);
+}
+.doc-body ul { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.35rem; }
+.doc-body strong { color: var(--text); font-weight: 600; }
+.doc-body a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 2px; }
+.doc-body a:hover { color: var(--accent); }
+
+@media (min-width: 1024px) { .doc-title { font-size: var(--t-5xl); } }
+
 /* ══════════════════ reveal al hacer scroll ══════════════════ */
 .js-reveal .reveal {
   opacity: 0;
