@@ -1013,7 +1013,7 @@ body:has(.premium) .premium { flex: 1; }
 .plan-trial { font-size: var(--t-sm); color: var(--accent-2); }
 .plan-trial[hidden] { display: none; }
 
-.plan-toggle { display: flex; gap: 0.5rem; }
+.plan-toggle { display: flex; align-items: center; gap: 0.5rem; }
 .toggle-opt {
   padding: 0.35rem 1.1rem;
   border: 1px solid var(--border);
@@ -1024,10 +1024,11 @@ body:has(.premium) .premium { flex: 1; }
   transition: background-color var(--dur), color var(--dur), border-color var(--dur);
 }
 .toggle-opt:hover { background: var(--surface); color: var(--text); }
-.toggle-opt.is-active {
+.toggle-opt.is-active,
+.toggle-opt.is-active:hover {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent-2);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .plans-legal, .donate-legal {
