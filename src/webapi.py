@@ -314,9 +314,9 @@ async def _auth_logout(request: web.Request) -> web.StreamResponse:
 
 
 async def _api_me(request: web.Request) -> web.Response:
-    """Quién soy. Lo consume el navbar de la landing (purgito.app) por CORS con
-    credentials: la cookie de sesión es del apex (.purgito.app), así que llega
-    igual desde otro subdominio.
+    """Quién soy. Lo consume el navbar de la landing, que ahora vive en el mismo
+    origen (purgito.app): la llamada es same-origin y la cookie viaja sola, sin
+    CORS de por medio.
 
     Sin sesión responde 200 con logged_in=False, nunca 401: el navbar solo
     decide qué variante pintar y un 401 ensuciaría la consola del navegador.
@@ -534,7 +534,7 @@ def _new_session_storage() -> EncryptedCookieStorage:
         key,
         cookie_name="PURGITO_SESSION",
         # None = cookie atada al host que la emite (comportamiento clásico);
-        # ".purgito.app" en producción la comparte con la landing.
+        # ".purgito.app" en producción para que www comparta sesión con el apex.
         domain=SESSION_COOKIE_DOMAIN,
         max_age=7 * 24 * 3600,
         httponly=True,

@@ -104,7 +104,7 @@ DASHBOARD_BASE_URL = os.getenv("DASHBOARD_BASE_URL", "http://localhost:8080").rs
 )
 SESSION_SECRET = os.getenv("SESSION_SECRET", "")
 # URL pública del panel, mostrada en /help, /setup y /settings.
-PANEL_URL = os.getenv("PANEL_URL", "https://panel.purgito.app").rstrip("/")
+PANEL_URL = os.getenv("PANEL_URL", "https://purgito.app").rstrip("/")
 # URL pública de la landing (purgito.app); destino del post-login con from=landing.
 LANDING_URL = os.getenv("LANDING_URL", "https://purgito.app").rstrip("/")
 # Dominio para compartir la cookie de sesión entre subdominios (landing + panel).

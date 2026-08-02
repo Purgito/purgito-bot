@@ -46,7 +46,7 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 - Node.js 20+ — requerido por yt-dlp para resolver firmas de YouTube
 - FFmpeg
 - nginx
-- Dominios apuntando al servidor: `purgito.app`, `panel.purgito.app` y los
+- Dominios apuntando al servidor: `purgito.app` (+ `www`) y los
   `*.purg4t0ry.com` heredados (ver [Configurar nginx](#configurar-nginx))
 
 ---
@@ -63,6 +63,9 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
    - Scopes: `bot` + `applications.commands`
    - Permisos de bot: `Read Messages`, `Send Messages`, `Read Message History`, `Add Reactions`, `Embed Links`, `Connect`, `Speak`
 5. Copia la URL generada y ábrela para invitar el bot a tu servidor
+6. En **OAuth2 → Redirects**, registrá `https://purgito.app/auth/callback`.
+   Tiene que coincidir exacto con `{DASHBOARD_BASE_URL}/auth/callback` de
+   `urls.env`, o el login falla con `invalid_request`.
 
 > **Tip:** para que los slash commands aparezcan al instante en un servidor específico (sin esperar hasta 1 hora de propagación global), coloca `GUILD_ID` en el `.env` con el ID de ese servidor.
 
@@ -321,21 +324,20 @@ Oracle Linux carga todo lo que esté en `/etc/nginx/conf.d/*.conf` — no hay
 sudo nano /etc/nginx/conf.d/purgito.conf
 ```
 
-Ese único archivo contiene **cuatro server blocks**:
+Ese archivo contiene **tres server blocks**:
 
 | Server block | Qué hace |
 |---|---|
 | `gifs.purg4t0ry.com` | Proxy a `127.0.0.1:8080` (dominio heredado de la galería) |
 | `panel.purg4t0ry.com` | Proxy a `127.0.0.1:8080` (dominio heredado del panel) |
-| `panel.purgito.app` | Proxy a `127.0.0.1:8080` — **el panel actual** |
-| `purgito.app` + `www.purgito.app` | Estático directo desde `/var/www/purgito-landing` |
+| `purgito.app` + `www.purgito.app` | **Todo el sitio**: estático desde `/var/www/purgito-landing` + proxy por ruta a la app |
 
-Los tres primeros son el mismo patrón de proxy a la app aiohttp:
+Los dos heredados son el patrón simple de proxy a la app aiohttp:
 
 ```nginx
 server {
     listen 80;
-    server_name panel.purgito.app;
+    server_name panel.purg4t0ry.com;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -346,18 +348,33 @@ server {
 }
 ```
 
-El cuarto no toca la app: sirve la landing estática desde disco, con reglas de
-`try_files` por cada prefijo de idioma (`/es/`, `/en/`, `/ru/`, `/ja/`, `/de/`)
-para que `/es/terminos` resuelva a `es/terminos/index.html` y `/es/` caiga en
-el `index.html` de la raíz.
+El de `purgito.app` es el importante: **no hay más subdominio `panel.`**. El
+mismo host sirve la landing estática desde disco y proxea a la app las rutas
+que la app realmente registra en `webapi.py` (`/auth/*`, `/api/*`,
+`/webhooks/polar`, `/health`). Todo lo demás es HTML estático, con `try_files`
+por prefijo de idioma para que `/es/terminos` resuelva a
+`es/terminos/index.html` y `/es/` caiga en el `index.html` de la raíz.
 
 ```nginx
 server {
     listen 80;
+    listen [::]:80;
     server_name purgito.app www.purgito.app;
     root /var/www/purgito-landing;
     index index.html;
 
+    # ── Dinámico: proxy a la app (rutas registradas en webapi.py) ──
+    location /auth/     { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
+    location /api/      { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
+    location /webhooks/ { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
+    location = /health  { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
+
+    # /es/perfil y /es/dashboard/:id: NO existen todavía en webapi.py (la capa
+    # de páginas se desmontó). Agregar este location recién cuando la app
+    # registre esas rutas — hasta entonces devolvería un 404 de aiohttp.
+    # location ~ ^/es/(perfil|dashboard)(/|$) { proxy_pass http://127.0.0.1:8080; ... }
+
+    # ── Estático ────────────────────────────────────────────────────
     # Las páginas legales son directorios reales (es/terminos/index.html).
     # El prefijo de idioma suelto (/es/) no existe en disco: cae al index.
     location ~ ^/(es|en|ru|ja|de)/ {
@@ -370,6 +387,15 @@ server {
 }
 ```
 
+Donde `/etc/nginx/purgito_proxy.conf` son las tres cabeceras de siempre, en un
+solo archivo en vez de repetirlas en cada `location`:
+
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
 Aplicar cambios:
 
 ```bash
@@ -379,8 +405,9 @@ sudo systemctl reload nginx
 
 ### Cloudflare (DNS + SSL)
 
-1. DNS → Add record tipo `A` por cada host (`purgito.app`, `www`, `panel`, y los
-   `*.purg4t0ry.com` heredados), valor = IP del droplet, proxy ✅ (naranja)
+1. DNS → Add record tipo `A` por cada host (`purgito.app`, `www`, y los
+   `*.purg4t0ry.com` heredados), valor = IP del droplet, proxy ✅ (naranja).
+   `panel.purgito.app` ya no se usa: no le hace falta registro.
 2. Cloudflare maneja el SSL automáticamente. No necesitás certbot ni HTTPS en nginx.
 
 > **Cloudflare cachea la landing.** Si después de un deploy el sitio "no cambia",

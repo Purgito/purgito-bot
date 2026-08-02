@@ -55,14 +55,14 @@ El nombre visible (Display Name) del usuario puede almacenarse junto con determi
 
 ## Inicio de sesión en el panel web
 
-Al iniciar sesión en panel.purgito.app con Discord, se solicitan los permisos (scopes) `identify` y `email`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras. Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
+Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) `identify` y `email`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras. Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
 
 ---
 
 El bot **no recopila**:
 
 - Contraseñas.
-- Correos electrónicos, salvo el que Discord entrega al iniciar sesión en el panel web (panel.purgito.app) — ese correo se usa únicamente para identificarte dentro de tu propia sesión y no se comparte con terceros.
+- Correos electrónicos, salvo el que Discord entrega al iniciar sesión en el panel web (purgito.app) — ese correo se usa únicamente para identificarte dentro de tu propia sesión y no se comparte con terceros.
 - Direcciones IP.
 - Datos personales ajenos a los proporcionados por la API oficial de Discord.
 
@@ -72,7 +72,7 @@ Sobre datos de pago, ver la sección **"Pagos y suscripciones"** más abajo: Pur
 
 ## Pagos y suscripciones
 
-Cuando un servidor contrata premium a través del dashboard (panel.purgito.app), el pago lo procesa **Polar.sh**, no Purgito.
+Cuando un servidor contrata premium a través del dashboard (purgito.app), el pago lo procesa **Polar.sh**, no Purgito.
 
 **Purgito almacena únicamente:**
 

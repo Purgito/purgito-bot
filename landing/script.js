@@ -161,13 +161,14 @@ function svgIcon(paths) {
   });
 })();
 
-/* ── Estado de sesión en el nav: consulta la sesión compartida con el panel y
+/* ── Estado de sesión en el nav: consulta la sesión de la propia app y
    renderiza login o avatar+dropdown. El slot arranca vacío y aparece ya
    resuelto (sin parpadeo). Cualquier fallo del fetch degrada en silencio al
    botón de login — nunca un error visible ni romper el resto de la página. */
 
 (function () {
-  var PANEL = 'https://panel.purgito.app';
+  // Mismo origen que la landing: nginx enruta /auth y /api a la app.
+  var PANEL = '';
   var LOC = locale();
 
   // Entrada al panel: la lista de servidores del perfil, no el selector viejo.

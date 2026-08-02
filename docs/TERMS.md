@@ -48,7 +48,7 @@ Los administradores del servidor son responsables de moderar el uso del bot dent
 
 # 4. Suscripciones y pagos
 
-Purgito ofrece un plan **premium** por servidor, contratable desde el dashboard (panel.purgito.app).
+Purgito ofrece un plan **premium** por servidor, contratable desde el dashboard (purgito.app).
 
 ## Qué desbloquea premium
 

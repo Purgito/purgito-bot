@@ -8,8 +8,9 @@ música y avisa de videos nuevos de YouTube.
 
 - Bot: Python + discord.py, arquitectura de cogs en `src/cogs/`
 - Python 3.11+ — CI corre en 3.12, el venv local está en 3.14
-- Web: aiohttp puro (`src/webapi.py`), sirve el panel (`panel.purgito.app`)
-  y algunos endpoints públicos (webhook de Polar, health check)
+- Web: aiohttp puro (`src/webapi.py`), sirve auth OAuth2, `/api/*` y los
+  endpoints públicos (webhook de Polar, health check). Todo bajo
+  `purgito.app` — ya no hay subdominio `panel.`
 - Frontend: HTML/CSS/JS plano en `landing/` — NO usar React/Next.js ni
   ningún framework nuevo, aunque el diseño se inspire en sitios que sí los
   usan (ver "Identidad visual" abajo)
@@ -82,14 +83,16 @@ sudo systemctl restart bot-purg
 
 La config de nginx vive FUERA de este repo, en
 `/etc/nginx/conf.d/purgito.conf` en el droplet (Oracle Linux — no usa
-`sites-enabled`). `purgito.app` sirve estático directo desde
-`/var/www/purgito-landing` (copia separada de `landing/`, no el repo en
-sí). `panel.purgito.app` proxea a esta app en el puerto 8080. Cloudflare
-está delante de todo — si algo "no cambia" después de un deploy, sospecha
-primero de caché antes de asumir que el código está mal.
+`sites-enabled`). Un solo server block cubre `purgito.app` +
+`www.purgito.app` y distingue **por ruta**: `/auth/*`, `/api/*`,
+`/webhooks/*` y `/health` proxean a esta app en el puerto 8080; todo lo
+demás sale estático de `/var/www/purgito-landing` (copia separada de
+`landing/`, no el repo en sí). Cloudflare está delante de todo — si algo
+"no cambia" después de un deploy, sospecha primero de caché antes de
+asumir que el código está mal.
 
 `DEPLOY.md` ya no contradice esto: se actualizó a Oracle Linux + `conf.d` y
-detalla los cuatro server blocks. Quedan dos puntos sin verificar ahí (ruta
+detalla los tres server blocks. Quedan dos puntos sin verificar ahí (ruta
 del clon en el servidor, y si `/var/www/purgito-landing` es symlink o copia)
 — hasta confirmarlos en el droplet, esta sección manda.
 

@@ -10,7 +10,7 @@ Si ya lo tienes en tu servidor y quieres sacarle más partido, empieza por acá.
 ## Primeros pasos
 
 Cómo invitarlo, qué permisos pide y por qué, y un recorrido rápido por el panel de
-administración (`panel.purgito.app`).
+administración (`purgito.app`).
 
 → [Primeros pasos](/es/documentacion/primeros-pasos)
 
