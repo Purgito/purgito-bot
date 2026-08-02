@@ -655,30 +655,13 @@ button { font: inherit; cursor: pointer; }
 @media (max-width: 640px) { .feat-minis { grid-template-columns: 1fr; } }
 
 .shot {
-  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
+  overflow: hidden;
   transition: transform var(--dur) ease-out, box-shadow var(--dur) ease-out;
 }
-/* Halo: la misma imagen desenfocada asomando por detrás. La URL llega por
-   --shot-img desde el HTML; sin esa variable el pseudo-elemento no pinta nada,
-   así que los placeholders quedan intactos. El radio va en la imagen y no en
-   un overflow: hidden, que recortaría el halo. */
-.shot::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: -2rem;
-  background-image: var(--shot-img);
-  background-size: cover;
-  background-position: center;
-  transform: scale(1.05);
-  filter: blur(64px);
-  opacity: .6;
-  pointer-events: none;
-}
-.shot img { width: 100%; height: auto; border-radius: inherit; }
+.shot img { width: 100%; height: auto; }
 .shot-tilt   { transform: rotate(2deg); }
 .shot-tilt-l { transform: rotate(-2deg); }
 .shot-tilt-r { transform: rotate(1.5deg); }
