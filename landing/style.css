@@ -343,7 +343,7 @@ button { font: inherit; cursor: pointer; }
 /* En pantallas angostas el navbar se queda con marca + idioma + sesión;
    el botón de login pasa a solo icono para que nada se desborde. */
 @media (max-width: 640px) {
-  .nav-dash, .nav-sep, .nav-topgg { display: none; }
+  .nav-sep, .nav-topgg { display: none; }
   .btn-login { padding-inline: 0.7rem; font-size: 0; gap: 0; }
   .btn-login .i { width: 1.35rem; height: 1.35rem; }
 }

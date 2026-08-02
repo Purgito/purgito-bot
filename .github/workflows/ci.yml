@@ -26,3 +26,9 @@ jobs:
 
       - name: Check formatting
         run: ruff format --check .
+
+      # Falla si se tocó docs/*.md, style.css o script.js sin regenerar la
+      # landing: sin esto el ?v= queda viejo y Cloudflare sigue sirviendo el
+      # asset anterior. Solo stdlib, no necesita instalar nada.
+      - name: Check landing (docs + cache-busting)
+        run: python landing/build_docs.py --check

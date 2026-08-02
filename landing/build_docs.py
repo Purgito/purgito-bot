@@ -14,8 +14,13 @@ stdlib y no una dependencia nueva.
 
 El navbar y el footer se recortan de index.html en cada corrida: una sola
 copia de esos bloques en el repo.
+
+También sella el cache-busting de style.css y script.js (ver `stamp`), por eso
+hay que correrlo después de tocar esos archivos, no solo docs/*.md. El
+`--check` de CI falla si quedaron desincronizados.
 """
 
+import hashlib
 import html
 import re
 import sys
@@ -265,6 +270,30 @@ def build_html_page(page, nav, footer):
     )
 
 
+# ── cache-busting ────────────────────────────────────────────────────────────
+
+# Cloudflare cachea .css/.js 4 h por default (el HTML no), así que un deploy
+# deja los assets viejos servidos hasta que alguien purgue a mano. El hash del
+# contenido en el query string hace que cada cambio sea una URL nueva.
+ASSETS = ("style.css", "script.js")
+
+
+def stamp(page_html):
+    """`/style.css` → `/style.css?v=<hash8>`, con el hash del archivo real.
+
+    Idempotente: un `?v=` viejo se reemplaza en vez de acumularse. Hash del
+    contenido y no mtime, que cambia en cada clone y ensuciaría el diff.
+    """
+    for name in ASSETS:
+        digest = hashlib.sha256((LANDING / name).read_bytes()).hexdigest()[:8]
+        page_html = re.sub(
+            r'(?<=["\'])/%s(?:\?v=[0-9a-f]+)?(?=["\'])' % re.escape(name),
+            "/%s?v=%s" % (name, digest),
+            page_html,
+        )
+    return page_html
+
+
 def chunk_of(src, pattern):
     m = re.search(pattern, src, re.S)
     if not m:
@@ -273,15 +302,26 @@ def chunk_of(src, pattern):
 
 
 def main():
-    index = (LANDING / "index.html").read_text("utf-8")
+    index_path = LANDING / "index.html"
+    index = index_path.read_text("utf-8")
     nav = chunk_of(index, r'<nav class="nav" id="top">.*?\n</nav>')
     footer = chunk_of(index, r'<footer class="footer">.*?</footer>')
     check = "--check" in sys.argv
 
+    # index.html se escribe a mano: no se regenera, solo se le resella el ?v=.
+    stamped_index = stamp(index)
+    if stamped_index != index:
+        if check:
+            sys.exit(
+                "%s tiene el ?v= desactualizado — corre build_docs.py" % index_path
+            )
+        index_path.write_text(stamped_index, "utf-8")
+        print("→", index_path.relative_to(ROOT))
+
     todo = [(p, build_page) for p in PAGES] + [(p, build_html_page) for p in HTML_PAGES]
     for page, build in todo:
         out = LANDING / "es" / page["slug"] / "index.html"
-        page_html = build(page, nav, footer)
+        page_html = stamp(build(page, nav, footer))
         if check:
             if not out.exists() or out.read_text("utf-8") != page_html:
                 sys.exit("%s está desactualizado — corre build_docs.py" % out)
@@ -316,6 +356,13 @@ def main():
     assert render("a\nb") == "<p>a b</p>", render("a\nb")
     assert '<a href="x" target="_blank" rel="noopener">t</a>' in inline("[t](x)")
     assert inline("a & <b>") == "a &amp; &lt;b&gt;", inline("a & <b>")
+    # El sellado tiene que ser idempotente: sin esto, cada corrida encadenaría
+    # otro ?v= y el HTML nunca convergería.
+    once = stamp('<link href="/style.css"><script src="/script.js"></script>')
+    assert re.search(r'/style\.css\?v=[0-9a-f]{8}"', once), once
+    assert re.search(r'/script\.js\?v=[0-9a-f]{8}"', once), once
+    assert stamp(once) == once, once
+    assert stamp("<p>style.css sin barra</p>") == "<p>style.css sin barra</p>"
     print("ok")
 
 

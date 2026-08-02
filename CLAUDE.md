@@ -23,9 +23,15 @@ música y avisa de videos nuevos de YouTube.
 # sistema no tiene las dependencias (falla al importar aiosqlite).
 .venv/bin/python -m pytest tests -q
 
-# Lint y formato — es lo único que corre en CI (.github/workflows/ci.yml).
+# Lint y formato — corre en CI (.github/workflows/ci.yml).
 ruff check .
 ruff format --check .
+
+# Regenera las páginas de landing/es/ y resella el ?v= de style.css y
+# script.js. Correr después de tocar docs/*.md, style.css o script.js —
+# el HTML generado se commitea. CI corre el --check y falla si quedó viejo.
+.venv/bin/python landing/build_docs.py
+.venv/bin/python landing/build_docs.py --check
 
 # Check del selector de idioma de la landing (no lo corre CI).
 node landing/test_lang.mjs

@@ -174,7 +174,7 @@ function svgIcon(paths) {
   // Entrada al panel: la lista de servidores del perfil, no el selector viejo.
   var DASHBOARD = PANEL + '/' + LOC + '/perfil';
 
-  document.querySelectorAll('#nav-dash, .dash-link').forEach(function (a) {
+  document.querySelectorAll('.dash-link').forEach(function (a) {
     a.href = DASHBOARD;
   });
 
