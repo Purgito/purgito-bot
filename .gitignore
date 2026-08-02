@@ -51,6 +51,10 @@ raw/
 TECHNICAL_DOC.md
 repomix-output.xml
 
+# Dumps de código externo usados solo como referencia visual/técnica.
+# No son parte del proyecto: no se versionan.
+referencias/
+
 # Cookies (contienen sesiones, no deben versionarse)
 cookies.txt
 
