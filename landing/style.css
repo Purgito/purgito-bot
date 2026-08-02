@@ -1013,11 +1013,8 @@ body:has(.premium) .premium { flex: 1; }
 .plan-trial { font-size: var(--t-sm); color: var(--accent-2); }
 .plan-trial[hidden] { display: none; }
 
-/* El margin extra es para el badge flotante del plan anual, que asoma por
-   encima del borde superior del botón. */
-.plan-toggle { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }
+.plan-toggle { display: flex; gap: 0.5rem; }
 .toggle-opt {
-  position: relative;
   padding: 0.35rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1033,25 +1030,6 @@ body:has(.premium) .premium { flex: 1; }
   background: var(--accent);
   color: var(--accent-ink);
 }
-/* .toggle-opt es un <button>: sin appearance:none, los navegadores clipean
-   cualquier descendiente absolute a la caja nativa del control, así que el
-   badge NO puede vivir dentro del botón (ver commit que lo movió acá). Este
-   wrapper es quien recibe position:relative; el badge es hermano del botón,
-   nunca su hijo. */
-.toggle-anual-wrap { position: relative; display: inline-flex; }
-.toggle-badge {
-  position: absolute;
-  top: -0.7rem;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  white-space: nowrap;
-  /* Mismo tono que .badge, pero opaco: flota sobre el borde del botón y el
-     12% translúcido dejaría pasar la línea (y el relleno de acento cuando
-     Anual está activo). --surface-card es el fondo de la tarjeta. */
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-card));
-  pointer-events: none;
-}
-
 .plans-legal, .donate-legal {
   margin-top: 1.5rem;
   text-align: center;
@@ -1072,13 +1050,17 @@ body:has(.premium) .premium { flex: 1; }
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur);
 }
+.donate:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-card)); }
+.donate:hover .donate-kofi { color: var(--accent-2); transform: translateY(-2px); }
 .donate-title { font-family: var(--font-head); font-weight: 600; font-size: var(--t-xl); color: var(--text); }
 .donate-sub { margin-top: 0.35rem; font-size: var(--t-sm); color: var(--text-dim); }
 .donate-fine { margin-top: 0.5rem; font-size: var(--t-xs); color: var(--text-muted); }
-.donate-kofi { flex: none; color: var(--text-dim); transition: color var(--dur), transform var(--dur); }
-.donate-kofi:hover { color: var(--accent-2); transform: translateY(-2px); }
-.donate-kofi .i { width: 2.5rem; height: 2.5rem; fill: currentColor; }
+.donate-kofi { flex: none; width: 2.5rem; height: 2.5rem; fill: currentColor; color: var(--text-dim); transition: color var(--dur), transform var(--dur); }
 
 /* ══════════════════ reveal al hacer scroll ══════════════════ */
 .js-reveal .reveal {
