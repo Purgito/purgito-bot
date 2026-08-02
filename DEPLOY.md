@@ -1,6 +1,11 @@
 # Guía de deploy — bot-discord-purg
 
-Guía completa para levantar Purgito de cero en un VPS Ubuntu. Cubre setup local para desarrollo y deploy en producción con systemd + nginx + Cloudflare.
+Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo y deploy en producción con systemd + nginx + Cloudflare.
+
+> **Producción corre en Oracle Linux** (droplet, usuario `opc`), no en Ubuntu.
+> Los comandos de servidor de esta guía usan `dnf`, y la config de nginx va en
+> `/etc/nginx/conf.d/` — Oracle Linux no usa `sites-available`/`sites-enabled`.
+> El setup local sigue siendo agnóstico del SO.
 
 ---
 
@@ -34,14 +39,15 @@ Guía completa para levantar Purgito de cero en un VPS Ubuntu. Cubre setup local
 - FFmpeg (`sudo apt install ffmpeg` / `brew install ffmpeg`)
 - Una cuenta de Discord con permisos para crear bots
 
-### Para producción (VPS)
+### Para producción (droplet)
 
-- Ubuntu 22.04 o 24.04
-- Python 3.11+ (incluido en Ubuntu 22.04+)
+- Oracle Linux (el droplet actual), usuario `opc` con `sudo`
+- Python 3.11+
 - Node.js 20+ — requerido por yt-dlp para resolver firmas de YouTube
 - FFmpeg
 - nginx
-- Dominio apuntando al servidor (para la galería web)
+- Dominios apuntando al servidor: `purgito.app`, `panel.purgito.app` y los
+  `*.purg4t0ry.com` heredados (ver [Configurar nginx](#configurar-nginx))
 
 ---
 
@@ -239,13 +245,16 @@ La galería arranca en el mismo proceso en `http://localhost:8080`. Los slash co
 
 ### Paquetes del sistema
 
+Oracle Linux usa `dnf`, no `apt`. FFmpeg no está en los repos base: viene de
+RPM Fusion o de un build estático.
+
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3 python3-pip python3-venv python3-dev ffmpeg nginx
+sudo dnf update -y
+sudo dnf install -y python3 python3-pip python3-devel nginx git
 
 # Node.js 20 — necesario para que yt-dlp resuelva firmas de YouTube
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
+sudo dnf module enable -y nodejs:20
+sudo dnf install -y nodejs
 
 # Verificar
 python3 --version  # 3.11+
@@ -300,14 +309,33 @@ journalctl -u bot-purg -f
 
 ### Configurar nginx
 
+> ⚠️ **La config de nginx NO está versionada en este repo.** El archivo real y
+> autoritativo vive solo en el droplet, en `/etc/nginx/conf.d/purgito.conf`.
+> Lo de abajo describe su estructura para poder reconstruirla, pero ante
+> cualquier duda manda el archivo del servidor, no esta guía.
+
+Oracle Linux carga todo lo que esté en `/etc/nginx/conf.d/*.conf` — no hay
+`sites-available`/`sites-enabled` ni `ln -s` que hacer.
+
 ```bash
-sudo nano /etc/nginx/sites-available/gifs-purg
+sudo nano /etc/nginx/conf.d/purgito.conf
 ```
+
+Ese único archivo contiene **cuatro server blocks**:
+
+| Server block | Qué hace |
+|---|---|
+| `gifs.purg4t0ry.com` | Proxy a `127.0.0.1:8080` (dominio heredado de la galería) |
+| `panel.purg4t0ry.com` | Proxy a `127.0.0.1:8080` (dominio heredado del panel) |
+| `panel.purgito.app` | Proxy a `127.0.0.1:8080` — **el panel actual** |
+| `purgito.app` + `www.purgito.app` | Estático directo desde `/var/www/purgito-landing` |
+
+Los tres primeros son el mismo patrón de proxy a la app aiohttp:
 
 ```nginx
 server {
     listen 80;
-    server_name gifs.purg4t0ry.com;
+    server_name panel.purgito.app;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -318,23 +346,57 @@ server {
 }
 ```
 
+El cuarto no toca la app: sirve la landing estática desde disco, con reglas de
+`try_files` por cada prefijo de idioma (`/es/`, `/en/`, `/ru/`, `/ja/`, `/de/`)
+para que `/es/terminos` resuelva a `es/terminos/index.html` y `/es/` caiga en
+el `index.html` de la raíz.
+
+```nginx
+server {
+    listen 80;
+    server_name purgito.app www.purgito.app;
+    root /var/www/purgito-landing;
+    index index.html;
+
+    # Las páginas legales son directorios reales (es/terminos/index.html).
+    # El prefijo de idioma suelto (/es/) no existe en disco: cae al index.
+    location ~ ^/(es|en|ru|ja|de)/ {
+        try_files $uri $uri/ $uri/index.html /index.html;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+Aplicar cambios:
+
 ```bash
-sudo ln -s /etc/nginx/sites-available/gifs-purg /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
 ### Cloudflare (DNS + SSL)
 
-1. DNS → Add record: tipo `A`, nombre `gifs`, valor = IP del droplet, proxy ✅ (naranja)
+1. DNS → Add record tipo `A` por cada host (`purgito.app`, `www`, `panel`, y los
+   `*.purg4t0ry.com` heredados), valor = IP del droplet, proxy ✅ (naranja)
 2. Cloudflare maneja el SSL automáticamente. No necesitás certbot ni HTTPS en nginx.
+
+> **Cloudflare cachea la landing.** Si después de un deploy el sitio "no cambia",
+> sospechá primero de la caché de Cloudflare (purge) antes de asumir que el
+> código está mal.
 
 ---
 
 ## 8. Actualizar en producción
 
+**El deploy es manual: no hay CI/CD.** El workflow de `.github/workflows/ci.yml`
+solo corre lint (`ruff`) sobre los PRs; no despliega nada.
+
 ```bash
-cd /opt/bot-discord-purg
+ssh opc@<droplet>
+cd /opt/bot-discord-purg          # ver nota de abajo sobre la ruta
 git pull
 source .venv/bin/activate
 pip install -r requirements.txt   # solo si requirements.txt cambió
@@ -343,6 +405,34 @@ sudo systemctl status bot-purg
 ```
 
 > Si `.env.example` tiene variables nuevas, añádelas manualmente a tu `.env` antes de reiniciar.
+
+### Dos puntos sin verificar
+
+No pude confirmarlos desde la máquina de desarrollo (sin acceso SSH al
+droplet). Están documentados como pendientes a propósito, en vez de darlos por
+hecho:
+
+1. **Ruta del clon en el servidor.** `deploy/bot-purg.service` declara
+   `WorkingDirectory=/opt/bot-discord-purg` (y `User=bot-purg`), pero `CLAUDE.md`
+   describe el deploy como `cd purgito-bot && git pull` desde el home de `opc`.
+   Verificar cuál es la real:
+
+   ```bash
+   systemctl show bot-purg -p WorkingDirectory -p User
+   ```
+
+2. **Qué es `/var/www/purgito-landing`.** Si es un symlink al `landing/` del
+   clon, `git pull` alcanza para publicar la landing. Si es una copia separada,
+   hace falta un paso de sincronización explícito (`cp -r landing/. /var/www/purgito-landing/`
+   o `rsync`) que hoy no está documentado en ningún lado. Verificar:
+
+   ```bash
+   ls -la /var/www/ | grep purgito
+   file /var/www/purgito-landing
+   ```
+
+   Ojo: `CLAUDE.md` dice hoy que es una **copia separada**. Si resulta ser un
+   symlink, hay que corregir esa línea de `CLAUDE.md` también.
 
 ---
 
@@ -353,7 +443,10 @@ sudo systemctl status bot-purg
 | Slash commands no aparecen | `GUILD_ID` no configurado o sin scope `applications.commands` | Poner `GUILD_ID` en `.env` y reiniciar, o esperar 1h si es global |
 | YouTube no reproduce (`Sign in to confirm`) | YouTube detectó el bot | Generar `cookies.txt` y ponerlo en `YTDLP_COOKIES` |
 | GIFs de Discord CDN no se suben a R2 | Faltan vars `R2_*` | Completar todas las `R2_*` en `.env` |
-| La galería no carga | nginx caído o DNS sin propagar | `systemctl status nginx` + verificar DNS |
+| La galería o el panel no cargan | nginx caído o DNS sin propagar | `systemctl status nginx` + verificar DNS |
+| nginx devuelve **502** en los hosts que proxean a `:8080` | SELinux (enforcing por defecto en Oracle Linux) bloquea que nginx abra conexiones de red | `sudo setsebool -P httpd_can_network_connect 1` |
+| nginx devuelve **403** solo en `purgito.app` | Contexto SELinux incorrecto en `/var/www/purgito-landing` | `sudo restorecon -Rv /var/www/purgito-landing` |
+| El sitio no cambia después de un `git pull` + restart | Caché de Cloudflare, no el código | Purgear caché en Cloudflare y reintentar |
 | El bot arranca pero no lee mensajes | `ENABLE_MESSAGE_CONTENT=false` o intent desactivado en el portal | Activar Message Content Intent en el Developer Portal |
 | Música no funciona | FFmpeg no instalado o `cookies.txt` desactualizado | `ffmpeg -version` + regenerar cookies |
 | `ModuleNotFoundError` | venv no activado o `pip install` no corrió | `source .venv/bin/activate && pip install -r requirements.txt` |

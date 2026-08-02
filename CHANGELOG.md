@@ -47,6 +47,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Imitación de usuarios individuales con `/imitar @usuario` (corpus por usuario)
 - Embed de bienvenida al unirse a un servidor nuevo
 - Trigger rápido por texto plano: reply a imagen + `<trigger> generar`
+- Panel de configuración `/settings` por categorías
+- Onboarding guiado con `/setup` para servidores nuevos
 
 ### Changed
 - Motor Markov reemplazado por implementación propia (`SimpleMarkov`) sin dependencia de markovify en runtime

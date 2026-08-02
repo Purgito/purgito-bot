@@ -32,6 +32,7 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+.ruff_cache/
 .mypy_cache/
 
 # Distribution / packaging
@@ -63,3 +64,8 @@ cookies.txt
 
 # Node.js artifacts (not a Node project)
 package-lock.json
+
+# Fuente de edición de video: 28 MB que git no comprime ni diffea. Sigue en
+# disco, solo deja de versionarse. El .mov corto de material-homepague sí
+# está trackeado, por eso la ruta va exacta y no un *.mov general.
+design/material-homepague/video_para_davinci.mov

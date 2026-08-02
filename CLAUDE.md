@@ -88,8 +88,10 @@ sí). `panel.purgito.app` proxea a esta app en el puerto 8080. Cloudflare
 está delante de todo — si algo "no cambia" después de un deploy, sospecha
 primero de caché antes de asumir que el código está mal.
 
-Ojo: `DEPLOY.md` describe otro escenario (Ubuntu, `sites-enabled`, dominio
-`gifs.purg4t0ry.com`). Está desactualizado — esta sección manda.
+`DEPLOY.md` ya no contradice esto: se actualizó a Oracle Linux + `conf.d` y
+detalla los cuatro server blocks. Quedan dos puntos sin verificar ahí (ruta
+del clon en el servidor, y si `/var/www/purgito-landing` es symlink o copia)
+— hasta confirmarlos en el droplet, esta sección manda.
 
 ## Identidad visual
 
