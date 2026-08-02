@@ -122,10 +122,7 @@ Cada proveedor procesa únicamente la información necesaria para prestar su ser
 
 Los datos recopilados se conservan únicamente mientras sean necesarios para el funcionamiento del bot.
 
-Los administradores del servidor pueden eliminar el contenido recopilado mediante herramientas incorporadas, como:
-
-- `/corpus_wipe`
-- `/corpus_ignore`
+Los administradores del servidor pueden eliminar el contenido recopilado usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
 
 Cuando el bot abandona un servidor o el corpus es eliminado, los datos asociados dejan de utilizarse para las funciones de aprendizaje.
 
