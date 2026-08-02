@@ -21,6 +21,11 @@ log = logging.getLogger(__name__)
 _db: aiosqlite.Connection | None = None
 _db_lock = asyncio.Lock()
 
+# Interacciones con el bot por hora y por usuario, por servidor. Es anti-abuso,
+# no un beneficio premium: mismo default para Free y Premium. 0 = sin límite.
+DEFAULT_MENTION_RATE_LIMIT = 10
+MAX_MENTION_RATE_LIMIT = 1000
+
 
 def _env_int(name: str, default: int) -> int:
     try:
@@ -38,7 +43,9 @@ def _limit_for_guild(
     premium_default: int,
 ) -> int:
     """Límite de almacenamiento aplicable a un guild según si es premium o no."""
-    from cogs.premium import is_premium_guild  # import diferido: evita import circular (premium.py importa de db)
+    from cogs.premium import (
+        is_premium_guild,
+    )  # import diferido: evita import circular (premium.py importa de db)
 
     if is_premium_guild(guild_id):
         return _env_int(premium_name, premium_default)
@@ -55,7 +62,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (
     guild_id INTEGER PRIMARY KEY,
     chat_mode_enabled INTEGER NOT NULL DEFAULT 1,
-    chat_channel_id INTEGER
+    chat_channel_id INTEGER,
+    mention_rate_limit INTEGER NOT NULL DEFAULT 10
 );
 
 CREATE TABLE IF NOT EXISTS corpus_messages (
@@ -194,6 +202,18 @@ CREATE TABLE IF NOT EXISTS chat_channels (
     PRIMARY KEY (guild_id, channel_id)
 );
 
+-- Contadores de uso acumulado por servidor (los "logs" de la tab INICIO del
+-- dashboard). Una fila por (guild, métrica) en vez de una columna por métrica:
+-- sumar una nueva no pide migración.
+-- ponytail: contador plano, sin serie temporal. Si algún día se quiere el
+-- gráfico "gifs enviados por día", esto pasa a (guild_id, name, día).
+CREATE TABLE IF NOT EXISTS guild_counters (
+    guild_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (guild_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS guild_bot_style (
     guild_id INTEGER PRIMARY KEY,
     nick TEXT,
@@ -303,12 +323,20 @@ async def init_db():
         log.debug("Columna locale ya existe en settings")
     # Canal donde Purgito publica sus anuncios de actualizaciones (dashboard INICIO).
     try:
-        await _db.execute(
-            "ALTER TABLE settings ADD COLUMN updates_channel_id INTEGER"
-        )
+        await _db.execute("ALTER TABLE settings ADD COLUMN updates_channel_id INTEGER")
         await _db.commit()
     except Exception:
         log.debug("Columna updates_channel_id ya existe en settings")
+    # Anti-farmeo: interacciones por hora y por usuario. Los servidores que ya
+    # existen quedan con el default (10), igual que uno nuevo.
+    try:
+        await _db.execute(
+            "ALTER TABLE settings ADD COLUMN mention_rate_limit "
+            f"INTEGER NOT NULL DEFAULT {DEFAULT_MENTION_RATE_LIMIT}"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna mention_rate_limit ya existe en settings")
     try:
         await _db.execute(
             "ALTER TABLE guild_auto_refeed ADD COLUMN welcome_channel_id INTEGER"
@@ -389,13 +417,39 @@ async def set_chat_mode(guild_id: int, enabled: bool, channel_id: int | None = N
 async def get_chat_settings(guild_id: int):
     db = await get_db()
     async with db.execute(
-        "SELECT chat_mode_enabled, chat_channel_id FROM settings WHERE guild_id=?",
+        "SELECT chat_mode_enabled, chat_channel_id, mention_rate_limit "
+        "FROM settings WHERE guild_id=?",
         (guild_id,),
     ) as cursor:
         row = await cursor.fetchone()
         if not row:
-            return {"enabled": True, "channel_id": None}
-        return {"enabled": bool(row[0]), "channel_id": row[1]}
+            return {
+                "enabled": True,
+                "channel_id": None,
+                "mention_rate_limit": DEFAULT_MENTION_RATE_LIMIT,
+            }
+        return {
+            "enabled": bool(row[0]),
+            "channel_id": row[1],
+            "mention_rate_limit": row[2],
+        }
+
+
+async def set_mention_rate_limit(guild_id: int, limit: int) -> None:
+    """Interacciones por hora y por usuario. 0 = sin límite.
+
+    No pisa chat_mode_enabled/chat_channel_id (a diferencia de set_chat_mode):
+    el dashboard va a editar este campo por separado desde la tab Chat.
+    """
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO settings (guild_id, mention_rate_limit) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "    mention_rate_limit=excluded.mention_rate_limit",
+            (guild_id, limit),
+        )
+        await db.commit()
 
 
 async def get_guild_locale(guild_id: int) -> str | None:
@@ -735,7 +789,10 @@ async def record_gif_health_check(gif_id: int, status: str) -> bool:
         await db.commit()
     log.warning(
         "Auto-borrado GIF #%s (guild=%s, url=%s): %s chequeos 'dead' seguidos",
-        gif_id, guild_id, url, streak,
+        gif_id,
+        guild_id,
+        url,
+        streak,
     )
     await r2.delete_url(url)
     return True
@@ -1601,7 +1658,11 @@ async def add_pending_deletion(
         cursor = await db.execute(
             "INSERT INTO pending_message_deletions (channel_id, message_id, delete_at) "
             "VALUES (?, ?, ?)",
-            (channel_id, message_id, delete_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+            (
+                channel_id,
+                message_id,
+                delete_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            ),
         )
         await db.commit()
         return cursor.lastrowid
@@ -1655,7 +1716,12 @@ async def get_button_action(custom_id: str) -> dict | None:
         row = await cursor.fetchone()
     if not row:
         return None
-    return {"custom_id": row[0], "guild_id": row[1], "action_type": row[2], "action_data": row[3]}
+    return {
+        "custom_id": row[0],
+        "guild_id": row[1],
+        "action_type": row[2],
+        "action_data": row[3],
+    }
 
 
 async def list_button_actions() -> list[dict]:
@@ -1909,6 +1975,34 @@ async def get_random_reaction(guild_id: int) -> dict | None:
     return {"emoji_text": row[0]} if row else None
 
 
+# ─── Contadores de uso ───────────────────────────────────────────────────────
+
+
+async def bump_counter(guild_id: int, name: str, by: int = 1) -> None:
+    """Suma al contador de uso del guild. Silencioso a propósito: es telemetría
+    para el dashboard, nunca puede voltear el envío que la dispara."""
+    try:
+        db = await get_db()
+        async with _db_lock:
+            await db.execute(
+                "INSERT INTO guild_counters (guild_id, name, count) VALUES (?, ?, ?) "
+                "ON CONFLICT(guild_id, name) DO UPDATE SET count = count + excluded.count",
+                (guild_id, name, by),
+            )
+            await db.commit()
+    except Exception:
+        log.debug("No se pudo sumar el contador %s del guild %s", name, guild_id)
+
+
+async def get_counters(guild_id: int) -> dict[str, int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT name, count FROM guild_counters WHERE guild_id=?", (guild_id,)
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
 # ─── Premium guilds ──────────────────────────────────────────────────────────
 
 
@@ -2089,6 +2183,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "guild_departures",
         "channel_refeed_status",
         "guild_auto_refeed",
+        "guild_counters",
     ]
     async with _db_lock:
         for table in tables:

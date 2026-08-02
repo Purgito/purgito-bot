@@ -430,15 +430,26 @@ button { font: inherit; cursor: pointer; }
 .btn-login { gap: 0.5rem; color: var(--text); }
 .btn-login .i { width: 1.35rem; height: 1.35rem; fill: currentColor; flex: none; }
 
-.auth-wrap { position: relative; }
+/* Un solo pill con dos zonas de click: el bloque avatar+nombre navega a
+   /es/perfil y el chevron abre el menú. El borde vive en el wrap para que se
+   lean como una pieza; los hijos pintan solo su propio hover. */
+.auth-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
 .auth-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  height: 2.25rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  height: 100%;
+  padding: 0 0.5rem 0 0.6rem;
+  /* Redondeado solo del lado de afuera: el hover de cada mitad respeta la
+     silueta del pill sin necesitar overflow:hidden, que recortaría el menú. */
+  border-radius: var(--radius) 0 0 var(--radius);
   background: transparent;
   color: var(--text);
   font-size: var(--t-sm);
@@ -446,7 +457,20 @@ button { font: inherit; cursor: pointer; }
   transition: background-color var(--dur);
 }
 .auth-btn:hover { background: var(--surface); }
-.auth-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.auth-chev {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.4rem;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: transparent;
+  color: var(--text);
+  transition: background-color var(--dur);
+}
+.auth-chev:hover { background: var(--surface); }
+.auth-chev[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .auth-avatar { width: 1.5rem; height: 1.5rem; border-radius: 6px; flex: none; }
 .auth-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 640px) { .auth-name { display: none; } }

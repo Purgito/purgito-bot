@@ -62,13 +62,21 @@ def cog(monkeypatch):
     return Chat(bot), saved, monkeypatch
 
 
-def _patch_ctx(monkeypatch, ignored=False, enabled=True, channel_id=None):
+def _patch_ctx(monkeypatch, ignored=False, enabled=True, channel_id=None, rate_limit=0):
+    """rate_limit=0 (sin tope) por default: estos tests miran el aviso de
+    silenciado, no el anti-farmeo — ver test_mention_rate_limit.py."""
+
     async def fake_ignored(guild_id, chan_id):
         return ignored
 
     async def fake_settings(guild_id):
-        return {"enabled": enabled, "channel_id": channel_id}
+        return {
+            "enabled": enabled,
+            "channel_id": channel_id,
+            "mention_rate_limit": rate_limit,
+        }
 
+    chat_mod._mention_hits.clear()
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_ignored)
     monkeypatch.setattr(chat_mod, "get_chat_settings", fake_settings)
 
@@ -131,3 +139,68 @@ def test_ignored_channel_never_saves_corpus(cog):
     asyncio.run(chat.on_message(mentioned))
     assert mentioned.replies == [i18n.t("chat.muted.ignored_channel", "es")]
     assert saved == []
+
+
+# ─── Anti-farmeo: pasado el tope, on_message no emite absolutamente nada ─────
+
+
+def _patch_generation(monkeypatch, reply="respuesta"):
+    """Corta el Markov: estos tests miran si el bot habla o no, no qué dice.
+    Sin esto la rama de respuesta real iría a la DB, que acá no está montada."""
+
+    async def fake_generate(guild_id):
+        return reply, True  # is_special=True: se manda tal cual, sin post-proceso
+
+    monkeypatch.setattr(chat_mod.generation, "generate_response", fake_generate)
+
+
+def test_rate_limit_silences_mentions_without_any_notice(cog):
+    chat, saved, mp = cog
+    _patch_ctx(mp, rate_limit=2)
+    _patch_generation(mp)
+
+    for _ in range(2):
+        m = FakeMessage()
+        asyncio.run(chat.on_message(m))
+        assert m.replies and not m.reactions  # dentro del cupo: responde
+
+    # Tercera mención de la misma hora: ni respuesta, ni reacción, ni aviso.
+    over = FakeMessage()
+    asyncio.run(chat.on_message(over))
+    assert over.replies == [] and over.reactions == []
+    # El mensaje igual entra al corpus: el tope frena las respuestas, no el aprendizaje.
+    assert saved == ["hola", "hola", "hola"]
+
+
+def test_rate_limit_beats_the_muted_notice(cog):
+    """El aviso de 'chat desactivado' también es un mensaje spameable."""
+    chat, _, mp = cog
+    _patch_ctx(mp, enabled=False, rate_limit=1)
+
+    first = FakeMessage()
+    asyncio.run(chat.on_message(first))
+    assert first.replies == [i18n.t("chat.muted.disabled", "es")]
+
+    over = FakeMessage(guild_id=1)
+    asyncio.run(chat.on_message(over))
+    assert over.replies == [] and over.reactions == []
+
+
+def test_rate_limit_is_per_user(cog):
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1)
+    _patch_generation(mp)
+
+    mine = FakeMessage()
+    asyncio.run(chat.on_message(mine))
+    assert mine.replies
+
+    blocked = FakeMessage()
+    asyncio.run(chat.on_message(blocked))
+    assert blocked.replies == []
+
+    # Otro usuario en el mismo servidor arranca con su cupo entero.
+    other = FakeMessage()
+    other.author = SimpleNamespace(bot=False, id=6, display_name="otro")
+    asyncio.run(chat.on_message(other))
+    assert other.replies

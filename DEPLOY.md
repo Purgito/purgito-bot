@@ -355,6 +355,12 @@ que la app realmente registra en `webapi.py` (`/auth/*`, `/api/*`,
 por prefijo de idioma para que `/es/terminos` resuelva a
 `es/terminos/index.html` y `/es/` caiga en el `index.html` de la raíz.
 
+El **dashboard también es estático**: `/es/perfil`, `/es/perfil/conexiones` y
+`/es/perfil/facturacion` son carpetas reales y las cubre el `try_files` de
+idioma. La única excepción es `/es/dashboard/<id>`, que necesita su propio
+`location` (está más abajo, marcado como obligatorio) porque el id del
+servidor no existe como carpeta.
+
 ```nginx
 server {
     listen 80;
@@ -369,13 +375,18 @@ server {
     location /webhooks/ { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
     location = /health  { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
 
-    # /es/perfil y /es/dashboard/:id: NO existen todavía en webapi.py (la capa
-    # de páginas se desmontó). Agregar este location recién cuando la app
-    # registre esas rutas — hasta entonces devolvería un 404 de aiohttp.
-    # location ~ ^/es/(perfil|dashboard)(/|$) { proxy_pass http://127.0.0.1:8080; ... }
-
     # ── Estático ────────────────────────────────────────────────────
-    # Las páginas legales son directorios reales (es/terminos/index.html).
+    # ⚠️ OBLIGATORIO para el dashboard: /es/dashboard/<id-del-servidor> es la
+    # única ruta del sitio con un segmento dinámico, y ese id no existe como
+    # carpeta en disco. Sin este location cae en el try_files de abajo y sirve
+    # la homepage. El id lo lee el JS del path (landing/js/core/config.js).
+    # `^~` gana sobre el regex de idiomas que viene después.
+    location ^~ /es/dashboard/ {
+        try_files $uri $uri/ /es/dashboard/index.html;
+    }
+
+    # Las páginas legales y las del perfil son directorios reales
+    # (es/terminos/index.html, es/perfil/facturacion/index.html).
     # El prefijo de idioma suelto (/es/) no existe en disco: cae al index.
     location ~ ^/(es|en|ru|ja|de)/ {
         try_files $uri $uri/ $uri/index.html /index.html;

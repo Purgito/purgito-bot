@@ -16,6 +16,7 @@ from cogs.gifs import get_live_gif, save_gif_candidates
 from cogs.memes import is_meme_trigger
 from config import REFEED_ALL_MAX_MESSAGES, REFEED_MAX_MESSAGES
 from db import (
+    bump_counter,
     count_corpus_messages,
     count_user_messages,
     get_channel_refeed_status,
@@ -23,6 +24,7 @@ from db import (
     get_random_reaction,
     get_welcome_channel_id,
     is_channel_ignored,
+    list_chat_channels,
     save_corpus_and_user_message,
     upsert_channel_refeed_status,
 )
@@ -38,6 +40,38 @@ _refeed_all_running: dict[int, asyncio.Task] = {}
 # se reacciona con 🤐. Mismo patrón que _empty_reply_cooldowns en generation.py.
 _MUTED_REPLY_COOLDOWN = 15 * 60
 _muted_reply_cooldowns: LRUDict = LRUDict(256)
+
+# Anti-farmeo de actividad/XP: interacciones por hora y por usuario, con el tope
+# configurable por servidor (settings.mention_rate_limit). En memoria a
+# propósito — es una ventana de una hora, no una métrica histórica: si el bot
+# reinicia, todos arrancan con el cupo entero y no pasa nada.
+# ponytail: LRUDict acotado en vez de barrer expirados; a 8192 claves las que se
+# desalojan son las menos usadas, que es justo lo contrario de un farmeador.
+_MENTION_RATE_WINDOW = 3600.0
+_mention_hits: LRUDict = LRUDict(8192)
+
+
+def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
+    """True si al usuario le queda cupo en su ventana de 1 h (y lo consume).
+
+    False cuando ya llegó al tope: quien llama debe callarse por completo, sin
+    avisar del límite — el aviso sería otro mensaje spameable.
+    """
+    if limit <= 0:
+        return True  # 0 (o negativo por config vieja) = sin límite
+    now = time.monotonic()
+    key = (guild_id, user_id)
+    # El default arranca la ventana en `now`, no en 0: con el bot recién
+    # levantado monotonic() es chico y un 0.0 daría una ventana ya vencida.
+    start, count = _mention_hits.get(key, (now, 0))
+    if now - start >= _MENTION_RATE_WINDOW:
+        start, count = now, 0
+    if count >= limit:
+        _mention_hits[key] = (start, count)  # refresca el LRU, no el cupo
+        return False
+    _mention_hits[key] = (start, count + 1)
+    return True
+
 
 # Reintentos ante errores HTTP transitorios (5xx, timeouts) al paginar el
 # historial durante el refeed; discord.Forbidden/NotFound no se reintentan.
@@ -115,16 +149,20 @@ class Chat(commands.Cog):
 
         if not (mention_bot or reply_to_bot):
             if message.guild and auto_generate:
-                # La allowlist de chat_channels quedó sin página donde
-                # configurarse al desmontar el dashboard: se ignora en runtime
-                # para no restringir al bot con config vieja que nadie puede
-                # editar. La tabla sigue en el esquema; volver a leerla acá
-                # cuando el sitio nuevo tenga la pantalla.
+                # Allowlist de "canales donde responde" (tab CHAT del
+                # dashboard). Lista vacía = sin restricción: participa en
+                # cualquier canal, que es el default de un servidor recién
+                # invitado. Solo aplica a la participación espontánea — una
+                # mención directa se responde igual, más abajo.
+                allowed = await list_chat_channels(message.guild.id)
+                if allowed and message.channel.id not in allowed:
+                    return
                 try:
                     if random.random() < 0.45:
                         gif_url = await get_live_gif(message.guild.id)
                         if gif_url:
                             await message.channel.send(gif_url)
+                            await bump_counter(message.guild.id, "gifs_enviados")
                             return
                     text, is_special = await generation.generate_response(
                         message.guild.id
@@ -135,11 +173,22 @@ class Chat(commands.Cog):
                         )
                         for chunk in chunk_message(final):
                             await message.channel.send(chunk)
+                        await bump_counter(message.guild.id, "mensajes_enviados")
                 except Exception:
                     log.exception("Error en generación automática de respuesta")
             return
 
         if not message.guild:
+            return
+
+        settings = await get_chat_settings(message.guild.id)
+
+        # Pasado el tope de la hora, esta mención no existe: ni respuesta, ni
+        # aviso de límite. Va antes de todo lo que manda mensajes —incluido
+        # _muted_reply— para que el propio aviso no se vuelva el spam.
+        if not _consume_interaction(
+            message.guild.id, message.author.id, settings["mention_rate_limit"]
+        ):
             return
 
         # Mención directa pero el bot no puede conversar aquí: avisar por qué
@@ -149,7 +198,6 @@ class Chat(commands.Cog):
             return
 
         # Respetar restricciones de canal y modo de chat
-        settings = await get_chat_settings(message.guild.id)
         if not settings["enabled"]:
             await self._muted_reply(message, "chat.muted.disabled")
             return
@@ -165,6 +213,7 @@ class Chat(commands.Cog):
             gif_url = await get_live_gif(message.guild.id)
             if gif_url:
                 await message.reply(gif_url)
+                await bump_counter(message.guild.id, "gifs_enviados")
                 return
 
         text, is_special = await generation.generate_response(message.guild.id)
@@ -181,6 +230,7 @@ class Chat(commands.Cog):
             reply = generation.post_process_reply(text)
         for chunk in chunk_message(reply):
             await message.reply(chunk)
+        await bump_counter(message.guild.id, "mensajes_enviados")
 
     async def _muted_reply(self, message: discord.Message, key: str, **fmt) -> None:
         """Explica por qué el bot no conversa aquí. Primera vez en la ventana de
@@ -245,9 +295,7 @@ class Chat(commands.Cog):
                 f"👀 Ya pude leer {after.mention}: {res['saved']:,} mensajes nuevos guardados."
             )
         except Exception:
-            log.debug(
-                "on_guild_channel_update: no se pudo avisar en %s", channel_id
-            )
+            log.debug("on_guild_channel_update: no se pudo avisar en %s", channel_id)
 
     # --- COMANDOS ---
 
@@ -315,7 +363,9 @@ class Chat(commands.Cog):
 
     # --- CORPUS ---
 
-    async def _fetch_history_batch(self, channel, **kwargs) -> list[discord.Message] | None:
+    async def _fetch_history_batch(
+        self, channel, **kwargs
+    ) -> list[discord.Message] | None:
         """channel.history(**kwargs) con reintentos ante HTTPException transitorio
         (5xx, timeouts) o discord.RateLimited (429 con max_ratelimit_timeout agotado).
         Nota: discord.RateLimited NO hereda de HTTPException en discord.py, así que
@@ -688,7 +738,7 @@ class Chat(commands.Cog):
         else:
             result = (
                 f"✅ Guardados {res['saved']} mensajes (leyendo el historial por primera vez).\n"
-                    f"⚠️ Límite de {REFEED_MAX_MESSAGES:,} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó."
+                f"⚠️ Límite de {REFEED_MAX_MESSAGES:,} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó."
             )
         await interaction.followup.send(result)
 

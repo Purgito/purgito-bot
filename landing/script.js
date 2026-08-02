@@ -34,8 +34,7 @@ function popover(btn, menu, container) {
 /* Íconos outline de 24×24 — mismo trazo que el resto del sitio. El color y el
    grosor salen del CSS (.menu-i), acá solo viven los paths. */
 var ICONS = {
-  grid: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
-  help: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>' +
+  help:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>' +
         '<path d="m5.6 5.6 3.2 3.2m6.4 6.4 3.2 3.2m0-12.8-3.2 3.2m-6.4 6.4-3.2 3.2"/>',
   book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>',
   star: '<path d="M12 3 14.3 8.8 20.6 9.2 15.7 13.2 17.3 19.3 12 15.9 6.7 19.3 8.3 13.2 3.4 9.2 9.7 8.8Z"/>',
@@ -207,23 +206,32 @@ function svgIcon(paths) {
     var wrap = document.createElement('div');
     wrap.className = 'auth-wrap';
 
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'auth-btn';
-    btn.setAttribute('aria-haspopup', 'true');
-    btn.setAttribute('aria-expanded', 'false');
+    /* El bloque avatar+nombre es un LINK directo al perfil, y el chevron de al
+       lado es el único que abre el menú. Antes había además un botón
+       "Dashboard" suelto en el nav y otro repetido dentro del menú: tres
+       caminos a la misma pantalla. Queda uno solo, el más directo. */
+    var profile = document.createElement('a');
+    profile.className = 'auth-btn';
+    profile.href = DASHBOARD;
 
     if (data.avatar_url) {
       var img = document.createElement('img');
       img.className = 'auth-avatar';
       img.src = data.avatar_url;
       img.alt = '';
-      btn.appendChild(img);
+      profile.appendChild(img);
     }
     var name = document.createElement('span');
     name.className = 'auth-name';
     name.textContent = data.name || 'Usuario';
-    btn.appendChild(name);
+    profile.appendChild(name);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'auth-chev';
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Abrir menú de cuenta');
 
     var chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     chev.setAttribute('class', 'chev');
@@ -259,10 +267,9 @@ function svgIcon(paths) {
     head.appendChild(ident);
     menu.appendChild(head);
 
-    // null = separador entre grupos, tal cual el boceto.
+    /* null = separador entre grupos, tal cual el boceto. Sin "Dashboard": a esa
+       pantalla se llega clickeando el bloque avatar+nombre de arriba. */
     [
-      { href: DASHBOARD, label: 'Dashboard', icon: ICONS.grid },
-      null,
       { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte', icon: ICONS.help },
       { href: '/' + LOC + '/docs', label: 'Documentación', icon: ICONS.book },
       null,
@@ -283,6 +290,7 @@ function svgIcon(paths) {
       menu.appendChild(a);
     });
 
+    wrap.appendChild(profile);
     wrap.appendChild(btn);
     wrap.appendChild(menu);
     slot.appendChild(wrap);

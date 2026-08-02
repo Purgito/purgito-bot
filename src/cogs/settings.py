@@ -22,6 +22,7 @@ from cogs.premium import is_premium_guild
 from cogs.youtube import get_latest_video
 from config import BOT_TRIGGER_NAME, PANEL_URL
 from db import (
+    MAX_MENTION_RATE_LIMIT,
     add_frase_especial,
     add_ignored_channel,
     count_guild_corpus_messages,
@@ -45,6 +46,7 @@ from db import (
     remove_scheduled_announcement,
     remove_youtube_sub,
     set_chat_mode,
+    set_mention_rate_limit,
     set_youtube_mention_role,
     update_last_video_id,
     was_auto_refeed_triggered,
@@ -277,6 +279,12 @@ class ChatCategory(SettingsCategory):
             )
         else:
             lines.append(t("settings.chat.channel_all", panel.locale))
+        limit = settings["mention_rate_limit"]
+        lines.append(
+            t("settings.chat.rate_limit_off", panel.locale)
+            if limit <= 0
+            else t("settings.chat.rate_limit_on", panel.locale, limit=limit)
+        )
         return discord.Embed(
             title=self.title(panel.locale),
             description="\n".join(lines),
@@ -332,11 +340,54 @@ class ChatCategory(SettingsCategory):
             )
             await panel.refresh(interaction)
 
+        rate_btn = discord.ui.Button(
+            label=t("settings.chat.btn_rate_limit", panel.locale),
+            style=discord.ButtonStyle.secondary,
+            row=1,
+        )
+
+        class RateLimitModal(discord.ui.Modal):
+            def __init__(self):
+                super().__init__(
+                    title=t("settings.chat.rate_modal_title", panel.locale)
+                )
+                self.limit_input = discord.ui.TextInput(
+                    label=t("settings.chat.rate_modal_field", panel.locale)[:45],
+                    default=str(settings["mention_rate_limit"]),
+                    max_length=4,
+                )
+                self.add_item(self.limit_input)
+
+            async def on_submit(self, interaction: discord.Interaction):
+                raw = self.limit_input.value.strip()
+                if not raw.isdigit() or int(raw) > MAX_MENTION_RATE_LIMIT:
+                    await interaction.response.send_message(
+                        t(
+                            "settings.chat.rate_invalid",
+                            panel.locale,
+                            max=MAX_MENTION_RATE_LIMIT,
+                        ),
+                        ephemeral=True,
+                    )
+                    return
+                await set_mention_rate_limit(panel.guild.id, int(raw))
+                await panel.refresh(interaction)
+
+        async def on_rate(interaction: discord.Interaction):
+            await interaction.response.send_modal(RateLimitModal())
+
         enable_btn.callback = on_enable
         disable_btn.callback = on_disable
         all_channels_btn.callback = on_all_channels
         channel_select.callback = on_channel
-        return [enable_btn, disable_btn, all_channels_btn, channel_select]
+        rate_btn.callback = on_rate
+        return [
+            enable_btn,
+            disable_btn,
+            all_channels_btn,
+            rate_btn,
+            channel_select,
+        ]
 
 
 class CorpusCategory(SettingsCategory):
@@ -355,8 +406,11 @@ class CorpusCategory(SettingsCategory):
         )
 
     async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
+        # news = canal de anuncios. El bot lee y aprende de ellos igual que de
+        # un canal de texto (discord.py los modela como TextChannel), así que
+        # tienen que poder ignorarse desde acá.
         channel_select = discord.ui.ChannelSelect(
-            channel_types=[discord.ChannelType.text],
+            channel_types=[discord.ChannelType.text, discord.ChannelType.news],
             placeholder=t("settings.corpus.placeholder", panel.locale),
             row=1,
         )

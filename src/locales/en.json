@@ -27,6 +27,12 @@
   "settings.chat.btn_disable": "Disable",
   "settings.chat.btn_all_channels": "Use all channels",
   "settings.chat.channel_placeholder": "Restrict replies to a channel…",
+  "settings.chat.btn_rate_limit": "Hourly limit",
+  "settings.chat.rate_limit_on": "Limit: **{limit}** interactions per hour per user.",
+  "settings.chat.rate_limit_off": "Limit: **no cap** on interactions per hour.",
+  "settings.chat.rate_modal_title": "Interactions per hour",
+  "settings.chat.rate_modal_field": "Max per user per hour (0 = no cap)",
+  "settings.chat.rate_invalid": "❌ Enter a whole number between 0 and {max}. Nothing changed.",
 
   "settings.cat.corpus.label": "Ignored channels",
   "settings.cat.corpus.desc": "Channels the bot fully ignores",

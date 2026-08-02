@@ -20,8 +20,10 @@ hay que correrlo después de tocar esos archivos, no solo docs/*.md. El
 `--check` de CI falla si quedaron desincronizados.
 """
 
+import functools
 import hashlib
 import html
+import json
 import re
 import sys
 from pathlib import Path
@@ -82,6 +84,10 @@ PAGES = [
 
 # Páginas que no salen de un markdown: el cuerpo se escribe a mano en
 # landing/pages/ y acá solo se le pega el navbar/footer/head compartido.
+#
+# "app" marca las páginas del dashboard: además del <head> común les suma
+# dash.css y su módulo de entrada. Son las únicas que cargan JavaScript propio
+# — el resto del sitio se sirve con script.js y nada más.
 HTML_PAGES = [
     {
         "slug": "premium",
@@ -89,6 +95,38 @@ HTML_PAGES = [
         "title": "Purgito Premium",
         "meta": "Apoya a Purgito y obtén beneficios exclusivos: más memoria, "
         "más GIFs, memes automáticos y plantillas de embeds.",
+    },
+    {
+        "slug": "perfil",
+        "src": "perfil.html",
+        "title": "Tu perfil",
+        "meta": "Tus servidores de Discord con Purgito: entra al dashboard de "
+        "cada uno o invítalo a los que falten.",
+        "app": "perfil.js",
+    },
+    # Mismo cuerpo que /es/perfil: perfil.js decide la tab por la URL. Existen
+    # como páginas propias para que cada una tenga su título y su link real.
+    {
+        "slug": "perfil/conexiones",
+        "src": "perfil.html",
+        "title": "Conexiones",
+        "meta": "Conexiones de tu cuenta de Purgito.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/facturacion",
+        "src": "perfil.html",
+        "title": "Facturación",
+        "meta": "Estado de tus suscripciones Premium de Purgito.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "dashboard",
+        "src": "dashboard.html",
+        "title": "Dashboard",
+        "meta": "Configura Purgito en tu servidor: chat, corpus, reacciones, "
+        "frases, GIFs, embeds y premium.",
+        "app": "dash.js",
     },
 ]
 
@@ -178,7 +216,7 @@ SHELL = """<!DOCTYPE html>
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css">
-</head>
+{head}</head>
 <body>
 
 <div id="bg" class="bg-short" aria-hidden="true"></div>
@@ -192,9 +230,15 @@ SHELL = """<!DOCTYPE html>
 {footer}
 
 <script src="/script.js"></script>
-</body>
+{scripts}</body>
 </html>
 """
+
+# Páginas del dashboard: el CSS propio va después de style.css (lo extiende, no
+# lo reemplaza) y el módulo de entrada después de script.js, que es quien pinta
+# la sesión en el navbar.
+APP_HEAD = '<link rel="stylesheet" href="/dash.css">\n{importmap}'
+APP_SCRIPT = '<script type="module" src="/js/{src}?v={v}"></script>\n'
 
 
 def build_toc(sections, descs):
@@ -252,6 +296,8 @@ def build_page(page, nav, footer):
         nav=nav,
         body=body,
         footer=footer,
+        head="",
+        scripts="",
     )
 
 
@@ -260,13 +306,57 @@ def build_html_page(page, nav, footer):
 
     Solo aporta el navbar, el footer y el <head> — el resto sale del archivo
     tal cual. Existe para que esas piezas no se dupliquen fuera de index.html.
+    Las que traen "app" suman además dash.css y su módulo de entrada.
     """
+    app = page.get("app")
     return SHELL.format(
         title=html.escape(page["title"]),
         meta=html.escape(page["meta"]),
         nav=nav,
         body=(LANDING / "pages" / page["src"]).read_text("utf-8").strip(),
         footer=footer,
+        head=APP_HEAD.format(importmap=import_map()) if app else "",
+        scripts=APP_SCRIPT.format(src=app, v=js_files()[0]) if app else "",
+    )
+
+
+@functools.cache
+def js_files():
+    """(hash del árbol, rutas de landing/js/**.js) — un solo hash para todos.
+
+    Tocar cualquier módulo invalida el árbol entero: es algo más de caché
+    tirada a la basura, a cambio de un mapa estable y un diff mínimo. Son
+    ~130 KB en total, no vale la pena afinarlo por archivo.
+    """
+    files = sorted((LANDING / "js").rglob("*.js"))
+    digest = hashlib.sha256(
+        b"".join(
+            p.relative_to(LANDING).as_posix().encode() + p.read_bytes() for p in files
+        )
+    ).hexdigest()[:8]
+    return digest, files
+
+
+def import_map():
+    """`<script type="importmap">` que le pone ?v= a cada módulo de landing/js/.
+
+    Sin esto el cache-busting del dashboard quedaría a medias: el `?v=` del
+    <script> de entrada no se propaga a lo que ese módulo importa, y Cloudflare
+    (4 h de caché para .js) seguiría sirviendo los módulos internos viejos
+    después de un deploy — el bug clásico de "actualicé y no cambió nada".
+
+    Las claves son las mismas rutas absolutas que usan los `import` de
+    landing/js/, así que el mapa es una sustitución 1:1: sin bare specifiers
+    ni scopes, y los módulos siguen funcionando si el mapa no se aplica.
+    """
+    digest, files = js_files()
+    entries = {
+        "/" + p.relative_to(LANDING).as_posix(): "/%s?v=%s"
+        % (p.relative_to(LANDING).as_posix(), digest)
+        for p in files
+    }
+    return '<script type="importmap">\n%s\n</script>\n' % json.dumps(
+        {"imports": entries}, indent=2, ensure_ascii=False
     )
 
 
@@ -275,7 +365,7 @@ def build_html_page(page, nav, footer):
 # Cloudflare cachea .css/.js 4 h por default (el HTML no), así que un deploy
 # deja los assets viejos servidos hasta que alguien purgue a mano. El hash del
 # contenido en el query string hace que cada cambio sea una URL nueva.
-ASSETS = ("style.css", "script.js")
+ASSETS = ("style.css", "script.js", "dash.css")
 
 
 def stamp(page_html):

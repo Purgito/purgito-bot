@@ -8,12 +8,13 @@ música y avisa de videos nuevos de YouTube.
 
 - Bot: Python + discord.py, arquitectura de cogs en `src/cogs/`
 - Python 3.11+ — CI corre en 3.12, el venv local está en 3.14
-- Web: aiohttp puro (`src/webapi.py`), sirve auth OAuth2, `/api/*` y los
-  endpoints públicos (webhook de Polar, health check). Todo bajo
-  `purgito.app` — ya no hay subdominio `panel.`
+- Web: aiohttp puro (`src/webapi.py`), **solo JSON** — auth OAuth2, `/api/*`
+  y los endpoints públicos (webhook de Polar, health check). No renderiza
+  HTML. Todo bajo `purgito.app` — ya no hay subdominio `panel.`
 - Frontend: HTML/CSS/JS plano en `landing/` — NO usar React/Next.js ni
   ningún framework nuevo, aunque el diseño se inspire en sitios que sí los
-  usan (ver "Identidad visual" abajo)
+  usan (ver "Identidad visual" abajo). El dashboard son páginas estáticas
+  más módulos ES nativos en `landing/js/` (sin bundler, sin build step)
 - DB: SQLite (`data/bot.db`)
 
 ## Comandos
@@ -27,9 +28,10 @@ música y avisa de videos nuevos de YouTube.
 ruff check .
 ruff format --check .
 
-# Regenera las páginas de landing/es/ y resella el ?v= de style.css y
-# script.js. Correr después de tocar docs/*.md, style.css o script.js —
-# el HTML generado se commitea. CI corre el --check y falla si quedó viejo.
+# Regenera las páginas de landing/es/, resella el ?v= de style.css, dash.css
+# y script.js, y reconstruye el import map de landing/js/. Correr después de
+# tocar docs/*.md, landing/pages/*, cualquier .css o cualquier .js — el HTML
+# generado se commitea. CI corre el --check y falla si quedó viejo.
 .venv/bin/python landing/build_docs.py
 .venv/bin/python landing/build_docs.py --check
 
@@ -44,8 +46,14 @@ desde `tests/`.
 
 - `src/cogs/` — comandos y features del bot (chat, gifs, memes, música,
   premium, anuncios, layout_buttons)
-- `src/webapi.py` — servidor web; ver zonas protegidas abajo
+- `src/webapi.py` — API JSON; ver zonas protegidas abajo
 - `landing/` — sitio estático (index.html, style.css, script.js)
+- `landing/pages/` — cuerpos escritos a mano; `build_docs.py` les pega el
+  navbar/footer/head y los escribe en `landing/es/<slug>/index.html`
+- `landing/js/` + `landing/dash.css` — dashboard (`/es/perfil*`,
+  `/es/dashboard/:id`). `js/embeds/` y `js/tabs/gifs.js` vienen del panel
+  anterior y se reutilizan **sin tocar la lógica**: si hay que cambiar algo
+  ahí, primero preguntá
 - `bocetos/` — wireframes de referencia (Excalidraw exportado a PNG/SVG)
 - `referencias/` — dumps de código externo usados solo como referencia
   visual/técnica (gitignored, no es parte del proyecto — no ejecutar ni
@@ -96,6 +104,11 @@ demás sale estático de `/var/www/purgito-landing` (copia separada de
 `landing/`, no el repo en sí). Cloudflare está delante de todo — si algo
 "no cambia" después de un deploy, sospecha primero de caché antes de
 asumir que el código está mal.
+
+**Pendiente en el droplet:** `/es/dashboard/:id` es la única ruta del sitio
+con un segmento dinámico y necesita un `location ^~ /es/dashboard/` con
+`try_files … /es/dashboard/index.html` (está en DEPLOY.md). Sin agregarlo, esa
+URL sirve la homepage. `/es/perfil*` no lo necesita: son carpetas reales.
 
 `DEPLOY.md` ya no contradice esto: se actualizó a Oracle Linux + `conf.d` y
 detalla los tres server blocks. Quedan dos puntos sin verificar ahí (ruta
