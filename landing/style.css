@@ -1033,11 +1033,17 @@ body:has(.premium) .premium { flex: 1; }
   background: var(--accent);
   color: var(--accent-ink);
 }
-.toggle-opt .badge {
+/* .toggle-opt es un <button>: sin appearance:none, los navegadores clipean
+   cualquier descendiente absolute a la caja nativa del control, así que el
+   badge NO puede vivir dentro del botón (ver commit que lo movió acá). Este
+   wrapper es quien recibe position:relative; el badge es hermano del botón,
+   nunca su hijo. */
+.toggle-anual-wrap { position: relative; display: inline-flex; }
+.toggle-badge {
   position: absolute;
-  top: -0.2rem;
-  right: 0;
-  transform: translateY(-50%);
+  top: -0.7rem;
+  left: 50%;
+  transform: translate(-50%, -50%);
   white-space: nowrap;
   /* Mismo tono que .badge, pero opaco: flota sobre el borde del botón y el
      12% translúcido dejaría pasar la línea (y el relleno de acento cuando
