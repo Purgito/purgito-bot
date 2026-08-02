@@ -125,6 +125,98 @@ def test_api_me_incluye_user_id():
     assert resp.headers["Cache-Control"] == "no-store"
 
 
+# ── "Recargar" de /es/perfil ─────────────────────────────────────────────────
+
+
+class _FakeResponse:
+    def __init__(self, status, payload):
+        self.status = status
+        self._payload = payload
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def json(self):
+        return self._payload
+
+
+class _FakeHttp:
+    """Cuenta los GET a Discord para distinguir cache-hit de refetch."""
+
+    def __init__(self, status=200, payload=None):
+        self.calls = 0
+        self.status = status
+        self.payload = payload if payload is not None else []
+
+    def get(self, url, headers=None):
+        self.calls += 1
+        return _FakeResponse(self.status, self.payload)
+
+
+def _request_with(http, session):
+    async def fake_get_session(_request):
+        return session
+
+    webapi.get_session = fake_get_session
+
+    class Req:
+        app = {"http": http}
+        query: dict = {}
+
+    return Req()
+
+
+def _guilds_env(monkeypatch, http):
+    """Sesión válida + cache limpio, con get_session parcheado."""
+    monkeypatch.setattr(webapi, "_user_guilds_cache", webapi.LRUDict(8))
+    monkeypatch.setattr(webapi, "get_session", webapi.get_session, raising=False)
+    session = {"user_id": "42", "access_token": "tok"}
+    return _request_with(http, session)
+
+
+def test_recargar_saltea_el_cache_de_5_minutos(monkeypatch):
+    """Sin force, el segundo pedido sale del cache; con force vuelve a Discord."""
+    original = webapi.get_session
+    http = _FakeHttp(payload=[{"id": "1", "name": "S", "owner": True}])
+    req = _guilds_env(monkeypatch, http)
+    try:
+        asyncio.run(webapi._fetch_manage_guilds(req))
+        assert http.calls == 1
+        asyncio.run(webapi._fetch_manage_guilds(req))  # cache hit
+        assert http.calls == 1, "el cache de 5 min dejó de funcionar"
+        asyncio.run(webapi._fetch_manage_guilds(req, force=True))
+        assert http.calls == 2, "?refresh=1 no volvió a preguntarle a Discord"
+    finally:
+        webapi.get_session = original
+
+
+def test_recargar_con_429_devuelve_la_lista_vieja_en_vez_de_deslogear(monkeypatch):
+    """Dos clicks seguidos chocan con el ~1 req/s de Discord; no puede leerse
+    como sesión expirada."""
+    original = webapi.get_session
+    http = _FakeHttp(payload=[{"id": "1", "name": "S", "owner": True}])
+    req = _guilds_env(monkeypatch, http)
+    try:
+        primera = asyncio.run(webapi._fetch_manage_guilds(req))
+        http.status = 429
+        segunda = asyncio.run(webapi._fetch_manage_guilds(req, force=True))
+        assert segunda is not None, "un 429 en el refresh desloguearía al usuario"
+        assert segunda == primera
+    finally:
+        webapi.get_session = original
+
+
+def test_el_boton_dice_recargar_y_no_reportar():
+    perfil = (LANDING / "js" / "perfil.js").read_text("utf-8")
+    assert "'Recargar'" in perfil
+    assert "Reportar" not in perfil
+    # Y recarga de verdad: pide la lista salteando el cache.
+    assert "?refresh=1" in perfil
+
+
 # ── Contadores de uso (los "logs" de la tab INICIO) ──────────────────────────
 
 

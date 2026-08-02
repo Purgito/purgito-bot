@@ -7,7 +7,7 @@
 // páginas ya no se renderizan por request.
 
 import { apiFetch } from '/js/core/api.js';
-import { el, spinner, emptyState, renderError, guildIcon } from '/js/core/dom.js';
+import { el, spinner, emptyState, renderError, guildIcon, toast } from '/js/core/dom.js';
 import { currentLocale } from '/js/core/config.js';
 
 const TABS = [
@@ -45,12 +45,21 @@ function header(me, tab, locale) {
       }, t.label))));
 }
 
-function actionButtons() {
+function actionButtons(onReload) {
+  const reload = el('button', {
+    class: 'btn btn-secondary',
+    type: 'button',
+    onclick: async () => {
+      // Deshabilitado mientras vuela: el refresh salta el cache de 5 min y
+      // pega contra Discord, que limita ese endpoint a ~1 req/s por token.
+      reload.disabled = true;
+      try { await onReload(); } finally { reload.disabled = false; }
+    },
+  }, 'Recargar');
   return el('div', { class: 'pf-actions' },
     el('a', { class: 'btn btn-primary', href: INVITE, target: '_blank', rel: 'noopener' }, 'Invitar a Purgito'),
     el('a', { class: 'btn btn-secondary', href: SUPPORT, target: '_blank', rel: 'noopener' }, 'Servidor de soporte'),
-    // ponytail: Reportar abre el servidor de soporte, no un formulario propio.
-    el('a', { class: 'btn btn-secondary', href: SUPPORT, target: '_blank', rel: 'noopener' }, 'Reportar'));
+    reload);
 }
 
 function serverCard(g, configured, locale) {
@@ -69,19 +78,12 @@ function serverCard(g, configured, locale) {
 }
 
 async function tabServidores(box, locale) {
-  box.append(spinner());
-  let guilds;
-  try { guilds = await apiFetch('/api/me/guilds'); }
-  catch (e) { return renderError(box, e); }
-  box.innerHTML = '';
   const search = el('input', {
     type: 'search', class: 'pf-search', placeholder: 'Buscar por nombre o ID…',
   });
   const grid = el('div', { class: 'card-grid' });
-  const all = [
-    ...guilds.configured.map(g => [g, true]),
-    ...guilds.available.map(g => [g, false]),
-  ];
+  let all = [];
+
   function render() {
     const q = search.value.trim().toLowerCase();
     grid.innerHTML = '';
@@ -90,9 +92,34 @@ async function tabServidores(box, locale) {
     if (!hits.length) grid.append(emptyState('Ningún servidor coincide con la búsqueda.'));
     for (const [g, conf] of hits) grid.append(serverCard(g, conf, locale));
   }
+
+  /* `force` manda ?refresh=1, que hace que el backend vuelva a preguntarle la
+     lista a Discord en vez de servir su cache de 5 min. Sin eso el botón sería
+     decorativo justo cuando más se usa: recién invitaste a Purgito a un
+     servidor y querés verlo aparecer. El texto del buscador se conserva. */
+  async function load(force) {
+    grid.innerHTML = '';
+    grid.append(spinner());
+    try {
+      const guilds = await apiFetch('/api/me/guilds' + (force ? '?refresh=1' : ''));
+      all = [
+        ...guilds.configured.map(g => [g, true]),
+        ...guilds.available.map(g => [g, false]),
+      ];
+      render();
+      if (force) toast('Lista de servidores actualizada', 'ok');
+    } catch (e) {
+      grid.innerHTML = '';
+      renderError(grid, e);
+      if (force) toast('No se pudo actualizar la lista, intenta de nuevo', 'err');
+    }
+  }
+
   search.oninput = render;
-  render();
-  box.append(el('div', { class: 'pf-toolbar' }, search, actionButtons()), grid);
+  box.append(
+    el('div', { class: 'pf-toolbar' }, search, actionButtons(() => load(true))),
+    grid);
+  await load(false);
 }
 
 function tabConexiones(box) {

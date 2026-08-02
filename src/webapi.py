@@ -182,8 +182,16 @@ def _filter_manage_guilds(guilds: list[dict]) -> list[dict]:
     return manage
 
 
-async def _fetch_manage_guilds(request: web.Request) -> list[dict] | None:
-    """Guilds del usuario donde tiene MANAGE_GUILD/owner, cacheados 5 min por user_id."""
+async def _fetch_manage_guilds(
+    request: web.Request, force: bool = False
+) -> list[dict] | None:
+    """Guilds del usuario donde tiene MANAGE_GUILD/owner, cacheados 5 min por user_id.
+
+    ``force`` salta el TTL (botón "Recargar" del perfil) pero NO borra la
+    entrada cacheada: si Discord contesta 429 —su límite en este endpoint es de
+    ~1 req/s por token— la lista vieja sigue ahí para devolverla. Borrarla haría
+    que dos clicks seguidos parecieran una sesión expirada.
+    """
     session = await get_session(request)
     user_id = session.get("user_id")
     token = session.get("access_token")
@@ -191,7 +199,7 @@ async def _fetch_manage_guilds(request: web.Request) -> list[dict] | None:
         return None
     now = time.monotonic()
     cached = _user_guilds_cache.get(user_id)
-    if cached and cached[0] > now:
+    if cached and not force and cached[0] > now:
         return cached[1]
     try:
         http = request.app["http"]
@@ -351,10 +359,19 @@ async def _gif_delete_impl(
 
 
 async def _api_me_guilds(request: web.Request) -> web.Response:
+    """Servidores que el usuario administra, partidos en los que ya tienen el
+    bot (``configured``) y los que no (``available``).
+
+    ``?refresh=1`` lo manda el botón "Recargar" de /es/perfil: vuelve a
+    preguntarle la lista a Discord en vez de servir el cache de 5 min, que es
+    justo lo que hace falta después de invitar el bot a un servidor nuevo.
+    """
     session = await get_session(request)
     if not session.get("user_id"):
         return web.json_response({"error": "no autenticado"}, status=401)
-    manage = await _fetch_manage_guilds(request)
+    manage = await _fetch_manage_guilds(
+        request, force=request.query.get("refresh") == "1"
+    )
     if manage is None:
         return web.json_response(
             {"error": "sesión expirada, inicia sesión de nuevo"}, status=401
@@ -393,7 +410,13 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
                     "invite_url": get_invite_url(str(gid)),
                 }
             )
-    return web.json_response({"configured": configured, "available": available})
+    # no-store por el mismo motivo que /api/me: la respuesta es por usuario y
+    # delante hay Cloudflare. Sin esto el "Recargar" podría comerse una copia
+    # cacheada y no cambiar nada.
+    return web.json_response(
+        {"configured": configured, "available": available},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 # ---------------- API: canales y roles ----------------
