@@ -65,7 +65,13 @@ PAGES = [
         "slug": "reembolsos",
         "src": "REFUNDS.md",
         "meta": "Política de reembolsos de las suscripciones premium de Purgito.",
-        "toc": [],
+        "toc": [
+            "La prueba gratuita de 7 días y sus condiciones.",
+            "Cómo cancelar la suscripción desde el portal de Polar.",
+            "Por qué no se ofrecen reembolsos por el período ya pagado.",
+            "Cuándo se puede revocar el acceso premium.",
+            "A quién queda asociado el premium: al servidor, no a la cuenta.",
+        ],
     },
 ]
 
@@ -111,9 +117,10 @@ def render(body):
             if para:
                 flush()
             items.append(line[2:])
+        elif items:
+            # Bullet cortado en varias líneas: sigue el ítem, no abre párrafo.
+            items[-1] += " " + line
         else:
-            if items:
-                flush()
             para.append(line)
     flush()
     return "\n".join(out)
@@ -123,10 +130,13 @@ def parse(md):
     """Devuelve (título, fecha, intro_html, [(encabezado, cuerpo_html), …]).
 
     Los `# ` de nivel 1 separan: el primero es el título del documento y los
-    siguientes son las secciones numeradas.
+    siguientes son las secciones numeradas. Un documento sin secciones de
+    nivel 1 (REFUNDS) usa sus `## ` como secciones.
     """
     chunks = re.split(r"^# ", md, flags=re.M)[1:]
     head, rest = chunks[0], chunks[1:]
+    if not rest:
+        head, *rest = re.split(r"^## ", head, flags=re.M)
 
     title, _, intro = head.partition("\n")
     date = re.search(r"\*\*Última actualización:\*\*\s*(.+)", intro)
@@ -259,6 +269,16 @@ def main():
     assert sections[0][0] == "1. Uso Aceptable"
     assert "<h3>Reembolsos</h3>" in sections[3][1]
     assert len(parse((DOCS / "PRIVACY.md").read_text("utf-8"))[3]) == 9
+    # REFUNDS no tiene `# N.`: sus `## ` son las secciones.
+    refunds = parse((DOCS / "REFUNDS.md").read_text("utf-8"))
+    assert refunds[0] == "Políticas de reembolsos", refunds[0]
+    assert refunds[1] == "2 de agosto de 2026", refunds[1]
+    assert len(refunds[3]) == 5, len(refunds[3])
+    assert refunds[3][0][0] == "Prueba gratuita (trial)", refunds[3][0][0]
+    assert "<h3>" not in refunds[3][0][1], refunds[3][0][1]
+    assert render("- uno\n  sigue") == "<ul><li>uno sigue</li></ul>", render(
+        "- uno\n  sigue"
+    )
     assert render("- uno\n- dos") == "<ul><li>uno</li><li>dos</li></ul>", render(
         "- uno\n- dos"
     )
