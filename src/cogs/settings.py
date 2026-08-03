@@ -20,33 +20,24 @@ import generation
 import i18n
 from cogs.premium import is_premium_guild
 from cogs.youtube import get_latest_video
-from config import BOT_TRIGGER_NAME, PANEL_URL
+from config import BOT_TRIGGER_NAME, PANEL_URL, get_dashboard_url
 from db import (
-    MAX_MENTION_RATE_LIMIT,
-    add_frase_especial,
     add_ignored_channel,
-    count_guild_corpus_messages,
     add_meme_schedule,
-    add_reaction_to_pool,
     add_scheduled_announcement,
     add_youtube_sub,
-    delete_frase_especial,
+    count_guild_corpus_messages,
     get_chat_settings,
-    list_frases_especiales,
     list_ignored_channels,
     list_meme_schedules,
-    list_reaction_pool,
     list_scheduled_announcements,
     list_youtube_subs,
     mark_auto_refeed_completed,
     mark_auto_refeed_triggered,
-    remove_ignored_channel,
     remove_meme_schedule,
-    remove_reaction_from_pool,
     remove_scheduled_announcement,
     remove_youtube_sub,
     set_chat_mode,
-    set_mention_rate_limit,
     set_youtube_mention_role,
     update_last_video_id,
     was_auto_refeed_triggered,
@@ -140,7 +131,10 @@ class SettingsPanel(discord.ui.View):
         self.locale = locale
         self.invoker_id = invoker_id
         # (título, cuerpo) mostrado cuando no hay categoría elegida (portada /settings o /setup)
-        self.intro = intro or (t("settings.title", locale), t("settings.intro", locale))
+        self.intro = intro or (
+            t("settings.title", locale),
+            t("settings.intro", locale, url=get_dashboard_url(guild.id)),
+        )
         # Footer con el panel web solo en la portada de /settings; /setup ya lo menciona en el cuerpo.
         self.show_panel_footer = intro is None
         self.current_key: str | None = None
@@ -247,7 +241,7 @@ class IdiomaCategory(SettingsCategory):
             panel.locale = new_locale
             panel.intro = (
                 t("settings.title", new_locale),
-                t("settings.intro", new_locale),
+                t("settings.intro", new_locale, url=get_dashboard_url(panel.guild.id)),
             )
             await panel.refresh(interaction)
 
@@ -256,39 +250,22 @@ class IdiomaCategory(SettingsCategory):
 
 
 class ChatCategory(SettingsCategory):
+    """Solo el interruptor de menciones. Canales, frecuencia y límite de
+    interacciones se administran desde el dashboard — ver settings.intro."""
+
     key = "chat"
     emoji = "💬"
 
     async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
         settings = await get_chat_settings(panel.guild.id)
-        lines = [
-            t(
-                "settings.chat.status_on"
-                if settings["enabled"]
-                else "settings.chat.status_off",
-                panel.locale,
-            )
-        ]
-        if settings["channel_id"]:
-            lines.append(
-                t(
-                    "settings.chat.channel_only",
-                    panel.locale,
-                    channel=f"<#{settings['channel_id']}>",
-                )
-            )
-        else:
-            lines.append(t("settings.chat.channel_all", panel.locale))
-        limit = settings["mention_rate_limit"]
-        lines.append(
-            t("settings.chat.rate_limit_off", panel.locale)
-            if limit <= 0
-            else t("settings.chat.rate_limit_on", panel.locale, limit=limit)
+        body = t(
+            "settings.chat.status_on"
+            if settings["enabled"]
+            else "settings.chat.status_off",
+            panel.locale,
         )
         return discord.Embed(
-            title=self.title(panel.locale),
-            description="\n".join(lines),
-            color=PURGITO_COLOR,
+            title=self.title(panel.locale), description=body, color=PURGITO_COLOR
         )
 
     async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
@@ -306,17 +283,6 @@ class ChatCategory(SettingsCategory):
             disabled=not settings["enabled"],
             row=1,
         )
-        all_channels_btn = discord.ui.Button(
-            label=t("settings.chat.btn_all_channels", panel.locale),
-            style=discord.ButtonStyle.secondary,
-            disabled=settings["channel_id"] is None,
-            row=1,
-        )
-        channel_select = discord.ui.ChannelSelect(
-            channel_types=[discord.ChannelType.text],
-            placeholder=t("settings.chat.channel_placeholder", panel.locale),
-            row=2,
-        )
 
         async def on_enable(interaction: discord.Interaction):
             current = await get_chat_settings(panel.guild.id)
@@ -328,108 +294,36 @@ class ChatCategory(SettingsCategory):
             await set_chat_mode(panel.guild.id, False, current["channel_id"])
             await panel.refresh(interaction)
 
-        async def on_all_channels(interaction: discord.Interaction):
-            current = await get_chat_settings(panel.guild.id)
-            await set_chat_mode(panel.guild.id, current["enabled"], None)
-            await panel.refresh(interaction)
-
-        async def on_channel(interaction: discord.Interaction):
-            current = await get_chat_settings(panel.guild.id)
-            await set_chat_mode(
-                panel.guild.id, current["enabled"], channel_select.values[0].id
-            )
-            await panel.refresh(interaction)
-
-        rate_btn = discord.ui.Button(
-            label=t("settings.chat.btn_rate_limit", panel.locale),
-            style=discord.ButtonStyle.secondary,
-            row=1,
-        )
-
-        class RateLimitModal(discord.ui.Modal):
-            def __init__(self):
-                super().__init__(
-                    title=t("settings.chat.rate_modal_title", panel.locale)
-                )
-                self.limit_input = discord.ui.TextInput(
-                    label=t("settings.chat.rate_modal_field", panel.locale)[:45],
-                    default=str(settings["mention_rate_limit"]),
-                    max_length=4,
-                )
-                self.add_item(self.limit_input)
-
-            async def on_submit(self, interaction: discord.Interaction):
-                raw = self.limit_input.value.strip()
-                if not raw.isdigit() or int(raw) > MAX_MENTION_RATE_LIMIT:
-                    await interaction.response.send_message(
-                        t(
-                            "settings.chat.rate_invalid",
-                            panel.locale,
-                            max=MAX_MENTION_RATE_LIMIT,
-                        ),
-                        ephemeral=True,
-                    )
-                    return
-                await set_mention_rate_limit(panel.guild.id, int(raw))
-                await panel.refresh(interaction)
-
-        async def on_rate(interaction: discord.Interaction):
-            await interaction.response.send_modal(RateLimitModal())
-
         enable_btn.callback = on_enable
         disable_btn.callback = on_disable
-        all_channels_btn.callback = on_all_channels
-        channel_select.callback = on_channel
-        rate_btn.callback = on_rate
-        return [
-            enable_btn,
-            disable_btn,
-            all_channels_btn,
-            rate_btn,
-            channel_select,
-        ]
+        return [enable_btn, disable_btn]
 
 
-class CorpusCategory(SettingsCategory):
-    key = "corpus"
-    emoji = "🚫"
+class DatosCategory(SettingsCategory):
+    """Acciones destructivas sobre datos guardados del servidor.
+
+    Antes era "Corpus" (canales ignorados + wipe): la parte de canales
+    ignorados se retiró de acá porque su selector de canal duplicaba —y
+    contradecía, por el modelo positivo nuevo— el tab Corpus del dashboard.
+    Los botones de vaciar corpus/GIFs quedan igual que siempre, solo con
+    categoría y locale keys propios (settings.corpus.btn_wipe* etc. NO se
+    tocaron)."""
+
+    key = "datos"
+    emoji = "🗑️"
 
     async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
-        channel_ids = await list_ignored_channels(panel.guild.id)
-        body = t("settings.corpus.body", panel.locale)
-        if channel_ids:
-            body += "\n\n" + "\n".join(f"• <#{cid}>" for cid in channel_ids)
-        else:
-            body += "\n\n" + t("settings.corpus.none", panel.locale)
         return discord.Embed(
-            title=self.title(panel.locale), description=body[:4000], color=PURGITO_COLOR
+            title=self.title(panel.locale),
+            description=t("settings.datos.body", panel.locale),
+            color=PURGITO_COLOR,
         )
 
     async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
-        # news = canal de anuncios. El bot lee y aprende de ellos igual que de
-        # un canal de texto (discord.py los modela como TextChannel), así que
-        # tienen que poder ignorarse desde acá.
-        channel_select = discord.ui.ChannelSelect(
-            channel_types=[discord.ChannelType.text, discord.ChannelType.news],
-            placeholder=t("settings.corpus.placeholder", panel.locale),
-            row=1,
-        )
-
-        async def on_channel(interaction: discord.Interaction):
-            channel_id = channel_select.values[0].id
-            ignored = await list_ignored_channels(panel.guild.id)
-            if channel_id in ignored:
-                await remove_ignored_channel(panel.guild.id, channel_id)
-            else:
-                await add_ignored_channel(panel.guild.id, channel_id)
-            await panel.refresh(interaction)
-
-        channel_select.callback = on_channel
-
         wipe_btn = discord.ui.Button(
             label=t("settings.corpus.btn_wipe", panel.locale),
             style=discord.ButtonStyle.danger,
-            row=2,
+            row=1,
         )
 
         class WipeConfirmModal(discord.ui.Modal):
@@ -464,7 +358,7 @@ class CorpusCategory(SettingsCategory):
         wipe_gifs_btn = discord.ui.Button(
             label=t("settings.corpus.btn_wipe_gifs", panel.locale),
             style=discord.ButtonStyle.danger,
-            row=3,
+            row=2,
         )
 
         class WipeGifsConfirmModal(discord.ui.Modal):
@@ -495,160 +389,7 @@ class CorpusCategory(SettingsCategory):
             await interaction.response.send_modal(WipeGifsConfirmModal())
 
         wipe_gifs_btn.callback = on_wipe_gifs
-        return [channel_select, wipe_btn, wipe_gifs_btn]
-
-
-class ReaccionesCategory(SettingsCategory):
-    key = "reacciones"
-    emoji = "😀"
-
-    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
-        pool = await list_reaction_pool(panel.guild.id)
-        body = t("settings.reacciones.body", panel.locale)
-        if pool:
-            body += "\n\n" + "\n".join(f"`{r['id']}` — {r['emoji_text']}" for r in pool)
-        else:
-            body += "\n\n" + t("settings.reacciones.none", panel.locale)
-        return discord.Embed(
-            title=self.title(panel.locale), description=body[:4000], color=PURGITO_COLOR
-        )
-
-    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
-        items: list[discord.ui.Item] = []
-
-        add_btn = discord.ui.Button(
-            label=t("settings.reacciones.btn_add", panel.locale),
-            style=discord.ButtonStyle.primary,
-            row=1,
-        )
-
-        class AddEmojiModal(discord.ui.Modal):
-            def __init__(self):
-                super().__init__(
-                    title=t("settings.reacciones.modal_title", panel.locale)
-                )
-                self.emoji_input = discord.ui.TextInput(
-                    label=t("settings.reacciones.modal_field", panel.locale)[:45],
-                    max_length=64,
-                )
-                self.add_item(self.emoji_input)
-
-            async def on_submit(self, interaction: discord.Interaction):
-                text = self.emoji_input.value.strip()
-                if not text:
-                    await interaction.response.send_message(
-                        t("settings.reacciones.invalid", panel.locale), ephemeral=True
-                    )
-                    return
-                await add_reaction_to_pool(panel.guild.id, text)
-                await panel.refresh(interaction)
-
-        async def on_add(interaction: discord.Interaction):
-            await interaction.response.send_modal(AddEmojiModal())
-
-        add_btn.callback = on_add
-        items.append(add_btn)
-
-        pool = await list_reaction_pool(panel.guild.id)
-        if pool:
-            remove_select = discord.ui.Select(
-                placeholder=t("settings.reacciones.remove_placeholder", panel.locale),
-                options=[
-                    discord.SelectOption(
-                        label=r["emoji_text"][:100], value=str(r["id"])
-                    )
-                    for r in pool[:25]
-                ],
-                row=2,
-            )
-
-            async def on_remove(interaction: discord.Interaction):
-                await remove_reaction_from_pool(
-                    panel.guild.id, int(remove_select.values[0])
-                )
-                await panel.refresh(interaction)
-
-            remove_select.callback = on_remove
-            items.append(remove_select)
-
-        return items
-
-
-class FrasesCategory(SettingsCategory):
-    key = "frases"
-    emoji = "🗨️"
-
-    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
-        frases = await list_frases_especiales(panel.guild.id)
-        body = t("settings.frases.body", panel.locale)
-        if frases:
-            body += "\n\n" + "\n".join(f"`{f['id']}` — {f['frase']}" for f in frases)
-        else:
-            body += "\n\n" + t("settings.frases.none", panel.locale)
-        return discord.Embed(
-            title=self.title(panel.locale), description=body[:4000], color=PURGITO_COLOR
-        )
-
-    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
-        items: list[discord.ui.Item] = []
-
-        add_btn = discord.ui.Button(
-            label=t("settings.frases.btn_add", panel.locale),
-            style=discord.ButtonStyle.primary,
-            row=1,
-        )
-
-        class AddFraseModal(discord.ui.Modal):
-            def __init__(self):
-                super().__init__(title=t("settings.frases.modal_title", panel.locale))
-                self.frase_input = discord.ui.TextInput(
-                    label=t("settings.frases.modal_field", panel.locale)[:45],
-                    max_length=300,
-                )
-                self.add_item(self.frase_input)
-
-            async def on_submit(self, interaction: discord.Interaction):
-                text = self.frase_input.value.strip()
-                if not text:
-                    await interaction.response.send_message(
-                        t("settings.frases.invalid", panel.locale), ephemeral=True
-                    )
-                    return
-                await add_frase_especial(
-                    panel.guild.id,
-                    interaction.user.id,
-                    interaction.user.display_name,
-                    text,
-                )
-                await panel.refresh(interaction)
-
-        async def on_add(interaction: discord.Interaction):
-            await interaction.response.send_modal(AddFraseModal())
-
-        add_btn.callback = on_add
-        items.append(add_btn)
-
-        frases = await list_frases_especiales(panel.guild.id)
-        if frases:
-            remove_select = discord.ui.Select(
-                placeholder=t("settings.frases.remove_placeholder", panel.locale),
-                options=[
-                    discord.SelectOption(label=f["frase"][:100], value=str(f["id"]))
-                    for f in frases[:25]
-                ],
-                row=2,
-            )
-
-            async def on_remove(interaction: discord.Interaction):
-                await delete_frase_especial(
-                    panel.guild.id, int(remove_select.values[0])
-                )
-                await panel.refresh(interaction)
-
-            remove_select.callback = on_remove
-            items.append(remove_select)
-
-        return items
+        return [wipe_btn, wipe_gifs_btn]
 
 
 class YouTubeCategory(SettingsCategory):
@@ -952,7 +693,7 @@ class AnunciosCategory(SettingsCategory):
                         panel.locale,
                         time=f"{a['hour']:02d}:{a['minute']:02d}",
                     )
-                line = f"• <#{a['channel_id']}> — {mode_text} — \"{preview}\""
+                line = f'• <#{a["channel_id"]}> — {mode_text} — "{preview}"'
                 if a.get("delete_after_seconds"):
                     line += " — " + t(
                         "settings.anuncios.preview_delete_after",
@@ -1050,9 +791,9 @@ class AnunciosCategory(SettingsCategory):
                         max_length=500,
                     )
                     self.interval_input = discord.ui.TextInput(
-                        label=t(
-                            "settings.anuncios.modal_field_interval", panel.locale
-                        )[:45],
+                        label=t("settings.anuncios.modal_field_interval", panel.locale)[
+                            :45
+                        ],
                         max_length=4,
                     )
                     self.delete_after_input = discord.ui.TextInput(
@@ -1173,12 +914,13 @@ class AnunciosCategory(SettingsCategory):
 CATEGORIES: list[SettingsCategory] = [
     IdiomaCategory(),
     ChatCategory(),
-    CorpusCategory(),
-    ReaccionesCategory(),
-    FrasesCategory(),
     YouTubeCategory(),
     MemesCategory(),
     AnunciosCategory(),
+    # Al final a propósito: acciones destructivas, no configuración —
+    # separadas del resto para que no queden a un click de distancia mientras
+    # se navega el panel.
+    DatosCategory(),
 ]
 
 
@@ -1191,8 +933,18 @@ VISIBILITY_LIMITED_MAX_SEEN = 3  # ...o si ve esta cantidad de canales o menos
 MAX_NOISY_SUGGESTIONS = 4  # tope de sugerencias de exclusión para no spamear
 
 NOISY_CHANNEL_HINTS = (
-    "log", "mod-log", "audit", "verifi", "regla", "rule",
-    "anuncio", "announce", "ticket", "bienvenid", "welcome", "comandos",
+    "log",
+    "mod-log",
+    "audit",
+    "verifi",
+    "regla",
+    "rule",
+    "anuncio",
+    "announce",
+    "ticket",
+    "bienvenid",
+    "welcome",
+    "comandos",
 )
 
 
@@ -1204,7 +956,9 @@ def _scan_channel_visibility(guild: discord.Guild) -> dict:
     visible, hidden = [], []
     for ch in guild.text_channels:
         perms = ch.permissions_for(me)
-        target = visible if (perms.view_channel and perms.read_message_history) else hidden
+        target = (
+            visible if (perms.view_channel and perms.read_message_history) else hidden
+        )
         target.append(ch)
     return {"total": len(guild.text_channels), "visible": visible, "hidden": hidden}
 
@@ -1215,7 +969,9 @@ def _visibility_is_limited(scan: dict) -> bool:
     total, seen = scan["total"], len(scan["visible"])
     if total <= 3:
         return False
-    return seen < total * VISIBILITY_LIMITED_RATIO or seen <= VISIBILITY_LIMITED_MAX_SEEN
+    return (
+        seen < total * VISIBILITY_LIMITED_RATIO or seen <= VISIBILITY_LIMITED_MAX_SEEN
+    )
 
 
 def _looks_noisy(channel_name: str) -> bool:
@@ -1360,6 +1116,8 @@ def build_welcome_embed(guild: discord.Guild, locale: str) -> discord.Embed:
         parts.append(t("welcome.premium_momo", locale))
     parts.append(t("welcome.commands_tail", locale))
     parts.append("")
+    parts.append(t("welcome.dashboard_cta", locale, url=get_dashboard_url(guild.id)))
+    parts.append("")
     if is_prem:
         parts.append(t("welcome.trigger_hint", locale, trigger=BOT_TRIGGER_NAME))
     else:
@@ -1372,11 +1130,27 @@ def build_welcome_embed(guild: discord.Guild, locale: str) -> discord.Embed:
 
 
 class WelcomeView(discord.ui.View):
-    """Botón persistente de bienvenida: abre el panel de setup en modo efímero."""
+    """Botón persistente de bienvenida (abre el panel de setup en modo efímero)
+    + link directo al dashboard del servidor.
 
-    def __init__(self, locale: str = i18n.DEFAULT_LOCALE):
+    El botón de link NO es persistente de verdad — Discord sirve los botones
+    de link directo desde los datos del mensaje, sin pasar por el bot, así que
+    no necesita (ni puede aprovechar) bot.add_view(). Por eso solo se agrega
+    cuando hay guild_id disponible (on_guild_join); el registro global en
+    cog_load, que existe únicamente para revivir el custom_id de
+    configure_btn tras un reinicio, no lo necesita."""
+
+    def __init__(self, locale: str = i18n.DEFAULT_LOCALE, guild_id: int | None = None):
         super().__init__(timeout=None)
         self.configure_btn.label = t("welcome.btn_configure", locale)
+        if guild_id is not None:
+            self.add_item(
+                discord.ui.Button(
+                    label=t("welcome.btn_dashboard", locale),
+                    style=discord.ButtonStyle.link,
+                    url=get_dashboard_url(guild_id),
+                )
+            )
 
     @discord.ui.button(style=discord.ButtonStyle.primary, custom_id="purgito_setup_btn")
     async def configure_btn(
@@ -1397,7 +1171,7 @@ class WelcomeView(discord.ui.View):
 
 
 async def _send_setup_panel(interaction: discord.Interaction, locale: str) -> None:
-    # Estado en vivo del servidor, antes de la guía estática de 3 pasos.
+    # Estado en vivo del servidor, antes de la guía estática de 2 pasos.
     status = ""
     try:
         scan = _scan_channel_visibility(interaction.guild)
@@ -1420,7 +1194,7 @@ async def _send_setup_panel(interaction: discord.Interaction, locale: str) -> No
         intro=(
             t("setup.title", locale),
             status
-            + t("setup.body", locale)
+            + t("setup.body", locale, url=get_dashboard_url(interaction.guild.id))
             + "\n\n"
             + t("setup.panel_cta", locale, url=PANEL_URL),
         ),
@@ -1445,7 +1219,7 @@ class Settings(commands.Cog):
     async def on_guild_join(self, guild: discord.Guild):
         locale = await i18n.guild_locale(guild.id)
         embed = build_welcome_embed(guild, locale)
-        view = WelcomeView(locale)
+        view = WelcomeView(locale, guild.id)
         welcome_channel = None
         for channel in guild.text_channels:
             perms = channel.permissions_for(guild.me)

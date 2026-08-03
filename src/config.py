@@ -151,6 +151,18 @@ def get_invite_url(guild_id: str) -> str:
     )
 
 
+def get_dashboard_url(guild_id) -> str:
+    """URL al dashboard de un servidor puntual.
+
+    Sin prefijo de idioma a propósito: el sitio redirige del lado del cliente
+    al idioma del navegador la primera vez que entras sin uno (ver
+    landing/index.html), igual que el resto de los links que este bot manda
+    (dm.body, setup.panel_cta). Hardcodear "/es/" acá estaría mal para un
+    server configurado en otro idioma.
+    """
+    return f"{PANEL_URL}/dashboard/{guild_id}"
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:

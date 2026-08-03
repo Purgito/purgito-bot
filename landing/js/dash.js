@@ -28,6 +28,13 @@ const TABS = [
   { key: 'premium', label: 'PREMIUM', load: loadPremium },
 ];
 
+// Listener de hashchange de las sub-pestañas del tab CHAT (declarado acá, no
+// junto a loadChatTab): activate() corre de forma síncrona en la carga
+// inicial de la página, antes de que la evaluación del módulo llegue a
+// cualquier código que esté más abajo — un `let` declarado después de ese
+// punto todavía estaría en du temporal dead zone cuando activate() lo lea.
+let _chatHashHandler = null;
+
 function currentTab() {
   const key = location.pathname.split('/')[4] || 'inicio';
   return TABS.some(t => t.key === key) ? key : 'inicio';
@@ -38,6 +45,12 @@ function activate(key, push) {
     n.classList.toggle('active', n.dataset.key === key));
   if (push) {
     history.pushState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${key}`);
+  }
+  // Salir del tab CHAT no debe dejar un listener global reaccionando a
+  // cambios de hash sobre un DOM que ya no existe (content() lo reemplazó).
+  if (key !== 'chat' && _chatHashHandler) {
+    window.removeEventListener('hashchange', _chatHashHandler);
+    _chatHashHandler = null;
   }
   TABS.find(t => t.key === key).load();
 }
@@ -447,6 +460,35 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
   return el('div', { class: 'chan-picker' }, dd, list);
 }
 
+// Sub-pestañas del tab CHAT (no confundir con TABS, que son las principales
+// del dashboard). Viven en el hash de la URL —#canales, #personalidad…— en
+// vez de un segmento de path, porque el path ya está tomado por el tab
+// principal ('chat') y por el GUILD_ID.
+const CHAT_SUBTABS = [
+  { key: 'canales', label: 'Canales' },
+  { key: 'personalidad', label: 'Personalidad' },
+  { key: 'limites', label: 'Límites' },
+  { key: 'frases', label: 'Frases' },
+];
+
+function currentChatSubtab() {
+  const key = location.hash.slice(1);
+  return CHAT_SUBTABS.some(t => t.key === key) ? key : 'canales';
+}
+
+// El listener de hashchange (soporta el botón atrás/adelante y links directos
+// a #frases, etc.) vive en `_chatHashHandler`, declarado arriba junto a
+// activate() — ver el comentario ahí sobre por qué no puede declararse acá.
+
+// Card con ícono propio para distinguir "dónde responde" de "de dónde
+// aprende" — antes eran dos formGroup visualmente idénticos separados por un
+// simple divisor, la confusión que motivó separarlos en su propia sub-pestaña.
+function channelCard(iconName, title, ...children) {
+  return el('div', { class: 'channel-card' },
+    el('div', { class: 'channel-card-head' }, icon(iconName), el('h3', {}, title)),
+    ...children);
+}
+
 async function loadChatTab() {
   const box = content();
   box.append(spinner());
@@ -465,7 +507,7 @@ async function loadChatTab() {
     box.innerHTML = '';
     const lim = chat.limits || {};
 
-    // --- Chat: toggle + frecuencia de los mensajes espontáneos ---
+    // --- Switch maestro: fuera de las sub-pestañas, igual que hoy ---
     const check = el('input', { type: 'checkbox', checked: chat.enabled });
     check.onchange = async () => {
       try {
@@ -478,141 +520,192 @@ async function loadChatTab() {
         toast('No se pudo guardar, intenta de nuevo', 'err');
       }
     };
-    const chatSelected = new Set(chatChans.channels.map(c => c.id));
     box.append(formGroup('Chat',
       el('div', { class: 'field' },
         el('label', { class: 'toggle' }, check, 'Chat activado'),
-        el('p', { class: 'dim' }, 'Si está activado, Purgito responde cuando lo mencionan (@Purgito).')),
-      el('div', { class: 'field' },
-        el('label', {}, 'Canales donde responde'),
+        el('p', { class: 'dim' }, 'Si está activado, Purgito responde cuando lo mencionan (@Purgito).'))));
+
+    // --- Sub-pestaña: Canales ---
+    function buildCanales() {
+      const chatSelected = new Set(chatChans.channels.map(c => c.id));
+      const corpusSelected = new Set(corpus.channels.map(c => c.id));
+      const ignoredSet = new Set(corpus.ignored || []);
+      return el('div', {},
+        channelCard('chat', 'Canales donde responde',
+          el('p', { class: 'dim' },
+            'Vale para las menciones y para los mensajes espontáneos. Sin canales '
+            + 'elegidos, Purgito responde en cualquiera.'),
+          channelToggleList({
+            channels,
+            isSelected: id => chatSelected.has(id),
+            add: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels`, {
+                method: 'POST', body: { channel_id: ch.id },
+              });
+              chatSelected.add(ch.id);
+            },
+            remove: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels/${ch.id}`, {
+                method: 'DELETE',
+              });
+              chatSelected.delete(ch.id);
+            },
+            listBelow: 'Sin canales configurados — Purgito responde en cualquier canal.',
+          })),
+        channelCard('corpus', 'Canales de los que aprende',
+          el('p', { class: 'dim' },
+            'Purgito solo guarda mensajes de los canales que elijas acá. Sin '
+            + 'ninguno elegido, no aprende de nada.'),
+          ignoredSet.size
+            ? el('p', { class: 'dim' },
+              `${ignoredSet.size} canal(es) ignorado(s) desde /settings quedan fuera `
+              + 'aunque los elijas: ahí Purgito está completamente mudo.')
+            : null,
+          channelToggleList({
+            channels,
+            isSelected: id => corpusSelected.has(id),
+            add: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
+                method: 'POST', body: { channel_id: ch.id },
+              });
+              corpusSelected.add(ch.id);
+            },
+            remove: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, {
+                method: 'DELETE',
+              });
+              corpusSelected.delete(ch.id);
+            },
+            listBelow: 'Purgito no está aprendiendo de ningún canal.',
+          })));
+    }
+
+    // --- Sub-pestaña: Personalidad ---
+    function buildPersonalidad() {
+      const reaccionesBox = el('div', {});
+      renderReacciones(reaccionesBox, reactions.reactions);
+      return el('div', {},
+        formGroup('Frecuencia de mensajes espontáneos',
+          el('p', { class: 'dim' },
+            'Cada tantos mensajes nuevos que aprende en un canal, Purgito considera '
+            + 'hablar solo. La probabilidad evita que sea un reloj.'),
+          numberField('Cada cuántos mensajes', null, {
+            key: 'auto_generate_every',
+            value: chat.auto_generate_every,
+            min: (lim.auto_generate_every || [1])[0],
+            max: (lim.auto_generate_every || [null, 1000])[1],
+            suffix: 'mensajes',
+          }),
+          percentField('Probabilidad de hablar', 'Al llegar a esa cuenta, cuántas veces habla de cada 100.', {
+            key: 'auto_generate_probability',
+            value: chat.auto_generate_probability,
+          })),
+        formGroup('Reacciones',
+          el('p', { class: 'dim' }, 'Colección de emojis con los que el bot reacciona a los usuarios.'),
+          percentField('Probabilidad de reaccionar', 'De cada 100 mensajes que lee, a cuántos les pone un emoji.', {
+            key: 'reaction_probability',
+            value: chat.reaction_probability,
+          }),
+          reaccionesBox),
+        formGroup('GIF o texto',
+          el('p', { class: 'dim' },
+            'Cuando Purgito va a responder, con qué frecuencia manda un GIF de su '
+            + 'galería en vez de una frase generada.'),
+          percentField('Probabilidad de responder con GIF', null, {
+            key: 'gif_response_probability',
+            value: chat.gif_response_probability,
+          })));
+    }
+
+    // --- Sub-pestaña: Límites ---
+    function buildLimites() {
+      const exemptSelected = new Set(exempt.roles.map(r => r.id));
+      return formGroup('Límite de actividad',
         el('p', { class: 'dim' },
-          'Vale para las menciones y para los mensajes espontáneos. Sin canales '
-          + 'elegidos, Purgito responde en cualquiera.'),
-        channelToggleList({
-          channels,
-          isSelected: id => chatSelected.has(id),
-          add: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels`, {
-              method: 'POST', body: { channel_id: ch.id },
-            });
-            chatSelected.add(ch.id);
-          },
-          remove: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels/${ch.id}`, {
-              method: 'DELETE',
-            });
-            chatSelected.delete(ch.id);
-          },
-          listBelow: 'Sin canales configurados — Purgito responde en cualquier canal.',
-        }))));
+          'Tope de interacciones por hora y por usuario, para que nadie use a '
+          + 'Purgito para farmear actividad. 0 = sin límite.'),
+        numberField('Menciones por hora', null, {
+          key: 'mention_rate_limit',
+          value: chat.mention_rate_limit,
+          min: (lim.mention_rate_limit || [0])[0],
+          max: (lim.mention_rate_limit || [null, 1000])[1],
+          suffix: 'por usuario',
+        }),
+        el('div', { class: 'field' },
+          el('label', {}, 'Roles exentos del límite'),
+          roleToggleList({
+            roles,
+            selected: exemptSelected,
+            add: async role => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
+                method: 'POST', body: { role_id: role.id },
+              });
+              exemptSelected.add(role.id);
+            },
+            remove: async role => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles/${role.id}`, {
+                method: 'DELETE',
+              });
+              exemptSelected.delete(role.id);
+            },
+            listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
+          })));
+    }
 
-    box.append(formGroup('Frecuencia de mensajes espontáneos',
-      el('p', { class: 'dim' },
-        'Cada tantos mensajes nuevos que aprende en un canal, Purgito considera '
-        + 'hablar solo. La probabilidad evita que sea un reloj.'),
-      numberField('Cada cuántos mensajes', null, {
-        key: 'auto_generate_every',
-        value: chat.auto_generate_every,
-        min: (lim.auto_generate_every || [1])[0],
-        max: (lim.auto_generate_every || [null, 1000])[1],
-        suffix: 'mensajes',
-      }),
-      percentField('Probabilidad de hablar', 'Al llegar a esa cuenta, cuántas veces habla de cada 100.', {
-        key: 'auto_generate_probability',
-        value: chat.auto_generate_probability,
-      })));
+    // --- Sub-pestaña: Frases ---
+    function buildFrases() {
+      const frasesBox = el('div', {});
+      renderFrases(frasesBox, frases.frases);
+      return formGroup('Frases',
+        el('p', { class: 'dim' }, 'Frases especiales que el bot puede enviar de vez en cuando.'),
+        frasesBox);
+    }
 
-    // --- Corpus: allowlist positiva sobre corpus_allowed_channels ---
-    const corpusSelected = new Set(corpus.channels.map(c => c.id));
-    const ignoredSet = new Set(corpus.ignored || []);
-    box.append(formGroup('Corpus',
-      el('div', { class: 'field' },
-        el('label', {}, 'Canales de los que aprende'),
-        el('p', { class: 'dim' },
-          'Purgito solo guarda mensajes de los canales que elijas acá. Sin '
-          + 'ninguno elegido, no aprende de nada.'),
-        ignoredSet.size
-          ? el('p', { class: 'dim' },
-            `${ignoredSet.size} canal(es) ignorado(s) desde /settings quedan fuera `
-            + 'aunque los elijas: ahí Purgito está completamente mudo.')
-          : null,
-        channelToggleList({
-          channels,
-          isSelected: id => corpusSelected.has(id),
-          add: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
-              method: 'POST', body: { channel_id: ch.id },
-            });
-            corpusSelected.add(ch.id);
-          },
-          remove: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, {
-              method: 'DELETE',
-            });
-            corpusSelected.delete(ch.id);
-          },
-          listBelow: 'Purgito no está aprendiendo de ningún canal.',
-        }))));
+    const BUILDERS = {
+      canales: buildCanales,
+      personalidad: buildPersonalidad,
+      limites: buildLimites,
+      frases: buildFrases,
+    };
 
-    // --- Reacciones: emojis + con qué frecuencia reacciona ---
-    const reaccionesBox = el('div', {});
-    renderReacciones(reaccionesBox, reactions.reactions);
-    box.append(formGroup('Reacciones',
-      el('p', { class: 'dim' }, 'Colección de emojis con los que el bot reacciona a los usuarios.'),
-      percentField('Probabilidad de reaccionar', 'De cada 100 mensajes que lee, a cuántos les pone un emoji.', {
-        key: 'reaction_probability',
-        value: chat.reaction_probability,
-      }),
-      reaccionesBox));
+    const subnav = el('nav', { class: 'chat-subtabs' });
+    const panels = {};
+    for (const st of CHAT_SUBTABS) {
+      panels[st.key] = BUILDERS[st.key]();
+      panels[st.key].hidden = true;
+      subnav.append(el('a', {
+        class: 'chat-subtab',
+        'data-key': st.key,
+        href: `#${st.key}`,
+        onclick: (ev) => { ev.preventDefault(); activateSubtab(st.key); },
+      }, st.label));
+    }
+    const panelsWrap = el('div', {}, CHAT_SUBTABS.map(st => panels[st.key]));
 
-    box.append(formGroup('GIF o texto',
-      el('p', { class: 'dim' },
-        'Cuando Purgito va a responder, con qué frecuencia manda un GIF de su '
-        + 'galería en vez de una frase generada.'),
-      percentField('Probabilidad de responder con GIF', null, {
-        key: 'gif_response_probability',
-        value: chat.gif_response_probability,
-      })));
+    // Todo se autoguarda al toque (sin botón "Guardar" ni estado sin
+    // confirmar), así que cambiar de sub-pestaña nunca pierde nada: no hay
+    // que preservar más que qué pestaña estaba activa.
+    function activateSubtab(key) {
+      subnav.querySelectorAll('.chat-subtab').forEach(n =>
+        n.classList.toggle('active', n.dataset.key === key));
+      for (const st of CHAT_SUBTABS) {
+        const active = st.key === key;
+        panels[st.key].hidden = !active;
+        // Un dropdown de canales/roles que quedó abierto en una pestaña que
+        // se oculta no debe reaparecer abierto solo cuando se vuelve a ella.
+        if (!active) panels[st.key].querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+      }
+      // replaceState (no pushState): cambiar de sub-pestaña no debe acumular
+      // entradas en el historial — el botón atrás sigue siendo "otro tab".
+      history.replaceState(null, '', `${location.pathname}${location.search}#${key}`);
+    }
 
-    // --- Límite de actividad ---
-    const exemptSelected = new Set(exempt.roles.map(r => r.id));
-    box.append(formGroup('Límite de actividad',
-      el('p', { class: 'dim' },
-        'Tope de interacciones por hora y por usuario, para que nadie use a '
-        + 'Purgito para farmear actividad. 0 = sin límite.'),
-      numberField('Menciones por hora', null, {
-        key: 'mention_rate_limit',
-        value: chat.mention_rate_limit,
-        min: (lim.mention_rate_limit || [0])[0],
-        max: (lim.mention_rate_limit || [null, 1000])[1],
-        suffix: 'por usuario',
-      }),
-      el('div', { class: 'field' },
-        el('label', {}, 'Roles exentos del límite'),
-        roleToggleList({
-          roles,
-          selected: exemptSelected,
-          add: async role => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
-              method: 'POST', body: { role_id: role.id },
-            });
-            exemptSelected.add(role.id);
-          },
-          remove: async role => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles/${role.id}`, {
-              method: 'DELETE',
-            });
-            exemptSelected.delete(role.id);
-          },
-          listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
-        }))));
+    box.append(subnav, panelsWrap);
+    activateSubtab(currentChatSubtab());
 
-    // --- Frases ---
-    const frasesBox = el('div', {});
-    renderFrases(frasesBox, frases.frases);
-    box.append(formGroup('Frases',
-      el('p', { class: 'dim' }, 'Frases especiales que el bot puede enviar de vez en cuando.'),
-      frasesBox));
+    if (_chatHashHandler) window.removeEventListener('hashchange', _chatHashHandler);
+    _chatHashHandler = () => activateSubtab(currentChatSubtab());
+    window.addEventListener('hashchange', _chatHashHandler);
   } catch (e) { renderError(box, e); }
 }
 
@@ -640,7 +733,15 @@ async function renderReacciones(box, pool) {
     } catch (e) { toast('No se pudo agregar el emoji, intenta de nuevo', 'err'); }
   }
 
-  const input = el('input', { type: 'text', placeholder: 'Emoji (😀)', maxlength: '64' });
+  // autocomplete="off": sin esto, Chrome con una cuenta sincronizada trata
+  // este input suelto como un campo de nombre/dirección y ofrece autocompletar
+  // con datos de perfil — aparece como un chip con el avatar de la cuenta
+  // pegado al input, encima de lo que sea que haya debajo (acá, "Agregar").
+  // No es un emoji renderizado por nuestro código, es una sugerencia del
+  // navegador que no tiene nada que ver con la lista.
+  const input = el('input', {
+    type: 'text', placeholder: 'Emoji (😀)', maxlength: '64', autocomplete: 'off',
+  });
   const addRow = el('div', { class: 'add-row' }, input,
     el('button', {
       class: 'btn btn-primary',

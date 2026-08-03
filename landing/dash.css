@@ -918,8 +918,8 @@ h1 {
 
 /* ---------- Markdown estilo Discord + menciones resueltas en el Preview ----------
    Colores propios del preview (no tokens del panel), igual que el resto de
-   .d-embed*/.lv2-*: tiene que parecerse a Discord, no al panel. Se comparte
-   entre el preview de embeds clásicos y el de Layout V2. */
+   los prefijos .d-embed- y .lv2-: tiene que parecerse a Discord, no al panel.
+   Se comparte entre el preview de embeds clásicos y el de Layout V2. */
 .d-embed-code {
   font-family: var(--font-mono);
   font-size: 0.85em;
@@ -1503,6 +1503,38 @@ h1 {
 }
 .dash-tab:hover { color: var(--text); }
 .dash-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+/* Sub-pestañas dentro de un tab (hoy solo CHAT: Canales/Personalidad/Límites/
+   Frases). Mismo lenguaje visual que .dash-tab —subrayado, mismas
+   transiciones— pero un nivel más chica: texto más chico, menos padding
+   lateral (el espaciado lo da el gap en vez del padding) y el subrayado activo
+   en --accent-2 en vez de --accent, para que se lea como subordinada del tab
+   principal y no como una segunda barra del mismo peso. */
+.chat-subtabs {
+  display: flex; gap: 18px; margin: 4px 0 24px;
+  border-bottom: 1px solid var(--border); overflow-x: auto;
+}
+.chat-subtab {
+  padding: 4px 2px 8px; text-decoration: none; color: var(--text-muted);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.03em;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
+}
+.chat-subtab:hover { color: var(--text); }
+.chat-subtab.active { color: var(--text); border-bottom-color: var(--accent-2); }
+
+/* Cards de "Canales" (dónde responde / de dónde aprende). Antes eran dos
+   formGroup idénticos separados por un simple divisor — la confusión que
+   motivó darles su propia sub-pestaña — así que ahora cada una es una caja
+   con borde propio, no solo un título más. */
+.channel-card {
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--space-6);
+}
+.channel-card + .channel-card { margin-top: var(--space-4); }
+.channel-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.channel-card-head .nav-icon { width: 20px; height: 20px; color: var(--accent); flex: none; }
+.channel-card-head h3 { margin: 0; font-size: var(--t-md); font-weight: 700; color: var(--text); }
 
 /* INICIO: estilo + stats */
 .style-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

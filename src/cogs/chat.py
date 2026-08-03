@@ -14,7 +14,7 @@ import generation
 import i18n
 from cogs.gifs import get_live_gif, save_gif_candidates
 from cogs.memes import is_meme_trigger
-from config import REFEED_ALL_MAX_MESSAGES, REFEED_MAX_MESSAGES
+from config import REFEED_ALL_MAX_MESSAGES, REFEED_MAX_MESSAGES, get_dashboard_url
 from db import (
     bump_counter,
     count_corpus_messages,
@@ -292,7 +292,11 @@ class Chat(commands.Cog):
         # Mención directa pero el bot no puede conversar aquí: avisar por qué
         # en vez de guardar silencio (el usuario cree que el bot está muerto).
         if ignored:
-            await self._muted_reply(message, "chat.muted.ignored_channel")
+            await self._muted_reply(
+                message,
+                "chat.muted.ignored_channel",
+                url=get_dashboard_url(message.guild.id),
+            )
             return
 
         # Respetar restricciones de canal y modo de chat
@@ -301,15 +305,15 @@ class Chat(commands.Cog):
             return
 
         # Misma allowlist que la participación espontánea: un solo concepto de
-        # "canales donde responde". Antes las menciones miraban
-        # settings.chat_channel_id, que era un canal único y quedó deprecado.
-        # Lista vacía = responde en cualquier canal (default).
+        # "canales donde responde", administrado desde el dashboard (tab
+        # CHAT → Canales). Lista vacía = responde en cualquier canal (default).
         reply_channels = await list_chat_channels(message.guild.id)
         if reply_channels and message.channel.id not in reply_channels:
             await self._muted_reply(
                 message,
                 "chat.muted.wrong_channel",
                 channel=", ".join(f"<#{cid}>" for cid in reply_channels[:5]),
+                url=get_dashboard_url(message.guild.id),
             )
             return
 

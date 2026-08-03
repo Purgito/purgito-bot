@@ -16,6 +16,7 @@ import pytest
 import i18n
 import cogs.chat as chat_mod
 from cogs.chat import Chat
+from config import get_dashboard_url
 
 BOT_ID = 999
 
@@ -154,7 +155,14 @@ def test_wrong_channel_names_configured_channel(cog):
 
     m = FakeMessage(channel_id=10)
     asyncio.run(chat.on_message(m))
-    assert m.replies == [i18n.t("chat.muted.wrong_channel", "es", channel="<#20>")]
+    assert m.replies == [
+        i18n.t(
+            "chat.muted.wrong_channel",
+            "es",
+            channel="<#20>",
+            url=get_dashboard_url(m.guild.id),
+        )
+    ]
     # Canal NO ignorado: el mensaje sí entra al corpus aunque el chat no responda.
     assert saved == ["hola"]
 
@@ -221,7 +229,13 @@ def test_ignored_channel_never_saves_corpus(cog):
     # Con mención: ahora explica por qué no responde, pero SIGUE sin guardar.
     mentioned = FakeMessage()
     asyncio.run(chat.on_message(mentioned))
-    assert mentioned.replies == [i18n.t("chat.muted.ignored_channel", "es")]
+    assert mentioned.replies == [
+        i18n.t(
+            "chat.muted.ignored_channel",
+            "es",
+            url=get_dashboard_url(mentioned.guild.id),
+        )
+    ]
     assert saved == []
 
 
