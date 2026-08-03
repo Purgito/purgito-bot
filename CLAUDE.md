@@ -79,6 +79,30 @@ Tres archivos, con reglas distintas:
 
 Los tres se cargan al importar `src/config.py`.
 
+## Configuración del chat: qué manda sobre qué
+
+Tres listas de canales que se confunden fácil. Son conceptos distintos:
+
+| Tabla | Significa | Lista vacía = |
+|---|---|---|
+| `chat_channels` | Dónde **responde** (menciones y mensajes espontáneos) | responde en todos |
+| `corpus_allowed_channels` | De dónde **aprende** | no aprende de ninguno |
+| `ignored_channels` | Dónde está **completamente mudo** | ninguno mudo |
+
+La asimetría de la lista vacía es a propósito: leer mensajes es más invasivo que
+responder, así que el default seguro es no leer. Un canal ignorado nunca aprende
+ni responde, esté o no en las otras dos listas.
+
+`settings.chat_channel_id` está **deprecado** (era un canal único para las
+menciones): sigue en la tabla para no romper una migración en caliente, pero
+ninguna lógica lo lee.
+
+Las probabilidades y frecuencias del chat (`auto_generate_every`,
+`auto_generate_probability`, `reaction_probability`,
+`gif_response_probability`, `mention_rate_limit`) viven en `settings`, por
+servidor. Las constantes de `config.py` quedaron solo como fallback. Rango
+válido en un único lugar: `db.CHAT_TUNABLES`.
+
 ## Zonas protegidas — no tocar sin confirmar antes
 
 En `src/webapi.py`, estas piezas sostienen funcionalidad real en

@@ -24,8 +24,13 @@ from db import (
     get_random_reaction,
     get_welcome_channel_id,
     is_channel_ignored,
+    is_corpus_allowed,
     list_chat_channels,
+    list_exempt_roles,
+    list_ignored_channels,
+    mark_migration_applied,
     save_corpus_and_user_message,
+    seed_corpus_allowed_channels,
     upsert_channel_refeed_status,
 )
 from utils import LRUDict, chunk_message, has_admin_permission
@@ -77,10 +82,93 @@ def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
 # historial durante el refeed; discord.Forbidden/NotFound no se reintentan.
 _HISTORY_FETCH_RETRIES = 3
 
+# Nombre de la migración por servidor que rellena corpus_allowed_channels.
+# Cambiar este string haría que la migración corra de nuevo y pise lo que un
+# admin haya configurado a mano — no tocar.
+CORPUS_ALLOWLIST_MIGRATION = "corpus_allowlist_v1"
+
+
+async def ensure_corpus_migrated(guild: discord.Guild) -> int | None:
+    """Rellena la allowlist del corpus de un guild con su estado real de hoy.
+
+    El modelo de corpus pasó de "ignorar canales" a "solo estos canales". Los
+    servidores que ya existían tienen la lista vacía, que en el modelo nuevo
+    significa "no aprender de nada": sin este relleno dejarían de aprender de
+    golpe el día del deploy.
+
+    Corre **una sola vez por servidor**: el flag se marca primero y solo el que
+    logra marcarlo hace el trabajo, así dos llamadas simultáneas (on_ready y
+    on_guild_join) no se pisan ni sobreescriben lo que un admin ya ajustó.
+
+    Devuelve cuántos canales sembró, o None si la migración ya estaba hecha.
+    """
+    if not await mark_migration_applied(guild.id, CORPUS_ALLOWLIST_MIGRATION):
+        return None
+    try:
+        ignored = set(await list_ignored_channels(guild.id))
+        # Los canales de texto reales del guild, no solo los que ya tienen
+        # mensajes guardados: un canal vacío igual debe quedar habilitado.
+        channel_ids = [c.id for c in guild.text_channels if c.id not in ignored]
+        seeded = await seed_corpus_allowed_channels(guild.id, channel_ids)
+        log.info(
+            "Corpus: %s canales habilitados en %s (%s) por la migración",
+            seeded,
+            guild.name,
+            guild.id,
+        )
+        return seeded
+    except Exception:
+        # El flag ya quedó marcado: si esto falla, el guild se queda sin
+        # aprender hasta que un admin use el dashboard. Se loguea fuerte
+        # porque es exactamente el caso que la migración venía a evitar.
+        log.exception(
+            "Corpus: falló la migración del guild %s — quedó sin canales de "
+            "aprendizaje, hay que configurarlos desde el dashboard",
+            guild.id,
+        )
+        return 0
+
 
 class Chat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Migra los servidores que ya estaban antes del cambio de modelo.
+
+        on_ready se repite en cada reconexión; `ensure_corpus_migrated` es
+        idempotente por su flag, así que las corridas siguientes solo hacen una
+        consulta indexada por guild.
+        """
+        for guild in self.bot.guilds:
+            await ensure_corpus_migrated(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        """Un servidor nuevo arranca aprendiendo de los canales que ve.
+
+        Se aparta de "lista vacía = no aprender" a propósito: el auto-refeed de
+        bienvenida corre justo después y guardaría cero mensajes, dejando al
+        bot mudo sin que nadie entienda por qué. El default vacío sigue valiendo
+        como estado configurable — un admin puede vaciar la lista y el bot deja
+        de aprender.
+        """
+        await ensure_corpus_migrated(guild)
+
+    async def _exempt_from_rate_limit(self, message: discord.Message) -> bool:
+        """True si el autor tiene algún rol exento del tope de menciones.
+
+        `message.author.roles` ya viene cacheado con el miembro: no hay llamada
+        extra a la API. En un DM el autor es User y no tiene roles.
+        """
+        roles = getattr(message.author, "roles", None)
+        if not roles:
+            return False
+        exempt = await list_exempt_roles(message.guild.id)
+        if not exempt:
+            return False
+        return any(r.id in exempt for r in roles)
 
     async def _save_message_to_corpus(
         self, guild_id: int, message: discord.Message
@@ -116,20 +204,30 @@ class Chat(commands.Cog):
 
         auto_generate = False
         ignored = False
+        settings = None
 
         if message.guild:
+            settings = await get_chat_settings(message.guild.id)
             # Un canal ignorado no entra al corpus ni recibe reacciones, pero ya
             # no corta la función: una mención directa merece respuesta (abajo).
             ignored = await is_channel_ignored(message.guild.id, message.channel.id)
             if not ignored:
-                status = await self._save_message_to_corpus(message.guild.id, message)
-                if status == "saved":
-                    auto_generate = generation.note_message_for_auto_generate(
-                        message.guild.id, message.channel.id
+                # Allowlist positiva del corpus: el canal tiene que estar
+                # habilitado explícitamente. Lista vacía = no aprende de nada.
+                if await is_corpus_allowed(message.guild.id, message.channel.id):
+                    status = await self._save_message_to_corpus(
+                        message.guild.id, message
                     )
+                    if status == "saved":
+                        auto_generate = generation.note_message_for_auto_generate(
+                            message.guild.id,
+                            message.channel.id,
+                            every=settings["auto_generate_every"],
+                            probability=settings["auto_generate_probability"],
+                        )
 
                 # Reacción aleatoria con emoji del pool configurable
-                if random.random() < 0.05:
+                if random.random() < settings["reaction_probability"]:
                     try:
                         reaction = await get_random_reaction(message.guild.id)
                         if reaction:
@@ -158,7 +256,7 @@ class Chat(commands.Cog):
                 if allowed and message.channel.id not in allowed:
                     return
                 try:
-                    if random.random() < 0.45:
+                    if random.random() < settings["gif_response_probability"]:
                         gif_url = await get_live_gif(message.guild.id)
                         if gif_url:
                             await message.channel.send(gif_url)
@@ -181,15 +279,15 @@ class Chat(commands.Cog):
         if not message.guild:
             return
 
-        settings = await get_chat_settings(message.guild.id)
-
         # Pasado el tope de la hora, esta mención no existe: ni respuesta, ni
         # aviso de límite. Va antes de todo lo que manda mensajes —incluido
         # _muted_reply— para que el propio aviso no se vuelva el spam.
-        if not _consume_interaction(
-            message.guild.id, message.author.id, settings["mention_rate_limit"]
-        ):
-            return
+        # Los roles exentos (moderación, boosters…) se saltan el tope entero.
+        if not await self._exempt_from_rate_limit(message):
+            if not _consume_interaction(
+                message.guild.id, message.author.id, settings["mention_rate_limit"]
+            ):
+                return
 
         # Mención directa pero el bot no puede conversar aquí: avisar por qué
         # en vez de guardar silencio (el usuario cree que el bot está muerto).
@@ -201,15 +299,21 @@ class Chat(commands.Cog):
         if not settings["enabled"]:
             await self._muted_reply(message, "chat.muted.disabled")
             return
-        if settings["channel_id"] and message.channel.id != settings["channel_id"]:
+
+        # Misma allowlist que la participación espontánea: un solo concepto de
+        # "canales donde responde". Antes las menciones miraban
+        # settings.chat_channel_id, que era un canal único y quedó deprecado.
+        # Lista vacía = responde en cualquier canal (default).
+        reply_channels = await list_chat_channels(message.guild.id)
+        if reply_channels and message.channel.id not in reply_channels:
             await self._muted_reply(
                 message,
                 "chat.muted.wrong_channel",
-                channel=f"<#{settings['channel_id']}>",
+                channel=", ".join(f"<#{cid}>" for cid in reply_channels[:5]),
             )
             return
 
-        if random.random() < 0.45:
+        if random.random() < settings["gif_response_probability"]:
             gif_url = await get_live_gif(message.guild.id)
             if gif_url:
                 await message.reply(gif_url)
@@ -404,7 +508,19 @@ class Chat(commands.Cog):
         Si el backfill ya terminó, hace lectura incremental hacia adelante (sin límite);
         si no, continúa hacia atrás desde donde quedó, hasta max_messages.
         Retorna {"saved", "backfill_complete", "was_incremental", "forbidden"}.
+
+        Punto único donde se filtra el corpus en las lecturas masivas: acá pasan
+        /refeed, /refeed_all, el auto-refeed de bienvenida y el canal que se
+        vuelve visible. Un canal fuera de la allowlist sale sin leer nada, en
+        vez de pagar la paginación para descartar mensaje por mensaje.
         """
+        if not await is_corpus_allowed(guild_id, channel.id):
+            return {
+                "saved": 0,
+                "backfill_complete": False,
+                "was_incremental": False,
+                "forbidden": False,
+            }
         status = await get_channel_refeed_status(guild_id, channel.id)
         saved = 0
         discarded = 0
@@ -562,6 +678,12 @@ class Chat(commands.Cog):
             "forbidden": 0,
             "errors": 0,
         }
+        # El auto-refeed de bienvenida (cogs/settings.py) arranca desde otro
+        # listener del mismo evento, y discord.py no garantiza el orden entre
+        # listeners: sin esto podría correr antes de que la allowlist exista y
+        # guardar cero mensajes. Es idempotente, así que llamarla acá no duplica
+        # el trabajo que ya hizo on_guild_join.
+        await ensure_corpus_migrated(guild)
         me = guild.me
         if me is None and self.bot.user is not None:
             me = guild.get_member(self.bot.user.id)

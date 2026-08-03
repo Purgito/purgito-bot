@@ -444,6 +444,36 @@ sudo systemctl status bot-purg
 
 > Si `.env.example` tiene variables nuevas, añádelas manualmente a tu `.env` antes de reiniciar.
 
+### Migraciones de datos por servidor
+
+Además de los `ALTER TABLE` que corre `init_db()`, hay migraciones que
+necesitan la API de Discord y por eso corren **desde el bot, una vez por
+servidor**, en el `on_ready` del cog correspondiente. Son automáticas: no hay
+comando que ejecutar, solo hay que reiniciar el bot y mirar el log.
+
+| Migración | Qué hace | Log a buscar |
+|---|---|---|
+| `corpus_allowlist_v1` | Rellena `corpus_allowed_channels` con los canales de texto de cada servidor menos los ignorados | `Corpus: N canales habilitados en …` |
+
+**Por qué importa:** el corpus pasó de "aprende de todos los canales menos los
+ignorados" a "aprende solo de los canales habilitados". Los servidores que ya
+existían tienen la lista vacía, que en el modelo nuevo significa *no aprender de
+nada*. Sin esta migración, todos los servidores activos dejarían de aprender el
+día del deploy, sin ningún error visible.
+
+Cada servidor se migra una sola vez (`applied_migrations`), así que un reinicio
+posterior **no pisa** lo que un admin haya ajustado desde el dashboard. Si el
+log muestra que falló para algún servidor, la única salida es configurar los
+canales a mano en `/es/dashboard/<id>/chat` → Corpus: el flag ya quedó marcado y
+no se reintenta sola (a propósito — reintentarla sobreescribiría configuración
+hecha a mano).
+
+Verificar después del restart:
+
+```bash
+journalctl -u bot-purg --since "5 min ago" | grep -i "Corpus:"
+```
+
 ### Dos puntos sin verificar
 
 No pude confirmarlos desde la máquina de desarrollo (sin acceso SSH al

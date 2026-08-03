@@ -1551,6 +1551,24 @@ h1 {
 .chan-noperm { color: var(--premium); }
 .chan-warn { font-size: 13px; }
 .chan-list { margin-bottom: 0; }
+/* CHAT: ajustes numéricos (frecuencia, probabilidades, tope de menciones) */
+.num-row { display: flex; align-items: center; gap: 8px; }
+.num-input { width: 7rem; }
+.pct-row { display: flex; align-items: center; gap: 12px; }
+.pct-row input[type="range"] {
+  flex: 1; max-width: 22rem; padding: 0; height: 1.25rem;
+  accent-color: var(--accent); background: none; border: 0;
+}
+/* Tabular para que el número no baile de ancho mientras se arrastra el slider. */
+.pct-value {
+  min-width: 3.5rem; font-family: var(--font-mono); font-size: var(--t-sm);
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+
+/* Roles exentos: mismo dropdown que los canales, con el color del rol. */
+.role-name { display: inline-flex; align-items: center; gap: 8px; }
+.role-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
 .emoji-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .emoji-cell {
   background: var(--surface-card); border: 1px solid var(--border);

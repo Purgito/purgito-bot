@@ -85,16 +85,20 @@ SPECIAL_PHRASE_COOLDOWN = 40 * 60  # 40 minutos en segundos
 
 GROQ_GUILD_COOLDOWN = 10.0
 
-# El bot considera generar un mensaje espontáneo cada AUTO_GENERATE_EVERY
-# inserts al corpus de un canal; AUTO_GENERATE_PROBABILITY es el azar extra
-# para que no sea puramente determinístico por conteo.
+# [FALLBACK] Frecuencia de los mensajes espontáneos. Desde que existe la tab
+# CHAT del dashboard esto se configura **por servidor** (columnas
+# settings.auto_generate_every / auto_generate_probability, con los mismos
+# valores como default). Estas constantes solo se usan si nadie pasa el
+# parámetro a generation.note_message_for_auto_generate.
 AUTO_GENERATE_EVERY = 15
 AUTO_GENERATE_PROBABILITY = float(os.getenv("AUTO_GENERATE_PROBABILITY", "0.6"))
 
 MEME_MAX_BYTES = 10 * 1024 * 1024
 
 # Timezone para los anuncios programados en modo "hora fija" (cogs/anuncios.py).
-ANNOUNCEMENTS_TIMEZONE = ZoneInfo(os.getenv("ANNOUNCEMENTS_TIMEZONE", "America/Santiago"))
+ANNOUNCEMENTS_TIMEZONE = ZoneInfo(
+    os.getenv("ANNOUNCEMENTS_TIMEZONE", "America/Santiago")
+)
 
 # --- Dashboard web (Discord OAuth2) ---
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
@@ -113,13 +117,17 @@ SESSION_COOKIE_DOMAIN = os.getenv("SESSION_COOKIE_DOMAIN", "").strip() or None
 # Orígenes de la landing que pueden hacer requests autenticadas (con cookies)
 # al panel; separados por coma. Vacío = solo DASHBOARD_BASE_URL, como siempre.
 LANDING_ORIGINS = frozenset(
-    o.strip().rstrip("/") for o in os.getenv("LANDING_ORIGINS", "").split(",") if o.strip()
+    o.strip().rstrip("/")
+    for o in os.getenv("LANDING_ORIGINS", "").split(",")
+    if o.strip()
 )
 # Links del navbar/footer del panel (rediseño dashboard/perfil). Configurables
 # en urls.env; los defaults apuntan a destinos que existen hoy.
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://purgito.app").rstrip("/")
 DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/docs").rstrip("/")
-REPO_URL = os.getenv("REPO_URL", "https://github.com/punkyyy01/bot-discord-purg").rstrip("/")
+REPO_URL = os.getenv(
+    "REPO_URL", "https://github.com/punkyyy01/bot-discord-purg"
+).rstrip("/")
 
 # --- Polar.sh (compra de premium) ---
 POLAR_ACCESS_TOKEN = _env_compact("POLAR_ACCESS_TOKEN")

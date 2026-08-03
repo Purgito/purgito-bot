@@ -12,7 +12,7 @@ import {
   el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
 } from '/js/core/dom.js';
 import { GUILD_ID, currentLocale } from '/js/core/config.js';
-import { getChannels, channelSelect, content } from '/js/panel-shell.js';
+import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
 import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import {
@@ -340,21 +340,132 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
   return wrap;
 }
 
+/* Guarda un ajuste numérico del chat. El backend recorta al rango y devuelve
+   lo que quedó, así que el input se corrige solo si te pasaste. */
+async function saveTunable(key, value, label, onSaved) {
+  try {
+    const r = await apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
+      method: 'PUT', body: { [key]: value },
+    });
+    if (onSaved && r.saved && r.saved[key] !== undefined) onSaved(r.saved[key]);
+    toast(`${label} actualizado`, 'ok');
+  } catch (e) {
+    toast(`No se pudo guardar ${label.toLowerCase()}, intenta de nuevo`, 'err');
+  }
+}
+
+/* Campo numérico con autoguardado al salir del input (change, no input: no
+   tiene sentido pegarle a la API en cada tecla). */
+function numberField(label, help, { key, value, min, max, step, suffix }) {
+  const input = el('input', {
+    type: 'number', value: String(value), min: String(min),
+    max: String(max), step: String(step || 1), class: 'num-input',
+  });
+  input.onchange = () => {
+    saveTunable(key, Number(input.value), label, (saved) => {
+      input.value = String(saved);
+    });
+  };
+  return el('div', { class: 'field' },
+    el('label', {}, label),
+    el('div', { class: 'num-row' }, input, suffix ? el('span', { class: 'dim' }, suffix) : null),
+    help ? el('p', { class: 'dim' }, help) : null);
+}
+
+/* Probabilidad 0–1 editada como porcentaje entero: el slider y el número van
+   sincronizados y solo el `change` (soltar el slider) guarda. */
+function percentField(label, help, { key, value }) {
+  const pct = Math.round(value * 100);
+  const range = el('input', { type: 'range', min: '0', max: '100', step: '1', value: String(pct) });
+  const out = el('span', { class: 'pct-value' }, `${pct}%`);
+  range.oninput = () => { out.textContent = `${range.value}%`; };
+  range.onchange = () => {
+    saveTunable(key, Number(range.value) / 100, label, (saved) => {
+      const back = Math.round(saved * 100);
+      range.value = String(back);
+      out.textContent = `${back}%`;
+    });
+  };
+  return el('div', { class: 'field' },
+    el('label', {}, label),
+    el('div', { class: 'pct-row' }, range, out),
+    help ? el('p', { class: 'dim' }, help) : null);
+}
+
+/* Multi-select de roles con toggle, gemelo de channelToggleList. Los roles no
+   tienen el problema de permisos de los canales, así que es más simple. */
+function roleToggleList({ roles, selected, add, remove, listBelow }) {
+  const panel = el('div', { class: 'dd-panel chan-panel' });
+  const btn = el('button', { class: 'dd-trigger' },
+    'Seleccionar roles…', el('span', { class: 'dd-caret' }, '▾'));
+  const dd = el('div', { class: 'dd' }, btn, panel);
+  btn.onclick = (e) => { e.stopPropagation(); dd.classList.toggle('open'); };
+  const list = el('ul', { class: 'item-list chan-list' });
+
+  let busy = false;
+  async function toggle(role) {
+    if (busy) return;
+    busy = true;
+    const had = selected.has(role.id);
+    try {
+      if (had) { await remove(role); toast('Rol quitado', 'ok'); }
+      else { await add(role); toast('Rol agregado', 'ok'); }
+    } catch (e) {
+      toast(had ? 'No se pudo quitar el rol' : 'No se pudo agregar el rol', 'err');
+    }
+    busy = false;
+    render();
+  }
+
+  function roleLabel(role) {
+    return el('span', { class: 'role-name' },
+      el('span', {
+        class: 'role-dot',
+        style: `background:${role.color && role.color !== '#000000' ? role.color : 'currentColor'}`,
+      }),
+      '@' + role.name);
+  }
+
+  function render() {
+    panel.innerHTML = '';
+    for (const role of roles) {
+      panel.append(el('button', {
+        class: 'dd-item chan-option' + (selected.has(role.id) ? ' active' : ''),
+        onclick: (e) => { e.stopPropagation(); toggle(role); },
+      }, roleLabel(role), selected.has(role.id) ? el('span', { class: 'chan-check' }, '✓') : null));
+    }
+    list.innerHTML = '';
+    const sel = roles.filter(r => selected.has(r.id));
+    if (!sel.length) list.append(el('li', { class: 'dim' }, listBelow));
+    for (const role of sel) {
+      list.append(el('li', {},
+        roleLabel(role),
+        el('button', { class: 'btn btn-danger btn-sm', onclick: () => toggle(role) }, 'Quitar')));
+    }
+  }
+  render();
+  return el('div', { class: 'chan-picker' }, dd, list);
+}
+
 async function loadChatTab() {
   const box = content();
   box.append(spinner());
   try {
-    const [chat, chatChans, ignored, reactions, frases, channels] = await Promise.all([
-      apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
-      apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels`),
-      apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
-      apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
-      apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
-      getChannels(),
-    ]);
+    const [chat, chatChans, corpus, reactions, frases, exempt, channels, roles] =
+      await Promise.all([
+        apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
+        getChannels(),
+        getRoles(),
+      ]);
     box.innerHTML = '';
+    const lim = chat.limits || {};
 
-    // --- Chat ---
+    // --- Chat: toggle + frecuencia de los mensajes espontáneos ---
     const check = el('input', { type: 'checkbox', checked: chat.enabled });
     check.onchange = async () => {
       try {
@@ -373,7 +484,10 @@ async function loadChatTab() {
         el('label', { class: 'toggle' }, check, 'Chat activado'),
         el('p', { class: 'dim' }, 'Si está activado, Purgito responde cuando lo mencionan (@Purgito).')),
       el('div', { class: 'field' },
-        el('label', {}, 'Canales donde responde (participa sin que lo mencionen)'),
+        el('label', {}, 'Canales donde responde'),
+        el('p', { class: 'dim' },
+          'Vale para las menciones y para los mensajes espontáneos. Sin canales '
+          + 'elegidos, Purgito responde en cualquiera.'),
         channelToggleList({
           channels,
           isSelected: id => chatSelected.has(id),
@@ -389,38 +503,109 @@ async function loadChatTab() {
             });
             chatSelected.delete(ch.id);
           },
-          listBelow: 'Sin canales configurados — Purgito puede participar en cualquier canal.',
+          listBelow: 'Sin canales configurados — Purgito responde en cualquier canal.',
         }))));
 
-    // --- Corpus --- (el backend guarda los ignorados; acá se muestra el inverso)
-    const ignoredSet = new Set(ignored.channels.map(c => c.id));
+    box.append(formGroup('Frecuencia de mensajes espontáneos',
+      el('p', { class: 'dim' },
+        'Cada tantos mensajes nuevos que aprende en un canal, Purgito considera '
+        + 'hablar solo. La probabilidad evita que sea un reloj.'),
+      numberField('Cada cuántos mensajes', null, {
+        key: 'auto_generate_every',
+        value: chat.auto_generate_every,
+        min: (lim.auto_generate_every || [1])[0],
+        max: (lim.auto_generate_every || [null, 1000])[1],
+        suffix: 'mensajes',
+      }),
+      percentField('Probabilidad de hablar', 'Al llegar a esa cuenta, cuántas veces habla de cada 100.', {
+        key: 'auto_generate_probability',
+        value: chat.auto_generate_probability,
+      })));
+
+    // --- Corpus: allowlist positiva sobre corpus_allowed_channels ---
+    const corpusSelected = new Set(corpus.channels.map(c => c.id));
+    const ignoredSet = new Set(corpus.ignored || []);
     box.append(formGroup('Corpus',
       el('div', { class: 'field' },
-        el('label', {}, 'Canales donde el bot aprende mensajes'),
+        el('label', {}, 'Canales de los que aprende'),
+        el('p', { class: 'dim' },
+          'Purgito solo guarda mensajes de los canales que elijas acá. Sin '
+          + 'ninguno elegido, no aprende de nada.'),
+        ignoredSet.size
+          ? el('p', { class: 'dim' },
+            `${ignoredSet.size} canal(es) ignorado(s) desde /settings quedan fuera `
+            + 'aunque los elijas: ahí Purgito está completamente mudo.')
+          : null,
         channelToggleList({
           channels,
-          isSelected: id => !ignoredSet.has(id),
+          isSelected: id => corpusSelected.has(id),
           add: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, {
-              method: 'DELETE',
-            });
-            ignoredSet.delete(ch.id);
-          },
-          remove: async ch => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
               method: 'POST', body: { channel_id: ch.id },
             });
-            ignoredSet.add(ch.id);
+            corpusSelected.add(ch.id);
           },
-          listBelow: 'El bot no está aprendiendo de ningún canal.',
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, {
+              method: 'DELETE',
+            });
+            corpusSelected.delete(ch.id);
+          },
+          listBelow: 'Purgito no está aprendiendo de ningún canal.',
         }))));
 
-    // --- Reacciones ---
+    // --- Reacciones: emojis + con qué frecuencia reacciona ---
     const reaccionesBox = el('div', {});
     renderReacciones(reaccionesBox, reactions.reactions);
     box.append(formGroup('Reacciones',
       el('p', { class: 'dim' }, 'Colección de emojis con los que el bot reacciona a los usuarios.'),
+      percentField('Probabilidad de reaccionar', 'De cada 100 mensajes que lee, a cuántos les pone un emoji.', {
+        key: 'reaction_probability',
+        value: chat.reaction_probability,
+      }),
       reaccionesBox));
+
+    box.append(formGroup('GIF o texto',
+      el('p', { class: 'dim' },
+        'Cuando Purgito va a responder, con qué frecuencia manda un GIF de su '
+        + 'galería en vez de una frase generada.'),
+      percentField('Probabilidad de responder con GIF', null, {
+        key: 'gif_response_probability',
+        value: chat.gif_response_probability,
+      })));
+
+    // --- Límite de actividad ---
+    const exemptSelected = new Set(exempt.roles.map(r => r.id));
+    box.append(formGroup('Límite de actividad',
+      el('p', { class: 'dim' },
+        'Tope de interacciones por hora y por usuario, para que nadie use a '
+        + 'Purgito para farmear actividad. 0 = sin límite.'),
+      numberField('Menciones por hora', null, {
+        key: 'mention_rate_limit',
+        value: chat.mention_rate_limit,
+        min: (lim.mention_rate_limit || [0])[0],
+        max: (lim.mention_rate_limit || [null, 1000])[1],
+        suffix: 'por usuario',
+      }),
+      el('div', { class: 'field' },
+        el('label', {}, 'Roles exentos del límite'),
+        roleToggleList({
+          roles,
+          selected: exemptSelected,
+          add: async role => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
+              method: 'POST', body: { role_id: role.id },
+            });
+            exemptSelected.add(role.id);
+          },
+          remove: async role => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles/${role.id}`, {
+              method: 'DELETE',
+            });
+            exemptSelected.delete(role.id);
+          },
+          listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
+        }))));
 
     // --- Frases ---
     const frasesBox = el('div', {});

@@ -26,6 +26,16 @@ _db_lock = asyncio.Lock()
 DEFAULT_MENTION_RATE_LIMIT = 10
 MAX_MENTION_RATE_LIMIT = 1000
 
+# Comportamiento del chat, ahora por servidor (antes eran constantes globales en
+# config.py). Los defaults replican exactamente lo que hacía el bot con los
+# valores fijos, así que migrar no cambia la conducta de ningún servidor.
+DEFAULT_AUTO_GENERATE_EVERY = 15
+DEFAULT_AUTO_GENERATE_PROBABILITY = 0.6
+DEFAULT_REACTION_PROBABILITY = 0.05
+DEFAULT_GIF_RESPONSE_PROBABILITY = 0.45
+# Techo del contador de mensajes: más alto que esto y el bot no hablaría nunca.
+MAX_AUTO_GENERATE_EVERY = 1000
+
 
 def _env_int(name: str, default: int) -> int:
     try:
@@ -202,6 +212,35 @@ CREATE TABLE IF NOT EXISTS chat_channels (
     PRIMARY KEY (guild_id, channel_id)
 );
 
+-- Canales de los que el bot SÍ aprende. Allowlist positiva: lo que no está
+-- acá no entra al corpus. Ojo con la asimetría respecto de chat_channels:
+-- ahí la lista vacía significa "todos", acá significa "ninguno". Es a
+-- propósito — leer mensajes de un canal es más invasivo que responder en él,
+-- así que el default seguro es no leer nada. Los servidores que ya existían
+-- se rellenan una vez con su estado real (ver seed_corpus_allowed_channels).
+CREATE TABLE IF NOT EXISTS corpus_allowed_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+-- Roles que se saltan el tope de menciones por hora (moderación, boosters…).
+CREATE TABLE IF NOT EXISTS mention_rate_limit_exempt_roles (
+    guild_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, role_id)
+);
+
+-- Migraciones de datos que corren una vez POR SERVIDOR (no por base). Existen
+-- porque algunas necesitan la API de Discord —la lista real de canales— y no
+-- se pueden resolver con un ALTER en init_db.
+CREATE TABLE IF NOT EXISTS applied_migrations (
+    guild_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guild_id, name)
+);
+
 -- Contadores de uso acumulado por servidor (los "logs" de la tab INICIO del
 -- dashboard). Una fila por (guild, métrica) en vez de una columna por métrica:
 -- sumar una nueva no pide migración.
@@ -337,6 +376,22 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna mention_rate_limit ya existe en settings")
+    # Comportamiento del chat por servidor. Los defaults son los valores fijos
+    # que tenía config.py, así que las filas viejas siguen comportándose igual.
+    for _col, _type, _default in (
+        ("auto_generate_every", "INTEGER", DEFAULT_AUTO_GENERATE_EVERY),
+        ("auto_generate_probability", "REAL", DEFAULT_AUTO_GENERATE_PROBABILITY),
+        ("reaction_probability", "REAL", DEFAULT_REACTION_PROBABILITY),
+        ("gif_response_probability", "REAL", DEFAULT_GIF_RESPONSE_PROBABILITY),
+    ):
+        try:
+            await _db.execute(
+                f"ALTER TABLE settings ADD COLUMN {_col} {_type} "
+                f"NOT NULL DEFAULT {_default}"
+            )
+            await _db.commit()
+        except Exception:
+            log.debug("Columna %s ya existe en settings", _col)
     try:
         await _db.execute(
             "ALTER TABLE guild_auto_refeed ADD COLUMN welcome_channel_id INTEGER"
@@ -415,24 +470,86 @@ async def set_chat_mode(guild_id: int, enabled: bool, channel_id: int | None = N
 
 
 async def get_chat_settings(guild_id: int):
+    """Ajustes de conducta del chat de un servidor.
+
+    `channel_id` (settings.chat_channel_id) está **deprecado**: era un canal
+    único y lo reemplazó la lista `chat_channels`. Se sigue devolviendo para no
+    romper una migración en caliente, pero la lógica de menciones ya no lo lee
+    — ver cogs/chat.py.
+    """
     db = await get_db()
     async with db.execute(
-        "SELECT chat_mode_enabled, chat_channel_id, mention_rate_limit "
+        "SELECT chat_mode_enabled, chat_channel_id, mention_rate_limit, "
+        "       auto_generate_every, auto_generate_probability, "
+        "       reaction_probability, gif_response_probability "
         "FROM settings WHERE guild_id=?",
         (guild_id,),
     ) as cursor:
         row = await cursor.fetchone()
-        if not row:
-            return {
-                "enabled": True,
-                "channel_id": None,
-                "mention_rate_limit": DEFAULT_MENTION_RATE_LIMIT,
-            }
-        return {
-            "enabled": bool(row[0]),
-            "channel_id": row[1],
-            "mention_rate_limit": row[2],
-        }
+    defaults = {
+        "enabled": True,
+        "channel_id": None,
+        "mention_rate_limit": DEFAULT_MENTION_RATE_LIMIT,
+        "auto_generate_every": DEFAULT_AUTO_GENERATE_EVERY,
+        "auto_generate_probability": DEFAULT_AUTO_GENERATE_PROBABILITY,
+        "reaction_probability": DEFAULT_REACTION_PROBABILITY,
+        "gif_response_probability": DEFAULT_GIF_RESPONSE_PROBABILITY,
+    }
+    if not row:
+        return defaults
+    return {
+        "enabled": bool(row[0]),
+        "channel_id": row[1],
+        "mention_rate_limit": row[2],
+        "auto_generate_every": row[3],
+        "auto_generate_probability": row[4],
+        "reaction_probability": row[5],
+        "gif_response_probability": row[6],
+    }
+
+
+# Rango válido de cada ajuste numérico del chat, en un solo lugar: lo usan el
+# setter de abajo y el endpoint del dashboard, así que la API no puede quedar
+# aceptando algo que la DB después recorta.
+CHAT_TUNABLES = {
+    "auto_generate_every": (1, MAX_AUTO_GENERATE_EVERY),
+    "auto_generate_probability": (0.0, 1.0),
+    "reaction_probability": (0.0, 1.0),
+    "gif_response_probability": (0.0, 1.0),
+    "mention_rate_limit": (0, MAX_MENTION_RATE_LIMIT),
+}
+
+
+async def set_chat_tunables(guild_id: int, values: dict) -> dict:
+    """Guarda los ajustes numéricos del chat que vengan en `values`.
+
+    Solo toca las claves presentes (el dashboard autoguarda campo por campo) y
+    recorta cada una a su rango. Devuelve lo que quedó realmente guardado.
+    """
+    clean = {}
+    for key, raw in values.items():
+        if key not in CHAT_TUNABLES or raw is None:
+            continue
+        low, high = CHAT_TUNABLES[key]
+        caster = int if isinstance(low, int) else float
+        try:
+            clean[key] = max(low, min(high, caster(raw)))
+        except (TypeError, ValueError):
+            continue
+    if not clean:
+        return {}
+    cols = ", ".join(clean)
+    marks = ", ".join("?" for _ in clean)
+    updates = ", ".join(f"{k}=excluded.{k}" for k in clean)
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            f"INSERT INTO settings (guild_id, {cols}) VALUES (?, {marks}) "
+            f"ON CONFLICT(guild_id) DO UPDATE SET {updates}",
+            (guild_id, *clean.values()),
+        )
+        await db.commit()
+    return clean
 
 
 async def set_mention_rate_limit(guild_id: int, limit: int) -> None:
@@ -1122,6 +1239,145 @@ async def list_chat_channels(guild_id: int) -> list[int]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
+
+
+# ─── Corpus: allowlist positiva de canales ───────────────────────────────────
+#
+# Reemplaza al modelo "ignorar canales" como criterio de aprendizaje.
+# ignored_channels NO desaparece: sigue siendo su propio concepto (canal
+# totalmente mudo). Un canal ignorado nunca aprende, esté o no en esta lista.
+
+
+async def add_corpus_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO corpus_allowed_channels (guild_id, channel_id) "
+            "VALUES (?, ?)",
+            (guild_id, channel_id),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_corpus_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM corpus_allowed_channels WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_corpus_channels(guild_id: int) -> list[int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id FROM corpus_allowed_channels WHERE guild_id=? "
+        "ORDER BY channel_id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
+async def is_corpus_allowed(guild_id: int, channel_id: int) -> bool:
+    """True si el bot puede aprender de este canal. Lookup por PK: es una
+    consulta por mensaje recibido, tiene que ser barata."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT 1 FROM corpus_allowed_channels WHERE guild_id=? AND channel_id=?",
+        (guild_id, channel_id),
+    ) as cursor:
+        return await cursor.fetchone() is not None
+
+
+# ─── Roles exentos del límite de menciones ───────────────────────────────────
+
+
+async def add_exempt_role(guild_id: int, role_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO mention_rate_limit_exempt_roles "
+            "(guild_id, role_id) VALUES (?, ?)",
+            (guild_id, role_id),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_exempt_role(guild_id: int, role_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM mention_rate_limit_exempt_roles WHERE guild_id=? AND role_id=?",
+            (guild_id, role_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_exempt_roles(guild_id: int) -> list[int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT role_id FROM mention_rate_limit_exempt_roles WHERE guild_id=? "
+        "ORDER BY role_id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
+# ─── Migraciones de datos por servidor ───────────────────────────────────────
+
+
+async def migration_applied(guild_id: int, name: str) -> bool:
+    db = await get_db()
+    async with db.execute(
+        "SELECT 1 FROM applied_migrations WHERE guild_id=? AND name=?",
+        (guild_id, name),
+    ) as cursor:
+        return await cursor.fetchone() is not None
+
+
+async def mark_migration_applied(guild_id: int, name: str) -> bool:
+    """Marca la migración como hecha. False si ya lo estaba — quien llama lo
+    usa para no repetir el trabajo."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO applied_migrations (guild_id, name) VALUES (?, ?)",
+            (guild_id, name),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def seed_corpus_allowed_channels(guild_id: int, channel_ids: list[int]) -> int:
+    """Rellena la allowlist del corpus de un guild en una transacción.
+
+    Solo la usa la migración: `channel_ids` ya viene filtrado (canales de texto
+    reales menos los ignorados). INSERT OR IGNORE para que sea reentrante si el
+    proceso muere a mitad de camino.
+    """
+    if not channel_ids:
+        return 0
+    db = await get_db()
+    async with _db_lock:
+        await db.executemany(
+            "INSERT OR IGNORE INTO corpus_allowed_channels (guild_id, channel_id) "
+            "VALUES (?, ?)",
+            [(guild_id, cid) for cid in channel_ids],
+        )
+        await db.commit()
+    return len(channel_ids)
 
 
 async def get_updates_channel(guild_id: int) -> int | None:
@@ -2184,6 +2440,10 @@ async def purge_guild_data(guild_id: int) -> None:
         "channel_refeed_status",
         "guild_auto_refeed",
         "guild_counters",
+        "chat_channels",
+        "corpus_allowed_channels",
+        "mention_rate_limit_exempt_roles",
+        "applied_migrations",
     ]
     async with _db_lock:
         for table in tables:

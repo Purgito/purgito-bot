@@ -63,11 +63,13 @@ from config import (
 from cogs.gifs import HEALTH_CHECK_BATCH, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from db import (
+    CHAT_TUNABLES,
     add_button_action,
     add_chat_channel,
+    add_corpus_channel,
     add_embed_template,
+    add_exempt_role,
     add_frase_especial,
-    add_ignored_channel,
     add_reaction_to_pool,
     add_scheduled_announcement,
     add_shared_embed,
@@ -87,7 +89,9 @@ from db import (
     get_shared_embed,
     get_updates_channel,
     list_chat_channels,
+    list_corpus_channels,
     list_embed_templates,
+    list_exempt_roles,
     list_frases_especiales,
     list_gif_urls,
     list_ignored_channels,
@@ -95,12 +99,14 @@ from db import (
     list_reaction_pool,
     normalize_embeds_json,
     remove_chat_channel,
-    remove_ignored_channel,
+    remove_corpus_channel,
+    remove_exempt_role,
     remove_reaction_from_pool,
     save_gif_url,
     set_bot_style,
     set_chat_enabled,
     set_chat_mode,
+    set_chat_tunables,
     set_updates_channel,
     share_links_daily_limit,
     update_embed_template,
@@ -456,14 +462,48 @@ async def _api_roles(request: web.Request, guild_id: int) -> web.Response:
 
 @guild_api
 async def _api_chat_get(request: web.Request, guild_id: int) -> web.Response:
+    """Toggle del chat + los ajustes numéricos de conducta (tab CHAT).
+
+    `channel_id` sigue saliendo por compatibilidad pero está deprecado: los
+    canales donde responde son la lista `chat-channels`.
+    """
     settings = await get_chat_settings(guild_id)
     channel_id = settings["channel_id"]
     return web.json_response(
         {
             "enabled": settings["enabled"],
             "channel_id": str(channel_id) if channel_id else None,
+            **{k: settings[k] for k in CHAT_TUNABLES},
+            # El dashboard necesita los rangos para armar los inputs sin
+            # duplicar los límites en el JS.
+            "limits": {k: list(v) for k, v in CHAT_TUNABLES.items()},
         }
     )
+
+
+@guild_api
+async def _api_chat_tunables_put(request: web.Request, guild_id: int) -> web.Response:
+    """Guarda uno o varios ajustes numéricos del chat (autoguardado por campo).
+
+    Incluye `mention_rate_limit`, que existía en la DB y en la lógica del bot
+    desde antes pero nunca había tenido endpoint.
+    """
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    unknown = set(data) - set(CHAT_TUNABLES)
+    if unknown:
+        return web.json_response(
+            {"error": f"campos desconocidos: {', '.join(sorted(unknown))}"}, status=400
+        )
+    saved = await set_chat_tunables(guild_id, data)
+    if not saved:
+        return web.json_response(
+            {"error": "ningún valor válido para guardar"}, status=400
+        )
+    # Devuelve lo guardado ya recortado al rango: si el usuario mandó 5000
+    # mensajes, el input se corrige solo en vez de mentir.
+    return web.json_response({"ok": True, "saved": saved})
 
 
 @guild_api
@@ -488,14 +528,27 @@ async def _api_chat_put(request: web.Request, guild_id: int) -> web.Response:
 # ---------------- API: corpus (canales ignorados) ----------------
 
 
+# Allowlist positiva: estos endpoints operan sobre corpus_allowed_channels.
+# Antes editaban ignored_channels con la lógica invertida (el dashboard mostraba
+# "canales donde aprende" y guardaba "canales ignorados"), que era imposible de
+# leer y no distinguía "no aprendo acá" de "acá estoy completamente mudo".
+# ignored_channels sigue existiendo como concepto aparte y se administra desde
+# /settings en Discord.
+
+
 @guild_api
 async def _api_corpus_get(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
-    channel_ids = await list_ignored_channels(guild_id)
+    # Los ignorados viajan aparte para que el dashboard pueda marcarlos: están
+    # excluidos del corpus pase lo que pase, y elegirlos acá no haría nada.
+    ignored = set(await list_ignored_channels(guild_id))
     channels = [
-        {"id": str(cid), "name": _channel_name(guild, cid)} for cid in channel_ids
+        {"id": str(cid), "name": _channel_name(guild, cid)}
+        for cid in await list_corpus_channels(guild_id)
     ]
-    return web.json_response({"channels": channels})
+    return web.json_response(
+        {"channels": channels, "ignored": [str(cid) for cid in sorted(ignored)]}
+    )
 
 
 @guild_api
@@ -504,7 +557,7 @@ async def _api_corpus_post(request: web.Request, guild_id: int) -> web.Response:
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
-    added = await add_ignored_channel(guild_id, channel_id)
+    added = await add_corpus_channel(guild_id, channel_id)
     return web.json_response({"added": added})
 
 
@@ -513,7 +566,39 @@ async def _api_corpus_delete(request: web.Request, guild_id: int) -> web.Respons
     channel_id = _to_int(request.match_info.get("channel_id"))
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
-    removed = await remove_ignored_channel(guild_id, channel_id)
+    removed = await remove_corpus_channel(guild_id, channel_id)
+    return web.json_response({"removed": removed})
+
+
+# ---------------- API: roles exentos del límite de menciones ----------------
+
+
+@guild_api
+async def _api_exempt_roles_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    roles = []
+    for rid in await list_exempt_roles(guild_id):
+        role = guild.get_role(rid) if guild else None
+        roles.append({"id": str(rid), "name": getattr(role, "name", None)})
+    return web.json_response({"roles": roles})
+
+
+@guild_api
+async def _api_exempt_roles_post(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    role_id = _to_int(data.get("role_id")) if data else None
+    if role_id is None:
+        return web.json_response({"error": "role_id inválido"}, status=400)
+    added = await add_exempt_role(guild_id, role_id)
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_exempt_roles_delete(request: web.Request, guild_id: int) -> web.Response:
+    role_id = _to_int(request.match_info.get("role_id"))
+    if role_id is None:
+        return web.json_response({"error": "role_id inválido"}, status=400)
+    removed = await remove_exempt_role(guild_id, role_id)
     return web.json_response({"removed": removed})
 
 
@@ -1794,6 +1879,12 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_put(f"{base}/style", _api_style_put)
         app.router.add_get(f"{base}/settings/chat", _api_chat_get)
         app.router.add_put(f"{base}/settings/chat", _api_chat_put)
+        app.router.add_put(f"{base}/settings/chat/tunables", _api_chat_tunables_put)
+        app.router.add_get(f"{base}/settings/exempt-roles", _api_exempt_roles_get)
+        app.router.add_post(f"{base}/settings/exempt-roles", _api_exempt_roles_post)
+        app.router.add_delete(
+            f"{base}/settings/exempt-roles/{{role_id}}", _api_exempt_roles_delete
+        )
         app.router.add_get(f"{base}/settings/chat-channels", _api_chat_channels_get)
         app.router.add_post(f"{base}/settings/chat-channels", _api_chat_channels_post)
         app.router.add_delete(

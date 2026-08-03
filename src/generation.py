@@ -168,17 +168,30 @@ def note_user_corpus_insert(guild_id: int, author_id: int) -> None:
         _user_corpus_insert_counter[key] = n
 
 
-def note_message_for_auto_generate(guild_id: int, channel_id: int) -> bool:
+def note_message_for_auto_generate(
+    guild_id: int,
+    channel_id: int,
+    every: int | None = None,
+    probability: float | None = None,
+) -> bool:
     """Cuenta un insert al corpus del canal y decide si el bot habla espontáneamente.
 
-    Cada AUTO_GENERATE_EVERY inserts hay una oportunidad de generación, gateada
-    por AUTO_GENERATE_PROBABILITY para que no sea determinística por conteo.
+    Cada `every` inserts hay una oportunidad de generación, gateada por
+    `probability` para que no sea determinística por conteo. Ambos valores son
+    por servidor y los pasa cogs/chat.py desde get_chat_settings; los de
+    config.py quedaron solo como fallback para quien no los pase.
     """
+    if every is None:
+        every = config.AUTO_GENERATE_EVERY
+    if probability is None:
+        probability = config.AUTO_GENERATE_PROBABILITY
     key = (guild_id, channel_id)
     n = _message_counter.get(key, 0) + 1
-    if n >= config.AUTO_GENERATE_EVERY:
+    # `every` viene de la DB acotado a >= 1, pero un 0 acá dejaría el contador
+    # sin avanzar nunca y el bot mudo: se trata igual que 1.
+    if n >= max(1, every):
         _message_counter[key] = 0
-        return random.random() < config.AUTO_GENERATE_PROBABILITY
+        return random.random() < probability
     _message_counter[key] = n
     return False
 

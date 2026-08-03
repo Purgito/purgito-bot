@@ -21,9 +21,15 @@ BOT_ID = 999
 
 
 class FakeMessage:
-    def __init__(self, mention=True, guild_id=1, channel_id=10):
+    def __init__(self, mention=True, guild_id=1, channel_id=10, role_ids=()):
         self.id = 123
-        self.author = SimpleNamespace(bot=False, id=5, display_name="user")
+        self.author = SimpleNamespace(
+            bot=False,
+            id=5,
+            display_name="user",
+            # discord.py trae los roles con el miembro: no hay llamada extra.
+            roles=[SimpleNamespace(id=rid) for rid in role_ids],
+        )
         self.guild = SimpleNamespace(id=guild_id)
         self.channel = SimpleNamespace(id=channel_id)
         self.content = "hola" + (f" <@{BOT_ID}>" if mention else " mundo")
@@ -62,23 +68,53 @@ def cog(monkeypatch):
     return Chat(bot), saved, monkeypatch
 
 
-def _patch_ctx(monkeypatch, ignored=False, enabled=True, channel_id=None, rate_limit=0):
+def _patch_ctx(
+    monkeypatch,
+    ignored=False,
+    enabled=True,
+    rate_limit=0,
+    corpus_allowed=True,
+    reply_channels=(),
+    exempt_roles=(),
+    gif_probability=0.45,
+):
     """rate_limit=0 (sin tope) por default: estos tests miran el aviso de
-    silenciado, no el anti-farmeo — ver test_mention_rate_limit.py."""
+    silenciado, no el anti-farmeo — ver test_mention_rate_limit.py.
+
+    `corpus_allowed=True` por default porque la allowlist del corpus es un
+    concepto aparte del silenciado; los tests que la miran la apagan explícito.
+    `reply_channels=()` = responde en cualquier canal, que es el default real.
+    """
 
     async def fake_ignored(guild_id, chan_id):
         return ignored
 
+    async def fake_corpus_allowed(guild_id, chan_id):
+        return corpus_allowed
+
     async def fake_settings(guild_id):
         return {
             "enabled": enabled,
-            "channel_id": channel_id,
+            "channel_id": None,  # deprecado: la lógica ya no lo lee
             "mention_rate_limit": rate_limit,
+            "auto_generate_every": 15,
+            "auto_generate_probability": 0.6,
+            "reaction_probability": 0.05,
+            "gif_response_probability": gif_probability,
         }
+
+    async def fake_chat_channels(guild_id):
+        return list(reply_channels)
+
+    async def fake_exempt(guild_id):
+        return list(exempt_roles)
 
     chat_mod._mention_hits.clear()
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_ignored)
+    monkeypatch.setattr(chat_mod, "is_corpus_allowed", fake_corpus_allowed)
     monkeypatch.setattr(chat_mod, "get_chat_settings", fake_settings)
+    monkeypatch.setattr(chat_mod, "list_chat_channels", fake_chat_channels)
+    monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_exempt)
 
 
 # ─── Throttle: mensaje completo la primera vez, 🤐 dentro del cooldown ────────
@@ -111,13 +147,61 @@ def test_muted_cooldown_is_per_guild(cog):
 
 
 def test_wrong_channel_names_configured_channel(cog):
+    """Las menciones usan la MISMA allowlist que el chat espontáneo
+    (chat_channels), no el viejo settings.chat_channel_id."""
     chat, saved, mp = cog
-    _patch_ctx(mp, enabled=True, channel_id=20)
+    _patch_ctx(mp, enabled=True, reply_channels=[20])
 
     m = FakeMessage(channel_id=10)
     asyncio.run(chat.on_message(m))
     assert m.replies == [i18n.t("chat.muted.wrong_channel", "es", channel="<#20>")]
     # Canal NO ignorado: el mensaje sí entra al corpus aunque el chat no responda.
+    assert saved == ["hola"]
+
+
+def test_lista_de_canales_vacia_responde_en_cualquiera(cog):
+    """Default de un servidor sin configurar: no hay restricción de canal."""
+    chat, _, mp = cog
+    _patch_ctx(mp, enabled=True, reply_channels=[])
+    _patch_generation(mp)
+
+    m = FakeMessage(channel_id=10)
+    asyncio.run(chat.on_message(m))
+    assert m.replies == ["respuesta"]
+
+
+def test_mencion_en_canal_de_la_lista_responde(cog):
+    chat, _, mp = cog
+    _patch_ctx(mp, enabled=True, reply_channels=[10, 20])
+    _patch_generation(mp)
+
+    m = FakeMessage(channel_id=10)
+    asyncio.run(chat.on_message(m))
+    assert m.replies == ["respuesta"]
+
+
+# ─── Corpus: allowlist positiva ──────────────────────────────────────────────
+
+
+def test_canal_fuera_del_allowlist_no_guarda_pero_si_responde(cog):
+    """El corpus y la respuesta son decisiones independientes: un canal donde
+    el bot no aprende igual contesta si lo mencionan."""
+    chat, saved, mp = cog
+    _patch_ctx(mp, corpus_allowed=False)
+    _patch_generation(mp)
+
+    m = FakeMessage()
+    asyncio.run(chat.on_message(m))
+    assert saved == []
+    assert m.replies == ["respuesta"]
+
+
+def test_canal_dentro_del_allowlist_si_guarda(cog):
+    chat, saved, mp = cog
+    _patch_ctx(mp, corpus_allowed=True)
+    _patch_generation(mp)
+
+    asyncio.run(chat.on_message(FakeMessage()))
     assert saved == ["hola"]
 
 
@@ -201,6 +285,78 @@ def test_rate_limit_is_per_user(cog):
 
     # Otro usuario en el mismo servidor arranca con su cupo entero.
     other = FakeMessage()
-    other.author = SimpleNamespace(bot=False, id=6, display_name="otro")
+    other.author = SimpleNamespace(bot=False, id=6, display_name="otro", roles=[])
     asyncio.run(chat.on_message(other))
     assert other.replies
+
+
+# ─── Roles exentos del límite ────────────────────────────────────────────────
+
+
+def test_rol_exento_ignora_el_tope_por_completo(cog):
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_roles=[777])
+    _patch_generation(mp)
+
+    # Con tope 1, el segundo mensaje de un usuario normal ya estaría mudo.
+    for _ in range(5):
+        m = FakeMessage(role_ids=[777])
+        asyncio.run(chat.on_message(m))
+        assert m.replies == ["respuesta"]
+
+
+def test_rol_no_exento_sigue_topeado(cog):
+    """Tener roles no alcanza: tiene que ser uno de la lista."""
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_roles=[777])
+    _patch_generation(mp)
+
+    primero = FakeMessage(role_ids=[123])
+    asyncio.run(chat.on_message(primero))
+    assert primero.replies == ["respuesta"]
+
+    segundo = FakeMessage(role_ids=[123])
+    asyncio.run(chat.on_message(segundo))
+    assert segundo.replies == []
+
+
+def test_sin_roles_exentos_configurados_el_tope_aplica_a_todos(cog):
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_roles=[])
+    _patch_generation(mp)
+
+    asyncio.run(chat.on_message(FakeMessage(role_ids=[777])))
+    bloqueado = FakeMessage(role_ids=[777])
+    asyncio.run(chat.on_message(bloqueado))
+    assert bloqueado.replies == []
+
+
+# ─── Probabilidades por servidor ─────────────────────────────────────────────
+
+
+def test_la_probabilidad_de_gif_sale_de_los_settings(cog, monkeypatch):
+    """random() = 0.5: con el default (0.45) manda texto; subiéndolo a 0.9 el
+    mismo azar cae del lado del GIF."""
+    chat, _, mp = cog
+    _patch_generation(mp)
+    monkeypatch.setattr(chat_mod, "random", SimpleNamespace(random=lambda: 0.5))
+
+    async def fake_gif(guild_id):
+        return "https://tenor.com/x.gif"
+
+    monkeypatch.setattr(chat_mod, "get_live_gif", fake_gif)
+    monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
+
+    _patch_ctx(mp)  # gif_response_probability = 0.45
+    texto = FakeMessage()
+    asyncio.run(chat.on_message(texto))
+    assert texto.replies == ["respuesta"]
+
+    _patch_ctx(mp, gif_probability=0.9)
+    gif = FakeMessage()
+    asyncio.run(chat.on_message(gif))
+    assert gif.replies == ["https://tenor.com/x.gif"]
+
+
+async def _noop_counter(guild_id, name, by=1):
+    return None
