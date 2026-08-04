@@ -507,6 +507,39 @@ Con miles de objetos tarda, porque baja cada uno y espera `--sleep` segundos
 (default 0.1) entre llamadas a R2 para no saturar la API. Guardar el log — deja
 una línea por objeto subido o borrado.
 
+### Deduplicar GIFs casi-duplicados (dedup perceptual)
+
+`scripts/backfill_gif_phashes.py` complementa al de arriba: ese deduplica por
+content_hash exacto (mismos bytes); este detecta el mismo meme reposteado con
+distinta compresión/recorte (bytes distintos, mismo dHash perceptual) y
+fusiona esos objetos en uno solo. Se corre a mano después del deploy que trae
+esta feature, y de ahí en adelante cada vez que se quiera reprocesar el bucket.
+
+```bash
+sudo systemctl stop bot-purg          # evita subidas en paralelo
+cd /opt/bot-discord-purg && source .venv/bin/activate
+pip install -r requirements.txt       # trae imagehash
+
+python scripts/backfill_gif_phashes.py           # backfill de phashes + reporte de clusters, sin fusionar
+```
+
+Revisar a ojo el reporte de clusters antes de fusionar nada: `GIF_PHASH_MAX_DISTANCE`
+(limits.env, default 6) es un punto de partida conservador y puede necesitar
+ajuste — un umbral mal calibrado fusiona memes que en realidad son distintos.
+Si algún cluster no convence, subir o bajar el valor en limits.env, hacer
+`git commit`, y volver a correr el dry-run hasta que el reporte se vea bien.
+
+```bash
+python scripts/backfill_gif_phashes.py --apply   # recién ahora fusiona
+
+sudo systemctl start bot-purg
+```
+
+El backfill de phashes (llenar la columna `phash` de `gif_objects`) se escribe
+siempre, tenga o no `--apply` el resto — es aditivo, no borra ni fusiona nada.
+Es idempotente: en la segunda corrida los objetos ya tienen phash y los
+clusters ya fusionados no vuelven a aparecer.
+
 Nunca toca objetos referenciados por `corpus_images` (las imágenes de memes
 también pueden ser `.gif`), ni los huérfanos, que solo informa.
 

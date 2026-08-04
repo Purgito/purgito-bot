@@ -6,6 +6,7 @@ entorno el módulo igual importa sin romper nada y available() devuelve False.
 
 import asyncio
 import hashlib
+import io
 import logging
 import os
 import subprocess
@@ -29,11 +30,15 @@ class GifUpload(NamedTuple):
     `content_hash` es el sha256 de los bytes que efectivamente se subieron:
     es la identidad del objeto en el bucket y lo que usa db.gif_objects para
     contar referencias.
+    `phash` es el dHash perceptual de los bytes locales, calculado solo
+    cuando no hubo match exacto (ver upload_gif_sync); el caller lo pasa a
+    db.save_gif_url para que quede guardado si el objeto es nuevo de verdad.
     """
 
     url: str
     content_hash: str = ""
     size_bytes: int = 0
+    phash: str | None = None
 
 
 # Prefijo exclusivo de los GIFs content-addressed. Las imágenes de memes y las
@@ -169,10 +174,67 @@ def _object_exists(client, key: str) -> bool:
         return False
 
 
+def compute_phash(data: bytes) -> str | None:
+    """dHash perceptual del primer frame del GIF, para detectar casi-duplicados
+    (mismo meme, distinta compresión/recorte/origen -- ver
+    _closest_phash_match). Degrada con gracia: si Pillow no puede decodificar
+    el archivo, un GIF sin phash simplemente no participa en el matching, no
+    debe impedir que se guarde."""
+    try:
+        from PIL import Image
+        import imagehash
+
+        with Image.open(io.BytesIO(data)) as img:
+            return str(imagehash.dhash(img))
+    except Exception:
+        log.debug("No se pudo calcular el phash del GIF", exc_info=True)
+        return None
+
+
+def _phash_max_distance() -> int:
+    return _env_int("GIF_PHASH_MAX_DISTANCE", 6)
+
+
+def _closest_phash_match(phash: str, max_distance: int) -> tuple[str, str] | None:
+    """(content_hash, r2_key) del objeto existente más parecido dentro de
+    max_distance, o None si ninguno califica."""
+    import imagehash
+
+    import db  # import diferido: evita import circular (db.py importa r2)
+
+    try:
+        candidates = asyncio.run(db.get_all_gif_phashes())
+    except Exception:
+        log.warning(
+            "No se pudieron consultar los phashes existentes de gif_objects",
+            exc_info=True,
+        )
+        return None
+
+    target = imagehash.hex_to_hash(phash)
+    best: tuple[str, str] | None = None
+    best_dist = max_distance + 1
+    for content_hash, r2_key, other_phash in candidates:
+        try:
+            dist = target - imagehash.hex_to_hash(other_phash)
+        except Exception:
+            continue
+        if dist <= max_distance and dist < best_dist:
+            best, best_dist = (content_hash, r2_key), dist
+    return best
+
+
 def upload_gif_sync(url: str) -> GifUpload | None:
     """Descarga el GIF, lo identifica por el sha256 de su contenido y lo sube
     solo si ese contenido no está ya en el bucket. Retorna un GifUpload,
-    GifUpload(GIF_TOO_LARGE) si supera el límite, o None en otros errores."""
+    GifUpload(GIF_TOO_LARGE) si supera el límite, o None en otros errores.
+
+    Antes de subir un objeto sin match exacto, intenta un match perceptual
+    (dHash) contra los objetos ya guardados: el mismo meme reposteado con
+    distinta compresión/recorte cae con content_hash distinto pero suele
+    tener un phash casi idéntico. Si hay match, reusa ese objeto en vez de
+    subir uno nuevo -- ver GIF_PHASH_MAX_DISTANCE en limits.env.
+    """
     client = get_client()
     if client is None:
         return None
@@ -198,10 +260,24 @@ def upload_gif_sync(url: str) -> GifUpload | None:
         data = optimize_gif_bytes(data)
         content_hash = hashlib.sha256(data).hexdigest()
         key = gif_key(content_hash)
+        phash = None
         # Subir dos veces el mismo contenido a la misma key es inofensivo
         # (bytes idénticos), así que el head_object es solo para ahorrarse la
         # subida en el caso común de un repost, no un candado de concurrencia.
         if not _object_exists(client, key):
+            phash = compute_phash(data)
+            if phash:
+                match = _closest_phash_match(phash, _phash_max_distance())
+                if match:
+                    match_hash, match_key = match
+                    log.info(
+                        "GIF casi-duplicado detectado (phash): %s reusa el objeto %s",
+                        content_hash,
+                        match_hash,
+                    )
+                    return GifUpload(
+                        f"{public_url().rstrip('/')}/{match_key}", match_hash, len(data)
+                    )
             client.put_object(
                 Bucket=_bucket(),
                 Key=key,
@@ -209,7 +285,9 @@ def upload_gif_sync(url: str) -> GifUpload | None:
                 ContentType="image/gif",
                 CacheControl="public, max-age=31536000, immutable",
             )
-        return GifUpload(f"{public_url().rstrip('/')}/{key}", content_hash, len(data))
+        return GifUpload(
+            f"{public_url().rstrip('/')}/{key}", content_hash, len(data), phash
+        )
     except Exception:
         log.exception("Error subiendo GIF a R2: %s", url)
         return None

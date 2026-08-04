@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS gif_objects (
     r2_key TEXT NOT NULL,
     ref_count INTEGER NOT NULL DEFAULT 0,
     size_bytes INTEGER NOT NULL DEFAULT 0,
+    phash TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -395,6 +396,11 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna content_hash ya existe en corpus_gifs")
+    try:
+        await _db.execute("ALTER TABLE gif_objects ADD COLUMN phash TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna phash ya existe en gif_objects")
     try:
         await _db.execute("ALTER TABLE settings ADD COLUMN locale TEXT")
         await _db.commit()
@@ -745,14 +751,32 @@ async def wipe_corpus(guild_id: int) -> None:
         await db.commit()
 
 
-async def _retain_gif_object(db, content_hash: str, r2_key: str, size_bytes: int):
-    """Suma una referencia al objeto de R2. Llamar con _db_lock ya tomado."""
+async def _retain_gif_object(
+    db, content_hash: str, r2_key: str, size_bytes: int, phash: str | None = None
+):
+    """Suma una referencia al objeto de R2. Llamar con _db_lock ya tomado.
+
+    phash solo se graba en la fila nueva: el ON CONFLICT no lo toca, así que
+    una referencia repetida a un objeto existente no le pisa el phash ya
+    calculado (por ejemplo por el backfill).
+    """
     await db.execute(
-        "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes) "
-        "VALUES (?, ?, 1, ?) "
+        "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, phash) "
+        "VALUES (?, ?, 1, ?, ?) "
         "ON CONFLICT(content_hash) DO UPDATE SET ref_count = ref_count + 1",
-        (content_hash, r2_key, size_bytes),
+        (content_hash, r2_key, size_bytes, phash),
     )
+
+
+async def get_all_gif_phashes() -> list[tuple[str, str, str]]:
+    """(content_hash, r2_key, phash) de los objetos que ya tienen phash
+    calculado. La usa r2.py para el matching perceptual antes de subir un
+    GIF nuevo -- ver upload_gif_sync."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT content_hash, r2_key, phash FROM gif_objects WHERE phash IS NOT NULL"
+    ) as cursor:
+        return [tuple(row) for row in await cursor.fetchall()]
 
 
 async def release_gif_reference(content_hash: str | None, url: str | None = None):
@@ -847,6 +871,7 @@ async def save_gif_url(
     url: str,
     content_hash: str | None = None,
     size_bytes: int = 0,
+    phash: str | None = None,
 ) -> tuple[bool, int | None]:
     """Devuelve (inserted, evicted_id). evicted_id es el id del GIF más viejo
     desalojado por haber llegado al límite del guild, o None si no hubo desalojo.
@@ -899,7 +924,7 @@ async def save_gif_url(
         # este GIF, la referencia que le corresponde ya está contada.
         if inserted and content_hash:
             await _retain_gif_object(
-                db, content_hash, r2.gif_key(content_hash), size_bytes
+                db, content_hash, r2.gif_key(content_hash), size_bytes, phash
             )
         await db.commit()
     if evicted_id is not None:

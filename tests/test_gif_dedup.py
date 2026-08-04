@@ -412,6 +412,46 @@ def test_wipe_gifs_only_deletes_objects_no_one_else_uses(memory_db, deleted_keys
     asyncio.run(run())
 
 
+def test_save_gif_url_persists_phash_for_new_object(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, "abc123")
+        async with memory_db.execute(
+            "SELECT phash FROM gif_objects WHERE content_hash=?", (_HASH,)
+        ) as cur:
+            row = await cur.fetchone()
+        assert row[0] == "abc123"
+
+    asyncio.run(run())
+
+
+def test_save_gif_url_does_not_overwrite_phash_on_repeat_reference(
+    memory_db, deleted_keys
+):
+    """Otro guild referenciando el mismo objeto (ON CONFLICT) no debe pisar
+    el phash ya calculado con None."""
+
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, "abc123")
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100, None)
+        async with memory_db.execute(
+            "SELECT phash FROM gif_objects WHERE content_hash=?", (_HASH,)
+        ) as cur:
+            row = await cur.fetchone()
+        assert row[0] == "abc123"
+
+    asyncio.run(run())
+
+
+def test_get_all_gif_phashes_skips_objects_without_phash(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, "abc123")
+        await db.save_gif_url(_GUILD_A, _url(_OTHER_HASH), _OTHER_HASH, 50, None)
+        rows = await db.get_all_gif_phashes()
+        assert rows == [(_HASH, r2.gif_key(_HASH), "abc123")]
+
+    asyncio.run(run())
+
+
 def test_eviction_releases_reference(memory_db, deleted_keys, monkeypatch):
     """Al llegar al tope de la colección se desaloja el más viejo: eso también
     tiene que soltar su referencia, no borrar el objeto a ciegas."""
@@ -429,3 +469,141 @@ def test_eviction_releases_reference(memory_db, deleted_keys, monkeypatch):
         assert deleted_keys == []
 
     asyncio.run(run())
+
+
+# ---------- r2: phash perceptual ----------
+
+
+def _make_gif_bytes(color) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (16, 16), color=color).save(buf, format="GIF")
+    return buf.getvalue()
+
+
+def test_compute_phash_returns_hex_string_for_valid_gif():
+    phash = r2.compute_phash(_make_gif_bytes((255, 0, 0)))
+    assert phash is not None
+    assert len(phash) == 16
+    int(phash, 16)  # es hex válido
+
+
+def test_compute_phash_degrades_to_none_on_corrupt_bytes():
+    assert r2.compute_phash(b"no soy un gif") is None
+
+
+class _FakeUploadClient:
+    def __init__(self, exists=False):
+        self._exists = exists
+        self.puts = []
+
+    def head_object(self, **kw):
+        if not self._exists:
+            raise LookupError("no existe")
+        return {}
+
+    def put_object(self, **kw):
+        self.puts.append(kw["Key"])
+
+
+class _FakeUploadResp:
+    def __init__(self, content):
+        self.status_code = 200
+        self.headers: dict = {}
+        self.content = content
+
+    def close(self):
+        pass
+
+
+def _patch_upload(monkeypatch, client, content):
+    monkeypatch.setattr(r2, "get_client", lambda: client)
+    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
+    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeUploadResp(content))
+    monkeypatch.setattr(r2, "optimize_gif_bytes", lambda data: data)
+
+
+def test_upload_with_exact_match_does_not_compute_phash(monkeypatch):
+    client = _FakeUploadClient(exists=True)
+    _patch_upload(monkeypatch, client, _make_gif_bytes((0, 255, 0)))
+    called = []
+    monkeypatch.setattr(r2, "compute_phash", lambda data: called.append(1) or "x")
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert called == []
+    assert up.phash is None
+    assert client.puts == []
+
+
+def test_upload_without_any_match_uploads_normally_and_keeps_its_own_phash(
+    memory_db, monkeypatch
+):
+    client = _FakeUploadClient(exists=False)
+    data = _make_gif_bytes((0, 0, 255))
+    _patch_upload(monkeypatch, client, data)
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert client.puts == [r2.gif_key(up.content_hash)]
+    assert up.phash == r2.compute_phash(data)
+
+
+def test_upload_with_perceptual_match_reuses_existing_object_without_uploading(
+    memory_db, monkeypatch
+):
+    """Mismo meme, bytes distintos: no hay match exacto por content_hash pero
+    sí por phash -- no debe subir un objeto nuevo a R2."""
+    data = _make_gif_bytes((10, 10, 10))
+    phash = r2.compute_phash(data)
+    existing_hash = "c" * 64
+
+    async def seed():
+        await memory_db.execute(
+            "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, phash) "
+            "VALUES (?, ?, 1, 10, ?)",
+            (existing_hash, r2.gif_key(existing_hash), phash),
+        )
+        await memory_db.commit()
+
+    asyncio.run(seed())
+
+    client = _FakeUploadClient(exists=False)
+    _patch_upload(monkeypatch, client, data)
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert client.puts == []  # no se subió nada nuevo
+    assert up.content_hash == existing_hash
+    assert up.url == f"https://cdn.example.com/{r2.gif_key(existing_hash)}"
+
+
+def test_upload_ignores_perceptual_matches_beyond_the_configured_distance(
+    memory_db, monkeypatch
+):
+    data = _make_gif_bytes((200, 0, 200))
+    existing_hash = "d" * 64
+
+    async def seed():
+        # Un phash completamente distinto: no debe matchear.
+        await memory_db.execute(
+            "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, phash) "
+            "VALUES (?, ?, 1, 10, ?)",
+            (existing_hash, r2.gif_key(existing_hash), "0" * 16),
+        )
+        await memory_db.commit()
+
+    asyncio.run(seed())
+    monkeypatch.setattr(r2, "compute_phash", lambda d: "f" * 16)
+
+    client = _FakeUploadClient(exists=False)
+    _patch_upload(monkeypatch, client, data)
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert up.content_hash != existing_hash
+    assert client.puts == [r2.gif_key(up.content_hash)]

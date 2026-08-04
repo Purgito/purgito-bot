@@ -55,16 +55,16 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
                 # Se valida el host real: el regex matchea el dominio como
                 # substring y dejaría pasar "https://evil.com/?tenor.com".
                 host = _gif_host(url)
-                content_hash, size_bytes = None, 0
+                content_hash, size_bytes, phash = None, 0, None
                 if host == "cdn.discordapp.com":
                     up = await asyncio.to_thread(r2.upload_gif_sync, url)
                     if up and up.url == r2.GIF_TOO_LARGE:
                         continue
                     if up:
-                        url, content_hash, size_bytes = up
+                        url, content_hash, size_bytes, phash = up
                 elif not _is_gif_site(host):
                     continue
-                await save_gif_url(guild_id, url, content_hash, size_bytes)
+                await save_gif_url(guild_id, url, content_hash, size_bytes, phash)
             except Exception:
                 log.exception("Error guardando GIF de mensaje: %s", m.group(0))
 
@@ -75,14 +75,14 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
         ):
             try:
                 url = attachment.url
-                content_hash, size_bytes = None, 0
+                content_hash, size_bytes, phash = None, 0, None
                 if "cdn.discordapp.com" in url:
                     up = await asyncio.to_thread(r2.upload_gif_sync, url)
                     if up and up.url == r2.GIF_TOO_LARGE:
                         continue
                     if up:
-                        url, content_hash, size_bytes = up
-                await save_gif_url(guild_id, url, content_hash, size_bytes)
+                        url, content_hash, size_bytes, phash = up
+                await save_gif_url(guild_id, url, content_hash, size_bytes, phash)
             except Exception:
                 log.exception("Error guardando GIF adjunto: %s", attachment.url)
 
@@ -314,7 +314,7 @@ class Gifs(commands.Cog):
 
         url = url.strip()
         host = _gif_host(url)
-        content_hash, size_bytes = None, 0
+        content_hash, size_bytes, phash = None, 0, None
         if host == "cdn.discordapp.com":
             up = await asyncio.to_thread(r2.upload_gif_sync, url)
             if up and up.url == r2.GIF_TOO_LARGE:
@@ -327,7 +327,7 @@ class Gifs(commands.Cog):
                     "❌ No se pudo subir el GIF a R2. Comprueba que la URL sea accesible."
                 )
                 return
-            final_url, content_hash, size_bytes = up
+            final_url, content_hash, size_bytes, phash = up
         elif _is_gif_site(host):
             final_url = url
         else:
@@ -337,7 +337,7 @@ class Gifs(commands.Cog):
             return
 
         inserted, _ = await save_gif_url(
-            interaction.guild.id, final_url, content_hash, size_bytes
+            interaction.guild.id, final_url, content_hash, size_bytes, phash
         )
         total = await count_gif_urls(interaction.guild.id)
         if inserted:
