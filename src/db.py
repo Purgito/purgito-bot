@@ -99,7 +99,20 @@ CREATE TABLE IF NOT EXISTS corpus_gifs (
     last_health_check TEXT,
     checked_at TEXT,
     dead_streak INTEGER NOT NULL DEFAULT 0,
+    content_hash TEXT,
     UNIQUE(guild_id, url)
+);
+
+-- Un registro por objeto físico en R2, compartido entre todos los servidores
+-- que tengan ese mismo archivo. ref_count = cuántas filas de corpus_gifs lo
+-- referencian; cuando llega a 0 el objeto se borra del bucket.
+-- Los GIFs de tenor/giphy no pasan por acá (no ocupan storage propio).
+CREATE TABLE IF NOT EXISTS gif_objects (
+    content_hash TEXT PRIMARY KEY,
+    r2_key TEXT NOT NULL,
+    ref_count INTEGER NOT NULL DEFAULT 0,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS youtube_subscriptions (
@@ -355,6 +368,11 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna dead_streak ya existe en corpus_gifs")
+    try:
+        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN content_hash TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna content_hash ya existe en corpus_gifs")
     try:
         await _db.execute("ALTER TABLE settings ADD COLUMN locale TEXT")
         await _db.commit()
@@ -686,14 +704,87 @@ async def wipe_corpus(guild_id: int) -> None:
         await db.commit()
 
 
+async def _retain_gif_object(db, content_hash: str, r2_key: str, size_bytes: int):
+    """Suma una referencia al objeto de R2. Llamar con _db_lock ya tomado."""
+    await db.execute(
+        "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes) "
+        "VALUES (?, ?, 1, ?) "
+        "ON CONFLICT(content_hash) DO UPDATE SET ref_count = ref_count + 1",
+        (content_hash, r2_key, size_bytes),
+    )
+
+
+async def release_gif_reference(content_hash: str | None, url: str | None = None):
+    """Suelta una referencia a un objeto de R2 y borra el objeto físico recién
+    cuando no queda ninguna. Único lugar donde se decide borrar un GIF del
+    bucket: todos los caminos de borrado pasan por acá.
+
+    Llamar SIEMPRE fuera de _db_lock (lo toma esta función).
+
+    content_hash None = GIF de tenor/giphy (no ocupa storage, delete_url es
+    no-op) o fila anterior a la deduplicación (key propia por guild, 1:1 con
+    el objeto): en ambos casos alcanza con el borrado por URL de siempre.
+    """
+    if not content_hash:
+        if url:
+            await r2.delete_url(url)
+        return
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE gif_objects SET ref_count = ref_count - 1 "
+            "WHERE content_hash=? AND ref_count > 0",
+            (content_hash,),
+        )
+        async with db.execute(
+            "SELECT r2_key, ref_count FROM gif_objects WHERE content_hash=?",
+            (content_hash,),
+        ) as cur:
+            row = await cur.fetchone()
+        if not row or row[1] > 0:
+            await db.commit()
+            return
+        r2_key = row[0]
+        await db.execute(
+            "DELETE FROM gif_objects WHERE content_hash=?", (content_hash,)
+        )
+        await db.commit()
+    await r2.delete_key(r2_key)
+
+
+async def get_live_gif_keys() -> set[str]:
+    """Keys de R2 que NO son huérfanas, para el barrido periódico.
+
+    Cruza las dos fuentes a propósito: los objetos con ref_count > 0 en
+    gif_objects, y las keys que alguna fila de corpus_gifs referencia directo.
+    La segunda es la red de seguridad de la primera -- si un ref_count quedara
+    mal en cero por un bug, el barrido borraría un GIF que un servidor todavía
+    usa, y ese error no se puede deshacer.
+    """
+    db = await get_db()
+    keys: set[str] = set()
+    async with db.execute(
+        "SELECT r2_key FROM gif_objects WHERE ref_count > 0"
+    ) as cursor:
+        keys.update(r[0] for r in await cursor.fetchall())
+
+    pub = r2.public_url().rstrip("/")
+    if pub:
+        prefix = f"{pub}/{r2.GIF_KEY_PREFIX}"
+        async with db.execute(
+            "SELECT url FROM corpus_gifs WHERE url LIKE ?", (prefix + "%",)
+        ) as cursor:
+            keys.update(r[0][len(pub) + 1 :] for r in await cursor.fetchall())
+    return keys
+
+
 async def wipe_gifs(guild_id: int) -> int:
     """Borra todos los GIFs del guild (DB + R2 si corresponde). Retorna cuántos se borraron."""
     db = await get_db()
     async with db.execute(
-        "SELECT url FROM corpus_gifs WHERE guild_id=?", (guild_id,)
+        "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=?", (guild_id,)
     ) as cursor:
         rows = await cursor.fetchall()
-    urls = [r[0] for r in rows]
 
     async with _db_lock:
         cursor = await db.execute(
@@ -702,15 +793,26 @@ async def wipe_gifs(guild_id: int) -> int:
         deleted = cursor.rowcount
         await db.commit()
 
-    if urls:
-        await asyncio.gather(*(r2.delete_url(u) for u in urls), return_exceptions=True)
+    # En serie, no con gather: release_gif_reference toma _db_lock y los
+    # decrementos de un mismo hash tienen que ser uno detrás del otro.
+    for url, content_hash in rows:
+        await release_gif_reference(content_hash, url)
 
     return deleted
 
 
-async def save_gif_url(guild_id: int, url: str) -> tuple[bool, int | None]:
+async def save_gif_url(
+    guild_id: int,
+    url: str,
+    content_hash: str | None = None,
+    size_bytes: int = 0,
+) -> tuple[bool, int | None]:
     """Devuelve (inserted, evicted_id). evicted_id es el id del GIF más viejo
-    desalojado por haber llegado al límite del guild, o None si no hubo desalojo."""
+    desalojado por haber llegado al límite del guild, o None si no hubo desalojo.
+
+    content_hash viene de r2.upload_gif_sync para los GIFs que sí ocupan
+    storage propio (cdn.discordapp.com); los de tenor/giphy no lo tienen.
+    """
     u = (url or "").strip()
     if not u:
         return False, None
@@ -724,6 +826,7 @@ async def save_gif_url(guild_id: int, url: str) -> tuple[bool, int | None]:
     db = await get_db()
     evicted_id: int | None = None
     evicted_url: str | None = None
+    evicted_hash: str | None = None
     async with _db_lock:
         async with db.execute(
             "SELECT 1 FROM corpus_gifs WHERE guild_id=? AND url=? LIMIT 1",
@@ -737,21 +840,29 @@ async def save_gif_url(guild_id: int, url: str) -> tuple[bool, int | None]:
                 row = await cur.fetchone()
             if row and int(row[0]) >= max_gifs:
                 async with db.execute(
-                    "SELECT id, url FROM corpus_gifs WHERE guild_id=? ORDER BY id ASC LIMIT 1",
+                    "SELECT id, url, content_hash FROM corpus_gifs "
+                    "WHERE guild_id=? ORDER BY id ASC LIMIT 1",
                     (guild_id,),
                 ) as cur:
                     oldest = await cur.fetchone()
                 if oldest:
                     await db.execute("DELETE FROM corpus_gifs WHERE id=?", (oldest[0],))
-                    evicted_id, evicted_url = oldest[0], oldest[1]
+                    evicted_id, evicted_url, evicted_hash = oldest
         cursor = await db.execute(
-            "INSERT OR IGNORE INTO corpus_gifs (guild_id, url) VALUES (?, ?)",
-            (guild_id, u),
+            "INSERT OR IGNORE INTO corpus_gifs (guild_id, url, content_hash) "
+            "VALUES (?, ?, ?)",
+            (guild_id, u, content_hash),
         )
         inserted = _was_inserted(cursor)
+        # Solo se suma referencia si la fila es nueva: si el guild ya tenía
+        # este GIF, la referencia que le corresponde ya está contada.
+        if inserted and content_hash:
+            await _retain_gif_object(
+                db, content_hash, r2.gif_key(content_hash), size_bytes
+            )
         await db.commit()
-    if evicted_url:
-        await r2.delete_url(evicted_url)
+    if evicted_id is not None:
+        await release_gif_reference(evicted_hash, evicted_url)
     return inserted, evicted_id
 
 
@@ -780,9 +891,13 @@ async def get_random_gif_candidates(guild_id: int, limit: int = 3) -> list[dict]
 async def mark_gif_check(gif_id: int, alive: bool, max_fails: int = 3) -> bool:
     """Actualiza el contador de fallos. Retorna True si se borró por superar max_fails.
 
-    No borra el objeto de R2: solo deja de sugerir el GIF desde la DB.
+    Este contador (fail_count) es el del chequeo rápido de antes de mandar un
+    GIF, aparte del dead_streak de record_gif_health_check. Al borrar la fila
+    suelta la referencia al objeto de R2 igual que los demás caminos.
     """
     db = await get_db()
+    url: str | None = None
+    content_hash: str | None = None
     async with _db_lock:
         if alive:
             await db.execute(
@@ -794,14 +909,18 @@ async def mark_gif_check(gif_id: int, alive: bool, max_fails: int = 3) -> bool:
             "UPDATE corpus_gifs SET fail_count=fail_count+1 WHERE id=?", (gif_id,)
         )
         async with db.execute(
-            "SELECT fail_count FROM corpus_gifs WHERE id=?", (gif_id,)
+            "SELECT fail_count, url, content_hash FROM corpus_gifs WHERE id=?",
+            (gif_id,),
         ) as cur:
             row = await cur.fetchone()
         borrado = bool(row and row[0] >= max_fails)
         if borrado:
+            url, content_hash = row[1], row[2]
             await db.execute("DELETE FROM corpus_gifs WHERE id=?", (gif_id,))
         await db.commit()
-        return borrado
+    if borrado:
+        await release_gif_reference(content_hash, url)
+    return borrado
 
 
 async def count_gif_urls(guild_id: int) -> int:
@@ -894,14 +1013,14 @@ async def record_gif_health_check(gif_id: int, status: str) -> bool:
             (status, now, gif_id),
         )
         async with db.execute(
-            "SELECT dead_streak, guild_id, url FROM corpus_gifs WHERE id=?",
+            "SELECT dead_streak, guild_id, url, content_hash FROM corpus_gifs WHERE id=?",
             (gif_id,),
         ) as cur:
             row = await cur.fetchone()
         if not row or row[0] < 2:
             await db.commit()
             return False
-        streak, guild_id, url = row
+        streak, guild_id, url, content_hash = row
         await db.execute("DELETE FROM corpus_gifs WHERE id=?", (gif_id,))
         await db.commit()
     log.warning(
@@ -911,7 +1030,7 @@ async def record_gif_health_check(gif_id: int, status: str) -> bool:
         url,
         streak,
     )
-    await r2.delete_url(url)
+    await release_gif_reference(content_hash, url)
     return True
 
 
@@ -943,13 +1062,13 @@ async def get_unresolved_gifs(
 async def delete_gif_url_by_id(guild_id: int, gif_id: int) -> bool:
     db = await get_db()
     async with db.execute(
-        "SELECT url FROM corpus_gifs WHERE guild_id=? AND id=?",
+        "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND id=?",
         (guild_id, gif_id),
     ) as cursor:
         row = await cursor.fetchone()
     if not row:
         return False
-    url = row[0]
+    url, content_hash = row
 
     async with _db_lock:
         cursor = await db.execute(
@@ -960,33 +1079,7 @@ async def delete_gif_url_by_id(guild_id: int, gif_id: int) -> bool:
         await db.commit()
 
     if deleted:
-        r2_public_url = os.getenv("R2_PUBLIC_URL", "").strip()
-        if r2_public_url and url.startswith(r2_public_url):
-            try:
-                import boto3
-                from botocore.config import Config as _BotoConfig
-
-                _ep = os.getenv("R2_ENDPOINT_URL", "").strip()
-                _kid = os.getenv("R2_ACCESS_KEY_ID", "").strip()
-                _sec = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
-                _bkt = os.getenv("R2_BUCKET_NAME", "").strip()
-                if _ep and _kid and _sec and _bkt:
-                    _key = url[len(r2_public_url.rstrip("/")) + 1 :]
-
-                    def _r2_del():
-                        c = boto3.client(
-                            "s3",
-                            endpoint_url=_ep,
-                            aws_access_key_id=_kid,
-                            aws_secret_access_key=_sec,
-                            config=_BotoConfig(signature_version="s3v4"),
-                            region_name="auto",
-                        )
-                        c.delete_object(Bucket=_bkt, Key=_key)
-
-                    await asyncio.to_thread(_r2_del)
-            except Exception:
-                log.warning("No se pudo eliminar GIF de R2: %s", url)
+        await release_gif_reference(content_hash, url)
 
     return deleted
 

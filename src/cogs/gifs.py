@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlparse
 
 import discord
@@ -13,6 +14,7 @@ import r2
 from db import (
     count_gif_urls,
     get_gifs_for_health_check,
+    get_live_gif_keys,
     get_random_gif_candidates,
     get_unresolved_gifs,
     is_channel_ignored,
@@ -53,15 +55,16 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
                 # Se valida el host real: el regex matchea el dominio como
                 # substring y dejaría pasar "https://evil.com/?tenor.com".
                 host = _gif_host(url)
+                content_hash, size_bytes = None, 0
                 if host == "cdn.discordapp.com":
-                    r2_url = await asyncio.to_thread(r2.upload_gif_sync, url, guild_id)
-                    if r2_url == r2.GIF_TOO_LARGE:
+                    up = await asyncio.to_thread(r2.upload_gif_sync, url)
+                    if up and up.url == r2.GIF_TOO_LARGE:
                         continue
-                    if r2_url:
-                        url = r2_url
+                    if up:
+                        url, content_hash, size_bytes = up
                 elif not _is_gif_site(host):
                     continue
-                await save_gif_url(guild_id, url)
+                await save_gif_url(guild_id, url, content_hash, size_bytes)
             except Exception:
                 log.exception("Error guardando GIF de mensaje: %s", m.group(0))
 
@@ -72,13 +75,14 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
         ):
             try:
                 url = attachment.url
+                content_hash, size_bytes = None, 0
                 if "cdn.discordapp.com" in url:
-                    r2_url = await asyncio.to_thread(r2.upload_gif_sync, url, guild_id)
-                    if r2_url == r2.GIF_TOO_LARGE:
+                    up = await asyncio.to_thread(r2.upload_gif_sync, url)
+                    if up and up.url == r2.GIF_TOO_LARGE:
                         continue
-                    if r2_url:
-                        url = r2_url
-                await save_gif_url(guild_id, url)
+                    if up:
+                        url, content_hash, size_bytes = up
+                await save_gif_url(guild_id, url, content_hash, size_bytes)
             except Exception:
                 log.exception("Error guardando GIF adjunto: %s", attachment.url)
 
@@ -115,7 +119,7 @@ async def get_live_gif(
 ) -> str | None:
     """Elige un GIF random, valida que cargue, prueba otro si está muerto.
 
-    No borra el objeto de R2, solo deja de sugerirlo después de max_fails.
+    Después de max_fails deja de sugerirlo y suelta su referencia en R2.
     """
     for gif in await get_random_gif_candidates(guild_id, limit=attempts):
         url = gif["media_url"] or gif["url"]
@@ -148,6 +152,67 @@ async def run_gif_health_check(
     return len(gifs)
 
 
+# Un objeto recién subido cuya fila todavía no se guardó (o cuyo guardado
+# falló a mitad) no debe contar como huérfano en el mismo momento: se le da un
+# día de gracia antes de considerarlo basura.
+ORPHAN_GRACE_HOURS = 24
+# Techo por corrida: si algo hace que el conjunto de keys vivas salga vacío o
+# incompleto, esto acota el daño a 500 objetos en vez de al bucket entero.
+ORPHAN_MAX_DELETES = 500
+
+
+async def run_gif_orphan_sweep() -> int:
+    """Borra objetos de R2 bajo el prefijo de GIFs que ya no referencia nadie.
+
+    Red de seguridad contra fugas: si algún camino de borrado se olvida de
+    soltar su referencia, el objeto queda ocupando espacio para siempre y en
+    silencio. Esto lo encuentra sin depender de que ese camino esté bien.
+
+    Se limita al prefijo `gifs/` (r2.GIF_KEY_PREFIX), que es exclusivo de los
+    GIFs content-addressed. En el mismo bucket viven las imágenes del pool de
+    memes y las subidas del editor de embeds, con keys `{guild_id}/...`; las de
+    embeds ni siquiera están en una columna `url` (van dentro del JSON de la
+    plantilla), así que no hay forma barata de cruzarlas. El prefijo evita todo
+    ese problema: nada fuera de `gifs/` se mira siquiera.
+    """
+    if not r2.available():
+        return 0
+    live = await get_live_gif_keys()
+    objects = await asyncio.to_thread(r2.list_keys_sync, r2.GIF_KEY_PREFIX)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=ORPHAN_GRACE_HOURS)
+
+    deleted = 0
+    for key, size, modified in objects:
+        if key in live:
+            continue
+        if modified and modified > cutoff:
+            continue
+        if deleted >= ORPHAN_MAX_DELETES:
+            log.warning(
+                "Barrido de huérfanos: se alcanzó el tope de %d borrados, "
+                "el resto queda para la próxima corrida",
+                ORPHAN_MAX_DELETES,
+            )
+            break
+        log.warning(
+            "Barrido de huérfanos: borrando %s (%s bytes, modificado %s)",
+            key,
+            size,
+            modified,
+        )
+        await r2.delete_key(key)
+        deleted += 1
+
+    log.info(
+        "Barrido de huérfanos: %d objetos en %s, %d vivos, %d borrados",
+        len(objects),
+        r2.GIF_KEY_PREFIX,
+        len(live),
+        deleted,
+    )
+    return deleted
+
+
 class Gifs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -155,10 +220,12 @@ class Gifs(commands.Cog):
     async def cog_load(self) -> None:
         self.resolve_gifs_task.start()
         self.gif_health_check_task.start()
+        self.gif_orphan_sweep_task.start()
 
     async def cog_unload(self) -> None:
         self.resolve_gifs_task.cancel()
         self.gif_health_check_task.cancel()
+        self.gif_orphan_sweep_task.cancel()
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -205,6 +272,19 @@ class Gifs(commands.Cog):
     async def _wait_ready_health(self):
         await self.bot.wait_until_ready()
 
+    # Semanal: es una red de seguridad, no un mecanismo del que dependa nada.
+    # Listar el bucket entero todos los días sería pagar de más por lo mismo.
+    @tasks.loop(hours=24 * 7)
+    async def gif_orphan_sweep_task(self):
+        try:
+            await run_gif_orphan_sweep()
+        except Exception:
+            log.exception("Error en gif_orphan_sweep_task")
+
+    @gif_orphan_sweep_task.before_loop
+    async def _wait_ready_sweep(self):
+        await self.bot.wait_until_ready()
+
     @app_commands.command(
         name="gif_add", description="Agrega un GIF a la colección del servidor."
     )
@@ -234,20 +314,20 @@ class Gifs(commands.Cog):
 
         url = url.strip()
         host = _gif_host(url)
+        content_hash, size_bytes = None, 0
         if host == "cdn.discordapp.com":
-            final_url = await asyncio.to_thread(
-                r2.upload_gif_sync, url, interaction.guild.id
-            )
-            if final_url == r2.GIF_TOO_LARGE:
+            up = await asyncio.to_thread(r2.upload_gif_sync, url)
+            if up and up.url == r2.GIF_TOO_LARGE:
                 await interaction.followup.send(
                     "❌ El GIF supera el límite de tamaño permitido."
                 )
                 return
-            if not final_url:
+            if not up:
                 await interaction.followup.send(
                     "❌ No se pudo subir el GIF a R2. Comprueba que la URL sea accesible."
                 )
                 return
+            final_url, content_hash, size_bytes = up
         elif _is_gif_site(host):
             final_url = url
         else:
@@ -256,7 +336,9 @@ class Gifs(commands.Cog):
             )
             return
 
-        inserted, _ = await save_gif_url(interaction.guild.id, final_url)
+        inserted, _ = await save_gif_url(
+            interaction.guild.id, final_url, content_hash, size_bytes
+        )
         total = await count_gif_urls(interaction.guild.id)
         if inserted:
             await interaction.followup.send(

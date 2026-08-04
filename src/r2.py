@@ -8,6 +8,8 @@ import asyncio
 import hashlib
 import logging
 import os
+import subprocess
+from typing import NamedTuple
 
 import requests
 
@@ -18,6 +20,51 @@ _checked = False
 
 # Sentinel: el GIF supera el límite de tamaño (no guardar en DB, no reintentar).
 GIF_TOO_LARGE = ""
+
+
+class GifUpload(NamedTuple):
+    """Resultado de subir un GIF a R2.
+
+    `url` == GIF_TOO_LARGE ('') significa que el archivo superaba el límite.
+    `content_hash` es el sha256 de los bytes que efectivamente se subieron:
+    es la identidad del objeto en el bucket y lo que usa db.gif_objects para
+    contar referencias.
+    """
+
+    url: str
+    content_hash: str = ""
+    size_bytes: int = 0
+
+
+# Prefijo exclusivo de los GIFs content-addressed. Las imágenes de memes y las
+# subidas del editor de embeds usan `{guild_id}/...`, así que este prefijo es
+# lo que le permite al barrido de huérfanos borrar sin riesgo de tocarlas.
+GIF_KEY_PREFIX = "gifs/"
+
+
+def gif_key(content_hash: str) -> str:
+    """Key content-addressed, sin guild_id: el mismo archivo subido por
+    cualquier servidor cae siempre en el mismo objeto. Los dos primeros
+    caracteres del hash reparten los objetos en 256 prefijos en vez de
+    amontonarlos todos en un mismo 'directorio'."""
+    return f"{GIF_KEY_PREFIX}{content_hash[:2]}/{content_hash}.gif"
+
+
+def list_keys_sync(prefix: str) -> list[tuple[str, int, object]]:
+    """(key, tamaño, fecha de modificación) de los objetos bajo un prefijo.
+
+    Pagina la respuesta y solo devuelve metadata; el contenido no se baja.
+    """
+    client = get_client()
+    if client is None:
+        return []
+    out = []
+    paginator = client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=_bucket(), Prefix=prefix):
+        for obj in page.get("Contents", []):
+            out.append((obj["Key"], obj["Size"], obj.get("LastModified")))
+    return out
+
 
 _IMAGE_CONTENT_TYPES = {
     ".png": "image/png",
@@ -70,8 +117,62 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-def upload_gif_sync(url: str, guild_id: int) -> str | None:
-    """Retorna URL de R2, '' (GIF_TOO_LARGE) si supera el límite, None en otros errores."""
+def _lossy_level() -> int:
+    """Nivel de --lossy de gifsicle. 0 desactiva la compresión con pérdida
+    pero deja el --optimize=3 (que no toca la calidad)."""
+    try:
+        v = int(os.getenv("GIF_LOSSY_LEVEL", "") or 30)
+    except (ValueError, TypeError):
+        return 30
+    return max(0, min(v, 200))
+
+
+def optimize_gif_bytes(data: bytes) -> bytes:
+    """Pasa el GIF por gifsicle y devuelve la versión más chica.
+
+    Degrada con gracia: si gifsicle no está instalado, truena, tarda demasiado
+    o devuelve algo más grande, retorna los bytes originales. Optimizar nunca
+    debe impedir que se guarde un GIF.
+
+    Trabaja sobre bytes a propósito (stdin/stdout, sin archivos temporales):
+    así la usan igual la subida en caliente y el backfill, que ya tiene el
+    objeto descargado en memoria.
+    """
+    cmd = ["gifsicle", "--optimize=3", "--no-warnings"]
+    lossy = _lossy_level()
+    if lossy:
+        cmd.append(f"--lossy={lossy}")
+    try:
+        proc = subprocess.run(cmd, input=data, capture_output=True, timeout=60)
+    except FileNotFoundError:
+        log.debug("gifsicle no está instalado: se sube el GIF sin optimizar")
+        return data
+    except Exception:
+        log.warning("gifsicle falló: se sube el GIF sin optimizar", exc_info=True)
+        return data
+    if proc.returncode != 0 or not proc.stdout:
+        log.debug(
+            "gifsicle salió con código %s: se sube sin optimizar", proc.returncode
+        )
+        return data
+    if len(proc.stdout) >= len(data):
+        return data
+    log.debug("GIF optimizado: %d -> %d bytes", len(data), len(proc.stdout))
+    return proc.stdout
+
+
+def _object_exists(client, key: str) -> bool:
+    try:
+        client.head_object(Bucket=_bucket(), Key=key)
+        return True
+    except Exception:
+        return False
+
+
+def upload_gif_sync(url: str) -> GifUpload | None:
+    """Descarga el GIF, lo identifica por el sha256 de su contenido y lo sube
+    solo si ese contenido no está ya en el bucket. Retorna un GifUpload,
+    GifUpload(GIF_TOO_LARGE) si supera el límite, o None en otros errores."""
     client = get_client()
     if client is None:
         return None
@@ -86,27 +187,37 @@ def upload_gif_sync(url: str, guild_id: int) -> str | None:
         if cl and int(cl) > max_bytes:
             log.debug("GIF descartado (Content-Length %s > %d): %s", cl, max_bytes, url)
             resp.close()
-            return GIF_TOO_LARGE
+            return GifUpload(GIF_TOO_LARGE)
         data = resp.content
         resp.close()
         if len(data) > max_bytes:
             log.debug("GIF descartado (%d bytes > %d): %s", len(data), max_bytes, url)
-            return GIF_TOO_LARGE
-        key = f"{guild_id}/{hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()}.gif"
-        client.put_object(
-            Bucket=_bucket(),
-            Key=key,
-            Body=data,
-            ContentType="image/gif",
-            CacheControl="public, max-age=31536000, immutable",
-        )
-        return f"{public_url().rstrip('/')}/{key}"
+            return GifUpload(GIF_TOO_LARGE)
+        # Optimizar ANTES de hashear: el hash tiene que identificar los bytes
+        # que efectivamente quedan en el bucket, no los que llegaron.
+        data = optimize_gif_bytes(data)
+        content_hash = hashlib.sha256(data).hexdigest()
+        key = gif_key(content_hash)
+        # Subir dos veces el mismo contenido a la misma key es inofensivo
+        # (bytes idénticos), así que el head_object es solo para ahorrarse la
+        # subida en el caso común de un repost, no un candado de concurrencia.
+        if not _object_exists(client, key):
+            client.put_object(
+                Bucket=_bucket(),
+                Key=key,
+                Body=data,
+                ContentType="image/gif",
+                CacheControl="public, max-age=31536000, immutable",
+            )
+        return GifUpload(f"{public_url().rstrip('/')}/{key}", content_hash, len(data))
     except Exception:
         log.exception("Error subiendo GIF a R2: %s", url)
         return None
 
 
-def upload_image_bytes_sync(url: str, data: bytes, guild_id: int, ext: str) -> str | None:
+def upload_image_bytes_sync(
+    url: str, data: bytes, guild_id: int, ext: str
+) -> str | None:
     """Sube bytes ya descargados (y validados como imagen real por el caller);
     `url` solo se usa para derivar la key y para los logs de error."""
     client = get_client()
@@ -180,16 +291,26 @@ def check_gif_url_health(url: str, timeout: float = 6.0) -> str:
     return "dead"
 
 
-async def delete_url(url: str) -> None:
-    """Borra un objeto de R2 si la URL le pertenece. No-op para URLs externas."""
-    pub = public_url()
-    if not pub or not url.startswith(pub):
-        return
+async def delete_key(key: str) -> None:
+    """Borra un objeto de R2 por su key."""
     client = get_client()
     if client is None:
         return
-    key = url[len(pub.rstrip("/")) + 1 :]
     try:
         await asyncio.to_thread(client.delete_object, Bucket=_bucket(), Key=key)
     except Exception:
-        log.warning("No se pudo eliminar objeto de R2: %s", url)
+        log.warning("No se pudo eliminar objeto de R2: %s", key)
+
+
+async def delete_url(url: str) -> None:
+    """Borra un objeto de R2 si la URL le pertenece. No-op para URLs externas.
+
+    Para GIFs con content_hash usar db.release_gif_reference: los objetos
+    content-addressed son compartidos y borrarlos por URL se llevaría puestas
+    las referencias de otros servidores. Esto sigue valiendo para imágenes y
+    para las filas viejas anteriores a la deduplicación (key por guild, 1:1).
+    """
+    pub = public_url()
+    if not pub or not url.startswith(pub):
+        return
+    await delete_key(url[len(pub.rstrip("/")) + 1 :])

@@ -1,0 +1,431 @@
+"""Tests del storage content-addressed de GIFs (r2.upload_gif_sync +
+db.gif_objects + db.release_gif_reference).
+
+La invariante que sostiene todo: un mismo archivo ocupa UN objeto en R2, y ese
+objeto se borra recién cuando la última fila de corpus_gifs que lo referencia
+desaparece. Lo fácil de romper acá es el conteo -- doble decremento, borrar un
+objeto que otro servidor todavía usa, o sumar dos veces por un mismo GIF -- así
+que los tests apuntan sobre todo a eso.
+
+Mismo estilo que test_gif_health.py: SQLite en memoria inyectada en db._db y
+monkeypatch de r2, sin tocar data/bot.db ni el bucket real.
+"""
+
+import asyncio
+
+import aiosqlite
+import pytest
+
+import db
+import r2
+
+_GUILD_A = 1
+_GUILD_B = 2
+_HASH = "a" * 64
+_OTHER_HASH = "b" * 64
+
+
+@pytest.fixture
+def memory_db(monkeypatch):
+    conn = asyncio.run(_open_memory_db())
+    monkeypatch.setattr(db, "_db", conn)
+    yield conn
+    asyncio.run(conn.close())
+
+
+@pytest.fixture
+def deleted_keys(monkeypatch):
+    """Registra qué objetos se habrían borrado del bucket."""
+    keys: list[str] = []
+
+    async def fake_delete_key(key):
+        keys.append(key)
+
+    async def fake_delete_url(url):
+        keys.append(url)
+
+    monkeypatch.setattr(r2, "delete_key", fake_delete_key)
+    monkeypatch.setattr(r2, "delete_url", fake_delete_url)
+    return keys
+
+
+async def _open_memory_db() -> aiosqlite.Connection:
+    conn = await aiosqlite.connect(":memory:")
+    await conn.executescript(db.SCHEMA)
+    await conn.commit()
+    return conn
+
+
+async def _ref_count(conn, content_hash) -> int | None:
+    async with conn.execute(
+        "SELECT ref_count FROM gif_objects WHERE content_hash=?", (content_hash,)
+    ) as cur:
+        row = await cur.fetchone()
+    return row[0] if row else None
+
+
+def _url(content_hash: str) -> str:
+    return f"https://cdn.example.com/{r2.gif_key(content_hash)}"
+
+
+# ---------- r2: key content-addressed ----------
+
+
+def test_gif_key_is_sharded_and_ignores_guild():
+    key = r2.gif_key(_HASH)
+    assert key == f"gifs/aa/{_HASH}.gif"
+    # Nada de guild_id en la key: es lo que permite compartir el objeto.
+    assert str(_GUILD_A) not in key
+
+
+def test_upload_hashes_content_not_url(monkeypatch):
+    """El mismo archivo con dos URLs de Discord distintas (repost) tiene que
+    dar el mismo hash y por lo tanto la misma key -- la causa raíz del
+    problema era hashear la URL, que es efímera y única por mensaje."""
+    puts = []
+
+    class _FakeClient:
+        def head_object(self, **kw):
+            raise LookupError("no existe")
+
+        def put_object(self, **kw):
+            puts.append(kw["Key"])
+
+    class _FakeResp:
+        status_code = 200
+        headers: dict = {}
+        content = b"GIF89a-los-mismos-bytes"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "get_client", lambda: _FakeClient())
+    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
+    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp())
+
+    a = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/1/2/x.gif?ex=aaa")
+    b = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/9/9/x.gif?ex=zzz")
+    assert a.content_hash == b.content_hash
+    assert a.url == b.url
+    assert a.size_bytes == len(_FakeResp.content)
+    assert puts == [r2.gif_key(a.content_hash)] * 2
+
+
+def test_upload_skips_put_when_object_already_exists(monkeypatch):
+    puts = []
+
+    class _FakeClient:
+        def head_object(self, **kw):
+            return {"ContentLength": 10}
+
+        def put_object(self, **kw):
+            puts.append(kw["Key"])
+
+    class _FakeResp:
+        status_code = 200
+        headers: dict = {}
+        content = b"GIF89a-repost"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "get_client", lambda: _FakeClient())
+    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
+    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp())
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/1/2/x.gif")
+    assert up.content_hash
+    assert puts == []  # ya estaba en el bucket: no se re-sube
+
+
+# ---------- r2: optimización con gifsicle ----------
+
+
+class _FakeProc:
+    def __init__(self, returncode=0, stdout=b""):
+        self.returncode = returncode
+        self.stdout = stdout
+
+
+def test_optimize_returns_smaller_output(monkeypatch):
+    monkeypatch.setattr(r2.subprocess, "run", lambda *a, **k: _FakeProc(0, b"corto"))
+    assert r2.optimize_gif_bytes(b"un gif bastante mas largo") == b"corto"
+
+
+def test_optimize_keeps_original_when_gifsicle_missing(monkeypatch):
+    def missing(*a, **k):
+        raise FileNotFoundError("gifsicle")
+
+    monkeypatch.setattr(r2.subprocess, "run", missing)
+    assert r2.optimize_gif_bytes(b"GIF89a-original") == b"GIF89a-original"
+
+
+def test_optimize_keeps_original_on_timeout(monkeypatch):
+    def timeout(*a, **k):
+        raise r2.subprocess.TimeoutExpired("gifsicle", 60)
+
+    monkeypatch.setattr(r2.subprocess, "run", timeout)
+    assert r2.optimize_gif_bytes(b"GIF89a-original") == b"GIF89a-original"
+
+
+def test_optimize_keeps_original_on_nonzero_exit(monkeypatch):
+    """Un archivo que no es GIF de verdad hace fallar a gifsicle: se sube tal
+    cual en vez de perder el GIF."""
+    monkeypatch.setattr(r2.subprocess, "run", lambda *a, **k: _FakeProc(1, b""))
+    assert r2.optimize_gif_bytes(b"no soy un gif") == b"no soy un gif"
+
+
+def test_optimize_keeps_original_when_result_is_bigger(monkeypatch):
+    monkeypatch.setattr(
+        r2.subprocess,
+        "run",
+        lambda *a, **k: _FakeProc(0, b"mucho mas grande que el original"),
+    )
+    assert r2.optimize_gif_bytes(b"chiquito") == b"chiquito"
+
+
+def test_lossy_level_is_configurable_and_clamped(monkeypatch):
+    cmds = []
+    monkeypatch.setattr(
+        r2.subprocess,
+        "run",
+        lambda cmd, **k: cmds.append(cmd) or _FakeProc(0, b"x"),
+    )
+
+    monkeypatch.setenv("GIF_LOSSY_LEVEL", "80")
+    r2.optimize_gif_bytes(b"un gif largo")
+    assert "--lossy=80" in cmds[-1]
+
+    # 0 apaga la pérdida pero deja la optimización sin pérdida.
+    monkeypatch.setenv("GIF_LOSSY_LEVEL", "0")
+    r2.optimize_gif_bytes(b"un gif largo")
+    assert not any(c.startswith("--lossy") for c in cmds[-1])
+    assert "--optimize=3" in cmds[-1]
+
+    # Basura o valores absurdos no rompen ni mandan un flag inválido.
+    monkeypatch.setenv("GIF_LOSSY_LEVEL", "no-es-un-numero")
+    r2.optimize_gif_bytes(b"un gif largo")
+    assert "--lossy=30" in cmds[-1]
+
+    monkeypatch.setenv("GIF_LOSSY_LEVEL", "9999")
+    r2.optimize_gif_bytes(b"un gif largo")
+    assert "--lossy=200" in cmds[-1]
+
+
+def test_hash_matches_the_optimized_bytes_that_get_uploaded(monkeypatch):
+    """El hash tiene que ser el de lo que queda en el bucket: si se calculara
+    antes de optimizar, la key no correspondería al contenido subido."""
+    import hashlib
+
+    optimized = b"GIF89a-optimizado"
+    bodies = {}
+
+    class _FakeClient:
+        def head_object(self, **kw):
+            raise LookupError("no existe")
+
+        def put_object(self, **kw):
+            bodies[kw["Key"]] = kw["Body"]
+
+    class _FakeResp:
+        status_code = 200
+        headers: dict = {}
+        content = b"GIF89a-pesado-sin-optimizar"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "get_client", lambda: _FakeClient())
+    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
+    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp())
+    monkeypatch.setattr(r2, "optimize_gif_bytes", lambda data: optimized)
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/1/2/x.gif")
+    assert up.content_hash == hashlib.sha256(optimized).hexdigest()
+    assert up.size_bytes == len(optimized)
+    assert bodies[r2.gif_key(up.content_hash)] == optimized
+
+
+# ---------- db: conteo de referencias ----------
+
+
+def test_same_gif_in_two_guilds_shares_one_object(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
+
+        async with memory_db.execute("SELECT COUNT(*) FROM gif_objects") as cur:
+            assert (await cur.fetchone())[0] == 1
+        assert await _ref_count(memory_db, _HASH) == 2
+
+    asyncio.run(run())
+
+
+def test_repost_in_same_guild_does_not_double_count(memory_db, deleted_keys):
+    """El guild ya tenía ese GIF: la fila no se inserta de nuevo, así que
+    tampoco puede sumar una segunda referencia."""
+
+    async def run():
+        inserted_1, _ = await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        inserted_2, _ = await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        assert inserted_1 is True
+        assert inserted_2 is False
+        assert await _ref_count(memory_db, _HASH) == 1
+
+    asyncio.run(run())
+
+
+def test_release_keeps_object_while_other_guild_still_references_it(
+    memory_db, deleted_keys
+):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
+
+        await db.release_gif_reference(_HASH, _url(_HASH))
+        assert await _ref_count(memory_db, _HASH) == 1
+        assert deleted_keys == []  # todavía lo usa el otro servidor
+
+        await db.release_gif_reference(_HASH, _url(_HASH))
+        assert await _ref_count(memory_db, _HASH) is None
+        assert deleted_keys == [r2.gif_key(_HASH)]
+
+    asyncio.run(run())
+
+
+def test_release_twice_past_zero_does_not_redelete(memory_db, deleted_keys):
+    """Un decremento de más (bug futuro, retry, doble callback) no debe dejar
+    el contador en negativo ni disparar un segundo delete_object."""
+
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.release_gif_reference(_HASH, _url(_HASH))
+        await db.release_gif_reference(_HASH, _url(_HASH))
+        assert deleted_keys == [r2.gif_key(_HASH)]
+
+    asyncio.run(run())
+
+
+def test_release_without_hash_falls_back_to_delete_by_url(memory_db, deleted_keys):
+    """Filas viejas (pre-dedup) y GIFs de tenor/giphy no tienen content_hash:
+    se borran por URL como siempre -- para tenor/giphy delete_url es no-op."""
+
+    async def run():
+        await db.release_gif_reference(None, "https://tenor.com/view/x")
+        assert deleted_keys == ["https://tenor.com/view/x"]
+
+    asyncio.run(run())
+
+
+def test_delete_from_panel_releases_reference(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
+        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
+
+        assert await db.delete_gif_url_by_id(_GUILD_A, gif["id"]) is True
+        assert await _ref_count(memory_db, _HASH) == 1
+        assert deleted_keys == []
+
+    asyncio.run(run())
+
+
+def test_health_check_delete_releases_reference(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
+
+        assert await db.record_gif_health_check(gif["id"], "dead") is False
+        assert await db.record_gif_health_check(gif["id"], "dead") is True
+        assert await _ref_count(memory_db, _HASH) is None
+        assert deleted_keys == [r2.gif_key(_HASH)]
+
+    asyncio.run(run())
+
+
+def test_mark_gif_check_releases_reference_after_max_fails(memory_db, deleted_keys):
+    """mark_gif_check borraba la fila sin avisarle nunca a R2: el objeto
+    quedaba huérfano en el bucket para siempre, en silencio."""
+
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
+
+        assert await db.mark_gif_check(gif["id"], alive=False) is False
+        assert await db.mark_gif_check(gif["id"], alive=False) is False
+        assert deleted_keys == []  # todavía no llegó a max_fails
+        assert await db.mark_gif_check(gif["id"], alive=False) is True
+        assert await _ref_count(memory_db, _HASH) is None
+        assert deleted_keys == [r2.gif_key(_HASH)]
+
+    asyncio.run(run())
+
+
+def test_mark_gif_check_keeps_object_used_by_another_guild(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
+        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
+
+        for _ in range(3):
+            await db.mark_gif_check(gif["id"], alive=False)
+        assert await _ref_count(memory_db, _HASH) == 1
+        assert deleted_keys == []
+
+    asyncio.run(run())
+
+
+def test_mark_gif_check_alive_resets_and_releases_nothing(memory_db, deleted_keys):
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
+
+        await db.mark_gif_check(gif["id"], alive=False)
+        await db.mark_gif_check(gif["id"], alive=False)
+        assert await db.mark_gif_check(gif["id"], alive=True) is False
+        # El streak se reseteó: un fallo suelto no debe borrar nada.
+        assert await db.mark_gif_check(gif["id"], alive=False) is False
+        assert await _ref_count(memory_db, _HASH) == 1
+        assert deleted_keys == []
+
+    asyncio.run(run())
+
+
+def test_wipe_gifs_only_deletes_objects_no_one_else_uses(memory_db, deleted_keys):
+    """wipe de un servidor no puede llevarse puestos los objetos que otro
+    servidor sigue referenciando."""
+
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_A, _url(_OTHER_HASH), _OTHER_HASH, 50)
+
+        assert await db.wipe_gifs(_GUILD_A) == 2
+        # El compartido sobrevive con la referencia de B; el exclusivo se va.
+        assert await _ref_count(memory_db, _HASH) == 1
+        assert await _ref_count(memory_db, _OTHER_HASH) is None
+        assert deleted_keys == [r2.gif_key(_OTHER_HASH)]
+
+    asyncio.run(run())
+
+
+def test_eviction_releases_reference(memory_db, deleted_keys, monkeypatch):
+    """Al llegar al tope de la colección se desaloja el más viejo: eso también
+    tiene que soltar su referencia, no borrar el objeto a ciegas."""
+    monkeypatch.setattr(db, "_limit_for_guild", lambda *a, **k: 1)
+
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
+        # Guild A llega al tope: entra el nuevo, sale el compartido.
+        _, evicted_id = await db.save_gif_url(
+            _GUILD_A, _url(_OTHER_HASH), _OTHER_HASH, 50
+        )
+        assert evicted_id is not None
+        assert await _ref_count(memory_db, _HASH) == 1
+        assert deleted_keys == []
+
+    asyncio.run(run())

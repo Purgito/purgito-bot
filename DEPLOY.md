@@ -37,6 +37,8 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 
 - Python 3.11+
 - FFmpeg (`sudo apt install ffmpeg` / `brew install ffmpeg`)
+- gifsicle, opcional (`sudo apt install gifsicle` / `brew install gifsicle`) —
+  sin él los GIFs se suben a R2 sin comprimir, nada más
 - Una cuenta de Discord con permisos para crear bots
 
 ### Para producción (droplet)
@@ -45,6 +47,7 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 - Python 3.11+
 - Node.js 20+ — requerido por yt-dlp para resolver firmas de YouTube
 - FFmpeg
+- gifsicle — comprime los GIFs antes de subirlos a R2 (degrada con gracia si falta)
 - nginx
 - Dominios apuntando al servidor: `purgito.app` (+ `www`) y los
   `*.purg4t0ry.com` heredados (ver [Configurar nginx](#configurar-nginx))
@@ -259,10 +262,17 @@ sudo dnf install -y python3 python3-pip python3-devel nginx git
 sudo dnf module enable -y nodejs:20
 sudo dnf install -y nodejs
 
+# gifsicle — comprime los GIFs antes de subirlos a R2. Si falta, el bot sigue
+# funcionando y sube los GIFs sin optimizar (solo se paga más storage).
+# No está en los repos base de Oracle Linux: viene de EPEL.
+sudo dnf install -y epel-release
+sudo dnf install -y gifsicle
+
 # Verificar
 python3 --version  # 3.11+
 ffmpeg -version
 node --version     # v20+
+gifsicle --version
 ```
 
 ### Clonar en el servidor
@@ -473,6 +483,32 @@ Verificar después del restart:
 ```bash
 journalctl -u bot-purg --since "5 min ago" | grep -i "Corpus:"
 ```
+
+### Reconciliar los GIFs de R2 (una sola vez)
+
+`scripts/reconcile_gif_objects.py` normaliza los objetos que ya están en el
+bucket al esquema content-addressed: deduplica el mismo archivo entre
+servidores, lo re-comprime con gifsicle y reconstruye la tabla `gif_objects`.
+Se corre a mano, una vez, después del deploy que trae la deduplicación.
+
+```bash
+sudo systemctl stop bot-purg          # evita subidas en paralelo
+cd /opt/bot-discord-purg && source .venv/bin/activate
+
+python scripts/reconcile_gif_objects.py                 # dry-run: solo informa
+python scripts/reconcile_gif_objects.py --limit 50      # prueba sobre 50 objetos
+python scripts/reconcile_gif_objects.py --apply         # ejecuta de verdad
+
+sudo systemctl start bot-purg
+```
+
+Sin `--apply` no escribe nada. Es idempotente: correrlo de nuevo no rompe nada.
+Con miles de objetos tarda, porque baja cada uno y espera `--sleep` segundos
+(default 0.1) entre llamadas a R2 para no saturar la API. Guardar el log — deja
+una línea por objeto subido o borrado.
+
+Nunca toca objetos referenciados por `corpus_images` (las imágenes de memes
+también pueden ser `.gif`), ni los huérfanos, que solo informa.
 
 ### Dos puntos sin verificar
 
