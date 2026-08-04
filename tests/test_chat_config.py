@@ -210,21 +210,88 @@ def test_valores_basura_se_ignoran_sin_romper(temp_db):
     assert asyncio.run(run())["auto_generate_every"] == 30
 
 
+# ─── Migración: chat_channels -> spontaneous_channels + mention_channels ────
+
+
+async def _seed_chat_channels_and_init(tmp_path, rows):
+    """Simula un servidor con chat_channels ya poblada, antes de que exista
+    el split: crea esa tabla a mano, la llena, y recién ahí corre init_db
+    (que la copia a las dos tablas nuevas la primera vez que ve el flag)."""
+    pre = await db.aiosqlite.connect(str(tmp_path / "test.db"))
+    await pre.execute(
+        "CREATE TABLE chat_channels (guild_id INTEGER NOT NULL, "
+        "channel_id INTEGER NOT NULL, PRIMARY KEY (guild_id, channel_id))"
+    )
+    await pre.executemany(
+        "INSERT INTO chat_channels (guild_id, channel_id) VALUES (?, ?)", rows
+    )
+    await pre.commit()
+    await pre.close()
+    await db.init_db()
+
+
+def test_chat_channels_existente_se_copia_a_las_dos_listas_nuevas(
+    tmp_path, monkeypatch
+):
+    """Un servidor ya configurado no pierde sus canales el día del deploy:
+    lo que tenía queda en las dos allowlists nuevas, no en una sola."""
+    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setattr(db, "_db", None)
+
+    async def run():
+        await _seed_chat_channels_and_init(tmp_path, [(1, 10), (1, 20)])
+        return await db.list_spontaneous_channels(1), await db.list_mention_channels(1)
+
+    try:
+        spontaneous, mention = asyncio.run(run())
+    finally:
+        asyncio.run(db.close_db())
+    assert spontaneous == [10, 20]
+    assert mention == [10, 20]
+
+
+def test_split_no_resucita_canales_que_un_admin_ya_sacó(tmp_path, monkeypatch):
+    """La copia es de una sola vez (flag en disco): si un admin saca un canal
+    de una lista nueva, un reinicio no debe traerlo de vuelta desde la vieja
+    chat_channels, que sigue intacta."""
+    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setattr(db, "_db", None)
+
+    async def run():
+        await _seed_chat_channels_and_init(tmp_path, [(1, 10), (1, 20)])
+        await db.remove_spontaneous_channel(1, 20)
+        # Reinicio: la migración ya corrió (flag en disco), no debe repetirse.
+        await db.close_db()
+        monkeypatch.setattr(db, "_db", None)
+        await db.init_db()
+        return await db.list_spontaneous_channels(1)
+
+    try:
+        spontaneous = asyncio.run(run())
+    finally:
+        asyncio.run(db.close_db())
+    assert spontaneous == [10]
+
+
 def test_purge_guild_data_borra_las_tablas_nuevas(temp_db):
     async def run():
         await db.add_corpus_channel(7, 10)
         await db.add_exempt_role(7, 555)
-        await db.add_chat_channel(7, 10)
+        await db.add_spontaneous_channel(7, 10)
+        await db.add_mention_channel(7, 10)
         await ensure_corpus_migrated(_guild(guild_id=7))
         await db.purge_guild_data(7)
         return (
             await db.list_corpus_channels(7),
             await db.list_exempt_roles(7),
-            await db.list_chat_channels(7),
+            await db.list_spontaneous_channels(7),
+            await db.list_mention_channels(7),
             await db.migration_applied(7, CORPUS_ALLOWLIST_MIGRATION),
         )
 
-    corpus, roles, chat, migrated = asyncio.run(run())
-    assert corpus == [] and roles == [] and chat == []
+    corpus, roles, spontaneous, mention, migrated = asyncio.run(run())
+    assert corpus == [] and roles == [] and spontaneous == [] and mention == []
     # Sin el flag, si el bot vuelve a entrar arranca de cero como servidor nuevo.
     assert migrated is False

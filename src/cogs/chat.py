@@ -25,9 +25,10 @@ from db import (
     get_welcome_channel_id,
     is_channel_ignored,
     is_corpus_allowed,
-    list_chat_channels,
     list_exempt_roles,
     list_ignored_channels,
+    list_mention_channels,
+    list_spontaneous_channels,
     mark_migration_applied,
     save_corpus_and_user_message,
     seed_corpus_allowed_channels,
@@ -247,12 +248,12 @@ class Chat(commands.Cog):
 
         if not (mention_bot or reply_to_bot):
             if message.guild and auto_generate:
-                # Allowlist de "canales donde responde" (tab CHAT del
-                # dashboard). Lista vacía = sin restricción: participa en
+                # Allowlist de "canales donde habla espontáneamente" (tab CHAT
+                # del dashboard). Lista vacía = sin restricción: participa en
                 # cualquier canal, que es el default de un servidor recién
-                # invitado. Solo aplica a la participación espontánea — una
-                # mención directa se responde igual, más abajo.
-                allowed = await list_chat_channels(message.guild.id)
+                # invitado. Independiente de mention_channels — una mención
+                # directa usa su propia allowlist, más abajo.
+                allowed = await list_spontaneous_channels(message.guild.id)
                 if allowed and message.channel.id not in allowed:
                     return
                 try:
@@ -292,10 +293,11 @@ class Chat(commands.Cog):
         # Mención directa pero el bot no puede conversar aquí: avisar por qué
         # en vez de guardar silencio (el usuario cree que el bot está muerto).
         if ignored:
+            locale = await i18n.guild_locale(message.guild.id)
             await self._muted_reply(
                 message,
                 "chat.muted.ignored_channel",
-                url=get_dashboard_url(message.guild.id),
+                url=get_dashboard_url(message.guild.id, locale),
             )
             return
 
@@ -304,16 +306,17 @@ class Chat(commands.Cog):
             await self._muted_reply(message, "chat.muted.disabled")
             return
 
-        # Misma allowlist que la participación espontánea: un solo concepto de
-        # "canales donde responde", administrado desde el dashboard (tab
-        # CHAT → Canales). Lista vacía = responde en cualquier canal (default).
-        reply_channels = await list_chat_channels(message.guild.id)
+        # Allowlist propia de "canales donde responde a menciones" (tab CHAT →
+        # Canales del dashboard), independiente de spontaneous_channels.
+        # Lista vacía = responde en cualquier canal (default).
+        reply_channels = await list_mention_channels(message.guild.id)
         if reply_channels and message.channel.id not in reply_channels:
+            locale = await i18n.guild_locale(message.guild.id)
             await self._muted_reply(
                 message,
                 "chat.muted.wrong_channel",
                 channel=", ".join(f"<#{cid}>" for cid in reply_channels[:5]),
-                url=get_dashboard_url(message.guild.id),
+                url=get_dashboard_url(message.guild.id, locale),
             )
             return
 

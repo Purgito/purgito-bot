@@ -65,14 +65,15 @@ from cogs.premium import is_premium_guild, set_premium, unset_premium
 from db import (
     CHAT_TUNABLES,
     add_button_action,
-    add_chat_channel,
     add_corpus_channel,
     add_embed_template,
     add_exempt_role,
     add_frase_especial,
+    add_mention_channel,
     add_reaction_to_pool,
     add_scheduled_announcement,
     add_shared_embed,
+    add_spontaneous_channel,
     count_corpus_by_channel,
     count_gif_urls,
     count_guild_corpus_messages,
@@ -88,20 +89,22 @@ from db import (
     get_gif_by_url,
     get_shared_embed,
     get_updates_channel,
-    list_chat_channels,
     list_corpus_channels,
     list_embed_templates,
     list_exempt_roles,
     list_frases_especiales,
     list_gif_urls,
     list_ignored_channels,
+    list_mention_channels,
     list_premium_guilds,
     list_reaction_pool,
+    list_spontaneous_channels,
     normalize_embeds_json,
-    remove_chat_channel,
     remove_corpus_channel,
     remove_exempt_role,
+    remove_mention_channel,
     remove_reaction_from_pool,
+    remove_spontaneous_channel,
     save_gif_url,
     set_bot_style,
     set_chat_enabled,
@@ -465,7 +468,8 @@ async def _api_chat_get(request: web.Request, guild_id: int) -> web.Response:
     """Toggle del chat + los ajustes numéricos de conducta (tab CHAT).
 
     `channel_id` sigue saliendo por compatibilidad pero está deprecado: los
-    canales donde responde son la lista `chat-channels`.
+    canales donde responde a menciones son la lista `mention-channels`
+    (`spontaneous-channels` para la participación espontánea).
     """
     settings = await get_chat_settings(guild_id)
     channel_id = settings["channel_id"]
@@ -604,35 +608,79 @@ async def _api_exempt_roles_delete(request: web.Request, guild_id: int) -> web.R
 
 # ---------------- API: dashboard nuevo (chat-channels, updates, stats, estilo) --
 
+# Dos allowlists independientes desde que se separó "habla espontáneamente"
+# de "responde a menciones" — ver spontaneous_channels/mention_channels en
+# db.py. Reemplazan al viejo /settings/chat-channels (un solo concepto), que
+# ya no se registra.
+
 
 @guild_api
-async def _api_chat_channels_get(request: web.Request, guild_id: int) -> web.Response:
+async def _api_spontaneous_channels_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
     guild = _bot_guild(request, guild_id)
     channels = [
         {"id": str(cid), "name": _channel_name(guild, cid)}
-        for cid in await list_chat_channels(guild_id)
+        for cid in await list_spontaneous_channels(guild_id)
     ]
     return web.json_response({"channels": channels})
 
 
 @guild_api
-async def _api_chat_channels_post(request: web.Request, guild_id: int) -> web.Response:
+async def _api_spontaneous_channels_post(
+    request: web.Request, guild_id: int
+) -> web.Response:
     data = await _json_body(request)
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
-    added = await add_chat_channel(guild_id, channel_id)
+    added = await add_spontaneous_channel(guild_id, channel_id)
     return web.json_response({"added": added})
 
 
 @guild_api
-async def _api_chat_channels_delete(
+async def _api_spontaneous_channels_delete(
     request: web.Request, guild_id: int
 ) -> web.Response:
     channel_id = _to_int(request.match_info.get("channel_id"))
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
-    removed = await remove_chat_channel(guild_id, channel_id)
+    removed = await remove_spontaneous_channel(guild_id, channel_id)
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_mention_channels_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    channels = [
+        {"id": str(cid), "name": _channel_name(guild, cid)}
+        for cid in await list_mention_channels(guild_id)
+    ]
+    return web.json_response({"channels": channels})
+
+
+@guild_api
+async def _api_mention_channels_post(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    data = await _json_body(request)
+    channel_id = _to_int(data.get("channel_id")) if data else None
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    added = await add_mention_channel(guild_id, channel_id)
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_mention_channels_delete(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    removed = await remove_mention_channel(guild_id, channel_id)
     return web.json_response({"removed": removed})
 
 
@@ -668,15 +716,15 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
     per_channel = await count_corpus_by_channel(guild_id)
     ignored = set(await list_ignored_channels(guild_id))
     text_channels = list(getattr(guild, "text_channels", []))
-    chat_channels = await list_chat_channels(guild_id)
+    mention_channels = await list_mention_channels(guild_id)
     return web.json_response(
         {
             "corpus_total": await count_guild_corpus_messages(guild_id),
             # Canales que el bot lee = los de texto menos los ignorados.
             "reading_channels": len([c for c in text_channels if c.id not in ignored]),
             "text_channels": len(text_channels),
-            # Lista vacía = participa en todos (ver la allowlist en cogs/chat.py).
-            "reply_channels": len(chat_channels) or len(text_channels),
+            # Lista vacía = responde en todos (ver mention_channels en cogs/chat.py).
+            "reply_channels": len(mention_channels) or len(text_channels),
             "counters": await get_counters(guild_id),
             "corpus_by_channel": [
                 {
@@ -1885,10 +1933,25 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_delete(
             f"{base}/settings/exempt-roles/{{role_id}}", _api_exempt_roles_delete
         )
-        app.router.add_get(f"{base}/settings/chat-channels", _api_chat_channels_get)
-        app.router.add_post(f"{base}/settings/chat-channels", _api_chat_channels_post)
+        app.router.add_get(
+            f"{base}/settings/spontaneous-channels", _api_spontaneous_channels_get
+        )
+        app.router.add_post(
+            f"{base}/settings/spontaneous-channels", _api_spontaneous_channels_post
+        )
         app.router.add_delete(
-            f"{base}/settings/chat-channels/{{channel_id}}", _api_chat_channels_delete
+            f"{base}/settings/spontaneous-channels/{{channel_id}}",
+            _api_spontaneous_channels_delete,
+        )
+        app.router.add_get(
+            f"{base}/settings/mention-channels", _api_mention_channels_get
+        )
+        app.router.add_post(
+            f"{base}/settings/mention-channels", _api_mention_channels_post
+        )
+        app.router.add_delete(
+            f"{base}/settings/mention-channels/{{channel_id}}",
+            _api_mention_channels_delete,
         )
         app.router.add_get(f"{base}/settings/corpus", _api_corpus_get)
         app.router.add_post(f"{base}/settings/corpus", _api_corpus_post)

@@ -32,7 +32,8 @@ class FakeMessage:
             roles=[SimpleNamespace(id=rid) for rid in role_ids],
         )
         self.guild = SimpleNamespace(id=guild_id)
-        self.channel = SimpleNamespace(id=channel_id)
+        self.channel_sent: list[str] = []
+        self.channel = SimpleNamespace(id=channel_id, send=self._channel_send)
         self.content = "hola" + (f" <@{BOT_ID}>" if mention else " mundo")
         self.raw_mentions = [BOT_ID] if mention else []
         self.reference = None
@@ -44,6 +45,9 @@ class FakeMessage:
 
     async def add_reaction(self, emoji):
         self.reactions.append(emoji)
+
+    async def _channel_send(self, text):
+        self.channel_sent.append(text)
 
 
 @pytest.fixture
@@ -76,6 +80,7 @@ def _patch_ctx(
     rate_limit=0,
     corpus_allowed=True,
     reply_channels=(),
+    spontaneous_channels=(),
     exempt_roles=(),
     gif_probability=0.45,
 ):
@@ -84,7 +89,10 @@ def _patch_ctx(
 
     `corpus_allowed=True` por default porque la allowlist del corpus es un
     concepto aparte del silenciado; los tests que la miran la apagan explícito.
-    `reply_channels=()` = responde en cualquier canal, que es el default real.
+    `reply_channels=()` = responde a menciones en cualquier canal (default
+    real), `spontaneous_channels=()` = habla por su cuenta en cualquier canal.
+    Son dos allowlists independientes — ver test_mencion_y_espontaneo_son_
+    independientes más abajo.
     """
 
     async def fake_ignored(guild_id, chan_id):
@@ -104,8 +112,11 @@ def _patch_ctx(
             "gif_response_probability": gif_probability,
         }
 
-    async def fake_chat_channels(guild_id):
+    async def fake_mention_channels(guild_id):
         return list(reply_channels)
+
+    async def fake_spontaneous_channels(guild_id):
+        return list(spontaneous_channels)
 
     async def fake_exempt(guild_id):
         return list(exempt_roles)
@@ -114,7 +125,10 @@ def _patch_ctx(
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_ignored)
     monkeypatch.setattr(chat_mod, "is_corpus_allowed", fake_corpus_allowed)
     monkeypatch.setattr(chat_mod, "get_chat_settings", fake_settings)
-    monkeypatch.setattr(chat_mod, "list_chat_channels", fake_chat_channels)
+    monkeypatch.setattr(chat_mod, "list_mention_channels", fake_mention_channels)
+    monkeypatch.setattr(
+        chat_mod, "list_spontaneous_channels", fake_spontaneous_channels
+    )
     monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_exempt)
 
 
@@ -148,8 +162,8 @@ def test_muted_cooldown_is_per_guild(cog):
 
 
 def test_wrong_channel_names_configured_channel(cog):
-    """Las menciones usan la MISMA allowlist que el chat espontáneo
-    (chat_channels), no el viejo settings.chat_channel_id."""
+    """Las menciones usan su propia allowlist (mention_channels), no el
+    viejo settings.chat_channel_id."""
     chat, saved, mp = cog
     _patch_ctx(mp, enabled=True, reply_channels=[20])
 
@@ -186,6 +200,46 @@ def test_mencion_en_canal_de_la_lista_responde(cog):
     m = FakeMessage(channel_id=10)
     asyncio.run(chat.on_message(m))
     assert m.replies == ["respuesta"]
+
+
+def test_mencion_y_espontaneo_usan_allowlists_independientes(cog):
+    """El canal 10 está habilitado para hablar solo pero NO para responder
+    menciones: cada rama tiene que leer su propia tabla, no compartir una."""
+    chat, saved, mp = cog
+    _patch_ctx(mp, enabled=True, reply_channels=[20], spontaneous_channels=[10])
+    _patch_generation(mp)
+
+    async def fake_save_saved(
+        guild_id, channel_id, author_id, name, text, message_id=None
+    ):
+        saved.append(text)
+        return (True, True)
+
+    def fake_auto_generate(guild_id, channel_id, every, probability):
+        return True
+
+    mp.setattr(chat_mod, "save_corpus_and_user_message", fake_save_saved)
+    mp.setattr(
+        chat_mod.generation, "note_message_for_auto_generate", fake_auto_generate
+    )
+
+    # Sin mención, en el canal 10: está en spontaneous_channels -> habla solo.
+    plain = FakeMessage(mention=False, channel_id=10)
+    asyncio.run(chat.on_message(plain))
+    assert plain.channel_sent == ["respuesta"]
+
+    # Con mención, en el MISMO canal 10: mention_channels solo tiene el 20,
+    # así que avisa que está mudo ahí pese a hablar solo en ese canal.
+    mentioned = FakeMessage(channel_id=10)
+    asyncio.run(chat.on_message(mentioned))
+    assert mentioned.replies == [
+        i18n.t(
+            "chat.muted.wrong_channel",
+            "es",
+            channel="<#20>",
+            url=get_dashboard_url(mentioned.guild.id),
+        )
+    ]
 
 
 # ─── Corpus: allowlist positiva ──────────────────────────────────────────────

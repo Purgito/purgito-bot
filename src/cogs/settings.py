@@ -133,7 +133,7 @@ class SettingsPanel(discord.ui.View):
         # (título, cuerpo) mostrado cuando no hay categoría elegida (portada /settings o /setup)
         self.intro = intro or (
             t("settings.title", locale),
-            t("settings.intro", locale, url=get_dashboard_url(guild.id)),
+            t("settings.intro", locale, url=get_dashboard_url(guild.id, locale)),
         )
         # Footer con el panel web solo en la portada de /settings; /setup ya lo menciona en el cuerpo.
         self.show_panel_footer = intro is None
@@ -241,7 +241,11 @@ class IdiomaCategory(SettingsCategory):
             panel.locale = new_locale
             panel.intro = (
                 t("settings.title", new_locale),
-                t("settings.intro", new_locale, url=get_dashboard_url(panel.guild.id)),
+                t(
+                    "settings.intro",
+                    new_locale,
+                    url=get_dashboard_url(panel.guild.id, new_locale),
+                ),
             )
             await panel.refresh(interaction)
 
@@ -1116,7 +1120,9 @@ def build_welcome_embed(guild: discord.Guild, locale: str) -> discord.Embed:
         parts.append(t("welcome.premium_momo", locale))
     parts.append(t("welcome.commands_tail", locale))
     parts.append("")
-    parts.append(t("welcome.dashboard_cta", locale, url=get_dashboard_url(guild.id)))
+    parts.append(
+        t("welcome.dashboard_cta", locale, url=get_dashboard_url(guild.id, locale))
+    )
     parts.append("")
     if is_prem:
         parts.append(t("welcome.trigger_hint", locale, trigger=BOT_TRIGGER_NAME))
@@ -1148,7 +1154,7 @@ class WelcomeView(discord.ui.View):
                 discord.ui.Button(
                     label=t("welcome.btn_dashboard", locale),
                     style=discord.ButtonStyle.link,
-                    url=get_dashboard_url(guild_id),
+                    url=get_dashboard_url(guild_id, locale),
                 )
             )
 
@@ -1194,7 +1200,11 @@ async def _send_setup_panel(interaction: discord.Interaction, locale: str) -> No
         intro=(
             t("setup.title", locale),
             status
-            + t("setup.body", locale, url=get_dashboard_url(interaction.guild.id))
+            + t(
+                "setup.body",
+                locale,
+                url=get_dashboard_url(interaction.guild.id, locale),
+            )
             + "\n\n"
             + t("setup.panel_cta", locale, url=PANEL_URL),
         ),

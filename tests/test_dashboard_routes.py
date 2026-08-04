@@ -86,7 +86,8 @@ def test_rutas_clave_del_dashboard_estan_montadas():
         "/api/me/guilds",
         "/api/server/{guild_id}/stats",
         "/api/server/{guild_id}/style",
-        "/api/server/{guild_id}/settings/chat-channels",
+        "/api/server/{guild_id}/settings/spontaneous-channels",
+        "/api/server/{guild_id}/settings/mention-channels",
         "/api/server/{guild_id}/embeds/templates",
         # Zona protegida: sigue viva junto a las rutas nuevas.
         "/webhooks/polar",

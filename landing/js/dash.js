@@ -493,10 +493,11 @@ async function loadChatTab() {
   const box = content();
   box.append(spinner());
   try {
-    const [chat, chatChans, corpus, reactions, frases, exempt, channels, roles] =
+    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, exempt, channels, roles] =
       await Promise.all([
         apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`),
         apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
         apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
         apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
@@ -527,35 +528,57 @@ async function loadChatTab() {
 
     // --- Sub-pestaña: Canales ---
     function buildCanales() {
-      const chatSelected = new Set(chatChans.channels.map(c => c.id));
+      const spontaneousSelected = new Set(spontaneousChans.channels.map(c => c.id));
+      const mentionSelected = new Set(mentionChans.channels.map(c => c.id));
       const corpusSelected = new Set(corpus.channels.map(c => c.id));
       const ignoredSet = new Set(corpus.ignored || []);
       return el('div', {},
-        channelCard('chat', 'Canales donde responde',
+        channelCard('sparkle', 'Canales donde habla espontáneamente',
           el('p', { class: 'dim' },
-            'Vale para las menciones y para los mensajes espontáneos. Sin canales '
-            + 'elegidos, Purgito responde en cualquiera.'),
+            'Elige en qué canales puede hablar Purgito por su cuenta. Si no '
+            + 'eliges ninguno, puede hacerlo en todos.'),
           channelToggleList({
             channels,
-            isSelected: id => chatSelected.has(id),
+            isSelected: id => spontaneousSelected.has(id),
             add: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels`, {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
                 method: 'POST', body: { channel_id: ch.id },
               });
-              chatSelected.add(ch.id);
+              spontaneousSelected.add(ch.id);
             },
             remove: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/chat-channels/${ch.id}`, {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels/${ch.id}`, {
                 method: 'DELETE',
               });
-              chatSelected.delete(ch.id);
+              spontaneousSelected.delete(ch.id);
             },
-            listBelow: 'Sin canales configurados — Purgito responde en cualquier canal.',
+            listBelow: 'Sin canales elegidos — Purgito puede hablar en cualquiera.',
+          })),
+        channelCard('chat', 'Canales donde responde a menciones',
+          el('p', { class: 'dim' },
+            'Elige en qué canales responde Purgito cuando lo mencionan. Si no '
+            + 'eliges ninguno, responde en todos.'),
+          channelToggleList({
+            channels,
+            isSelected: id => mentionSelected.has(id),
+            add: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
+                method: 'POST', body: { channel_id: ch.id },
+              });
+              mentionSelected.add(ch.id);
+            },
+            remove: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels/${ch.id}`, {
+                method: 'DELETE',
+              });
+              mentionSelected.delete(ch.id);
+            },
+            listBelow: 'Sin canales elegidos — Purgito responde en cualquiera.',
           })),
         channelCard('corpus', 'Canales de los que aprende',
           el('p', { class: 'dim' },
-            'Purgito solo guarda mensajes de los canales que elijas acá. Sin '
-            + 'ninguno elegido, no aprende de nada.'),
+            'Purgito solo guarda mensajes de los canales que elijas acá. Si '
+            + 'no eliges ninguno, no aprende de nada.'),
           ignoredSet.size
             ? el('p', { class: 'dim' },
               `${ignoredSet.size} canal(es) ignorado(s) desde /settings quedan fuera `
@@ -587,8 +610,8 @@ async function loadChatTab() {
       return el('div', {},
         formGroup('Frecuencia de mensajes espontáneos',
           el('p', { class: 'dim' },
-            'Cada tantos mensajes nuevos que aprende en un canal, Purgito considera '
-            + 'hablar solo. La probabilidad evita que sea un reloj.'),
+            'Cada tantos mensajes nuevos que aprende en un canal, Purgito puede '
+            + 'decidir hablar solo. La probabilidad evita que sea siempre exacto.'),
           numberField('Cada cuántos mensajes', null, {
             key: 'auto_generate_every',
             value: chat.auto_generate_every,
@@ -596,7 +619,7 @@ async function loadChatTab() {
             max: (lim.auto_generate_every || [null, 1000])[1],
             suffix: 'mensajes',
           }),
-          percentField('Probabilidad de hablar', 'Al llegar a esa cuenta, cuántas veces habla de cada 100.', {
+          percentField('Probabilidad de hablar', 'Al llegar a ese número, cuántas veces de cada 100 habla.', {
             key: 'auto_generate_probability',
             value: chat.auto_generate_probability,
           })),
@@ -609,8 +632,8 @@ async function loadChatTab() {
           reaccionesBox),
         formGroup('GIF o texto',
           el('p', { class: 'dim' },
-            'Cuando Purgito va a responder, con qué frecuencia manda un GIF de su '
-            + 'galería en vez de una frase generada.'),
+            'Con qué frecuencia responde con un GIF de su galería en vez de un '
+            + 'mensaje generado.'),
           percentField('Probabilidad de responder con GIF', null, {
             key: 'gif_response_probability',
             value: chat.gif_response_probability,
@@ -622,8 +645,8 @@ async function loadChatTab() {
       const exemptSelected = new Set(exempt.roles.map(r => r.id));
       return formGroup('Límite de actividad',
         el('p', { class: 'dim' },
-          'Tope de interacciones por hora y por usuario, para que nadie use a '
-          + 'Purgito para farmear actividad. 0 = sin límite.'),
+          'Tope de interacciones por hora y por usuario, para evitar que alguien '
+          + 'genere actividad falsa con Purgito. 0 = sin límite.'),
         numberField('Menciones por hora', null, {
           key: 'mention_rate_limit',
           value: chat.mention_rate_limit,

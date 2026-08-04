@@ -82,17 +82,25 @@ Los tres se cargan al importar `src/config.py`.
 
 ## Configuración del chat: qué manda sobre qué
 
-Tres listas de canales que se confunden fácil. Son conceptos distintos:
+Cuatro listas de canales que se confunden fácil. Son conceptos distintos:
 
 | Tabla | Significa | Lista vacía = |
 |---|---|---|
-| `chat_channels` | Dónde **responde** (menciones y mensajes espontáneos) | responde en todos |
+| `spontaneous_channels` | Dónde **habla por su cuenta** (mensajes espontáneos) | habla en todos |
+| `mention_channels` | Dónde **responde a menciones** | responde en todos |
 | `corpus_allowed_channels` | De dónde **aprende** | no aprende de ninguno |
 | `ignored_channels` | Dónde está **completamente mudo** | ninguno mudo |
 
+`spontaneous_channels` y `mention_channels` son independientes: un canal puede
+estar en una, en la otra, en ambas o en ninguna — por ejemplo, un canal donde
+Purgito habla solo pero no contesta si lo mencionan. Antes eran un solo
+concepto (`chat_channels`); esa tabla sigue existiendo pero vestigial, solo
+como origen de la migración que copió sus filas a las dos nuevas al separarlas
+— nada la lee ni la escribe ya.
+
 La asimetría de la lista vacía es a propósito: leer mensajes es más invasivo que
 responder, así que el default seguro es no leer. Un canal ignorado nunca aprende
-ni responde, esté o no en las otras dos listas.
+ni responde, esté o no en las otras listas.
 
 `settings.chat_channel_id` está **deprecado** (era un canal único para las
 menciones): sigue en la tabla para no romper una migración en caliente, pero

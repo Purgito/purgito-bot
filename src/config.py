@@ -151,16 +151,15 @@ def get_invite_url(guild_id: str) -> str:
     )
 
 
-def get_dashboard_url(guild_id) -> str:
+def get_dashboard_url(guild_id, locale: str = "es") -> str:
     """URL al dashboard de un servidor puntual.
 
-    Sin prefijo de idioma a propósito: el sitio redirige del lado del cliente
-    al idioma del navegador la primera vez que entras sin uno (ver
-    landing/index.html), igual que el resto de los links que este bot manda
-    (dm.body, setup.panel_cta). Hardcodear "/es/" acá estaría mal para un
-    server configurado en otro idioma.
+    Necesita el prefijo de idioma: la URL sin locale da 404 en producción
+    (el sitio no redirige del lado del cliente como se asumía antes).
+    Default "es" porque `READY_LANGS` solo tiene ese idioma por ahora — cada
+    call site debería pasar el locale real del guild si lo tiene a mano.
     """
-    return f"{PANEL_URL}/dashboard/{guild_id}"
+    return f"{PANEL_URL}/{locale}/dashboard/{guild_id}"
 
 
 def _env_bool(name: str, default: bool) -> bool:

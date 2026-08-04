@@ -219,7 +219,29 @@ CREATE TABLE IF NOT EXISTS reaction_pool (
 );
 CREATE INDEX IF NOT EXISTS idx_reaction_pool_guild ON reaction_pool(guild_id);
 
+-- Vestigial: reemplazada por spontaneous_channels + mention_channels (init_db
+-- copia sus filas a ambas la primera vez que corre esta versión). Nada la
+-- lee ni la escribe ya — igual que settings.chat_channel_id, se deja para no
+-- perder el dato de origen de esa migración.
 CREATE TABLE IF NOT EXISTS chat_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+-- Canales donde Purgito habla por su cuenta (participación espontánea).
+-- Lista vacía = sin restricción, habla en cualquiera. Independiente de
+-- mention_channels: un canal puede estar en una lista, en la otra, en
+-- ambas o en ninguna.
+CREATE TABLE IF NOT EXISTS spontaneous_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+-- Canales donde Purgito responde si lo mencionan. Lista vacía = responde en
+-- cualquiera. Ver spontaneous_channels: son dos conceptos independientes.
+CREATE TABLE IF NOT EXISTS mention_channels (
     guild_id INTEGER NOT NULL,
     channel_id INTEGER NOT NULL,
     PRIMARY KEY (guild_id, channel_id)
@@ -450,6 +472,25 @@ async def init_db():
         with open(flag_path, "w") as f:
             f.write("done")
         log.info("corpus_images wipeado - migracion v2")
+    # chat_channels se dividió en spontaneous_channels + mention_channels.
+    # Copiar una sola vez lo que ya había configurado cada servidor para que
+    # ninguno cambie de comportamiento el día del deploy; el flag evita que
+    # un admin que después saque un canal de una lista lo vea "resucitar"
+    # en el próximo restart.
+    split_flag_path = os.path.join(DATA_DIR, ".chat_channels_split_v1")
+    if not os.path.exists(split_flag_path):
+        await _db.execute(
+            "INSERT OR IGNORE INTO spontaneous_channels (guild_id, channel_id) "
+            "SELECT guild_id, channel_id FROM chat_channels"
+        )
+        await _db.execute(
+            "INSERT OR IGNORE INTO mention_channels (guild_id, channel_id) "
+            "SELECT guild_id, channel_id FROM chat_channels"
+        )
+        await _db.commit()
+        with open(split_flag_path, "w") as f:
+            f.write("done")
+        log.info("chat_channels dividido en spontaneous_channels/mention_channels")
     # Migrate HOME_GUILD_ID to premium_guilds (idempotent via INSERT OR IGNORE)
     _home_gid = int(os.getenv("HOME_GUILD_ID", "0") or "0")
     if _home_gid:
@@ -1295,16 +1336,20 @@ async def set_chat_enabled(guild_id: int, enabled: bool) -> None:
         await db.commit()
 
 
-# Canales de participación proactiva del chat (multi-select del dashboard).
-# Sin filas para el guild = comportamiento histórico (habla en cualquier canal
-# no ignorado); con filas, solo habla espontáneamente en esos canales.
+# Canales de participación proactiva (spontaneous_channels) y de respuesta a
+# menciones (mention_channels) del chat, dos allowlists independientes
+# (multi-select del dashboard). Sin filas para el guild = comportamiento
+# histórico (responde/habla en cualquier canal no ignorado); con filas, solo
+# en esos canales. Ver la nota en chat_channels sobre por qué existe esa
+# tabla vieja sin usarse.
 
 
-async def add_chat_channel(guild_id: int, channel_id: int) -> bool:
+async def add_spontaneous_channel(guild_id: int, channel_id: int) -> bool:
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "INSERT OR IGNORE INTO chat_channels (guild_id, channel_id) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO spontaneous_channels (guild_id, channel_id) "
+            "VALUES (?, ?)",
             (guild_id, channel_id),
         )
         inserted = _was_inserted(cursor)
@@ -1312,11 +1357,11 @@ async def add_chat_channel(guild_id: int, channel_id: int) -> bool:
     return inserted
 
 
-async def remove_chat_channel(guild_id: int, channel_id: int) -> bool:
+async def remove_spontaneous_channel(guild_id: int, channel_id: int) -> bool:
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "DELETE FROM chat_channels WHERE guild_id=? AND channel_id=?",
+            "DELETE FROM spontaneous_channels WHERE guild_id=? AND channel_id=?",
             (guild_id, channel_id),
         )
         removed = cursor.rowcount > 0
@@ -1324,10 +1369,46 @@ async def remove_chat_channel(guild_id: int, channel_id: int) -> bool:
     return removed
 
 
-async def list_chat_channels(guild_id: int) -> list[int]:
+async def list_spontaneous_channels(guild_id: int) -> list[int]:
     db = await get_db()
     async with db.execute(
-        "SELECT channel_id FROM chat_channels WHERE guild_id=? ORDER BY channel_id",
+        "SELECT channel_id FROM spontaneous_channels WHERE guild_id=? "
+        "ORDER BY channel_id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
+async def add_mention_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO mention_channels (guild_id, channel_id) "
+            "VALUES (?, ?)",
+            (guild_id, channel_id),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_mention_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM mention_channels WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_mention_channels(guild_id: int) -> list[int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id FROM mention_channels WHERE guild_id=? ORDER BY channel_id",
         (guild_id,),
     ) as cursor:
         rows = await cursor.fetchall()
@@ -2534,6 +2615,8 @@ async def purge_guild_data(guild_id: int) -> None:
         "guild_auto_refeed",
         "guild_counters",
         "chat_channels",
+        "spontaneous_channels",
+        "mention_channels",
         "corpus_allowed_channels",
         "mention_rate_limit_exempt_roles",
         "applied_migrations",
