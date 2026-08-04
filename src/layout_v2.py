@@ -27,7 +27,7 @@ import uuid
 import discord
 
 # Prefijo de custom_id de los botones de "asignar/quitar rol", para poder
-# reconocerlos sin colisionar con custom_ids de otros cogs (ej. np_* de música,
+# reconocerlos sin colisionar con custom_ids de otros cogs (ej.
 # purgito_setup_btn de bienvenida).
 ROLE_TOGGLE_PREFIX = "purgito_role_toggle_"
 

@@ -58,6 +58,8 @@
   "settings.youtube.mention_placeholder": "Pick a subscription to configure its mention…",
   "settings.youtube.mention_role_placeholder": "Pick a mention role (empty = remove mention)…",
   "settings.youtube.mention_pending_hint": "Pick below the role to mention (leave empty to remove the mention).",
+  "settings.youtube.error_no_permission": "⚠️ Purgito doesn't have permission to post in this channel",
+  "settings.youtube.error_channel_not_found": "⚠️ the configured channel no longer exists",
 
   "settings.cat.memes.label": "Auto memes",
   "settings.cat.memes.desc": "Channels with scheduled memes (premium)",
@@ -115,7 +117,7 @@
   "welcome.commands_header": "**Main commands:**",
   "welcome.commands": "🤖 `/generar` — generates a Markov message\n🎭 `/imitar @user` — imitates a member's style",
   "welcome.premium_momo": "😂 `/momo` — generates a server meme",
-  "welcome.commands_tail": "🎵 `/play <song>` — plays music\n📖 `/help` — full command list",
+  "welcome.commands_tail": "📖 `/help` — full command list",
   "welcome.dashboard_cta": "🎛️ All of the bot's configuration lives in your dashboard: {url}",
   "welcome.btn_dashboard": "🎛️ Your dashboard",
   "welcome.trigger_hint": "I also respond to `{trigger} generar` (reply to an image) to generate a quick meme.",

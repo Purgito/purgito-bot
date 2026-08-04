@@ -6,7 +6,7 @@
 
 **Bot de Discord que aprende a hablar como tu servidor.**
 
-Cadenas de Markov · Editor de embeds · Colección de GIFs · Música · Notificaciones de YouTube
+Cadenas de Markov · Editor de embeds · Colección de GIFs · Notificaciones de YouTube
 
 ---
 
@@ -26,7 +26,6 @@ Cadenas de Markov · Editor de embeds · Colección de GIFs · Música · Notifi
 | 🧠 | **Markov automático** | Aprende del chat y genera réplicas al estilo del servidor cada 15 mensajes nuevos, con probabilidad configurable |
 | 🎭 | **Imitación de usuarios** | Imita el estilo de escritura de cualquier miembro con `/imitar` |
 | 💬 | **Modo chat** | Responde cuando lo mencionas o le respondes |
-| 🎵 | **Música** | Reproduce audio de YouTube/URLs con cola, loop, shuffle y controles interactivos |
 | 🎞️ | **Colección de GIFs** | Guarda GIFs de Tenor/Giphy automáticamente; los de Discord CDN se suben a R2 |
 | ⚙️ | **Configuración del servidor** | Panel `/settings`, onboarding `/setup` y mensaje de bienvenida con acceso rápido |
 | 🧩 | **Editor de embeds del panel** | Arma embeds clásicos o layouts con Components V2 y botones interactivos (incluye botones de rol) desde el navegador, con plantillas guardables |
@@ -123,21 +122,6 @@ El servidor web de la galería arranca en el mismo proceso en `0.0.0.0:8080`.
 ---
 
 ## 📋 Comandos
-
-### 🎵 Música
-
-| Comando | Descripción |
-|---|---|
-| `/play <query>` | Reproduce o encola una canción (YouTube, URL directa) |
-| `/skip` | Salta la canción actual |
-| `/stop` | Detiene la reproducción y vacía la cola |
-| `/pause` / `/resume` | Pausa o reanuda |
-| `/nowplaying` | Muestra la canción actual con controles interactivos |
-| `/queue` | Muestra la cola de reproducción |
-| `/volume <1-100>` | Ajusta el volumen |
-| `/loop` | Alterna modo loop: off → canción → cola |
-| `/shuffle` | Mezcla las canciones en la cola |
-| `/leave` | Sale del canal de voz |
 
 ### 🤖 Markov y chat
 
@@ -324,7 +308,6 @@ Una tarea en segundo plano sondea el RSS de cada canal suscrito cada **15 minuto
 │   ├── i18n.py             # Traducciones y locales por servidor
 │   ├── markov_engine.py    # Motor de cadenas de Markov
 │   ├── meme_generator.py   # Renderizado de captions con Pillow
-│   ├── music_player.py     # Player de audio: cola, loop, yt-dlp
 │   ├── r2.py               # Integración con Cloudflare R2
 │   ├── utils.py            # Helpers compartidos
 │   ├── webapi.py           # API HTTP y galería

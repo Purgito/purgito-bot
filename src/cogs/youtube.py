@@ -9,7 +9,13 @@ import feedparser
 import requests
 from discord.ext import commands, tasks
 
-from db import get_all_youtube_subs, update_last_video_id
+from db import (
+    YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
+    YOUTUBE_ERROR_NO_PERMISSION,
+    get_all_youtube_subs,
+    set_youtube_sub_error,
+    update_last_video_id,
+)
 
 log = logging.getLogger(__name__)
 
@@ -63,22 +69,56 @@ class YouTube(commands.Cog):
 
         async def _check_one(sub: dict) -> None:
             try:
+                channel = self.bot.get_channel(sub["discord_channel_id"])
+                if channel is None:
+                    error = YOUTUBE_ERROR_CHANNEL_NOT_FOUND
+                elif (
+                    not isinstance(channel, discord.TextChannel)
+                    or not channel.permissions_for(channel.guild.me).send_messages
+                ):
+                    error = YOUTUBE_ERROR_NO_PERMISSION
+                else:
+                    error = None
+
+                if error:
+                    # Se avisa (log + DB) una sola vez por cada vez que se rompe,
+                    # no en cada corrida del loop mientras siga rota.
+                    if sub["last_error"] != error:
+                        log.warning(
+                            "Suscripción YouTube %s (guild %s) no puede avisar: %s",
+                            sub["youtube_channel_id"],
+                            sub["guild_id"],
+                            error,
+                        )
+                        await set_youtube_sub_error(
+                            sub["guild_id"], sub["youtube_channel_id"], error
+                        )
+                    return
+
+                if sub["last_error"]:
+                    await set_youtube_sub_error(
+                        sub["guild_id"], sub["youtube_channel_id"], None
+                    )
+                    log.info(
+                        "Suscripción YouTube %s (guild %s) recuperada, reanuda avisos",
+                        sub["youtube_channel_id"],
+                        sub["guild_id"],
+                    )
+
                 video = await get_latest_video(sub["youtube_channel_id"])
                 if video is None:
                     return
                 if video["id"] != sub["last_video_id"]:
-                    channel = self.bot.get_channel(sub["discord_channel_id"])
-                    if channel and isinstance(channel, discord.TextChannel):
-                        mention = ""
-                        if sub.get("mention_role_id"):
-                            mention = f"<@&{sub['mention_role_id']}> "
-                        await channel.send(
-                            f"{mention}📺 **{video['author']}** subió un video nuevo!\n"
-                            f"**{video['title']}**\n{video['url']}"
-                        )
-                        await update_last_video_id(
-                            sub["guild_id"], sub["youtube_channel_id"], video["id"]
-                        )
+                    mention = ""
+                    if sub.get("mention_role_id"):
+                        mention = f"<@&{sub['mention_role_id']}> "
+                    await channel.send(
+                        f"{mention}📺 **{video['author']}** subió un video nuevo!\n"
+                        f"**{video['title']}**\n{video['url']}"
+                    )
+                    await update_last_video_id(
+                        sub["guild_id"], sub["youtube_channel_id"], video["id"]
+                    )
             except Exception:
                 log.exception(
                     "Error procesando suscripción YouTube %s", sub["youtube_channel_id"]

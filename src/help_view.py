@@ -7,12 +7,12 @@ import discord
 
 from config import PANEL_URL
 
-PURGITO_COLOR = 0x8B00FF  # color de marca usado en todo el proyecto (welcome embed, music_player.py)
+PURGITO_COLOR = 0x8B00FF  # color de marca usado en todo el proyecto
 
 INTRO_DESCRIPTION = (
     "**Purgito** es el bot del servidor: aprende a hablar como la comunidad "
     "usando cadenas de Markov entrenadas con los propios mensajes del server, "
-    "reproduce música, guarda los GIFs que se comparten en una galería pública "
+    "guarda los GIFs que se comparten en una galería pública "
     "y avisa cuando tus creadores favoritos de YouTube publican contenido nuevo.\n\n"
     "Desde el panel web también puedes armar embeds y mensajes con botones "
     "interactivos —incluyendo botones que asignan un rol— sin escribir código.\n\n"
@@ -23,24 +23,6 @@ INTRO_DESCRIPTION = (
 )
 
 CATEGORIES = {
-    "musica": {
-        "emoji": "🎵",
-        "label": "Música",
-        "title": "🎵 Música",
-        "row": 0,
-        "commands": [
-            ("/play <query>", "reproduce o encola una canción"),
-            ("/skip", "salta la canción actual"),
-            ("/stop", "detiene y vacía la cola"),
-            ("/pause · /resume", "pausa o reanuda"),
-            ("/nowplaying", "muestra la canción actual"),
-            ("/queue", "muestra la cola"),
-            ("/volume <1-100>", "ajusta el volumen"),
-            ("/loop", "alterna loop: desactivado / canción / cola"),
-            ("/shuffle", "mezcla la cola"),
-            ("/leave", "sale del canal de voz"),
-        ],
-    },
     "chat": {
         "emoji": "🤖",
         "label": "Markov / Chat",

@@ -1,8 +1,8 @@
 # Purgito
 
 Bot de Discord (Python + discord.py) con panel web. Aprende el estilo de
-chat de cada servidor (cadenas de Markov), genera memes, guarda GIFs, pone
-música y avisa de videos nuevos de YouTube.
+chat de cada servidor (cadenas de Markov), genera memes, guarda GIFs y avisa
+de videos nuevos de YouTube.
 
 ## Stack
 
@@ -44,7 +44,7 @@ desde `tests/`.
 
 ## Directorios clave
 
-- `src/cogs/` — comandos y features del bot (chat, gifs, memes, música,
+- `src/cogs/` — comandos y features del bot (chat, gifs, memes, youtube,
   premium, anuncios, layout_buttons)
 - `src/webapi.py` — API JSON; ver zonas protegidas abajo
 - `landing/` — sitio estático (index.html, style.css, script.js)

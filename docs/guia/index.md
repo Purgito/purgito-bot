@@ -38,7 +38,6 @@ refleje el 100% de cómo se comporta la función ahora mismo.
 | [Editor de Embeds](/es/documentacion/embeds) 🔧 | Embeds y mensajes con botones interactivos, desde el panel |
 | [Avisos de YouTube](/es/documentacion/youtube) 🔧 | Notifica en tu servidor cuando sale un video nuevo |
 | [Anuncios programados](/es/documentacion/anuncios) 🔧 | Mensajes automáticos a una hora fija o por intervalo |
-| [Música](/es/documentacion/musica) 🔧 | Reproduce en canal de voz desde YouTube o SoundCloud |
 
 ## ¿No encontraste lo que buscabas?
 

@@ -121,6 +121,10 @@ archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
   en este momento 😞 probá con el nombre de la canción (busco en SoundCloud)";
   y en paralelo loguear/avisar al owner (log level WARNING ya existe) que las
   cookies expiraron. Nunca mencionar yt-dlp/cookies en el chat.
+- **Estado: ✅ resuelto por eliminación (2026-08-04).** Se sacó la
+  reproducción de música por completo (cog, `music_player.py`,
+  dependencias yt-dlp/FFmpeg/PyNaCl) en vez de arreglar el mensaje: el
+  hallazgo ya no aplica porque la feature no existe.
 
 ## 6. Jerga "Markov / corpus / pool" en todos los textos de primer contacto
 

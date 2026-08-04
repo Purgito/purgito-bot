@@ -40,7 +40,6 @@ EXTENSIONS = [
     "cogs.chat",
     "cogs.gifs",
     "cogs.memes",
-    "cogs.musica",
     "cogs.youtube",
     "cogs.anuncios",
     "cogs.general",

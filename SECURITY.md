@@ -32,7 +32,6 @@ Las siguientes variables de entorno son sensibles. **Nunca las expongas en logs,
 | `R2_SECRET_ACCESS_KEY` | Secret del token R2. Con ambas claves se puede leer, escribir y borrar todos los GIFs |
 | `R2_ENDPOINT_URL` | URL del endpoint privado de R2 (no confundir con la URL pública) |
 | `GROQ_API_KEY` | Clave de facturación de la API de Groq. Las llamadas cuestan créditos de tu cuenta |
-| `YTDLP_COOKIES` | Ruta al `cookies.txt` con tu sesión de YouTube. No incluyas el archivo en commits; ya está en `.gitignore` |
 
 Las variables `R2_BUCKET_NAME`, `R2_PUBLIC_URL`, `HOME_GUILD_ID`, `GUILD_ID`, `WEB_PORT`, `BOT_TRIGGER_NAME` y los límites de Markov no son secretas, pero tampoco deben exponerse innecesariamente.
 

@@ -93,7 +93,6 @@ La información recopilada se utiliza exclusivamente para proporcionar las funci
 - Generación de texto mediante cadenas de Markov.
 - Generación de memes.
 - Galería de GIFs.
-- Reproducción de música.
 - Automatizaciones del servidor.
 - Configuración de comandos y preferencias.
 
@@ -110,7 +109,6 @@ Actualmente pueden utilizarse:
 - **Discord** para la comunicación.
 - **Cloudflare R2** para almacenamiento multimedia.
 - **Groq API** para generación de memes mediante IA.
-- **yt-dlp** para la obtención de contenido multimedia compatible.
 - **Polar.sh** como procesador de pagos y Merchant of Record para las suscripciones premium. Ver su [Política de Privacidad](https://polar.sh/legal/privacy).
 - Otros servicios estrictamente necesarios para el funcionamiento del bot.
 

@@ -10,7 +10,7 @@ Purgito es un bot público de Discord, usado por múltiples servidores. Purgator
 
 # 1. Uso Aceptable
 
-Purgito está diseñado para el entretenimiento, la generación de memes, la reproducción de música, la automatización de tareas y la interacción mediante inteligencia artificial (Cadenas de Markov y modelos de lenguaje externos).
+Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante inteligencia artificial (Cadenas de Markov y modelos de lenguaje externos).
 
 Al utilizar el bot aceptas que **no debes**:
 

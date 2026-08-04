@@ -9,7 +9,6 @@
 - Python 3.11+
 - Una cuenta de Discord con un bot creado en el [Portal de Desarrolladores](https://discord.com/developers/applications)
 - (Opcional) Cuenta de Cloudflare con un bucket R2 para los GIFs
-- (Opcional) FFmpeg instalado para reproducción de música
 
 ### Pasos
 

@@ -22,6 +22,8 @@ from cogs.premium import is_premium_guild
 from cogs.youtube import get_latest_video
 from config import BOT_TRIGGER_NAME, PANEL_URL, get_dashboard_url
 from db import (
+    YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
+    YOUTUBE_ERROR_NO_PERMISSION,
     add_ignored_channel,
     add_meme_schedule,
     add_scheduled_announcement,
@@ -404,10 +406,21 @@ class YouTubeCategory(SettingsCategory):
         subs = await list_youtube_subs(panel.guild.id)
         body = t("settings.youtube.body", panel.locale)
         if subs:
-            body += "\n\n" + "\n".join(
-                f"• **{s['youtube_channel_name']}** → <#{s['discord_channel_id']}>"
-                for s in subs
-            )
+            lines = []
+            for s in subs:
+                line = (
+                    f"• **{s['youtube_channel_name']}** → <#{s['discord_channel_id']}>"
+                )
+                if s["last_error"] == YOUTUBE_ERROR_NO_PERMISSION:
+                    line += "\n  " + t(
+                        "settings.youtube.error_no_permission", panel.locale
+                    )
+                elif s["last_error"] == YOUTUBE_ERROR_CHANNEL_NOT_FOUND:
+                    line += "\n  " + t(
+                        "settings.youtube.error_channel_not_found", panel.locale
+                    )
+                lines.append(line)
+            body += "\n\n" + "\n".join(lines)
         else:
             body += "\n\n" + t("settings.youtube.none", panel.locale)
         if getattr(panel, "yt_pending_channel", None):

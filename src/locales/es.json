@@ -58,6 +58,8 @@
   "settings.youtube.mention_placeholder": "Elegir suscripción para configurar mención…",
   "settings.youtube.mention_role_placeholder": "Elegir rol de mención (vacío = quitar mención)…",
   "settings.youtube.mention_pending_hint": "Elige abajo el rol a mencionar (déjalo vacío para quitar la mención).",
+  "settings.youtube.error_no_permission": "⚠️ Purgito no tiene permiso para escribir en este canal",
+  "settings.youtube.error_channel_not_found": "⚠️ el canal configurado ya no existe",
 
   "settings.cat.memes.label": "Memes automáticos",
   "settings.cat.memes.desc": "Canales con memes programados (premium)",
@@ -115,7 +117,7 @@
   "welcome.commands_header": "**Comandos principales:**",
   "welcome.commands": "🤖 `/generar` — genera un mensaje con Markov\n🎭 `/imitar @usuario` — imita el estilo de un miembro",
   "welcome.premium_momo": "😂 `/momo` — genera un meme del servidor",
-  "welcome.commands_tail": "🎵 `/play <canción>` — reproduce música\n📖 `/help` — lista completa de comandos",
+  "welcome.commands_tail": "📖 `/help` — lista completa de comandos",
   "welcome.dashboard_cta": "🎛️ Toda la configuración del bot vive en tu dashboard: {url}",
   "welcome.btn_dashboard": "🎛️ Tu dashboard",
   "welcome.trigger_hint": "También respondo a `{trigger} generar` (responder a una imagen) para generar un meme rápido.",
