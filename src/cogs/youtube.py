@@ -20,20 +20,25 @@ from db import (
 log = logging.getLogger(__name__)
 
 
-async def get_latest_video(youtube_channel_id: str) -> dict | None:
+async def _fetch_feed(youtube_channel_id: str):
     url = (
         "https://www.youtube.com/feeds/videos.xml"
         f"?channel_id={quote(youtube_channel_id, safe='')}"
     )
-    try:
-        # Se descarga con timeout explícito: feedparser.parse(url) usa urllib
-        # sin timeout y puede colgar el thread (y con él, el loop de chequeo).
-        def _fetch():
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-            return feedparser.parse(resp.content)
 
-        feed = await asyncio.to_thread(_fetch)
+    # Se descarga con timeout explícito: feedparser.parse(url) usa urllib sin
+    # timeout y puede colgar el thread (y con él, el loop de chequeo).
+    def _fetch():
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        return feedparser.parse(resp.content)
+
+    return await asyncio.to_thread(_fetch)
+
+
+async def get_latest_video(youtube_channel_id: str) -> dict | None:
+    try:
+        feed = await _fetch_feed(youtube_channel_id)
         if not feed.entries:
             return None
         entry = feed.entries[0]
@@ -51,6 +56,34 @@ async def get_latest_video(youtube_channel_id: str) -> dict | None:
     except Exception:
         log.exception("Error obteniendo RSS para canal YouTube %s", youtube_channel_id)
         return None
+
+
+async def resolve_youtube_channel(youtube_channel_id: str) -> dict | None:
+    """Valida que el canal exista (el RSS responde) y devuelve su nombre y
+    último video, para dar de alta una suscripción nueva (dashboard web y
+    /settings). None significa que el RSS no resolvió -- canal inexistente o
+    error de red -- y el alta debe rechazarse.
+
+    A diferencia de get_latest_video, un canal real pero sin videos subidos
+    todavía NO es un error acá: se puede dar de alta igual (con nombre
+    genérico, que el caller decide) -- el chequeo periódico ya sabe esperar
+    sin video. get_latest_video sigue devolviendo None en ese caso porque ahí
+    "sin entradas" significa correctamente "nada nuevo que avisar".
+    """
+    try:
+        feed = await _fetch_feed(youtube_channel_id)
+    except Exception:
+        log.exception("Error resolviendo canal YouTube %s", youtube_channel_id)
+        return None
+    if not feed.entries:
+        log.info(
+            "Canal YouTube %s parece válido pero todavía no tiene videos",
+            youtube_channel_id,
+        )
+        return {"name": None, "latest_video_id": None}
+    entry = feed.entries[0]
+    video_id = getattr(entry, "yt_videoid", None) or entry.get("id", "").split(":")[-1]
+    return {"name": entry.get("author") or None, "latest_video_id": video_id or None}
 
 
 class YouTube(commands.Cog):

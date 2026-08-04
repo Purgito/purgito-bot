@@ -62,6 +62,7 @@ from config import (
 )
 from cogs.gifs import HEALTH_CHECK_BATCH, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
+from cogs.youtube import resolve_youtube_channel
 from db import (
     CHAT_TUNABLES,
     add_button_action,
@@ -74,6 +75,7 @@ from db import (
     add_scheduled_announcement,
     add_shared_embed,
     add_spontaneous_channel,
+    add_youtube_sub,
     count_corpus_by_channel,
     count_gif_urls,
     count_guild_corpus_messages,
@@ -99,20 +101,24 @@ from db import (
     list_premium_guilds,
     list_reaction_pool,
     list_spontaneous_channels,
+    list_youtube_subs,
     normalize_embeds_json,
     remove_corpus_channel,
     remove_exempt_role,
     remove_mention_channel,
     remove_reaction_from_pool,
     remove_spontaneous_channel,
+    remove_youtube_sub_by_id,
     save_gif_url,
     set_bot_style,
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
     set_updates_channel,
+    set_youtube_mention_role_by_id,
     share_links_daily_limit,
     update_embed_template,
+    update_last_video_id,
 )
 from layout_v2 import (
     assign_button_custom_ids,
@@ -170,7 +176,9 @@ async def _cors_middleware(request: web.Request, handler) -> web.StreamResponse:
         resp.headers["Access-Control-Allow-Credentials"] = "true"
     elif request.method in ("GET", "OPTIONS") and request.path in _PUBLIC_GETS:
         resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    resp.headers["Access-Control-Allow-Methods"] = (
+        "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    )
     resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return resp
 
@@ -959,6 +967,92 @@ async def _api_server_gifs_verify(request: web.Request, guild_id: int) -> web.Re
     return web.json_response(
         {"started": True, "total": total, "checking": min(total, HEALTH_CHECK_BATCH)}
     )
+
+
+# ---------------- API: YouTube (suscripciones, tab del dashboard) ----------------
+
+# Paridad con la categoría YouTube de /settings (cogs/settings.py ->
+# YouTubeCategory): agregar, quitar, mención por rol y el aviso de
+# last_error del fix de cogs/youtube.py._check_one.
+
+
+def _youtube_sub_json(guild, s: dict) -> dict:
+    return {
+        "id": s["id"],
+        "youtube_channel_id": s["youtube_channel_id"],
+        "youtube_channel_name": s["youtube_channel_name"],
+        "discord_channel_id": str(s["discord_channel_id"]),
+        "discord_channel_name": _channel_name(guild, s["discord_channel_id"]),
+        "mention_role_id": str(s["mention_role_id"]) if s["mention_role_id"] else None,
+        "last_error": s["last_error"],
+    }
+
+
+@guild_api
+async def _api_youtube_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    subs = await list_youtube_subs(guild_id)
+    return web.json_response(
+        {"subscriptions": [_youtube_sub_json(guild, s) for s in subs]}
+    )
+
+
+@guild_api
+async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_post, ip, 5):
+        return web.json_response({"error": "rate limit"}, status=429)
+    data = await _json_body(request)
+    channel_id = (data.get("channel_id") or "").strip() if data else ""
+    discord_channel_id = _to_int(data.get("discord_channel_id")) if data else None
+    if not channel_id or discord_channel_id is None:
+        return web.json_response(
+            {"error": "channel_id y discord_channel_id son obligatorios"}, status=400
+        )
+    resolved = await resolve_youtube_channel(channel_id)
+    if resolved is None:
+        return web.json_response(
+            {"error": "No se pudo obtener información del canal. Verifica el ID."},
+            status=400,
+        )
+    channel_name = resolved["name"] or channel_id
+    added = await add_youtube_sub(
+        guild_id, discord_channel_id, channel_id, channel_name, discord_channel_id
+    )
+    if added and resolved["latest_video_id"]:
+        await update_last_video_id(guild_id, channel_id, resolved["latest_video_id"])
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_youtube_delete(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_delete, ip, 3):
+        return web.json_response({"error": "rate limit"}, status=429)
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    removed = await remove_youtube_sub_by_id(guild_id, sub_id)
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_youtube_patch(request: web.Request, guild_id: int) -> web.Response:
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None or "mention_role_id" not in data:
+        return web.json_response(
+            {"error": "mention_role_id es obligatorio"}, status=400
+        )
+    role_id = None
+    if data["mention_role_id"] is not None:
+        role_id = _to_int(data["mention_role_id"])
+        if role_id is None:
+            return web.json_response({"error": "mention_role_id inválido"}, status=400)
+    updated = await set_youtube_mention_role_by_id(guild_id, sub_id, role_id)
+    return web.json_response({"updated": updated})
 
 
 # ---------------- API: embeds (editor del panel) ----------------
@@ -1976,6 +2070,10 @@ async def start_web_server(bot: commands.Bot) -> None:
             f"{base}/settings/gifs/{{gif_id}}", _api_server_gifs_delete
         )
         app.router.add_post(f"{base}/settings/gifs/verify", _api_server_gifs_verify)
+        app.router.add_get(f"{base}/youtube", _api_youtube_get)
+        app.router.add_post(f"{base}/youtube", _api_youtube_post)
+        app.router.add_delete(f"{base}/youtube/{{sub_id}}", _api_youtube_delete)
+        app.router.add_patch(f"{base}/youtube/{{sub_id}}", _api_youtube_patch)
         app.router.add_post(f"{base}/embeds/send", _api_embeds_send)
         app.router.add_post(f"{base}/embeds/share", _api_embeds_share)
         app.router.add_post(f"{base}/embeds/schedule", _api_embeds_schedule)

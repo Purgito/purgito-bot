@@ -1,7 +1,8 @@
 // Dashboard por servidor (/es/dashboard/:id): header con datos del guild, tabs
-// INICIO/CHAT/GIFS/MEMES/EMBEDS/PREMIUM y el contenido de INICIO y CHAT, que
-// guardan solo al click (sin botón de guardar) y confirman con un toast. GIFS,
-// EMBEDS y PREMIUM reutilizan los loaders del panel sin tocarles la lógica.
+// INICIO/CHAT/GIFS/MEMES/EMBEDS/PREMIUM/YOUTUBE y el contenido de INICIO y
+// CHAT, que guardan solo al click (sin botón de guardar) y confirman con un
+// toast. GIFS, EMBEDS y PREMIUM reutilizan los loaders del panel sin tocarles
+// la lógica; YOUTUBE es paridad nueva de la categoría YouTube de /settings.
 //
 // El navbar y el footer NO se arman acá: vienen en el HTML de la página, que
 // build_docs.py recorta de index.html. script.js es quien resuelve la sesión
@@ -15,6 +16,7 @@ import { GUILD_ID, currentLocale } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
 import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
+import { loadYoutube } from '/js/tabs/youtube.js';
 import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
 } from '/js/embeds/shared-ui.js';
@@ -26,6 +28,7 @@ const TABS = [
   { key: 'memes', label: 'MEMES', load: loadMemes },
   { key: 'embeds', label: 'EMBEDS', load: loadEmbeds },
   { key: 'premium', label: 'PREMIUM', load: loadPremium },
+  { key: 'youtube', label: 'YOUTUBE', load: loadYoutube },
 ];
 
 // Listener de hashchange de las sub-pestañas del tab CHAT (declarado acá, no

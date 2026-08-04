@@ -1291,6 +1291,37 @@ async def set_youtube_mention_role(
     return updated
 
 
+async def remove_youtube_sub_by_id(guild_id: int, sub_id: int) -> bool:
+    """Igual que remove_youtube_sub pero por id interno en vez de
+    youtube_channel_id -- lo usa el dashboard web, que referencia filas por
+    id (mismo patrón que delete_gif_url_by_id/delete_frase_especial)."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM youtube_subscriptions WHERE guild_id=? AND id=?",
+            (guild_id, sub_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def set_youtube_mention_role_by_id(
+    guild_id: int, sub_id: int, role_id: int | None
+) -> bool:
+    """Igual que set_youtube_mention_role pero por id interno -- ver
+    remove_youtube_sub_by_id."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE youtube_subscriptions SET mention_role_id=? WHERE guild_id=? AND id=?",
+            (role_id, guild_id, sub_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
 async def save_user_message(
     guild_id: int,
     author_id: int,
