@@ -10,5 +10,5 @@ Pillow==12.3.0
 imagehash==4.3.2
 groq==1.5.0
 aiohttp-session[secure]==2.12.1
-polar-sdk==0.31.7
+polar-sdk==0.32.0
 markdown==3.10.2
