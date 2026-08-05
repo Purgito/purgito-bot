@@ -1,0 +1,198 @@
+"""audit_log es la única tabla que dice quién tocó qué desde el dashboard,
+salvo frases_especiales (que ya guardaba user_id/user_name antes de esto).
+Mismo patrón de test que test_youtube_webapi.py: handlers llamados directo,
+DB en memoria real (no mocks de db.py), get_session/check_guild_access/
+_bot_guild parcheados para que guild_api deje pasar.
+"""
+
+import asyncio
+import json
+from types import SimpleNamespace
+
+import aiosqlite
+import pytest
+
+import db
+import webapi
+
+_GUILD = 123
+_USER_ID = "999888777"
+_USERNAME = "Frambuesa"
+
+
+class FakeRequest:
+    def __init__(self, guild_id=_GUILD, body=None, match_info=None, query=None):
+        self._body = body
+        self.match_info = {"guild_id": str(guild_id), **(match_info or {})}
+        self.query = query or {}
+        self.headers = {"X-Forwarded-For": "1.2.3.4"}
+        self.remote = "1.2.3.4"
+
+    async def json(self):
+        if self._body is None:
+            raise ValueError("sin body")
+        return self._body
+
+
+@pytest.fixture
+def memory_db(monkeypatch):
+    conn = asyncio.run(_open_memory_db())
+    monkeypatch.setattr(db, "_db", conn)
+    yield conn
+    asyncio.run(conn.close())
+
+
+async def _open_memory_db() -> aiosqlite.Connection:
+    conn = await aiosqlite.connect(":memory:")
+    await conn.executescript(db.SCHEMA)
+    await conn.commit()
+    return conn
+
+
+@pytest.fixture(autouse=True)
+def allow_guild_access(monkeypatch):
+    async def fake_get_session(request):
+        return {"user_id": _USER_ID, "username": _USERNAME}
+
+    async def fake_check_guild_access(request, guild_id):
+        return None
+
+    monkeypatch.setattr(webapi, "get_session", fake_get_session)
+    monkeypatch.setattr(webapi, "check_guild_access", fake_check_guild_access)
+    monkeypatch.setattr(
+        webapi,
+        "_bot_guild",
+        lambda request, guild_id: SimpleNamespace(get_channel=lambda cid: None),
+    )
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limit_stores(monkeypatch):
+    monkeypatch.setattr(webapi, "_rate_post", webapi.LRUDict(64))
+    monkeypatch.setattr(webapi, "_rate_delete", webapi.LRUDict(64))
+
+
+def _run(handler, request):
+    return asyncio.run(handler(request))
+
+
+def _json(resp):
+    return json.loads(resp.body)
+
+
+# ── db.log_audit / db.list_audit_log ─────────────────────────────────────────
+
+
+def test_log_audit_escribe_una_fila(memory_db):
+    asyncio.run(
+        db.log_audit(_GUILD, 42, "Alguien", "chat.settings_update", "enabled=True")
+    )
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert len(entries) == 1
+    assert entries[0]["user_id"] == 42
+    assert entries[0]["user_name"] == "Alguien"
+    assert entries[0]["action"] == "chat.settings_update"
+    assert entries[0]["detail"] == "enabled=True"
+
+
+def test_list_audit_log_esta_scopeado_al_guild_y_ordena_mas_reciente_primero(memory_db):
+    asyncio.run(db.log_audit(_GUILD, 1, "A", "corpus.add", "channel_id=1"))
+    asyncio.run(db.log_audit(999, 1, "A", "corpus.add", "channel_id=2"))  # otro guild
+    asyncio.run(db.log_audit(_GUILD, 1, "A", "corpus.remove", "channel_id=1"))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert [e["action"] for e in entries] == ["corpus.remove", "corpus.add"]
+
+
+def test_list_audit_log_respeta_limit_y_offset(memory_db):
+    for i in range(5):
+        asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", f"url-{i}"))
+
+    page = asyncio.run(db.list_audit_log(_GUILD, limit=2, offset=1))
+    assert len(page) == 2
+    # El más nuevo es url-4 (id más alto); offset=1 lo salta.
+    assert page[0]["detail"] == "url-3"
+    assert page[1]["detail"] == "url-2"
+
+
+# ── Endpoints de mutación de verdad loguean con el user_id de la sesión ──────
+
+
+def test_corpus_post_loguea_con_el_user_id_de_la_sesion(memory_db):
+    req = FakeRequest(body={"channel_id": "555"})
+
+    resp = _run(webapi._api_corpus_post, req)
+
+    assert _json(resp)["added"] is True
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert len(entries) == 1
+    assert entries[0]["user_id"] == int(_USER_ID)
+    assert entries[0]["user_name"] == _USERNAME
+    assert entries[0]["action"] == "corpus.add"
+    assert "555" in entries[0]["detail"]
+
+
+def test_corpus_post_no_loguea_si_el_canal_ya_estaba(memory_db):
+    req = FakeRequest(body={"channel_id": "555"})
+    _run(webapi._api_corpus_post, req)
+
+    resp = _run(webapi._api_corpus_post, FakeRequest(body={"channel_id": "555"}))
+
+    assert _json(resp)["added"] is False
+    # Una sola entrada -- la del alta real, no un segundo intento sin efecto.
+    assert len(asyncio.run(db.list_audit_log(_GUILD))) == 1
+
+
+def test_exempt_roles_delete_loguea_al_borrar(memory_db):
+    asyncio.run(db.add_exempt_role(_GUILD, 777))
+
+    resp = _run(
+        webapi._api_exempt_roles_delete, FakeRequest(match_info={"role_id": "777"})
+    )
+
+    assert _json(resp)["removed"] is True
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert len(entries) == 1
+    assert entries[0]["action"] == "exempt_roles.remove"
+    assert entries[0]["user_id"] == int(_USER_ID)
+
+
+def test_embed_template_create_loguea_con_el_nombre(memory_db):
+    req = FakeRequest(body={"name": "Bienvenida", "embeds": [{"title": "Hola"}]})
+
+    resp = _run(webapi._api_embed_templates_post, req)
+
+    assert resp.status == 200
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert len(entries) == 1
+    assert entries[0]["action"] == "embed_template.create"
+    assert entries[0]["detail"] == "Bienvenida"
+
+
+# ── Endpoint de lectura ───────────────────────────────────────────────────────
+
+
+def test_get_audit_log_devuelve_las_entradas_del_guild(memory_db):
+    asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", "url-1"))
+    asyncio.run(db.log_audit(999, 1, "A", "gifs.add", "url-otro-guild"))
+
+    resp = _run(webapi._api_audit_log_get, FakeRequest())
+
+    assert resp.status == 200
+    entries = _json(resp)["entries"]
+    assert len(entries) == 1
+    assert entries[0]["detail"] == "url-1"
+
+
+def test_get_audit_log_pagina_con_limit_y_offset(memory_db):
+    for i in range(3):
+        asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", f"url-{i}"))
+
+    resp = _run(
+        webapi._api_audit_log_get, FakeRequest(query={"limit": "1", "offset": "1"})
+    )
+
+    entries = _json(resp)["entries"]
+    assert len(entries) == 1
+    assert entries[0]["detail"] == "url-1"

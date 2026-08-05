@@ -94,6 +94,7 @@ from db import (
     get_gif_by_url,
     get_shared_embed,
     get_updates_channel,
+    list_audit_log,
     list_blocked_gifs,
     list_corpus_channels,
     list_embed_templates,
@@ -106,6 +107,7 @@ from db import (
     list_reaction_pool,
     list_spontaneous_channels,
     list_youtube_subs,
+    log_audit,
     normalize_embeds_json,
     remove_corpus_channel,
     remove_exempt_role,
@@ -323,6 +325,22 @@ def _bot_guild(request: web.Request, guild_id: int):
     return request.app["bot"].get_guild(guild_id)
 
 
+async def _log_audit(
+    request: web.Request, guild_id: int, action: str, detail: str | None = None
+) -> None:
+    """Registra quién hizo un cambio de config desde el dashboard. Se llama al
+    final de cada handler de mutación bajo @guild_api, después de que la
+    escritura ya se confirmó -- guild_api garantiza que la sesión existe."""
+    session = await get_session(request)
+    await log_audit(
+        guild_id,
+        int(session["user_id"]),
+        str(session.get("username") or "panel"),
+        action,
+        detail,
+    )
+
+
 async def _api_health(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
@@ -437,6 +455,7 @@ async def _gif_add_impl(request: web.Request, guild_id: int) -> web.Response:
     total = await count_gif_urls(guild_id)
     resp = {"inserted": inserted, "total": total}
     if inserted:
+        await _log_audit(request, guild_id, "gifs.add", detail=url)
         gif = await get_gif_by_url(guild_id, url)
         if gif:
             resp["gif"] = gif
@@ -455,6 +474,8 @@ async def _gif_delete_impl(
     if gif_id is None:
         return web.json_response({"error": "id inválido"}, status=400)
     deleted = await delete_gif_url_by_id(guild_id, gif_id)
+    if deleted:
+        await _log_audit(request, guild_id, "gifs.remove", detail=f"gif_id={gif_id}")
     return web.json_response({"deleted": deleted})
 
 
@@ -471,6 +492,7 @@ async def _gif_block_impl(
     if gif is None:
         return web.json_response({"error": "no encontrado"}, status=404)
     await block_gif(guild_id, gif["content_hash"], gif["url"])
+    await _log_audit(request, guild_id, "gifs.block", detail=gif["url"])
     return web.json_response({"blocked": True})
 
 
@@ -612,6 +634,9 @@ async def _api_chat_tunables_put(request: web.Request, guild_id: int) -> web.Res
         return web.json_response(
             {"error": "ningún valor válido para guardar"}, status=400
         )
+    await _log_audit(
+        request, guild_id, "chat.tunables_update", detail=json.dumps(saved)
+    )
     # Devuelve lo guardado ya recortado al rango: si el usuario mandó 5000
     # mensajes, el input se corrige solo en vez de mentir.
     return web.json_response({"ok": True, "saved": saved})
@@ -626,6 +651,12 @@ async def _api_chat_put(request: web.Request, guild_id: int) -> web.Response:
         # Dashboard nuevo: el toggle solo prende/apaga la respuesta a menciones,
         # sin pisar el chat_channel_id legacy que administra el panel viejo.
         await set_chat_enabled(guild_id, data["enabled"])
+        await _log_audit(
+            request,
+            guild_id,
+            "chat.settings_update",
+            detail=f"enabled={data['enabled']}",
+        )
         return web.json_response({"ok": True})
     channel_id = None
     if data.get("channel_id") is not None:
@@ -633,6 +664,12 @@ async def _api_chat_put(request: web.Request, guild_id: int) -> web.Response:
         if channel_id is None:
             return web.json_response({"error": "channel_id inválido"}, status=400)
     await set_chat_mode(guild_id, data["enabled"], channel_id)
+    await _log_audit(
+        request,
+        guild_id,
+        "chat.settings_update",
+        detail=f"enabled={data['enabled']} channel_id={channel_id}",
+    )
     return web.json_response({"ok": True})
 
 
@@ -669,6 +706,10 @@ async def _api_corpus_post(request: web.Request, guild_id: int) -> web.Response:
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
     added = await add_corpus_channel(guild_id, channel_id)
+    if added:
+        await _log_audit(
+            request, guild_id, "corpus.add", detail=f"channel_id={channel_id}"
+        )
     return web.json_response({"added": added})
 
 
@@ -678,6 +719,10 @@ async def _api_corpus_delete(request: web.Request, guild_id: int) -> web.Respons
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
     removed = await remove_corpus_channel(guild_id, channel_id)
+    if removed:
+        await _log_audit(
+            request, guild_id, "corpus.remove", detail=f"channel_id={channel_id}"
+        )
     return web.json_response({"removed": removed})
 
 
@@ -701,6 +746,10 @@ async def _api_exempt_roles_post(request: web.Request, guild_id: int) -> web.Res
     if role_id is None:
         return web.json_response({"error": "role_id inválido"}, status=400)
     added = await add_exempt_role(guild_id, role_id)
+    if added:
+        await _log_audit(
+            request, guild_id, "exempt_roles.add", detail=f"role_id={role_id}"
+        )
     return web.json_response({"added": added})
 
 
@@ -710,6 +759,10 @@ async def _api_exempt_roles_delete(request: web.Request, guild_id: int) -> web.R
     if role_id is None:
         return web.json_response({"error": "role_id inválido"}, status=400)
     removed = await remove_exempt_role(guild_id, role_id)
+    if removed:
+        await _log_audit(
+            request, guild_id, "exempt_roles.remove", detail=f"role_id={role_id}"
+        )
     return web.json_response({"removed": removed})
 
 
@@ -742,6 +795,13 @@ async def _api_spontaneous_channels_post(
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
     added = await add_spontaneous_channel(guild_id, channel_id)
+    if added:
+        await _log_audit(
+            request,
+            guild_id,
+            "spontaneous_channels.add",
+            detail=f"channel_id={channel_id}",
+        )
     return web.json_response({"added": added})
 
 
@@ -753,6 +813,13 @@ async def _api_spontaneous_channels_delete(
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
     removed = await remove_spontaneous_channel(guild_id, channel_id)
+    if removed:
+        await _log_audit(
+            request,
+            guild_id,
+            "spontaneous_channels.remove",
+            detail=f"channel_id={channel_id}",
+        )
     return web.json_response({"removed": removed})
 
 
@@ -777,6 +844,10 @@ async def _api_mention_channels_post(
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
     added = await add_mention_channel(guild_id, channel_id)
+    if added:
+        await _log_audit(
+            request, guild_id, "mention_channels.add", detail=f"channel_id={channel_id}"
+        )
     return web.json_response({"added": added})
 
 
@@ -788,6 +859,13 @@ async def _api_mention_channels_delete(
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
     removed = await remove_mention_channel(guild_id, channel_id)
+    if removed:
+        await _log_audit(
+            request,
+            guild_id,
+            "mention_channels.remove",
+            detail=f"channel_id={channel_id}",
+        )
     return web.json_response({"removed": removed})
 
 
@@ -808,6 +886,9 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
         if channel_id is None:
             return web.json_response({"error": "channel_id inválido"}, status=400)
     await set_updates_channel(guild_id, channel_id)
+    await _log_audit(
+        request, guild_id, "updates_channel.set", detail=f"channel_id={channel_id}"
+    )
     return web.json_response({"ok": True})
 
 
@@ -847,6 +928,20 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
             "member_count": getattr(guild, "member_count", None),
         }
     )
+
+
+# ---------------- API: audit log ----------------
+
+
+@guild_api
+async def _api_audit_log_get(request: web.Request, guild_id: int) -> web.Response:
+    """Últimas mutaciones de config del guild, paginado simple por
+    limit/offset. Sin UI todavía -- lo consumirá el dashboard más adelante."""
+    limit = _to_int(request.query.get("limit")) or 50
+    limit = max(1, min(limit, 200))
+    offset = max(0, _to_int(request.query.get("offset")) or 0)
+    entries = await list_audit_log(guild_id, limit=limit, offset=offset)
+    return web.json_response({"entries": entries})
 
 
 _STYLE_MIME = {
@@ -963,6 +1058,12 @@ async def _api_style_put(request: web.Request, guild_id: int) -> web.Response:
             log.warning("PATCH members/@me falló en guild %s: %s", guild_id, e)
 
     await set_bot_style(guild_id, nick or None, avatar_url, banner_url)
+    await _log_audit(
+        request,
+        guild_id,
+        "style.update",
+        detail=f"nick={nick or None!r} avatar={'avatar_url' in data} banner={'banner_url' in data}",
+    )
     return web.json_response({"ok": True, "warning": warning})
 
 
@@ -982,6 +1083,8 @@ async def _api_reacciones_post(request: web.Request, guild_id: int) -> web.Respo
     if not emoji:
         return web.json_response({"error": "emoji vacío"}, status=400)
     added = await add_reaction_to_pool(guild_id, emoji)
+    if added:
+        await _log_audit(request, guild_id, "reactions.add", detail=emoji)
     return web.json_response({"added": added})
 
 
@@ -991,6 +1094,10 @@ async def _api_reacciones_delete(request: web.Request, guild_id: int) -> web.Res
     if reaction_id is None:
         return web.json_response({"error": "reaction_id inválido"}, status=400)
     removed = await remove_reaction_from_pool(guild_id, reaction_id)
+    if removed:
+        await _log_audit(
+            request, guild_id, "reactions.remove", detail=f"reaction_id={reaction_id}"
+        )
     return web.json_response({"removed": removed})
 
 
@@ -1020,6 +1127,8 @@ async def _api_frases_post(request: web.Request, guild_id: int) -> web.Response:
     added = await add_frase_especial(
         guild_id, int(session["user_id"]), str(session.get("username", "panel")), frase
     )
+    if added:
+        await _log_audit(request, guild_id, "frases.add", detail=frase)
     return web.json_response({"added": added})
 
 
@@ -1029,6 +1138,10 @@ async def _api_frases_delete(request: web.Request, guild_id: int) -> web.Respons
     if frase_id is None:
         return web.json_response({"error": "frase_id inválido"}, status=400)
     deleted = await delete_frase_especial(guild_id, frase_id)
+    if deleted:
+        await _log_audit(
+            request, guild_id, "frases.remove", detail=f"frase_id={frase_id}"
+        )
     return web.json_response({"deleted": deleted})
 
 
@@ -1077,6 +1190,8 @@ async def _api_server_gifs_unblock(request: web.Request, guild_id: int) -> web.R
     if not key:
         return web.json_response({"error": "key inválida"}, status=400)
     deleted = await unblock_gif(guild_id, key) or await unblock_gif(guild_id, None, key)
+    if deleted:
+        await _log_audit(request, guild_id, "gifs.unblock", detail=key)
     return web.json_response({"unblocked": deleted})
 
 
@@ -1145,8 +1260,12 @@ async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response
     added = await add_youtube_sub(
         guild_id, discord_channel_id, channel_id, channel_name, discord_channel_id
     )
-    if added and resolved["latest_video_id"]:
-        await update_last_video_id(guild_id, channel_id, resolved["latest_video_id"])
+    if added:
+        if resolved["latest_video_id"]:
+            await update_last_video_id(
+                guild_id, channel_id, resolved["latest_video_id"]
+            )
+        await _log_audit(request, guild_id, "youtube.add", detail=channel_name)
     return web.json_response({"added": added})
 
 
@@ -1159,6 +1278,8 @@ async def _api_youtube_delete(request: web.Request, guild_id: int) -> web.Respon
     if sub_id is None:
         return web.json_response({"error": "id inválido"}, status=400)
     removed = await remove_youtube_sub_by_id(guild_id, sub_id)
+    if removed:
+        await _log_audit(request, guild_id, "youtube.remove", detail=f"sub_id={sub_id}")
     return web.json_response({"removed": removed})
 
 
@@ -1178,6 +1299,13 @@ async def _api_youtube_patch(request: web.Request, guild_id: int) -> web.Respons
         if role_id is None:
             return web.json_response({"error": "mention_role_id inválido"}, status=400)
     updated = await set_youtube_mention_role_by_id(guild_id, sub_id, role_id)
+    if updated:
+        await _log_audit(
+            request,
+            guild_id,
+            "youtube.update_mention_role",
+            detail=f"sub_id={sub_id} role_id={role_id}",
+        )
     return web.json_response({"updated": updated})
 
 
@@ -1455,6 +1583,9 @@ async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
         return web.json_response(
             {"error": f"Discord rechazó el contenido: {e.text or e}"}, status=400
         )
+    await _log_audit(
+        request, guild_id, "embeds.send", detail=f"channel_id={channel.id}"
+    )
     return web.json_response({"sent": True})
 
 
@@ -1530,6 +1661,12 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
             },
             status=409,
         )
+    await _log_audit(
+        request,
+        guild_id,
+        "embeds.schedule",
+        detail=f"channel_id={channel.id} mode={mode}",
+    )
     return web.json_response({"id": new_id})
 
 
@@ -1650,6 +1787,7 @@ async def _api_embed_templates_post(
             },
             status=409,
         )
+    await _log_audit(request, guild_id, "embed_template.create", detail=name)
     return web.json_response({"id": new_id})
 
 
@@ -1667,6 +1805,7 @@ async def _api_embed_template_put(request: web.Request, guild_id: int) -> web.Re
     )
     if not updated:
         return web.json_response({"error": "plantilla no encontrada"}, status=404)
+    await _log_audit(request, guild_id, "embed_template.update", detail=name)
     return web.json_response({"updated": True})
 
 
@@ -1678,6 +1817,13 @@ async def _api_embed_template_delete(
     if template_id is None:
         return web.json_response({"error": "template_id inválido"}, status=400)
     deleted = await delete_embed_template(template_id, guild_id)
+    if deleted:
+        await _log_audit(
+            request,
+            guild_id,
+            "embed_template.delete",
+            detail=f"template_id={template_id}",
+        )
     return web.json_response({"deleted": deleted})
 
 
@@ -2228,6 +2374,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         )
         app.router.add_get(f"{base}/premium", _api_premium_get)
         app.router.add_post(f"{base}/premium/checkout", _api_premium_checkout)
+        app.router.add_get("/api/guilds/{guild_id}/audit", _api_audit_log_get)
         log.info("OAuth2 + API del dashboard habilitados")
     else:
         log.info("Auth deshabilitada: solo /health y el webhook de Polar")

@@ -366,6 +366,21 @@ CREATE TABLE IF NOT EXISTS lifecycle_state (
     clean_shutdown INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
+
+-- Quién hizo qué cambio de config desde el dashboard. A diferencia de
+-- frases_especiales (la única tabla que ya guardaba user_id/user_name antes
+-- de esto), el resto de las tablas de config no dice quién tocó qué -- esta
+-- tabla es el registro aparte, no una columna más en cada una.
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    user_name TEXT NOT NULL,
+    action TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_guild ON audit_log(guild_id, id DESC);
 """
 
 
@@ -2586,6 +2601,44 @@ async def delete_frase_especial(guild_id: int, frase_id: int) -> bool:
     return deleted
 
 
+async def log_audit(
+    guild_id: int,
+    user_id: int,
+    user_name: str,
+    action: str,
+    detail: str | None = None,
+) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO audit_log (guild_id, user_id, user_name, action, detail) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, user_id, user_name, action, detail),
+        )
+        await db.commit()
+
+
+async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, user_id, user_name, action, detail, created_at "
+        "FROM audit_log WHERE guild_id=? ORDER BY id DESC LIMIT ? OFFSET ?",
+        (guild_id, limit, offset),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "user_id": r[1],
+            "user_name": r[2],
+            "action": r[3],
+            "detail": r[4],
+            "created_at": r[5],
+        }
+        for r in rows
+    ]
+
+
 _CUSTOM_EMOJI_RE = re.compile(r"^<a?:\w+:\d+>$")
 
 
@@ -2839,6 +2892,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "corpus_allowed_channels",
         "mention_rate_limit_exempt_roles",
         "applied_migrations",
+        "audit_log",
     ]
     async with _db_lock:
         for table in tables:
