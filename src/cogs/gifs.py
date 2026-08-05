@@ -46,8 +46,10 @@ def _is_gif_site(host: str) -> bool:
     )
 
 
-async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
-    """Guarda en la colección los GIFs (tenor/giphy/cdn) del contenido y adjuntos de un mensaje."""
+async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
+    """Guarda en la colección los GIFs (tenor/giphy/cdn) del contenido y adjuntos de un mensaje.
+    Retorna cuántos GIFs nuevos (no duplicados) se guardaron."""
+    saved = 0
     if message.content:
         for m in GIF_RE.finditer(message.content):
             try:
@@ -58,13 +60,19 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
                 content_hash, size_bytes, phash = None, 0, None
                 if host == "cdn.discordapp.com":
                     up = await asyncio.to_thread(r2.upload_gif_sync, url)
-                    if up and up.url == r2.GIF_TOO_LARGE:
+                    if not up or up.url == r2.GIF_TOO_LARGE:
+                        # Sin subida a R2 no hay URL estable que guardar: el
+                        # link crudo de cdn.discordapp.com está firmado y
+                        # expira, así que quedaría roto en el corpus.
                         continue
-                    if up:
-                        url, content_hash, size_bytes, phash = up
+                    url, content_hash, size_bytes, phash = up
                 elif not _is_gif_site(host):
                     continue
-                await save_gif_url(guild_id, url, content_hash, size_bytes, phash)
+                inserted, _ = await save_gif_url(
+                    guild_id, url, content_hash, size_bytes, phash
+                )
+                if inserted:
+                    saved += 1
             except Exception:
                 log.exception("Error guardando GIF de mensaje: %s", m.group(0))
 
@@ -78,13 +86,17 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> None:
                 content_hash, size_bytes, phash = None, 0, None
                 if "cdn.discordapp.com" in url:
                     up = await asyncio.to_thread(r2.upload_gif_sync, url)
-                    if up and up.url == r2.GIF_TOO_LARGE:
+                    if not up or up.url == r2.GIF_TOO_LARGE:
                         continue
-                    if up:
-                        url, content_hash, size_bytes, phash = up
-                await save_gif_url(guild_id, url, content_hash, size_bytes, phash)
+                    url, content_hash, size_bytes, phash = up
+                inserted, _ = await save_gif_url(
+                    guild_id, url, content_hash, size_bytes, phash
+                )
+                if inserted:
+                    saved += 1
             except Exception:
                 log.exception("Error guardando GIF adjunto: %s", attachment.url)
+    return saved
 
 
 async def resolve_media_url(url: str) -> str | None:

@@ -22,6 +22,9 @@ function classifyGif(gif) {
     const id = parts[parts.length - 1].split('-').pop();
     return { type: 'iframe', src: `https://tenor.com/embed/${id}` };
   }
+  // GIFs propios en R2 (u otro host servido directo): sin query string
+  // firmado, así que el sufijo .gif ya identifica el archivo servible.
+  if (u.toLowerCase().endsWith('.gif')) return { type: 'img', src: u };
   return { type: 'link', src: null };
 }
 

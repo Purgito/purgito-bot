@@ -524,12 +524,14 @@ class Chat(commands.Cog):
         if not await is_corpus_allowed(guild_id, channel.id):
             return {
                 "saved": 0,
+                "gifs_saved": 0,
                 "backfill_complete": False,
                 "was_incremental": False,
                 "forbidden": False,
             }
         status = await get_channel_refeed_status(guild_id, channel.id)
         saved = 0
+        gifs_saved = 0
         discarded = 0
         duplicate = 0
         fetched = 0
@@ -549,7 +551,7 @@ class Chat(commands.Cog):
                             newest = msg.id
                         if msg.author.bot:
                             continue
-                        await save_gif_candidates(guild_id, msg)
+                        gifs_saved += await save_gif_candidates(guild_id, msg)
                         result = await self._save_message_to_corpus(guild_id, msg)
                         if result == "saved":
                             saved += 1
@@ -589,15 +591,17 @@ class Chat(commands.Cog):
                 guild_id, channel.id, newest_message_id=newest
             )
             log.info(
-                "_refeed_channel: %s (incremental) fetched=%d saved=%d discarded=%d duplicate=%d",
+                "_refeed_channel: %s (incremental) fetched=%d saved=%d gifs_saved=%d discarded=%d duplicate=%d",
                 channel.id,
                 fetched,
                 saved,
+                gifs_saved,
                 discarded,
                 duplicate,
             )
             return {
                 "saved": saved,
+                "gifs_saved": gifs_saved,
                 "backfill_complete": True,
                 "was_incremental": True,
                 "forbidden": forbidden,
@@ -637,7 +641,7 @@ class Chat(commands.Cog):
             for msg in batch:
                 if msg.author.bot:
                     continue
-                await save_gif_candidates(guild_id, msg)
+                gifs_saved += await save_gif_candidates(guild_id, msg)
                 result = await self._save_message_to_corpus(guild_id, msg)
                 if result == "saved":
                     saved += 1
@@ -649,10 +653,11 @@ class Chat(commands.Cog):
             oldest = batch[-1].id
 
         log.info(
-            "_refeed_channel: %s (backfill) fetched=%d saved=%d discarded=%d duplicate=%d complete=%s",
+            "_refeed_channel: %s (backfill) fetched=%d saved=%d gifs_saved=%d discarded=%d duplicate=%d complete=%s",
             channel.id,
             fetched,
             saved,
+            gifs_saved,
             discarded,
             duplicate,
             complete,
@@ -666,6 +671,7 @@ class Chat(commands.Cog):
         )
         return {
             "saved": saved,
+            "gifs_saved": gifs_saved,
             "backfill_complete": complete,
             "was_incremental": False,
             "forbidden": forbidden,
@@ -679,6 +685,7 @@ class Chat(commands.Cog):
         Retorna el dict totals para que el caller decida el mensaje de cierre."""
         totals = {
             "saved": 0,
+            "gifs_saved": 0,
             "completed": 0,
             "incremental": 0,
             "partial": 0,
@@ -744,6 +751,7 @@ class Chat(commands.Cog):
                 continue
 
             totals["saved"] += res["saved"]
+            totals["gifs_saved"] += res["gifs_saved"]
             if res["forbidden"]:
                 totals["forbidden"] += 1
                 done_lines.append(
@@ -770,8 +778,13 @@ class Chat(commands.Cog):
 
         await update(None)
 
+        gifs_suffix = (
+            f" y {totals['gifs_saved']:,} GIF(s) nuevo(s)"
+            if totals["gifs_saved"]
+            else ""
+        )
         parts = [
-            f"🏁 Terminé de leer el historial. Total: {totals['saved']:,} mensajes nuevos guardados."
+            f"🏁 Terminé de leer el historial. Total: {totals['saved']:,} mensajes nuevos guardados{gifs_suffix}."
         ]
         if totals["completed"]:
             parts.append(
@@ -860,13 +873,16 @@ class Chat(commands.Cog):
                 "❌ Sin permisos para leer el historial de este canal."
             )
             return
+        gifs_suffix = (
+            f" y {res['gifs_saved']} GIF(s) nuevo(s)" if res["gifs_saved"] else ""
+        )
         if res["was_incremental"]:
-            result = f"⏭️ Este canal ya estaba al día: {res['saved']} mensajes nuevos guardados."
+            result = f"⏭️ Este canal ya estaba al día: {res['saved']} mensajes nuevos guardados{gifs_suffix}."
         elif res["backfill_complete"]:
-            result = f"✅ Historial completo leído: {res['saved']} mensajes guardados."
+            result = f"✅ Historial completo leído: {res['saved']} mensajes guardados{gifs_suffix}."
         else:
             result = (
-                f"✅ Guardados {res['saved']} mensajes (leyendo el historial por primera vez).\n"
+                f"✅ Guardados {res['saved']} mensajes{gifs_suffix} (leyendo el historial por primera vez).\n"
                 f"⚠️ Límite de {REFEED_MAX_MESSAGES:,} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó."
             )
         await interaction.followup.send(result)
