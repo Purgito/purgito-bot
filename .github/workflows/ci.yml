@@ -32,3 +32,18 @@ jobs:
       # asset anterior. Solo stdlib, no necesita instalar nada.
       - name: Check landing (docs + cache-busting)
         run: python landing/build_docs.py --check
+
+  secrets:
+    name: Escaneo de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth 0: gitleaks-action escanea el historial completo, no solo
+      # el último commit.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml

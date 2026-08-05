@@ -1,0 +1,17 @@
+title = "purgito-bot gitleaks config"
+
+# Reglas default de gitleaks + excepciones puntuales de este repo.
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Dumps externos de referencia (ver CLAUDE.md: referencias/ es gitignored y no
+es parte del proyecto). Quedan en el historial de git de antes de que se
+ignoraran (commit 52f6f44); no contienen secretos reales, solo snowflakes de
+Discord (guild/channel IDs) que la regla discord-client-id confunde con IDs
+de cliente OAuth.
+"""
+paths = [
+  '''^referencias/''',
+]
