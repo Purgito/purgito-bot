@@ -214,10 +214,34 @@ def parse(md):
 
 # ── página ───────────────────────────────────────────────────────────────────
 
-SHELL = """<!DOCTYPE html>
+# Cubre lo que el sitio realmente carga: fonts.googleapis.com/gstatic.com
+# (@import de fuentes en style.css), tenor.com (iframe de preview de GIFs en
+# la tab de gifs del dashboard), img-src ancho porque las imágenes salen de
+# hosts variables según guild (avatares e emojis de Discord, GIFs de Giphy,
+# el bucket R2 configurado por env var). El hash cubre el único inline
+# handler que hay en todo el sitio (onerror="this.remove()" en los <img> del
+# navbar/botones de invitar) sin abrir 'unsafe-inline'. meta http-equiv NO
+# soporta frame-ancestors/sandbox/report-uri -- frame-ancestors va por la
+# cabecera real que pone nginx (ver DEPLOY.md).
+LANDING_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c='; "
+    "style-src 'self' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' https: data:; "
+    "frame-src https://tenor.com; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'"
+)
+
+SHELL = (
+    """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="%s">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} — Purgito</title>
 <meta name="description" content="{meta}">
@@ -241,6 +265,8 @@ SHELL = """<!DOCTYPE html>
 {scripts}</body>
 </html>
 """
+    % LANDING_CSP
+)
 
 # Páginas del dashboard: el CSS propio va después de style.css (lo extiende, no
 # lo reemplaza) y el módulo de entrada después de script.js, que es quien pinta
