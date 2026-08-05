@@ -164,6 +164,22 @@ def _client_ip(request: web.Request) -> str:
 
 
 @web.middleware
+async def _security_headers_middleware(
+    request: web.Request, handler
+) -> web.StreamResponse:
+    """Cabeceras defensivas para toda respuesta: esto es una API JSON pura,
+    nunca debería terminar embebida en un frame ni interpretada como HTML."""
+    resp = await handler(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'none'; frame-ancestors 'none'"
+    )
+    return resp
+
+
+@web.middleware
 async def _cors_middleware(request: web.Request, handler) -> web.StreamResponse:
     origin = request.headers.get("Origin", "")
     if request.method == "OPTIONS":
@@ -2101,7 +2117,7 @@ async def start_web_server(bot: commands.Bot) -> None:
     global _runner
     if _runner is not None:
         return
-    app = web.Application(middlewares=[_cors_middleware])
+    app = web.Application(middlewares=[_security_headers_middleware, _cors_middleware])
     app["bot"] = bot
     # Sesión HTTP compartida para llamadas a la API de Discord, con timeout global.
     app["http"] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
