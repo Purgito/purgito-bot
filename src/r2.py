@@ -317,21 +317,6 @@ def upload_image_bytes_sync(
         return None
 
 
-def is_url_alive(url: str, timeout: float = 4.0) -> bool:
-    """HEAD rápido (con fallback a GET) para chequear un GIF antes de mandarlo a Discord."""
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; bot)"}
-        resp = requests.head(
-            url, headers=headers, timeout=timeout, allow_redirects=True
-        )
-        if resp.status_code == 405:
-            resp = requests.get(url, headers=headers, timeout=timeout, stream=True)
-            resp.close()
-        return resp.status_code == 200
-    except Exception:
-        return False
-
-
 _VALID_MEDIA_CONTENT_TYPES = ("image/", "video/")
 
 

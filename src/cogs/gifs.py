@@ -18,7 +18,6 @@ from db import (
     get_random_gif_candidates,
     get_unresolved_gifs,
     is_channel_ignored,
-    mark_gif_check,
     record_gif_health_check,
     save_gif_url,
     update_gif_media_url,
@@ -131,13 +130,20 @@ async def get_live_gif(
 ) -> str | None:
     """Elige un GIF random, valida que cargue, prueba otro si está muerto.
 
-    Después de max_fails deja de sugerirlo y suelta su referencia en R2.
+    Reusa el mismo chequeo tri-estado que el ciclo de salud diario
+    (r2.check_gif_url_health + db.record_gif_health_check): un timeout o
+    error de red puntual ("unreachable") no cuenta como confirmación de que
+    el link esté roto, recién se borra a los 2 "dead" confirmados seguidos
+    (404/410 o content-type inválido). Antes usaba is_url_alive, que
+    consideraba "muerto" cualquier fallo -- un solo bloqueo de rate-limit o
+    timeout del host ya sumaba, y a la 3ra vez borraba un GIF que en Discord
+    seguía funcionando perfecto.
     """
     for gif in await get_random_gif_candidates(guild_id, limit=attempts):
         url = gif["media_url"] or gif["url"]
-        alive = await asyncio.to_thread(r2.is_url_alive, url, timeout)
-        await mark_gif_check(gif["id"], alive=alive)
-        if alive:
+        status = await asyncio.to_thread(r2.check_gif_url_health, url, timeout)
+        await record_gif_health_check(gif["id"], status)
+        if status == "ok":
             return url
     return None
 

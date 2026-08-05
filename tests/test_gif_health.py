@@ -14,11 +14,11 @@ Usa una DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db.
 """
 
 import asyncio
-from types import SimpleNamespace
 
 import aiosqlite
 import pytest
 
+import cogs.gifs as gifs_mod
 import db
 import r2
 
@@ -223,5 +223,64 @@ def test_get_gifs_for_health_check_prioritizes_never_checked_and_oldest(memory_d
         # a y c (nunca chequeados) deben ir antes que b (ya chequeado).
         assert ids.index(b) > ids.index(a)
         assert ids.index(b) > ids.index(c)
+
+    asyncio.run(run())
+
+
+# ---------- cogs.gifs.get_live_gif ----------
+#
+# Antes usaba r2.is_url_alive: cualquier fallo (timeout, 403, rate-limit...)
+# contaba igual que un link confirmado muerto, y a la 3ra vez borraba GIFs
+# que en Discord seguían andando perfecto. Ahora reusa el mismo chequeo
+# tri-estado que el ciclo de salud diario: "unreachable" no cuenta como
+# confirmación de nada.
+
+
+def test_get_live_gif_single_unreachable_does_not_delete(memory_db, monkeypatch):
+    """Un timeout puntual en el único candidato no debe borrarlo -- debe
+    devolver None esta vez, no confirmar el link como muerto."""
+
+    async def run():
+        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "unreachable")
+
+        result = await gifs_mod.get_live_gif(_GUILD, attempts=1)
+        assert result is None
+
+        cur = await memory_db.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE id=?", (gid,)
+        )
+        assert (await cur.fetchone())[0] == 1  # sigue ahí
+
+    asyncio.run(run())
+
+
+def test_get_live_gif_returns_ok_candidate(memory_db, monkeypatch):
+    async def run():
+        await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "ok")
+
+        result = await gifs_mod.get_live_gif(_GUILD, attempts=1)
+        assert result == "https://example.com/a.gif"
+
+    asyncio.run(run())
+
+
+def test_get_live_gif_deletes_only_after_two_confirmed_dead(memory_db, monkeypatch):
+    async def run():
+        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "dead")
+
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+        cur = await memory_db.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE id=?", (gid,)
+        )
+        assert (await cur.fetchone())[0] == 1  # 1er "dead": todavía no se borra
+
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+        cur = await memory_db.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE id=?", (gid,)
+        )
+        assert (await cur.fetchone())[0] == 0  # 2do "dead" seguido: se borra
 
     asyncio.run(run())

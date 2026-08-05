@@ -346,48 +346,14 @@ def test_health_check_delete_releases_reference(memory_db, deleted_keys):
     asyncio.run(run())
 
 
-def test_mark_gif_check_releases_reference_after_max_fails(memory_db, deleted_keys):
-    """mark_gif_check borraba la fila sin avisarle nunca a R2: el objeto
-    quedaba huérfano en el bucket para siempre, en silencio."""
-
-    async def run():
-        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
-        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
-
-        assert await db.mark_gif_check(gif["id"], alive=False) is False
-        assert await db.mark_gif_check(gif["id"], alive=False) is False
-        assert deleted_keys == []  # todavía no llegó a max_fails
-        assert await db.mark_gif_check(gif["id"], alive=False) is True
-        assert await _ref_count(memory_db, _HASH) is None
-        assert deleted_keys == [r2.gif_key(_HASH)]
-
-    asyncio.run(run())
-
-
-def test_mark_gif_check_keeps_object_used_by_another_guild(memory_db, deleted_keys):
+def test_health_check_keeps_object_used_by_another_guild(memory_db, deleted_keys):
     async def run():
         await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
         await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
         gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
 
-        for _ in range(3):
-            await db.mark_gif_check(gif["id"], alive=False)
-        assert await _ref_count(memory_db, _HASH) == 1
-        assert deleted_keys == []
-
-    asyncio.run(run())
-
-
-def test_mark_gif_check_alive_resets_and_releases_nothing(memory_db, deleted_keys):
-    async def run():
-        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
-        gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
-
-        await db.mark_gif_check(gif["id"], alive=False)
-        await db.mark_gif_check(gif["id"], alive=False)
-        assert await db.mark_gif_check(gif["id"], alive=True) is False
-        # El streak se reseteó: un fallo suelto no debe borrar nada.
-        assert await db.mark_gif_check(gif["id"], alive=False) is False
+        assert await db.record_gif_health_check(gif["id"], "dead") is False
+        assert await db.record_gif_health_check(gif["id"], "dead") is True
         assert await _ref_count(memory_db, _HASH) == 1
         assert deleted_keys == []
 

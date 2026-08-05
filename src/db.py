@@ -1144,41 +1144,6 @@ async def get_random_gif_candidates(guild_id: int, limit: int = 3) -> list[dict]
     return [{"id": r[0], "url": r[1], "media_url": r[2]} for r in rows]
 
 
-async def mark_gif_check(gif_id: int, alive: bool, max_fails: int = 3) -> bool:
-    """Actualiza el contador de fallos. Retorna True si se borró por superar max_fails.
-
-    Este contador (fail_count) es el del chequeo rápido de antes de mandar un
-    GIF, aparte del dead_streak de record_gif_health_check. Al borrar la fila
-    suelta la referencia al objeto de R2 igual que los demás caminos.
-    """
-    db = await get_db()
-    url: str | None = None
-    content_hash: str | None = None
-    async with _db_lock:
-        if alive:
-            await db.execute(
-                "UPDATE corpus_gifs SET fail_count=0 WHERE id=?", (gif_id,)
-            )
-            await db.commit()
-            return False
-        await db.execute(
-            "UPDATE corpus_gifs SET fail_count=fail_count+1 WHERE id=?", (gif_id,)
-        )
-        async with db.execute(
-            "SELECT fail_count, url, content_hash FROM corpus_gifs WHERE id=?",
-            (gif_id,),
-        ) as cur:
-            row = await cur.fetchone()
-        borrado = bool(row and row[0] >= max_fails)
-        if borrado:
-            url, content_hash = row[1], row[2]
-            await db.execute("DELETE FROM corpus_gifs WHERE id=?", (gif_id,))
-        await db.commit()
-    if borrado:
-        await release_gif_reference(content_hash, url)
-    return borrado
-
-
 async def count_gif_urls(guild_id: int) -> int:
     db = await get_db()
     async with db.execute(
