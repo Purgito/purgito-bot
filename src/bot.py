@@ -4,9 +4,12 @@ Toda la funcionalidad vive en extensiones (src/cogs/); aquí solo se configura
 logging, se inicializa la DB y se cargan las extensiones.
 """
 
+import asyncio
 import logging
 import os
+import signal
 import sys
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
 import discord
@@ -15,7 +18,7 @@ from discord.ext import commands
 import config  # ejecuta load_dotenv() al importarse
 import r2
 import webapi
-from db import close_db, init_db
+from db import close_db, get_lifecycle_state, init_db, set_lifecycle_state
 
 # Configurar logging
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -72,6 +75,117 @@ bot.remove_command("help")
 _commands_synced = False
 
 
+def _format_downtime(since_iso: str) -> str:
+    try:
+        since = datetime.fromisoformat(since_iso)
+    except ValueError:
+        return "un tiempo"
+    seconds = max(0, int((datetime.now(timezone.utc) - since).total_seconds()))
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} min"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} h"
+    days = hours // 24
+    return f"{days} día{'s' if days != 1 else ''}"
+
+
+async def _send_lifecycle_notice(content: str) -> None:
+    """Best-effort: nunca propaga -- ni el arranque ni el apagado deben
+    trabarse porque Discord no responda o el canal no exista."""
+    channel = bot.get_channel(config.LIFECYCLE_ANNOUNCE_CHANNEL_ID)
+    if channel is None:
+        try:
+            channel = await asyncio.wait_for(
+                bot.fetch_channel(config.LIFECYCLE_ANNOUNCE_CHANNEL_ID), timeout=3
+            )
+        except Exception:
+            log.warning(
+                "No se pudo obtener el canal de lifecycle %s",
+                config.LIFECYCLE_ANNOUNCE_CHANNEL_ID,
+            )
+            return
+    try:
+        await asyncio.wait_for(channel.send(content), timeout=3)
+    except Exception:
+        log.warning("No se pudo enviar el aviso de lifecycle", exc_info=True)
+
+
+_lifecycle_reported = False
+
+
+async def _report_lifecycle() -> None:
+    """Compara contra el último estado guardado para avisar si el bot volvió
+    de un apagado intencional o de una caída inesperada, y deja la marca en
+    False (corriendo) para la próxima vez. Solo una vez por proceso -- on_ready
+    también se dispara al reconectar."""
+    global _lifecycle_reported
+    if _lifecycle_reported:
+        return
+    _lifecycle_reported = True
+
+    try:
+        prev = await get_lifecycle_state()
+    except Exception:
+        log.exception("No se pudo leer lifecycle_state")
+        prev = None
+
+    if prev is not None:
+        downtime = _format_downtime(prev["updated_at"])
+        if prev["clean_shutdown"]:
+            msg = f"✅ Purgito volvió (reinicio intencional) — estuvo abajo {downtime}."
+        else:
+            msg = f"⚠️ Purgito volvió después de una caída inesperada — estuvo abajo {downtime}."
+        await _send_lifecycle_notice(msg)
+
+    try:
+        await set_lifecycle_state(clean_shutdown=False)
+    except Exception:
+        log.exception("No se pudo escribir lifecycle_state al arrancar")
+
+
+_shutdown_in_progress = False
+
+
+async def _handle_shutdown_signal(sig: signal.Signals) -> None:
+    """SIGTERM (systemctl stop/restart) o SIGINT (Ctrl+C en desarrollo):
+    marca el apagado como intencional ANTES de cerrar, para que el próximo
+    arranque no lo reporte como caída. Se ejecuta como máximo una vez."""
+    global _shutdown_in_progress
+    if _shutdown_in_progress:
+        return
+    _shutdown_in_progress = True
+    log.info("Señal %s recibida: apagado intencional", sig.name)
+
+    try:
+        await set_lifecycle_state(clean_shutdown=True)
+    except Exception:
+        log.exception("No se pudo marcar clean_shutdown antes de apagar")
+
+    await _send_lifecycle_notice(
+        "🛑 Purgito se está apagando (parada/reinicio intencional)."
+    )
+    await bot.close()
+
+
+def _register_shutdown_handlers(loop: asyncio.AbstractEventLoop) -> None:
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(
+                sig, lambda s=sig: asyncio.ensure_future(_handle_shutdown_signal(s))
+            )
+        except NotImplementedError:
+            # Windows: loop.add_signal_handler no está soportado ahí: Ctrl+C
+            # local sigue funcionando por el KeyboardInterrupt normal de asyncio.run().
+            log.debug(
+                "No se pudo registrar el handler de apagado para %s en este SO",
+                sig.name,
+            )
+
+
 @bot.event
 async def on_ready():
     global _commands_synced
@@ -116,6 +230,18 @@ async def on_ready():
     except Exception:
         log.exception("Error iniciando el servidor web")
 
+    await _report_lifecycle()
+
+
+async def _main() -> None:
+    # Los handlers de SIGTERM/SIGINT se registran ANTES de arrancar el bot:
+    # si la señal llega apenas conectado (o incluso antes), igual se marca
+    # clean_shutdown y se intenta cerrar en vez de morir sin avisar.
+    loop = asyncio.get_running_loop()
+    _register_shutdown_handlers(loop)
+    async with bot:
+        await bot.start(config.TOKEN)
+
 
 if __name__ == "__main__":
     if not config.TOKEN:
@@ -124,7 +250,11 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     try:
-        bot.run(config.TOKEN)
+        asyncio.run(_main())
     except discord.errors.LoginFailure:
         log.critical("Token inválido. Verifica DISCORD_TOKEN en .env.")
         sys.exit(1)
+    except KeyboardInterrupt:
+        # Solo llega acá si add_signal_handler no está disponible (Windows);
+        # en Linux el SIGINT ya lo maneja _handle_shutdown_signal.
+        pass

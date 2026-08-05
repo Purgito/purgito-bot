@@ -86,42 +86,76 @@ function renderGifBatch() {
   syncGifMore();
 }
 
-// Confirmación de borrado en dos pasos (mismo patrón que attachDelBtn/
-// askConfirm de gif_gallery.py): "Quitar" -> "¿Seguro? ✓ ✗" -> ejecuta o revierte.
-function gifDeleteActions(gifId, card) {
+// Confirmación en dos pasos (mismo patrón que attachDelBtn/askConfirm de
+// gif_gallery.py): botón -> "¿Seguro? ✓ ✗" -> ejecuta o revierte. "Bloquear"
+// además de borrar la card deja el GIF vetado para siempre en este guild
+// (gif_blocklist en db.py) -- el texto de confirmación lo deja explícito
+// porque, a diferencia de "Quitar", no hay forma de deshacer el veto salvo
+// yendo a la sección "GIFs bloqueados" de abajo.
+function gifCardActions(gifId, card) {
   const wrap = el('div', { class: 'gif-actions' });
 
-  function showButton() {
+  function showButtons() {
     wrap.innerHTML = '';
-    wrap.append(el('button', { class: 'btn btn-danger btn-sm', onclick: showConfirm }, 'Quitar'));
+    wrap.append(
+      el('button', { class: 'btn btn-danger btn-sm', onclick: showDeleteConfirm }, 'Quitar'),
+      el('button', {
+        class: 'btn btn-secondary btn-sm', onclick: showBlockConfirm,
+        title: 'Lo borra ahora y evita que se vuelva a guardar en este servidor',
+      }, 'Bloquear'));
   }
-  function showConfirm() {
+  function showDeleteConfirm() {
     wrap.innerHTML = '';
     wrap.append(el('div', { class: 'gif-confirm' },
       '¿Seguro?',
       el('button', { class: 'btn btn-danger btn-sm', onclick: doDelete }, '✓'),
-      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButton }, '✗')));
+      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButtons }, '✗')));
+  }
+  function showBlockConfirm() {
+    wrap.innerHTML = '';
+    wrap.append(el('div', { class: 'gif-confirm' },
+      'Bloqueado — no se va a volver a guardar en este servidor. ¿Seguro?',
+      el('button', { class: 'btn btn-danger btn-sm', onclick: doBlock }, '✓'),
+      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButtons }, '✗')));
+  }
+  function removeCard() {
+    card.classList.add('out');
+    _gifPool = _gifPool.filter(g => g.id !== gifId);
+    updateGifStats();
+    setTimeout(() => { card.remove(); syncGifMore(); }, 240);
   }
   async function doDelete() {
     try {
       const resp = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/${gifId}`, { method: 'DELETE' });
       if (!resp.deleted) {
         toast('No se encontró ese GIF', 'warn');
-        showButton();
+        showButtons();
         return;
       }
       toast('GIF eliminado', 'ok');
-      card.classList.add('out');
-      _gifPool = _gifPool.filter(g => g.id !== gifId);
-      updateGifStats();
-      setTimeout(() => { card.remove(); syncGifMore(); }, 240);
+      removeCard();
     } catch (e) {
       toast(e.status === 429 ? 'Rate limit — espera antes de borrar más' : e.message, e.status === 429 ? 'warn' : 'err');
-      showButton();
+      showButtons();
+    }
+  }
+  async function doBlock() {
+    try {
+      const resp = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/${gifId}/block`, { method: 'POST' });
+      if (!resp.blocked) {
+        toast('No se encontró ese GIF', 'warn');
+        showButtons();
+        return;
+      }
+      toast('GIF bloqueado para siempre en este servidor', 'ok');
+      removeCard();
+    } catch (e) {
+      toast(e.status === 429 ? 'Rate limit — espera antes de bloquear más' : e.message, e.status === 429 ? 'warn' : 'err');
+      showButtons();
     }
   }
 
-  showButton();
+  showButtons();
   return wrap;
 }
 
@@ -129,8 +163,67 @@ function gifCard(g) {
   const card = el('div', { class: 'gif-card' },
     gifThumb(g),
     el('a', { class: 'gif-url', href: g.url, target: '_blank', rel: 'noopener' }, g.url));
-  card.append(gifDeleteActions(g.id, card));
+  card.append(gifCardActions(g.id, card));
   return card;
+}
+
+// Fila de la sección "GIFs bloqueados": el objeto ya no tiene id (la fila de
+// corpus_gifs se borró al bloquear) -- content_hash o url identifica el veto.
+function blockedGifRow(b, list) {
+  const key = b.content_hash || b.url;
+  const btn = el('button', { class: 'btn btn-secondary btn-sm' }, 'Desbloquear');
+  const row = el('div', { class: 'gif-blocked-row' },
+    el('span', { class: 'gif-url' }, b.url || b.content_hash), btn);
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      const resp = await apiFetch(
+        `/api/server/${GUILD_ID}/settings/gifs/blocked/${encodeURIComponent(key)}`,
+        { method: 'DELETE' });
+      if (!resp.unblocked) {
+        toast('No se encontró ese bloqueo', 'warn');
+        btn.disabled = false;
+        return;
+      }
+      toast('GIF desbloqueado — se puede volver a guardar', 'ok');
+      row.remove();
+      if (!list.querySelector('.gif-blocked-row')) {
+        list.append(el('p', { class: 'dim' }, 'No hay GIFs bloqueados.'));
+      }
+    } catch (e) {
+      toast(e.message, 'err');
+      btn.disabled = false;
+    }
+  };
+  return row;
+}
+
+// <details>/<summary> nativo, mismo patrón que "Opciones de envío" del
+// editor de embeds (.send-opts): la lista se pide recién la primera vez que
+// se abre, no en cada carga del tab.
+function blockedGifsSection() {
+  const details = el('details', { class: 'gif-blocked-section' },
+    el('summary', {}, 'GIFs bloqueados'));
+  const list = el('div', { class: 'gif-blocked-list' });
+  details.append(list);
+  details.addEventListener('toggle', async () => {
+    if (!details.open || list.dataset.loaded) return;
+    list.dataset.loaded = '1';
+    list.append(spinner());
+    try {
+      const data = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/blocked`);
+      list.innerHTML = '';
+      if (!data.blocked.length) {
+        list.append(el('p', { class: 'dim' }, 'No hay GIFs bloqueados.'));
+      } else {
+        for (const b of data.blocked) list.append(blockedGifRow(b, list));
+      }
+    } catch (e) {
+      list.innerHTML = '';
+      renderError(list, e);
+    }
+  });
+  return details;
 }
 
 export async function loadGifs() {
@@ -191,6 +284,8 @@ export async function loadGifs() {
         },
       }, 'Agregar'),
       verifyBtn));
+
+    box.append(blockedGifsSection());
 
     if (!_gifPool.length) {
       box.append(emptyState('Todavía no hay GIFs guardados — añade uno con el campo de arriba.'));

@@ -116,6 +116,19 @@ CREATE TABLE IF NOT EXISTS gif_objects (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Veto permanente por guild: un GIF bloqueado se borra ahora (ver block_gif)
+-- y save_gif_url lo rechaza para siempre en ESE guild, aunque se vuelva a
+-- compartir. content_hash cubre la mayoría (GIFs que pasaron por R2); url es
+-- el único identificador para tenor/giphy (no ocupan storage propio) o algún
+-- legacy que quedara sin hash -- no se exige ambos, ver is_gif_blocked.
+CREATE TABLE IF NOT EXISTS gif_blocklist (
+    guild_id INTEGER NOT NULL,
+    content_hash TEXT,
+    url TEXT,
+    blocked_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, content_hash, url)
+);
+
 CREATE TABLE IF NOT EXISTS youtube_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER NOT NULL,
@@ -343,6 +356,16 @@ CREATE TABLE IF NOT EXISTS pending_message_deletions (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_pending_message_deletions_delete_at ON pending_message_deletions(delete_at);
+
+-- Singleton (id siempre 1): guarda si el último apagado fue intencional
+-- (SIGTERM/SIGINT interceptado) para que el próximo arranque sepa si avisar
+-- de una caída inesperada. Fila ausente = el bot nunca llegó a escribir acá
+-- (primer arranque de la historia), distinto de clean_shutdown=0 preexistente.
+CREATE TABLE IF NOT EXISTS lifecycle_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    clean_shutdown INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -522,6 +545,38 @@ async def close_db():
     if _db is not None:
         await _db.close()
         _db = None
+
+
+async def get_lifecycle_state() -> dict | None:
+    """Estado del último apagado, o None si la fila nunca se escribió (primer
+    arranque de la historia) -- distinguir eso de clean_shutdown=0 preexistente
+    es lo que evita reportar una caída falsa la primera vez que corre el bot."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT clean_shutdown, updated_at FROM lifecycle_state WHERE id=1"
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return None
+    return {"clean_shutdown": bool(row[0]), "updated_at": row[1]}
+
+
+async def set_lifecycle_state(clean_shutdown: bool) -> None:
+    """Escribe la fila única de lifecycle_state con la hora actual.
+
+    clean_shutdown=False se llama al terminar de arrancar ("estoy corriendo;
+    si desaparezco sin volver a marcar esto, fue una caída"). clean_shutdown=True
+    lo marca el handler de SIGTERM/SIGINT antes de cerrar."""
+    db = await get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO lifecycle_state (id, clean_shutdown, updated_at) "
+            "VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+            "clean_shutdown=excluded.clean_shutdown, updated_at=excluded.updated_at",
+            (int(clean_shutdown), now),
+        )
+        await db.commit()
 
 
 def _was_inserted(cursor: aiosqlite.Cursor) -> bool:
@@ -887,9 +942,17 @@ async def save_gif_url(
 
     content_hash viene de r2.upload_gif_sync para los GIFs que sí ocupan
     storage propio (cdn.discordapp.com); los de tenor/giphy no lo tienen.
+
+    Único lugar por donde pasan todos los caminos de guardado (harvest
+    automático de los cogs, alta manual desde el panel) -- por eso el veto de
+    gif_blocklist se aplica acá y no en cada llamador. Un GIF bloqueado
+    devuelve (False, None), igual que "ya existía": el caller no debe tratarlo
+    como error.
     """
     u = (url or "").strip()
     if not u:
+        return False, None
+    if await is_gif_blocked(guild_id, content_hash, u):
         return False, None
     max_gifs = _limit_for_guild(
         guild_id,
@@ -939,6 +1002,124 @@ async def save_gif_url(
     if evicted_id is not None:
         await release_gif_reference(evicted_hash, evicted_url)
     return inserted, evicted_id
+
+
+async def is_gif_blocked(guild_id: int, content_hash: str | None, url: str) -> bool:
+    """content_hash si está disponible (cubre cualquier fila del guild que
+    apunte al mismo objeto de R2, sin importar por qué url llegó), si no la
+    url exacta.
+
+    Limitación conocida: un GIF de tenor/giphy bloqueado por url (nunca tiene
+    content_hash, no ocupan storage propio) solo bloquea esa url puntual --
+    la misma animación bajo una url distinta de tenor/giphy no matchea acá.
+    """
+    db = await get_db()
+    if content_hash:
+        query, params = (
+            "SELECT 1 FROM gif_blocklist WHERE guild_id=? AND content_hash=? LIMIT 1",
+            (guild_id, content_hash),
+        )
+    else:
+        query, params = (
+            "SELECT 1 FROM gif_blocklist WHERE guild_id=? AND url=? LIMIT 1",
+            (guild_id, url),
+        )
+    async with db.execute(query, params) as cur:
+        return bool(await cur.fetchone())
+
+
+async def block_gif(guild_id: int, content_hash: str | None, url: str) -> None:
+    """Vetea un GIF para siempre en este guild: lo borra AHORA (liberando su
+    referencia en R2/gif_objects, mismo camino que delete_gif_url_by_id /
+    wipe_gifs) y deja una fila en gif_blocklist para que save_gif_url lo
+    rechace si se vuelve a compartir -- ver is_gif_blocked.
+
+    Con content_hash, borra cualquier fila del guild que apunte al mismo
+    objeto (no solo la url puntual vista en el panel); sin content_hash
+    (tenor/giphy) borra por url exacta.
+    """
+    db = await get_db()
+    now = datetime.now(timezone.utc).isoformat()
+
+    if content_hash:
+        async with db.execute(
+            "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND content_hash=?",
+            (guild_id, content_hash),
+        ) as cur:
+            rows = await cur.fetchall()
+    else:
+        async with db.execute(
+            "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND url=?",
+            (guild_id, url),
+        ) as cur:
+            rows = await cur.fetchall()
+
+    async with _db_lock:
+        await db.execute(
+            "INSERT OR IGNORE INTO gif_blocklist (guild_id, content_hash, url, blocked_at) "
+            "VALUES (?, ?, ?, ?)",
+            (guild_id, content_hash, url, now),
+        )
+        if rows:
+            await db.executemany(
+                "DELETE FROM corpus_gifs WHERE guild_id=? AND url=?",
+                [(guild_id, r[0]) for r in rows],
+            )
+        await db.commit()
+
+    # Fuera de _db_lock y en serie (no gather): release_gif_reference toma el
+    # lock ella misma, y dos decrementos del mismo content_hash tienen que ir
+    # uno detrás del otro -- mismo motivo que wipe_gifs.
+    for row_url, row_hash in rows:
+        await release_gif_reference(row_hash, row_url)
+
+
+async def unblock_gif(guild_id: int, content_hash: str | None, url: str = "") -> bool:
+    """Elimina la fila de gif_blocklist que matchee por content_hash (si se
+    pasa) o por url -- mismo criterio que is_gif_blocked/block_gif, no exige
+    ambos. Retorna True si había algo que borrar.
+
+    No restaura el GIF ya borrado: solo permite que vuelva a guardarse la
+    próxima vez que se comparta.
+    """
+    db = await get_db()
+    async with _db_lock:
+        if content_hash:
+            cursor = await db.execute(
+                "DELETE FROM gif_blocklist WHERE guild_id=? AND content_hash=?",
+                (guild_id, content_hash),
+            )
+        else:
+            cursor = await db.execute(
+                "DELETE FROM gif_blocklist WHERE guild_id=? AND url=?",
+                (guild_id, url),
+            )
+        deleted = cursor.rowcount > 0
+        await db.commit()
+    return deleted
+
+
+async def list_blocked_gifs(guild_id: int) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT content_hash, url, blocked_at FROM gif_blocklist "
+        "WHERE guild_id=? ORDER BY blocked_at DESC",
+        (guild_id,),
+    ) as cur:
+        rows = await cur.fetchall()
+    return [{"content_hash": r[0], "url": r[1], "blocked_at": r[2]} for r in rows]
+
+
+async def get_gif_by_id(guild_id: int, gif_id: int) -> dict | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, url, content_hash FROM corpus_gifs WHERE guild_id=? AND id=?",
+        (guild_id, gif_id),
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return None
+    return {"id": row[0], "url": row[1], "content_hash": row[2]}
 
 
 async def get_gif_by_url(guild_id: int, url: str) -> dict | None:

@@ -604,7 +604,7 @@ h1 {
 .gif-stats { margin-bottom: 12px; }
 .gif-stats .stat-num { color: var(--accent); font-weight: 700; }
 
-.gif-actions { display: flex; }
+.gif-actions { display: flex; gap: 6px; }
 .gif-confirm {
   display: flex;
   align-items: center;
@@ -614,6 +614,34 @@ h1 {
 }
 
 .gif-more-wrap { text-align: center; margin-top: 16px; }
+
+/* Sección "GIFs bloqueados" (details/summary nativo, mismo patrón que
+   .send-opts del editor de embeds). */
+.gif-blocked-section {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: 16px 0;
+}
+.gif-blocked-section summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+.gif-blocked-section[open] summary { margin-bottom: 10px; color: var(--text); }
+.gif-blocked-list { display: flex; flex-direction: column; gap: 6px; }
+.gif-blocked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+.gif-blocked-row:first-child { border-top: none; }
+.gif-blocked-row .gif-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
 
 /* ---------- Embeds (editor + preview) ---------- */
 

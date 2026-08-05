@@ -76,6 +76,7 @@ from db import (
     add_shared_embed,
     add_spontaneous_channel,
     add_youtube_sub,
+    block_gif,
     count_corpus_by_channel,
     count_gif_urls,
     count_guild_corpus_messages,
@@ -88,9 +89,11 @@ from db import (
     get_bot_style,
     get_chat_settings,
     get_counters,
+    get_gif_by_id,
     get_gif_by_url,
     get_shared_embed,
     get_updates_channel,
+    list_blocked_gifs,
     list_corpus_channels,
     list_embed_templates,
     list_exempt_roles,
@@ -117,6 +120,7 @@ from db import (
     set_updates_channel,
     set_youtube_mention_role_by_id,
     share_links_daily_limit,
+    unblock_gif,
     update_embed_template,
     update_last_video_id,
 )
@@ -373,6 +377,22 @@ async def _gif_delete_impl(
         return web.json_response({"error": "id inválido"}, status=400)
     deleted = await delete_gif_url_by_id(guild_id, gif_id)
     return web.json_response({"deleted": deleted})
+
+
+async def _gif_block_impl(
+    request: web.Request, guild_id: int, raw_id: str
+) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_delete, ip, 3):
+        return web.json_response({"error": "rate limit"}, status=429)
+    gif_id = _to_int(raw_id)
+    if gif_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    gif = await get_gif_by_id(guild_id, gif_id)
+    if gif is None:
+        return web.json_response({"error": "no encontrado"}, status=404)
+    await block_gif(guild_id, gif["content_hash"], gif["url"])
+    return web.json_response({"blocked": True})
 
 
 async def _api_me_guilds(request: web.Request) -> web.Response:
@@ -952,6 +972,33 @@ async def _api_server_gifs_delete(request: web.Request, guild_id: int) -> web.Re
     return await _gif_delete_impl(
         request, guild_id, request.match_info.get("gif_id", "")
     )
+
+
+@guild_api
+async def _api_server_gifs_block(request: web.Request, guild_id: int) -> web.Response:
+    return await _gif_block_impl(
+        request, guild_id, request.match_info.get("gif_id", "")
+    )
+
+
+@guild_api
+async def _api_server_gifs_blocked_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    blocked = await list_blocked_gifs(guild_id)
+    return web.json_response({"blocked": blocked, "total": len(blocked)})
+
+
+@guild_api
+async def _api_server_gifs_unblock(request: web.Request, guild_id: int) -> web.Response:
+    # key es el content_hash o, para GIFs sin hash (tenor/giphy), la url --
+    # lo que haya identificado la fila en list_blocked_gifs (aiohttp ya la
+    # decodifica: encodeURIComponent en el frontend, match_info acá).
+    key = request.match_info.get("key", "")
+    if not key:
+        return web.json_response({"error": "key inválida"}, status=400)
+    deleted = await unblock_gif(guild_id, key) or await unblock_gif(guild_id, None, key)
+    return web.json_response({"unblocked": deleted})
 
 
 @guild_api
@@ -2070,6 +2117,15 @@ async def start_web_server(bot: commands.Bot) -> None:
             f"{base}/settings/gifs/{{gif_id}}", _api_server_gifs_delete
         )
         app.router.add_post(f"{base}/settings/gifs/verify", _api_server_gifs_verify)
+        app.router.add_get(
+            f"{base}/settings/gifs/blocked", _api_server_gifs_blocked_get
+        )
+        app.router.add_delete(
+            f"{base}/settings/gifs/blocked/{{key}}", _api_server_gifs_unblock
+        )
+        app.router.add_post(
+            f"{base}/settings/gifs/{{gif_id}}/block", _api_server_gifs_block
+        )
         app.router.add_get(f"{base}/youtube", _api_youtube_get)
         app.router.add_post(f"{base}/youtube", _api_youtube_post)
         app.router.add_delete(f"{base}/youtube/{{sub_id}}", _api_youtube_delete)
