@@ -319,7 +319,14 @@ server {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # $remote_addr, no $proxy_add_x_forwarded_for: nginx es el único
+        # proxy delante de la app, así que no hay nada legítimo que
+        # "agregar" a una cadena existente. $proxy_add_x_forwarded_for
+        # anexa $remote_addr a cualquier X-Forwarded-For que ya venga en
+        # el request — si el cliente manda uno propio, su valor queda
+        # primero en la lista, y _client_ip() en webapi.py lee el primer
+        # valor de la lista como IP real. Eso permite spoofearla.
+        proxy_set_header X-Forwarded-For $remote_addr;
     }
 }
 ```
@@ -344,6 +351,32 @@ server {
     server_name purgito.app www.purgito.app;
     root /var/www/purgito-landing;
     index index.html;
+
+    # ── Authenticated Origin Pulls (desactivado) ───────────────────
+    # Exige que solo Cloudflare pueda hablarle a este origin (mTLS): sin
+    # esto, cualquiera que descubra la IP del droplet puede saltarse
+    # Cloudflare (y su WAF/cache) y pegarle directo a nginx. Requiere:
+    #   1. Activar "Authenticated Origin Pulls" en Cloudflare (SSL/TLS →
+    #      Origin Server) y bajar su CA pull certificate desde ahí.
+    #   2. Este server block necesita terminar TLS (listen 443 ssl con
+    #      ssl_certificate/ssl_certificate_key — hoy Cloudflare habla HTTP
+    #      plano con el origin, ver sección Cloudflare más abajo) antes de
+    #      que esto tenga efecto: la verificación de cliente pasa durante
+    #      el handshake TLS, no sirve sobre el listener 80.
+    # ssl_client_certificate /etc/nginx/certs/cloudflare-origin-pull-ca.pem;
+    # ssl_verify_client on;
+
+    # ── Cabeceras de seguridad, para todo lo que sirve este server ──
+    # (estático y proxeado). CSP queda afuera a propósito: la API ya pone
+    # la suya por request en webapi.py (_security_headers_middleware,
+    # restrictiva: default-src 'none') y la landing la suya en el <head>
+    # generado (build_docs.py, permite fuentes/tenor/imágenes externas).
+    # Sumar una tercera acá, a nivel server, se combinaría con esas dos —
+    # el navegador aplica todas las CSP presentes a la vez— y la más
+    # estricta rompería la landing en vez de sumar seguridad.
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
 
     # ── Dinámico: proxy a la app (rutas registradas en webapi.py) ──
     location /auth/     { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
@@ -380,7 +413,11 @@ solo archivo en vez de repetirlas en cada `location`:
 ```nginx
 proxy_set_header Host $host;
 proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+# $remote_addr y no $proxy_add_x_forwarded_for -- mismo motivo que en el
+# server block heredado de más arriba: nginx es el único proxy delante de
+# la app, y anexar a un X-Forwarded-For que ya trae el cliente permite
+# spoofear _client_ip() en webapi.py (que lee el primer valor de la lista).
+proxy_set_header X-Forwarded-For $remote_addr;
 ```
 
 Aplicar cambios:
