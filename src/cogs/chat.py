@@ -25,6 +25,7 @@ from db import (
     get_welcome_channel_id,
     is_channel_ignored,
     is_corpus_allowed,
+    list_corpus_channels,
     list_exempt_roles,
     list_ignored_channels,
     list_mention_channels,
@@ -38,8 +39,8 @@ from utils import LRUDict, chunk_message, has_admin_permission
 
 log = logging.getLogger(__name__)
 
-# guild_id -> task del refeed_all/auto-refeed en curso (evita dos corridas en paralelo)
-_refeed_all_running: dict[int, asyncio.Task] = {}
+# guild_id -> task de /refeed_channels en curso (evita dos corridas en paralelo)
+_refeed_running: dict[int, asyncio.Task] = {}
 
 # Mención directa con el chat apagado/restringido/canal ignorado: la explicación
 # completa sale a lo sumo una vez cada 15 min por guild; dentro del cooldown solo
@@ -90,16 +91,21 @@ CORPUS_ALLOWLIST_MIGRATION = "corpus_allowlist_v1"
 
 
 async def ensure_corpus_migrated(guild: discord.Guild) -> int | None:
-    """Rellena la allowlist del corpus de un guild con su estado real de hoy.
+    """Rellena la allowlist del corpus de un guild **que ya existía antes** del
+    modelo de allowlist, con su estado real de hoy.
 
     El modelo de corpus pasó de "ignorar canales" a "solo estos canales". Los
     servidores que ya existían tienen la lista vacía, que en el modelo nuevo
     significa "no aprender de nada": sin este relleno dejarían de aprender de
     golpe el día del deploy.
 
+    Solo la llama on_ready, para guilds donde el bot ya estaba antes del
+    deploy. Un guild genuinamente nuevo (on_guild_join) NO pasa por acá — ver
+    Chat.on_guild_join.
+
     Corre **una sola vez por servidor**: el flag se marca primero y solo el que
-    logra marcarlo hace el trabajo, así dos llamadas simultáneas (on_ready y
-    on_guild_join) no se pisan ni sobreescriben lo que un admin ya ajustó.
+    logra marcarlo hace el trabajo, así dos llamadas simultáneas de on_ready no
+    se pisan ni sobreescriben lo que un admin ya ajustó.
 
     Devuelve cuántos canales sembró, o None si la migración ya estaba hecha.
     """
@@ -147,15 +153,11 @@ class Chat(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
-        """Un servidor nuevo arranca aprendiendo de los canales que ve.
-
-        Se aparta de "lista vacía = no aprender" a propósito: el auto-refeed de
-        bienvenida corre justo después y guardaría cero mensajes, dejando al
-        bot mudo sin que nadie entienda por qué. El default vacío sigue valiendo
-        como estado configurable — un admin puede vaciar la lista y el bot deja
-        de aprender.
-        """
-        await ensure_corpus_migrated(guild)
+        """Un servidor nuevo arranca sin aprender de nada: lista vacía de
+        verdad, coherente con lo que promete el dashboard. Solo marca la
+        migración como aplicada (no hay nada viejo que preservar en un guild
+        recién unido), así on_ready no intenta sembrarla después."""
+        await mark_migration_applied(guild.id, CORPUS_ALLOWLIST_MIGRATION)
 
     async def _exempt_from_rate_limit(self, message: discord.Message) -> bool:
         """True si el autor tiene algún rol exento del tope de menciones.
@@ -366,8 +368,10 @@ class Chat(commands.Cog):
     async def on_guild_channel_update(
         self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel
     ):
-        """Si un canal pasa de invisible a visible para el bot, lo lee solo y avisa
-        en el canal de bienvenida — sin esperar a que alguien corra /refeed_all."""
+        """Si un canal ya elegido para el corpus pasa de invisible a visible
+        para el bot, lo lee solo y avisa en el canal de bienvenida — sin
+        esperar a que alguien corra /refeed_channels. Un canal que nunca se
+        eligió no se lee solo por volverse visible: la allowlist manda."""
         if not isinstance(after, discord.TextChannel):
             return
         me = after.guild.me
@@ -380,6 +384,8 @@ class Chat(commands.Cog):
         if could_see or not can_see_now:
             return  # no hubo ganancia de visibilidad
         if await is_channel_ignored(after.guild.id, after.id):
+            return
+        if not await is_corpus_allowed(after.guild.id, after.id):
             return
 
         try:
@@ -517,9 +523,9 @@ class Chat(commands.Cog):
         Retorna {"saved", "backfill_complete", "was_incremental", "forbidden"}.
 
         Punto único donde se filtra el corpus en las lecturas masivas: acá pasan
-        /refeed, /refeed_all, el auto-refeed de bienvenida y el canal que se
-        vuelve visible. Un canal fuera de la allowlist sale sin leer nada, en
-        vez de pagar la paginación para descartar mensaje por mensaje.
+        /refeed, /refeed_channels y el canal que se vuelve visible. Un canal
+        fuera de la allowlist sale sin leer nada, en vez de pagar la
+        paginación para descartar mensaje por mensaje.
         """
         if not await is_corpus_allowed(guild_id, channel.id):
             return {
@@ -680,8 +686,10 @@ class Chat(commands.Cog):
     async def _refeed_guild(
         self, guild: discord.Guild, progress_msg, report_channel
     ) -> dict:
-        """Recorre todos los canales de texto del guild editando progress_msg con el avance,
-        y manda el resumen final con report_channel.send() (no depende de ningún interaction).
+        """Recorre los canales que están en la allowlist del corpus (los que el
+        admin eligió, no todos los canales de texto del guild) editando
+        progress_msg con el avance, y manda el resumen final con
+        report_channel.send() (no depende de ningún interaction).
         Retorna el dict totals para que el caller decida el mensaje de cierre."""
         totals = {
             "saved": 0,
@@ -692,12 +700,18 @@ class Chat(commands.Cog):
             "forbidden": 0,
             "errors": 0,
         }
-        # El auto-refeed de bienvenida (cogs/settings.py) arranca desde otro
-        # listener del mismo evento, y discord.py no garantiza el orden entre
-        # listeners: sin esto podría correr antes de que la allowlist exista y
-        # guardar cero mensajes. Es idempotente, así que llamarla acá no duplica
-        # el trabajo que ya hizo on_guild_join.
-        await ensure_corpus_migrated(guild)
+        allowed_channel_ids = await list_corpus_channels(guild.id)
+        if not allowed_channel_ids:
+            try:
+                await report_channel.send(
+                    "⚠️ No hay canales elegidos todavía — anda al dashboard "
+                    "(tab CHAT > Canales) y elige de dónde quiero aprender."
+                )
+            except Exception:
+                log.warning(
+                    "refeed_guild: no se pudo avisar allowlist vacía en %s", guild.id
+                )
+            return totals
         me = guild.me
         if me is None and self.bot.user is not None:
             me = guild.get_member(self.bot.user.id)
@@ -730,7 +744,10 @@ class Chat(commands.Cog):
                     exc_info=True,
                 )
 
-        for channel in guild.text_channels:
+        for channel_id in allowed_channel_ids:
+            channel = guild.get_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                continue
             perms = channel.permissions_for(me)
             if not (perms.read_messages and perms.read_message_history):
                 continue
@@ -794,7 +811,7 @@ class Chat(commands.Cog):
             parts.append(f"⏭️ {totals['incremental']} canal(es) que ya estaban al día.")
         if totals["partial"]:
             parts.append(
-                f"⚠️ {totals['partial']} canal(es) quedaron incompletos por el límite de {REFEED_ALL_MAX_MESSAGES:,} mensajes; ejecuta `/refeed_all` de nuevo para continuar donde quedó."
+                f"⚠️ {totals['partial']} canal(es) quedaron incompletos por el límite de {REFEED_ALL_MAX_MESSAGES:,} mensajes; ejecuta `/refeed_channels` de nuevo para continuar donde quedó."
             )
         if totals["forbidden"]:
             parts.append(f"🚫 {totals['forbidden']} canal(es) sin permisos para leer.")
@@ -808,7 +825,7 @@ class Chat(commands.Cog):
             )
         return totals
 
-    def start_refeed_all(
+    def start_refeed_channels(
         self,
         guild: discord.Guild,
         progress_msg,
@@ -817,7 +834,7 @@ class Chat(commands.Cog):
     ) -> bool:
         """Lanza el refeed de todo el guild en background. False si ya hay uno corriendo.
         on_done recibe el dict totals del refeed."""
-        existing = _refeed_all_running.get(guild.id)
+        existing = _refeed_running.get(guild.id)
         if existing and not existing.done():
             return False
 
@@ -827,11 +844,11 @@ class Chat(commands.Cog):
                 if on_done is not None:
                     await on_done(totals)
             except Exception:
-                log.exception("refeed_all: fallo procesando guild %s", guild.id)
+                log.exception("refeed_channels: fallo procesando guild %s", guild.id)
             finally:
-                _refeed_all_running.pop(guild.id, None)
+                _refeed_running.pop(guild.id, None)
 
-        _refeed_all_running[guild.id] = asyncio.create_task(runner())
+        _refeed_running[guild.id] = asyncio.create_task(runner())
         return True
 
     @app_commands.command(
@@ -864,6 +881,13 @@ class Chat(commands.Cog):
             )
             return
 
+        if not await is_corpus_allowed(interaction.guild.id, channel.id):
+            await interaction.followup.send(
+                "⚠️ Este canal no está entre los elegidos para aprender. "
+                "Agrégalo desde el dashboard (tab CHAT > Canales) y vuelve a intentar."
+            )
+            return
+
         res = await self._refeed_channel(
             interaction.guild.id, channel, REFEED_MAX_MESSAGES
         )
@@ -888,10 +912,10 @@ class Chat(commands.Cog):
         await interaction.followup.send(result)
 
     @app_commands.command(
-        name="refeed_all",
-        description="Importa mensajes de todos los canales de texto del servidor a la memoria del bot.",
+        name="refeed_channels",
+        description="Importa mensajes de los canales elegidos para el corpus a la memoria del bot.",
     )
-    async def refeed_all(self, interaction: discord.Interaction):
+    async def refeed_channels(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message(
                 "Solo en servidores.", ephemeral=True
@@ -904,7 +928,7 @@ class Chat(commands.Cog):
             )
             return
 
-        existing = _refeed_all_running.get(interaction.guild.id)
+        existing = _refeed_running.get(interaction.guild.id)
         if existing and not existing.done():
             await interaction.response.send_message(
                 "⏳ Ya hay una importación en curso en este servidor; espera a que termine.",
@@ -922,11 +946,11 @@ class Chat(commands.Cog):
                 progress_msg = await interaction.channel.fetch_message(progress_msg.id)
             except Exception:
                 log.debug(
-                    "refeed_all: no se pudo refetchear el mensaje de progreso",
+                    "refeed_channels: no se pudo refetchear el mensaje de progreso",
                     exc_info=True,
                 )
 
-        self.start_refeed_all(interaction.guild, progress_msg, interaction.channel)
+        self.start_refeed_channels(interaction.guild, progress_msg, interaction.channel)
 
     @app_commands.command(
         name="corpus_info",

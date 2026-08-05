@@ -24,7 +24,6 @@ from config import BOT_TRIGGER_NAME, PANEL_URL, get_dashboard_url
 from db import (
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
-    add_ignored_channel,
     add_meme_schedule,
     add_scheduled_announcement,
     add_youtube_sub,
@@ -34,15 +33,13 @@ from db import (
     list_meme_schedules,
     list_scheduled_announcements,
     list_youtube_subs,
-    mark_auto_refeed_completed,
-    mark_auto_refeed_triggered,
+    remember_welcome_channel,
     remove_meme_schedule,
     remove_scheduled_announcement,
     remove_youtube_sub,
     set_chat_mode,
     set_youtube_mention_role,
     update_last_video_id,
-    was_auto_refeed_triggered,
     wipe_corpus,
     wipe_gifs,
 )
@@ -944,25 +941,8 @@ CATEGORIES: list[SettingsCategory] = [
 # ─── Onboarding ──────────────────────────────────────────────────────────────
 
 # Umbrales del onboarding: puntos de partida, ajustar viendo cómo se siente en la práctica.
-AUTO_REFEED_HEALTHY_MIN = 300  # mensajes guardados para considerar el corpus sano
 VISIBILITY_LIMITED_RATIO = 0.4  # avisar si el bot ve menos de esta fracción de canales
 VISIBILITY_LIMITED_MAX_SEEN = 3  # ...o si ve esta cantidad de canales o menos
-MAX_NOISY_SUGGESTIONS = 4  # tope de sugerencias de exclusión para no spamear
-
-NOISY_CHANNEL_HINTS = (
-    "log",
-    "mod-log",
-    "audit",
-    "verifi",
-    "regla",
-    "rule",
-    "anuncio",
-    "announce",
-    "ticket",
-    "bienvenid",
-    "welcome",
-    "comandos",
-)
 
 
 def _scan_channel_visibility(guild: discord.Guild) -> dict:
@@ -989,24 +969,6 @@ def _visibility_is_limited(scan: dict) -> bool:
     return (
         seen < total * VISIBILITY_LIMITED_RATIO or seen <= VISIBILITY_LIMITED_MAX_SEEN
     )
-
-
-def _looks_noisy(channel_name: str) -> bool:
-    """Heurística por nombre: canales que probablemente metan ruido al corpus."""
-    name = channel_name.lower()
-    return any(hint in name for hint in NOISY_CHANNEL_HINTS)
-
-
-def _pick_refeed_done_key(corpus_size: int, has_hidden: bool) -> str:
-    """Elige el mensaje de cierre según el tamaño TOTAL del corpus del guild,
-    no según cuántos mensajes se guardaron en esta corrida puntual — un canal
-    ya al día correctamente guarda 0 mensajes nuevos sin que eso signifique
-    que el corpus esté vacío."""
-    if corpus_size < AUTO_REFEED_HEALTHY_MIN and has_hidden:
-        return "welcome.thin_corpus_hidden"
-    if corpus_size < AUTO_REFEED_HEALTHY_MIN:
-        return "welcome.thin_corpus_generic"
-    return "welcome.auto_refeed_done"
 
 
 def _format_channel_names(channels: list, max_shown: int = 5) -> str:
@@ -1038,7 +1000,7 @@ def build_dm_welcome_embed(
     guild: discord.Guild, locale: str, scan: dict | None
 ) -> discord.Embed:
     """Quickstart privado para quien invitó al bot: más directo que el mensaje público."""
-    body = t("dm.body", locale, url=PANEL_URL)
+    body = t("dm.body", locale, url=get_dashboard_url(guild.id, locale, "chat#canales"))
     if scan is not None and _visibility_is_limited(scan):
         body += "\n\n" + t(
             "dm.limited_visibility_extra",
@@ -1051,72 +1013,6 @@ def build_dm_welcome_embed(
         description=body,
         color=PURGITO_COLOR,
     )
-
-
-class NoisySuggestionView(discord.ui.View):
-    """Sugerencia Sí/No para excluir un canal que suena a ruido. Nunca excluye solo."""
-
-    def __init__(self, channel: discord.TextChannel, locale: str):
-        super().__init__(timeout=3600)
-        self.channel = channel
-        self.locale = locale
-        yes_btn = discord.ui.Button(
-            label=t("settings.corpus.noisy_btn_yes", locale),
-            style=discord.ButtonStyle.danger,
-        )
-        no_btn = discord.ui.Button(
-            label=t("settings.corpus.noisy_btn_no", locale),
-            style=discord.ButtonStyle.secondary,
-        )
-        yes_btn.callback = self._on_yes
-        no_btn.callback = self._on_no
-        self.add_item(yes_btn)
-        self.add_item(no_btn)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if (
-            not isinstance(interaction.user, discord.Member)
-            or not interaction.user.guild_permissions.manage_guild
-        ):
-            await interaction.response.send_message(
-                t("settings.no_permission", self.locale), ephemeral=True
-            )
-            return False
-        return True
-
-    async def _on_yes(self, interaction: discord.Interaction):
-        await add_ignored_channel(interaction.guild.id, self.channel.id)
-        await interaction.response.edit_message(
-            content=t(
-                "settings.corpus.noisy_excluded",
-                self.locale,
-                channel=self.channel.mention,
-            ),
-            view=None,
-        )
-        self.stop()
-
-    async def _on_no(self, interaction: discord.Interaction):
-        # El mensaje se manda una sola vez (al cerrar el auto-refeed), así que
-        # quitar los botones alcanza para no volver a preguntar por este canal.
-        await interaction.response.edit_message(
-            content=t(
-                "settings.corpus.noisy_kept", self.locale, channel=self.channel.mention
-            ),
-            view=None,
-        )
-        self.stop()
-
-
-async def _suggest_noisy_channels(
-    dest: discord.TextChannel, locale: str, visible_channels: list
-) -> None:
-    noisy = [ch for ch in visible_channels if _looks_noisy(ch.name)]
-    for ch in noisy[:MAX_NOISY_SUGGESTIONS]:
-        await dest.send(
-            t("settings.corpus.noisy_suggestion", locale, channel=ch.mention),
-            view=NoisySuggestionView(ch, locale),
-        )
 
 
 def build_welcome_embed(guild: discord.Guild, locale: str) -> discord.Embed:
@@ -1167,7 +1063,7 @@ class WelcomeView(discord.ui.View):
                 discord.ui.Button(
                     label=t("welcome.btn_dashboard", locale),
                     style=discord.ButtonStyle.link,
-                    url=get_dashboard_url(guild_id, locale),
+                    url=get_dashboard_url(guild_id, locale, "chat#canales"),
                 )
             )
 
@@ -1300,53 +1196,12 @@ class Settings(commands.Cog):
                 "on_guild_join: falló el DM al invitador (%s)", guild.id, exc_info=True
             )
 
-        # Auto-refeed: leer el historial sin esperar a que un admin corra /refeed_all.
-        if welcome_channel is None:
-            return
-        if await was_auto_refeed_triggered(guild.id):
-            return
-        chat_cog = self.bot.get_cog("Chat")
-        if chat_cog is None:
-            log.warning(
-                "on_guild_join: cog Chat no cargado, no se dispara el auto-refeed (%s)",
-                guild.id,
-            )
-            return
-        await mark_auto_refeed_triggered(guild.id, welcome_channel.id)
-        try:
-            progress_msg = await welcome_channel.send(
-                "🔄 Empezando a leer el historial de los canales…"
-            )
-        except Exception:
-            log.warning(
-                "on_guild_join: no se pudo enviar el mensaje de progreso del auto-refeed (%s)",
-                guild.id,
-            )
-            return
-
-        async def on_done(totals: dict):
-            await mark_auto_refeed_completed(guild.id)
-            total_corpus = await count_guild_corpus_messages(guild.id)
-            key = _pick_refeed_done_key(total_corpus, bool(scan and scan["hidden"]))
-            try:
-                await welcome_channel.send(t(key, locale, total=total_corpus))
-            except Exception:
-                log.warning(
-                    "auto-refeed: no se pudo enviar el mensaje final (%s)", guild.id
-                )
-            if scan is not None:
-                try:
-                    await _suggest_noisy_channels(
-                        welcome_channel, locale, scan["visible"]
-                    )
-                except Exception:
-                    log.warning(
-                        "auto-refeed: falló la sugerencia de canales ruidosos (%s)",
-                        guild.id,
-                        exc_info=True,
-                    )
-
-        chat_cog.start_refeed_all(guild, progress_msg, welcome_channel, on_done=on_done)
+        # No hay auto-refeed acá: un guild nuevo arranca con la allowlist del
+        # corpus vacía (Chat.on_guild_join), así que no hay nada que leer
+        # todavía — el primer paso real es que un admin elija canales desde
+        # el dashboard (ver build_welcome_embed / WelcomeView, más arriba).
+        if welcome_channel is not None:
+            await remember_welcome_channel(guild.id, welcome_channel.id)
 
     @app_commands.command(
         name="settings", description="Abre el panel de configuración del servidor."

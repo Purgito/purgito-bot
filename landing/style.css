@@ -58,6 +58,9 @@
   --text-dim: color-mix(in srgb, var(--text) 62%, var(--slate));    /* ≈ #b8bcb9 */
   --text-muted: color-mix(in srgb, var(--slate) 65%, var(--text));  /* ≈ #8f999a */
   --danger: hsl(0 62.8% 51%);
+  /* Verde-teal de marca, distinto del --accent cian: "en línea" en /es/estado,
+     la única página pública con indicador de estado. */
+  --success: #6FBFB7;
   --blurple: #5865f2;
   --blurple-dark: #454fbf;
 
@@ -211,6 +214,22 @@ button { font: inherit; cursor: pointer; }
 .btn:active { transform: translateY(1px); }
 .btn-sm { height: 2.25rem; }
 .btn-lg { height: 3rem; padding-inline: 2rem; font-size: var(--t-lg); }
+
+/* Único form real de la landing hoy es el buscador de /es/estado, pero es
+   base genérica (mismo criterio que dash.css) por si suma otra más adelante. */
+input, select {
+  height: 2.5rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t-sm);
+  font-family: inherit;
+  transition: border-color var(--dur);
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+input::placeholder { color: var(--text-muted); }
 
 /* El cian es demasiado claro para texto blanco: tinta oscura encima
    (mismo criterio que la variante `success` de la referencia). */
@@ -1085,6 +1104,97 @@ body:has(.premium) .premium { flex: 1; }
 .donate-sub { margin-top: 0.35rem; font-size: var(--t-sm); color: var(--text-dim); }
 .donate-fine { margin-top: 0.5rem; font-size: var(--t-xs); color: var(--text-muted); }
 .donate-kofi { flex: none; width: 2.5rem; height: 2.5rem; fill: currentColor; color: var(--text-dim); transition: color var(--dur), transform var(--dur); }
+
+/* ══════════════════ /es/estado ══════════════════ */
+.estado {
+  max-width: 64rem;
+  padding-top: 4rem;
+  padding-bottom: var(--gap-section);
+}
+body:has(.estado) { display: flex; flex-direction: column; }
+body:has(.estado) .estado { flex: 1; }
+
+.estado-head { margin-bottom: 2rem; }
+.estado-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: var(--t-4xl);
+  line-height: 1.1;
+  color: var(--text);
+}
+.estado-sub { margin-top: 0.75rem; color: var(--text-dim); }
+@media (min-width: 1024px) { .estado-title { font-size: var(--t-5xl); } }
+
+.estado-toolbar { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.status-select { min-width: 12rem; cursor: pointer; }
+
+.estado-general { display: grid; gap: 1rem; }
+
+.estado-dot {
+  flex: none;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background-color var(--dur), box-shadow var(--dur);
+}
+.estado-dot.is-ok { background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 20%, transparent); }
+.estado-dot.is-down { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 20%, transparent); }
+
+.estado-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.25rem 1.5rem;
+}
+.estado-host { font-weight: 600; color: var(--text); margin-right: 0.25rem; }
+.estado-stat { display: flex; align-items: baseline; gap: 0.35rem; }
+.estado-stat strong { font-family: var(--font-mono); color: var(--text); font-size: var(--t-lg); }
+.estado-stat small { color: var(--text-muted); font-size: var(--t-xs); }
+.estado-latency {
+  margin-left: auto;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
+@media (max-width: 640px) { .estado-summary { gap: 1rem 1.5rem; } .estado-latency { margin-left: 0; } }
+
+.estado-component { display: flex; align-items: center; gap: 0.85rem; padding: 1rem 1.5rem; }
+.estado-component-copy { display: flex; flex-direction: column; gap: 0.15rem; }
+.estado-component-copy strong { color: var(--text); font-size: var(--t-sm); }
+.estado-component-detail { color: var(--text-muted); font-size: var(--t-xs); }
+
+.estado-search { margin-top: 1rem; }
+.estado-search-label { display: block; font-weight: 600; color: var(--text); margin-bottom: 0.75rem; }
+.estado-search-row { display: flex; gap: 0.5rem; }
+.estado-search-row input { flex: 1; min-width: 0; }
+.estado-hint { margin-top: 0.5rem; font-size: var(--t-xs); color: var(--text-muted); }
+.estado-search-result { margin-top: 1.25rem; }
+.estado-search-status { color: var(--text-dim); font-size: var(--t-sm); }
+
+.estado-result-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.estado-result-icon { width: 3rem; height: 3rem; border-radius: 50%; object-fit: cover; flex: none; }
+.estado-result-initial {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-200); color: var(--text-dim); font-weight: 700;
+}
+.estado-result-copy { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.estado-result-name-row { display: flex; align-items: center; gap: 0.5rem; }
+.estado-result-name-row strong { color: var(--text); }
+
+@media (max-width: 640px) { .estado-search-row { flex-direction: column; align-items: stretch; } }
 
 /* ══════════════════ reveal al hacer scroll ══════════════════ */
 .js-reveal .reveal {

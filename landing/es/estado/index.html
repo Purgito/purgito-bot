@@ -3,12 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Conexiones — Purgito</title>
-<meta name="description" content="Conexiones de tu cuenta de Purgito.">
+<title>Estado de Purgito — Purgito</title>
+<meta name="description" content="Estado en vivo de Purgito: tiempo activo, memoria, latencia con Discord y cantidad de servidores. Pública, sin necesidad de login.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css?v=e0b07f8c">
-<link rel="stylesheet" href="/dash.css?v=bb15d5a8">
 <script type="importmap">
 {
   "imports": {
@@ -85,18 +84,68 @@
   </div>
 </nav>
 
-<!-- Cuerpo de /es/perfil, /es/perfil/conexiones y /es/perfil/facturacion — las
-     tres páginas comparten este archivo: solo cambia qué tab pinta perfil.js
-     (lo decide por la URL) y el <title>, que sale de HTML_PAGES.
-     El navbar, el footer y el <head> los pega landing/build_docs.py.
+<!-- Cuerpo de /es/estado. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Todos los datos reales los trae estado.js desde /api/status y
+     /api/status/guild/{id}; acá solo va el esqueleto (placeholders "—"). -->
+<main id="contenido" class="wrap estado">
 
-     Nace vacío a propósito: sin la sesión resuelta no hay nada real que
-     mostrar, y un esqueleto que después se reemplaza solo aporta parpadeo. -->
-<main id="contenido" class="shell-main"></main>
+  <header class="estado-head">
+    <h1 class="estado-title">Estado de Purgito</h1>
+    <p class="estado-sub">Comprueba el estado de Purgito</p>
+  </header>
 
-<!-- Toast de confirmación (abajo a la izquierda). Uno solo por página:
-     core/dom.js lo reutiliza para todos los avisos. -->
-<div id="toast" role="status" aria-live="polite"></div>
+  <div class="estado-toolbar">
+    <select id="estadoMode" class="status-select" aria-label="Vista de estado">
+      <option value="general">Estado general</option>
+      <option value="buscar">Busca tu servidor</option>
+    </select>
+  </div>
+
+  <section id="estadoGeneral" class="estado-general">
+
+    <div class="box estado-summary">
+      <span id="estadoDot" class="estado-dot" aria-hidden="true"></span>
+      <span class="estado-host">Oracle Cloud</span>
+      <span class="estado-stat"><strong id="estadoUptime">—</strong><small>activo</small></span>
+      <span class="estado-stat"><strong id="estadoMemory">—</strong><small>memoria</small></span>
+      <span class="estado-stat"><strong id="estadoUsers">—</strong><small>usuarios</small></span>
+      <span class="estado-stat"><strong id="estadoGuilds">—</strong><small>servidores</small></span>
+      <span id="estadoLatency" class="estado-latency">— ms</span>
+    </div>
+
+    <!-- Los dos "Placeholder: servidor" del boceto: acá van los dos
+         componentes reales de la infraestructura (bot + panel web), no
+         servidores de Discord — eso es lo que hace el buscador de al lado. -->
+    <div class="box estado-component">
+      <span id="estadoDotBot" class="estado-dot" aria-hidden="true"></span>
+      <div class="estado-component-copy">
+        <strong>Bot de Discord</strong>
+        <span id="estadoBotDetail" class="estado-component-detail">Consultando…</span>
+      </div>
+    </div>
+
+    <div class="box estado-component">
+      <span id="estadoDotWeb" class="estado-dot" aria-hidden="true"></span>
+      <div class="estado-component-copy">
+        <strong>Panel web</strong>
+        <span id="estadoWebDetail" class="estado-component-detail">Consultando…</span>
+      </div>
+    </div>
+
+  </section>
+
+  <section id="estadoSearch" class="box estado-search" hidden>
+    <label class="estado-search-label" for="estadoGuildId">Busca tu servidor</label>
+    <div class="estado-search-row">
+      <input id="estadoGuildId" type="text" inputmode="numeric" autocomplete="off" placeholder="ID de tu servidor">
+      <button id="estadoSearchBtn" class="btn btn-accent" type="button">Buscar</button>
+    </div>
+    <p class="estado-hint">Pega la ID de tu servidor para buscarlo</p>
+    <div id="estadoSearchResult"></div>
+  </section>
+
+</main>
 
 <footer class="footer">
   <div class="wrap box foot-inner">
@@ -173,6 +222,6 @@
 </footer>
 
 <script src="/script.js?v=51c20ed0"></script>
-<script type="module" src="/js/perfil.js?v=0ed59097"></script>
+<script type="module" src="/js/estado.js?v=0ed59097"></script>
 </body>
 </html>

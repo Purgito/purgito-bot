@@ -32,11 +32,6 @@
   "settings.corpus.btn_wipe_gifs": "Wipe server GIFs",
   "settings.corpus.wipe_gifs_modal_title": "Wipe server GIFs",
   "settings.corpus.wipe_gifs_success": "🗑️ Deleted {count} GIFs.",
-  "settings.corpus.noisy_suggestion": "👀 I noticed you have a channel called {channel} — you probably don't want me learning from there. Should I exclude it?",
-  "settings.corpus.noisy_btn_yes": "Yes, exclude it",
-  "settings.corpus.noisy_btn_no": "No, keep it",
-  "settings.corpus.noisy_excluded": "✅ Done, I won't read or learn from {channel}. You can change this anytime in `/settings`.",
-  "settings.corpus.noisy_kept": "👍 Got it, I'll keep learning from {channel}.",
 
   "settings.cat.datos.label": "Server data",
   "settings.cat.datos.desc": "Destructive actions: wipe stored corpus or GIFs",
@@ -99,7 +94,7 @@
   "settings.anuncios.invalid_delete_after": "❌ Must be a number between 1 and 86400 seconds.",
   "settings.anuncios.preview_delete_after": "🗑️ auto-deletes in {seconds}s",
 
-  "chat.empty_reply.full": "I don't know how to talk like this server yet 😅 I need to read more of your messages first. An admin can run `/refeed_all` so I learn from the whole server history, or `/setup` to finish setting me up.",
+  "chat.empty_reply.full": "I don't know how to talk like this server yet 😅 I need to read more of your messages first. An admin can pick channels from the dashboard and run `/refeed_channels` so I learn their history, or `/setup` to finish setting me up.",
   "chat.empty_reply.short": "still drawing a blank over here 👀",
 
   "chat.muted.ignored_channel": "🤐 This channel is fully muted. Turn it back on from your dashboard: {url}.",
@@ -108,28 +103,25 @@
 
   "welcome.title": "Hi! I'm Purgito 👋",
   "welcome.intro": "I'm a Markov bot that learns to talk like your server.",
-  "welcome.getting_started": "**To get started:**\n• I already started reading this server's history — I'll let you know here when I'm done (`/refeed_all` if you add new channels)\n• Use the button below for the initial setup",
-  "welcome.auto_refeed_done": "🎉 Done! I've learned how this server talks — mention me to try it out.",
+  "welcome.getting_started": "**To get started:**\n• I'm not learning from anything yet — pick the channels you want me to listen to, to get started\n• Use the button below to pick them",
   "welcome.limited_visibility": "🔍 Right now I can only read {seen} of {total} channels: {names}. If you want me to learn how people actually talk here, give Purgito access to the other channels too — channel permissions, or its role in Server Settings.",
-  "welcome.thin_corpus_hidden": "I finished reading, but I found very few messages ({total}). It's probably because I still can't see all your channels — give me access to more and run `/refeed_all` again.",
-  "welcome.thin_corpus_generic": "I finished reading, but I found very few messages ({total}). I'll sound a bit bland for now — it'll get better as people write more.",
   "welcome.premium_target": "• React to images with 🎯 to add them to the `/momo` pool",
   "welcome.commands_header": "**Main commands:**",
   "welcome.commands": "🤖 `/generar` — generates a Markov message\n🎭 `/imitar @user` — imitates a member's style",
   "welcome.premium_momo": "😂 `/momo` — generates a server meme",
   "welcome.commands_tail": "📖 `/help` — full command list",
   "welcome.dashboard_cta": "🎛️ All of the bot's configuration lives in your dashboard: {url}",
-  "welcome.btn_dashboard": "🎛️ Your dashboard",
+  "welcome.btn_dashboard": "🎛️ Pick channels",
   "welcome.trigger_hint": "I also respond to `{trigger} generar` (reply to an image) to generate a quick meme.",
   "welcome.free_note": "⭐ *Some features (memes and image pool) are premium-only.*",
   "welcome.btn_configure": "⚙️ Set up Purgito",
 
   "dm.title": "👋 Thanks for adding me to {guild}!",
-  "dm.body": "I already started reading the server's history on my own — you don't need to do anything for that.\n\n**Whenever you want:**\n• `/help` — full command list\n• `/setup` — initial setup (language, chat)\n• Web panel: {url}",
+  "dm.body": "I'm not learning from anything yet — the first step is picking the channels you want me to listen to: {url}\n\n**Whenever you want:**\n• `/help` — full command list\n• `/setup` — initial setup (language, chat)",
   "dm.limited_visibility_extra": "Right now I can only read {seen} of {total} channels in this server. If you want me to learn better, give Purgito access to the rest — channel permissions, or its role in Server Settings.",
 
   "setup.title": "🚀 Purgito initial setup",
-  "setup.body": "I'll walk you through the essential settings. Use the menu below to go through each category:\n\n**1. Language** — pick the bot's language 🌐\n**2. Chat** — decide whether the bot replies when mentioned 💬\n\nThe rest of the configuration (channels, learning, frequency, reactions, phrases, limits) is done from your dashboard: {url}\n\nWhen you're done, run `/refeed_all` so the bot learns from the server history. You can come back to this panel anytime with `/settings`.",
+  "setup.body": "I'll walk you through the essential settings. Use the menu below to go through each category:\n\n**1. Language** — pick the bot's language 🌐\n**2. Chat** — decide whether the bot replies when mentioned 💬\n\nThe rest of the configuration (channels, learning, frequency, reactions, phrases, limits) is done from your dashboard: {url}\n\nOnce you pick channels for the corpus, run `/refeed_channels` so the bot learns their history. You can come back to this panel anytime with `/settings`.",
   "setup.panel_cta": "💻 **Web panel:** configure everything from the browser — includes a visual embed editor and interactive buttons: {url}",
   "setup.status_header": "**Right now:**\n👁️ I can see {seen} of {total} channels\n💬 I have {corpus} messages saved\n🚫 {ignored} channel(s) excluded\n\n"
 }

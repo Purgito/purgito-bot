@@ -140,7 +140,9 @@ WEB_PORT=8080
 # Default: 80000
 REFEED_MAX_MESSAGES=80000
 
-# Máximo de mensajes por canal con /refeed_all (todos los canales).
+# Máximo de mensajes por canal con /refeed_channels (los canales elegidos
+# para el corpus). El nombre de la variable quedó de cuando el comando se
+# llamaba /refeed_all — no vale la pena migrarla solo por el rename.
 # Default: 20000
 REFEED_ALL_MAX_MESSAGES=20000
 

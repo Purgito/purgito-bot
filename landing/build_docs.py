@@ -128,6 +128,14 @@ HTML_PAGES = [
         "frases, GIFs, embeds y premium.",
         "app": "dash.js",
     },
+    {
+        "slug": "estado",
+        "src": "estado.html",
+        "title": "Estado de Purgito",
+        "meta": "Estado en vivo de Purgito: tiempo activo, memoria, latencia "
+        "con Discord y cantidad de servidores. Pública, sin necesidad de login.",
+        "module": "estado.js",
+    },
 ]
 
 
@@ -239,6 +247,11 @@ SHELL = """<!DOCTYPE html>
 # la sesión en el navbar.
 APP_HEAD = '<link rel="stylesheet" href="/dash.css">\n{importmap}'
 APP_SCRIPT = '<script type="module" src="/js/{src}?v={v}"></script>\n'
+# Páginas públicas con un módulo ES propio (ej. /es/estado) pero SIN dash.css:
+# no son parte del dashboard, así que no necesitan su hoja de estilos, pero sí
+# el importmap para que el cache-busting de Cloudflare alcance a lo que ese
+# módulo importa (mismo motivo que las páginas "app" -- ver import_map()).
+MODULE_HEAD = "{importmap}"
 
 
 def build_toc(sections, descs):
@@ -306,17 +319,25 @@ def build_html_page(page, nav, footer):
 
     Solo aporta el navbar, el footer y el <head> — el resto sale del archivo
     tal cual. Existe para que esas piezas no se dupliquen fuera de index.html.
-    Las que traen "app" suman además dash.css y su módulo de entrada.
+    Las que traen "app" suman además dash.css y su módulo de entrada; las que
+    traen "module" suman el módulo pero NO dash.css (páginas públicas con su
+    propio JS, ej. /es/estado, que no son parte del dashboard).
     """
-    app = page.get("app")
+    entry = page.get("app") or page.get("module")
+    if page.get("app"):
+        head = APP_HEAD.format(importmap=import_map())
+    elif page.get("module"):
+        head = MODULE_HEAD.format(importmap=import_map())
+    else:
+        head = ""
     return SHELL.format(
         title=html.escape(page["title"]),
         meta=html.escape(page["meta"]),
         nav=nav,
         body=(LANDING / "pages" / page["src"]).read_text("utf-8").strip(),
         footer=footer,
-        head=APP_HEAD.format(importmap=import_map()) if app else "",
-        scripts=APP_SCRIPT.format(src=app, v=js_files()[0]) if app else "",
+        head=head,
+        scripts=APP_SCRIPT.format(src=entry, v=js_files()[0]) if entry else "",
     )
 
 

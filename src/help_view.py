@@ -69,7 +69,7 @@ CATEGORIES = {
             ("/settings", "panel de configuración del servidor"),
             ("/setup", "guía de configuración inicial"),
             ("/refeed", "importa mensajes del canal al corpus"),
-            ("/refeed_all", "importa todos los canales"),
+            ("/refeed_channels", "importa los canales elegidos para el corpus"),
             (
                 "/settings → Corpus / Reacciones",
                 "canales ignorados, wipe del corpus y pool de emojis",

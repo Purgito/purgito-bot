@@ -1,0 +1,62 @@
+<!-- Cuerpo de /es/estado. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Todos los datos reales los trae estado.js desde /api/status y
+     /api/status/guild/{id}; acá solo va el esqueleto (placeholders "—"). -->
+<main id="contenido" class="wrap estado">
+
+  <header class="estado-head">
+    <h1 class="estado-title">Estado de Purgito</h1>
+    <p class="estado-sub">Comprueba el estado de Purgito</p>
+  </header>
+
+  <div class="estado-toolbar">
+    <select id="estadoMode" class="status-select" aria-label="Vista de estado">
+      <option value="general">Estado general</option>
+      <option value="buscar">Busca tu servidor</option>
+    </select>
+  </div>
+
+  <section id="estadoGeneral" class="estado-general">
+
+    <div class="box estado-summary">
+      <span id="estadoDot" class="estado-dot" aria-hidden="true"></span>
+      <span class="estado-host">Oracle Cloud</span>
+      <span class="estado-stat"><strong id="estadoUptime">—</strong><small>activo</small></span>
+      <span class="estado-stat"><strong id="estadoMemory">—</strong><small>memoria</small></span>
+      <span class="estado-stat"><strong id="estadoUsers">—</strong><small>usuarios</small></span>
+      <span class="estado-stat"><strong id="estadoGuilds">—</strong><small>servidores</small></span>
+      <span id="estadoLatency" class="estado-latency">— ms</span>
+    </div>
+
+    <!-- Los dos "Placeholder: servidor" del boceto: acá van los dos
+         componentes reales de la infraestructura (bot + panel web), no
+         servidores de Discord — eso es lo que hace el buscador de al lado. -->
+    <div class="box estado-component">
+      <span id="estadoDotBot" class="estado-dot" aria-hidden="true"></span>
+      <div class="estado-component-copy">
+        <strong>Bot de Discord</strong>
+        <span id="estadoBotDetail" class="estado-component-detail">Consultando…</span>
+      </div>
+    </div>
+
+    <div class="box estado-component">
+      <span id="estadoDotWeb" class="estado-dot" aria-hidden="true"></span>
+      <div class="estado-component-copy">
+        <strong>Panel web</strong>
+        <span id="estadoWebDetail" class="estado-component-detail">Consultando…</span>
+      </div>
+    </div>
+
+  </section>
+
+  <section id="estadoSearch" class="box estado-search" hidden>
+    <label class="estado-search-label" for="estadoGuildId">Busca tu servidor</label>
+    <div class="estado-search-row">
+      <input id="estadoGuildId" type="text" inputmode="numeric" autocomplete="off" placeholder="ID de tu servidor">
+      <button id="estadoSearchBtn" class="btn btn-accent" type="button">Buscar</button>
+    </div>
+    <p class="estado-hint">Pega la ID de tu servidor para buscarlo</p>
+    <div id="estadoSearchResult"></div>
+  </section>
+
+</main>

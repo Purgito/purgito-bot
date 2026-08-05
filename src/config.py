@@ -153,15 +153,19 @@ def get_invite_url(guild_id: str) -> str:
     )
 
 
-def get_dashboard_url(guild_id, locale: str = "es") -> str:
+def get_dashboard_url(guild_id, locale: str = "es", path: str = "") -> str:
     """URL al dashboard de un servidor puntual.
 
     Necesita el prefijo de idioma: la URL sin locale da 404 en producción
     (el sitio no redirige del lado del cliente como se asumía antes).
     Default "es" porque `READY_LANGS` solo tiene ese idioma por ahora — cada
     call site debería pasar el locale real del guild si lo tiene a mano.
+
+    `path` deep-linkea a un tab/subtab puntual, ej. "chat#canales" — se pega
+    tal cual detrás del id de guild, con la barra intermedia puesta acá.
     """
-    return f"{PANEL_URL}/{locale}/dashboard/{guild_id}"
+    base = f"{PANEL_URL}/{locale}/dashboard/{guild_id}"
+    return f"{base}/{path}" if path else base
 
 
 def _env_bool(name: str, default: bool) -> bool:

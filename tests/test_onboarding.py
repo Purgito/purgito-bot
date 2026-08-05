@@ -7,10 +7,7 @@ SimpleNamespace (solo se usa .permissions_for y .name).
 from types import SimpleNamespace
 
 from cogs.settings import (
-    AUTO_REFEED_HEALTHY_MIN,
-    _looks_noisy,
     _format_channel_names,
-    _pick_refeed_done_key,
     _scan_channel_visibility,
     _visibility_is_limited,
 )
@@ -67,41 +64,6 @@ def test_limited_couple_staff_channels_is_normal():
 def test_limited_low_ratio_warns():
     scan = {"total": 20, "visible": [0] * 6, "hidden": [0] * 14}
     assert _visibility_is_limited(scan)  # 6/20 = 0.3 < 0.4
-
-
-# ─── _looks_noisy ────────────────────────────────────────────────────────────
-
-
-def test_looks_noisy_matches():
-    for name in ("mod-log", "LOGS", "verificacion", "reglas", "anuncios", "welcome", "tickets"):
-        assert _looks_noisy(name), name
-
-
-def test_looks_noisy_ignores_normal_channels():
-    for name in ("general", "memes", "off-topic", "garam"):
-        assert not _looks_noisy(name), name
-
-
-# ─── _pick_refeed_done_key (cierre honesto del auto-refeed) ──────────────────
-
-
-def test_done_key_healthy():
-    assert _pick_refeed_done_key(AUTO_REFEED_HEALTHY_MIN, False) == "welcome.auto_refeed_done"
-    assert _pick_refeed_done_key(10_000, True) == "welcome.auto_refeed_done"
-
-
-def test_done_key_thin_with_hidden_channels():
-    assert _pick_refeed_done_key(40, True) == "welcome.thin_corpus_hidden"
-
-
-def test_done_key_thin_without_hidden_channels():
-    assert _pick_refeed_done_key(40, False) == "welcome.thin_corpus_generic"
-
-
-def test_done_key_healthy_even_with_zero_saved_this_run():
-    # El caso real que motivó el fix: canal ya al día (0 mensajes nuevos en
-    # esta corrida) pero con un corpus total ya sano no debe leerse como flaco.
-    assert _pick_refeed_done_key(707, False) == "welcome.auto_refeed_done"
 
 
 # ─── _format_channel_names ───────────────────────────────────────────────────

@@ -25,6 +25,7 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import secrets
 import time
 from urllib.parse import urlencode, urlparse
@@ -139,6 +140,7 @@ log = logging.getLogger(__name__)
 _rate_post: LRUDict = LRUDict(512)
 _rate_delete: LRUDict = LRUDict(512)
 _rate_gif_verify: LRUDict = LRUDict(512)
+_rate_status_search: LRUDict = LRUDict(512)
 # user_id -> (expira_monotonic, [guilds con manage_guild]) — cache 5 min para
 # no golpear a Discord en cada request.
 _user_guilds_cache: LRUDict = LRUDict(256)
@@ -307,6 +309,67 @@ def _bot_guild(request: web.Request, guild_id: int):
 
 async def _api_health(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
+
+
+# ---------------- API: estado público (/es/estado, sin login) ----------------
+
+_PROCESS_START = time.monotonic()
+
+
+def _process_memory_mb() -> float | None:
+    """RSS actual del proceso en MB, leído de /proc/self (Linux, que es lo
+    que corre en el droplet) -- no vale la pena sumar psutil como dependencia
+    solo para esto. None si no está disponible (dev en otro SO); el frontend
+    lo muestra como "—"."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return round(int(line.split()[1]) / 1024, 1)
+    except Exception:
+        pass
+    return None
+
+
+async def _api_status(request: web.Request) -> web.Response:
+    """Estado general del proceso para /es/estado: pública, sin sesión.
+    bot.latency es NaN/inf antes del primer heartbeat -- se manda None en
+    vez de un número sin sentido."""
+    bot = request.app["bot"]
+    latency_ms = round(bot.latency * 1000) if math.isfinite(bot.latency) else None
+    return web.json_response(
+        {
+            "uptime_seconds": int(time.monotonic() - _PROCESS_START),
+            "memory_mb": _process_memory_mb(),
+            "latency_ms": latency_ms,
+            "guild_count": len(bot.guilds),
+            "member_count": sum(g.member_count or 0 for g in bot.guilds),
+        }
+    )
+
+
+async def _api_status_guild(request: web.Request) -> web.Response:
+    """Info pública de un guild puntual (buscador de /es/estado): sin login,
+    así que nada de configuración ni datos sensibles -- solo lo que ya se ve
+    mirando el servidor desde afuera."""
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_status_search, ip, 20):
+        return web.json_response({"error": "rate limit"}, status=429)
+    guild_id = _to_int(request.match_info.get("guild_id"))
+    if guild_id is None:
+        return web.json_response({"error": "guild_id inválido"}, status=400)
+    guild = request.app["bot"].get_guild(guild_id)
+    if guild is None:
+        return web.json_response({"found": False})
+    return web.json_response(
+        {
+            "found": True,
+            "name": guild.name,
+            "icon_url": guild.icon.with_size(128).url if guild.icon else None,
+            "member_count": guild.member_count,
+            "premium": is_premium_guild(guild.id),
+        }
+    )
 
 
 def _rate_ok(store: LRUDict, ip: str, limit: int, window: float = 60.0) -> bool:
@@ -2046,6 +2109,10 @@ async def start_web_server(bot: commands.Bot) -> None:
     # Fuera del bloque DASHBOARD_ENABLED: Polar le pega sin sesión OAuth
     # y el premium debe poder activarse aunque la auth esté apagada.
     app.router.add_post("/webhooks/polar", _webhook_polar)
+    # /es/estado es pública (sin login) y no es parte del dashboard: vive
+    # fuera del bloque DASHBOARD_ENABLED por el mismo motivo que /health.
+    app.router.add_get("/api/status", _api_status)
+    app.router.add_get("/api/status/guild/{guild_id}", _api_status_guild)
 
     if DASHBOARD_ENABLED:
         setup_session(app, _new_session_storage())

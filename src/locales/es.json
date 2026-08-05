@@ -32,11 +32,6 @@
   "settings.corpus.btn_wipe_gifs": "Vaciar GIFs del servidor",
   "settings.corpus.wipe_gifs_modal_title": "Vaciar GIFs del servidor",
   "settings.corpus.wipe_gifs_success": "🗑️ Se eliminaron {count} GIFs.",
-  "settings.corpus.noisy_suggestion": "👀 Vi que tienes un canal llamado {channel} — probablemente no quieras que aprenda de ahí. ¿Lo excluyo?",
-  "settings.corpus.noisy_btn_yes": "Sí, exclúyelo",
-  "settings.corpus.noisy_btn_no": "No, déjalo",
-  "settings.corpus.noisy_excluded": "✅ Listo, no voy a leer ni aprender de {channel}. Puedes cambiarlo cuando quieras desde `/settings`.",
-  "settings.corpus.noisy_kept": "👍 Entendido, sigo aprendiendo de {channel}.",
 
   "settings.cat.datos.label": "Datos del servidor",
   "settings.cat.datos.desc": "Acciones destructivas: vaciar corpus o GIFs guardados",
@@ -99,7 +94,7 @@
   "settings.anuncios.invalid_delete_after": "❌ Tiene que ser un número entre 1 y 86400 segundos.",
   "settings.anuncios.preview_delete_after": "🗑️ se autoborra en {seconds}s",
 
-  "chat.empty_reply.full": "Todavía no puedo hablar como este servidor 😅 Necesito leer más mensajes primero. Un administrador puede ejecutar `/refeed_all` para que aprenda de todo el historial del servidor, o `/setup` para terminar de configurarme.",
+  "chat.empty_reply.full": "Todavía no puedo hablar como este servidor 😅 Necesito leer más mensajes primero. Un administrador puede elegir canales desde el dashboard y ejecutar `/refeed_channels` para que aprenda su historial, o `/setup` para terminar de configurarme.",
   "chat.empty_reply.short": "todavía estoy en blanco por aquí 👀",
 
   "chat.muted.ignored_channel": "🤐 Este canal está silenciado por completo. Actívalo de nuevo desde tu dashboard: {url}.",
@@ -108,28 +103,25 @@
 
   "welcome.title": "¡Hola! Soy Purgito 👋",
   "welcome.intro": "Soy un bot de Markov que aprende cómo se comunica tu servidor.",
-  "welcome.getting_started": "**Para empezar:**\n• Ya empecé a leer el historial de este servidor — te avisaré aquí cuando termine (`/refeed_all` si agregas canales nuevos)\n• Usa el botón de abajo para la configuración inicial",
-  "welcome.auto_refeed_done": "🎉 ¡Listo! Ya aprendí a hablar como este servidor — mencióname para probar.",
+  "welcome.getting_started": "**Para empezar:**\n• Todavía no estoy aprendiendo de nada — elegí los canales desde los que quiero escuchar para empezar\n• Usa el botón de abajo para elegirlos",
   "welcome.limited_visibility": "🔍 Por ahora solo puedo leer {seen} de {total} canales: {names}. Si quieres que aprenda mejor cómo habla la gente aquí, concede acceso a Purgito en los demás canales — permisos del canal o su rol en Ajustes del servidor.",
-  "welcome.thin_corpus_hidden": "Ya terminé de leer, pero encontré pocos mensajes ({total}). Seguramente sea porque todavía no veo todos tus canales — dame acceso a más y corre `/refeed_all` de nuevo.",
-  "welcome.thin_corpus_generic": "Ya terminé de leer, pero encontré pocos mensajes ({total}). Voy a sonar algo soso por ahora; mejorará a medida que la gente escriba más.",
   "welcome.premium_target": "• Reacciona a imágenes con 🎯 para agregarlas a la colección de `/momo`",
   "welcome.commands_header": "**Comandos principales:**",
   "welcome.commands": "🤖 `/generar` — genera un mensaje con Markov\n🎭 `/imitar @usuario` — imita el estilo de un miembro",
   "welcome.premium_momo": "😂 `/momo` — genera un meme del servidor",
   "welcome.commands_tail": "📖 `/help` — lista completa de comandos",
   "welcome.dashboard_cta": "🎛️ Toda la configuración del bot vive en tu dashboard: {url}",
-  "welcome.btn_dashboard": "🎛️ Tu dashboard",
+  "welcome.btn_dashboard": "🎛️ Elegir canales",
   "welcome.trigger_hint": "También respondo a `{trigger} generar` (responder a una imagen) para generar un meme rápido.",
   "welcome.free_note": "⭐ *Algunas funciones (memes y colección de imágenes) son solo para servidores premium.*",
   "welcome.btn_configure": "⚙️ Configurar Purgito",
 
   "dm.title": "👋 ¡Gracias por agregarme a {guild}!",
-  "dm.body": "Ya empecé a leer el historial del servidor por mi cuenta, no tienes que hacer nada para eso.\n\n**Cuando quieras:**\n• `/help` — todos los comandos\n• `/setup` — configuración inicial (idioma, chat)\n• Panel web: {url}",
+  "dm.body": "Todavía no estoy aprendiendo de nada — el primer paso es elegir los canales desde los que quiero escuchar: {url}\n\n**Cuando quieras:**\n• `/help` — todos los comandos\n• `/setup` — configuración inicial (idioma, chat)",
   "dm.limited_visibility_extra": "Ahora mismo solo puedo leer {seen} de {total} canales de este servidor. Si quieres que aprenda mejor, concede acceso a Purgito en los demás (permisos del canal o su rol en Ajustes del servidor).",
 
   "setup.title": "🚀 Configuración inicial de Purgito",
-  "setup.body": "Te guío por los ajustes esenciales. Usa el menú de abajo para recorrer cada categoría:\n\n**1. Idioma** — elige el idioma del bot 🌐\n**2. Chat** — decide si el bot responde al mencionarlo 💬\n\nEl resto de la configuración (canales, aprendizaje, frecuencia, reacciones, frases, límites) la haces desde tu dashboard: {url}\n\nCuando termines, ejecuta `/refeed_all` para que el bot aprenda del historial del servidor. Puedes volver a este panel cuando quieras con `/settings`.",
+  "setup.body": "Te guío por los ajustes esenciales. Usa el menú de abajo para recorrer cada categoría:\n\n**1. Idioma** — elige el idioma del bot 🌐\n**2. Chat** — decide si el bot responde al mencionarlo 💬\n\nEl resto de la configuración (canales, aprendizaje, frecuencia, reacciones, frases, límites) la haces desde tu dashboard: {url}\n\nCuando elijas canales para el corpus, ejecuta `/refeed_channels` para que el bot aprenda su historial. Puedes volver a este panel cuando quieras con `/settings`.",
   "setup.panel_cta": "💻 **Panel web:** configura todo desde el navegador — incluye un editor visual de embeds y botones interactivos: {url}",
   "setup.status_header": "**Ahora mismo:**\n👁️ Veo {seen} de {total} canales\n💬 Tengo {corpus} mensajes guardados\n🚫 {ignored} canal(es) excluido(s)\n\n"
 }

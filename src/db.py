@@ -2815,17 +2815,14 @@ async def upsert_channel_refeed_status(
         await db.commit()
 
 
-async def was_auto_refeed_triggered(guild_id: int) -> bool:
-    db = await get_db()
-    async with db.execute(
-        "SELECT 1 FROM guild_auto_refeed WHERE guild_id=?", (guild_id,)
-    ) as cursor:
-        return await cursor.fetchone() is not None
+async def remember_welcome_channel(guild_id: int, welcome_channel_id: int) -> None:
+    """Guarda dónde se mandó la bienvenida, para avisos posteriores (ej. un
+    canal recién visible en cogs/chat.py:on_guild_channel_update).
 
-
-async def mark_auto_refeed_triggered(
-    guild_id: int, welcome_channel_id: int | None = None
-) -> None:
+    La tabla se llamaba guild_auto_refeed de cuando también trackeaba el
+    auto-refeed al unirse a un servidor (ya no existe, ver Settings.on_guild_join);
+    triggered_at/completed_at quedaron sin lector, no vale la pena migrar el
+    schema solo para renombrarla."""
     db = await get_db()
     async with _db_lock:
         await db.execute(
@@ -2847,16 +2844,6 @@ async def get_welcome_channel_id(guild_id: int) -> int | None:
     ) as cursor:
         row = await cursor.fetchone()
     return row[0] if row else None
-
-
-async def mark_auto_refeed_completed(guild_id: int) -> None:
-    db = await get_db()
-    async with _db_lock:
-        await db.execute(
-            "UPDATE guild_auto_refeed SET completed_at=datetime('now') WHERE guild_id=?",
-            (guild_id,),
-        )
-        await db.commit()
 
 
 async def purge_guild_data(guild_id: int) -> None:
