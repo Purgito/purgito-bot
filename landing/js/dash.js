@@ -375,13 +375,13 @@ async function saveTunable(key, value, label, onSaved) {
 
 /* Campo numérico con autoguardado al salir del input (change, no input: no
    tiene sentido pegarle a la API en cada tecla). */
-function numberField(label, help, { key, value, min, max, step, suffix }) {
+function numberField(label, help, { key, value, min, max, step, suffix, save = saveTunable }) {
   const input = el('input', {
     type: 'number', value: String(value), min: String(min),
     max: String(max), step: String(step || 1), class: 'num-input',
   });
   input.onchange = () => {
-    saveTunable(key, Number(input.value), label, (saved) => {
+    save(key, Number(input.value), label, (saved) => {
       input.value = String(saved);
     });
   };
@@ -393,13 +393,13 @@ function numberField(label, help, { key, value, min, max, step, suffix }) {
 
 /* Probabilidad 0–1 editada como porcentaje entero: el slider y el número van
    sincronizados y solo el `change` (soltar el slider) guarda. */
-function percentField(label, help, { key, value }) {
+function percentField(label, help, { key, value, save = saveTunable }) {
   const pct = Math.round(value * 100);
   const range = el('input', { type: 'range', min: '0', max: '100', step: '1', value: String(pct) });
   const out = el('span', { class: 'pct-value' }, `${pct}%`);
   range.oninput = () => { out.textContent = `${range.value}%`; };
   range.onchange = () => {
-    saveTunable(key, Number(range.value) / 100, label, (saved) => {
+    save(key, Number(range.value) / 100, label, (saved) => {
       const back = Math.round(saved * 100);
       range.value = String(back);
       out.textContent = `${back}%`;
@@ -409,6 +409,93 @@ function percentField(label, help, { key, value }) {
     el('label', {}, label),
     el('div', { class: 'pct-row' }, range, out),
     help ? el('p', { class: 'dim' }, help) : null);
+}
+
+/* Override por canal de los tunables de chat (Fase 2) — reusa numberField y
+   percentField tal cual (les agrega `save` para el endpoint de canal en vez
+   del de servidor), así que la fila real de edición es exactamente la misma
+   que ya conoce el admin en Personalidad/Límites. */
+
+function channelOverrideBadge(active) {
+  return el('span', { class: 'badge' + (active ? '' : ' badge-dim') },
+    active ? 'Override activo acá' : 'Usando default del servidor');
+}
+
+function makeChannelTunableSaver(channelId) {
+  return async (key, value, label, onSaved) => {
+    try {
+      const r = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
+        method: 'PUT', body: { [key]: value },
+      });
+      if (onSaved && r.saved && key in r.saved) onSaved(r.saved[key]);
+      toast(`${label} actualizado para este canal`, 'ok');
+    } catch (e) {
+      toast(`No se pudo guardar ${label.toLowerCase()}, intenta de nuevo`, 'err');
+    }
+  };
+}
+
+/* Una fila = un tunable + su estado de override en un canal puntual. El
+   toggle prende/apaga el override de verdad (PUT inmediato al marcarlo o
+   desmarcarlo, no solo al tocar el valor) para que el badge nunca mienta:
+   "activo" siempre corresponde a una fila real en channel_settings, nunca a
+   una casilla marcada sin guardar todavía. */
+function channelTunableRow(channelId, buildField, label, help, tunable) {
+  const { key, effective, format } = tunable;
+  let override = tunable.override;
+  let isOverride = override !== null && override !== undefined;
+
+  const badge = channelOverrideBadge(isOverride);
+  const checkbox = el('input', { type: 'checkbox', checked: isOverride });
+  const slot = el('div', {});
+
+  function renderSlot() {
+    slot.innerHTML = '';
+    if (isOverride) {
+      slot.append(buildField(label, help, {
+        ...tunable, value: override, save: makeChannelTunableSaver(channelId),
+      }));
+    } else {
+      slot.append(el('p', { class: 'dim' },
+        `Valor efectivo acá: ${format(effective)} (default del servidor).`));
+    }
+  }
+
+  checkbox.onchange = async () => {
+    const turningOn = checkbox.checked;
+    try {
+      if (turningOn) {
+        // Arranca en el valor efectivo actual: activar el override no cambia
+        // la conducta del canal hasta que se edite el campo.
+        const r = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
+          method: 'PUT', body: { [key]: override !== null && override !== undefined ? override : effective },
+        });
+        override = r.saved[key];
+        toast(`${label}: override activado para este canal`, 'ok');
+      } else {
+        await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
+          method: 'PUT', body: { [key]: null },
+        });
+        override = null;
+        toast(`${label}: vuelve a usar el default del servidor`, 'ok');
+      }
+    } catch (e) {
+      checkbox.checked = !turningOn;
+      toast('No se pudo actualizar el override, intenta de nuevo', 'err');
+      return;
+    }
+    isOverride = turningOn;
+    badge.className = 'badge' + (isOverride ? '' : ' badge-dim');
+    badge.textContent = isOverride ? 'Override activo acá' : 'Usando default del servidor';
+    renderSlot();
+  };
+
+  renderSlot();
+  return el('div', { class: 'field channel-tunable' },
+    el('div', { style: 'display:flex;align-items:center;gap:8px;justify-content:space-between' },
+      el('label', {}, label), badge),
+    el('label', { class: 'toggle' }, checkbox, ' Override en este canal'),
+    slot);
 }
 
 /* Multi-select de roles con toggle, gemelo de channelToggleList. Los roles no
@@ -474,6 +561,7 @@ const CHAT_SUBTABS = [
   { key: 'canales', label: 'Canales' },
   { key: 'personalidad', label: 'Personalidad' },
   { key: 'limites', label: 'Límites' },
+  { key: 'porcanal', label: 'Por canal' },
   { key: 'frases', label: 'Frases' },
 ];
 
@@ -690,10 +778,60 @@ async function loadChatTab() {
         frasesBox);
     }
 
+    // --- Sub-pestaña: Por canal (overrides de Personalidad/Límites) ---
+    function buildPorCanal() {
+      const sel = channelSelect(channels, null, 'Elegí un canal…');
+      const resultBox = el('div', {});
+
+      async function loadChannel() {
+        resultBox.innerHTML = '';
+        if (!sel.value) return;
+        const channelId = sel.value;
+        resultBox.append(spinner());
+        try {
+          const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`);
+          resultBox.innerHTML = '';
+          const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
+          resultBox.append(
+            channelTunableRow(channelId, numberField, 'Cada cuántos mensajes', null, {
+              key: 'auto_generate_every', effective: eff.auto_generate_every, override: ov.auto_generate_every,
+              min: (lim2.auto_generate_every || [1])[0], max: (lim2.auto_generate_every || [null, 1000])[1],
+              suffix: 'mensajes', format: v => `${v} mensajes`,
+            }),
+            channelTunableRow(channelId, percentField, 'Probabilidad de hablar', null, {
+              key: 'auto_generate_probability', effective: eff.auto_generate_probability,
+              override: ov.auto_generate_probability, format: v => `${Math.round(v * 100)}%`,
+            }),
+            channelTunableRow(channelId, percentField, 'Probabilidad de reaccionar', null, {
+              key: 'reaction_probability', effective: eff.reaction_probability,
+              override: ov.reaction_probability, format: v => `${Math.round(v * 100)}%`,
+            }),
+            channelTunableRow(channelId, percentField, 'Probabilidad de responder con GIF', null, {
+              key: 'gif_response_probability', effective: eff.gif_response_probability,
+              override: ov.gif_response_probability, format: v => `${Math.round(v * 100)}%`,
+            }),
+            channelTunableRow(channelId, numberField, 'Menciones por hora', null, {
+              key: 'mention_rate_limit', effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
+              min: (lim2.mention_rate_limit || [0])[0], max: (lim2.mention_rate_limit || [null, 1000])[1],
+              suffix: 'por usuario', format: v => `${v} por usuario`,
+            }));
+        } catch (e) { renderError(resultBox, e); }
+      }
+      sel.onchange = loadChannel;
+
+      return formGroup('Ajustes por canal',
+        el('p', { class: 'dim' },
+          'Cada canal usa por default los valores de Personalidad y Límites de '
+          + 'arriba. Elegí uno acá para revisar u overridear alguno puntualmente.'),
+        el('div', { class: 'field' }, el('label', {}, 'Canal'), sel),
+        resultBox);
+    }
+
     const BUILDERS = {
       canales: buildCanales,
       personalidad: buildPersonalidad,
       limites: buildLimites,
+      porcanal: buildPorCanal,
       frases: buildFrases,
     };
 

@@ -263,6 +263,23 @@ CREATE TABLE IF NOT EXISTS mention_channels (
     PRIMARY KEY (guild_id, channel_id)
 );
 
+-- Override por canal de los tunables de settings (CHAT_TUNABLES). Mismo
+-- criterio que las allowlists de arriba en cuanto a "vacío = permisivo":
+-- acá NULL en una columna (o directamente la fila ausente) = usa el valor
+-- de `settings` para ese servidor; un valor no-nulo lo pisa SOLO en ese
+-- canal. Ver get_effective_chat_settings, la única función que debería
+-- leer esto para tomar una decisión (cogs/chat.py no lee esta tabla directo).
+CREATE TABLE IF NOT EXISTS channel_settings (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    auto_generate_every INTEGER,
+    auto_generate_probability REAL,
+    reaction_probability REAL,
+    gif_response_probability REAL,
+    mention_rate_limit INTEGER,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
 -- Canales de los que el bot SÍ aprende. Allowlist positiva: lo que no está
 -- acá no entra al corpus. Ojo con la asimetría respecto de chat_channels:
 -- ahí la lista vacía significa "todos", acá significa "ninguno". Es a
@@ -694,6 +711,89 @@ async def set_chat_tunables(guild_id: int, values: dict) -> dict:
         )
         await db.commit()
     return clean
+
+
+# ─── Overrides por canal de los tunables de chat (channel_settings) ─────────
+
+_TUNABLE_KEYS = tuple(CHAT_TUNABLES)
+
+
+async def get_channel_tunables(guild_id: int, channel_id: int) -> dict:
+    """Overrides crudos de un canal: cada clave de CHAT_TUNABLES -> su valor
+    guardado o None (sin override, hereda el de `settings`). A diferencia de
+    get_effective_chat_settings, NO resuelve nada — la usa el endpoint de
+    lectura del dashboard para poder distinguir "default" de "override"."""
+    db = await get_db()
+    cols = ", ".join(_TUNABLE_KEYS)
+    async with db.execute(
+        f"SELECT {cols} FROM channel_settings WHERE guild_id=? AND channel_id=?",
+        (guild_id, channel_id),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if not row:
+        return dict.fromkeys(_TUNABLE_KEYS)
+    return dict(zip(_TUNABLE_KEYS, row))
+
+
+async def set_channel_tunables(guild_id: int, channel_id: int, values: dict) -> dict:
+    """Guarda o borra overrides por canal de los tunables de chat.
+
+    Contrato distinto de set_chat_tunables porque acá "borrar" es una
+    operación válida y distinta de "no tocar" (volver a heredar el default
+    del servidor no es lo mismo que ignorar el campo):
+    - clave ausente en `values`: no se toca.
+    - clave presente con valor None: borra el override de esa columna.
+    - clave presente con un valor: se recorta a su rango (CHAT_TUNABLES) y
+      queda como override.
+    Devuelve las claves que se tocaron con el valor que quedó guardado
+    (None incluido, para las que se borraron).
+    """
+    clean: dict[str, float | int | None] = {}
+    for key, raw in values.items():
+        if key not in CHAT_TUNABLES:
+            continue
+        if raw is None:
+            clean[key] = None
+            continue
+        low, high = CHAT_TUNABLES[key]
+        caster = int if isinstance(low, int) else float
+        try:
+            clean[key] = max(low, min(high, caster(raw)))
+        except (TypeError, ValueError):
+            continue
+    if not clean:
+        return {}
+    cols = ", ".join(clean)
+    marks = ", ".join("?" for _ in clean)
+    updates = ", ".join(f"{k}=excluded.{k}" for k in clean)
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            f"INSERT INTO channel_settings (guild_id, channel_id, {cols}) "
+            f"VALUES (?, ?, {marks}) "
+            f"ON CONFLICT(guild_id, channel_id) DO UPDATE SET {updates}",
+            (guild_id, channel_id, *clean.values()),
+        )
+        await db.commit()
+    return clean
+
+
+async def get_effective_chat_settings(guild_id: int, channel_id: int) -> dict:
+    """Mismo dict que get_chat_settings, pero con los tunables resueltos
+    para un canal puntual: override de channel_settings si no es NULL, si no
+    el valor de `settings` del servidor. `enabled`/`channel_id` no son
+    overrideables por canal y salen tal cual del servidor.
+
+    Punto único de lectura para cogs/chat.py: nada ahí debería leer
+    channel_settings ni `settings` directo para un tunable de CHAT_TUNABLES,
+    todo pasa por acá."""
+    base = await get_chat_settings(guild_id)
+    overrides = await get_channel_tunables(guild_id, channel_id)
+    resolved = dict(base)
+    for key in CHAT_TUNABLES:
+        if overrides.get(key) is not None:
+            resolved[key] = overrides[key]
+    return resolved
 
 
 async def set_mention_rate_limit(guild_id: int, limit: int) -> None:
@@ -2889,6 +2989,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "chat_channels",
         "spontaneous_channels",
         "mention_channels",
+        "channel_settings",
         "corpus_allowed_channels",
         "mention_rate_limit_exempt_roles",
         "applied_migrations",

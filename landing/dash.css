@@ -280,6 +280,14 @@ textarea { width: 100%; min-height: 70px; resize: vertical; }
   border-color: color-mix(in srgb, var(--premium) 45%, transparent);
   color: var(--premium);
 }
+/* Variante neutra: "usando default del servidor" en los tunables por canal
+   (tab CHAT → Por canal). El .badge base es acento, que leería como "activo"
+   incluso cuando el canal NO tiene override -- justo la ambigüedad a evitar. */
+.badge-dim {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  border-color: color-mix(in srgb, var(--text-muted) 35%, transparent);
+  color: var(--text-muted);
+}
 
 /* ---------- Iconos de interfaz ---------- */
 

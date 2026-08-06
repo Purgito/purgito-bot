@@ -101,7 +101,7 @@ def _patch_ctx(
     async def fake_corpus_allowed(guild_id, chan_id):
         return corpus_allowed
 
-    async def fake_settings(guild_id):
+    async def fake_settings(guild_id, channel_id):
         return {
             "enabled": enabled,
             "channel_id": None,  # deprecado: la lógica ya no lo lee
@@ -124,7 +124,7 @@ def _patch_ctx(
     chat_mod._mention_hits.clear()
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_ignored)
     monkeypatch.setattr(chat_mod, "is_corpus_allowed", fake_corpus_allowed)
-    monkeypatch.setattr(chat_mod, "get_chat_settings", fake_settings)
+    monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(chat_mod, "list_mention_channels", fake_mention_channels)
     monkeypatch.setattr(
         chat_mod, "list_spontaneous_channels", fake_spontaneous_channels
@@ -428,3 +428,89 @@ def test_la_probabilidad_de_gif_sale_de_los_settings(cog, monkeypatch):
 
 async def _noop_counter(guild_id, name, by=1):
     return None
+
+
+# ─── Overrides por canal (Fase 2) ────────────────────────────────────────────
+# on_message resuelve settings vía get_effective_chat_settings; el detalle de
+# cómo se resuelve (override de canal vs default del servidor) ya se prueba
+# en test_chat_config.py -- acá solo se confirma el enganche: que on_message
+# le pasa el channel_id correcto y que un cambio ahí de verdad afecta la
+# conducta observable.
+
+
+def test_on_message_resuelve_settings_con_el_channel_id_del_mensaje(cog, monkeypatch):
+    chat, _, mp = cog
+    _patch_generation(mp)
+
+    calls = []
+
+    async def spy_settings(guild_id, channel_id):
+        calls.append((guild_id, channel_id))
+        return {
+            "enabled": True,
+            "channel_id": None,
+            "mention_rate_limit": 0,
+            "auto_generate_every": 15,
+            "auto_generate_probability": 0.6,
+            "reaction_probability": 0.05,
+            "gif_response_probability": 0.0,
+        }
+
+    monkeypatch.setattr(chat_mod, "get_effective_chat_settings", spy_settings)
+    monkeypatch.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
+    monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_false())
+    monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
+    monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+
+    m = FakeMessage(channel_id=42)
+    asyncio.run(chat.on_message(m))
+
+    assert calls == [(m.guild.id, 42)]
+
+
+async def _async_false():
+    return False
+
+
+async def _async_list():
+    return []
+
+
+def test_override_de_canal_cambia_la_conducta_observable(cog, monkeypatch):
+    """gif_response_probability=1.0 solo en el canal 10: ahí manda GIF, en
+    cualquier otro canal (sin override) sigue mandando texto."""
+    chat, _, mp = cog
+    _patch_generation(mp)
+    monkeypatch.setattr(chat_mod, "random", SimpleNamespace(random=lambda: 0.5))
+    monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
+
+    async def fake_gif(guild_id):
+        return "https://tenor.com/x.gif"
+
+    monkeypatch.setattr(chat_mod, "get_live_gif", fake_gif)
+
+    async def fake_effective(guild_id, channel_id):
+        gif_probability = 1.0 if channel_id == 10 else 0.0
+        return {
+            "enabled": True,
+            "channel_id": None,
+            "mention_rate_limit": 0,
+            "auto_generate_every": 15,
+            "auto_generate_probability": 0.6,
+            "reaction_probability": 0.0,
+            "gif_response_probability": gif_probability,
+        }
+
+    monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_effective)
+    monkeypatch.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
+    monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_false())
+    monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
+    monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+
+    con_override = FakeMessage(channel_id=10)
+    asyncio.run(chat.on_message(con_override))
+    assert con_override.replies == ["https://tenor.com/x.gif"]
+
+    sin_override = FakeMessage(channel_id=20)
+    asyncio.run(chat.on_message(sin_override))
+    assert sin_override.replies == ["respuesta"]

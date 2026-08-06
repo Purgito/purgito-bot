@@ -20,7 +20,7 @@ from db import (
     count_corpus_messages,
     count_user_messages,
     get_channel_refeed_status,
-    get_chat_settings,
+    get_effective_chat_settings,
     get_random_reaction,
     get_welcome_channel_id,
     is_channel_ignored,
@@ -222,7 +222,12 @@ class Chat(commands.Cog):
         settings = None
 
         if message.guild:
-            settings = await get_chat_settings(message.guild.id)
+            # Resuelto por canal: cada tunable puede tener override en
+            # channel_settings (tab CHAT del dashboard); si no, cae al
+            # default del servidor. Ver get_effective_chat_settings en db.py.
+            settings = await get_effective_chat_settings(
+                message.guild.id, message.channel.id
+            )
             # Un canal ignorado no entra al corpus ni recibe reacciones, pero ya
             # no corta la función: una mención directa merece respuesta (abajo).
             ignored = await is_channel_ignored(message.guild.id, message.channel.id)

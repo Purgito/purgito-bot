@@ -54,7 +54,7 @@ def cog(monkeypatch):
         saved.append(text)
         return (True, True)
 
-    async def fake_settings(guild_id):
+    async def fake_settings(guild_id, channel_id):
         return {
             "enabled": True,
             "channel_id": None,
@@ -75,7 +75,7 @@ def cog(monkeypatch):
         return "respuesta", True
 
     monkeypatch.setattr(chat_mod, "save_corpus_and_user_message", fake_save)
-    monkeypatch.setattr(chat_mod, "get_chat_settings", fake_settings)
+    monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_empty_list)
     monkeypatch.setattr(chat_mod, "is_corpus_allowed", fake_true)
     monkeypatch.setattr(chat_mod, "list_mention_channels", fake_empty_list)

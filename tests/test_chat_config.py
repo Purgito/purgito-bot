@@ -295,3 +295,133 @@ def test_purge_guild_data_borra_las_tablas_nuevas(temp_db):
     assert corpus == [] and roles == [] and spontaneous == [] and mention == []
     # Sin el flag, si el bot vuelve a entrar arranca de cero como servidor nuevo.
     assert migrated is False
+
+
+# ─── Overrides por canal (channel_settings) ──────────────────────────────────
+
+
+def test_sin_override_el_efectivo_es_igual_al_del_servidor(temp_db):
+    async def run():
+        await db.set_chat_tunables(1, {"reaction_probability": 0.3})
+        return await db.get_chat_settings(1), await db.get_effective_chat_settings(
+            1, 10
+        )
+
+    server, effective = asyncio.run(run())
+    for key in db.CHAT_TUNABLES:
+        assert effective[key] == server[key]
+
+
+def test_get_channel_tunables_sin_fila_devuelve_todo_none(temp_db):
+    overrides = asyncio.run(db.get_channel_tunables(1, 10))
+    assert overrides == dict.fromkeys(db.CHAT_TUNABLES)
+
+
+def test_set_channel_tunables_guarda_solo_lo_enviado(temp_db):
+    async def run():
+        await db.set_channel_tunables(1, 10, {"reaction_probability": 0.9})
+        return await db.get_channel_tunables(1, 10)
+
+    overrides = asyncio.run(run())
+    assert overrides["reaction_probability"] == 0.9
+    # El resto sigue sin override: cae al default del servidor.
+    assert overrides["auto_generate_every"] is None
+    assert overrides["gif_response_probability"] is None
+
+
+def test_override_de_canal_pisa_el_default_solo_en_ese_canal(temp_db):
+    async def run():
+        await db.set_chat_tunables(1, {"reaction_probability": 0.05})
+        await db.set_channel_tunables(1, 10, {"reaction_probability": 0.9})
+        return (
+            await db.get_effective_chat_settings(1, 10),  # con override
+            await db.get_effective_chat_settings(1, 20),  # sin override
+        )
+
+    con_override, sin_override = asyncio.run(run())
+    assert con_override["reaction_probability"] == 0.9
+    assert sin_override["reaction_probability"] == 0.05
+
+
+def test_override_parcial_no_afecta_los_otros_tunables(temp_db):
+    """Un override de un solo campo no tiene que arrastrar el resto al
+    default -- cada tunable resuelve el suyo de forma independiente."""
+
+    async def run():
+        await db.set_chat_tunables(1, {"gif_response_probability": 0.2})
+        await db.set_channel_tunables(1, 10, {"reaction_probability": 0.9})
+        return await db.get_effective_chat_settings(1, 10)
+
+    effective = asyncio.run(run())
+    assert effective["reaction_probability"] == 0.9  # override
+    assert effective["gif_response_probability"] == 0.2  # default del servidor
+
+
+def test_valor_null_borra_el_override_y_vuelve_a_heredar(temp_db):
+    async def run():
+        await db.set_channel_tunables(1, 10, {"reaction_probability": 0.9})
+        await db.set_channel_tunables(1, 10, {"reaction_probability": None})
+        return (
+            await db.get_channel_tunables(1, 10),
+            await db.get_effective_chat_settings(1, 10),
+        )
+
+    overrides, effective = asyncio.run(run())
+    assert overrides["reaction_probability"] is None
+    assert effective["reaction_probability"] == db.DEFAULT_REACTION_PROBABILITY
+
+
+def test_channel_tunables_se_recortan_al_mismo_rango_que_el_servidor(temp_db):
+    saved = asyncio.run(
+        db.set_channel_tunables(
+            1,
+            10,
+            {
+                "auto_generate_probability": 5.0,
+                "reaction_probability": -3,
+                "auto_generate_every": 0,
+                "mention_rate_limit": 99999,
+            },
+        )
+    )
+    assert saved["auto_generate_probability"] == 1.0
+    assert saved["reaction_probability"] == 0.0
+    assert saved["auto_generate_every"] == 1
+    assert saved["mention_rate_limit"] == db.MAX_MENTION_RATE_LIMIT
+
+
+def test_overrides_no_se_mezclan_entre_canales(temp_db):
+    async def run():
+        await db.set_channel_tunables(1, 10, {"reaction_probability": 0.9})
+        await db.set_channel_tunables(1, 20, {"reaction_probability": 0.1})
+        return (
+            await db.get_channel_tunables(1, 10),
+            await db.get_channel_tunables(1, 20),
+        )
+
+    diez, veinte = asyncio.run(run())
+    assert diez["reaction_probability"] == 0.9
+    assert veinte["reaction_probability"] == 0.1
+
+
+def test_overrides_no_se_mezclan_entre_guilds(temp_db):
+    async def run():
+        await db.set_channel_tunables(1, 10, {"reaction_probability": 0.9})
+        await db.set_channel_tunables(2, 10, {"reaction_probability": 0.1})
+        return (
+            await db.get_channel_tunables(1, 10),
+            await db.get_channel_tunables(2, 10),
+        )
+
+    uno, dos = asyncio.run(run())
+    assert uno["reaction_probability"] == 0.9
+    assert dos["reaction_probability"] == 0.1
+
+
+def test_purge_guild_data_borra_channel_settings(temp_db):
+    async def run():
+        await db.set_channel_tunables(7, 10, {"reaction_probability": 0.9})
+        await db.purge_guild_data(7)
+        return await db.get_channel_tunables(7, 10)
+
+    assert asyncio.run(run()) == dict.fromkeys(db.CHAT_TUNABLES)

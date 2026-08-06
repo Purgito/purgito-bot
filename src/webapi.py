@@ -88,8 +88,10 @@ from db import (
     embed_template_limit,
     extract_send_options,
     get_bot_style,
+    get_channel_tunables,
     get_chat_settings,
     get_counters,
+    get_effective_chat_settings,
     get_gif_by_id,
     get_gif_by_url,
     get_shared_embed,
@@ -117,6 +119,7 @@ from db import (
     remove_youtube_sub_by_id,
     save_gif_url,
     set_bot_style,
+    set_channel_tunables,
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
@@ -639,6 +642,61 @@ async def _api_chat_tunables_put(request: web.Request, guild_id: int) -> web.Res
     )
     # Devuelve lo guardado ya recortado al rango: si el usuario mandó 5000
     # mensajes, el input se corrige solo en vez de mentir.
+    return web.json_response({"ok": True, "saved": saved})
+
+
+@guild_api
+async def _api_channel_settings_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Tunables de chat de un canal puntual: el efectivo (resuelto, lo que
+    de verdad usa cogs/chat.py) y los overrides crudos, para que el
+    dashboard pueda marcar campo por campo "default del servidor" vs
+    "override acá" sin ambigüedad."""
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    effective = await get_effective_chat_settings(guild_id, channel_id)
+    overrides = await get_channel_tunables(guild_id, channel_id)
+    return web.json_response(
+        {
+            "effective": {k: effective[k] for k in CHAT_TUNABLES},
+            "overrides": overrides,
+            "limits": {k: list(v) for k, v in CHAT_TUNABLES.items()},
+        }
+    )
+
+
+@guild_api
+async def _api_channel_settings_put(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Guarda o borra overrides de un canal. Mismo contrato que
+    set_channel_tunables: clave ausente en el body no se toca, `null` borra
+    el override (vuelve a heredar el default del servidor), un valor lo
+    recorta a su rango y lo guarda como override."""
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    unknown = set(data) - set(CHAT_TUNABLES)
+    if unknown:
+        return web.json_response(
+            {"error": f"campos desconocidos: {', '.join(sorted(unknown))}"}, status=400
+        )
+    saved = await set_channel_tunables(guild_id, channel_id, data)
+    if not saved:
+        return web.json_response(
+            {"error": "ningún valor válido para guardar"}, status=400
+        )
+    await _log_audit(
+        request,
+        guild_id,
+        "channel_settings.update",
+        detail=f"channel_id={channel_id} {json.dumps(saved)}",
+    )
     return web.json_response({"ok": True, "saved": saved})
 
 
@@ -2298,6 +2356,14 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get(f"{base}/settings/chat", _api_chat_get)
         app.router.add_put(f"{base}/settings/chat", _api_chat_put)
         app.router.add_put(f"{base}/settings/chat/tunables", _api_chat_tunables_put)
+        app.router.add_get(
+            "/api/guilds/{guild_id}/channels/{channel_id}/settings",
+            _api_channel_settings_get,
+        )
+        app.router.add_put(
+            "/api/guilds/{guild_id}/channels/{channel_id}/settings",
+            _api_channel_settings_put,
+        )
         app.router.add_get(f"{base}/settings/exempt-roles", _api_exempt_roles_get)
         app.router.add_post(f"{base}/settings/exempt-roles", _api_exempt_roles_post)
         app.router.add_delete(
