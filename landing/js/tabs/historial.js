@@ -1,0 +1,105 @@
+import { apiFetch } from '/js/core/api.js';
+import { el, spinner, emptyState, renderError, formGroup, toast } from '/js/core/dom.js';
+import { GUILD_ID } from '/js/core/config.js';
+import { content } from '/js/panel-shell.js';
+
+const PAGE_SIZE = 50;
+
+// Traduce el "action" que graba db.log_audit (ver _log_audit en webapi.py) a
+// un texto legible. Lo que no está mapeado se muestra tal cual: mejor un
+// action en crudo que un renglón vacío si se agrega uno nuevo acá y se
+// olvida sumarlo a este mapa.
+const ACTION_LABELS = {
+  'chat.settings_update': 'Actualizó la configuración del chat',
+  'chat.tunables_update': 'Ajustó los parámetros del chat',
+  'corpus.add': 'Agregó un canal de aprendizaje',
+  'corpus.remove': 'Quitó un canal de aprendizaje',
+  'embed_template.create': 'Creó una plantilla de embed',
+  'embed_template.update': 'Editó una plantilla de embed',
+  'embed_template.delete': 'Eliminó una plantilla de embed',
+  'embeds.schedule': 'Programó un anuncio con embed',
+  'embeds.send': 'Envió un embed',
+  'exempt_roles.add': 'Agregó un rol exento del límite de menciones',
+  'exempt_roles.remove': 'Quitó un rol exento del límite de menciones',
+  'frases.add': 'Agregó una frase especial',
+  'frases.remove': 'Eliminó una frase especial',
+  'gifs.add': 'Agregó un GIF',
+  'gifs.remove': 'Eliminó un GIF',
+  'gifs.block': 'Bloqueó un GIF',
+  'gifs.unblock': 'Desbloqueó un GIF',
+  'mention_channels.add': 'Agregó un canal de menciones',
+  'mention_channels.remove': 'Quitó un canal de menciones',
+  'reactions.add': 'Agregó una reacción',
+  'reactions.remove': 'Quitó una reacción',
+  'spontaneous_channels.add': 'Agregó un canal de participación espontánea',
+  'spontaneous_channels.remove': 'Quitó un canal de participación espontánea',
+  'style.update': 'Actualizó el estilo del bot',
+  'updates_channel.set': 'Configuró el canal de novedades',
+  'youtube.add': 'Agregó una suscripción de YouTube',
+  'youtube.remove': 'Eliminó una suscripción de YouTube',
+  'youtube.update_mention_role': 'Cambió el rol de mención de YouTube',
+};
+
+function actionLabel(action) {
+  return ACTION_LABELS[action] || action;
+}
+
+// created_at llega como timestamp de SQLite en UTC sin sufijo de zona
+// ("YYYY-MM-DD HH:MM:SS"); hay que marcarlo como tal antes de pasarlo a
+// Date, si no el navegador lo toma como hora local y corre el horario.
+function formatWhen(createdAt) {
+  return new Date(createdAt.replace(' ', 'T') + 'Z').toLocaleString('es');
+}
+
+function entryRow(entry) {
+  return el('li', {},
+    el('div', { style: 'flex:1' },
+      el('div', {}, el('strong', {}, entry.user_name), ' — ' + actionLabel(entry.action)),
+      entry.detail ? el('div', { class: 'dim' }, entry.detail) : null),
+    el('span', { class: 'dim' }, formatWhen(entry.created_at)));
+}
+
+// Ruta en su propio literal, sin la query pegada: test_dashboard_routes.py
+// (tests/, no landing/) extrae los strings que arrancan con "/api/" tal
+// cual para chequear que la API los registre, y una query pegada ahí la
+// haría no matchear con la forma real de la ruta.
+const AUDIT_PATH = (guildId) => `/api/guilds/${guildId}/audit`;
+
+export async function loadHistorial() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const data = await apiFetch(`${AUDIT_PATH(GUILD_ID)}?limit=${PAGE_SIZE}&offset=0`);
+    box.innerHTML = '';
+
+    if (!data.entries.length) {
+      box.append(emptyState('Todavía no hay cambios registrados en este servidor.'));
+      return;
+    }
+
+    const list = el('ul', { class: 'item-list' });
+    for (const entry of data.entries) list.append(entryRow(entry));
+    box.append(formGroup('Historial de cambios', list));
+
+    if (data.entries.length === PAGE_SIZE) {
+      let offset = PAGE_SIZE;
+      const moreBtn = el('button', {
+        class: 'btn btn-secondary',
+        onclick: async () => {
+          moreBtn.disabled = true;
+          try {
+            const more = await apiFetch(`${AUDIT_PATH(GUILD_ID)}?limit=${PAGE_SIZE}&offset=${offset}`);
+            for (const entry of more.entries) list.append(entryRow(entry));
+            offset += PAGE_SIZE;
+            if (more.entries.length < PAGE_SIZE) moreBtn.remove();
+          } catch (e) {
+            toast(e.message, 'err');
+          } finally {
+            moreBtn.disabled = false;
+          }
+        },
+      }, 'Cargar más');
+      box.append(moreBtn);
+    }
+  } catch (e) { renderError(box, e); }
+}
