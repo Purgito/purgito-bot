@@ -70,13 +70,16 @@ from db import (
     add_corpus_channel,
     add_embed_template,
     add_exempt_role,
+    add_frase_channel,
     add_frase_especial,
+    add_frase_pack,
     add_mention_channel,
     add_reaction_to_pool,
     add_scheduled_announcement,
     add_shared_embed,
     add_spontaneous_channel,
     add_youtube_sub,
+    assign_pack_to_channel,
     block_gif,
     count_corpus_by_channel,
     count_gif_urls,
@@ -84,9 +87,12 @@ from db import (
     count_shared_embeds_today,
     delete_embed_template,
     delete_frase_especial,
+    delete_frase_pack,
     delete_gif_url_by_id,
     embed_template_limit,
     extract_send_options,
+    frase_pack_limit,
+    frases_limit,
     get_bot_style,
     get_channel_tunables,
     get_chat_settings,
@@ -101,10 +107,13 @@ from db import (
     list_corpus_channels,
     list_embed_templates,
     list_exempt_roles,
+    list_frase_channels,
+    list_frase_packs,
     list_frases_especiales,
     list_gif_urls,
     list_ignored_channels,
     list_mention_channels,
+    list_pack_channels,
     list_premium_guilds,
     list_reaction_pool,
     list_spontaneous_channels,
@@ -113,6 +122,7 @@ from db import (
     normalize_embeds_json,
     remove_corpus_channel,
     remove_exempt_role,
+    remove_frase_channel,
     remove_mention_channel,
     remove_reaction_from_pool,
     remove_spontaneous_channel,
@@ -123,9 +133,11 @@ from db import (
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
+    set_frase_pack,
     set_updates_channel,
     set_youtube_mention_role_by_id,
     share_links_daily_limit,
+    unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
     update_last_video_id,
@@ -1168,9 +1180,16 @@ async def _api_frases_get(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response(
         {
             "frases": [
-                {"id": f["id"], "frase": f["frase"], "user_name": f["user_name"]}
+                {
+                    "id": f["id"],
+                    "frase": f["frase"],
+                    "user_name": f["user_name"],
+                    "pack_id": f["pack_id"],
+                }
                 for f in frases
-            ]
+            ],
+            "total": len(frases),
+            "limit": frases_limit(guild_id),
         }
     )
 
@@ -1181,10 +1200,24 @@ async def _api_frases_post(request: web.Request, guild_id: int) -> web.Response:
     frase = (data.get("frase") or "").strip() if data else ""
     if not frase:
         return web.json_response({"error": "frase vacía"}, status=400)
+    pack_id = None
+    if data and data.get("pack_id") is not None:
+        pack_id = _to_int(data["pack_id"])
+        if pack_id is None:
+            return web.json_response({"error": "pack_id inválido"}, status=400)
     session = await get_session(request)
     added = await add_frase_especial(
-        guild_id, int(session["user_id"]), str(session.get("username", "panel")), frase
+        guild_id,
+        int(session["user_id"]),
+        str(session.get("username", "panel")),
+        frase,
+        pack_id=pack_id,
     )
+    if added is None:
+        return web.json_response(
+            {"error": "límite de frases alcanzado — elimina una antes de agregar otra"},
+            status=409,
+        )
     if added:
         await _log_audit(request, guild_id, "frases.add", detail=frase)
     return web.json_response({"added": added})
@@ -1201,6 +1234,172 @@ async def _api_frases_delete(request: web.Request, guild_id: int) -> web.Respons
             request, guild_id, "frases.remove", detail=f"frase_id={frase_id}"
         )
     return web.json_response({"deleted": deleted})
+
+
+@guild_api
+async def _api_frases_patch(request: web.Request, guild_id: int) -> web.Response:
+    """Reasigna el pack de una frase existente (pack_id null la vuelve al
+    pool default del servidor)."""
+    frase_id = _to_int(request.match_info.get("frase_id"))
+    if frase_id is None:
+        return web.json_response({"error": "frase_id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None or "pack_id" not in data:
+        return web.json_response({"error": "pack_id es obligatorio"}, status=400)
+    pack_id = None
+    if data["pack_id"] is not None:
+        pack_id = _to_int(data["pack_id"])
+        if pack_id is None:
+            return web.json_response({"error": "pack_id inválido"}, status=400)
+    updated = await set_frase_pack(guild_id, frase_id, pack_id)
+    if updated:
+        await _log_audit(
+            request,
+            guild_id,
+            "frases.set_pack",
+            detail=f"frase_id={frase_id} pack_id={pack_id}",
+        )
+    return web.json_response({"updated": updated})
+
+
+# ---------------- API: canales permitidos para frases especiales ----------
+
+
+@guild_api
+async def _api_frase_channels_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    channels = [
+        {"id": str(cid), "name": _channel_name(guild, cid)}
+        for cid in await list_frase_channels(guild_id)
+    ]
+    return web.json_response({"channels": channels})
+
+
+@guild_api
+async def _api_frase_channels_post(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    channel_id = _to_int(data.get("channel_id")) if data else None
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    added = await add_frase_channel(guild_id, channel_id)
+    if added:
+        await _log_audit(
+            request, guild_id, "frase_channels.add", detail=f"channel_id={channel_id}"
+        )
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_frase_channels_delete(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    removed = await remove_frase_channel(guild_id, channel_id)
+    if removed:
+        await _log_audit(
+            request,
+            guild_id,
+            "frase_channels.remove",
+            detail=f"channel_id={channel_id}",
+        )
+    return web.json_response({"removed": removed})
+
+
+# ---------------- API: packs de frases especiales --------------------------
+
+
+@guild_api
+async def _api_frase_packs_get(request: web.Request, guild_id: int) -> web.Response:
+    packs = await list_frase_packs(guild_id)
+    return web.json_response(
+        {"packs": packs, "total": len(packs), "limit": frase_pack_limit(guild_id)}
+    )
+
+
+@guild_api
+async def _api_frase_packs_post(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    name = (data.get("name") or "").strip() if data else ""
+    if not name:
+        return web.json_response({"error": "el pack necesita un nombre"}, status=400)
+    pack_id = await add_frase_pack(guild_id, name)
+    if pack_id is None:
+        return web.json_response(
+            {"error": "límite de packs alcanzado, o ya existe un pack con ese nombre"},
+            status=409,
+        )
+    await _log_audit(request, guild_id, "frase_packs.create", detail=name)
+    return web.json_response({"id": pack_id})
+
+
+@guild_api
+async def _api_frase_packs_delete(request: web.Request, guild_id: int) -> web.Response:
+    pack_id = _to_int(request.match_info.get("pack_id"))
+    if pack_id is None:
+        return web.json_response({"error": "pack_id inválido"}, status=400)
+    deleted = await delete_frase_pack(guild_id, pack_id)
+    if deleted:
+        await _log_audit(
+            request, guild_id, "frase_packs.delete", detail=f"pack_id={pack_id}"
+        )
+    return web.json_response({"deleted": deleted})
+
+
+@guild_api
+async def _api_frase_pack_channels_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    pack_id = _to_int(request.match_info.get("pack_id"))
+    if pack_id is None:
+        return web.json_response({"error": "pack_id inválido"}, status=400)
+    guild = _bot_guild(request, guild_id)
+    channels = [
+        {"id": str(cid), "name": _channel_name(guild, cid)}
+        for cid in await list_pack_channels(guild_id, pack_id)
+    ]
+    return web.json_response({"channels": channels})
+
+
+@guild_api
+async def _api_frase_pack_channels_post(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    pack_id = _to_int(request.match_info.get("pack_id"))
+    if pack_id is None:
+        return web.json_response({"error": "pack_id inválido"}, status=400)
+    data = await _json_body(request)
+    channel_id = _to_int(data.get("channel_id")) if data else None
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    await assign_pack_to_channel(guild_id, channel_id, pack_id)
+    await _log_audit(
+        request,
+        guild_id,
+        "frase_packs.assign_channel",
+        detail=f"pack_id={pack_id} channel_id={channel_id}",
+    )
+    return web.json_response({"ok": True})
+
+
+@guild_api
+async def _api_frase_pack_channels_delete(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    pack_id = _to_int(request.match_info.get("pack_id"))
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if pack_id is None or channel_id is None:
+        return web.json_response({"error": "pack_id o channel_id inválido"}, status=400)
+    removed = await unassign_pack_from_channel(guild_id, channel_id, pack_id)
+    if removed:
+        await _log_audit(
+            request,
+            guild_id,
+            "frase_packs.unassign_channel",
+            detail=f"pack_id={pack_id} channel_id={channel_id}",
+        )
+    return web.json_response({"removed": removed})
 
 
 # ---------------- API: gifs por guild ----------------
@@ -2403,6 +2602,32 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/settings/frases", _api_frases_post)
         app.router.add_delete(
             f"{base}/settings/frases/{{frase_id}}", _api_frases_delete
+        )
+        app.router.add_patch(f"{base}/settings/frases/{{frase_id}}", _api_frases_patch)
+        app.router.add_get(f"{base}/settings/frases/channels", _api_frase_channels_get)
+        app.router.add_post(
+            f"{base}/settings/frases/channels", _api_frase_channels_post
+        )
+        app.router.add_delete(
+            f"{base}/settings/frases/channels/{{channel_id}}",
+            _api_frase_channels_delete,
+        )
+        app.router.add_get(f"{base}/frases/packs", _api_frase_packs_get)
+        app.router.add_post(f"{base}/frases/packs", _api_frase_packs_post)
+        app.router.add_delete(
+            f"{base}/frases/packs/{{pack_id}}", _api_frase_packs_delete
+        )
+        app.router.add_get(
+            f"{base}/frases/packs/{{pack_id}}/channels",
+            _api_frase_pack_channels_get,
+        )
+        app.router.add_post(
+            f"{base}/frases/packs/{{pack_id}}/channels",
+            _api_frase_pack_channels_post,
+        )
+        app.router.add_delete(
+            f"{base}/frases/packs/{{pack_id}}/channels/{{channel_id}}",
+            _api_frase_pack_channels_delete,
         )
         app.router.add_get(f"{base}/settings/updates", _api_updates_get)
         app.router.add_put(f"{base}/settings/updates", _api_updates_put)

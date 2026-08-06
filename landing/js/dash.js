@@ -587,7 +587,7 @@ async function loadChatTab() {
   const box = content();
   box.append(spinner());
   try {
-    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, exempt, channels, roles] =
+    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, exempt, channels, roles] =
       await Promise.all([
         apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
         apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
@@ -595,6 +595,8 @@ async function loadChatTab() {
         apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
         apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
         apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`),
+        apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
         getChannels(),
         getRoles(),
@@ -731,6 +733,14 @@ async function loadChatTab() {
           percentField('Probabilidad de responder con GIF', null, {
             key: 'gif_response_probability',
             value: chat.gif_response_probability,
+          })),
+        formGroup('Frases especiales',
+          el('p', { class: 'dim' },
+            'Con qué frecuencia responde con una frase especial (ver la '
+            + 'sub-pestaña Frases) en vez de un mensaje generado por Markov.'),
+          percentField('Probabilidad de usar una frase especial', null, {
+            key: 'frase_probability',
+            value: chat.frase_probability,
           })));
     }
 
@@ -772,10 +782,44 @@ async function loadChatTab() {
     // --- Sub-pestaña: Frases ---
     function buildFrases() {
       const frasesBox = el('div', {});
-      renderFrases(frasesBox, frases.frases);
-      return formGroup('Frases',
-        el('p', { class: 'dim' }, 'Frases especiales que el bot puede enviar de vez en cuando.'),
-        frasesBox);
+      renderFrases(frasesBox, frases.frases, frasePacks.packs);
+
+      const packsBox = el('div', {});
+      renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox);
+
+      const fraseChannelsSelected = new Set(fraseChannels.channels.map(c => c.id));
+
+      return el('div', {},
+        formGroup('Frases',
+          el('p', { class: 'dim' }, 'Frases especiales que el bot puede enviar de vez en cuando.'),
+          frasesBox),
+        formGroup('Packs de frases',
+          el('p', { class: 'dim' },
+            'Agrupá frases en un pack y asignaselo a uno o más canales para que '
+            + 'solo salgan esas ahí. Una frase sin pack (o un canal sin pack '
+            + 'asignado) usa el pool default del servidor, de arriba.'),
+          packsBox),
+        channelCard('star', 'Canales donde pueden salir frases especiales',
+          el('p', { class: 'dim' },
+            'Elegí en qué canales puede aparecer una frase especial. Si no '
+            + 'eliges ninguno, puede salir en cualquiera.'),
+          channelToggleList({
+            channels,
+            isSelected: id => fraseChannelsSelected.has(id),
+            add: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`, {
+                method: 'POST', body: { channel_id: ch.id },
+              });
+              fraseChannelsSelected.add(ch.id);
+            },
+            remove: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels/${ch.id}`, {
+                method: 'DELETE',
+              });
+              fraseChannelsSelected.delete(ch.id);
+            },
+            listBelow: 'Sin canales elegidos — puede salir en cualquiera.',
+          })));
     }
 
     // --- Sub-pestaña: Por canal (overrides de Personalidad/Límites) ---
@@ -814,6 +858,10 @@ async function loadChatTab() {
               key: 'mention_rate_limit', effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
               min: (lim2.mention_rate_limit || [0])[0], max: (lim2.mention_rate_limit || [null, 1000])[1],
               suffix: 'por usuario', format: v => `${v} por usuario`,
+            }),
+            channelTunableRow(channelId, percentField, 'Probabilidad de usar una frase especial', null, {
+              key: 'frase_probability', effective: eff.frase_probability,
+              override: ov.frase_probability, format: v => `${Math.round(v * 100)}%`,
             }));
         } catch (e) { renderError(resultBox, e); }
       }
@@ -953,13 +1001,33 @@ async function reloadReacciones(box) {
   } catch (e) { /* se queda como estaba */ }
 }
 
-function renderFrases(box, frases) {
+// `packs` decide si se muestra el selector de pack por frase: sin packs
+// creados todavía no tiene sentido mostrar un <select> con una sola opción.
+function renderFrases(box, frases, packs) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
   if (!frases.length) list.append(el('li', { class: 'dim' }, 'Todavía no has agregado ninguna frase.'));
   for (const f of frases) {
+    let packSelect = null;
+    if (packs.length) {
+      packSelect = el('select', {});
+      packSelect.append(el('option', { value: '' }, 'Sin pack (default)'));
+      for (const p of packs) packSelect.append(el('option', { value: String(p.id) }, p.name));
+      packSelect.value = f.pack_id != null ? String(f.pack_id) : '';
+      packSelect.onchange = async () => {
+        try {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, {
+            method: 'PATCH', body: { pack_id: packSelect.value || null },
+          });
+          toast('Pack de la frase actualizado', 'ok');
+        } catch (e) {
+          toast('No se pudo actualizar el pack, intenta de nuevo', 'err');
+        }
+      };
+    }
     list.append(el('li', {},
       el('span', {}, f.frase),
+      packSelect,
       el('button', {
         class: 'btn btn-danger btn-sm',
         onclick: async () => {
@@ -967,7 +1035,7 @@ function renderFrases(box, frases) {
             await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
             toast('Frase quitada', 'ok');
           } catch (e) { toast('No se pudo quitar la frase, intenta de nuevo', 'err'); }
-          reloadFrases(box);
+          reloadFrases(box, packs);
         },
       }, 'Quitar')));
   }
@@ -980,18 +1048,111 @@ function renderFrases(box, frases) {
         method: 'POST', body: { frase },
       });
       toast('Frase agregada', 'ok');
-      reloadFrases(box);
-    } catch (e) { toast('No se pudo agregar la frase, intenta de nuevo', 'err'); }
+      reloadFrases(box, packs);
+    } catch (e) {
+      toast(e.status === 409 ? e.message : 'No se pudo agregar la frase, intenta de nuevo', e.status === 409 ? 'warn' : 'err');
+    }
   }
   input.onkeydown = (ev) => { if (ev.key === 'Enter') addFrase(); };
   box.append(list, el('div', { class: 'add-row' }, input,
     el('button', { class: 'btn btn-primary', onclick: addFrase }, 'Agregar')));
 }
 
-async function reloadFrases(box) {
+async function reloadFrases(box, packs) {
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/frases`);
-    renderFrases(box, data.frases);
+    renderFrases(box, data.frases, packs);
+  } catch (e) { /* se queda como estaba */ }
+}
+
+// Un <details> por pack (colapsado): adentro, sus canales asignados con el
+// mismo channelToggleList de arriba. La lista de canales del pack se pide
+// recién al abrirlo (no en el fetch inicial del tab) porque son N pedidos
+// más, uno por pack, que la mayoría de las veces nadie va a mirar.
+function renderFrasePacks(box, packs, channels, frasesBox) {
+  box.innerHTML = '';
+  if (!packs.length) {
+    box.append(el('p', { class: 'dim' },
+      'Sin packs todavía — todas las frases están en el pool default del servidor.'));
+  }
+  for (const pack of packs) {
+    const channelsBox = el('div', {}, el('p', { class: 'dim' }, 'Abrí para ver los canales asignados…'));
+    let loaded = false;
+    const details = el('details', { class: 'embed-group' },
+      el('summary', { class: 'embed-group-title' }, pack.name),
+      el('div', { class: 'embed-group-body' },
+        channelsBox,
+        el('button', {
+          class: 'btn btn-danger btn-sm',
+          onclick: async () => {
+            try {
+              await apiFetch(`/api/server/${GUILD_ID}/frases/packs/${pack.id}`, { method: 'DELETE' });
+              toast('Pack eliminado', 'ok');
+            } catch (e) { toast('No se pudo eliminar el pack, intenta de nuevo', 'err'); }
+            // Las frases que tenía el pack volvieron al pool default en la DB
+            // (delete_frase_pack en db.py): refresca también sus selects.
+            refreshFrasesAndPacks(frasesBox, box, channels);
+          },
+        }, 'Eliminar pack')));
+    details.addEventListener('toggle', async () => {
+      if (!details.open || loaded) return;
+      loaded = true;
+      channelsBox.innerHTML = '';
+      channelsBox.append(spinner());
+      try {
+        const data = await apiFetch(`/api/server/${GUILD_ID}/frases/packs/${pack.id}/channels`);
+        const selected = new Set(data.channels.map(c => c.id));
+        channelsBox.innerHTML = '';
+        channelsBox.append(channelToggleList({
+          channels,
+          isSelected: id => selected.has(id),
+          add: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/frases/packs/${pack.id}/channels`, {
+              method: 'POST', body: { channel_id: ch.id },
+            });
+            selected.add(ch.id);
+          },
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/frases/packs/${pack.id}/channels/${ch.id}`, {
+              method: 'DELETE',
+            });
+            selected.delete(ch.id);
+          },
+          listBelow: 'Sin canales asignados a este pack.',
+        }));
+      } catch (e) { renderError(channelsBox, e); }
+    });
+    box.append(details);
+  }
+  const nameInput = el('input', { type: 'text', placeholder: 'Nombre del pack…', maxlength: '80' });
+  async function addPack() {
+    const name = nameInput.value.trim();
+    if (!name) return;
+    try {
+      await apiFetch(`/api/server/${GUILD_ID}/frases/packs`, { method: 'POST', body: { name } });
+      toast('Pack creado', 'ok');
+      nameInput.value = '';
+      refreshFrasesAndPacks(frasesBox, box, channels);
+    } catch (e) {
+      toast(e.status === 409 ? e.message : 'No se pudo crear el pack, intenta de nuevo', e.status === 409 ? 'warn' : 'err');
+    }
+  }
+  nameInput.onkeydown = (ev) => { if (ev.key === 'Enter') addPack(); };
+  box.append(el('div', { class: 'add-row' }, nameInput,
+    el('button', { class: 'btn btn-primary', onclick: addPack }, 'Crear pack')));
+}
+
+// Un pack nuevo o eliminado cambia qué opciones tiene el <select> de pack de
+// CADA frase (renderFrases) -- refrescar solo la lista de packs dejaría esos
+// selects desactualizados hasta que se recargue el tab entero.
+async function refreshFrasesAndPacks(frasesBox, packsBox, channels) {
+  try {
+    const [frasesData, packsData] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
+      apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
+    ]);
+    renderFrases(frasesBox, frasesData.frases, packsData.packs);
+    renderFrasePacks(packsBox, packsData.packs, channels, frasesBox);
   } catch (e) { /* se queda como estaba */ }
 }
 

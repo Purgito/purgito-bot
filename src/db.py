@@ -33,6 +33,10 @@ DEFAULT_AUTO_GENERATE_EVERY = 15
 DEFAULT_AUTO_GENERATE_PROBABILITY = 0.6
 DEFAULT_REACTION_PROBABILITY = 0.05
 DEFAULT_GIF_RESPONSE_PROBABILITY = 0.45
+# Iba fijo en config.SPECIAL_PHRASE_PROBABILITY; ahora es un tunable más
+# (overrideable por canal como los de arriba, ver channel_settings), pero el
+# default replica ese mismo 5% para no cambiarle la conducta a nadie.
+DEFAULT_FRASE_PROBABILITY = 0.05
 # Techo del contador de mensajes: más alto que esto y el bot no hablaría nunca.
 MAX_AUTO_GENERATE_EVERY = 1000
 
@@ -222,8 +226,58 @@ CREATE TABLE IF NOT EXISTS frases_especiales (
     user_name TEXT NOT NULL,
     frase TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- pack_id INTEGER se suma por ALTER TABLE en init_db() (la tabla ya
+    -- existe en producción). Ver el comentario grande junto a frase_packs
+    -- de abajo para la semántica completa.
 );
 CREATE INDEX IF NOT EXISTS idx_frases_especiales_guild ON frases_especiales(guild_id);
+
+-- Canales donde pueden salir frases especiales. A diferencia de
+-- corpus_allowed_channels (que es al revés: vacía = no aprende de
+-- ninguno, porque leer mensajes es invasivo), acá vacía = permitido en
+-- cualquier canal -- mismo criterio "opt-out" que spontaneous_channels/
+-- mention_channels: una frase especial no es más invasiva que cualquier
+-- otra respuesta del bot, así que el default abierto es el seguro.
+CREATE TABLE IF NOT EXISTS frase_allowed_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+-- Agrupa frases especiales para poder darle a cada canal un pool distinto
+-- (ver frase_pack_channels). UNIQUE(guild_id, name): dos packs del mismo
+-- servidor no pueden confundirse por nombre en el dashboard.
+--
+-- Semántica de "sin pack" (frases_especiales.pack_id NULL y canales sin
+-- fila en frase_pack_channels), decidida para no romper nada de lo que ya
+-- existía antes de esta tabla:
+--   - Todas las frases de un servidor que nunca tocó packs quedan con
+--     pack_id NULL: son el "pool default" de ese servidor.
+--   - Un canal SIN fila en frase_pack_channels usa ese pool default
+--     (pack_id NULL) -- el comportamiento de siempre, sin excepciones.
+--   - Un canal CON fila en frase_pack_channels usa EXCLUSIVAMENTE las
+--     frases de ESE pack, no las mezcla con el pool default.
+--   - Borrar un pack no borra sus frases ni deja canales sin pool: las
+--     frases vuelven a pack_id NULL y los canales que lo tenían asignado
+--     vuelven a usar el pool default (ver delete_frase_pack en db.py).
+CREATE TABLE IF NOT EXISTS frase_packs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, name)
+);
+
+-- Qué pack usa cada canal. PK (guild_id, channel_id): un canal usa a lo
+-- sumo un pack a la vez (asignar uno nuevo reemplaza al anterior). Varios
+-- canales SÍ pueden compartir el mismo pack_id -- "asignar un pack a
+-- varios canales" es eso, varias filas con el mismo pack_id.
+CREATE TABLE IF NOT EXISTS frase_pack_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    pack_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
 
 CREATE TABLE IF NOT EXISTS reaction_pool (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -493,6 +547,7 @@ async def init_db():
         ("auto_generate_probability", "REAL", DEFAULT_AUTO_GENERATE_PROBABILITY),
         ("reaction_probability", "REAL", DEFAULT_REACTION_PROBABILITY),
         ("gif_response_probability", "REAL", DEFAULT_GIF_RESPONSE_PROBABILITY),
+        ("frase_probability", "REAL", DEFAULT_FRASE_PROBABILITY),
     ):
         try:
             await _db.execute(
@@ -534,6 +589,23 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna delete_after_seconds ya existe en scheduled_announcements")
+    # Override por canal del tunable nuevo (Fase 3): igual que el resto de
+    # channel_settings, nullable y sin default -- NULL siempre significa "sin
+    # override acá", nunca "cero".
+    try:
+        await _db.execute(
+            "ALTER TABLE channel_settings ADD COLUMN frase_probability REAL"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna frase_probability ya existe en channel_settings")
+    # NULL = "sin pack" (pool default del servidor) -- ver el comentario largo
+    # junto a frase_packs/frase_pack_channels sobre la semántica completa.
+    try:
+        await _db.execute("ALTER TABLE frases_especiales ADD COLUMN pack_id INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna pack_id ya existe en frases_especiales")
     await _db.commit()
     flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
     if not os.path.exists(flag_path):
@@ -642,7 +714,7 @@ async def get_chat_settings(guild_id: int):
     async with db.execute(
         "SELECT chat_mode_enabled, chat_channel_id, mention_rate_limit, "
         "       auto_generate_every, auto_generate_probability, "
-        "       reaction_probability, gif_response_probability "
+        "       reaction_probability, gif_response_probability, frase_probability "
         "FROM settings WHERE guild_id=?",
         (guild_id,),
     ) as cursor:
@@ -655,6 +727,7 @@ async def get_chat_settings(guild_id: int):
         "auto_generate_probability": DEFAULT_AUTO_GENERATE_PROBABILITY,
         "reaction_probability": DEFAULT_REACTION_PROBABILITY,
         "gif_response_probability": DEFAULT_GIF_RESPONSE_PROBABILITY,
+        "frase_probability": DEFAULT_FRASE_PROBABILITY,
     }
     if not row:
         return defaults
@@ -666,6 +739,7 @@ async def get_chat_settings(guild_id: int):
         "auto_generate_probability": row[4],
         "reaction_probability": row[5],
         "gif_response_probability": row[6],
+        "frase_probability": row[7],
     }
 
 
@@ -678,6 +752,7 @@ CHAT_TUNABLES = {
     "reaction_probability": (0.0, 1.0),
     "gif_response_probability": (0.0, 1.0),
     "mention_rate_limit": (0, MAX_MENTION_RATE_LIMIT),
+    "frase_probability": (0.0, 1.0),
 }
 
 
@@ -2623,70 +2698,98 @@ async def get_random_image_url_excluding(
     return row[0] if row else None
 
 
+def frases_limit(guild_id: int | None) -> int:
+    """Máximo de frases especiales guardables según plan del guild."""
+    return _limit_for_guild(
+        guild_id,
+        "MAX_FRASES_PER_GUILD_FREE",
+        "MAX_FRASES_PER_GUILD_PREMIUM",
+        50,
+        200,
+    )
+
+
 async def add_frase_especial(
-    guild_id: int, user_id: int, user_name: str, frase: str
-) -> bool:
+    guild_id: int,
+    user_id: int,
+    user_name: str,
+    frase: str,
+    pack_id: int | None = None,
+) -> bool | None:
+    """Guarda una frase especial. None si el guild ya llegó al límite de
+    frases_limit (mismo criterio que add_embed_template); False si el texto
+    está vacío. pack_id=None (default) la deja en el pool default del
+    servidor -- ver el comentario en frase_packs sobre esa semántica."""
     text = (frase or "").strip()
     if not text:
         return False
+    max_frases = frases_limit(guild_id)
     db = await get_db()
     async with _db_lock:
+        async with db.execute(
+            "SELECT COUNT(*) FROM frases_especiales WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        if row and int(row[0]) >= max_frases:
+            return None
         cursor = await db.execute(
-            "INSERT INTO frases_especiales (guild_id, user_id, user_name, frase) VALUES (?, ?, ?, ?)",
-            (guild_id, user_id, user_name, text),
+            "INSERT INTO frases_especiales (guild_id, user_id, user_name, frase, pack_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, user_id, user_name, text, pack_id),
         )
         inserted = _was_inserted(cursor)
         await db.commit()
     return inserted
 
 
-async def get_random_frase_especial(guild_id: int) -> str | None:
+async def get_random_frase_especial(
+    guild_id: int, pack_id: int | None = None
+) -> str | None:
+    """Frase al azar del pool efectivo: pack_id=None es el pool default del
+    servidor (frases sin pack asignado), un id puntual restringe a ese pack.
+    `pack_id IS ?` y no `=`: la columna puede ser NULL y el parámetro
+    también, y '=' con NULL de cualquier lado nunca matchea en SQL."""
     db = await get_db()
     async with db.execute(
-        "SELECT frase FROM frases_especiales WHERE guild_id=? ORDER BY RANDOM() LIMIT 1",
-        (guild_id,),
+        "SELECT frase FROM frases_especiales WHERE guild_id=? AND pack_id IS ? "
+        "ORDER BY RANDOM() LIMIT 1",
+        (guild_id, pack_id),
     ) as cursor:
         row = await cursor.fetchone()
     return row[0] if row else None
 
 
-async def list_frases_especiales(guild_id: int) -> list[dict]:
-    db = await get_db()
-    async with db.execute(
-        "SELECT id, user_id, user_name, frase, created_at "
-        "FROM frases_especiales WHERE guild_id=? ORDER BY id",
-        (guild_id,),
-    ) as cursor:
-        rows = await cursor.fetchall()
-    return [
-        {
-            "id": r[0],
-            "user_id": r[1],
-            "user_name": r[2],
-            "frase": r[3],
-            "created_at": r[4],
-        }
-        for r in rows
-    ]
-
-
-async def get_frase_especial(guild_id: int, frase_id: int) -> dict | None:
-    db = await get_db()
-    async with db.execute(
-        "SELECT id, user_id, user_name, frase, created_at "
-        "FROM frases_especiales WHERE guild_id=? AND id=?",
-        (guild_id, frase_id),
-    ) as cursor:
-        row = await cursor.fetchone()
-    if not row:
-        return None
+def _frase_row_to_dict(row) -> dict:
     return {
         "id": row[0],
         "user_id": row[1],
         "user_name": row[2],
         "frase": row[3],
         "created_at": row[4],
+        "pack_id": row[5],
     }
+
+
+async def list_frases_especiales(guild_id: int) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, user_id, user_name, frase, created_at, pack_id "
+        "FROM frases_especiales WHERE guild_id=? ORDER BY id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [_frase_row_to_dict(r) for r in rows]
+
+
+async def get_frase_especial(guild_id: int, frase_id: int) -> dict | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, user_id, user_name, frase, created_at, pack_id "
+        "FROM frases_especiales WHERE guild_id=? AND id=?",
+        (guild_id, frase_id),
+    ) as cursor:
+        row = await cursor.fetchone()
+    return _frase_row_to_dict(row) if row else None
 
 
 async def delete_frase_especial(guild_id: int, frase_id: int) -> bool:
@@ -2699,6 +2802,198 @@ async def delete_frase_especial(guild_id: int, frase_id: int) -> bool:
         deleted = cursor.rowcount > 0
         await db.commit()
     return deleted
+
+
+async def set_frase_pack(guild_id: int, frase_id: int, pack_id: int | None) -> bool:
+    """Asigna (o quita, con pack_id=None) el pack de una frase existente."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE frases_especiales SET pack_id=? WHERE guild_id=? AND id=?",
+            (pack_id, guild_id, frase_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
+# ─── Canales permitidos para frases especiales (frase_allowed_channels) ─────
+
+
+async def add_frase_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO frase_allowed_channels (guild_id, channel_id) "
+            "VALUES (?, ?)",
+            (guild_id, channel_id),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_frase_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM frase_allowed_channels WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_frase_channels(guild_id: int) -> list[int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id FROM frase_allowed_channels WHERE guild_id=? "
+        "ORDER BY channel_id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
+async def is_frase_allowed(guild_id: int, channel_id: int) -> bool:
+    """True si pueden salir frases especiales en este canal. Lista vacía =
+    permitido en cualquiera -- a propósito NO es el criterio de
+    corpus_allowed_channels (vacía = ninguno): ver el comentario junto a
+    CREATE TABLE frase_allowed_channels."""
+    allowed = await list_frase_channels(guild_id)
+    return not allowed or channel_id in allowed
+
+
+# ─── Packs de frases especiales ──────────────────────────────────────────────
+
+
+def frase_pack_limit(guild_id: int | None) -> int:
+    """Máximo de packs de frases por guild."""
+    return _limit_for_guild(
+        guild_id,
+        "MAX_FRASE_PACKS_PER_GUILD_FREE",
+        "MAX_FRASE_PACKS_PER_GUILD_PREMIUM",
+        5,
+        20,
+    )
+
+
+async def add_frase_pack(guild_id: int, name: str) -> int | None:
+    """Crea un pack. None si el guild llegó al límite de frase_pack_limit o
+    si ya existe un pack con ese nombre en el servidor."""
+    clean_name = (name or "").strip()[:80]
+    if not clean_name:
+        return None
+    max_packs = frase_pack_limit(guild_id)
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT COUNT(*) FROM frase_packs WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        if row and int(row[0]) >= max_packs:
+            return None
+        try:
+            cursor = await db.execute(
+                "INSERT INTO frase_packs (guild_id, name) VALUES (?, ?)",
+                (guild_id, clean_name),
+            )
+        except aiosqlite.IntegrityError:
+            return None
+        await db.commit()
+    return cursor.lastrowid
+
+
+async def list_frase_packs(guild_id: int) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, name, created_at FROM frase_packs WHERE guild_id=? ORDER BY name",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"id": r[0], "name": r[1], "created_at": r[2]} for r in rows]
+
+
+async def delete_frase_pack(guild_id: int, pack_id: int) -> bool:
+    """Borra el pack. Nunca borra contenido ni deja un canal sin pool: las
+    frases que lo tenían asignado vuelven a pack_id NULL (pool default) y
+    los canales que lo usaban dejan de tener pack (también vuelven al pool
+    default) -- ver el comentario grande junto a CREATE TABLE frase_packs."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE frases_especiales SET pack_id=NULL WHERE guild_id=? AND pack_id=?",
+            (guild_id, pack_id),
+        )
+        await db.execute(
+            "DELETE FROM frase_pack_channels WHERE guild_id=? AND pack_id=?",
+            (guild_id, pack_id),
+        )
+        cursor = await db.execute(
+            "DELETE FROM frase_packs WHERE guild_id=? AND id=?", (guild_id, pack_id)
+        )
+        deleted = cursor.rowcount > 0
+        await db.commit()
+    return deleted
+
+
+async def assign_pack_to_channel(guild_id: int, channel_id: int, pack_id: int) -> None:
+    """Un canal usa a lo sumo un pack: asignar uno nuevo reemplaza al que
+    tuviera antes (no hace falta desasignar primero)."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO frase_pack_channels (guild_id, channel_id, pack_id) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(guild_id, channel_id) DO UPDATE SET pack_id=excluded.pack_id",
+            (guild_id, channel_id, pack_id),
+        )
+        await db.commit()
+
+
+async def unassign_pack_from_channel(
+    guild_id: int, channel_id: int, pack_id: int
+) -> bool:
+    """El canal vuelve a usar el pool default (frases sin pack). Exige el
+    pack_id esperado (no solo channel_id) para que un pack_id viejo en la
+    URL no pueda borrar una reasignación más nueva a otro pack."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM frase_pack_channels WHERE guild_id=? AND channel_id=? "
+            "AND pack_id=?",
+            (guild_id, channel_id, pack_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_pack_channels(guild_id: int, pack_id: int) -> list[int]:
+    """Canales que tienen asignado ese pack puntual."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id FROM frase_pack_channels WHERE guild_id=? AND pack_id=? "
+        "ORDER BY channel_id",
+        (guild_id, pack_id),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
+async def get_effective_frase_pool(guild_id: int, channel_id: int) -> int | None:
+    """pack_id efectivo para elegir una frase en un canal: el que tenga
+    asignado en frase_pack_channels, o None (pool default, frases sin pack)
+    si el canal no tiene ninguno. No valida si el pack sigue existiendo --
+    delete_frase_pack ya limpia frase_pack_channels al borrar uno."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT pack_id FROM frase_pack_channels WHERE guild_id=? AND channel_id=?",
+        (guild_id, channel_id),
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row[0] if row else None
 
 
 async def log_audit(
@@ -2980,6 +3275,9 @@ async def purge_guild_data(guild_id: int) -> None:
         "embed_templates",
         "layout_button_actions",
         "frases_especiales",
+        "frase_allowed_channels",
+        "frase_packs",
+        "frase_pack_channels",
         "reaction_pool",
         "premium_guilds",
         "guild_departures",

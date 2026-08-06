@@ -83,6 +83,7 @@ def _patch_ctx(
     spontaneous_channels=(),
     exempt_roles=(),
     gif_probability=0.45,
+    frase_probability=0.0,
 ):
     """rate_limit=0 (sin tope) por default: estos tests miran el aviso de
     silenciado, no el anti-farmeo — ver test_mention_rate_limit.py.
@@ -110,6 +111,7 @@ def _patch_ctx(
             "auto_generate_probability": 0.6,
             "reaction_probability": 0.05,
             "gif_response_probability": gif_probability,
+            "frase_probability": frase_probability,
         }
 
     async def fake_mention_channels(guild_id):
@@ -300,7 +302,7 @@ def _patch_generation(monkeypatch, reply="respuesta"):
     """Corta el Markov: estos tests miran si el bot habla o no, no qué dice.
     Sin esto la rama de respuesta real iría a la DB, que acá no está montada."""
 
-    async def fake_generate(guild_id):
+    async def fake_generate(guild_id, channel_id, *, special_phrase_probability=None):
         return reply, True  # is_special=True: se manda tal cual, sin post-proceso
 
     monkeypatch.setattr(chat_mod.generation, "generate_response", fake_generate)
@@ -454,6 +456,7 @@ def test_on_message_resuelve_settings_con_el_channel_id_del_mensaje(cog, monkeyp
             "auto_generate_probability": 0.6,
             "reaction_probability": 0.05,
             "gif_response_probability": 0.0,
+            "frase_probability": 0.0,
         }
 
     monkeypatch.setattr(chat_mod, "get_effective_chat_settings", spy_settings)
@@ -499,6 +502,7 @@ def test_override_de_canal_cambia_la_conducta_observable(cog, monkeypatch):
             "auto_generate_probability": 0.6,
             "reaction_probability": 0.0,
             "gif_response_probability": gif_probability,
+            "frase_probability": 0.0,
         }
 
     monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_effective)

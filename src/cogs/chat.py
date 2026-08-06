@@ -283,7 +283,9 @@ class Chat(commands.Cog):
                             await bump_counter(message.guild.id, "gifs_enviados")
                             return
                     text, is_special = await generation.generate_response(
-                        message.guild.id
+                        message.guild.id,
+                        message.channel.id,
+                        special_phrase_probability=settings["frase_probability"],
                     )
                     if text is not None:
                         final = (
@@ -346,7 +348,11 @@ class Chat(commands.Cog):
                 await bump_counter(message.guild.id, "gifs_enviados")
                 return
 
-        text, is_special = await generation.generate_response(message.guild.id)
+        text, is_special = await generation.generate_response(
+            message.guild.id,
+            message.channel.id,
+            special_phrase_probability=settings["frase_probability"],
+        )
         if text is None:
             # Servidor sin historial suficiente: explicar en vez de contestar "...".
             # throttle=True: las instrucciones completas salen 1 vez cada 15 min por guild.
@@ -450,7 +456,14 @@ class Chat(commands.Cog):
                 "No puedo determinar el canal.", ephemeral=True
             )
             return
-        text, is_special = await generation.generate_response(interaction.guild.id)
+        settings = await get_effective_chat_settings(
+            interaction.guild.id, interaction.channel.id
+        )
+        text, is_special = await generation.generate_response(
+            interaction.guild.id,
+            interaction.channel.id,
+            special_phrase_probability=settings["frase_probability"],
+        )
         if text is None:
             # Comando explícito: siempre el mensaje completo con instrucciones.
             locale = await i18n.guild_locale(interaction.guild.id)

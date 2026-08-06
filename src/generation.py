@@ -15,8 +15,10 @@ import regex
 import config
 from db import (
     get_corpus_messages,
+    get_effective_frase_pool,
     get_random_frase_especial,
     get_user_messages,
+    is_frase_allowed,
     trim_corpus_if_needed,
     trim_guild_total_if_needed,
     trim_user_corpus_if_needed,
@@ -304,16 +306,34 @@ def empty_corpus_reply(guild_id: int, locale: str, throttle: bool = False) -> st
     return t("chat.empty_reply.full", locale)
 
 
-async def generate_response(guild_id: int) -> tuple[str | None, bool]:
+async def generate_response(
+    guild_id: int,
+    channel_id: int,
+    *,
+    special_phrase_probability: float = config.SPECIAL_PHRASE_PROBABILITY,
+) -> tuple[str | None, bool]:
     """Decide entre frase especial o Markov. Retorna (texto, es_especial).
-    es_especial=True indica que el texto no debe pasar por post_process_reply."""
+    es_especial=True indica que el texto no debe pasar por post_process_reply.
+
+    `special_phrase_probability` la resuelve el llamador vía
+    get_effective_chat_settings (channel_settings.frase_probability puede
+    overridearla por canal, ver Fase 2) -- generation.py no lee la config del
+    chat directo, igual que note_message_for_auto_generate recibe `every`/
+    `probability` en vez de leerlos de settings él mismo. El default de la
+    firma solo cubre a /imitar y otros llamadores que todavía no la resuelven.
+    """
     now = time.monotonic()
     cooldown_ok = (
         now - _special_phrase_cooldowns.get(guild_id, 0.0)
         >= config.SPECIAL_PHRASE_COOLDOWN
     )
-    if cooldown_ok and random.random() < config.SPECIAL_PHRASE_PROBABILITY:
-        phrase = await get_random_frase_especial(guild_id)
+    if (
+        cooldown_ok
+        and random.random() < special_phrase_probability
+        and await is_frase_allowed(guild_id, channel_id)
+    ):
+        pack_id = await get_effective_frase_pool(guild_id, channel_id)
+        phrase = await get_random_frase_especial(guild_id, pack_id)
         if phrase:
             _special_phrase_cooldowns[guild_id] = now
             return phrase, True

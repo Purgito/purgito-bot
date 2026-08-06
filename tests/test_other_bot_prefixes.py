@@ -63,6 +63,7 @@ def cog(monkeypatch):
             "auto_generate_probability": 0.6,
             "reaction_probability": 0.05,
             "gif_response_probability": 0.0,
+            "frase_probability": 0.0,
         }
 
     async def fake_true(*a, **k):
@@ -71,7 +72,7 @@ def cog(monkeypatch):
     async def fake_empty_list(*a, **k):
         return []
 
-    async def fake_generate(guild_id):
+    async def fake_generate(guild_id, channel_id, *, special_phrase_probability=None):
         return "respuesta", True
 
     monkeypatch.setattr(chat_mod, "save_corpus_and_user_message", fake_save)
