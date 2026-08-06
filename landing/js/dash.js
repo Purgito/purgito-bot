@@ -363,7 +363,7 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
    body del request (mismo patrón que uploadImageBlob en embeds/shared-ui.js
    para las imágenes), no un multipart -- el channel_id va en la URL. */
 function corpusImportForm(channels) {
-  const chanSel = channelSelect(channels, null, 'Elegí un canal…');
+  const chanSel = channelSelect(channels, null, 'Elige un canal…');
   const fileInput = el('input', { type: 'file', accept: '.txt,text/plain' });
   const resultBox = el('div', {});
   const btn = el('button', {
@@ -371,7 +371,7 @@ function corpusImportForm(channels) {
     onclick: async () => {
       const file = fileInput.files[0];
       if (!chanSel.value || !file) {
-        toast('Elegí un canal y un archivo .txt', 'warn');
+        toast('Elige un canal y un archivo .txt', 'warn');
         return;
       }
       resultBox.innerHTML = '';
@@ -787,7 +787,7 @@ async function loadChatTab() {
           })),
         formGroup('Importar corpus desde un archivo',
           el('p', { class: 'dim' },
-            'Subí un .txt: cada línea no vacía entra al corpus del canal '
+            'Sube un .txt: cada línea no vacía entra al corpus del canal '
             + 'elegido como si fuera un mensaje real, con la misma limpieza y '
             + 'los mismos límites de siempre.'),
           corpusImportForm(channels)),
@@ -892,7 +892,7 @@ async function loadChatTab() {
         formGroup('Frases',
           el('p', { class: 'dim' }, 'Frases especiales que el bot puede enviar de vez en cuando.'),
           el('p', { class: 'dim' },
-            'Podés usar estos tags y se reemplazan al enviarse: ',
+            'Puedes usar estos tags y se reemplazan al enviarse: ',
             el('code', { class: 'cmd' }, '{{user.mention}}'), ', ',
             el('code', { class: 'cmd' }, '{{user.name}}'), ', ',
             el('code', { class: 'cmd' }, '{{channel.name}}'), ', ',
@@ -909,7 +909,7 @@ async function loadChatTab() {
           packsBox),
         channelCard('star', 'Canales donde pueden salir frases especiales',
           el('p', { class: 'dim' },
-            'Elegí en qué canales puede aparecer una frase especial. Si no '
+            'Elige en qué canales puede aparecer una frase especial. Si no '
             + 'eliges ninguno, puede salir en cualquiera.'),
           channelToggleList({
             channels,
@@ -944,7 +944,7 @@ async function loadChatTab() {
 
     // --- Sub-pestaña: Playground ---
     function buildPlayground() {
-      const sel = channelSelect(channels, null, 'Elegí un canal…');
+      const sel = channelSelect(channels, null, 'Elige un canal…');
       const input = el('textarea', {
         rows: '3', placeholder: 'Mensaje de prueba…', style: 'width:100%',
       });
@@ -954,7 +954,7 @@ async function loadChatTab() {
         onclick: async () => {
           const message = input.value.trim();
           if (!sel.value || !message) {
-            toast('Elegí un canal y escribí un mensaje de prueba', 'warn');
+            toast('Elige un canal y escribe un mensaje de prueba', 'warn');
             return;
           }
           resultBox.innerHTML = '';
@@ -970,7 +970,7 @@ async function loadChatTab() {
 
       return formGroup('Playground',
         el('p', { class: 'dim' },
-          'Probá cómo respondería Purgito a un mensaje en un canal puntual, con '
+          'Prueba cómo respondería Purgito a un mensaje en un canal puntual, con '
           + 'su configuración efectiva (overrides, packs y triggers incluidos). '
           + 'No manda nada de verdad ni gasta el cooldown real de frases '
           + 'especiales. No simula si el canal está habilitado para menciones o '
@@ -984,7 +984,7 @@ async function loadChatTab() {
 
     // --- Sub-pestaña: Por canal (overrides de Personalidad/Límites) ---
     function buildPorCanal() {
-      const sel = channelSelect(channels, null, 'Elegí un canal…');
+      const sel = channelSelect(channels, null, 'Elige un canal…');
       const resultBox = el('div', {});
 
       async function loadChannel() {
@@ -1030,7 +1030,7 @@ async function loadChatTab() {
       return formGroup('Ajustes por canal',
         el('p', { class: 'dim' },
           'Cada canal usa por default los valores de Personalidad y Límites de '
-          + 'arriba. Elegí uno acá para revisar u overridear alguno puntualmente.'),
+          + 'arriba. Elige uno acá para revisar u overridear alguno puntualmente.'),
         el('div', { class: 'field' }, el('label', {}, 'Canal'), sel),
         resultBox);
     }
@@ -1373,7 +1373,7 @@ function triggerForm(box, channels, packs, data) {
     onclick: async () => {
       const pattern = patternInput.value.trim();
       if (!chanSel.value || !pattern) {
-        toast('Elegí un canal y completá el patrón', 'warn');
+        toast('Elige un canal y completa el patrón', 'warn');
         return;
       }
       try {

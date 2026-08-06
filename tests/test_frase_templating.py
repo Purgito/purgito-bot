@@ -66,7 +66,7 @@ def test_channel_name():
 
 
 def test_channel_mention():
-    assert _render("mirá {{channel.mention}}", chan_mention="<#999>") == "mirá <#999>"
+    assert _render("mira {{channel.mention}}", chan_mention="<#999>") == "mira <#999>"
 
 
 def test_guild_name():

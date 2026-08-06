@@ -35,7 +35,7 @@ Cadenas de Markov · Editor de embeds · Colección de GIFs · Notificaciones de
 | 🎯 | **Pool de imágenes** | Reacciona con 🎯 a una imagen para guardarla en el pool de memes |
 | 💬 | **Frases especiales** | Pool de frases fijas que el bot suelta con 5% de probabilidad (cooldown 40 min) |
 | 😄 | **Reacciones configurables** | Pool de emojis custom para las reacciones automáticas del bot |
-| 🗂️ | **Corpus administrable** | Importa historial, consulta estadísticas, ignorá canales o limpià el corpus |
+| 🗂️ | **Corpus administrable** | Importa historial, consulta estadísticas, ignora canales o limpia el corpus |
 
 ---
 
@@ -182,7 +182,7 @@ Pool de frases fijas que el bot puede soltar con un 5% de probabilidad (cooldown
 |---|---|---|
 | `/añadir_frase <texto>` | Agrega una frase al pool del servidor | Todos |
 | `/ver_frases` | Lista todas las frases con su ID y autor | Todos |
-| `/borrar_frase <id>` | Borra una frase (propia o cualquiera si sos admin) | Todos / Admin |
+| `/borrar_frase <id>` | Borra una frase (propia o cualquiera si eres admin) | Todos / Admin |
 
 ### 😄 Pool de reacciones
 
@@ -342,7 +342,7 @@ Al generar el enlace de invitación en el **Developer Portal**:
 
 > La base de datos usa **modo WAL** para mejor concurrencia entre lecturas y escrituras asíncronas.
 
-> Si los slash commands no aparecen después de reiniciar, verificá que el bot esté invitado con el scope `applications.commands`.
+> Si los slash commands no aparecen después de reiniciar, verifica que el bot esté invitado con el scope `applications.commands`.
 
 > Sin `GROQ_API_KEY`, los captions de memes se generan solo con Markov. Con la key configurada, Groq tiene prioridad y Markov es el fallback.
 

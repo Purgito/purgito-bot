@@ -119,7 +119,7 @@ async def generate_groq_meme_caption(
         f"Vocabulario y registro de este server:\n"
         f"{corpus_text}\n\n"
         f"Mira la imagen. Escribe un caption que cree contraste con lo que muestra: "
-        f"introducí un sujeto, expectativa o contexto que no encaje. "
+        f"introduce un sujeto, expectativa o contexto que no encaje. "
         f"Usa las palabras y el registro de arriba. "
         f"Máximo 80 caracteres."
     )

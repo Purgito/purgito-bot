@@ -112,7 +112,7 @@ export async function loadPremium() {
         el('p', {},
           'Al suscribirte, Polar te envía un correo de confirmación (no Purgito) con un link a tu portal de cliente. Desde ahí puedes cancelar la suscripción, cambiar de plan (mensual ↔ anual) o ver tus recibos, cuando quieras. Si no lo encuentras, revisa spam o promociones.'),
         el('p', {},
-          'Cancelar no corta el acceso al tiro: el premium sigue activo hasta el final del período ya pagado, y simplemente no se renueva después.')));
+          'Cancelar no corta el acceso de inmediato: el premium sigue activo hasta el final del período ya pagado, y simplemente no se renueva después.')));
 
     box.append(el('div', { class: 'premium-layout' }, cardWide, cancelNote));
   } catch (e) { renderError(box, e); }

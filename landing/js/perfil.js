@@ -96,7 +96,7 @@ async function tabServidores(box, locale) {
   /* `force` manda ?refresh=1, que hace que el backend vuelva a preguntarle la
      lista a Discord en vez de servir su cache de 5 min. Sin eso el botón sería
      decorativo justo cuando más se usa: recién invitaste a Purgito a un
-     servidor y querés verlo aparecer. El texto del buscador se conserva. */
+     servidor y quieres verlo aparecer. El texto del buscador se conserva. */
   async function load(force) {
     grid.innerHTML = '';
     grid.append(spinner());

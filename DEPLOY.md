@@ -56,13 +56,13 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 2. **New Application** → coloca el nombre
 3. En el menú izquierdo: **Bot**
    - Copiá el **Token** (lo vas a necesitar como `DISCORD_TOKEN`)
-   - Activá **Message Content Intent** (imprescindible para el corpus de Markov)
-   - Activá **Server Members Intent**
+   - Activa **Message Content Intent** (imprescindible para el corpus de Markov)
+   - Activa **Server Members Intent**
 4. En **OAuth2 → URL Generator**:
    - Scopes: `bot` + `applications.commands`
    - Permisos de bot: `Read Messages`, `Send Messages`, `Read Message History`, `Add Reactions`, `Embed Links`, `Connect`, `Speak`
 5. Copia la URL generada y ábrela para invitar el bot a tu servidor
-6. En **OAuth2 → Redirects**, registrá `https://purgito.app/auth/callback`.
+6. En **OAuth2 → Redirects**, registra `https://purgito.app/auth/callback`.
    Tiene que coincidir exacto con `{DASHBOARD_BASE_URL}/auth/callback` de
    `urls.env`, o el login falla con `invalid_request`.
 
@@ -193,7 +193,7 @@ R2_PUBLIC_URL=
 
 ### Cloudflare R2 (persistencia de GIFs)
 
-1. Cloudflare Dashboard → **R2 Object Storage** → creá un bucket
+1. Cloudflare Dashboard → **R2 Object Storage** → crea un bucket
 2. **R2 → Manage R2 API Tokens** → token con permisos **Object Read & Write**
 3. Copia el **Access Key ID** y el **Secret Access Key**
 4. El **Endpoint URL** está en la página del bucket bajo "S3 API"
@@ -432,10 +432,10 @@ sudo systemctl reload nginx
 1. DNS → Add record tipo `A` por cada host (`purgito.app`, `www`, y los
    `*.purg4t0ry.com` heredados), valor = IP del droplet, proxy ✅ (naranja).
    `panel.purgito.app` ya no se usa: no le hace falta registro.
-2. Cloudflare maneja el SSL automáticamente. No necesitás certbot ni HTTPS en nginx.
+2. Cloudflare maneja el SSL automáticamente. No necesitas certbot ni HTTPS en nginx.
 
 > **Cloudflare cachea la landing.** Si después de un deploy el sitio "no cambia",
-> sospechá primero de la caché de Cloudflare (purge) antes de asumir que el
+> sospecha primero de la caché de Cloudflare (purge) antes de asumir que el
 > código está mal.
 
 ---

@@ -763,7 +763,7 @@ async def _api_chat_playground_post(
     member = guild.get_member(int(session["user_id"]))
     author = member or SimpleNamespace(
         mention=f"<@{session['user_id']}>",
-        display_name=str(session.get("username") or "vos"),
+        display_name=str(session.get("username") or "tú"),
     )
 
     result = await simulate_message(

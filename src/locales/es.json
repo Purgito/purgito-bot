@@ -103,7 +103,7 @@
 
   "welcome.title": "¡Hola! Soy Purgito 👋",
   "welcome.intro": "Soy un bot de Markov que aprende cómo se comunica tu servidor.",
-  "welcome.getting_started": "**Para empezar:**\n• Todavía no estoy aprendiendo de nada — elegí los canales desde los que quiero escuchar para empezar\n• Usa el botón de abajo para elegirlos",
+  "welcome.getting_started": "**Para empezar:**\n• Todavía no estoy aprendiendo de nada — elige los canales desde los que quiero escuchar para empezar\n• Usa el botón de abajo para elegirlos",
   "welcome.limited_visibility": "🔍 Por ahora solo puedo leer {seen} de {total} canales: {names}. Si quieres que aprenda mejor cómo habla la gente aquí, concede acceso a Purgito en los demás canales — permisos del canal o su rol en Ajustes del servidor.",
   "welcome.premium_target": "• Reacciona a imágenes con 🎯 para agregarlas a la colección de `/momo`",
   "welcome.commands_header": "**Comandos principales:**",
