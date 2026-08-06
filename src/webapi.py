@@ -32,6 +32,7 @@ from urllib.parse import urlencode, urlparse
 
 import aiohttp
 import discord
+import regex
 from aiohttp import web
 from aiohttp_session import get_session, setup as setup_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
@@ -66,7 +67,10 @@ from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.youtube import resolve_youtube_channel
 from db import (
     CHAT_TUNABLES,
+    TRIGGER_ACTIONS,
+    TRIGGER_MATCH_TYPES,
     add_button_action,
+    add_channel_trigger,
     add_corpus_channel,
     add_embed_template,
     add_exempt_role,
@@ -81,10 +85,12 @@ from db import (
     add_youtube_sub,
     assign_pack_to_channel,
     block_gif,
+    channel_triggers_limit,
     count_corpus_by_channel,
     count_gif_urls,
     count_guild_corpus_messages,
     count_shared_embeds_today,
+    delete_channel_trigger,
     delete_embed_template,
     delete_frase_especial,
     delete_frase_pack,
@@ -111,6 +117,7 @@ from db import (
     list_frase_packs,
     list_frases_especiales,
     list_gif_urls,
+    list_guild_triggers,
     list_ignored_channels,
     list_mention_channels,
     list_pack_channels,
@@ -1402,6 +1409,88 @@ async def _api_frase_pack_channels_delete(
     return web.json_response({"removed": removed})
 
 
+# ---------------- API: triggers de canal ------------------------------------
+
+
+@guild_api
+async def _api_triggers_get(request: web.Request, guild_id: int) -> web.Response:
+    triggers = await list_guild_triggers(guild_id)
+    return web.json_response(
+        {
+            "triggers": [{**t, "channel_id": str(t["channel_id"])} for t in triggers],
+            "total": len(triggers),
+            "limit": channel_triggers_limit(guild_id),
+            "match_types": list(TRIGGER_MATCH_TYPES),
+            "actions": list(TRIGGER_ACTIONS),
+        }
+    )
+
+
+@guild_api
+async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    channel_id = _to_int(data.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    match_type = data.get("match_type")
+    if match_type not in TRIGGER_MATCH_TYPES:
+        return web.json_response(
+            {"error": f"match_type debe ser uno de: {', '.join(TRIGGER_MATCH_TYPES)}"},
+            status=400,
+        )
+    action = data.get("action")
+    if action not in TRIGGER_ACTIONS:
+        return web.json_response(
+            {"error": f"action debe ser una de: {', '.join(TRIGGER_ACTIONS)}"},
+            status=400,
+        )
+    pattern = (data.get("pattern") or "").strip()
+    if not pattern:
+        return web.json_response({"error": "pattern vacío"}, status=400)
+    if match_type == "regex":
+        try:
+            regex.compile(pattern)
+        except regex.error as e:
+            return web.json_response({"error": f"regex inválido: {e}"}, status=400)
+    pack_id = None
+    if data.get("pack_id") is not None:
+        pack_id = _to_int(data["pack_id"])
+        if pack_id is None:
+            return web.json_response({"error": "pack_id inválido"}, status=400)
+    trigger_id = await add_channel_trigger(
+        guild_id, channel_id, match_type, pattern, action, pack_id=pack_id
+    )
+    if trigger_id is None:
+        return web.json_response(
+            {
+                "error": "límite de triggers alcanzado, o pattern/match_type/action inválido"
+            },
+            status=409,
+        )
+    await _log_audit(
+        request,
+        guild_id,
+        "triggers.create",
+        detail=f"channel_id={channel_id} match_type={match_type} action={action}",
+    )
+    return web.json_response({"id": trigger_id})
+
+
+@guild_api
+async def _api_triggers_delete(request: web.Request, guild_id: int) -> web.Response:
+    trigger_id = _to_int(request.match_info.get("trigger_id"))
+    if trigger_id is None:
+        return web.json_response({"error": "trigger_id inválido"}, status=400)
+    deleted = await delete_channel_trigger(guild_id, trigger_id)
+    if deleted:
+        await _log_audit(
+            request, guild_id, "triggers.delete", detail=f"trigger_id={trigger_id}"
+        )
+    return web.json_response({"deleted": deleted})
+
+
 # ---------------- API: gifs por guild ----------------
 
 
@@ -2628,6 +2717,11 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_delete(
             f"{base}/frases/packs/{{pack_id}}/channels/{{channel_id}}",
             _api_frase_pack_channels_delete,
+        )
+        app.router.add_get(f"{base}/settings/triggers", _api_triggers_get)
+        app.router.add_post(f"{base}/settings/triggers", _api_triggers_post)
+        app.router.add_delete(
+            f"{base}/settings/triggers/{{trigger_id}}", _api_triggers_delete
         )
         app.router.add_get(f"{base}/settings/updates", _api_updates_get)
         app.router.add_put(f"{base}/settings/updates", _api_updates_put)

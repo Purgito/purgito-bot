@@ -563,6 +563,7 @@ const CHAT_SUBTABS = [
   { key: 'limites', label: 'Límites' },
   { key: 'porcanal', label: 'Por canal' },
   { key: 'frases', label: 'Frases' },
+  { key: 'triggers', label: 'Triggers' },
 ];
 
 function currentChatSubtab() {
@@ -587,7 +588,7 @@ async function loadChatTab() {
   const box = content();
   box.append(spinner());
   try {
-    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, exempt, channels, roles] =
+    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, triggers, exempt, channels, roles] =
       await Promise.all([
         apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
         apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
@@ -597,6 +598,7 @@ async function loadChatTab() {
         apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
         apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`),
         apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/triggers`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
         getChannels(),
         getRoles(),
@@ -822,6 +824,18 @@ async function loadChatTab() {
           })));
     }
 
+    // --- Sub-pestaña: Triggers ---
+    function buildTriggers() {
+      const box = el('div', {});
+      renderTriggers(box, triggers, channels, frasePacks.packs);
+      return formGroup('Triggers de canal',
+        el('p', { class: 'dim' },
+          'Reglas de auto-respuesta: si el mensaje matchea el patrón, Purgito '
+          + 'responde sin esperar mención ni el roll de frecuencia espontánea. '
+          + `Con varios en el mismo canal gana el primero que matchea (${triggers.total}/${triggers.limit} usados).`),
+        box);
+    }
+
     // --- Sub-pestaña: Por canal (overrides de Personalidad/Límites) ---
     function buildPorCanal() {
       const sel = channelSelect(channels, null, 'Elegí un canal…');
@@ -881,6 +895,7 @@ async function loadChatTab() {
       limites: buildLimites,
       porcanal: buildPorCanal,
       frases: buildFrases,
+      triggers: buildTriggers,
     };
 
     const subnav = el('nav', { class: 'chat-subtabs' });
@@ -1153,6 +1168,93 @@ async function refreshFrasesAndPacks(frasesBox, packsBox, channels) {
     ]);
     renderFrases(frasesBox, frasesData.frases, packsData.packs);
     renderFrasePacks(packsBox, packsData.packs, channels, frasesBox);
+  } catch (e) { /* se queda como estaba */ }
+}
+
+const TRIGGER_MATCH_TYPE_LABELS = {
+  exact: 'Texto exacto', starts_with: 'Empieza con', regex: 'Regex',
+};
+const TRIGGER_ACTION_LABELS = {
+  frase_de_pack: 'Frase de un pack', markov: 'Markov (generado)', mezcla: 'Mezcla (frase o Markov)',
+};
+
+function renderTriggers(box, data, channels, packs) {
+  box.innerHTML = '';
+  const list = el('ul', { class: 'item-list' });
+  if (!data.triggers.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
+  for (const trig of data.triggers) {
+    const chan = channels.find(c => c.id === trig.channel_id);
+    const pack = trig.pack_id != null ? packs.find(p => String(p.id) === String(trig.pack_id)) : null;
+    const parts = [
+      '#' + (chan ? chan.name : trig.channel_id),
+      '—', TRIGGER_MATCH_TYPE_LABELS[trig.match_type] || trig.match_type,
+      `"${trig.pattern}"`, '→', TRIGGER_ACTION_LABELS[trig.action] || trig.action,
+    ];
+    if (pack) parts.push(`(${pack.name})`);
+    list.append(el('li', {},
+      el('span', {}, parts.join(' ')),
+      el('button', {
+        class: 'btn btn-danger btn-sm',
+        onclick: async () => {
+          try {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
+            toast('Trigger eliminado', 'ok');
+          } catch (e) { toast('No se pudo eliminar el trigger, intenta de nuevo', 'err'); }
+          reloadTriggers(box, channels, packs);
+        },
+      }, 'Quitar')));
+  }
+  box.append(list, triggerForm(box, channels, packs, data));
+}
+
+function triggerForm(box, channels, packs, data) {
+  const chanSel = channelSelect(channels);
+  const matchSel = el('select', {});
+  for (const mt of data.match_types) matchSel.append(el('option', { value: mt }, TRIGGER_MATCH_TYPE_LABELS[mt] || mt));
+  const patternInput = el('input', { type: 'text', placeholder: 'Patrón…', style: 'flex:1' });
+  const actionSel = el('select', {});
+  for (const ac of data.actions) actionSel.append(el('option', { value: ac }, TRIGGER_ACTION_LABELS[ac] || ac));
+  const packSel = el('select', {});
+  packSel.append(el('option', { value: '' }, 'Sin pack (default)'));
+  for (const p of packs) packSel.append(el('option', { value: String(p.id) }, p.name));
+  function syncPackVisibility() { packSel.style.display = actionSel.value === 'markov' ? 'none' : ''; }
+  actionSel.onchange = syncPackVisibility;
+  syncPackVisibility();
+
+  const addBtn = el('button', {
+    class: 'btn btn-primary',
+    onclick: async () => {
+      const pattern = patternInput.value.trim();
+      if (!chanSel.value || !pattern) {
+        toast('Elegí un canal y completá el patrón', 'warn');
+        return;
+      }
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/triggers`, {
+          method: 'POST',
+          body: {
+            channel_id: chanSel.value, match_type: matchSel.value, pattern,
+            action: actionSel.value,
+            pack_id: actionSel.value !== 'markov' && packSel.value ? packSel.value : null,
+          },
+        });
+        toast('Trigger agregado', 'ok');
+        patternInput.value = '';
+        reloadTriggers(box, channels, packs);
+      } catch (e) {
+        toast(e.status === 409 ? e.message : 'No se pudo agregar el trigger, intenta de nuevo', e.status === 409 ? 'warn' : 'err');
+      }
+    },
+  }, 'Agregar');
+
+  return el('div', { class: 'add-row' },
+    chanSel, matchSel, patternInput, actionSel, packs.length ? packSel : null, addBtn);
+}
+
+async function reloadTriggers(box, channels, packs) {
+  try {
+    const data = await apiFetch(`/api/server/${GUILD_ID}/settings/triggers`);
+    renderTriggers(box, data, channels, packs);
   } catch (e) { /* se queda como estaba */ }
 }
 

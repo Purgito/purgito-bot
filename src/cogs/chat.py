@@ -7,6 +7,7 @@ import time
 from collections.abc import Awaitable, Callable
 
 import discord
+import regex
 from discord import app_commands
 from discord.ext import commands
 
@@ -21,10 +22,12 @@ from db import (
     count_user_messages,
     get_channel_refeed_status,
     get_effective_chat_settings,
+    get_random_frase_especial,
     get_random_reaction,
     get_welcome_channel_id,
     is_channel_ignored,
     is_corpus_allowed,
+    list_channel_triggers,
     list_corpus_channels,
     list_exempt_roles,
     list_ignored_channels,
@@ -95,6 +98,41 @@ _HISTORY_FETCH_RETRIES = 3
 # ponytail: lista fija; si hace falta por servidor, se vuelve configurable
 # con el mismo patrón que las demás allowlists de settings.
 OTHER_BOT_PREFIXES = ("!", "?", ".", "-", "$", ">", "~", ";")
+
+# Timeout real para el matching de triggers tipo 'regex' (segundos). El
+# módulo `regex` (no `re` de stdlib) acepta un `timeout=` que corta un
+# patrón con backtracking catastrófico desde adentro del motor de matching
+# -- `re` no tiene forma de interrumpirse a sí mismo. Igual corre en un
+# hilo aparte (ver _trigger_matches) para que ese medio segundo, en el peor
+# caso, no bloquee el event loop del bot entero.
+_TRIGGER_REGEX_TIMEOUT = 0.5
+
+
+def _regex_search_with_timeout(pattern: str, content: str) -> bool:
+    """Sync a propósito: la llama asyncio.to_thread, no directo."""
+    try:
+        return (
+            regex.search(pattern, content, timeout=_TRIGGER_REGEX_TIMEOUT) is not None
+        )
+    except TimeoutError:
+        log.warning("Trigger con regex catastrófico (timeout): %r", pattern)
+        return False
+    except regex.error:
+        log.warning("Trigger con regex inválido: %r", pattern)
+        return False
+
+
+async def _trigger_matches(trigger: dict, content: str) -> bool:
+    pattern = trigger["pattern"]
+    match_type = trigger["match_type"]
+    if match_type == "exact":
+        return content.lower() == pattern.lower()
+    if match_type == "starts_with":
+        return content.lower().startswith(pattern.lower())
+    if match_type == "regex":
+        return await asyncio.to_thread(_regex_search_with_timeout, pattern, content)
+    return False
+
 
 # Nombre de la migración por servidor que rellena corpus_allowed_channels.
 # Cambiar este string haría que la migración corra de nuevo y pise lo que un
@@ -255,6 +293,18 @@ class Chat(commands.Cog):
                     except Exception:
                         log.exception("Error añadiendo reacción emoji")
 
+                # Triggers configurados a mano (tab CHAT del dashboard): si
+                # matchea alguno, responde y corta acá -- no espera mención
+                # ni el roll de auto_generate_probability. Independiente de
+                # corpus_allowed/spontaneous_channels/mention_channels; solo
+                # respeta el mute de `ignored` (por eso está adentro del
+                # `if not ignored`).
+                try:
+                    if await self._handle_trigger(message, settings):
+                        return
+                except Exception:
+                    log.exception("Error ejecutando un trigger de canal")
+
         # Verificar si el bot fue mencionado o si le respondieron a él directamente
         mention_bot = bool(
             self.bot.user and self.bot.user.id in (message.raw_mentions or [])
@@ -367,6 +417,70 @@ class Chat(commands.Cog):
         for chunk in chunk_message(reply):
             await message.reply(chunk)
         await bump_counter(message.guild.id, "mensajes_enviados")
+
+    async def _send_trigger_reply(self, message: discord.Message, text: str) -> None:
+        for chunk in chunk_message(text):
+            await message.channel.send(chunk)
+        await bump_counter(message.guild.id, "mensajes_enviados")
+
+    async def _run_trigger_action(
+        self,
+        message: discord.Message,
+        guild_id: int,
+        trigger: dict,
+        settings: dict,
+    ) -> bool:
+        """True si el trigger efectivamente mandó algo. 'frase_de_pack'/
+        'mezcla' pueden no mandar nada si el pool de ese pack está vacío --
+        eso no es un error, simplemente no hay nada que decir."""
+        action = trigger["action"]
+        if action == "frase_de_pack":
+            phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
+            if phrase is None:
+                return False
+            await self._send_trigger_reply(message, phrase)
+            return True
+        if action == "markov":
+            text = await generation.generate_markov_reply(guild_id)
+            if text is None:
+                return False
+            await self._send_trigger_reply(message, generation.post_process_reply(text))
+            return True
+        # 'mezcla': mismo roll que la conducta espontánea/de mención
+        # (frase_probability), pero con el pack_id de ESTE trigger en vez
+        # del que tenga asignado el canal -- así un trigger puede apuntar a
+        # un pack puntual sin depender de frase_pack_channels. Sin el
+        # cooldown de generation._special_phrase_cooldowns a propósito: ese
+        # cooldown es para no saturar de frases las apariciones espontáneas,
+        # pero un trigger es una regla explícita que el admin configuró para
+        # que dispare siempre que matchee.
+        if random.random() < settings["frase_probability"]:
+            phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
+            if phrase is not None:
+                await self._send_trigger_reply(message, phrase)
+                return True
+        text = await generation.generate_markov_reply(guild_id)
+        if text is None:
+            return False
+        await self._send_trigger_reply(message, generation.post_process_reply(text))
+        return True
+
+    async def _handle_trigger(self, message: discord.Message, settings: dict) -> bool:
+        """True si algún trigger configurado en este canal matcheó y ya se
+        respondió -- el llamador tiene que cortar ahí el resto de
+        on_message. Se prueban en orden de creación (id ascendente, ver
+        list_channel_triggers); el primero que matchea gana, no se
+        combinan ni se siguen probando los demás."""
+        triggers = await list_channel_triggers(message.guild.id, message.channel.id)
+        if not triggers:
+            return False
+        content = (message.content or "").strip()
+        for trigger in triggers:
+            if await _trigger_matches(trigger, content):
+                return await self._run_trigger_action(
+                    message, message.guild.id, trigger, settings
+                )
+        return False
 
     async def _muted_reply(self, message: discord.Message, key: str, **fmt) -> None:
         """Explica por qué el bot no conversa aquí. Primera vez en la ventana de

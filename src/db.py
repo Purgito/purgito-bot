@@ -8,6 +8,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import aiosqlite
+import regex
 
 import config
 import r2
@@ -333,6 +334,36 @@ CREATE TABLE IF NOT EXISTS channel_settings (
     mention_rate_limit INTEGER,
     PRIMARY KEY (guild_id, channel_id)
 );
+
+-- Reglas de auto-respuesta a mano por canal: si el contenido de un mensaje
+-- matchea `pattern` según `match_type`, dispara `action` sin esperar
+-- mención ni el roll de auto_generate_probability -- independiente de
+-- spontaneous_channels/mention_channels, un canal puede tener triggers sin
+-- estar en ninguna de esas dos listas. Con varios triggers en el mismo
+-- canal gana el primero que matchea, en orden de creación (id ascendente)
+-- -- ver list_channel_triggers.
+--
+-- match_type: 'exact' | 'starts_with' | 'regex' (comparación case-
+-- insensitive para las dos primeras; regex usa el patrón tal cual, sin
+-- flags forzados -- el admin agrega (?i) si lo quiere insensible).
+-- action: 'frase_de_pack' (siempre una frase del pool de pack_id),
+-- 'markov' (siempre texto generado), 'mezcla' (mismo roll de
+-- frase_probability que la conducta espontánea/de mención, pero con el
+-- pack_id de ESTE trigger, no el que tenga asignado el canal).
+-- pack_id NULL en 'frase_de_pack'/'mezcla' usa el pool default del
+-- servidor (frases sin pack) -- ídem que en frase_pack_channels.
+CREATE TABLE IF NOT EXISTS channel_triggers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    match_type TEXT NOT NULL,
+    pattern TEXT NOT NULL,
+    action TEXT NOT NULL,
+    pack_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_channel_triggers_channel
+    ON channel_triggers(guild_id, channel_id);
 
 -- Canales de los que el bot SÍ aprende. Allowlist positiva: lo que no está
 -- acá no entra al corpus. Ojo con la asimetría respecto de chat_channels:
@@ -2996,6 +3027,117 @@ async def get_effective_frase_pool(guild_id: int, channel_id: int) -> int | None
     return row[0] if row else None
 
 
+# ─── Triggers por canal (channel_triggers) ───────────────────────────────────
+
+TRIGGER_MATCH_TYPES = ("exact", "starts_with", "regex")
+TRIGGER_ACTIONS = ("frase_de_pack", "markov", "mezcla")
+
+
+def channel_triggers_limit(guild_id: int | None) -> int:
+    """Máximo de triggers por guild (no por canal): cada uno corre una
+    evaluación más por mensaje en su canal, así que el tope cuida CPU tanto
+    como espacio en la DB."""
+    return _limit_for_guild(
+        guild_id,
+        "MAX_CHANNEL_TRIGGERS_PER_GUILD_FREE",
+        "MAX_CHANNEL_TRIGGERS_PER_GUILD_PREMIUM",
+        10,
+        30,
+    )
+
+
+async def add_channel_trigger(
+    guild_id: int,
+    channel_id: int,
+    match_type: str,
+    pattern: str,
+    action: str,
+    pack_id: int | None = None,
+) -> int | None:
+    """Crea un trigger. None si el guild llegó a channel_triggers_limit, si
+    match_type/action no son válidos, o si pattern está vacío o (para
+    match_type='regex') no compila. Esta función no confía en que el
+    llamador ya validó -- es la última barrera antes de la DB."""
+    clean_pattern = (pattern or "").strip()
+    if (
+        not clean_pattern
+        or match_type not in TRIGGER_MATCH_TYPES
+        or action not in TRIGGER_ACTIONS
+    ):
+        return None
+    if match_type == "regex":
+        try:
+            regex.compile(clean_pattern)
+        except regex.error:
+            return None
+    max_triggers = channel_triggers_limit(guild_id)
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT COUNT(*) FROM channel_triggers WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        if row and int(row[0]) >= max_triggers:
+            return None
+        cursor = await db.execute(
+            "INSERT INTO channel_triggers "
+            "(guild_id, channel_id, match_type, pattern, action, pack_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (guild_id, channel_id, match_type, clean_pattern, action, pack_id),
+        )
+        await db.commit()
+    return cursor.lastrowid
+
+
+def _trigger_row_to_dict(row) -> dict:
+    return {
+        "id": row[0],
+        "channel_id": row[1],
+        "match_type": row[2],
+        "pattern": row[3],
+        "action": row[4],
+        "pack_id": row[5],
+    }
+
+
+async def list_channel_triggers(guild_id: int, channel_id: int) -> list[dict]:
+    """En orden de creación (id ascendente) -- el primero que matchea gana,
+    ver _handle_trigger en cogs/chat.py."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, channel_id, match_type, pattern, action, pack_id "
+        "FROM channel_triggers WHERE guild_id=? AND channel_id=? ORDER BY id",
+        (guild_id, channel_id),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [_trigger_row_to_dict(r) for r in rows]
+
+
+async def list_guild_triggers(guild_id: int) -> list[dict]:
+    """Todos los triggers del guild, para que el dashboard los agrupe por
+    canal en el cliente en vez de pedir uno por canal."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, channel_id, match_type, pattern, action, pack_id "
+        "FROM channel_triggers WHERE guild_id=? ORDER BY channel_id, id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [_trigger_row_to_dict(r) for r in rows]
+
+
+async def delete_channel_trigger(guild_id: int, trigger_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM channel_triggers WHERE guild_id=? AND id=?",
+            (guild_id, trigger_id),
+        )
+        deleted = cursor.rowcount > 0
+        await db.commit()
+    return deleted
+
+
 async def log_audit(
     guild_id: int,
     user_id: int,
@@ -3278,6 +3420,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "frase_allowed_channels",
         "frase_packs",
         "frase_pack_channels",
+        "channel_triggers",
         "reaction_pool",
         "premium_guilds",
         "guild_departures",
