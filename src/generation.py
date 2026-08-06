@@ -45,6 +45,19 @@ _CONECTORES_FINALES = [
 
 _markov_cache: LRUDict = LRUDict(64)
 _message_counter: LRUDict = LRUDict(256)
+# "Termostato" de actividad reciente por canal (Fase 6): (score, last_update)
+# en vez de una lista de timestamps -- un float que decae con el tiempo en
+# memoria, no algo que necesite sobrevivir un reinicio ni que valga la pena
+# escribir en SQLite en cada mensaje (el bot ya tiene un _db_lock global
+# serializando escrituras; sumarle un write por mensaje solo para contar
+# actividad lo saturaría). Ver _bump_channel_activity/_activity_multiplier.
+_channel_activity: LRUDict = LRUDict(1024)
+_ACTIVITY_HALF_LIFE = 45.0
+# ponytail: valores de partida sin datos reales de producción para calibrar
+# -- ajustar mirando cuánto sube auto_generate_probability en un canal
+# activo típico antes de subir esto a config/settings.
+_ACTIVITY_PER_BOOST = 5.0
+_ACTIVITY_BOOST_CAP = 2.0
 _corpus_insert_counter: LRUDict = LRUDict(256)
 _guild_total_insert_counter: LRUDict = LRUDict(256)
 # 10x el umbral por canal (50): trim_guild_total_if_needed hace un GROUP BY
@@ -170,6 +183,32 @@ def note_user_corpus_insert(guild_id: int, author_id: int) -> None:
         _user_corpus_insert_counter[key] = n
 
 
+def _channel_activity_score(guild_id: int, channel_id: int) -> float:
+    """Score de actividad del canal decayendo hasta ahora, SIN sumarle un
+    mensaje nuevo -- lo que había antes de este mensaje, no con él incluido."""
+    key = (guild_id, channel_id)
+    now = time.monotonic()
+    score, last = _channel_activity.get(key, (0.0, now))
+    return score * (0.5 ** ((now - last) / _ACTIVITY_HALF_LIFE))
+
+
+def _bump_channel_activity(guild_id: int, channel_id: int) -> float:
+    """Suma este mensaje al termostato del canal (para las próximas
+    consultas) y devuelve el score resultante. Decae exponencialmente con
+    el tiempo transcurrido (vida media _ACTIVITY_HALF_LIFE) en vez de
+    contarse con una ventana de timestamps -- así es un solo float por
+    canal sin importar cuántos mensajes pasen, no una lista que crece."""
+    new_score = _channel_activity_score(guild_id, channel_id) + 1.0
+    _channel_activity[(guild_id, channel_id)] = (new_score, time.monotonic())
+    return new_score
+
+
+def _activity_multiplier(score: float) -> float:
+    """1.0 sin actividad reciente (ninguna diferencia con el timer fijo de
+    siempre); sube con el score hasta _ACTIVITY_BOOST_CAP."""
+    return min(_ACTIVITY_BOOST_CAP, 1.0 + score / _ACTIVITY_PER_BOOST)
+
+
 def note_message_for_auto_generate(
     guild_id: int,
     channel_id: int,
@@ -179,21 +218,35 @@ def note_message_for_auto_generate(
     """Cuenta un insert al corpus del canal y decide si el bot habla espontáneamente.
 
     Cada `every` inserts hay una oportunidad de generación, gateada por
-    `probability` para que no sea determinística por conteo. Ambos valores son
-    por servidor y los pasa cogs/chat.py desde get_chat_settings; los de
-    config.py quedaron solo como fallback para quien no los pase.
+    `probability` para que no sea determinística por conteo -- el "timer
+    fijo" de siempre. Encima de eso, la probabilidad efectiva de esa
+    oportunidad sube con qué tan activo estuvo el canal ANTES de este
+    mensaje (ver _channel_activity_score/_activity_multiplier): una racha
+    de mensajes hace que el bot intervenga con más ganas, no solo cuando el
+    contador fijo se cumple. Un canal recién creado (sin historial de
+    actividad todavía) arranca en multiplicador 1.0 -- ningún cambio de
+    conducta hasta que de verdad haya actividad que medir. Tope en 0.95 --
+    ni con el canal más activo posible deja de haber margen para que no
+    hable, la sorpresa es parte de la gracia.
+
+    `every`/`probability` son por servidor y los pasa cogs/chat.py desde
+    get_effective_chat_settings; los de config.py quedaron solo como
+    fallback para quien no los pase.
     """
     if every is None:
         every = config.AUTO_GENERATE_EVERY
     if probability is None:
         probability = config.AUTO_GENERATE_PROBABILITY
+    activity_before = _channel_activity_score(guild_id, channel_id)
+    _bump_channel_activity(guild_id, channel_id)
     key = (guild_id, channel_id)
     n = _message_counter.get(key, 0) + 1
     # `every` viene de la DB acotado a >= 1, pero un 0 acá dejaría el contador
     # sin avanzar nunca y el bot mudo: se trata igual que 1.
     if n >= max(1, every):
         _message_counter[key] = 0
-        return random.random() < probability
+        boosted = min(0.95, probability * _activity_multiplier(activity_before))
+        return random.random() < boosted
     _message_counter[key] = n
     return False
 
@@ -204,6 +257,7 @@ def reset_guild_caches(guild_id: int) -> None:
     for cache in (
         _corpus_insert_counter,
         _message_counter,
+        _channel_activity,
         _user_corpus_insert_counter,
         _user_markov_cache,
     ):
