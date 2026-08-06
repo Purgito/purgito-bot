@@ -33,6 +33,7 @@ from urllib.parse import urlencode, urlparse
 
 import aiohttp
 import discord
+import generation
 import regex
 from aiohttp import web
 from aiohttp_session import get_session, setup as setup_session
@@ -97,6 +98,7 @@ from db import (
     delete_frase_especial,
     delete_frase_pack,
     delete_gif_url_by_id,
+    delete_recent_corpus,
     embed_template_limit,
     extract_send_options,
     frase_pack_limit,
@@ -110,6 +112,7 @@ from db import (
     get_gif_by_url,
     get_shared_embed,
     get_updates_channel,
+    import_corpus_messages,
     list_audit_log,
     list_blocked_gifs,
     list_corpus_channels,
@@ -167,6 +170,7 @@ _rate_post: LRUDict = LRUDict(512)
 _rate_delete: LRUDict = LRUDict(512)
 _rate_gif_verify: LRUDict = LRUDict(512)
 _rate_status_search: LRUDict = LRUDict(512)
+_rate_corpus_import: LRUDict = LRUDict(512)
 # user_id -> (expira_monotonic, [guilds con manage_guild]) — cache 5 min para
 # no golpear a Discord en cada request.
 _user_guilds_cache: LRUDict = LRUDict(256)
@@ -850,6 +854,83 @@ async def _api_corpus_delete(request: web.Request, guild_id: int) -> web.Respons
             request, guild_id, "corpus.remove", detail=f"channel_id={channel_id}"
         )
     return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_corpus_import_post(request: web.Request, guild_id: int) -> web.Response:
+    """Sube un .txt (body crudo, mismo patrón que _api_embeds_upload) y lo
+    trocea en "mensajes" -- una línea no vacía es un mensaje -- que entran a
+    corpus_messages del canal como si fueran reales: mismo pipeline de
+    limpieza (generation.clean_for_corpus) y sujetos a los mismos límites
+    MAX_CORPUS_MESSAGES_PER_GUILD_* de siempre (ver import_corpus_messages).
+    """
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_corpus_import, ip, 3):
+        return web.json_response({"error": "rate limit"}, status=429)
+    max_bytes = env_int("MAX_CORPUS_IMPORT_BYTES", 2 * 1024 * 1024)
+    if request.content_length and request.content_length > max_bytes:
+        return web.json_response(
+            {
+                "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
+            },
+            status=413,
+        )
+    data = await request.read()
+    if len(data) > max_bytes:
+        return web.json_response(
+            {
+                "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
+            },
+            status=413,
+        )
+    if not data:
+        return web.json_response({"error": "archivo vacío"}, status=400)
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return web.json_response(
+            {"error": "el archivo no es texto UTF-8 válido"}, status=400
+        )
+    lines = []
+    for raw_line in text.splitlines():
+        cleaned = generation.clean_for_corpus(raw_line)
+        if cleaned is not None:
+            lines.append(cleaned)
+    if not lines:
+        return web.json_response(
+            {"error": "no se encontró texto aprovechable en el archivo"}, status=400
+        )
+    inserted = await import_corpus_messages(guild_id, channel_id, lines)
+    generation.reset_guild_caches(guild_id)
+    await _log_audit(
+        request,
+        guild_id,
+        "corpus.import",
+        detail=f"channel_id={channel_id} lines={inserted}",
+    )
+    return web.json_response({"imported": inserted, "lines_found": len(lines)})
+
+
+@guild_api
+async def _api_corpus_amnesia_post(request: web.Request, guild_id: int) -> web.Response:
+    """ "Amnesia": borra el corpus (mensajes + estilo por usuario) de las
+    últimas 24 horas del guild. Irreversible -- la confirmación vive en el
+    dashboard, acá se ejecuta sin preguntar de nuevo."""
+    deleted = await delete_recent_corpus(guild_id, hours=24)
+    generation.reset_guild_caches(guild_id)
+    await _log_audit(
+        request,
+        guild_id,
+        "corpus.amnesia",
+        detail=(
+            f"corpus_messages={deleted['corpus_messages']} "
+            f"user_corpus={deleted['user_corpus']}"
+        ),
+    )
+    return web.json_response({"deleted": deleted})
 
 
 # ---------------- API: roles exentos del límite de menciones ----------------
@@ -2732,6 +2813,10 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_delete(
             f"{base}/settings/corpus/{{channel_id}}", _api_corpus_delete
         )
+        app.router.add_post(
+            f"{base}/settings/corpus/import/{{channel_id}}", _api_corpus_import_post
+        )
+        app.router.add_post(f"{base}/settings/corpus/amnesia", _api_corpus_amnesia_post)
         app.router.add_get(f"{base}/settings/reacciones", _api_reacciones_get)
         app.router.add_post(f"{base}/settings/reacciones", _api_reacciones_post)
         app.router.add_delete(

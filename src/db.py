@@ -967,6 +967,71 @@ async def save_corpus_and_user_message(
     return corpus_inserted, user_inserted
 
 
+async def import_corpus_messages(
+    guild_id: int, channel_id: int, lines: list[str]
+) -> int:
+    """Inserta líneas ya limpias (ver generation.clean_for_corpus, lo aplica
+    el llamador) directo a corpus_messages, como si fueran mensajes reales
+    de ese canal -- message_id NULL porque no vienen de Discord. NO toca
+    user_corpus: un import no tiene un autor real al que atribuirle estilo
+    personal.
+
+    Un solo executemany (una sola vuelta de _db_lock) en vez de un INSERT
+    por línea -- un archivo de texto puede traer miles de líneas, y el bot
+    tiene un único _db_lock global sirviendo también a los mensajes reales
+    que sigan llegando mientras tanto.
+
+    Respeta los mismos límites que el corpus real: corre
+    trim_corpus_if_needed/trim_guild_total_if_needed después del insert,
+    igual que cuando llega un mensaje real (ver note_corpus_insert en
+    generation.py). Devuelve cuántas líneas se insertaron.
+    """
+    if not lines:
+        return 0
+    db = await get_db()
+    async with _db_lock:
+        await db.executemany(
+            "INSERT INTO corpus_messages (guild_id, channel_id, message_id, content) "
+            "VALUES (?, ?, NULL, ?)",
+            [(guild_id, channel_id, line) for line in lines],
+        )
+        await db.commit()
+    await trim_corpus_if_needed(guild_id, channel_id)
+    await trim_guild_total_if_needed(guild_id)
+    return len(lines)
+
+
+async def delete_recent_corpus(guild_id: int, hours: int = 24) -> dict:
+    """ "Amnesia": borra corpus_messages y user_corpus de las últimas
+    `hours` horas de un guild -- filtra por created_at (columna propia,
+    no algo que dependa de Discord) así que cubre por igual mensajes
+    reales e importados. Pensado para cuando el corpus reciente se llenó
+    de basura (spam, un raid) y conviene arrancar de nuevo ahí en vez de
+    esperar a que el trim normal lo desplace solo -- irreversible, la
+    confirmación vive en el dashboard antes de llegar acá.
+
+    No toca frases_especiales, reacciones ni ninguna otra config: solo lo
+    que alimenta al Markov. El llamador es responsable de invalidar el
+    modelo cacheado (generation.reset_guild_caches) -- este módulo no
+    importa generation (generation.py ya importa de acá, sería un ciclo).
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    db = await get_db()
+    async with _db_lock:
+        cur1 = await db.execute(
+            "DELETE FROM corpus_messages WHERE guild_id=? AND created_at >= ?",
+            (guild_id, cutoff),
+        )
+        cur2 = await db.execute(
+            "DELETE FROM user_corpus WHERE guild_id=? AND created_at >= ?",
+            (guild_id, cutoff),
+        )
+        await db.commit()
+    return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
+
+
 async def count_guild_corpus_messages(guild_id: int) -> int:
     db = await get_db()
     async with db.execute(

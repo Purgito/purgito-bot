@@ -9,7 +9,7 @@
 // build_docs.py recorta de index.html. script.js es quien resuelve la sesión
 // en el navbar; este módulo solo pinta lo que va debajo.
 
-import { apiFetch } from '/js/core/api.js';
+import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
 } from '/js/core/dom.js';
@@ -359,6 +359,91 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
   return wrap;
 }
 
+/* Import de corpus desde un .txt (Fase 8): sube el archivo tal cual en el
+   body del request (mismo patrón que uploadImageBlob en embeds/shared-ui.js
+   para las imágenes), no un multipart -- el channel_id va en la URL. */
+function corpusImportForm(channels) {
+  const chanSel = channelSelect(channels, null, 'Elegí un canal…');
+  const fileInput = el('input', { type: 'file', accept: '.txt,text/plain' });
+  const resultBox = el('div', {});
+  const btn = el('button', {
+    class: 'btn btn-primary',
+    onclick: async () => {
+      const file = fileInput.files[0];
+      if (!chanSel.value || !file) {
+        toast('Elegí un canal y un archivo .txt', 'warn');
+        return;
+      }
+      resultBox.innerHTML = '';
+      resultBox.append(spinner());
+      let r, data;
+      try {
+        r = await fetch(`/api/server/${GUILD_ID}/settings/corpus/import/${chanSel.value}`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'text/plain' },
+          body: file,
+        });
+        data = await r.json().catch(() => ({}));
+      } catch (e) {
+        resultBox.innerHTML = '';
+        toast('No se pudo conectar con el servidor', 'err');
+        return;
+      }
+      resultBox.innerHTML = '';
+      if (!r.ok) {
+        toast(data.error || humanError(r.status), r.status === 429 ? 'warn' : 'err');
+        return;
+      }
+      toast(`${data.imported} mensajes importados`, 'ok');
+      fileInput.value = '';
+    },
+  }, 'Importar');
+
+  return el('div', {},
+    el('div', { class: 'add-row' }, chanSel, fileInput, btn),
+    resultBox);
+}
+
+/* Confirmación en dos pasos (mismo patrón que subDeleteActions de
+   tabs/youtube.js): botón -> "¿Seguro? ✓ ✗" -> ejecuta o cancela. Es
+   destructivo e irreversible, no puede dispararse con un solo click. */
+function amnesiaButton() {
+  const wrap = el('div', {});
+
+  function showButton() {
+    wrap.innerHTML = '';
+    wrap.append(el('button', {
+      class: 'btn btn-danger', onclick: showConfirm,
+    }, 'Borrar corpus de las últimas 24h'));
+  }
+
+  function showConfirm() {
+    wrap.innerHTML = '';
+    wrap.append(el('div', { class: 'gif-confirm' },
+      'Esto borra mensajes y estilo por usuario de las últimas 24 horas y no se puede deshacer. ¿Seguro?',
+      el('button', { class: 'btn btn-danger btn-sm', onclick: doAmnesia }, '✓ Sí, borrar'),
+      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButton }, '✗ Cancelar')));
+  }
+
+  async function doAmnesia() {
+    try {
+      const data = await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/amnesia`, {
+        method: 'POST',
+      });
+      toast(
+        `Borrados ${data.deleted.corpus_messages} mensajes y ${data.deleted.user_corpus} de estilo por usuario`,
+        'ok',
+      );
+    } catch (e) {
+      toast('No se pudo borrar el corpus reciente, intenta de nuevo', 'err');
+    }
+    showButton();
+  }
+
+  showButton();
+  return wrap;
+}
+
 /* Guarda un ajuste numérico del chat. El backend recorta al rango y devuelve
    lo que quedó, así que el input se corrige solo si te pasaste. */
 async function saveTunable(key, value, label, onSaved) {
@@ -699,7 +784,18 @@ async function loadChatTab() {
               corpusSelected.delete(ch.id);
             },
             listBelow: 'Purgito no está aprendiendo de ningún canal.',
-          })));
+          })),
+        formGroup('Importar corpus desde un archivo',
+          el('p', { class: 'dim' },
+            'Subí un .txt: cada línea no vacía entra al corpus del canal '
+            + 'elegido como si fuera un mensaje real, con la misma limpieza y '
+            + 'los mismos límites de siempre.'),
+          corpusImportForm(channels)),
+        formGroup('Amnesia',
+          el('p', { class: 'dim' },
+            'Borra el corpus (mensajes y estilo por usuario) de las últimas '
+            + '24 horas de todo el servidor. Es irreversible.'),
+          amnesiaButton()));
     }
 
     // --- Sub-pestaña: Personalidad ---
