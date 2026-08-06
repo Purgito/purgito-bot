@@ -134,6 +134,58 @@ async def _trigger_matches(trigger: dict, content: str) -> bool:
     return False
 
 
+# Tags disponibles en frases especiales -- whitelist CERRADA a propósito:
+# reemplazo por string matching simple (str.replace, ver render_frase_template),
+# nunca un motor de templates real (Jinja2 y similares) sobre texto que
+# escribe un admin del servidor -- eso sí sería una superficie de inyección
+# (acceso a atributos/métodos arbitrarios del objeto que se le pase).
+#
+# Sin tag de mención de rol a propósito: {{role.mention}} sobre un texto que
+# cualquier admin puede editar es una forma fácil de esconder un @everyone/
+# @here en una frase que dispara sola -- si hace falta en algún momento, se
+# avisa antes de agregarlo, no se agrega solo.
+TEMPLATE_TAGS = (
+    "{{user.mention}}",
+    "{{user.name}}",
+    "{{channel.name}}",
+    "{{channel.mention}}",
+    "{{guild.name}}",
+    "{{markov.word}}",
+    "{{markov.sentence}}",
+)
+
+
+async def render_frase_template(text: str, *, author, channel, guild) -> str:
+    """Reemplaza los tags de TEMPLATE_TAGS presentes en `text` por su valor
+    real. Cualquier `{{lo que sea}}` que no esté en la whitelist queda tal
+    cual, como texto literal -- no se interpreta ni se evalúa nada.
+
+    `author`/`channel`/`guild` en vez de un discord.Message: lo llaman tanto
+    on_message (con message.author/channel/guild) como el comando /generar
+    (con interaction.user/channel/guild), que no comparten una clase base
+    con esos atributos.
+    """
+    if "{{" not in text:
+        return text  # atajo: la gran mayoría de las frases no usa tags
+    literal = {
+        "{{user.mention}}": author.mention,
+        "{{user.name}}": author.display_name,
+        "{{channel.name}}": getattr(channel, "name", "") or "",
+        "{{channel.mention}}": getattr(channel, "mention", "") or "",
+        "{{guild.name}}": guild.name if guild else "",
+    }
+    for tag, value in literal.items():
+        if tag in text:
+            text = text.replace(tag, value)
+    if guild and "{{markov.word}}" in text:
+        word = await generation.generate_markov_word(guild.id)
+        text = text.replace("{{markov.word}}", word or "")
+    if guild and "{{markov.sentence}}" in text:
+        sentence = await generation.generate_markov_reply(guild.id)
+        text = text.replace("{{markov.sentence}}", sentence or "")
+    return text
+
+
 # Nombre de la migración por servidor que rellena corpus_allowed_channels.
 # Cambiar este string haría que la migración corra de nuevo y pise lo que un
 # admin haya configurado a mano — no tocar.
@@ -338,9 +390,15 @@ class Chat(commands.Cog):
                         special_phrase_probability=settings["frase_probability"],
                     )
                     if text is not None:
-                        final = (
-                            text if is_special else generation.post_process_reply(text)
-                        )
+                        if is_special:
+                            final = await render_frase_template(
+                                text,
+                                author=message.author,
+                                channel=message.channel,
+                                guild=message.guild,
+                            )
+                        else:
+                            final = generation.post_process_reply(text)
                         for chunk in chunk_message(final):
                             await message.channel.send(chunk)
                         await bump_counter(message.guild.id, "mensajes_enviados")
@@ -411,7 +469,12 @@ class Chat(commands.Cog):
                 message.guild.id, locale, throttle=True
             )
         elif is_special:
-            reply = text
+            reply = await render_frase_template(
+                text,
+                author=message.author,
+                channel=message.channel,
+                guild=message.guild,
+            )
         else:
             reply = generation.post_process_reply(text)
         for chunk in chunk_message(reply):
@@ -438,7 +501,13 @@ class Chat(commands.Cog):
             phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
             if phrase is None:
                 return False
-            await self._send_trigger_reply(message, phrase)
+            rendered = await render_frase_template(
+                phrase,
+                author=message.author,
+                channel=message.channel,
+                guild=message.guild,
+            )
+            await self._send_trigger_reply(message, rendered)
             return True
         if action == "markov":
             text = await generation.generate_markov_reply(guild_id)
@@ -457,7 +526,13 @@ class Chat(commands.Cog):
         if random.random() < settings["frase_probability"]:
             phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
             if phrase is not None:
-                await self._send_trigger_reply(message, phrase)
+                rendered = await render_frase_template(
+                    phrase,
+                    author=message.author,
+                    channel=message.channel,
+                    guild=message.guild,
+                )
+                await self._send_trigger_reply(message, rendered)
                 return True
         text = await generation.generate_markov_reply(guild_id)
         if text is None:
@@ -583,7 +658,12 @@ class Chat(commands.Cog):
             locale = await i18n.guild_locale(interaction.guild.id)
             reply = generation.empty_corpus_reply(interaction.guild.id, locale)
         elif is_special:
-            reply = text
+            reply = await render_frase_template(
+                text,
+                author=interaction.user,
+                channel=interaction.channel,
+                guild=interaction.guild,
+            )
         else:
             reply = generation.post_process_reply(text)
         await interaction.followup.send(reply)

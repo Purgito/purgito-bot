@@ -87,8 +87,11 @@ def test_trigger_matches_regex_corre_en_un_hilo_aparte(monkeypatch):
 class FakeMessage:
     def __init__(self, content, channel_id=10, guild_id=1):
         self.content = content
-        self.guild = SimpleNamespace(id=guild_id)
-        self.channel = SimpleNamespace(id=channel_id, send=self._send)
+        self.guild = SimpleNamespace(id=guild_id, name="Guild")
+        self.channel = SimpleNamespace(
+            id=channel_id, send=self._send, name="canal", mention=f"<#{channel_id}>"
+        )
+        self.author = SimpleNamespace(mention="<@5>", display_name="user")
         self.sent: list[str] = []
 
     async def _send(self, text):

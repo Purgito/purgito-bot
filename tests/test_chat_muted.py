@@ -28,12 +28,18 @@ class FakeMessage:
             bot=False,
             id=5,
             display_name="user",
+            mention="<@5>",
             # discord.py trae los roles con el miembro: no hay llamada extra.
             roles=[SimpleNamespace(id=rid) for rid in role_ids],
         )
-        self.guild = SimpleNamespace(id=guild_id)
+        self.guild = SimpleNamespace(id=guild_id, name="Guild")
         self.channel_sent: list[str] = []
-        self.channel = SimpleNamespace(id=channel_id, send=self._channel_send)
+        self.channel = SimpleNamespace(
+            id=channel_id,
+            send=self._channel_send,
+            name="canal",
+            mention=f"<#{channel_id}>",
+        )
         self.content = "hola" + (f" <@{BOT_ID}>" if mention else " mundo")
         self.raw_mentions = [BOT_ID] if mention else []
         self.reference = None
@@ -426,6 +432,27 @@ def test_la_probabilidad_de_gif_sale_de_los_settings(cog, monkeypatch):
     gif = FakeMessage()
     asyncio.run(chat.on_message(gif))
     assert gif.replies == ["https://tenor.com/x.gif"]
+
+
+# ─── Templating de frases especiales (Fase 5) ────────────────────────────────
+
+
+def test_frase_especial_con_tag_se_renderiza_en_la_mencion_directa(cog):
+    """Integración end-to-end: on_message aplica render_frase_template a la
+    frase especial antes de responder a una mención -- el detalle de qué
+    tags existen y cómo se resuelven ya se prueba en
+    test_frase_templating.py, acá solo el enganche."""
+    chat, _, mp = cog
+    _patch_ctx(mp)
+
+    async def fake_generate(guild_id, channel_id, *, special_phrase_probability=None):
+        return "hola {{user.mention}}!", True
+
+    mp.setattr(chat_mod.generation, "generate_response", fake_generate)
+
+    m = FakeMessage()
+    asyncio.run(chat.on_message(m))
+    assert m.replies == ["hola <@5>!"]
 
 
 async def _noop_counter(guild_id, name, by=1):

@@ -254,6 +254,23 @@ async def generate_markov_reply(guild_id: int) -> str | None:
     return sentence
 
 
+async def generate_markov_word(guild_id: int) -> str | None:
+    """Una sola palabra del modelo Markov del guild -- para el tag
+    {{markov.word}} de las frases especiales (ver render_frase_template en
+    cogs/chat.py). Mismo modelo cacheado que generate_markov_reply."""
+    model = await build_markov_model(guild_id)
+    if not model or model.is_empty:
+        return None
+    try:
+        word = await asyncio.to_thread(
+            model.generate, max_words=1, max_attempts=5, min_words=1
+        )
+    except Exception:
+        log.exception("Error generando palabra Markov para guild %s", guild_id)
+        word = None
+    return word
+
+
 async def generate_markov_for_user(guild_id: int, author_id: int) -> str | None:
     key = (guild_id, author_id)
     model = _user_markov_cache.get(key)
