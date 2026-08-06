@@ -28,6 +28,7 @@ import logging
 import math
 import secrets
 import time
+from types import SimpleNamespace
 from urllib.parse import urlencode, urlparse
 
 import aiohttp
@@ -62,6 +63,7 @@ from config import (
     env_int,
     get_invite_url,
 )
+from cogs.chat import simulate_message
 from cogs.gifs import HEALTH_CHECK_BATCH, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.youtube import resolve_youtube_channel
@@ -717,6 +719,53 @@ async def _api_channel_settings_put(
         detail=f"channel_id={channel_id} {json.dumps(saved)}",
     )
     return web.json_response({"ok": True, "saved": saved})
+
+
+@guild_api
+async def _api_chat_playground_post(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Simula qué habría generado el motor de chat (triggers y la decisión
+    frase-vs-Markov) para un mensaje de prueba en un canal puntual, con la
+    config efectiva de ese canal -- overrides de channel_settings (Fase 2),
+    pack/allowlist de frases (Fase 3) y triggers (Fase 4) incluidos. Nunca
+    manda nada a Discord ni toca corpus/contadores/cooldowns reales, ver
+    simulate_message en cogs/chat.py.
+    """
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    message_text = (data.get("message") or "").strip()
+    if not message_text:
+        return web.json_response(
+            {"error": "el mensaje de prueba está vacío"}, status=400
+        )
+    channel_id = _to_int(data.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+
+    guild = _bot_guild(request, guild_id)
+    channel = guild.get_channel(channel_id)
+    if channel is None:
+        return web.json_response(
+            {"error": "el canal no existe en este servidor"}, status=400
+        )
+
+    # El admin que prueba el playground hace de "autor" para {{user.*}}: se
+    # busca su Member real (para que {{user.mention}} sea el suyo) y si no
+    # se puede resolver (permisos, caché del bot) se cae a un placeholder
+    # en vez de romper la simulación por eso.
+    session = await get_session(request)
+    member = guild.get_member(int(session["user_id"]))
+    author = member or SimpleNamespace(
+        mention=f"<@{session['user_id']}>",
+        display_name=str(session.get("username") or "vos"),
+    )
+
+    result = await simulate_message(
+        guild_id, channel_id, message_text, author=author, channel=channel, guild=guild
+    )
+    return web.json_response(result)
 
 
 @guild_api
@@ -2652,6 +2701,7 @@ async def start_web_server(bot: commands.Bot) -> None:
             "/api/guilds/{guild_id}/channels/{channel_id}/settings",
             _api_channel_settings_put,
         )
+        app.router.add_post(f"{base}/chat/playground", _api_chat_playground_post)
         app.router.add_get(f"{base}/settings/exempt-roles", _api_exempt_roles_get)
         app.router.add_post(f"{base}/settings/exempt-roles", _api_exempt_roles_post)
         app.router.add_delete(

@@ -564,6 +564,7 @@ const CHAT_SUBTABS = [
   { key: 'porcanal', label: 'Por canal' },
   { key: 'frases', label: 'Frases' },
   { key: 'triggers', label: 'Triggers' },
+  { key: 'playground', label: 'Playground' },
 ];
 
 function currentChatSubtab() {
@@ -845,6 +846,46 @@ async function loadChatTab() {
         box);
     }
 
+    // --- Sub-pestaña: Playground ---
+    function buildPlayground() {
+      const sel = channelSelect(channels, null, 'Elegí un canal…');
+      const input = el('textarea', {
+        rows: '3', placeholder: 'Mensaje de prueba…', style: 'width:100%',
+      });
+      const resultBox = el('div', {});
+      const btn = el('button', {
+        class: 'btn btn-primary',
+        onclick: async () => {
+          const message = input.value.trim();
+          if (!sel.value || !message) {
+            toast('Elegí un canal y escribí un mensaje de prueba', 'warn');
+            return;
+          }
+          resultBox.innerHTML = '';
+          resultBox.append(spinner());
+          try {
+            const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
+              method: 'POST', body: { channel_id: sel.value, message },
+            });
+            renderPlaygroundResult(resultBox, data);
+          } catch (e) { renderError(resultBox, e); }
+        },
+      }, 'Simular');
+
+      return formGroup('Playground',
+        el('p', { class: 'dim' },
+          'Probá cómo respondería Purgito a un mensaje en un canal puntual, con '
+          + 'su configuración efectiva (overrides, packs y triggers incluidos). '
+          + 'No manda nada de verdad ni gasta el cooldown real de frases '
+          + 'especiales. No simula si el canal está habilitado para menciones o '
+          + 'respuesta espontánea, ni el límite de menciones por hora — solo el '
+          + 'motor de generación.'),
+        el('div', { class: 'field' }, el('label', {}, 'Canal'), sel),
+        el('div', { class: 'field' }, el('label', {}, 'Mensaje de prueba'), input),
+        btn,
+        resultBox);
+    }
+
     // --- Sub-pestaña: Por canal (overrides de Personalidad/Límites) ---
     function buildPorCanal() {
       const sel = channelSelect(channels, null, 'Elegí un canal…');
@@ -905,6 +946,7 @@ async function loadChatTab() {
       porcanal: buildPorCanal,
       frases: buildFrases,
       triggers: buildTriggers,
+      playground: buildPlayground,
     };
 
     const subnav = el('nav', { class: 'chat-subtabs' });
@@ -1265,6 +1307,32 @@ async function reloadTriggers(box, channels, packs) {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/triggers`);
     renderTriggers(box, data, channels, packs);
   } catch (e) { /* se queda como estaba */ }
+}
+
+const PLAYGROUND_NO_RESPONSE_LABELS = {
+  canal_ignorado: 'El canal está silenciado (ignorado) — Purgito no respondería ahí.',
+  sin_corpus_suficiente: 'Todavía no hay corpus suficiente para generar una respuesta.',
+  trigger_sin_contenido: 'Matcheó un trigger, pero el pool de frases de ese trigger está vacío.',
+};
+const PLAYGROUND_REASON_LABELS = {
+  trigger: 'Disparado por un trigger',
+  frase_especial: 'Frase especial',
+  markov: 'Texto generado (Markov)',
+};
+
+function renderPlaygroundResult(box, data) {
+  box.innerHTML = '';
+  if (!data.would_respond) {
+    box.append(el('p', { class: 'dim' },
+      PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'No respondería.'));
+    return;
+  }
+  box.append(
+    el('p', { class: 'dim' }, PLAYGROUND_REASON_LABELS[data.reason] || data.reason),
+    el('div', {
+      style: 'border:1px solid var(--border);border-radius:var(--radius-sm);'
+        + 'padding:12px;background:var(--surface-card)',
+    }, data.text));
 }
 
 // ---------------- MEMES (stub) ----------------

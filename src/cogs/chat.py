@@ -22,11 +22,13 @@ from db import (
     count_user_messages,
     get_channel_refeed_status,
     get_effective_chat_settings,
+    get_effective_frase_pool,
     get_random_frase_especial,
     get_random_reaction,
     get_welcome_channel_id,
     is_channel_ignored,
     is_corpus_allowed,
+    is_frase_allowed,
     list_channel_triggers,
     list_corpus_channels,
     list_exempt_roles,
@@ -184,6 +186,115 @@ async def render_frase_template(text: str, *, author, channel, guild) -> str:
         sentence = await generation.generate_markov_reply(guild.id)
         text = text.replace("{{markov.sentence}}", sentence or "")
     return text
+
+
+# ─── Playground del dashboard (Fase 7) ───────────────────────────────────────
+# Reimplementan la decisión de _run_trigger_action/generate_response pero de
+# solo lectura: nada de esto puede bumpear contadores, gastar el cooldown
+# real de frases especiales ni escribir en el corpus -- probar la config no
+# puede tener efectos secundarios sobre la conducta real del bot.
+
+
+async def _simulate_trigger_action(
+    guild_id: int, trigger: dict, settings: dict
+) -> tuple[str | None, bool]:
+    """Como _run_trigger_action, pero devuelve el texto en vez de mandarlo.
+    El segundo valor dice si es una frase (y por lo tanto hay que pasarla
+    por render_frase_template) o texto de Markov (que no lleva tags)."""
+    action = trigger["action"]
+    if action == "frase_de_pack":
+        phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
+        return phrase, True
+    if action == "markov":
+        text = await generation.generate_markov_reply(guild_id)
+        return (
+            generation.post_process_reply(text) if text is not None else None
+        ), False
+    # 'mezcla'
+    if random.random() < settings["frase_probability"]:
+        phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
+        if phrase is not None:
+            return phrase, True
+    text = await generation.generate_markov_reply(guild_id)
+    return (generation.post_process_reply(text) if text is not None else None), False
+
+
+async def _simulate_special_or_markov(
+    guild_id: int, channel_id: int, probability: float
+) -> tuple[str | None, bool]:
+    """Como generation.generate_response, pero SIN tocar
+    generation._special_phrase_cooldowns -- probar el playground no puede
+    gastar el cooldown real de 40 minutos de las frases espontáneas."""
+    if random.random() < probability and await is_frase_allowed(guild_id, channel_id):
+        pack_id = await get_effective_frase_pool(guild_id, channel_id)
+        phrase = await get_random_frase_especial(guild_id, pack_id)
+        if phrase is not None:
+            return phrase, True
+    text = await generation.generate_markov_reply(guild_id)
+    return text, False
+
+
+async def simulate_message(
+    guild_id: int, channel_id: int, content: str, *, author, channel, guild
+) -> dict:
+    """Corre la lógica de decisión de on_message contra un mensaje de
+    prueba -- sin mandar nada a Discord, sin guardar nada al corpus, sin
+    bumpear contadores ni gastar cooldowns reales. Usado por el endpoint
+    del playground del dashboard.
+
+    Ojo con el alcance: simula el MOTOR de generación (triggers y la
+    decisión frase-vs-Markov) con la config efectiva del canal -- no
+    reproduce si ese canal está en las allowlists de mención/espontáneo ni
+    el límite de menciones por hora, porque esas dependen de CÓMO llegaría
+    el mensaje (¿mención? ¿espontáneo?), algo que el playground no pide.
+    Lo único que sí replica sin ambigüedad es el mute total de un canal
+    ignorado.
+    """
+    settings = await get_effective_chat_settings(guild_id, channel_id)
+    if await is_channel_ignored(guild_id, channel_id):
+        return {"would_respond": False, "reason": "canal_ignorado", "text": None}
+
+    triggers = await list_channel_triggers(guild_id, channel_id)
+    stripped = content.strip()
+    for trigger in triggers:
+        if await _trigger_matches(trigger, stripped):
+            text, is_frase = await _simulate_trigger_action(guild_id, trigger, settings)
+            if text is None:
+                return {
+                    "would_respond": False,
+                    "reason": "trigger_sin_contenido",
+                    "trigger_id": trigger["id"],
+                    "text": None,
+                }
+            final = (
+                await render_frase_template(
+                    text, author=author, channel=channel, guild=guild
+                )
+                if is_frase
+                else text
+            )
+            return {
+                "would_respond": True,
+                "reason": "trigger",
+                "trigger_id": trigger["id"],
+                "text": final,
+            }
+
+    text, is_special = await _simulate_special_or_markov(
+        guild_id, channel_id, settings["frase_probability"]
+    )
+    if text is None:
+        return {"would_respond": False, "reason": "sin_corpus_suficiente", "text": None}
+    final = (
+        await render_frase_template(text, author=author, channel=channel, guild=guild)
+        if is_special
+        else generation.post_process_reply(text)
+    )
+    return {
+        "would_respond": True,
+        "reason": "frase_especial" if is_special else "markov",
+        "text": final,
+    }
 
 
 # Nombre de la migración por servidor que rellena corpus_allowed_channels.
