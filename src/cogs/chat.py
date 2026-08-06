@@ -84,6 +84,18 @@ def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
 # historial durante el refeed; discord.Forbidden/NotFound no se reintentan.
 _HISTORY_FETCH_RETRIES = 3
 
+# Prefijos de comandos: el propio ("!", commands.Bot) y los más comunes de
+# otros bots de Discord (MEE6, Dyno, Carl-bot, FredBoat...). Un mensaje que
+# empieza así casi seguro es un comando dirigido a algún bot, no charla real
+# -- ni entra al corpus ni dispara una respuesta espontánea o a mención.
+# Deja afuera a propósito símbolos que también aparecen en chat normal
+# (roleplay con "*acción*", asteriscos de énfasis, "+1"): el costo de un
+# falso negativo (aprende de un comando raro) es más bajo que el de bloquear
+# charla real.
+# ponytail: lista fija; si hace falta por servidor, se vuelve configurable
+# con el mismo patrón que las demás allowlists de settings.
+OTHER_BOT_PREFIXES = ("!", "?", ".", "-", "$", ">", "~", ";")
+
 # Nombre de la migración por servidor que rellena corpus_allowed_channels.
 # Cambiar este string haría que la migración corra de nuevo y pise lo que un
 # admin haya configurado a mano — no tocar.
@@ -202,8 +214,8 @@ class Chat(commands.Cog):
             return
         if is_meme_trigger(self.bot, message):
             return  # lo maneja el cog de memes; no entra al corpus
-        if (message.content or "").strip().startswith("!"):
-            return  # comandos de prefijo: los procesa commands.Bot
+        if (message.content or "").strip().startswith(OTHER_BOT_PREFIXES):
+            return  # comando de prefijo (propio o de otro bot): ver OTHER_BOT_PREFIXES
 
         auto_generate = False
         ignored = False
