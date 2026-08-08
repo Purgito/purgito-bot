@@ -5,7 +5,7 @@ import logging
 from discord.ext import commands
 
 from config import PANEL_URL, PURGATORY_GUILD_ID
-from db import add_premium_guild, list_premium_guilds, remove_premium_guild
+from db import apply_premium_webhook_change, list_premium_guilds
 
 log = logging.getLogger(__name__)
 
@@ -35,20 +35,33 @@ def discard_premium_guild(guild_id: int) -> None:
     _premium_guild_ids.discard(guild_id)
 
 
-async def set_premium(guild_id: int, note: str | None = None) -> bool:
+async def set_premium(
+    guild_id: int, note: str | None = None, event_at: str | None = None
+) -> bool | None:
     """Agrega un guild a premium: escribe en DB y sincroniza el set en memoria.
 
-    Retorna True si era nuevo (igual que add_premium_guild)."""
-    added = await add_premium_guild(guild_id, note)
+    `event_at` (timestamp ISO del webhook de Polar que dispara esto, si
+    aplica) se pasa a apply_premium_webhook_change para el chequeo de orden
+    -- ver su docstring. Retorna None si el evento se descartó por viejo
+    (nada que sincronizar), o True/False si era nuevo (igual que antes)."""
+    added = await apply_premium_webhook_change(
+        guild_id, activate=True, note=note, event_at=event_at
+    )
+    if added is None:
+        return None
     _premium_guild_ids.add(guild_id)
     return added
 
 
-async def unset_premium(guild_id: int) -> bool:
+async def unset_premium(guild_id: int, event_at: str | None = None) -> bool | None:
     """Quita un guild de premium: escribe en DB y sincroniza el set en memoria.
 
-    Retorna True si existía (igual que remove_premium_guild)."""
-    removed = await remove_premium_guild(guild_id)
+    Mismo contrato que set_premium respecto a event_at y al None de retorno."""
+    removed = await apply_premium_webhook_change(
+        guild_id, activate=False, note=None, event_at=event_at
+    )
+    if removed is None:
+        return None
     _premium_guild_ids.discard(guild_id)
     return removed
 

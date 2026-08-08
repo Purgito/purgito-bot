@@ -178,7 +178,7 @@ def _guilds_env(monkeypatch, http):
     return _request_with(http, session)
 
 
-def test_recargar_saltea_el_cache_de_5_minutos(monkeypatch):
+def test_recargar_saltea_el_cache_de_guilds(monkeypatch):
     """Sin force, el segundo pedido sale del cache; con force vuelve a Discord."""
     original = webapi.get_session
     http = _FakeHttp(payload=[{"id": "1", "name": "S", "owner": True}])
@@ -187,7 +187,7 @@ def test_recargar_saltea_el_cache_de_5_minutos(monkeypatch):
         asyncio.run(webapi._fetch_manage_guilds(req))
         assert http.calls == 1
         asyncio.run(webapi._fetch_manage_guilds(req))  # cache hit
-        assert http.calls == 1, "el cache de 5 min dejó de funcionar"
+        assert http.calls == 1, "el cache de guilds dejó de funcionar"
         asyncio.run(webapi._fetch_manage_guilds(req, force=True))
         assert http.calls == 2, "?refresh=1 no volvió a preguntarle a Discord"
     finally:

@@ -42,10 +42,21 @@ def _signed_headers(body: str) -> dict:
     }
 
 
-def _fake_event(event_type: str, metadata, product_id: str = MONTHLY, status=None):
+def _fake_event(
+    event_type: str,
+    metadata,
+    product_id: str = MONTHLY,
+    status=None,
+    revoke_benefits=None,
+):
     return SimpleNamespace(
         TYPE=event_type,
-        data=SimpleNamespace(metadata=metadata, product_id=product_id, status=status),
+        data=SimpleNamespace(
+            metadata=metadata,
+            product_id=product_id,
+            status=status,
+            revoke_benefits=revoke_benefits,
+        ),
     )
 
 
@@ -62,11 +73,11 @@ def _run(
     ya era premium), para ejercitar la rama idempotente del handler."""
     calls = {"set": [], "unset": []}
 
-    async def fake_set(guild_id, note=None):
+    async def fake_set(guild_id, note=None, event_at=None):
         calls["set"].append((guild_id, note))
         return set_returns
 
-    async def fake_unset(guild_id):
+    async def fake_unset(guild_id, event_at=None):
         calls["unset"].append(guild_id)
         return True
 
@@ -75,6 +86,7 @@ def _run(
     monkeypatch.setattr(webapi, "POLAR_WEBHOOK_SECRET", SECRET)
     monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_MONTHLY", MONTHLY)
     monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_ANNUAL", ANNUAL)
+    webapi._rate_webhook_polar.clear()
     if raise_verification:
 
         def fake_validate(body, headers, secret):
@@ -196,4 +208,104 @@ def test_bad_signature_real_path_403(monkeypatch):
     headers["webhook-signature"] = "v1,QUFBQQ=="
     resp, calls = _run(monkeypatch, FakeRequest(body.encode(), headers))
     assert resp.status == 403
+    assert calls["set"] == [] and calls["unset"] == []
+
+
+# ── Reembolsos: revoke_benefits es la señal real, no "hubo un refund" ──────
+#
+# Confirmado contra el modelo Refund del SDK (polar_sdk/models/refund.py):
+# el reembolso trae su propio campo `revoke_benefits`, independiente de que
+# el reembolso haya ocurrido -- Polar no revoca la suscripción automática-
+# mente al reembolsar. refund.created dispara "regardless of status"
+# (incluye pending/failed), así que además hace falta status="succeeded".
+
+
+def test_refund_succeeded_con_revoke_benefits_desactiva_premium(monkeypatch):
+    event = _fake_event(
+        "refund.created",
+        {"guild_id": "123"},
+        status="succeeded",
+        revoke_benefits=True,
+    )
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["unset"] == [123]
+    assert calls["set"] == []
+
+
+def test_refund_parcial_sin_revoke_benefits_no_toca_premium(monkeypatch):
+    # Reembolso parcial: Polar no lo marca para revocar beneficios.
+    event = _fake_event(
+        "refund.created",
+        {"guild_id": "123"},
+        status="succeeded",
+        revoke_benefits=False,
+    )
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["unset"] == [] and calls["set"] == []
+
+
+def test_refund_pending_con_revoke_benefits_no_desactiva_todavia(monkeypatch):
+    # revoke_benefits=True pero el reembolso todavía no se concretó -- no hay
+    # que cortar el acceso antes de que Polar confirme el reembolso en sí.
+    event = _fake_event(
+        "refund.created",
+        {"guild_id": "123"},
+        status="pending",
+        revoke_benefits=True,
+    )
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["unset"] == [] and calls["set"] == []
+
+
+def test_refund_updated_succeeded_revoke_benefits_desactiva_premium(monkeypatch):
+    # El reembolso puede empezar pending y confirmarse después vía
+    # refund.updated -- misma lógica que refund.created.
+    event = _fake_event(
+        "refund.updated",
+        {"guild_id": "456"},
+        status="succeeded",
+        revoke_benefits=True,
+    )
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["unset"] == [456]
+
+
+def test_refund_sin_guild_id_responde_200_sin_tocar_nada(monkeypatch):
+    event = _fake_event("refund.created", {}, status="succeeded", revoke_benefits=True)
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["unset"] == [] and calls["set"] == []
+
+
+# ── Payloads malformados: 4xx sin excepción sin manejar ────────────────────
+#
+# Ambos casos exigen una firma VÁLIDA (con SECRET real) -- son body real +
+# _signed_headers, no mocks, para probar el comportamiento real de
+# standardwebhooks/pydantic, no una suposición sobre qué excepción tiran.
+# Sin el secreto real, ninguno de los dos es alcanzable por un atacante
+# (cae en firma inválida -> 403 antes de llegar acá).
+
+
+def test_body_no_json_con_firma_valida_responde_400_no_500(monkeypatch):
+    body = "esto no es json"
+    req = FakeRequest(body.encode(), _signed_headers(body))
+    resp, calls = _run(monkeypatch, req)
+    assert resp.status == 400
+    assert calls["set"] == [] and calls["unset"] == []
+
+
+def test_json_valido_sin_los_campos_esperados_responde_400_no_500(monkeypatch):
+    # type conocido (pasa el chequeo de _KNOWN_EVENT_TYPES) pero "data" no
+    # tiene ninguno de los campos que pide el schema de Subscription --
+    # pydantic tira ValidationError al armar el modelo tipado.
+    body = json.dumps(
+        {"type": "subscription.active", "data": {"esto": "no es una Subscription"}}
+    )
+    req = FakeRequest(body.encode(), _signed_headers(body))
+    resp, calls = _run(monkeypatch, req)
+    assert resp.status == 400
     assert calls["set"] == [] and calls["unset"] == []

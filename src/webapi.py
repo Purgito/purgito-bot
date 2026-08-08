@@ -28,6 +28,7 @@ import logging
 import math
 import secrets
 import time
+from datetime import datetime
 from types import SimpleNamespace
 from urllib.parse import urlencode, urlparse
 
@@ -92,7 +93,6 @@ from db import (
     count_corpus_by_channel,
     count_gif_urls,
     count_guild_corpus_messages,
-    count_shared_embeds_today,
     delete_channel_trigger,
     delete_embed_template,
     delete_frase_especial,
@@ -113,6 +113,7 @@ from db import (
     get_shared_embed,
     get_updates_channel,
     import_corpus_messages,
+    is_session_revoked,
     list_audit_log,
     list_blocked_gifs,
     list_corpus_channels,
@@ -139,6 +140,7 @@ from db import (
     remove_reaction_from_pool,
     remove_spontaneous_channel,
     remove_youtube_sub_by_id,
+    revoke_session,
     save_gif_url,
     set_bot_style,
     set_channel_tunables,
@@ -148,7 +150,6 @@ from db import (
     set_frase_pack,
     set_updates_channel,
     set_youtube_mention_role_by_id,
-    share_links_daily_limit,
     unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
@@ -171,15 +172,32 @@ _rate_delete: LRUDict = LRUDict(512)
 _rate_gif_verify: LRUDict = LRUDict(512)
 _rate_status_search: LRUDict = LRUDict(512)
 _rate_corpus_import: LRUDict = LRUDict(512)
-# user_id -> (expira_monotonic, [guilds con manage_guild]) — cache 5 min para
-# no golpear a Discord en cada request.
+# Sin esto, /auth/callback no tenía ningún límite: cada hit con un `state`
+# válido (basta con pedir /auth/login primero, gratis) dispara un POST real a
+# discord.com/oauth2/token con nuestro client_id/client_secret. Discord
+# ratea ese endpoint por client_id -- un solo atacante en loop podía agotarlo
+# y tirar el login de TODOS los guilds que usan este bot, no solo el suyo.
+_rate_auth_callback: LRUDict = LRUDict(512)
+# /webhooks/polar es público y corre en el mismo proceso que el dashboard:
+# cada hit calcula una firma HMAC (barato) pero sigue siendo trabajo en el
+# mismo event loop. Límite generoso a propósito -- no debe interferir con
+# reintentos legítimos de Polar tras una falla transitoria.
+_rate_webhook_polar: LRUDict = LRUDict(512)
+# user_id -> (expira_monotonic, [guilds con manage_guild]) — cache para no
+# golpear a Discord en cada request.
 _user_guilds_cache: LRUDict = LRUDict(256)
 _runner: web.AppRunner | None = None
 
 _DISCORD_API = "https://discord.com/api"
 _ADMINISTRATOR = 1 << 3
 _MANAGE_GUILD = 1 << 5
-_GUILDS_CACHE_TTL = 300.0
+# Ventana en la que un admin recién degradado/expulsado en Discord conserva
+# acceso de escritura al dashboard (la revalidación real es contra la API de
+# Discord, esto es solo cuánto se confía en la última respuesta). 60s en vez
+# de los 300s originales -- suficiente margen frente al rate limit real de
+# /users/@me/guilds (~1 req/s por token: un usuario navegando activamente el
+# dashboard dispara como mucho una revalidación por minuto, muy por debajo).
+_GUILDS_CACHE_TTL = 60.0
 _PUBLIC_GETS = ("/health",)
 
 
@@ -296,6 +314,26 @@ async def _fetch_manage_guilds(
     return manage
 
 
+async def _session_logged_in(session) -> bool:
+    """True si la sesión tiene un usuario Y su sid no fue revocado por logout.
+
+    EncryptedCookieStorage no tiene session store del lado del server: la
+    sesión entera vive cifrada en la cookie, así que sin este chequeo un
+    logout solo borra la cookie del navegador que lo pidió -- una copia
+    tomada antes (XSS, log, dispositivo compartido) seguiría autenticando
+    hasta que la cookie expire sola. `sid` se mintea en el login
+    (_auth_callback) y revoke_session lo marca en logout (_auth_logout);
+    sesiones viejas sin `sid` (pre-fix) no se pueden revocar individualmente,
+    igual que antes.
+    """
+    if not session.get("user_id"):
+        return False
+    sid = session.get("sid")
+    if sid and await is_session_revoked(sid):
+        return False
+    return True
+
+
 async def check_guild_access(
     request: web.Request, guild_id: int
 ) -> web.Response | None:
@@ -316,7 +354,7 @@ def guild_api(handler):
 
     async def wrapper(request: web.Request) -> web.StreamResponse:
         session = await get_session(request)
-        if not session.get("user_id"):
+        if not await _session_logged_in(session):
             return web.json_response({"error": "no autenticado"}, status=401)
         try:
             guild_id = int(request.match_info["guild_id"])
@@ -533,7 +571,7 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
     justo lo que hace falta después de invitar el bot a un servidor nuevo.
     """
     session = await get_session(request)
-    if not session.get("user_id"):
+    if not await _session_logged_in(session):
         return web.json_response({"error": "no autenticado"}, status=401)
     manage = await _fetch_manage_guilds(
         request, force=request.query.get("refresh") == "1"
@@ -2166,18 +2204,19 @@ async def _api_embeds_share(request: web.Request, guild_id: int) -> web.Response
     embeds, err = _extract_embeds(data)
     if err:
         return web.json_response({"error": err}, status=400)
-    if await count_shared_embeds_today(guild_id) >= share_links_daily_limit():
+    options = sanitize_send_options(data.get("send_options"))
+    payload = {"embeds": embeds}
+    if options:
+        payload["send_options"] = options
+    result = await add_shared_embed(json.dumps(payload), guild_id)
+    if result is None:
         return web.json_response(
             {
                 "error": "límite diario de links compartidos alcanzado — intenta de nuevo mañana"
             },
             status=429,
         )
-    options = sanitize_send_options(data.get("send_options"))
-    payload = {"embeds": embeds}
-    if options:
-        payload["send_options"] = options
-    share_id, expires_at = await add_shared_embed(json.dumps(payload), guild_id)
+    share_id, expires_at = result
     return web.json_response(
         {
             "share_id": share_id,
@@ -2426,6 +2465,8 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
 
 
 async def _auth_callback(request: web.Request) -> web.StreamResponse:
+    if not _rate_ok(_rate_auth_callback, _client_ip(request), 10):
+        raise web.HTTPFound("/auth/error")
     session = await get_session(request)
     code = request.query.get("code")
     state = request.query.get("state")
@@ -2479,6 +2520,9 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     session["email"] = user.get("email") or ""
     # Solo server-side (cookie cifrada): se usa para consultar /users/@me/guilds.
     session["access_token"] = access
+    # Id de esta sesión puntual (no del usuario): revoke_session lo marca en
+    # logout para invalidarla server-side -- ver _session_logged_in.
+    session["sid"] = secrets.token_urlsafe(16)
     # Precarga el cache: /users/@me/guilds tiene rate limit estricto por token
     # (~1 req/s) y sin esto el primer request autenticado recibiría 429.
     _user_guilds_cache[user["id"]] = (time.monotonic() + _GUILDS_CACHE_TTL, manage)
@@ -2486,10 +2530,44 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     raise web.HTTPFound(LANDING_URL)
 
 
+async def _revoke_discord_token(request: web.Request, access_token: str) -> None:
+    """Revoca el access_token en Discord. Best-effort a propósito: si Discord
+    está caído o tarda, no puede trabar el logout -- revoke_session ya es la
+    protección primaria del lado de Purgito. Sin esto, un access_token
+    filtrado ANTES del logout (XSS, log, SESSION_SECRET comprometido) seguía
+    siendo un bearer token válido contra la API real de Discord
+    (identify/email/guilds) aun después de que la víctima se desloguea acá --
+    revoke_session solo corta el acceso al dashboard de Purgito, no a Discord."""
+    try:
+        http = request.app["http"]
+        async with http.post(
+            f"{_DISCORD_API}/oauth2/token/revoke",
+            data={
+                "client_id": DISCORD_CLIENT_ID,
+                "client_secret": DISCORD_CLIENT_SECRET,
+                "token": access_token,
+                "token_type_hint": "access_token",
+            },
+        ):
+            pass
+    except (aiohttp.ClientError, asyncio.TimeoutError):
+        log.warning("No se pudo revocar el access_token en Discord durante el logout")
+
+
 async def _auth_logout(request: web.Request) -> web.StreamResponse:
     session = await get_session(request)
     # Sin esto, un re-login del mismo user reutilizaría la lista de guilds del token anterior.
     _user_guilds_cache.pop(session.get("user_id"), None)
+    # Server-side: sin esto, una copia de la cookie tomada antes del logout
+    # (XSS, log, dispositivo compartido) seguiría autenticando -- ver
+    # _session_logged_in. session.invalidate() de abajo solo borra la cookie
+    # de ESTE navegador.
+    sid = session.get("sid")
+    if sid:
+        await revoke_session(sid)
+    access_token = session.get("access_token")
+    if access_token:
+        await _revoke_discord_token(request, access_token)
     session.invalidate()
     raise web.HTTPFound(LANDING_URL)
 
@@ -2504,7 +2582,7 @@ async def _api_me(request: web.Request) -> web.Response:
     """
     session = await get_session(request)
     body = {"logged_in": False}
-    if session.get("user_id"):
+    if await _session_logged_in(session):
         body = {
             "logged_in": True,
             # El id es el snowflake de Discord: la cabecera del perfil saca de
@@ -2563,6 +2641,15 @@ _POLAR_DEACTIVATE = ("subscription.paused", "subscription.revoked")
 # set_premium es idempotente (INSERT OR IGNORE). subscription.revoked cubre
 # "trial terminó sin método de pago válido".
 _POLAR_TRIAL_STATUS = "trialing"
+# Un reembolso NO implica por sí solo que la suscripción se revoque -- son
+# decisiones independientes en el modelo de Polar (confirmado: el objeto
+# Refund trae su propio campo `revoke_benefits`, separado del `status` del
+# reembolso). refund.created dispara "regardless of status" (incluye
+# pending/failed), así que además hay que esperar a status="succeeded".
+# order.refunded no sirve para esto: ese payload es un Order y no trae
+# revoke_benefits, solo refunded_amount/total_amount (full vs. parcial).
+_POLAR_REFUND_TYPES = ("refund.created", "refund.updated")
+_POLAR_REFUND_SUCCEEDED_STATUS = "succeeded"
 
 
 def _polar_plan_note(product_id) -> str:
@@ -2638,6 +2725,24 @@ async def _api_premium_checkout(request: web.Request, guild_id: int) -> web.Resp
     return web.json_response({"checkout_url": checkout.url})
 
 
+def _polar_event_timestamp(event, payload: dict | None) -> datetime | None:
+    """El `timestamp` del sobre del webhook (cuándo Polar generó ESTE evento
+    puntual, no cuándo llegó acá) -- lo usa _webhook_polar para no dejar que
+    un reintento tardío de un evento viejo pise el estado de uno más nuevo.
+    None si no se pudo determinar: mejor no bloquear el evento que arriesgar
+    descartar uno legítimo por un parseo que falló."""
+    if event is not None:
+        ts = getattr(event, "timestamp", None)
+        return ts if isinstance(ts, datetime) else None
+    raw = (payload or {}).get("timestamp")
+    if not isinstance(raw, str):
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 async def _webhook_polar(request: web.Request) -> web.Response:
     # Público: Polar autentica con la firma Standard Webhooks, no con sesión.
     # Sin secret, validate_event firmaría con clave vacía y cualquiera podría
@@ -2647,13 +2752,19 @@ async def _webhook_polar(request: web.Request) -> web.Response:
             "Webhook de Polar recibido pero POLAR_WEBHOOK_SECRET no está configurado"
         )
         return web.json_response({"error": "webhook no configurado"}, status=503)
+    # Generoso a propósito (ver _rate_webhook_polar): esto es un backstop
+    # contra flood, no un límite funcional -- Polar no debería tropezar con él.
+    if not _rate_ok(_rate_webhook_polar, _client_ip(request), 60, window=60.0):
+        return web.json_response({"error": "rate limit"}, status=429)
     body = await request.read()
+    payload: dict | None = None
     try:
         event = validate_event(body, dict(request.headers), POLAR_WEBHOOK_SECRET)
         event_type = event.TYPE
         metadata = getattr(event.data, "metadata", None) or {}
         product_id = getattr(event.data, "product_id", None)
         status = getattr(event.data, "status", None)
+        revoke_benefits = getattr(event.data, "revoke_benefits", None)
     except WebhookVerificationError:
         log.warning(
             "Webhook de Polar con firma inválida desde %s "
@@ -2665,21 +2776,52 @@ async def _webhook_polar(request: web.Request) -> web.Response:
         # Firma válida pero polar-sdk 0.31.7 no modela el tipo (les pasa a
         # subscription.paused/resumed): se saca lo necesario del JSON crudo,
         # que ya fue verificado.
+        event = None
         payload = json.loads(body)
         event_type = payload.get("type")
         data = payload.get("data") or {}
         metadata = data.get("metadata") or {}
         product_id = data.get("product_id")
         status = data.get("status")
+        revoke_benefits = data.get("revoke_benefits")
+    except Exception:
+        # Firma válida (o el body ni llegó a esa altura) pero el payload no
+        # tiene la forma esperada -- JSON inválido, o JSON válido que no
+        # matchea el schema de Polar para ese event_type (ValidationError de
+        # pydantic al armar el modelo tipado). Sin este catch-all, cualquiera
+        # de estos dos casos tumbaba el handler con un 500 no controlado en
+        # vez de un 4xx -- y un 500 hace que Polar reintente contra algo que
+        # nunca se va a resolver solo, agotando sus reintentos en vano.
+        log.exception("Webhook de Polar con payload inesperado (firma OK)")
+        return web.json_response({"error": "payload inválido"}, status=400)
 
     # subscription.created con status "trialing" = arrancó un free trial:
     # cuenta como alta igual que subscription.active.
     is_trial_start = (
         event_type == "subscription.created" and status == _POLAR_TRIAL_STATUS
     )
+    is_refund_event = event_type in _POLAR_REFUND_TYPES
+    # revoke_benefits es la decisión explícita de Polar (o de quien emitió el
+    # reembolso desde su dashboard) de que ESTE reembolso corta el acceso --
+    # no todo reembolso lo hace (uno parcial, por ejemplo). status="succeeded"
+    # porque refund.created dispara "regardless of status", incluyendo
+    # pending/failed -- no hay que actuar hasta que el reembolso se concretó.
+    is_refund_revoke = (
+        is_refund_event
+        and status == _POLAR_REFUND_SUCCEEDED_STATUS
+        and bool(revoke_benefits)
+    )
 
-    if event_type not in _POLAR_ACTIVATE + _POLAR_DEACTIVATE and not is_trial_start:
-        log.debug("Webhook de Polar ignorado: %s (status=%s)", event_type, status)
+    if (
+        event_type not in _POLAR_ACTIVATE + _POLAR_DEACTIVATE
+        and not is_trial_start
+        and not is_refund_event
+    ):
+        # INFO y no debug: nivel de log configurado en producción es INFO
+        # (bot.py) -- un debug acá es invisible, y esta línea es la única
+        # forma de notar en producción si Polar empieza a mandar un tipo de
+        # evento relevante que el código todavía no reconoce.
+        log.info("Webhook de Polar ignorado: %s (status=%s)", event_type, status)
         return web.json_response({"ok": True})
 
     guild_id = _to_int(metadata.get("guild_id") if isinstance(metadata, dict) else None)
@@ -2687,11 +2829,45 @@ async def _webhook_polar(request: web.Request) -> web.Response:
         log.warning("Webhook de Polar %s sin guild_id válido en metadata", event_type)
         return web.json_response({"ok": True})
 
+    if is_refund_event and not is_refund_revoke:
+        # Reembolso real (parcial, o total sin revoke_benefits, o todavía no
+        # "succeeded") que a propósito NO toca el acceso -- se loguea aparte
+        # del "ignorado" genérico de arriba porque acá SÍ hay un guild_id
+        # identificado, útil para reconciliar manualmente si hace falta.
+        log.info(
+            "Webhook de Polar %s para guild %s no revoca beneficios "
+            "(status=%s, revoke_benefits=%s)",
+            event_type,
+            guild_id,
+            status,
+            revoke_benefits,
+        )
+        return web.json_response({"ok": True})
+
+    # Polar no garantiza orden de entrega, y dos webhooks del mismo guild
+    # pueden llegar casi simultáneos (reintentos en paralelo, o dos eventos
+    # legítimos muy seguidos): el chequeo de "es más viejo que el último
+    # aplicado" y el propio cambio de estado + el nuevo watermark se hacen
+    # los tres como una sola operación atómica en
+    # apply_premium_webhook_change (bajo _db_lock) -- si estuvieran
+    # separados acá, dos requests concurrentes podrían leer el mismo
+    # watermark viejo cada uno por su lado y los dos pasar el chequeo antes
+    # de que cualquiera de los dos llegue a escribir nada.
+    event_at = _polar_event_timestamp(event, payload)
+    event_at_iso = event_at.isoformat() if event_at is not None else None
+
     if event_type in _POLAR_ACTIVATE or is_trial_start:
         note = _polar_plan_note(product_id)
         reason = "trial" if is_trial_start else "pago confirmado"
-        was_new = await set_premium(guild_id, note)
-        if was_new:
+        was_new = await set_premium(guild_id, note, event_at_iso)
+        if was_new is None:
+            log.info(
+                "Webhook de Polar %s para guild %s ignorado: más viejo que el "
+                "último evento aplicado (entrega fuera de orden)",
+                event_type,
+                guild_id,
+            )
+        elif was_new:
             log.info(
                 "Premium activado por Polar para guild %s (%s, %s)",
                 guild_id,
@@ -2709,10 +2885,19 @@ async def _webhook_polar(request: web.Request) -> web.Response:
                 guild_id,
             )
     else:
-        await unset_premium(guild_id)
-        log.info(
-            "Premium desactivado por Polar para guild %s (%s)", guild_id, event_type
-        )
+        removed = await unset_premium(guild_id, event_at_iso)
+        if removed is None:
+            log.info(
+                "Webhook de Polar %s para guild %s ignorado: más viejo que el "
+                "último evento aplicado (entrega fuera de orden)",
+                event_type,
+                guild_id,
+            )
+        else:
+            reason = "reembolso" if is_refund_revoke else event_type
+            log.info(
+                "Premium desactivado por Polar para guild %s (%s)", guild_id, reason
+            )
     return web.json_response({"ok": True})
 
 
@@ -2756,7 +2941,13 @@ async def start_web_server(bot: commands.Bot) -> None:
         setup_session(app, _new_session_storage())
         app.router.add_get("/auth/login", _auth_login)
         app.router.add_get("/auth/callback", _auth_callback)
-        app.router.add_get("/auth/logout", _auth_logout)
+        # POST, no GET: logout muta estado (revoke_session + session.invalidate).
+        # SameSite=Lax deja pasar la cookie en una navegación GET top-level
+        # (un link, `window.location=`, un meta-refresh) aunque venga de otro
+        # origen -- una página maliciosa podía forzar el logout de una víctima
+        # con solo redirigirla acá. El frontend dispara esto con fetch(POST),
+        # no con un <a href> navegable -- ver landing/script.js.
+        app.router.add_post("/auth/logout", _auth_logout)
         app.router.add_get("/auth/error", _auth_error)
         app.router.add_get("/api/me", _api_me)
         app.router.add_get("/api/me/guilds", _api_me_guilds)

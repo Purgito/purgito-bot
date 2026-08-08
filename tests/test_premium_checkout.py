@@ -4,7 +4,20 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
+
+import db
 import webapi
+
+
+@pytest.fixture
+def temp_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setattr(db, "_db", None)
+    asyncio.run(db.init_db())
+    yield
+    asyncio.run(db.close_db())
 
 
 class FakeRequest:
@@ -24,7 +37,7 @@ class FakePolar:
     async def create_async(self, request):
         self.calls.append(request)
         raise RuntimeError(
-            "API error occurred: Status 403. Body: {\"error\": \"insufficient_scope\"}"
+            'API error occurred: Status 403. Body: {"error": "insufficient_scope"}'
         )
 
 
@@ -54,3 +67,33 @@ def test_premium_checkout_insufficient_scope(monkeypatch):
         "error": "Polar rechazó la creación del checkout por permisos insuficientes del token"
     }
     assert len(fake_polar.calls) == 1
+
+
+def test_premium_checkout_no_escribe_nada_localmente(monkeypatch, temp_db):
+    """Crear el checkout (aunque el usuario después abandone la pestaña de
+    Polar sin pagar) no debe dejar ningún estado local huérfano -- Purgito
+    recién escribe premium_guilds cuando llega el webhook real, nunca al
+    crear el checkout."""
+    _allow_guild_access(monkeypatch)
+
+    class FakeCheckout:
+        url = "https://checkout.polar.sh/abc123"
+
+    async def fake_create_async(request):
+        return FakeCheckout()
+
+    fake_polar = SimpleNamespace(
+        checkouts=SimpleNamespace(create_async=fake_create_async)
+    )
+    monkeypatch.setattr(webapi, "_polar", fake_polar)
+    monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_MONTHLY", "prod-monthly")
+
+    async def run():
+        resp = await webapi._api_premium_checkout(FakeRequest({"plan": "monthly"}))
+        return resp, await db.list_premium_guilds()
+
+    resp, premium_guilds = asyncio.run(run())
+
+    assert resp.status == 200
+    assert json.loads(resp.text) == {"checkout_url": "https://checkout.polar.sh/abc123"}
+    assert premium_guilds == []

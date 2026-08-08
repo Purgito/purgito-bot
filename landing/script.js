@@ -274,7 +274,13 @@ function svgIcon(paths) {
       { href: '/' + LOC + '/docs', label: 'Documentación', icon: ICONS.book },
       null,
       { href: '/' + LOC + '/premium', label: 'Premium', icon: ICONS.star },
-      { href: PANEL + '/auth/logout', label: 'Cerrar sesión', icon: ICONS.logout, danger: true }
+      {
+        href: PANEL + '/auth/logout',
+        label: 'Cerrar sesión',
+        icon: ICONS.logout,
+        danger: true,
+        logout: true
+      }
     ].forEach(function (item) {
       if (!item) {
         var hr = document.createElement('hr');
@@ -285,6 +291,18 @@ function svgIcon(paths) {
       var a = document.createElement('a');
       a.className = 'auth-menu-item' + (item.danger ? ' danger' : '');
       a.href = item.href;
+      if (item.logout) {
+        // POST, no navegación GET directa: logout muta estado server-side
+        // (revoke_session) y SameSite=Lax deja pasar la cookie en un GET de
+        // navegación top-level venga de donde venga -- ver el comentario en
+        // start_web_server (webapi.py) junto a app.router.add_post("/auth/logout").
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          fetch(item.href, { method: 'POST', credentials: 'include' })
+            .catch(function () {})
+            .then(function () { location.href = '/' + LOC; });
+        });
+      }
       a.appendChild(svgIcon(item.icon));
       a.appendChild(document.createTextNode(item.label));
       menu.appendChild(a);

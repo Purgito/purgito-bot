@@ -184,6 +184,13 @@ def compute_phash(data: bytes) -> str | None:
         from PIL import Image
         import imagehash
 
+        # Rechaza imágenes descomprimidas gigantes (decompression bomb) antes
+        # de decodificar -- mismo valor y motivo que meme_generator.py.
+        # Repetido a propósito (no importado desde ahí): esto no puede
+        # depender de que algún OTRO módulo se haya importado antes para
+        # tener efecto -- Image.MAX_IMAGE_PIXELS es un global del proceso,
+        # así que fijarlo acá también es idempotente y no pisa nada.
+        Image.MAX_IMAGE_PIXELS = 15_000_000
         with Image.open(io.BytesIO(data)) as img:
             return str(imagehash.dhash(img))
     except Exception:
@@ -241,7 +248,13 @@ def upload_gif_sync(url: str) -> GifUpload | None:
     max_bytes = _env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
     try:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; bot)"}
-        resp = requests.get(url, headers=headers, timeout=15, stream=True)
+        # allow_redirects=False: la key de este link ya se validó como
+        # cdn.discordapp.com en el caller (ver cogs/gifs.py) ANTES de llegar
+        # acá -- si se siguiera un redirect, ese chequeo de host quedaría sin
+        # efecto para el destino real de la descarga.
+        resp = requests.get(
+            url, headers=headers, timeout=15, stream=True, allow_redirects=False
+        )
         if resp.status_code != 200:
             log.error("HTTP %s al descargar GIF para R2: %s", resp.status_code, url)
             return None
@@ -250,11 +263,24 @@ def upload_gif_sync(url: str) -> GifUpload | None:
             log.debug("GIF descartado (Content-Length %s > %d): %s", cl, max_bytes, url)
             resp.close()
             return GifUpload(GIF_TOO_LARGE)
-        data = resp.content
+        # No confiar solo en Content-Length -- puede faltar o mentir. Se lee
+        # en chunks y se corta apenas se supera el límite, en vez de
+        # bufferear con resp.content (que junta el cuerpo entero en memoria
+        # antes de que el chequeo de tamaño de abajo pueda actuar).
+        chunks: list[bytes] = []
+        total = 0
+        too_large = False
+        for chunk in resp.iter_content(chunk_size=262144):
+            total += len(chunk)
+            if total > max_bytes:
+                too_large = True
+                break
+            chunks.append(chunk)
         resp.close()
-        if len(data) > max_bytes:
-            log.debug("GIF descartado (%d bytes > %d): %s", len(data), max_bytes, url)
+        if too_large:
+            log.debug("GIF descartado (>%d bytes en el cuerpo): %s", max_bytes, url)
             return GifUpload(GIF_TOO_LARGE)
+        data = b"".join(chunks)
         # Optimizar ANTES de hashear: el hash tiene que identificar los bytes
         # que efectivamente quedan en el bucket, no los que llegaron.
         data = optimize_gif_bytes(data)

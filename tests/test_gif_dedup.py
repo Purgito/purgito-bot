@@ -96,6 +96,9 @@ def test_upload_hashes_content_not_url(monkeypatch):
         headers: dict = {}
         content = b"GIF89a-los-mismos-bytes"
 
+        def iter_content(self, chunk_size=None):
+            yield self.content
+
         def close(self):
             pass
 
@@ -127,6 +130,9 @@ def test_upload_skips_put_when_object_already_exists(monkeypatch):
         headers: dict = {}
         content = b"GIF89a-repost"
 
+        def iter_content(self, chunk_size=None):
+            yield self.content
+
         def close(self):
             pass
 
@@ -138,6 +144,71 @@ def test_upload_skips_put_when_object_already_exists(monkeypatch):
     up = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/1/2/x.gif")
     assert up.content_hash
     assert puts == []  # ya estaba en el bucket: no se re-sube
+
+
+# ---------- r2: descarga acotada y sin redirects (Sección 4) ----------
+
+
+def test_upload_bounds_memory_when_content_length_is_missing_or_dishonest(
+    monkeypatch,
+):
+    """Sin Content-Length (o si miente), no puede bufferear el cuerpo entero
+    en memoria antes de rechazarlo -- tiene que cortar la lectura apenas se
+    supera el límite, no agotar la respuesta primero."""
+    monkeypatch.setenv("MAX_GIF_DOWNLOAD_BYTES", "1000")
+    pulled: list[int] = []
+
+    class _FakeUnboundedResp:
+        status_code = 200
+        headers: dict = {}  # sin Content-Length
+
+        def iter_content(self, chunk_size=None):
+            for _ in range(10_000):  # "infinito" a efectos prácticos del test
+                pulled.append(1)
+                yield b"x" * 500
+
+        def close(self):
+            pass
+
+    client = _FakeUploadClient(exists=False)
+    monkeypatch.setattr(r2, "get_client", lambda: client)
+    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
+    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeUnboundedResp())
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert up == r2.GifUpload(r2.GIF_TOO_LARGE)
+    assert len(pulled) < 10  # se cortó bien lejos de agotar el generador
+    assert client.puts == []
+
+
+def test_upload_does_not_follow_redirects(monkeypatch):
+    """El host (cdn.discordapp.com) se valida sobre la URL ORIGINAL en el
+    caller (cogs/gifs.py), antes de llegar acá -- si se siguiera un
+    redirect a ciegas, ese chequeo no cubriría el destino real de la
+    descarga. Un redirect no seguido cae en el mismo camino que cualquier
+    otro status distinto de 200: no se sube nada."""
+    calls: list[bool | None] = []
+
+    class _RedirectResp:
+        status_code = 302
+        headers = {"Location": "http://169.254.169.254/latest/meta-data/"}
+
+        def close(self):
+            pass
+
+    def fake_get(url, headers=None, timeout=None, stream=None, allow_redirects=None):
+        calls.append(allow_redirects)
+        return _RedirectResp()
+
+    monkeypatch.setattr(r2, "get_client", lambda: _FakeUploadClient())
+    monkeypatch.setattr(r2.requests, "get", fake_get)
+
+    result = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert calls == [False]
+    assert result is None
 
 
 # ---------- r2: optimización con gifsicle ----------
@@ -233,6 +304,9 @@ def test_hash_matches_the_optimized_bytes_that_get_uploaded(monkeypatch):
         status_code = 200
         headers: dict = {}
         content = b"GIF89a-pesado-sin-optimizar"
+
+        def iter_content(self, chunk_size=None):
+            yield self.content
 
         def close(self):
             pass
@@ -461,6 +535,22 @@ def test_compute_phash_degrades_to_none_on_corrupt_bytes():
     assert r2.compute_phash(b"no soy un gif") is None
 
 
+def test_compute_phash_enforces_decompression_bomb_cap_regardless_of_prior_state():
+    """No puede depender de que meme_generator.py ya se haya importado antes
+    en el proceso para tener el límite puesto -- compute_phash tiene que
+    fijar su propio Image.MAX_IMAGE_PIXELS cada vez que corre, sin importar
+    en qué estado esté al entrar."""
+    from PIL import Image
+
+    original = Image.MAX_IMAGE_PIXELS
+    try:
+        Image.MAX_IMAGE_PIXELS = None  # simula que nadie lo fijó todavía
+        r2.compute_phash(_make_gif_bytes((1, 2, 3)))
+        assert Image.MAX_IMAGE_PIXELS == 15_000_000
+    finally:
+        Image.MAX_IMAGE_PIXELS = original
+
+
 class _FakeUploadClient:
     def __init__(self, exists=False):
         self._exists = exists
@@ -480,6 +570,9 @@ class _FakeUploadResp:
         self.status_code = 200
         self.headers: dict = {}
         self.content = content
+
+    def iter_content(self, chunk_size=None):
+        yield self.content
 
     def close(self):
         pass

@@ -20,7 +20,43 @@ DB_PATH = os.path.join(DATA_DIR, "bot.db")
 log = logging.getLogger(__name__)
 
 _db: aiosqlite.Connection | None = None
-_db_lock = asyncio.Lock()
+
+
+class _RollbackOnErrorLock(asyncio.Lock):
+    """asyncio.Lock, pero si el bloque `async with` termina por una
+    excepción, hace ROLLBACK de la transacción de SQLite antes de soltar
+    el lock.
+
+    Cada función de escritura de este módulo hace `async with _db_lock:
+    ...varios execute()... await db.commit()`. Sin esto: si algo entre el
+    primer execute() y el commit() tira una excepción (el disparador real
+    es disco lleno a mitad de un INSERT/UPDATE, que SQLite reporta como
+    OperationalError), `async with` libera el lock igual -- así funciona
+    cualquier context manager -- pero la transacción queda ABIERTA y sin
+    confirmar en `_db`, la única conexión compartida por todo el proceso.
+    El próximo caller que tome el lock seguiría escribiendo sobre ESA
+    misma transacción pendiente, y su propio commit() -- pensado para
+    confirmar solo sus cambios -- terminaría confirmando también los
+    restos a medio aplicar de la operación que falló antes, sin que nadie
+    se entere.
+
+    Central a propósito: cambiar el tipo de _db_lock alcanza para cubrir
+    las ~90 funciones que ya hacen `async with _db_lock:` tal cual están,
+    sin tocar cada una.
+    """
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if exc_type is not None and _db is not None:
+            try:
+                await _db.rollback()
+            except Exception:
+                log.exception(
+                    "Fallo haciendo rollback de _db tras una excepción bajo _db_lock"
+                )
+        await super().__aexit__(exc_type, exc, tb)
+
+
+_db_lock: asyncio.Lock = _RollbackOnErrorLock()
 
 # Interacciones con el bot por hora y por usuario, por servidor. Es anti-abuso,
 # no un beneficio premium: mismo default para Free y Premium. 0 = sin límite.
@@ -420,6 +456,18 @@ CREATE TABLE IF NOT EXISTS premium_guilds (
     note TEXT
 );
 
+-- Último evento de Polar (por su propio `timestamp`, no por orden de
+-- llegada) que de verdad activó/desactivó premium para este guild. Polar no
+-- garantiza orden de entrega -- un reintento tardío de un webhook viejo
+-- podía llegar DESPUÉS de uno más nuevo y pisar el estado correcto (ej: un
+-- "revoked" viejo reintentado después de un "active" real de una
+-- resuscripción). Sobrevive independiente de premium_guilds porque hay que
+-- seguir comparando contra él incluso después de un downgrade real.
+CREATE TABLE IF NOT EXISTS premium_event_watermark (
+    guild_id INTEGER PRIMARY KEY,
+    last_event_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS guild_departures (
     guild_id INTEGER PRIMARY KEY,
     left_at TEXT NOT NULL
@@ -483,6 +531,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_audit_log_guild ON audit_log(guild_id, id DESC);
+
+-- sid de sesiones del dashboard invalidadas por logout. EncryptedCookieStorage
+-- guarda la sesión entera cifrada en la cookie -- no hay session store del
+-- lado del server -- así que sin esta tabla, una copia de la cookie tomada
+-- antes del logout (XSS, log, dispositivo compartido) seguiría sirviendo
+-- hasta que expire sola (7 días). Un sid entra acá SOLO al momento del
+-- logout; nunca se lista para leer, solo se consulta por sid puntual.
+CREATE TABLE IF NOT EXISTS revoked_sessions (
+    sid TEXT PRIMARY KEY,
+    revoked_at TEXT NOT NULL
+);
 """
 
 
@@ -1194,14 +1253,21 @@ async def get_live_gif_keys() -> set[str]:
 
 
 async def wipe_gifs(guild_id: int) -> int:
-    """Borra todos los GIFs del guild (DB + R2 si corresponde). Retorna cuántos se borraron."""
-    db = await get_db()
-    async with db.execute(
-        "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=?", (guild_id,)
-    ) as cursor:
-        rows = await cursor.fetchall()
+    """Borra todos los GIFs del guild (DB + R2 si corresponde). Retorna cuántos se borraron.
 
+    La lectura de qué filas hay que soltar y el DELETE van bajo el MISMO
+    _db_lock: si se leyeran por separado (como antes), un GIF nuevo insertado
+    por save_gif_url justo en la ventana entre la lectura y el delete
+    quedaría borrado de corpus_gifs por el DELETE (que es "todo lo del
+    guild", no las filas puntuales leídas) pero nunca liberado de
+    gif_objects -- una referencia fantasma que ningún barrido periódico
+    puede corregir después, porque get_live_gif_keys confía en ref_count."""
+    db = await get_db()
     async with _db_lock:
+        async with db.execute(
+            "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=?", (guild_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
         cursor = await db.execute(
             "DELETE FROM corpus_gifs WHERE guild_id=?", (guild_id,)
         )
@@ -1234,11 +1300,17 @@ async def save_gif_url(
     gif_blocklist se aplica acá y no en cada llamador. Un GIF bloqueado
     devuelve (False, None), igual que "ya existía": el caller no debe tratarlo
     como error.
+
+    El chequeo de gif_blocklist va DENTRO del mismo _db_lock que el insert,
+    no antes: si se hiciera antes (como pasaba antes de este fix), un
+    block_gif concurrente para el mismo content_hash podía insertar la fila
+    del blocklist DESPUÉS de que este chequeo ya había dicho "no está
+    bloqueado" pero ANTES de que este insert terminara -- dejando una copia
+    del contenido recién bloqueado viva en el corpus, exactamente lo que
+    block_gif existe para evitar.
     """
     u = (url or "").strip()
     if not u:
-        return False, None
-    if await is_gif_blocked(guild_id, content_hash, u):
         return False, None
     max_gifs = _limit_for_guild(
         guild_id,
@@ -1252,6 +1324,8 @@ async def save_gif_url(
     evicted_url: str | None = None
     evicted_hash: str | None = None
     async with _db_lock:
+        if await is_gif_blocked(guild_id, content_hash, u):
+            return False, None
         async with db.execute(
             "SELECT 1 FROM corpus_gifs WHERE guild_id=? AND url=? LIMIT 1",
             (guild_id, u),
@@ -1323,24 +1397,33 @@ async def block_gif(guild_id: int, content_hash: str | None, url: str) -> None:
     Con content_hash, borra cualquier fila del guild que apunte al mismo
     objeto (no solo la url puntual vista en el panel); sin content_hash
     (tenor/giphy) borra por url exacta.
+
+    La lectura de qué filas hay que borrar va DENTRO del mismo _db_lock que
+    el INSERT del blocklist y el DELETE: si se leyera antes (como pasaba
+    antes de este fix), un save_gif_url concurrente para el mismo
+    content_hash podía colar una fila nueva que este DELETE -- armado contra
+    la lista vieja de urls -- nunca iba a tocar. El resultado era una copia
+    del GIF "bloqueado" sobreviviendo en el corpus, disponible para que el
+    bot la siga sorteando, con el blocklist ya insertado pero sin efecto
+    sobre esa fila puntual.
     """
     db = await get_db()
     now = datetime.now(timezone.utc).isoformat()
 
-    if content_hash:
-        async with db.execute(
-            "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND content_hash=?",
-            (guild_id, content_hash),
-        ) as cur:
-            rows = await cur.fetchall()
-    else:
-        async with db.execute(
-            "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND url=?",
-            (guild_id, url),
-        ) as cur:
-            rows = await cur.fetchall()
-
     async with _db_lock:
+        if content_hash:
+            async with db.execute(
+                "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND content_hash=?",
+                (guild_id, content_hash),
+            ) as cur:
+                rows = await cur.fetchall()
+        else:
+            async with db.execute(
+                "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND url=?",
+                (guild_id, url),
+            ) as cur:
+                rows = await cur.fetchall()
+
         await db.execute(
             "INSERT OR IGNORE INTO gif_blocklist (guild_id, content_hash, url, blocked_at) "
             "VALUES (?, ?, ?, ?)",
@@ -1443,7 +1526,7 @@ async def count_gif_urls(guild_id: int) -> int:
 async def list_gif_urls(guild_id: int) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT id, url, created_at, media_url, last_health_check "
+        "SELECT id, url, created_at, media_url, last_health_check, content_hash "
         "FROM corpus_gifs WHERE guild_id=? ORDER BY id",
         (guild_id,),
     ) as cursor:
@@ -1455,6 +1538,7 @@ async def list_gif_urls(guild_id: int) -> list[dict]:
             "created_at": r[2],
             "media_url": r[3],
             "last_health_check": r[4],
+            "content_hash": r[5],
         }
         for r in rows
     ]
@@ -2535,14 +2619,36 @@ async def generate_unique_share_id(length: int = 8) -> str:
         length += 1
 
 
-async def add_shared_embed(payload: str, guild_id: int) -> tuple[str, str]:
-    """Guarda un payload compartido y devuelve (share_id, expires_at)."""
-    share_id = await generate_unique_share_id()
-    expires_at = (
-        datetime.now(timezone.utc) + timedelta(days=SHARED_EMBED_TTL_DAYS)
-    ).strftime("%Y-%m-%d %H:%M:%S")
+async def add_shared_embed(
+    payload: str, guild_id: int, daily_limit: int | None = None
+) -> tuple[str, str] | None:
+    """Guarda un payload compartido y devuelve (share_id, expires_at), o
+    None si el guild ya llegó al límite diario de links compartidos hoy
+    (`daily_limit`, default share_links_daily_limit()).
+
+    El conteo y el insert van bajo el MISMO _db_lock: antes vivían en
+    funciones separadas (count_shared_embeds_today sin lock + este insert),
+    con la decisión "¿ya llegó al límite?" tomada por el llamador entre
+    medio -- dos requests casi simultáneos podían leer el mismo conteo viejo
+    y los dos pasar el límite, generando más links de los permitidos por
+    día (el límite existe para que el share no se use como storage gratis
+    de terceros, ver share_links_daily_limit)."""
+    if daily_limit is None:
+        daily_limit = share_links_daily_limit()
     db = await get_db()
     async with _db_lock:
+        async with db.execute(
+            "SELECT COUNT(*) FROM shared_embeds "
+            "WHERE created_guild_id=? AND created_at >= datetime('now', 'start of day')",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row and int(row[0]) >= daily_limit:
+            return None
+        share_id = await generate_unique_share_id()
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(days=SHARED_EMBED_TTL_DAYS)
+        ).strftime("%Y-%m-%d %H:%M:%S")
         await db.execute(
             "INSERT INTO shared_embeds "
             "(share_id, payload, created_guild_id, created_at, expires_at) "
@@ -2585,6 +2691,48 @@ async def purge_expired_shared_embeds() -> int:
     async with _db_lock:
         cursor = await db.execute(
             "DELETE FROM shared_embeds WHERE expires_at <= datetime('now')"
+        )
+        await db.commit()
+    return cursor.rowcount
+
+
+# ─── Revocación de sesiones del dashboard (logout server-side) ──────────────
+
+# Mismo horizonte que max_age de PURGITO_SESSION (webapi._new_session_storage):
+# pasado ese tiempo la cookie ya expiró sola (Fernet la rechaza por ttl), así
+# que no hace falta seguir llevando la cuenta del sid.
+SESSION_MAX_AGE_DAYS = 7
+
+
+async def revoke_session(sid: str) -> None:
+    """Invalida un sid de sesión (logout). Idempotente: desloguear dos veces
+    con el mismo sid no rompe nada."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT OR IGNORE INTO revoked_sessions (sid, revoked_at) "
+            "VALUES (?, datetime('now'))",
+            (sid,),
+        )
+        await db.commit()
+
+
+async def is_session_revoked(sid: str) -> bool:
+    db = await get_db()
+    async with db.execute(
+        "SELECT 1 FROM revoked_sessions WHERE sid=?", (sid,)
+    ) as cursor:
+        return await cursor.fetchone() is not None
+
+
+async def purge_expired_revoked_sessions() -> int:
+    """Borra sid revocados cuya cookie original ya venció de todos modos.
+    Lo llama el loop diario de limpieza de guilds."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM revoked_sessions WHERE revoked_at <= datetime(?, ?)",
+            ("now", f"-{SESSION_MAX_AGE_DAYS} days"),
         )
         await db.commit()
     return cursor.rowcount
@@ -3322,29 +3470,47 @@ async def get_counters(guild_id: int) -> dict[str, int]:
 
 # ─── Premium guilds ──────────────────────────────────────────────────────────
 
+# Las funciones _locked de acá abajo asumen que el llamador YA tiene
+# _db_lock tomado -- existen para que apply_premium_webhook_change pueda
+# componer "leer watermark + aplicar cambio + grabar watermark nuevo" como
+# UNA sola sección crítica (asyncio.Lock no es reentrante, así que no se
+# puede simplemente llamar a add_premium_guild/set_premium_event_watermark
+# -- que toman el lock por su cuenta -- desde adentro de otro `async with
+# _db_lock`). Las versiones públicas (add_premium_guild, etc.) lo siguen
+# usando cada una de a una para los llamadores que no necesitan la garantía
+# atómica extra.
+
+
+async def _add_premium_guild_locked(db, guild_id: int, note: str | None) -> bool:
+    cursor = await db.execute(
+        "INSERT OR IGNORE INTO premium_guilds (guild_id, added_at, note) "
+        "VALUES (?, datetime('now'), ?)",
+        (guild_id, note),
+    )
+    inserted = _was_inserted(cursor)
+    await db.commit()
+    return inserted
+
 
 async def add_premium_guild(guild_id: int, note: str | None = None) -> bool:
     db = await get_db()
     async with _db_lock:
-        cursor = await db.execute(
-            "INSERT OR IGNORE INTO premium_guilds (guild_id, added_at, note) "
-            "VALUES (?, datetime('now'), ?)",
-            (guild_id, note),
-        )
-        inserted = _was_inserted(cursor)
-        await db.commit()
-    return inserted
+        return await _add_premium_guild_locked(db, guild_id, note)
+
+
+async def _remove_premium_guild_locked(db, guild_id: int) -> bool:
+    cursor = await db.execute(
+        "DELETE FROM premium_guilds WHERE guild_id=?", (guild_id,)
+    )
+    removed = cursor.rowcount > 0
+    await db.commit()
+    return removed
 
 
 async def remove_premium_guild(guild_id: int) -> bool:
     db = await get_db()
     async with _db_lock:
-        cursor = await db.execute(
-            "DELETE FROM premium_guilds WHERE guild_id=?", (guild_id,)
-        )
-        removed = cursor.rowcount > 0
-        await db.commit()
-    return removed
+        return await _remove_premium_guild_locked(db, guild_id)
 
 
 async def list_premium_guilds() -> list[dict]:
@@ -3354,6 +3520,79 @@ async def list_premium_guilds() -> list[dict]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [{"guild_id": r[0], "added_at": r[1], "note": r[2]} for r in rows]
+
+
+async def _get_premium_event_watermark_locked(db, guild_id: int) -> str | None:
+    async with db.execute(
+        "SELECT last_event_at FROM premium_event_watermark WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row[0] if row else None
+
+
+async def get_premium_event_watermark(guild_id: int) -> str | None:
+    """Timestamp ISO del último webhook de Polar que activó/desactivó premium
+    para este guild, o None si todavía no se procesó ninguno."""
+    db = await get_db()
+    return await _get_premium_event_watermark_locked(db, guild_id)
+
+
+async def _set_premium_event_watermark_locked(db, guild_id: int, event_at: str) -> None:
+    await db.execute(
+        "INSERT INTO premium_event_watermark (guild_id, last_event_at) VALUES (?, ?) "
+        "ON CONFLICT(guild_id) DO UPDATE SET last_event_at=excluded.last_event_at",
+        (guild_id, event_at),
+    )
+    await db.commit()
+
+
+async def set_premium_event_watermark(guild_id: int, event_at: str) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await _set_premium_event_watermark_locked(db, guild_id, event_at)
+
+
+async def apply_premium_webhook_change(
+    guild_id: int, *, activate: bool, note: str | None, event_at: str | None
+) -> bool | None:
+    """Activa/desactiva premium por un webhook de Polar junto con el chequeo
+    de orden del watermark, TODO bajo un único _db_lock.
+
+    Sin esto, dos webhooks del mismo guild casi simultáneos (Polar
+    reintentando en paralelo, o dos eventos legítimos muy seguidos) podían
+    cada uno leer el mismo watermark viejo por su lado -- ambos pasaban el
+    chequeo de "no está obsoleto" porque ninguno veía todavía el resultado
+    del otro -- y aplicar sus cambios (y grabar su propio watermark) en un
+    orden que no respeta cuál evento era realmente el más nuevo, dejando
+    tanto premium_guilds como el watermark mismo en un estado que no
+    corresponde a ningún evento individual real.
+
+    Retorna None si el evento se descartó por más viejo (o igual) que el
+    último ya aplicado para este guild. Si no, True/False -- mismo shape que
+    add_premium_guild/remove_premium_guild (fila nueva / había algo que
+    borrar).
+    """
+    db = await get_db()
+    async with _db_lock:
+        if event_at is not None:
+            watermark = await _get_premium_event_watermark_locked(db, guild_id)
+            if watermark is not None:
+                try:
+                    is_stale = datetime.fromisoformat(
+                        event_at
+                    ) <= datetime.fromisoformat(watermark)
+                except ValueError:
+                    is_stale = False
+                if is_stale:
+                    return None
+        if activate:
+            changed = await _add_premium_guild_locked(db, guild_id, note)
+        else:
+            changed = await _remove_premium_guild_locked(db, guild_id)
+        if event_at is not None:
+            await _set_premium_event_watermark_locked(db, guild_id, event_at)
+        return changed
 
 
 # ─── Guild departures ────────────────────────────────────────────────────────
@@ -3488,6 +3727,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "channel_triggers",
         "reaction_pool",
         "premium_guilds",
+        "premium_event_watermark",
         "guild_departures",
         "channel_refeed_status",
         "guild_auto_refeed",

@@ -47,6 +47,19 @@ log = logging.getLogger(__name__)
 # guild_id -> task de /refeed_channels en curso (evita dos corridas en paralelo)
 _refeed_running: dict[int, asyncio.Task] = {}
 
+# (guild_id, channel_id) con un _refeed_channel en curso -- _refeed_channel
+# tiene tres entradas independientes (/refeed, /refeed_channels vía
+# _refeed_guild, on_guild_channel_update) que no se conocen entre sí. Sin
+# esto, dos corridas concurrentes sobre el MISMO canal leen el mismo
+# channel_refeed_status, hacen el mismo trabajo por duplicado, y la que
+# escribe último pisa el progreso de la otra en upsert_channel_refeed_status
+# (COALESCE simple, sin comparar contra lo que ya hay) -- no pierde mensajes
+# del corpus (UNIQUE(guild_id, message_id) los deduplica igual) pero hace
+# retroceder newest/oldest_message_id y puede voltear backfill_complete de
+# True a False, forzando un re-backfill innecesario. Guard central en
+# _refeed_channel mismo: cubre las tres entradas sin tocar ninguna.
+_refeeding_channels: set[tuple[int, int]] = set()
+
 # Mención directa con el chat apagado/restringido/canal ignorado: la explicación
 # completa sale a lo sumo una vez cada 15 min por guild; dentro del cooldown solo
 # se reacciona con 🤐. Mismo patrón que _empty_reply_cooldowns en generation.py.
@@ -851,6 +864,28 @@ class Chat(commands.Cog):
         return None
 
     async def _refeed_channel(self, guild_id: int, channel, max_messages: int) -> dict:
+        """Wrapper de _refeed_channel_locked con el guard de _refeeding_channels
+        (ver su comentario): si este canal ya tiene una corrida en curso
+        -- por cualquiera de las tres entradas -- no arranca una segunda,
+        devuelve el mismo dict "no hice nada" que la allowlist vacía."""
+        key = (guild_id, channel.id)
+        if key in _refeeding_channels:
+            return {
+                "saved": 0,
+                "gifs_saved": 0,
+                "backfill_complete": False,
+                "was_incremental": False,
+                "forbidden": False,
+            }
+        _refeeding_channels.add(key)
+        try:
+            return await self._refeed_channel_locked(guild_id, channel, max_messages)
+        finally:
+            _refeeding_channels.discard(key)
+
+    async def _refeed_channel_locked(
+        self, guild_id: int, channel, max_messages: int
+    ) -> dict:
         """Lee el historial de un canal hacia el corpus, con estado persistente por canal.
 
         Si el backfill ya terminó, hace lectura incremental hacia adelante (sin límite);

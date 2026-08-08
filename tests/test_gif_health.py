@@ -227,6 +227,63 @@ def test_get_gifs_for_health_check_prioritizes_never_checked_and_oldest(memory_d
     asyncio.run(run())
 
 
+# ---------- cogs.gifs.resolve_media_url ----------
+#
+# El oEmbed de tenor no trae "url" (solo "thumbnail_url") y el de giphy no
+# trae "thumbnail_url" (solo "url"). Antes el código pedía la clave que cada
+# host NO tiene -> KeyError silenciado -> media_url quedaba NULL para
+# siempre -> el chequeo de salud caía al fallback gif["url"] (la página HTML
+# tenor.com/view/... o giphy.com/gifs/...), que responde 200 con
+# Content-Type text/html y por eso se clasificaba como "dead" SIEMPRE, sin
+# importar si el gif seguía vivo. Esto fue lo que causó el auto-borrado
+# masivo y correlacionado del incidente: cualquier gif de tenor/giphy
+# revisado dos veces terminaba borrado, garantizado.
+
+
+class _FakeOEmbedResp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+def test_resolve_media_url_tenor_uses_thumbnail_url(monkeypatch):
+    async def run():
+        import requests
+
+        monkeypatch.setattr(
+            requests,
+            "get",
+            lambda *a, **k: _FakeOEmbedResp(
+                {"thumbnail_url": "https://media.tenor.com/x.png"}
+            ),
+        )
+        result = await gifs_mod.resolve_media_url(
+            "https://tenor.com/view/foo-gif-123"
+        )
+        assert result == "https://media.tenor.com/x.png"
+
+    asyncio.run(run())
+
+
+def test_resolve_media_url_giphy_uses_url(monkeypatch):
+    async def run():
+        import requests
+
+        monkeypatch.setattr(
+            requests,
+            "get",
+            lambda *a, **k: _FakeOEmbedResp(
+                {"url": "https://media1.giphy.com/media/x/giphy.gif"}
+            ),
+        )
+        result = await gifs_mod.resolve_media_url("https://giphy.com/gifs/foo")
+        assert result == "https://media1.giphy.com/media/x/giphy.gif"
+
+    asyncio.run(run())
+
+
 # ---------- cogs.gifs.get_live_gif ----------
 #
 # Antes usaba r2.is_url_alive: cualquier fallo (timeout, 403, rate-limit...)

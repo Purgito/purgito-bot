@@ -112,14 +112,20 @@ async def resolve_media_url(url: str) -> str | None:
                 f"https://tenor.com/oembed?url={quote(url, safe='')}&format=json",
                 timeout=8,
             )
-            return resp.json()["url"]
+            # El oEmbed de tenor no trae un campo "url": el único media real
+            # que expone es "thumbnail_url" (un .png estático del gif). No es
+            # el gif animado, pero alcanza para el chequeo de salud -- que es
+            # el único consumidor de media_url.
+            return resp.json()["thumbnail_url"]
         if "giphy.com" in url:
             resp = await asyncio.to_thread(
                 requests.get,
                 f"https://giphy.com/services/oembed?url={quote(url, safe='')}&format=json",
                 timeout=8,
             )
-            return resp.json()["thumbnail_url"]
+            # A diferencia de tenor, el oEmbed de giphy sí trae el .gif real
+            # bajo "url" -- no tiene "thumbnail_url".
+            return resp.json()["url"]
     except Exception:
         return None
     return None

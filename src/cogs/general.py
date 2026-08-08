@@ -15,8 +15,10 @@ from db import (
     list_gif_urls,
     list_image_urls,
     mark_guild_departed,
+    purge_expired_revoked_sessions,
     purge_expired_shared_embeds,
     purge_guild_data,
+    release_gif_reference,
 )
 from help_view import HelpView, build_intro_embed
 
@@ -132,6 +134,12 @@ class General(commands.Cog):
                     "guild_cleanup: %d link(s) de embed compartido vencidos borrados",
                     stale_shares,
                 )
+            stale_revocations = await purge_expired_revoked_sessions()
+            if stale_revocations:
+                log.info(
+                    "guild_cleanup: %d sid(s) de sesión revocada vencidos borrados",
+                    stale_revocations,
+                )
             retention = env_int("GUILD_DATA_RETENTION_DAYS", 30)
             expired = await get_expired_departures(retention)
             if not expired:
@@ -140,8 +148,18 @@ class General(commands.Cog):
             for guild_id in expired:
                 try:
                     if r2.available() and r2.public_url():
+                        # release_gif_reference, NO r2.delete_url: los GIFs con
+                        # content_hash son objetos content-addressed compartidos
+                        # entre guilds (ver el comentario de gif_objects en el
+                        # schema) -- borrar por url directo, como se hacía antes,
+                        # se llevaba puesto el objeto de OTRO guild que todavía
+                        # lo referenciaba, dejándolo con un link roto. Las
+                        # imágenes sí son 1:1 por guild (key con {guild_id}/
+                        # de prefijo) así que esas siguen borrándose por url.
                         for item in await list_gif_urls(guild_id):
-                            await r2.delete_url(item["url"])
+                            await release_gif_reference(
+                                item["content_hash"], item["url"]
+                            )
                         for img_url in await list_image_urls(guild_id):
                             await r2.delete_url(img_url)
                     await purge_guild_data(guild_id)
