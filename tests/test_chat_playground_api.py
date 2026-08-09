@@ -36,6 +36,8 @@ class FakeRequest:
     def __init__(self, guild_id=_GUILD, body=None):
         self._body = body
         self.match_info = {"guild_id": str(guild_id)}
+        self.headers = {}
+        self.remote = "1.2.3.4"
 
     async def json(self):
         if self._body is None:
@@ -56,6 +58,7 @@ def fake_guild(monkeypatch):
     monkeypatch.setattr(webapi, "get_session", fake_get_session)
     monkeypatch.setattr(webapi, "check_guild_access", fake_check_guild_access)
     monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: guild)
+    monkeypatch.setattr(webapi, "_rate_playground", webapi.LRUDict(64))
     return guild
 
 
@@ -129,6 +132,20 @@ def test_usa_el_member_real_como_autor_si_esta_en_cache(fake_guild, monkeypatch)
     _run(FakeRequest(body={"message": "hola", "channel_id": "10"}))
 
     assert captured["author"] is member
+
+
+def test_respeta_el_rate_limit(fake_guild, monkeypatch):
+    async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+        return {"would_respond": False, "reason": "sin_corpus_suficiente", "text": None}
+
+    monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
+
+    for _ in range(20):
+        resp = _run(FakeRequest(body={"message": "hola", "channel_id": "10"}))
+        assert resp.status == 200
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "10"}))
+    assert resp.status == 429
 
 
 def test_usa_un_placeholder_si_no_hay_member_en_cache(fake_guild, monkeypatch):

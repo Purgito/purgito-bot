@@ -159,8 +159,9 @@ async def get_live_gif(
     Reusa el mismo chequeo tri-estado que el ciclo de salud diario
     (r2.check_gif_url_health + db.record_gif_health_check): un timeout o
     error de red puntual ("unreachable") no cuenta como confirmación de que
-    el link esté roto, recién se borra a los 2 "dead" confirmados seguidos
-    (404/410 o content-type inválido). Antes usaba is_url_alive, que
+    el link esté roto, recién se borra a los 3 "dead" confirmados seguidos
+    (404/410 o content-type inválido, ver _DEAD_STREAK_THRESHOLD en db.py).
+    Antes usaba is_url_alive, que
     consideraba "muerto" cualquier fallo -- un solo bloqueo de rate-limit o
     timeout del host ya sumaba, y a la 3ra vez borraba un GIF que en Discord
     seguía funcionando perfecto.

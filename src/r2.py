@@ -27,6 +27,18 @@ _checked = False
 # Sentinel: el GIF supera el límite de tamaño (no guardar en DB, no reintentar).
 GIF_TOO_LARGE = ""
 
+# Cache-Control de los objetos subidos a R2/Cloudflare. Antes 1 año -- para
+# contenido content-addressed (la misma key siempre es el mismo contenido)
+# tiene sentido cachear agresivo, pero un año es demasiada ventana en la que
+# un objeto ya borrado (bloqueo manual, chequeo de salud, wipe) podría seguir
+# sirviéndose desde el edge de Cloudflare como si nada. 14 días como punto
+# medio: sigue siendo agresivo para el contenido que efectivamente sigue
+# vivo (la inmensa mayoría), pero acota la ventana de "borrado que no borra
+# de verdad" a algo razonable en vez de a un año. `immutable` se mantiene:
+# sigue siendo cierto que la MISMA key nunca cambia de contenido mientras el
+# objeto exista, eso no depende de max-age.
+_CACHE_CONTROL = "public, max-age=1209600, immutable"
+
 
 class GifUpload(NamedTuple):
     """Resultado de subir un GIF a R2.
@@ -382,7 +394,7 @@ def upload_gif_sync(url: str) -> GifUpload | None:
                 Key=key,
                 Body=data,
                 ContentType="image/gif",
-                CacheControl="public, max-age=31536000, immutable",
+                CacheControl=_CACHE_CONTROL,
             )
         return GifUpload(
             f"{public_url().rstrip('/')}/{key}", content_hash, len(data), phash
@@ -408,7 +420,7 @@ def upload_image_bytes_sync(
             Key=key,
             Body=data,
             ContentType=content_type,
-            CacheControl="public, max-age=31536000, immutable",
+            CacheControl=_CACHE_CONTROL,
         )
         return f"{public_url().rstrip('/')}/{key}"
     except Exception:

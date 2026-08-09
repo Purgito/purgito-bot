@@ -16,6 +16,7 @@ import discord
 from discord.ext import commands
 
 import config  # ejecuta load_dotenv() al importarse
+import i18n
 import r2
 import webapi
 from db import close_db, get_lifecycle_state, init_db, set_lifecycle_state
@@ -57,6 +58,7 @@ intents.message_content = config.ENABLE_MESSAGE_CONTENT
 class PurgitoBot(commands.Bot):
     async def setup_hook(self) -> None:
         await init_db()
+        await self.tree.set_translator(i18n.CommandTranslator())
         for extension in EXTENSIONS:
             await self.load_extension(extension)
             log.info("Extensión cargada: %s", extension)

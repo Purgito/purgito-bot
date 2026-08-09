@@ -222,7 +222,7 @@ def reconcile(client, bucket, conn, apply=False, sleep=0.1, limit=0) -> dict:
                     Key=canonical,
                     Body=payload,
                     ContentType="image/gif",
-                    CacheControl="public, max-age=31536000, immutable",
+                    CacheControl=r2._CACHE_CONTROL,
                 )
                 time.sleep(sleep)
             moved += 1

@@ -53,6 +53,7 @@ class _FakeBucket:
     def __init__(self, objects: dict[str, bytes]):
         self.objects = dict(objects)
         self.puts: list[str] = []
+        self.put_cache_controls: list[str | None] = []
         self.deletes: list[str] = []
 
     def get_paginator(self, _name):
@@ -77,6 +78,7 @@ class _FakeBucket:
     def put_object(self, Bucket=None, Key=None, Body=None, **kw):
         self.objects[Key] = Body
         self.puts.append(Key)
+        self.put_cache_controls.append(kw.get("CacheControl"))
 
     def delete_object(self, Bucket=None, Key=None):
         self.objects.pop(Key, None)
@@ -173,6 +175,21 @@ def test_legacy_only_group_gets_reuploaded_to_canonical_key(conn):
     assert bucket.puts == [canonical]
     assert bucket.objects[canonical] == _optimized(_FILE_A)
     assert bucket.deletes == [legacy]
+
+
+def test_reupload_usa_el_mismo_cache_control_que_r2(conn):
+    """Cierre de pendientes: el script tenía el string de Cache-Control (1
+    año) hardcodeado por separado del de r2.py -- si corría con --apply,
+    volvía a subir objetos con el cache viejo, deshaciendo parcialmente el
+    fix de la Sección 7. Ahora usa r2._CACHE_CONTROL directamente, así que
+    esto no puede volver a desincronizarse en silencio."""
+    legacy = _legacy_key(_GUILD_A, "https://cdn.discordapp.com/x.gif")
+    bucket = _FakeBucket({legacy: _FILE_A})
+    _add_gif(conn, _GUILD_A, legacy)
+
+    rec.reconcile(bucket, "b", conn, apply=True)
+
+    assert bucket.put_cache_controls == [r2._CACHE_CONTROL]
 
 
 def test_dry_run_touches_nothing(conn):

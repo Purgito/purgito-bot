@@ -1570,13 +1570,30 @@ async def get_gifs_for_health_check(
     ]
 
 
+_DEAD_STREAK_THRESHOLD = 3
+
+
 async def record_gif_health_check(gif_id: int, status: str) -> bool:
     """Guarda el resultado de un chequeo de salud del backend (ver
     r2.check_gif_url_health). Un solo 'dead' no basta para borrar -- podría
-    ser el host caído 30 segundos -- recién se borra al segundo 'dead'
-    seguido (dead_streak llega a 2). 'unreachable' se guarda tal cual mismo
-    sin sumar al streak: es un fallo puntual, no una confirmación de que el
-    link esté muerto de verdad.
+    ser el host caído 30 segundos -- recién se borra al tercer 'dead'
+    seguido (dead_streak llega a _DEAD_STREAK_THRESHOLD). 'unreachable' se
+    guarda tal cual mismo sin sumar al streak: es un fallo puntual, no una
+    confirmación de que el link esté muerto de verdad.
+
+    Umbral en 3 (no 2) a propósito -- Sección 7 de la auditoría de
+    seguridad, tras la investigación forense del auto-borrado agresivo. La
+    causa raíz de los dos incidentes reales (claves de oEmbed invertidas)
+    ya está corregida, pero "dead" en check_gif_url_health mezcla dos
+    señales de confianza distinta: un 404/410 es el host confirmando que el
+    contenido ya no existe, mientras que un 200 con Content-Type inválido
+    es más ambiguo (podría ser una interstitial de rate-limit o de
+    protección anti-bot servida con status 200 en vez de un 429/403
+    propio). Tratarlas igual con un umbral de 2 deja margen finito a que dos
+    apariciones sucesivas de la señal ambigua, ~24h+ apiradas, borren un GIF
+    que en realidad sigue vivo. Subir a 3 sube ese margen a ~48h+ sin
+    inventar un tercer estado nuevo -- la postura explícita es priorizar
+    menos falsos positivos por sobre la velocidad de limpieza.
 
     Retorna True si el GIF fue borrado.
     """
@@ -1608,7 +1625,7 @@ async def record_gif_health_check(gif_id: int, status: str) -> bool:
             (gif_id,),
         ) as cur:
             row = await cur.fetchone()
-        if not row or row[0] < 2:
+        if not row or row[0] < _DEAD_STREAK_THRESHOLD:
             await db.commit()
             return False
         streak, guild_id, url, content_hash = row
@@ -3424,6 +3441,30 @@ async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> lis
         }
         for r in rows
     ]
+
+
+async def purge_old_audit_log_entries(retention_days: int) -> int:
+    """Borra entradas de audit_log más viejas que retention_days. Lo llama el
+    loop diario de limpieza de guilds -- mismo patrón que
+    purge_expired_shared_embeds/purge_expired_revoked_sessions.
+
+    Existe porque `detail` puede llevar texto tal cual escrito por un admin
+    (ej. "frases.add" guarda la frase completa) -- sin este purge, borrar esa
+    frase desde /settings no la borraba de verdad: quedaba una copia
+    indefinida en el audit log, que ninguna otra acción de borrado tocaba
+    (Sección 7 de la auditoría de seguridad). Retención mucho más larga que
+    GUILD_DATA_RETENTION_DAYS a propósito -- esto es un registro de auditoría
+    ("quién cambió qué"), no el dato en sí, así que amerita sobrevivir más
+    tiempo que el contenido que describe.
+    """
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM audit_log WHERE created_at <= datetime(?, ?)",
+            ("now", f"-{retention_days} days"),
+        )
+        await db.commit()
+    return cursor.rowcount
 
 
 _CUSTOM_EMOJI_RE = re.compile(r"^<a?:\w+:\d+>$")

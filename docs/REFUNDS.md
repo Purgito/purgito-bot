@@ -47,6 +47,18 @@ El desarrollador de Purgito o Polar.sh pueden revocar el acceso premium
 en casos de fraude, contracargo (chargeback) o fallo de pago no
 resuelto.
 
+## Qué pasa con tu contenido si el servidor pierde Premium
+
+Cuando un servidor deja de tener Premium (por cancelación, revocación, o
+fin del período pagado), el contenido que ya tenía guardado (corpus de
+mensajes, GIFs, plantillas de embeds, etc.) **no se borra**. Simplemente
+deja de poder seguir creciendo más allá de los límites del plan
+gratuito: si ya tenías más contenido guardado del que el plan gratuito
+permite, ese excedente se conserva tal cual hasta que, con el uso normal
+del bot, converge naturalmente al límite gratuito (por ejemplo, el
+sistema descarta lo más viejo a medida que se guarda contenido nuevo, en
+las categorías que ya funcionan así).
+
 ## Titularidad del premium
 
 El Premium activado en un servidor pertenece a ese servidor (identificado

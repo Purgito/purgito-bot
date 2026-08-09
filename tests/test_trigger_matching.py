@@ -145,12 +145,49 @@ def test_primer_trigger_que_matchea_gana_no_se_prueban_los_demas(chat_cog, monke
     monkeypatch.setattr(chat_mod.generation, "generate_markov_reply", fake_markov)
     monkeypatch.setattr(chat_mod, "get_random_frase_especial", fail_if_called)
     monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
+    monkeypatch.setattr(chat_mod, "_trigger_markov_cooldowns", chat_mod.LRUDict(64))
 
     message = FakeMessage("hola")
     handled = asyncio.run(chat_cog._handle_trigger(message, _SETTINGS))
 
     assert handled is True
     assert message.sent == ["respuesta markov"]
+
+
+def test_action_markov_respeta_el_cooldown_por_canal(chat_cog, monkeypatch):
+    """Sin esto, cualquier miembro del canal (no solo el admin que configuró
+    el trigger) puede spamear el patrón en loop y forzar generación real de
+    Markov sin ningún freno -- Sección 8 de la auditoría de seguridad."""
+
+    async def fake_list(guild_id, channel_id):
+        return [
+            {
+                "id": 1,
+                "match_type": "exact",
+                "pattern": "hola",
+                "action": "markov",
+                "pack_id": None,
+            }
+        ]
+
+    calls = []
+
+    async def fake_markov(guild_id):
+        calls.append(guild_id)
+        return "respuesta markov"
+
+    monkeypatch.setattr(chat_mod, "list_channel_triggers", fake_list)
+    monkeypatch.setattr(chat_mod.generation, "generate_markov_reply", fake_markov)
+    monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
+    monkeypatch.setattr(chat_mod, "_trigger_markov_cooldowns", chat_mod.LRUDict(64))
+
+    message = FakeMessage("hola")
+    first = asyncio.run(chat_cog._handle_trigger(message, _SETTINGS))
+    second = asyncio.run(chat_cog._handle_trigger(FakeMessage("hola"), _SETTINGS))
+
+    assert first is True
+    assert second is False
+    assert calls == [1]
 
 
 def test_action_frase_de_pack_manda_una_frase_del_pack(chat_cog, monkeypatch):

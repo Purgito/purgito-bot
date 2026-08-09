@@ -14,6 +14,8 @@ import json
 import logging
 import os
 
+from discord import Locale, app_commands
+
 from db import get_guild_locale, set_guild_locale
 from utils import LRUDict
 
@@ -86,3 +88,36 @@ async def set_locale(guild_id: int, locale: str) -> None:
         raise ValueError(f"Locale no soportado: {locale}")
     await set_guild_locale(guild_id, locale)
     _guild_locales[guild_id] = locale
+
+
+# Idioma del cliente de Discord (no el locale del guild) -> nuestro código de
+# locale. Solo inglés por ahora -- ver auditoría de i18n del 2026-08-09.
+_DISCORD_LOCALE_MAP = {
+    Locale.american_english: "en",
+    Locale.british_english: "en",
+}
+
+
+class CommandTranslator(app_commands.Translator):
+    """Traduce la descripción de los slash commands según el idioma del
+    cliente de Discord de quien los ve (independiente del locale del guild).
+    Los nombres de los comandos NO se traducen a propósito: /help y otros
+    textos hardcodeados en español (ver H3 de la auditoría) siguen
+    refiriéndose a los comandos por su nombre base."""
+
+    async def translate(
+        self,
+        string: app_commands.locale_str,
+        locale: Locale,
+        context: app_commands.TranslationContext,
+    ) -> str | None:
+        if (
+            context.location
+            != app_commands.TranslationContextLocation.command_description
+        ):
+            return None
+        target = _DISCORD_LOCALE_MAP.get(locale)
+        if target is None:
+            return None
+        command = context.data
+        return _strings.get(target, {}).get(f"commands.{command.name}.description")

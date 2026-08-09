@@ -4,7 +4,7 @@
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.
 
-Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores, sin trato especial en lo que respecta a esta Política.
+Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores: los datos que recopilamos y cómo los tratamos son los mismos que para cualquier otro servidor.
 
 ---
 
@@ -55,7 +55,7 @@ El nombre visible (Display Name) del usuario puede almacenarse junto con determi
 
 ## Inicio de sesión en el panel web
 
-Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) `identify` y `email`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras. Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
+Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) `identify`, `email` y `guilds`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras (el scope `guilds` es lo que permite saber en qué servidores tenés permisos de administración, para mostrarte solo esos en tu panel). Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
 
 ---
 
@@ -63,8 +63,9 @@ El bot **no recopila**:
 
 - Contraseñas.
 - Correos electrónicos, salvo el que Discord entrega al iniciar sesión en el panel web (purgito.app) — ese correo se usa únicamente para identificarte dentro de tu propia sesión y no se comparte con terceros.
-- Direcciones IP.
 - Datos personales ajenos a los proporcionados por la API oficial de Discord.
+
+**Direcciones IP:** el dashboard (purgito.app) procesa tu dirección IP de forma transitoria y acotada, únicamente para prevenir abuso (límites de frecuencia de requests). Esa IP vive solo en memoria del proceso durante una ventana corta (segundos a minutos), nunca se guarda en la base de datos ni en ningún registro persistente, y no se comparte con terceros.
 
 Sobre datos de pago, ver la sección **"Pagos y suscripciones"** más abajo: Purgito no los almacena, pero el procesador de pagos (Polar.sh) sí los recolecta al procesar una compra.
 
@@ -122,7 +123,7 @@ Los datos recopilados se conservan únicamente mientras sean necesarios para el 
 
 Los administradores del servidor pueden eliminar el contenido recopilado usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
 
-Cuando el bot abandona un servidor o el corpus es eliminado, los datos asociados dejan de utilizarse para las funciones de aprendizaje.
+Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse por completo. Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin tener que empezar de cero. Durante ese período, mientras el bot no esté en el servidor, no hay forma de acceder al panel de administración para gestionar esos datos. Hoy no existe una vía de autoservicio para acelerar el borrado antes de que se cumplan los 30 días; si sos administrador de un servidor y querés que tus datos se eliminen antes de ese plazo, podés pedirlo contactando al desarrollador (ver "Contacto" más abajo).
 
 ---
 

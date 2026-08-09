@@ -77,6 +77,7 @@ PAGES = [
             "Cómo cancelar la suscripción desde el portal de Polar.",
             "Por qué no se ofrecen reembolsos por el período ya pagado.",
             "Cuándo se puede revocar el acceso premium.",
+            "Qué pasa con tu contenido guardado si el servidor pierde Premium.",
             "A quién queda asociado el premium: al servidor, no a la cuenta.",
         ],
     },
@@ -481,7 +482,7 @@ def main():
     refunds = parse((DOCS / "REFUNDS.md").read_text("utf-8"))
     assert refunds[0] == "Políticas de reembolsos", refunds[0]
     assert refunds[1] == "2 de agosto de 2026", refunds[1]
-    assert len(refunds[3]) == 5, len(refunds[3])
+    assert len(refunds[3]) == 6, len(refunds[3])
     assert refunds[3][0][0] == "Prueba gratuita (trial)", refunds[3][0][0]
     assert "<h3>" not in refunds[3][0][1], refunds[3][0][1]
     assert render("- uno\n  sigue") == "<ul><li>uno sigue</li></ul>", render(

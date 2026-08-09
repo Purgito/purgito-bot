@@ -8,8 +8,11 @@ check_gif_url_health nunca debe mandar un Referer de navegador (por eso no
 usa `requests.Session` con referer seteado): así se comporta parecido a como
 Discord desempaqueta el link, no a un <img> de página.
 
-record_gif_health_check solo borra tras 2 'dead' seguidos -- una caída
-puntual del host (timeout aislado) no debe tirar un GIF válido.
+record_gif_health_check solo borra tras 3 'dead' seguidos (Sección 7 de la
+auditoría de seguridad: 2 dejaba margen finito a que dos apariciones
+sucesivas de la señal ambigua -- 200 con Content-Type inválido, no un
+404/410 confirmado -- borraran un GIF vivo) -- una caída puntual del host
+(timeout aislado) no debe tirar un GIF válido.
 Usa una DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db.
 """
 
@@ -169,9 +172,26 @@ def test_single_dead_does_not_delete(memory_db):
     asyncio.run(run())
 
 
-def test_two_consecutive_dead_deletes(memory_db):
+def test_two_consecutive_dead_does_not_delete(memory_db):
+    """Dos 'dead' seguidos ya NO alcanzan (Sección 7): el umbral subió a 3
+    para dejar más margen contra falsos positivos."""
+
     async def run():
         gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        assert await db.record_gif_health_check(gid, "dead") is False
+        assert await db.record_gif_health_check(gid, "dead") is False
+        cur = await memory_db.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE id=?", (gid,)
+        )
+        assert (await cur.fetchone())[0] == 1
+
+    asyncio.run(run())
+
+
+def test_three_consecutive_dead_deletes(memory_db):
+    async def run():
+        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        assert await db.record_gif_health_check(gid, "dead") is False
         assert await db.record_gif_health_check(gid, "dead") is False
         assert await db.record_gif_health_check(gid, "dead") is True
         cur = await memory_db.execute(
@@ -183,8 +203,8 @@ def test_two_consecutive_dead_deletes(memory_db):
 
 
 def test_unreachable_does_not_count_toward_dead_streak(memory_db):
-    """dead, unreachable, dead -- el 'unreachable' del medio no debe sumar
-    (ni resetear) el streak: solo dos 'dead' SEGUIDOS deben borrar."""
+    """dead, unreachable, dead, dead -- el 'unreachable' del medio no debe
+    sumar (ni resetear) el streak: solo tres 'dead' SEGUIDOS deben borrar."""
 
     async def run():
         gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
@@ -192,6 +212,7 @@ def test_unreachable_does_not_count_toward_dead_streak(memory_db):
         assert await db.record_gif_health_check(gid, "unreachable") is False
         row = await _row(memory_db, gid)
         assert row[2] == 1  # streak sigue en 1, no se resetea ni se pierde
+        assert await db.record_gif_health_check(gid, "dead") is False
         assert await db.record_gif_health_check(gid, "dead") is True
 
     asyncio.run(run())
@@ -321,7 +342,7 @@ def test_get_live_gif_returns_ok_candidate(memory_db, monkeypatch):
     asyncio.run(run())
 
 
-def test_get_live_gif_deletes_only_after_two_confirmed_dead(memory_db, monkeypatch):
+def test_get_live_gif_deletes_only_after_three_confirmed_dead(memory_db, monkeypatch):
     async def run():
         gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
         monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "dead")
@@ -336,6 +357,12 @@ def test_get_live_gif_deletes_only_after_two_confirmed_dead(memory_db, monkeypat
         cur = await memory_db.execute(
             "SELECT COUNT(*) FROM corpus_gifs WHERE id=?", (gid,)
         )
-        assert (await cur.fetchone())[0] == 0  # 2do "dead" seguido: se borra
+        assert (await cur.fetchone())[0] == 1  # 2do "dead": todavía no se borra
+
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+        cur = await memory_db.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE id=?", (gid,)
+        )
+        assert (await cur.fetchone())[0] == 0  # 3er "dead" seguido: se borra
 
     asyncio.run(run())

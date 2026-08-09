@@ -774,6 +774,9 @@ async def _api_chat_playground_post(
     manda nada a Discord ni toca corpus/contadores/cooldowns reales, ver
     simulate_message en cogs/chat.py.
     """
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_playground, ip, 20):
+        return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     data = await _json_body(request)
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
@@ -957,6 +960,8 @@ async def _api_corpus_amnesia_post(request: web.Request, guild_id: int) -> web.R
     """ "Amnesia": borra el corpus (mensajes + estilo por usuario) de las
     últimas 24 horas del guild. Irreversible -- la confirmación vive en el
     dashboard, acá se ejecuta sin preguntar de nuevo."""
+    if not _rate_ok(_rate_delete, _client_ip(request), 3):
+        return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     deleted = await delete_recent_corpus(guild_id, hours=24)
     generation.reset_guild_caches(guild_id)
     await _log_audit(
@@ -1323,6 +1328,14 @@ async def _api_reacciones_get(request: web.Request, guild_id: int) -> web.Respon
 
 @guild_api
 async def _api_reacciones_post(request: web.Request, guild_id: int) -> web.Response:
+    # A diferencia de frases/packs/triggers/embed templates, reaction_pool no
+    # tiene cuota (MAX_*_PER_GUILD) -- es la única tabla de este estilo sin
+    # ningún tope. Cada fila es ínfima y esto no toca el ThreadPoolExecutor,
+    # así que no amerita una cuota nueva en limits.env (eso sí sería
+    # funcionalidad nueva); el rate limit por IP ya establecido para el resto
+    # de los POST de settings alcanza para cerrar el hueco.
+    if not _rate_ok(_rate_post, _client_ip(request), 5):
+        return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     data = await _json_body(request)
     emoji = (data.get("emoji") or "").strip() if data else ""
     if not emoji:
@@ -1702,6 +1715,8 @@ async def _api_server_gifs_unblock(request: web.Request, guild_id: int) -> web.R
     # key es el content_hash o, para GIFs sin hash (tenor/giphy), la url --
     # lo que haya identificado la fila en list_blocked_gifs (aiohttp ya la
     # decodifica: encodeURIComponent en el frontend, match_info acá).
+    if not _rate_ok(_rate_delete, _client_ip(request), 3):
+        return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     key = request.match_info.get("key", "")
     if not key:
         return web.json_response({"error": "key inválida"}, status=400)
@@ -2400,6 +2415,13 @@ async def _store_upload(data: bytes, guild_id: int, ext: str) -> str | None:
 
 
 _rate_upload: LRUDict = LRUDict(512)
+# El playground llama a simulate_message -> generation.generate_markov_reply,
+# el mismo motor caro (query + build/generate en el ThreadPoolExecutor
+# default compartido con TODOS los guilds) que la generación real, y no
+# tenía ningún límite -- cualquier admin autenticado podía golpearlo en loop
+# desde el navegador y degradar la generación de Markov de otros servidores.
+_rate_playground: LRUDict = LRUDict(512)
+_rate_premium_checkout: LRUDict = LRUDict(512)
 
 
 @guild_api
@@ -2674,6 +2696,15 @@ async def _api_premium_get(request: web.Request, guild_id: int) -> web.Response:
 
 @guild_api
 async def _api_premium_checkout(request: web.Request, guild_id: int) -> web.Response:
+    # Zona protegida (ver CLAUDE.md): esto solo CREA la sesión de checkout en
+    # Polar -- la activación real de premium pasa por _webhook_polar (ya
+    # rate-limitado aparte), así que este límite no puede interferir con ella.
+    # Generoso a propósito: el botón del dashboard ya se desactiva al click
+    # (ver landing/js/tabs/premium.js) y solo vuelve a habilitarse si esta
+    # llamada falla o el admin abandona el checkout de Polar y reintenta --
+    # unos pocos reintentos legítimos por minuto tienen que entrar de sobra.
+    if not _rate_ok(_rate_premium_checkout, _client_ip(request), 8):
+        return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     data = await _json_body(request)
     plan = (data or {}).get("plan")
     if plan not in ("monthly", "annual"):

@@ -83,6 +83,48 @@ _mention_hits: LRUDict = LRUDict(8192)
 # al resto del handler (reacción, trigger, respuesta a mención).
 _recent_message_ids: LRUDict = LRUDict(2048)
 
+# /generar e /imitar llaman a generation.generate_markov_reply/
+# generate_markov_for_user (query + build/generate del modelo, en el
+# ThreadPoolExecutor default compartido por todo el proceso) y no tenían
+# ningún límite: a diferencia de una mención, ningún miembro necesita permiso
+# de admin para invocarlos, así que cualquiera podía spamearlos en loop.
+# Mismo patrón que _check_meme_cooldown en cogs/memes.py.
+_GENERATE_COOLDOWN_SECONDS = 10
+_generate_cooldowns: LRUDict = LRUDict(1024)
+
+# Triggers con acción 'markov'/'mezcla': a propósito no comparten el cooldown
+# de frases especiales (ver _run_trigger_action) porque un trigger es una
+# regla explícita que debe disparar siempre que matchee. Pero "siempre que
+# matchee" incluye que cualquier miembro del canal -- no solo quien configuró
+# el trigger -- spamee el patrón en loop y fuerce generación real de Markov
+# sin ningún freno. Este cooldown es corto a propósito (imperceptible para
+# uso normal) y es por canal, no por usuario: frena el loop sin tocar la
+# semántica de "siempre responde" para mensajes espaciados normalmente.
+_TRIGGER_MARKOV_COOLDOWN = 5.0
+_trigger_markov_cooldowns: LRUDict = LRUDict(1024)
+
+
+def _check_generate_cooldown(guild_id: int, user_id: int) -> int | None:
+    """None si puede generar (y marca el cooldown); si no, segundos restantes."""
+    now = time.time()
+    key = (guild_id, user_id)
+    elapsed = now - _generate_cooldowns.get(key, 0)
+    if elapsed < _GENERATE_COOLDOWN_SECONDS:
+        return int(_GENERATE_COOLDOWN_SECONDS - elapsed)
+    _generate_cooldowns[key] = now
+    return None
+
+
+def _check_trigger_markov_cooldown(guild_id: int, channel_id: int) -> bool:
+    """True si un trigger puede generar Markov en este canal ahora (y lo marca)."""
+    now = time.monotonic()
+    key = (guild_id, channel_id)
+    last = _trigger_markov_cooldowns.get(key)
+    if last is not None and now - last < _TRIGGER_MARKOV_COOLDOWN:
+        return False
+    _trigger_markov_cooldowns[key] = now
+    return True
+
 
 def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
     """True si al usuario le queda cupo en su ventana de 1 h (y lo consume).
@@ -660,6 +702,8 @@ class Chat(commands.Cog):
             await self._send_trigger_reply(message, rendered)
             return True
         if action == "markov":
+            if not _check_trigger_markov_cooldown(guild_id, message.channel.id):
+                return False
             text = await generation.generate_markov_reply(guild_id)
             if text is None:
                 return False
@@ -684,6 +728,8 @@ class Chat(commands.Cog):
                 )
                 await self._send_trigger_reply(message, rendered)
                 return True
+        if not _check_trigger_markov_cooldown(guild_id, message.channel.id):
+            return False
         text = await generation.generate_markov_reply(guild_id)
         if text is None:
             return False
@@ -789,6 +835,13 @@ class Chat(commands.Cog):
             )
             return
 
+        remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
+        if remaining is not None:
+            await interaction.response.send_message(
+                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer(thinking=True)
         if interaction.channel is None:
             await interaction.followup.send(
@@ -827,6 +880,13 @@ class Chat(commands.Cog):
         if not interaction.guild:
             await interaction.response.send_message(
                 "Solo en servidores.", ephemeral=True
+            )
+            return
+
+        remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
+        if remaining is not None:
+            await interaction.response.send_message(
+                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
             )
             return
 

@@ -18,11 +18,15 @@ from db import (
     purge_expired_revoked_sessions,
     purge_expired_shared_embeds,
     purge_guild_data,
+    purge_old_audit_log_entries,
     release_gif_reference,
 )
-from help_view import HelpView, build_intro_embed
+from help_view import PURGITO_COLOR, HelpView, build_intro_embed
+from i18n import guild_locale, t
 
 log = logging.getLogger(__name__)
+
+VOTE_URL = "https://top.gg/bot/1471724794411089920/vote"
 
 
 class General(commands.Cog):
@@ -47,19 +51,39 @@ class General(commands.Cog):
         name="help", description="Muestra los comandos de Purgito y cómo usarlos."
     )
     async def help(self, interaction: discord.Interaction):
-        guild_name = interaction.guild.name if interaction.guild else "este servidor"
-        embed = build_intro_embed(guild_name)
-        view = HelpView(author_id=interaction.user.id, guild_name=guild_name)
+        locale = await guild_locale(interaction.guild.id if interaction.guild else None)
+        guild_name = (
+            interaction.guild.name
+            if interaction.guild
+            else t("general.help.default_guild_name", locale)
+        )
+        embed = build_intro_embed(guild_name, locale)
+        view = HelpView(author_id=interaction.user.id, guild_name=guild_name, locale=locale)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()
+
+    @app_commands.command(
+        name="vote", description="Link para votar por Purgito en top.gg."
+    )
+    async def vote(self, interaction: discord.Interaction):
+        locale = await guild_locale(interaction.guild.id if interaction.guild else None)
+        embed = discord.Embed(
+            title=t("general.vote.title", locale),
+            description=t("general.vote.description", locale, url=VOTE_URL),
+            color=PURGITO_COLOR,
+        )
+        await interaction.response.send_message(embed=embed)
 
     async def on_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
+        locale = await guild_locale(interaction.guild.id if interaction.guild else None)
         if isinstance(error, app_commands.CommandOnCooldown):
             # No es un error real: avisar el tiempo de espera, sin loguear ni
             # pisar la respuesta con el mensaje genérico de abajo.
-            msg = f"⏳ Espera {error.retry_after:.0f}s antes de usar este comando de nuevo."
+            msg = t(
+                "general.error.cooldown", locale, seconds=f"{error.retry_after:.0f}"
+            )
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(msg, ephemeral=True)
@@ -75,7 +99,7 @@ class General(commands.Cog):
         command = interaction.command.name if interaction.command else "desconocido"
         log.error("Error en slash command /%s", command, exc_info=original)
         try:
-            msg = "Algo salió mal de mi lado 😖. Intenta de nuevo en un rato."
+            msg = t("general.error.generic", locale)
             if not interaction.response.is_done():
                 await interaction.response.send_message(msg, ephemeral=True)
             elif (
@@ -101,12 +125,14 @@ class General(commands.Cog):
     @commands.Cog.listener()
     async def on_command_error(self, ctx: commands.Context, error: Exception):
         if isinstance(error, commands.MissingPermissions):
-            await ctx.send("❌ No tienes permisos para usar este comando.")
+            locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+            await ctx.send(t("general.error.no_permission", locale))
             return
         elif isinstance(error, commands.CommandNotFound):
             return
         elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("⚠️ Faltan argumentos. Revisa cómo usar el comando.")
+            locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+            await ctx.send(t("general.error.missing_argument", locale))
             return
         log.error("Error en comando %s", getattr(ctx, "command", None), exc_info=error)
 
@@ -139,6 +165,13 @@ class General(commands.Cog):
                 log.info(
                     "guild_cleanup: %d sid(s) de sesión revocada vencidos borrados",
                     stale_revocations,
+                )
+            audit_retention = env_int("AUDIT_LOG_RETENTION_DAYS", 90)
+            stale_audit = await purge_old_audit_log_entries(audit_retention)
+            if stale_audit:
+                log.info(
+                    "guild_cleanup: %d entrada(s) de audit_log vencidas borradas",
+                    stale_audit,
                 )
             retention = env_int("GUILD_DATA_RETENTION_DAYS", 30)
             expired = await get_expired_departures(retention)

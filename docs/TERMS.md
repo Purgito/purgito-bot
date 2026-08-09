@@ -4,7 +4,7 @@
 
 Al invitar **Purgito** a un servidor de Discord o interactuar con él, aceptas los presentes Términos del Servicio, así como los [Términos de Servicio](https://discord.com/terms) y la [Política de Privacidad](https://discord.com/privacy) de Discord.
 
-Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores, sin trato especial en lo que respecta a estos Términos.
+Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores: estos Términos, las reglas de uso aceptable y la moderación se aplican igual ahí que en cualquier otro servidor.
 
 ---
 
@@ -52,7 +52,7 @@ Purgito ofrece un plan **premium** por servidor, contratable desde el dashboard 
 
 ## Qué desbloquea premium
 
-- Memes automáticos programados (no disponibles en el plan gratuito).
+- Generación de memes: el comando manual (`/momo`), el trigger de texto y la programación automática — toda la función de memes es exclusiva de premium, no disponible en el plan gratuito.
 - Límite ampliado de mensajes guardados en memoria (corpus).
 - Límite ampliado de mensajes de usuario en memoria.
 - Límite ampliado de GIFs guardados.

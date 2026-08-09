@@ -68,6 +68,7 @@ def allow_guild_access(monkeypatch):
         webapi, "_bot_guild", lambda request, guild_id: SimpleNamespace()
     )
     monkeypatch.setattr(webapi, "_rate_corpus_import", webapi.LRUDict(64))
+    monkeypatch.setattr(webapi, "_rate_delete", webapi.LRUDict(64))
 
 
 def _run(handler, request):
@@ -217,6 +218,16 @@ def test_amnesia_invalida_el_modelo_markov_cacheado(memory_db, monkeypatch):
     _run(webapi._api_corpus_amnesia_post, FakeRequest())
 
     assert called == [_GUILD]
+
+
+def test_amnesia_respeta_el_rate_limit(memory_db, monkeypatch):
+    monkeypatch.setattr(webapi, "_rate_delete", webapi.LRUDict(64))
+    for _ in range(3):
+        resp = _run(webapi._api_corpus_amnesia_post, FakeRequest())
+        assert resp.status == 200
+
+    resp = _run(webapi._api_corpus_amnesia_post, FakeRequest())
+    assert resp.status == 429
 
 
 def test_amnesia_queda_en_el_audit_log(memory_db):

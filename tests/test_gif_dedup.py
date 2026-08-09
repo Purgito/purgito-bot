@@ -571,6 +571,7 @@ def test_health_check_delete_releases_reference(memory_db, deleted_keys):
         gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
 
         assert await db.record_gif_health_check(gif["id"], "dead") is False
+        assert await db.record_gif_health_check(gif["id"], "dead") is False
         assert await db.record_gif_health_check(gif["id"], "dead") is True
         assert await _ref_count(memory_db, _HASH) is None
         assert deleted_keys == [r2.gif_key(_HASH)]
@@ -584,6 +585,7 @@ def test_health_check_keeps_object_used_by_another_guild(memory_db, deleted_keys
         await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100)
         gif = await db.get_gif_by_url(_GUILD_A, _url(_HASH))
 
+        assert await db.record_gif_health_check(gif["id"], "dead") is False
         assert await db.record_gif_health_check(gif["id"], "dead") is False
         assert await db.record_gif_health_check(gif["id"], "dead") is True
         assert await _ref_count(memory_db, _HASH) == 1
@@ -824,3 +826,45 @@ def test_upload_ignores_perceptual_matches_beyond_the_configured_distance(
 
     assert up.content_hash != existing_hash
     assert client.puts == [r2.gif_key(up.content_hash)]
+
+
+# ---------- Cache-Control (Sección 7, cierre de pendientes) ----------
+#
+# 1 año era demasiada ventana en la que un objeto ya borrado de R2 (bloqueo
+# manual, chequeo de salud, wipe) podía seguir sirviéndose desde el edge de
+# Cloudflare. Bajado a 14 días -- sigue siendo agresivo para lo que sigue
+# vivo, pero acota la ventana de "borrado que no borra de verdad".
+
+
+class _CacheControlCapturingClient:
+    def __init__(self):
+        self.put_kwargs: list[dict] = []
+
+    def head_object(self, **kw):
+        raise LookupError("no existe")
+
+    def put_object(self, **kw):
+        self.put_kwargs.append(kw)
+
+
+def test_upload_gif_sync_usa_el_cache_control_de_14_dias(monkeypatch):
+    client = _CacheControlCapturingClient()
+    _patch_upload(monkeypatch, client, b"GIF89a-datos")
+
+    r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert len(client.put_kwargs) == 1
+    assert client.put_kwargs[0]["CacheControl"] == "public, max-age=1209600, immutable"
+
+
+def test_upload_image_bytes_sync_usa_el_mismo_cache_control(monkeypatch):
+    client = _CacheControlCapturingClient()
+    monkeypatch.setattr(r2, "get_client", lambda: client)
+    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
+    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+
+    url = r2.upload_image_bytes_sync("https://x/img.png", b"pngbytes", 1, ".png")
+
+    assert url is not None
+    assert len(client.put_kwargs) == 1
+    assert client.put_kwargs[0]["CacheControl"] == "public, max-age=1209600, immutable"

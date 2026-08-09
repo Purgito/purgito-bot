@@ -24,6 +24,8 @@ class FakeRequest:
     def __init__(self, payload: dict, guild_id: int = 123):
         self._payload = payload
         self.match_info = {"guild_id": str(guild_id)}
+        self.headers = {}
+        self.remote = "1.2.3.4"
 
     async def json(self):
         return self._payload
@@ -51,6 +53,7 @@ def _allow_guild_access(monkeypatch):
     monkeypatch.setattr(webapi, "get_session", fake_get_session)
     monkeypatch.setattr(webapi, "check_guild_access", fake_check_guild_access)
     monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: object())
+    monkeypatch.setattr(webapi, "_rate_premium_checkout", webapi.LRUDict(64))
 
 
 def test_premium_checkout_insufficient_scope(monkeypatch):
@@ -97,3 +100,28 @@ def test_premium_checkout_no_escribe_nada_localmente(monkeypatch, temp_db):
     assert resp.status == 200
     assert json.loads(resp.text) == {"checkout_url": "https://checkout.polar.sh/abc123"}
     assert premium_guilds == []
+
+
+def test_premium_checkout_respeta_el_rate_limit(monkeypatch):
+    _allow_guild_access(monkeypatch)
+
+    class FakeCheckout:
+        url = "https://checkout.polar.sh/abc123"
+
+    async def fake_create_async(request):
+        return FakeCheckout()
+
+    fake_polar = SimpleNamespace(
+        checkouts=SimpleNamespace(create_async=fake_create_async)
+    )
+    monkeypatch.setattr(webapi, "_polar", fake_polar)
+    monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_MONTHLY", "prod-monthly")
+
+    for _ in range(8):
+        resp = asyncio.run(
+            webapi._api_premium_checkout(FakeRequest({"plan": "monthly"}))
+        )
+        assert resp.status == 200
+
+    resp = asyncio.run(webapi._api_premium_checkout(FakeRequest({"plan": "monthly"})))
+    assert resp.status == 429

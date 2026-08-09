@@ -196,3 +196,43 @@ def test_get_audit_log_pagina_con_limit_y_offset(memory_db):
     entries = _json(resp)["entries"]
     assert len(entries) == 1
     assert entries[0]["detail"] == "url-1"
+
+
+# ── db.purge_old_audit_log_entries (Sección 7) ────────────────────────────────
+#
+# audit_log.detail puede llevar texto tal cual escrito por un admin (ej.
+# "frases.add" guarda la frase completa) -- sin un límite de retención
+# propio, borrar esa frase desde /settings no la borraba de verdad, quedaba
+# una copia indefinida en el audit log.
+
+
+def test_purge_old_audit_log_entries_borra_solo_lo_vencido(memory_db):
+    async def run():
+        conn = await db.get_db()
+        await db.log_audit(_GUILD, 1, "A", "frases.add", "una frase vieja y sensible")
+        await conn.execute(
+            "UPDATE audit_log SET created_at = datetime('now', '-100 days')"
+        )
+        await conn.commit()
+        await db.log_audit(_GUILD, 1, "A", "frases.add", "una frase reciente")
+
+        deleted = await db.purge_old_audit_log_entries(90)
+        remaining = await db.list_audit_log(_GUILD)
+        return deleted, remaining
+
+    deleted, remaining = asyncio.run(run())
+    assert deleted == 1
+    assert len(remaining) == 1
+    assert remaining[0]["detail"] == "una frase reciente"
+
+
+def test_purge_old_audit_log_entries_no_toca_nada_dentro_de_la_retencion(memory_db):
+    async def run():
+        await db.log_audit(_GUILD, 1, "A", "frases.add", "frase de ayer")
+        deleted = await db.purge_old_audit_log_entries(90)
+        remaining = await db.list_audit_log(_GUILD)
+        return deleted, remaining
+
+    deleted, remaining = asyncio.run(run())
+    assert deleted == 0
+    assert len(remaining) == 1

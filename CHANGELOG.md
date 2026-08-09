@@ -6,7 +6,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- Sistema de servidores premium: tabla `premium_guilds`, gestionada por el bot owner desde el panel de administración del dashboard (endpoints `/api/admin/*`). Las features restringidas (memos, pool de imágenes, frases especiales, reacciones) siguen siempre activas en PURGATORY_GUILD_ID hardcodeado; para otros servidores se controla desde la tabla. `HOME_GUILD_ID` se migra automáticamente a la tabla en el primer arranque.
+- Sistema de servidores premium: tabla `premium_guilds`, activada/desactivada por los webhooks de Polar.sh (`/webhooks/polar`) al procesar una suscripción — sin ningún endpoint de administración manual. Las features restringidas (memes, pool de imágenes) siguen siempre activas en `PURGATORY_GUILD_ID` hardcodeado, incondicionalmente; para el resto de los servidores depende exclusivamente de tener una suscripción activa en Polar. `HOME_GUILD_ID` se migra automáticamente a la tabla en el primer arranque.
 - Limpieza diferida de datos al salir de un servidor: `on_guild_remove` registra la salida en `guild_departures`; task diaria purga datos (DB + R2) después de `GUILD_DATA_RETENTION_DAYS` (default 30). Reinvitar al bot dentro del período cancela el borrado.
 - Límites de almacenamiento por servidor: `MAX_CORPUS_MESSAGES_PER_GUILD_FREE/PREMIUM`
   (15k/50k, **por canal**, no por guild — un canal con mucho historial no

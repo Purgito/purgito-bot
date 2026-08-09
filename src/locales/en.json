@@ -123,5 +123,18 @@
   "setup.title": "🚀 Purgito initial setup",
   "setup.body": "I'll walk you through the essential settings. Use the menu below to go through each category:\n\n**1. Language** — pick the bot's language 🌐\n**2. Chat** — decide whether the bot replies when mentioned 💬\n\nThe rest of the configuration (channels, learning, frequency, reactions, phrases, limits) is done from your dashboard: {url}\n\nOnce you pick channels for the corpus, run `/refeed_channels` so the bot learns their history. You can come back to this panel anytime with `/settings`.",
   "setup.panel_cta": "💻 **Web panel:** configure everything from the browser — includes a visual embed editor and interactive buttons: {url}",
-  "setup.status_header": "**Right now:**\n👁️ I can see {seen} of {total} channels\n💬 I have {corpus} messages saved\n🚫 {ignored} channel(s) excluded\n\n"
+  "setup.status_header": "**Right now:**\n👁️ I can see {seen} of {total} channels\n💬 I have {corpus} messages saved\n🚫 {ignored} channel(s) excluded\n\n",
+
+  "commands.help.description": "Shows Purgito's commands and how to use them.",
+  "commands.vote.description": "Link to vote for Purgito on top.gg.",
+  "commands.gif_add.description": "Adds a GIF to the server's collection.",
+  "commands.generar.description": "Generates a message using the channel's memory.",
+  "commands.imitar.description": "Generates a message imitating a server member's style.",
+  "commands.refeed.description": "Imports the channel's latest messages into the bot's memory.",
+  "commands.refeed_channels.description": "Imports messages from the channels selected for the corpus into the bot's memory.",
+  "commands.corpus_info.description": "Shows how many messages are in the current channel's corpus.",
+  "commands.settings.description": "Opens the server's settings panel.",
+  "commands.setup.description": "Guide for Purgito's initial setup.",
+  "commands.momo.description": "Generates a meme from the server.",
+  "commands.meme.description": "Generates a meme from the server."
 }

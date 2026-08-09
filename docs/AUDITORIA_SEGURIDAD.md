@@ -208,9 +208,9 @@ solo lugar para revisar de un vistazo:
   los datos existentes por encima del nuevo límite (GIFs, embeds, etc.) no
   se borran ni se recortan de inmediato — convergen solo cuando se agregan
   ítems nuevos. Es el comportamiento que dejé como razonable (evitar
-  pérdida de datos sorpresiva), pero a diferencia del TTL de arriba,
-  **nunca lo reconfirmaste explícitamente** después de que lo señalé en
-  S2·R1 — sigue técnicamente abierto.
+  pérdida de datos sorpresiva) tras señalarlo en S2·R1 — **confirmado
+  explícitamente y cerrado** (Sección 7 lo documentó además en
+  `REFUNDS.md`).
 - **Trial abuse cross-guild.** Decisión activa de *no* construir tracking
   propio: bloquear por `guild_id` es trivialmente evadible (créditos desde
   otro guild) y Purgito no tiene una noción confiable de "misma persona"
