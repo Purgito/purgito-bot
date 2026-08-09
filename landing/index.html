@@ -24,7 +24,7 @@
 <meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png">
 
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=74228138">
+<link rel="stylesheet" href="/style.css?v=e0b07f8c">
 
 <!-- Sin prefijo de idioma en el path: elige el idioma del navegador con
      traducción disponible y cae a español. Va en el <head> para redirigir
@@ -117,11 +117,29 @@ window.READY_LANGS = ['es'];
       <p class="hero-hint">Invítalo <svg class="hint-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c5-1 9-5 13-11M17 5h3v3"/></svg></p>
     </div>
 
-    <!-- Mascota real de Purgito en vez del blob decorativo genérico -->
-    <div class="hero-deco">
-      <figure class="shot hero-portrait">
-        <img src="/assets/mascota.webp" alt="Purgito" width="832" height="832" loading="eager" decoding="async">
-      </figure>
+    <!-- Elemento decorativo: sin diseño en el boceto, armado a mano. -->
+    <div class="hero-deco" aria-hidden="true">
+      <svg viewBox="0 0 420 320" class="deco-svg">
+        <defs>
+          <radialGradient id="dg1" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity=".55"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="dg2" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="var(--accent-2)" stop-opacity=".45"/>
+            <stop offset="100%" stop-color="var(--accent-2)" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle class="deco-blob" cx="250" cy="130" r="120" fill="url(#dg1)"/>
+        <circle class="deco-blob deco-blob-b" cx="140" cy="200" r="105" fill="url(#dg2)"/>
+        <circle class="deco-ring" cx="210" cy="160" r="118" fill="none" stroke="var(--accent)" stroke-opacity=".28" stroke-width="1.5" stroke-dasharray="3 9"/>
+        <circle class="deco-ring deco-ring-b" cx="210" cy="160" r="86" fill="none" stroke="var(--accent-soft)" stroke-opacity=".2" stroke-width="1" stroke-dasharray="2 14"/>
+        <g class="deco-spark" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-opacity=".85">
+          <path d="M330 62v22M319 73h22"/>
+          <path d="M96 96v14M89 103h14"/>
+          <path d="M300 246v16M292 254h16"/>
+        </g>
+      </svg>
     </div>
   </div>
 

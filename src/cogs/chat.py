@@ -816,14 +816,8 @@ class Chat(commands.Cog):
         if report_channel is None:
             return
         try:
-            locale = await i18n.guild_locale(after.guild.id)
             await report_channel.send(
-                i18n.t(
-                    "chat.channel_visible_report",
-                    locale,
-                    channel=after.mention,
-                    saved=f"{res['saved']:,}",
-                )
+                f"👀 Ya pude leer {after.mention}: {res['saved']:,} mensajes nuevos guardados."
             )
         except Exception:
             log.debug("on_guild_channel_update: no se pudo avisar en %s", channel_id)
@@ -837,23 +831,21 @@ class Chat(commands.Cog):
     async def generar(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message(
-                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
+                "Solo en servidores.", ephemeral=True
             )
             return
 
-        locale = await i18n.guild_locale(interaction.guild.id)
         remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
-                ephemeral=True,
+                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
             )
             return
 
         await interaction.response.defer(thinking=True)
         if interaction.channel is None:
             await interaction.followup.send(
-                i18n.t("chat.cannot_determine_channel", locale), ephemeral=True
+                "No puedo determinar el canal.", ephemeral=True
             )
             return
         settings = await get_effective_chat_settings(
@@ -866,6 +858,7 @@ class Chat(commands.Cog):
         )
         if text is None:
             # Comando explícito: siempre el mensaje completo con instrucciones.
+            locale = await i18n.guild_locale(interaction.guild.id)
             reply = generation.empty_corpus_reply(interaction.guild.id, locale)
         elif is_special:
             reply = await render_frase_template(
@@ -886,16 +879,14 @@ class Chat(commands.Cog):
     async def imitar(self, interaction: discord.Interaction, usuario: discord.Member):
         if not interaction.guild:
             await interaction.response.send_message(
-                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
+                "Solo en servidores.", ephemeral=True
             )
             return
 
-        locale = await i18n.guild_locale(interaction.guild.id)
         remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
-                ephemeral=True,
+                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
             )
             return
 
@@ -904,12 +895,7 @@ class Chat(commands.Cog):
         count = await count_user_messages(interaction.guild.id, usuario.id)
         if count < 30:
             await interaction.followup.send(
-                i18n.t(
-                    "chat.imitar_not_enough_messages",
-                    locale,
-                    user=usuario.display_name,
-                    count=count,
-                )
+                f"⚠️ **{usuario.display_name}** solo tiene {count} mensaje(s) guardados. Necesita al menos 30."
             )
             return
 
@@ -918,14 +904,12 @@ class Chat(commands.Cog):
         )
         if result is None:
             await interaction.followup.send(
-                i18n.t(
-                    "chat.imitar_generation_failed", locale, user=usuario.display_name
-                )
+                f"⚠️ No se pudo generar un mensaje para **{usuario.display_name}**. Prueba más tarde."
             )
             return
 
         await interaction.followup.send(
-            i18n.t("chat.imitar_result", locale, user=usuario.display_name, text=result)
+            f'🎭 **{usuario.display_name}** diría: "{result}"'
         )
 
     # --- CORPUS ---
@@ -1330,14 +1314,13 @@ class Chat(commands.Cog):
     async def refeed(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message(
-                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
+                "Solo en servidores.", ephemeral=True
             )
             return
 
-        locale = await i18n.guild_locale(interaction.guild.id)
         if not has_admin_permission(interaction):
             await interaction.response.send_message(
-                i18n.t("general.error.no_permission", locale), ephemeral=True
+                "❌ No tienes permisos para usar este comando.", ephemeral=True
             )
             return
 
@@ -1345,20 +1328,19 @@ class Chat(commands.Cog):
 
         channel = interaction.channel
         if not isinstance(channel, discord.abc.Messageable):
-            await interaction.followup.send(
-                i18n.t("chat.refeed.cannot_read_history", locale)
-            )
+            await interaction.followup.send("No puedo leer el historial de este canal.")
             return
 
         if await is_channel_ignored(interaction.guild.id, channel.id):
             await interaction.followup.send(
-                i18n.t("chat.refeed.channel_ignored", locale)
+                "⚠️ Este canal está en la lista de ignorados. Quítalo primero desde `/settings` si quieres incluirlo."
             )
             return
 
         if not await is_corpus_allowed(interaction.guild.id, channel.id):
             await interaction.followup.send(
-                i18n.t("chat.refeed.channel_not_allowed", locale)
+                "⚠️ Este canal no está entre los elegidos para aprender. "
+                "Agrégalo desde el dashboard (tab CHAT > Canales) y vuelve a intentar."
             )
             return
 
@@ -1367,34 +1349,21 @@ class Chat(commands.Cog):
         )
 
         if res["forbidden"] and res["saved"] == 0:
-            await interaction.followup.send(i18n.t("chat.refeed.forbidden", locale))
+            await interaction.followup.send(
+                "❌ Sin permisos para leer el historial de este canal."
+            )
             return
         gifs_suffix = (
-            i18n.t("chat.refeed.gifs_suffix", locale, count=res["gifs_saved"])
-            if res["gifs_saved"]
-            else ""
+            f" y {res['gifs_saved']} GIF(s) nuevo(s)" if res["gifs_saved"] else ""
         )
         if res["was_incremental"]:
-            result = i18n.t(
-                "chat.refeed.result_incremental",
-                locale,
-                saved=res["saved"],
-                gifs=gifs_suffix,
-            )
+            result = f"⏭️ Este canal ya estaba al día: {res['saved']} mensajes nuevos guardados{gifs_suffix}."
         elif res["backfill_complete"]:
-            result = i18n.t(
-                "chat.refeed.result_complete",
-                locale,
-                saved=res["saved"],
-                gifs=gifs_suffix,
-            )
+            result = f"✅ Historial completo leído: {res['saved']} mensajes guardados{gifs_suffix}."
         else:
-            result = i18n.t(
-                "chat.refeed.result_partial",
-                locale,
-                saved=res["saved"],
-                gifs=gifs_suffix,
-                limit=f"{REFEED_MAX_MESSAGES:,}",
+            result = (
+                f"✅ Guardados {res['saved']} mensajes{gifs_suffix} (leyendo el historial por primera vez).\n"
+                f"⚠️ Límite de {REFEED_MAX_MESSAGES:,} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó."
             )
         await interaction.followup.send(result)
 
@@ -1405,27 +1374,26 @@ class Chat(commands.Cog):
     async def refeed_channels(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message(
-                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
+                "Solo en servidores.", ephemeral=True
             )
             return
 
-        locale = await i18n.guild_locale(interaction.guild.id)
         if not has_admin_permission(interaction):
             await interaction.response.send_message(
-                i18n.t("general.error.no_permission", locale), ephemeral=True
+                "❌ No tienes permisos para usar este comando.", ephemeral=True
             )
             return
 
         existing = _refeed_running.get(interaction.guild.id)
         if existing and not existing.done():
             await interaction.response.send_message(
-                i18n.t("chat.refeed_channels.already_running", locale),
+                "⏳ Ya hay una importación en curso en este servidor; espera a que termine.",
                 ephemeral=True,
             )
             return
 
         await interaction.response.send_message(
-            i18n.t("chat.refeed_channels.starting", locale)
+            "🔄 Empezando a leer el historial de los canales…"
         )
         progress_msg = await interaction.original_response()
         # Refetch como Message normal: la edición vía interaction muere a los 15 min con el token.
@@ -1451,7 +1419,8 @@ class Chat(commands.Cog):
             # corrida hubiera arrancado, cuando en realidad no hizo nada.
             try:
                 await progress_msg.edit(
-                    content=i18n.t("chat.refeed_channels.race_lost", locale)
+                    content="⏳ Ya había una importación en curso en este servidor "
+                    "(arrancó justo antes); esta invocación no hizo nada nuevo."
                 )
             except Exception:
                 log.debug(
@@ -1466,23 +1435,22 @@ class Chat(commands.Cog):
     async def corpus_info(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message(
-                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
+                "Solo en servidores.", ephemeral=True
             )
             return
 
-        locale = await i18n.guild_locale(interaction.guild.id)
         if interaction.channel is None:
             await interaction.response.send_message(
-                i18n.t("chat.cannot_determine_channel", locale), ephemeral=True
+                "No puedo determinar el canal.", ephemeral=True
             )
             return
 
         count = await count_corpus_messages(
             interaction.guild.id, interaction.channel.id
         )
-        msg = i18n.t("chat.corpus_info.count", locale, count=count)
+        msg = f"📊 El corpus de este canal tiene {count} mensajes."
         if count < 50:
-            msg += "\n" + i18n.t("chat.corpus_info.needs_more", locale)
+            msg += "\n⚠️ Necesita al menos 50 mensajes para generar bien."
         await interaction.response.send_message(msg)
 
 
