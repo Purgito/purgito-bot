@@ -20,6 +20,22 @@ export function currentLocale() {
   return LANGS.includes(seg) ? seg : 'es';
 }
 
+/** Número formateado según el idioma de la URL, no fijo a 'es'. */
+export function formatNumber(n) {
+  return n.toLocaleString(currentLocale());
+}
+
+/** Fecha formateada según el idioma de la URL. `opts` pasa directo a
+ * Intl.DateTimeFormat (mismos options que Date.toLocaleDateString/String). */
+export function formatDate(date, opts) {
+  return date.toLocaleDateString(currentLocale(), opts);
+}
+
+/** Igual que formatDate pero con hora — para timestamps de eventos/historial. */
+export function formatDateTime(date) {
+  return date.toLocaleString(currentLocale());
+}
+
 // Solo dígitos: un id inventado a mano en la barra de direcciones muere acá y
 // no llega a armar URLs de API.
 const rawGuild = location.pathname.split('/')[3] || '';

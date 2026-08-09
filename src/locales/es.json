@@ -176,6 +176,25 @@
   "chat.imitar_not_enough_messages": "⚠️ **{user}** solo tiene {count} mensaje(s) guardados. Necesita al menos 30.",
   "chat.imitar_generation_failed": "⚠️ No se pudo generar un mensaje para **{user}**. Prueba más tarde.",
   "chat.imitar_result": "🎭 **{user}** diría: \"{text}\"",
+  "chat.channel_visible_report": "👀 Ya pude leer {channel}: {saved} mensajes nuevos guardados.",
+
+  "chat.refeed.cannot_read_history": "No puedo leer el historial de este canal.",
+  "chat.refeed.channel_ignored": "⚠️ Este canal está en la lista de ignorados. Quítalo primero desde `/settings` si quieres incluirlo.",
+  "chat.refeed.channel_not_allowed": "⚠️ Este canal no está entre los elegidos para aprender. Agrégalo desde el dashboard (tab CHAT > Canales) y vuelve a intentar.",
+  "chat.refeed.forbidden": "❌ Sin permisos para leer el historial de este canal.",
+  "chat.refeed.gifs_suffix": " y {count} GIF(s) nuevo(s)",
+  "chat.refeed.result_incremental": "⏭️ Este canal ya estaba al día: {saved} mensajes nuevos guardados{gifs}.",
+  "chat.refeed.result_complete": "✅ Historial completo leído: {saved} mensajes guardados{gifs}.",
+  "chat.refeed.result_partial": "✅ Guardados {saved} mensajes{gifs} (leyendo el historial por primera vez).\n⚠️ Límite de {limit} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó.",
+
+  "chat.refeed_channels.already_running": "⏳ Ya hay una importación en curso en este servidor; espera a que termine.",
+  "chat.refeed_channels.starting": "🔄 Empezando a leer el historial de los canales…",
+  "chat.refeed_channels.race_lost": "⏳ Ya había una importación en curso en este servidor (arrancó justo antes); esta invocación no hizo nada nuevo.",
+
+  "chat.corpus_info.count": "📊 El corpus de este canal tiene {count} mensajes.",
+  "chat.corpus_info.needs_more": "⚠️ Necesita al menos 50 mensajes para generar bien.",
+
+  "youtube.new_video": "📺 **{author}** subió un video nuevo!\n**{title}**\n{url}",
 
   "general.help.default_guild_name": "este servidor",
   "general.vote.title": "🗳️ ¡Vota por Purgito!",

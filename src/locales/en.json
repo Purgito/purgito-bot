@@ -176,6 +176,25 @@
   "chat.imitar_not_enough_messages": "⚠️ **{user}** only has {count} message(s) saved. Needs at least 30.",
   "chat.imitar_generation_failed": "⚠️ Couldn't generate a message for **{user}**. Try again later.",
   "chat.imitar_result": "🎭 **{user}** would say: \"{text}\"",
+  "chat.channel_visible_report": "👀 I can now read {channel}: {saved} new messages saved.",
+
+  "chat.refeed.cannot_read_history": "I can't read this channel's history.",
+  "chat.refeed.channel_ignored": "⚠️ This channel is on the ignored list. Remove it from `/settings` first if you want to include it.",
+  "chat.refeed.channel_not_allowed": "⚠️ This channel isn't among the ones chosen to learn from. Add it from the dashboard (CHAT tab > Channels) and try again.",
+  "chat.refeed.forbidden": "❌ No permission to read this channel's history.",
+  "chat.refeed.gifs_suffix": " and {count} new GIF(s)",
+  "chat.refeed.result_incremental": "⏭️ This channel was already up to date: {saved} new messages saved{gifs}.",
+  "chat.refeed.result_complete": "✅ Full history read: {saved} messages saved{gifs}.",
+  "chat.refeed.result_partial": "✅ Saved {saved} messages{gifs} (reading the history for the first time).\n⚠️ Limit of {limit} messages reached; run `/refeed` again to continue where it left off.",
+
+  "chat.refeed_channels.already_running": "⏳ There's already an import running in this server; wait for it to finish.",
+  "chat.refeed_channels.starting": "🔄 Starting to read the channels' history…",
+  "chat.refeed_channels.race_lost": "⏳ There was already an import running in this server (it started just before); this invocation didn't do anything new.",
+
+  "chat.corpus_info.count": "📊 This channel's corpus has {count} messages.",
+  "chat.corpus_info.needs_more": "⚠️ Needs at least 50 messages to generate well.",
+
+  "youtube.new_video": "📺 **{author}** posted a new video!\n**{title}**\n{url}",
 
   "general.help.default_guild_name": "this server",
   "general.vote.title": "🗳️ Vote for Purgito!",

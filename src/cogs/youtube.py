@@ -16,6 +16,7 @@ from db import (
     set_youtube_sub_error,
     update_last_video_id,
 )
+from i18n import guild_locale, t
 
 log = logging.getLogger(__name__)
 
@@ -145,9 +146,16 @@ class YouTube(commands.Cog):
                     mention = ""
                     if sub.get("mention_role_id"):
                         mention = f"<@&{sub['mention_role_id']}> "
+                    locale = await guild_locale(sub["guild_id"])
                     await channel.send(
-                        f"{mention}📺 **{video['author']}** subió un video nuevo!\n"
-                        f"**{video['title']}**\n{video['url']}"
+                        mention
+                        + t(
+                            "youtube.new_video",
+                            locale,
+                            author=video["author"],
+                            title=video["title"],
+                            url=video["url"],
+                        )
                     )
                     await update_last_video_id(
                         sub["guild_id"], sub["youtube_channel_id"], video["id"]

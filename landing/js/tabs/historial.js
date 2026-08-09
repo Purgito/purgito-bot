@@ -1,6 +1,6 @@
 import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, formGroup, toast } from '/js/core/dom.js';
-import { GUILD_ID } from '/js/core/config.js';
+import { GUILD_ID, formatDateTime } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 
 const PAGE_SIZE = 50;
@@ -48,7 +48,7 @@ function actionLabel(action) {
 // ("YYYY-MM-DD HH:MM:SS"); hay que marcarlo como tal antes de pasarlo a
 // Date, si no el navegador lo toma como hora local y corre el horario.
 function formatWhen(createdAt) {
-  return new Date(createdAt.replace(' ', 'T') + 'Z').toLocaleString('es');
+  return formatDateTime(new Date(createdAt.replace(' ', 'T') + 'Z'));
 }
 
 function entryRow(entry) {

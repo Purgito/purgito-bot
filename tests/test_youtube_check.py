@@ -43,6 +43,18 @@ def patch_text_channel(monkeypatch):
     monkeypatch.setattr(youtube_mod.discord, "TextChannel", FakeTextChannel)
 
 
+@pytest.fixture(autouse=True)
+def _fake_guild_locale(monkeypatch):
+    """check_youtube resuelve el locale del guild vía la columna settings.locale,
+    que se agrega con un ALTER TABLE en init_db() -- no está en el db.SCHEMA
+    crudo que usa memory_db acá. Se mockea para no requerir esa migración."""
+
+    async def fake_guild_locale(guild_id):
+        return "es"
+
+    monkeypatch.setattr(youtube_mod, "guild_locale", fake_guild_locale)
+
+
 async def _open_memory_db() -> aiosqlite.Connection:
     conn = await aiosqlite.connect(":memory:")
     await conn.executescript(db.SCHEMA)

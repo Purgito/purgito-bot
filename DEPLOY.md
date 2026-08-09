@@ -385,13 +385,20 @@ server {
     location = /health  { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
 
     # ── Estático ────────────────────────────────────────────────────
-    # ⚠️ OBLIGATORIO para el dashboard: /es/dashboard/<id-del-servidor> es la
-    # única ruta del sitio con un segmento dinámico, y ese id no existe como
-    # carpeta en disco. Sin este location cae en el try_files de abajo y sirve
-    # la homepage. El id lo lee el JS del path (landing/js/core/config.js).
-    # `^~` gana sobre el regex de idiomas que viene después.
-    location ^~ /es/dashboard/ {
-        try_files $uri $uri/ /es/dashboard/index.html;
+    # ⚠️ OBLIGATORIO para el dashboard: /<lang>/dashboard/<id-del-servidor> es
+    # la única ruta del sitio con un segmento dinámico, y ese id no existe
+    # como carpeta en disco. Sin este location cae en el try_files de abajo y
+    # sirve la homepage. El id lo lee el JS del path (landing/js/core/config.js).
+    # Location por regex (no `^~`): nginx evalúa los location por regex en el
+    # orden en que aparecen en el archivo y usa el PRIMERO que matchee — este
+    # tiene que seguir apareciendo antes que el regex de idiomas de abajo.
+    # Generalizado a los 5 códigos (no solo /es/) para que un idioma nuevo con
+    # dashboard propio (landing/<lang>/dashboard/) no rompa en silencio: antes
+    # esto estaba fijo a /es/dashboard/ y cualquier otro idioma caía en el
+    # try_files genérico de abajo, que sirve la homepage en vez del dashboard
+    # porque el id tampoco existe como carpeta ahí.
+    location ~ ^/(es|en|ru|ja|de)/dashboard/ {
+        try_files $uri $uri/ /$1/dashboard/index.html;
     }
 
     # Las páginas legales y las del perfil son directorios reales

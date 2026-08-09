@@ -204,6 +204,11 @@ def test_refeed_channels_dos_invocaciones_casi_simultaneas_la_perdedora_no_mient
     chat = Chat(SimpleNamespace())
     monkeypatch.setattr(chat_mod, "has_admin_permission", lambda interaction: True)
 
+    async def fake_guild_locale(guild_id):
+        return "es"
+
+    monkeypatch.setattr(chat_mod.i18n, "guild_locale", fake_guild_locale)
+
     release = asyncio.Event()
     calls = 0
 

@@ -2,7 +2,7 @@
 // (localStorage, hasta 20 versiones), borrador autosave (1 slot por guild+modo)
 // y el modal "Ver/editar JSON".
 
-import { GUILD_ID } from '/js/core/config.js';
+import { GUILD_ID, formatDateTime } from '/js/core/config.js';
 import { el, emptyState } from '/js/core/dom.js';
 import { apiFetch } from '/js/core/api.js';
 import {
@@ -57,7 +57,7 @@ export function openHistoryModal() {
     let previewLoaded = false;
     const row = el('div', { class: 'hist-entry' },
       el('div', { class: 'hist-entry-head' },
-        el('span', {}, new Date(entry.ts).toLocaleString()),
+        el('span', {}, formatDateTime(new Date(entry.ts))),
         el('span', { class: 'dim' }, historySummary(entry.doc)),
         el('button', {
           class: 'btn btn-secondary btn-sm',

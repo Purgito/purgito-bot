@@ -1,6 +1,6 @@
 // Editor de embeds clásicos + su preview HTML/CSS puro (sin llamada al backend).
 
-import { GUILD_ID } from '/js/core/config.js';
+import { GUILD_ID, formatNumber } from '/js/core/config.js';
 import { apiFetch } from '/js/core/api.js';
 import {
   el, autoGrow, showFormAlert, accordionGroup, formGroup, previewEmpty, toast,
@@ -86,7 +86,7 @@ export function renderClassicEditor(box, channels, roles) {
   const embedPills = [];  // se llena al armar embedBar, más abajo
   function refreshEmbedMeta(dicts) {
     const total = dicts.reduce((n, d) => n + embedChars(d), 0);
-    charCounter.textContent = `${total.toLocaleString('es')} / ${EMBED_LIMITS.total.toLocaleString('es')}`;
+    charCounter.textContent = `${formatNumber(total)} / ${formatNumber(EMBED_LIMITS.total)}`;
     charCounter.className = 'char-counter'
       + (total > EMBED_LIMITS.total ? ' over' : total >= EMBED_LIMITS.total * 0.9 ? ' near' : '');
     embedPills.forEach((pill, i) => {

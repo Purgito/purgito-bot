@@ -8,7 +8,7 @@
 
 import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, guildIcon, toast } from '/js/core/dom.js';
-import { currentLocale } from '/js/core/config.js';
+import { currentLocale, formatDate } from '/js/core/config.js';
 
 const TABS = [
   { key: 'servidores', label: 'Servidores', path: '' },
@@ -23,7 +23,7 @@ const SUPPORT = 'https://discord.gg/5U7HKyxnBv';
 function accountCreated(userId) {
   try {
     const ms = Number((BigInt(userId) >> 22n) + 1420070400000n);
-    return new Date(ms).toLocaleDateString('es', { year: 'numeric', month: 'long' });
+    return formatDate(new Date(ms), { year: 'numeric', month: 'long' });
   } catch (e) { return null; }
 }
 
