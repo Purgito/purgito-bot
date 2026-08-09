@@ -92,7 +92,9 @@ def build_category_embed(
     for cmd, desc_key in cat["commands"]:
         lines.append(f"`{cmd}` — {t(desc_key, locale)}")
     title = f"{cat['emoji']} {t(f'help.cat.{key}.label', locale)}"
-    embed = discord.Embed(title=title, description="\n".join(lines), color=PURGITO_COLOR)
+    embed = discord.Embed(
+        title=title, description="\n".join(lines), color=PURGITO_COLOR
+    )
     embed.set_footer(text=t("help.category.footer", locale, guild=guild_name))
     return embed
 

@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from config import PANEL_URL, PURGATORY_GUILD_ID
 from db import apply_premium_webhook_change, list_premium_guilds
+from i18n import DEFAULT_LOCALE, t
 
 log = logging.getLogger(__name__)
 
@@ -23,12 +24,9 @@ def is_premium_guild(guild_id: int | None) -> bool:
     return guild_id in _premium_guild_ids
 
 
-def premium_required_message() -> str:
+def premium_required_message(locale: str = DEFAULT_LOCALE) -> str:
     """Texto estándar del gate de premium; único lugar donde se redacta."""
-    return (
-        "⭐ Esta función solo está disponible en servidores premium. "
-        f"Puedes ver cómo conseguirlo en {PANEL_URL}"
-    )
+    return t("premium.required_message", locale, url=PANEL_URL)
 
 
 def discard_premium_guild(guild_id: int) -> None:

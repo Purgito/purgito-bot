@@ -86,6 +86,11 @@ def setup(monkeypatch):
         monkeypatch.setattr(memes_mod, "is_premium_guild", lambda gid: premium)
         monkeypatch.setattr(memes_mod, "r2", SimpleNamespace(available=lambda: False))
 
+        async def fake_guild_locale(guild_id):
+            return "es"
+
+        monkeypatch.setattr(memes_mod, "guild_locale", fake_guild_locale)
+
         async def fake_save(guild_id, url):
             return not duplicate
 

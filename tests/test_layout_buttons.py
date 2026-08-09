@@ -34,8 +34,16 @@ async def _open_memory_db() -> aiosqlite.Connection:
 
 
 def test_cog_load_registers_one_view_per_unique_custom_id(memory_db):
-    asyncio.run(db.add_button_action("purgito_role_toggle_a", 1, "role_toggle", json.dumps({"role_id": 10})))
-    asyncio.run(db.add_button_action("purgito_role_toggle_b", 1, "role_toggle", json.dumps({"role_id": 11})))
+    asyncio.run(
+        db.add_button_action(
+            "purgito_role_toggle_a", 1, "role_toggle", json.dumps({"role_id": 10})
+        )
+    )
+    asyncio.run(
+        db.add_button_action(
+            "purgito_role_toggle_b", 1, "role_toggle", json.dumps({"role_id": 11})
+        )
+    )
     bot = MagicMock()
     bot.add_view = MagicMock()
     cog = LayoutButtons(bot)
@@ -56,8 +64,14 @@ def test_cog_load_with_no_rows_does_not_register(memory_db):
 
 
 def test_cog_load_skips_malformed_action_data(memory_db):
-    asyncio.run(db.add_button_action("purgito_role_toggle_bad", 1, "role_toggle", "not json"))
-    asyncio.run(db.add_button_action("purgito_role_toggle_ok", 1, "role_toggle", json.dumps({"role_id": 1})))
+    asyncio.run(
+        db.add_button_action("purgito_role_toggle_bad", 1, "role_toggle", "not json")
+    )
+    asyncio.run(
+        db.add_button_action(
+            "purgito_role_toggle_ok", 1, "role_toggle", json.dumps({"role_id": 1})
+        )
+    )
     bot = MagicMock()
     bot.add_view = MagicMock()
     cog = LayoutButtons(bot)
@@ -68,7 +82,11 @@ def test_cog_load_skips_malformed_action_data(memory_db):
 
 
 def test_purge_guild_data_removes_button_actions(memory_db):
-    asyncio.run(db.add_button_action("purgito_role_toggle_x", 1, "role_toggle", json.dumps({"role_id": 1})))
+    asyncio.run(
+        db.add_button_action(
+            "purgito_role_toggle_x", 1, "role_toggle", json.dumps({"role_id": 1})
+        )
+    )
     asyncio.run(db.purge_guild_data(1))
     assert asyncio.run(db.get_button_action("purgito_role_toggle_x")) is None
 
@@ -114,7 +132,21 @@ def _make_interaction(guild, member):
 
 def _role_toggle(*args):
     from cogs.layout_buttons import _role_toggle as fn
+
     return fn(*args)
+
+
+@pytest.fixture(autouse=True)
+def _fake_guild_locale(monkeypatch):
+    """_role_toggle resuelve el locale del guild vía DB -- estos tests no
+    levantan una (a diferencia de memory_db, arriba), así que se mockea
+    para no requerir una."""
+    import cogs.layout_buttons as layout_buttons_mod
+
+    async def fake_guild_locale(guild_id):
+        return "es"
+
+    monkeypatch.setattr(layout_buttons_mod, "guild_locale", fake_guild_locale)
 
 
 def test_role_toggle_assigns_when_missing():

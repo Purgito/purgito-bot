@@ -20,26 +20,35 @@ import discord
 from discord.ext import commands
 
 import db
+from i18n import guild_locale, t
 
 log = logging.getLogger(__name__)
 
 
-async def _role_toggle(interaction: discord.Interaction, guild_id: int, role_id: int) -> None:
+async def _role_toggle(
+    interaction: discord.Interaction, guild_id: int, role_id: int
+) -> None:
     guild = interaction.guild
-    if guild is None or guild.id != guild_id or not isinstance(interaction.user, discord.Member):
+    locale = await guild_locale(guild.id if guild else None)
+    if (
+        guild is None
+        or guild.id != guild_id
+        or not isinstance(interaction.user, discord.Member)
+    ):
         await interaction.response.send_message(
-            "Este botón no es válido en este contexto.", ephemeral=True
+            t("layout_buttons.invalid_context", locale), ephemeral=True
         )
         return
     role = guild.get_role(role_id)
     if role is None:
-        await interaction.response.send_message("Ese rol ya no existe.", ephemeral=True)
+        await interaction.response.send_message(
+            t("layout_buttons.role_gone", locale), ephemeral=True
+        )
         return
     me = guild.me
     if not me.guild_permissions.manage_roles or role.position >= me.top_role.position:
         await interaction.response.send_message(
-            "El bot no tiene permisos para asignar ese rol "
-            "(falta \"Gestionar roles\" o el rol está por encima del bot en la jerarquía).",
+            t("layout_buttons.missing_permissions", locale),
             ephemeral=True,
         )
         return
@@ -48,16 +57,18 @@ async def _role_toggle(interaction: discord.Interaction, guild_id: int, role_id:
         if role in member.roles:
             await member.remove_roles(role, reason="Purgito: botón de rol (panel)")
             await interaction.response.send_message(
-                f"Se te quitó el rol {role.mention}.", ephemeral=True
+                t("layout_buttons.role_removed", locale, role=role.mention),
+                ephemeral=True,
             )
         else:
             await member.add_roles(role, reason="Purgito: botón de rol (panel)")
             await interaction.response.send_message(
-                f"Se te asignó el rol {role.mention}.", ephemeral=True
+                t("layout_buttons.role_assigned", locale, role=role.mention),
+                ephemeral=True,
             )
     except discord.Forbidden:
         await interaction.response.send_message(
-            "No se pudo cambiar el rol: permisos insuficientes.", ephemeral=True
+            t("layout_buttons.role_change_forbidden", locale), ephemeral=True
         )
 
 
@@ -73,7 +84,8 @@ def _dispatcher_view(rows: list[dict]) -> discord.ui.View:
             role_id = int(json.loads(row["action_data"])["role_id"])
         except (ValueError, KeyError, TypeError, json.JSONDecodeError):
             log.warning(
-                "layout_button_actions fila con action_data inválido: %s", row["custom_id"]
+                "layout_button_actions fila con action_data inválido: %s",
+                row["custom_id"],
             )
             continue
         guild_id = row["guild_id"]
@@ -81,7 +93,9 @@ def _dispatcher_view(rows: list[dict]) -> discord.ui.View:
             style=discord.ButtonStyle.secondary, custom_id=row["custom_id"]
         )
 
-        async def _cb(interaction: discord.Interaction, guild_id=guild_id, role_id=role_id):
+        async def _cb(
+            interaction: discord.Interaction, guild_id=guild_id, role_id=role_id
+        ):
             await _role_toggle(interaction, guild_id, role_id)
 
         btn.callback = _cb

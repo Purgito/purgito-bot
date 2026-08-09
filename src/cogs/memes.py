@@ -24,6 +24,7 @@ from db import (
     update_meme_last_posted,
 )
 from generation import build_markov_model
+from i18n import guild_locale, t
 from meme_generator import _try_short_sentence, is_valid_image, render_caption
 from utils import LRUDict
 
@@ -211,9 +212,10 @@ async def _generate_caption(
 
 
 async def handle_meme_command(message: discord.Message) -> None:
+    locale = await guild_locale(message.guild.id if message.guild else None)
     if not is_premium_guild(message.guild.id if message.guild else None):
         try:
-            await message.reply(premium_required_message())
+            await message.reply(premium_required_message(locale))
         except Exception:
             log.debug("No se pudo avisar el gate de premium", exc_info=True)
         return
@@ -276,7 +278,7 @@ async def handle_meme_command(message: discord.Message) -> None:
         log.info(
             "handle_meme_command: no se encontró attachment de imagen en el mensaje referenciado"
         )
-        await message.reply("necesito que respondas a un mensaje que tenga una imagen")
+        await message.reply(t("memes.need_image_reply", locale))
         return
 
     log.info(
@@ -286,25 +288,21 @@ async def handle_meme_command(message: discord.Message) -> None:
     )
 
     if image_att.size > MEME_MAX_BYTES:
-        await message.reply("la imagen supera el límite de 10MB")
+        await message.reply(t("memes.image_too_large", locale))
         return
 
     try:
         img_bytes = await image_att.read()
     except Exception:
         log.exception("Error descargando imagen para meme")
-        await message.reply(
-            "⚠️ No pude descargar la imagen. Intenta de nuevo en un momento."
-        )
+        await message.reply(t("memes.download_failed", locale))
         return
 
     if not message.guild:
         log.info(
             "handle_meme_command: mensaje fuera de guild, no hay modelo Markov disponible"
         )
-        await message.reply(
-            "⚠️ No pude generar el meme esta vez. Intenta de nuevo en un momento."
-        )
+        await message.reply(t("memes.no_guild", locale))
         return
 
     log.info("handle_meme_command: generando caption")
@@ -324,18 +322,14 @@ async def handle_meme_command(message: discord.Message) -> None:
             text = await asyncio.to_thread(_try_short_sentence, model)
     log.info("handle_meme_command: texto generado=%r", text)
     if not text:
-        await message.reply(
-            "⚠️ No se me ocurrió ningún texto para el meme. Intenta de nuevo en un momento."
-        )
+        await message.reply(t("memes.caption_missing", locale))
         return
 
     try:
         meme_bytes = await asyncio.to_thread(render_caption, img_bytes, text)
     except Exception:
         log.exception("Error generando meme con Pillow")
-        await message.reply(
-            "⚠️ Algo falló de mi lado al armar el meme. Intenta de nuevo en un rato."
-        )
+        await message.reply(t("memes.render_failed", locale))
         return
 
     await message.reply(file=discord.File(io.BytesIO(meme_bytes), filename="meme.png"))
@@ -363,7 +357,7 @@ class Memes(commands.Cog):
             await handle_meme_command(message)
 
     async def _target_fail(
-        self, message: discord.Message, user_id: int, reason: str
+        self, message: discord.Message, user_id: int, reason: str, locale: str
     ) -> None:
         """Señal de fallo para 🎯: ❌ garantizado en el mensaje + DM best-effort."""
         try:
@@ -372,9 +366,7 @@ class Memes(commands.Cog):
             log.debug("No se pudo reaccionar ❌ al mensaje %s", message.id)
         try:
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
-            await user.send(
-                f"No pude agregar esa imagen a la colección de memes: {reason}"
-            )
+            await user.send(t("memes.pool_fail_dm", locale, reason=reason))
         except Exception:
             pass  # DMs cerrados: la reacción ❌ ya es la señal mínima
 
@@ -393,9 +385,10 @@ class Memes(commands.Cog):
             return
         if message.author.bot:
             return
+        locale = await guild_locale(payload.guild_id)
         if not is_premium_guild(payload.guild_id):
             await self._target_fail(
-                message, payload.user_id, premium_required_message()
+                message, payload.user_id, premium_required_message(locale), locale
             )
             return
 
@@ -462,18 +455,20 @@ class Memes(commands.Cog):
 
         # Nada guardado: explicar por qué en vez de quedarse callado.
         if duplicate:
-            reason = "esa imagen ya estaba en el pool."
+            reason = t("memes.pool_reason.duplicate", locale)
         elif save_error:
-            reason = "algo falló de mi lado al guardarla, intenta de nuevo en un rato."
+            reason = t("memes.pool_reason.save_error", locale)
         elif oversized:
-            reason = (
-                f"la imagen supera el límite de {MEME_MAX_BYTES // (1024 * 1024)} MB."
+            reason = t(
+                "memes.pool_reason.oversized",
+                locale,
+                mb=MEME_MAX_BYTES // (1024 * 1024),
             )
         elif unsupported:
-            reason = "ese formato no es compatible (acepto png, jpg, jpeg y webp)."
+            reason = t("memes.pool_reason.unsupported", locale)
         else:
-            reason = "ese mensaje no tiene ninguna imagen adjunta."
-        await self._target_fail(message, payload.user_id, reason)
+            reason = t("memes.pool_reason.no_image", locale)
+        await self._target_fail(message, payload.user_id, reason, locale)
 
     @tasks.loop(minutes=10)
     async def auto_meme_task(self):
@@ -544,15 +539,16 @@ class Memes(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _momo_impl(self, interaction: discord.Interaction) -> None:
+        locale = await guild_locale(interaction.guild_id)
         if not is_premium_guild(interaction.guild_id):
             await interaction.response.send_message(
-                premium_required_message(), ephemeral=True
+                premium_required_message(locale), ephemeral=True
             )
             return
         remaining = _check_meme_cooldown(interaction.guild_id or 0, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                f"espera {remaining} segundos antes de generar otro meme",
+                t("memes.momo_cooldown", locale, seconds=remaining),
                 ephemeral=True,
             )
             return
@@ -560,7 +556,9 @@ class Memes(commands.Cog):
         await interaction.response.defer()
 
         if not interaction.guild:
-            await interaction.followup.send("Solo en servidores.", ephemeral=True)
+            await interaction.followup.send(
+                t("general.guild_only", locale), ephemeral=True
+            )
             return
 
         try:
@@ -569,8 +567,7 @@ class Memes(commands.Cog):
             img_bytes, image_url = await _pick_pool_image(guild_id, "momo")
             if not image_url:
                 await interaction.followup.send(
-                    "⚠️ Todavía no tengo fotos guardadas para este servidor — "
-                    "reacciona con 🎯 a una imagen para agregarla.",
+                    t("memes.momo_no_pool_image", locale),
                     ephemeral=True,
                 )
                 return
@@ -580,8 +577,7 @@ class Memes(commands.Cog):
             )
             if not corpus_sample:
                 await interaction.followup.send(
-                    "⚠️ Todavía no he leído suficientes mensajes de este servidor "
-                    "para inspirarme. Vuelve a intentar cuando haya más conversación.",
+                    t("memes.momo_no_corpus", locale),
                     ephemeral=True,
                 )
                 return
@@ -589,8 +585,7 @@ class Memes(commands.Cog):
             caption = await _generate_caption(guild_id, img_bytes, corpus_sample)
             if not caption:
                 await interaction.followup.send(
-                    "⚠️ No se me ocurrió ningún texto para el meme. "
-                    "Intenta de nuevo en un momento.",
+                    t("memes.caption_missing", locale),
                     ephemeral=True,
                 )
                 return
@@ -603,7 +598,7 @@ class Memes(commands.Cog):
         except Exception:
             log.exception("momo: error inesperado")
             await interaction.followup.send(
-                "😖 Algo falló de mi lado. Intenta de nuevo en un rato.",
+                t("memes.momo_generic_error", locale),
                 ephemeral=True,
             )
 

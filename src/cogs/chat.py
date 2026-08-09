@@ -831,21 +831,23 @@ class Chat(commands.Cog):
     async def generar(self, interaction: discord.Interaction):
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
             )
             return
 
+        locale = await i18n.guild_locale(interaction.guild.id)
         remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
+                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
+                ephemeral=True,
             )
             return
 
         await interaction.response.defer(thinking=True)
         if interaction.channel is None:
             await interaction.followup.send(
-                "No puedo determinar el canal.", ephemeral=True
+                i18n.t("chat.cannot_determine_channel", locale), ephemeral=True
             )
             return
         settings = await get_effective_chat_settings(
@@ -858,7 +860,6 @@ class Chat(commands.Cog):
         )
         if text is None:
             # Comando explícito: siempre el mensaje completo con instrucciones.
-            locale = await i18n.guild_locale(interaction.guild.id)
             reply = generation.empty_corpus_reply(interaction.guild.id, locale)
         elif is_special:
             reply = await render_frase_template(
@@ -879,14 +880,16 @@ class Chat(commands.Cog):
     async def imitar(self, interaction: discord.Interaction, usuario: discord.Member):
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", i18n.DEFAULT_LOCALE), ephemeral=True
             )
             return
 
+        locale = await i18n.guild_locale(interaction.guild.id)
         remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
+                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
+                ephemeral=True,
             )
             return
 
@@ -895,7 +898,12 @@ class Chat(commands.Cog):
         count = await count_user_messages(interaction.guild.id, usuario.id)
         if count < 30:
             await interaction.followup.send(
-                f"⚠️ **{usuario.display_name}** solo tiene {count} mensaje(s) guardados. Necesita al menos 30."
+                i18n.t(
+                    "chat.imitar_not_enough_messages",
+                    locale,
+                    user=usuario.display_name,
+                    count=count,
+                )
             )
             return
 
@@ -904,12 +912,16 @@ class Chat(commands.Cog):
         )
         if result is None:
             await interaction.followup.send(
-                f"⚠️ No se pudo generar un mensaje para **{usuario.display_name}**. Prueba más tarde."
+                i18n.t(
+                    "chat.imitar_generation_failed", locale, user=usuario.display_name
+                )
             )
             return
 
         await interaction.followup.send(
-            f'🎭 **{usuario.display_name}** diría: "{result}"'
+            i18n.t(
+                "chat.imitar_result", locale, user=usuario.display_name, text=result
+            )
         )
 
     # --- CORPUS ---

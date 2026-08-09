@@ -13,6 +13,7 @@ from cogs.general import VOTE_URL, General
 
 class FakeInteraction:
     def __init__(self):
+        self.guild = None
         self.sent: list[dict] = []
 
         async def _send_message(**kwargs):

@@ -17,6 +17,7 @@ from cogs.general import General
 class FakeInteraction:
     def __init__(self, done=False, rtype=None):
         self.command = SimpleNamespace(name="prueba")
+        self.guild = None
         self.edited: list[str] = []
         self.followup_sent: list[tuple] = []
         self.resp_sent: list[tuple] = []

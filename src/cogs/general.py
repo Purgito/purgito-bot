@@ -58,7 +58,9 @@ class General(commands.Cog):
             else t("general.help.default_guild_name", locale)
         )
         embed = build_intro_embed(guild_name, locale)
-        view = HelpView(author_id=interaction.user.id, guild_name=guild_name, locale=locale)
+        view = HelpView(
+            author_id=interaction.user.id, guild_name=guild_name, locale=locale
+        )
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()
 

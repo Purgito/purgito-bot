@@ -593,19 +593,10 @@ input::placeholder { color: var(--text-muted); }
   stroke-linecap: round; stroke-linejoin: round;
 }
 
-/* ── decorativo ── */
+/* ── mascota del hero ── */
 .hero-deco { flex: 1; min-width: 0; display: flex; justify-content: center; }
 @media (max-width: 900px) { .hero-deco { display: none; } }
-.deco-svg { width: 100%; max-width: 26rem; height: auto; overflow: visible; }
-.deco-blob { animation: float 9s ease-in-out infinite; transform-origin: center; }
-.deco-blob-b { animation-duration: 12s; animation-direction: reverse; }
-.deco-ring { animation: spin 40s linear infinite; transform-origin: 210px 160px; }
-.deco-ring-b { animation-duration: 26s; animation-direction: reverse; }
-.deco-spark { animation: twinkle 4s ease-in-out infinite; }
-
-@keyframes float { 50% { transform: translateY(-14px) scale(1.04); } }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes twinkle { 50% { opacity: .35; } }
+.hero-portrait { width: 100%; max-width: 22rem; }
 
 /* ── terminal (componente existente, reutilizado) ── */
 .ticker {

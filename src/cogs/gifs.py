@@ -22,6 +22,7 @@ from db import (
     save_gif_url,
     update_gif_media_url,
 )
+from i18n import guild_locale, t
 from utils import has_admin_permission
 
 log = logging.getLogger(__name__)
@@ -339,19 +340,21 @@ class Gifs(commands.Cog):
     async def gif_add(self, interaction: discord.Interaction, url: str):
         from cogs.premium import is_premium_guild, premium_required_message
 
+        locale = await guild_locale(interaction.guild.id if interaction.guild else None)
+
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                t("general.guild_only", locale), ephemeral=True
             )
             return
         if not has_admin_permission(interaction):
             await interaction.response.send_message(
-                "❌ No tienes permisos para usar este comando.", ephemeral=True
+                t("general.error.no_permission", locale), ephemeral=True
             )
             return
         if not is_premium_guild(interaction.guild_id):
             await interaction.response.send_message(
-                premium_required_message(), ephemeral=True
+                premium_required_message(locale), ephemeral=True
             )
             return
 
@@ -363,22 +366,16 @@ class Gifs(commands.Cog):
         if host == "cdn.discordapp.com":
             up = await _upload_gif_throttled(url)
             if up and up.url == r2.GIF_TOO_LARGE:
-                await interaction.followup.send(
-                    "❌ El GIF supera el límite de tamaño permitido."
-                )
+                await interaction.followup.send(t("gifs.add.too_large", locale))
                 return
             if not up:
-                await interaction.followup.send(
-                    "❌ No se pudo subir el GIF a R2. Comprueba que la URL sea accesible."
-                )
+                await interaction.followup.send(t("gifs.add.upload_failed", locale))
                 return
             final_url, content_hash, size_bytes, phash = up
         elif _is_gif_site(host):
             final_url = url
         else:
-            await interaction.followup.send(
-                "❌ URL no reconocida. Solo se aceptan GIFs de tenor.com, giphy.com o cdn.discordapp.com."
-            )
+            await interaction.followup.send(t("gifs.add.unrecognized_url", locale))
             return
 
         inserted, _ = await save_gif_url(
@@ -386,12 +383,10 @@ class Gifs(commands.Cog):
         )
         total = await count_gif_urls(interaction.guild.id)
         if inserted:
-            await interaction.followup.send(
-                f"✅ GIF guardado. La colección del servidor tiene {total} GIFs en total."
-            )
+            await interaction.followup.send(t("gifs.add.saved", locale, total=total))
         else:
             await interaction.followup.send(
-                f"ℹ️ Ese GIF ya estaba en la colección. Total: {total} GIFs."
+                t("gifs.add.duplicate", locale, total=total)
             )
 
 
