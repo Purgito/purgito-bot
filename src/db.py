@@ -3049,9 +3049,24 @@ async def delete_frase_especial(guild_id: int, frase_id: int) -> bool:
 
 
 async def set_frase_pack(guild_id: int, frase_id: int, pack_id: int | None) -> bool:
-    """Asigna (o quita, con pack_id=None) el pack de una frase existente."""
+    """Asigna (o quita, con pack_id=None) el pack de una frase existente.
+
+    Valida que pack_id sea de ESTE guild antes de asignarlo -- sin esto, un
+    admin podía apuntar una frase propia a un pack_id ajeno (IDOR: el id es
+    un autoincrement global, no algo scopeado por guild). Hoy ningún query
+    de lectura junta contenido de otro guild a través de ese pack_id
+    (get_random_frase_especial siempre filtra por guild_id Y pack_id juntos),
+    pero es el mismo patrón de validación que ya se usa en delete_frase_pack
+    -- más vale no dejar un pack_id ajeno colgado en la fila."""
     db = await get_db()
     async with _db_lock:
+        if pack_id is not None:
+            async with db.execute(
+                "SELECT 1 FROM frase_packs WHERE guild_id=? AND id=?",
+                (guild_id, pack_id),
+            ) as cur:
+                if not await cur.fetchone():
+                    return False
         cursor = await db.execute(
             "UPDATE frases_especiales SET pack_id=? WHERE guild_id=? AND id=?",
             (pack_id, guild_id, frase_id),
@@ -3182,11 +3197,21 @@ async def delete_frase_pack(guild_id: int, pack_id: int) -> bool:
     return deleted
 
 
-async def assign_pack_to_channel(guild_id: int, channel_id: int, pack_id: int) -> None:
+async def assign_pack_to_channel(guild_id: int, channel_id: int, pack_id: int) -> bool:
     """Un canal usa a lo sumo un pack: asignar uno nuevo reemplaza al que
-    tuviera antes (no hace falta desasignar primero)."""
+    tuviera antes (no hace falta desasignar primero).
+
+    Valida que pack_id sea de ESTE guild antes de asignarlo -- mismo IDOR
+    que set_frase_pack (pack_id es un autoincrement global). Retorna False
+    sin escribir nada si el pack no es de este guild."""
     db = await get_db()
     async with _db_lock:
+        async with db.execute(
+            "SELECT 1 FROM frase_packs WHERE guild_id=? AND id=?",
+            (guild_id, pack_id),
+        ) as cur:
+            if not await cur.fetchone():
+                return False
         await db.execute(
             "INSERT INTO frase_pack_channels (guild_id, channel_id, pack_id) "
             "VALUES (?, ?, ?) "
@@ -3194,6 +3219,7 @@ async def assign_pack_to_channel(guild_id: int, channel_id: int, pack_id: int) -
             (guild_id, channel_id, pack_id),
         )
         await db.commit()
+    return True
 
 
 async def unassign_pack_from_channel(
@@ -3286,6 +3312,17 @@ async def add_channel_trigger(
     max_triggers = channel_triggers_limit(guild_id)
     db = await get_db()
     async with _db_lock:
+        if pack_id is not None:
+            # pack_id es un autoincrement global, no scopeado por guild --
+            # mismo IDOR que set_frase_pack/assign_pack_to_channel (Sección
+            # 6): sin esto, un guild podía apuntar su propio trigger al
+            # pack_id de otro servidor.
+            async with db.execute(
+                "SELECT 1 FROM frase_packs WHERE guild_id=? AND id=?",
+                (guild_id, pack_id),
+            ) as cur:
+                if not await cur.fetchone():
+                    return None
         async with db.execute(
             "SELECT COUNT(*) FROM channel_triggers WHERE guild_id=?", (guild_id,)
         ) as cur:

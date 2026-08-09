@@ -45,6 +45,26 @@ def _is_gif_site(host: str) -> bool:
     )
 
 
+# r2.upload_gif_sync es caro (descarga hasta MAX_GIF_DOWNLOAD_BYTES, gifsicle,
+# sha256, phash) y corre en el thread pool default de asyncio -- compartido
+# con la generación de Markov, memes y todo lo demás del proceso. Sin tope,
+# cualquier miembro (no hace falta ser admin: on_message dispara esto para
+# TODO mensaje) podía postear GIFs de cdn.discordapp.com en ráfaga y saturar
+# ese pool para el resto del bot -- mismo patrón de "un guild degrada a
+# todos" que ya se corrigió en /auth/callback y /webhooks/polar.
+#
+# Un semáforo (no un rate limit que descarte) a propósito: nunca hay que
+# perder un GIF legítimo por llegar en una ráfaga -- ver la investigación del
+# auto-borrado agresivo. Esto solo acota cuántas subidas corren en paralelo;
+# el resto espera su turno, no se pierde.
+_UPLOAD_CONCURRENCY = asyncio.Semaphore(2)
+
+
+async def _upload_gif_throttled(url: str) -> "r2.GifUpload | None":
+    async with _UPLOAD_CONCURRENCY:
+        return await asyncio.to_thread(r2.upload_gif_sync, url)
+
+
 async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
     """Guarda en la colección los GIFs (tenor/giphy/cdn) del contenido y adjuntos de un mensaje.
     Retorna cuántos GIFs nuevos (no duplicados) se guardaron."""
@@ -58,7 +78,7 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
                 host = _gif_host(url)
                 content_hash, size_bytes, phash = None, 0, None
                 if host == "cdn.discordapp.com":
-                    up = await asyncio.to_thread(r2.upload_gif_sync, url)
+                    up = await _upload_gif_throttled(url)
                     if not up or up.url == r2.GIF_TOO_LARGE:
                         # Sin subida a R2 no hay URL estable que guardar: el
                         # link crudo de cdn.discordapp.com está firmado y
@@ -84,7 +104,7 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
                 url = attachment.url
                 content_hash, size_bytes, phash = None, 0, None
                 if "cdn.discordapp.com" in url:
-                    up = await asyncio.to_thread(r2.upload_gif_sync, url)
+                    up = await _upload_gif_throttled(url)
                     if not up or up.url == r2.GIF_TOO_LARGE:
                         continue
                     url, content_hash, size_bytes, phash = up
@@ -340,7 +360,7 @@ class Gifs(commands.Cog):
         host = _gif_host(url)
         content_hash, size_bytes, phash = None, 0, None
         if host == "cdn.discordapp.com":
-            up = await asyncio.to_thread(r2.upload_gif_sync, url)
+            up = await _upload_gif_throttled(url)
             if up and up.url == r2.GIF_TOO_LARGE:
                 await interaction.followup.send(
                     "❌ El GIF supera el límite de tamaño permitido."

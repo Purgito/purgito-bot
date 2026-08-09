@@ -1548,7 +1548,9 @@ async def _api_frase_pack_channels_post(
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
-    await assign_pack_to_channel(guild_id, channel_id, pack_id)
+    ok = await assign_pack_to_channel(guild_id, channel_id, pack_id)
+    if not ok:
+        return web.json_response({"error": "pack no encontrado"}, status=404)
     await _log_audit(
         request,
         guild_id,

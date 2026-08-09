@@ -135,3 +135,98 @@ def test_el_guard_se_libera_incluso_si_la_corrida_real_tira_una_excepcion(
         assert (1, 100) not in chat_mod._refeeding_channels
 
     asyncio.run(run())
+
+
+# ─── Sección 5, ronda 2: /refeed_channels vs _refeed_running (guard hermano) ─
+#
+# El chequeo de _refeed_running DENTRO del comando (antes de mandar "Empezando…")
+# no tiene un await entre la lectura y el registro real (eso pasa adentro de
+# start_refeed_channels, que sí es atómico) -- así que dos invocaciones casi
+# simultáneas pueden pasar LAS DOS ese primer chequeo. La corrida real sigue
+# protegida (start_refeed_channels es atómico), pero antes del fix la
+# perdedora se quedaba con su mensaje "Empezando…" como si su propia corrida
+# hubiera arrancado, cuando en realidad no hizo nada.
+
+
+class _FakeResponse:
+    def __init__(self):
+        self.sent: list[str] = []
+
+    async def send_message(self, content, **kw):
+        self.sent.append(content)
+
+
+class _FakeProgressMessage:
+    def __init__(self, mid):
+        self.id = mid
+        self.edits: list[str] = []
+
+    async def edit(self, content=None, **kw):
+        self.edits.append(content)
+
+
+class _FakeChannel:
+    def __init__(self, message):
+        self._message = message
+
+    async def fetch_message(self, message_id):
+        return self._message
+
+
+class _FakeInteraction:
+    def __init__(self, mid):
+        self.guild = SimpleNamespace(id=1)
+        self.response = _FakeResponse()
+        self.progress_message = _FakeProgressMessage(mid)
+        self.channel = _FakeChannel(self.progress_message)
+        self.user = SimpleNamespace()
+
+    async def original_response(self):
+        # Un yield real (a diferencia de un fake sin await interno, que
+        # correría de punta a punta sin ceder el loop): así se puede
+        # construir la ventana real entre el primer chequeo de _refeed_running
+        # (antes de esto) y el registro atómico (después, en
+        # start_refeed_channels) que el fix tiene que cubrir.
+        await asyncio.sleep(0)
+        return self.progress_message
+
+
+@pytest.fixture(autouse=True)
+def _clean_refeed_running():
+    chat_mod._refeed_running.clear()
+    yield
+    chat_mod._refeed_running.clear()
+
+
+def test_refeed_channels_dos_invocaciones_casi_simultaneas_la_perdedora_no_miente(
+    monkeypatch,
+):
+    chat = Chat(SimpleNamespace())
+    monkeypatch.setattr(chat_mod, "has_admin_permission", lambda interaction: True)
+
+    release = asyncio.Event()
+    calls = 0
+
+    async def fake_refeed_guild(guild, progress_msg, report_channel):
+        nonlocal calls
+        calls += 1
+        await release.wait()
+        return {"saved": 1}
+
+    monkeypatch.setattr(chat, "_refeed_guild", fake_refeed_guild)
+
+    winner = _FakeInteraction(mid=1)
+    loser = _FakeInteraction(mid=2)
+
+    async def run():
+        first = asyncio.ensure_future(chat.refeed_channels.callback(chat, winner))
+        await asyncio.sleep(0)  # deja que la primera registre _refeed_running
+        await chat.refeed_channels.callback(chat, loser)
+        release.set()
+        await first
+
+    asyncio.run(run())
+
+    assert calls == 1  # solo UNA corrida real, sin importar la carrera
+    assert winner.progress_message.edits == []  # la ganadora no se toca
+    assert any("no hizo nada nuevo" in (e or "") for e in loser.progress_message.edits)

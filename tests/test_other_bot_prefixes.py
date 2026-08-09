@@ -8,6 +8,7 @@ parcheados con monkeypatch, discord.Message simulado con un fake mínimo.
 """
 
 import asyncio
+import itertools
 from types import SimpleNamespace
 
 import pytest
@@ -16,11 +17,14 @@ import cogs.chat as chat_mod
 from cogs.chat import Chat, OTHER_BOT_PREFIXES
 
 BOT_ID = 999
+_next_message_id = itertools.count(1)
 
 
 class FakeMessage:
     def __init__(self, content, mention=True, guild_id=1, channel_id=10):
-        self.id = 123
+        # IDs únicas de verdad: on_message deduplica por message.id (ver
+        # _recent_message_ids en cogs/chat.py).
+        self.id = next(_next_message_id)
         self.author = SimpleNamespace(bot=False, id=5, display_name="user", roles=[])
         self.guild = SimpleNamespace(id=guild_id)
         self.channel_sent: list[str] = []
@@ -45,6 +49,7 @@ class FakeMessage:
 def cog(monkeypatch):
     chat_mod._muted_reply_cooldowns.clear()
     chat_mod._mention_hits.clear()
+    chat_mod._recent_message_ids.clear()
     # random() = 1.0: nunca dispara la reacción aleatoria ni el GIF.
     monkeypatch.setattr(chat_mod, "random", SimpleNamespace(random=lambda: 1.0))
 

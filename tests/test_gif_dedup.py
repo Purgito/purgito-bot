@@ -16,6 +16,7 @@ import asyncio
 import aiosqlite
 import pytest
 
+import cogs.gifs as gifs_mod
 import db
 import r2
 
@@ -209,6 +210,163 @@ def test_upload_does_not_follow_redirects(monkeypatch):
 
     assert calls == [False]
     assert result is None
+
+
+# ---------- r2: bloqueo de IP privada / DNS rebinding (Sección 4, ronda 2) ----------
+#
+# Defensa en profundidad: hoy no hay ruta explotable (el único caller real ya
+# valida el hostname exacto contra cdn.discordapp.com antes de llegar acá),
+# pero un caller futuro menos cuidadoso no debería poder usar upload_gif_sync
+# para tocar un servicio interno.
+
+
+def test_public_ip_for_host_accepts_public_address(monkeypatch):
+    monkeypatch.setattr(
+        r2.socket,
+        "getaddrinfo",
+        lambda *a, **k: [(None, None, None, None, ("93.184.216.34", 0))],
+    )
+    assert r2._public_ip_for_host("example.com") == "93.184.216.34"
+
+
+def test_public_ip_for_host_rejects_loopback_and_private_and_link_local(monkeypatch):
+    for ip in ("127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.169.254"):
+        monkeypatch.setattr(
+            r2.socket,
+            "getaddrinfo",
+            lambda *a, ip=ip, **k: [(None, None, None, None, (ip, 0))],
+        )
+        assert r2._public_ip_for_host("evil.example.com") is None
+
+
+def test_public_ip_for_host_skips_private_and_returns_first_public(monkeypatch):
+    """Un hostname con varios registros A -- alcanza con que UNO sea privado
+    para que el rebinding funcione, así que se busca hasta encontrar el
+    primero público en vez de fallar en el primer resultado."""
+    monkeypatch.setattr(
+        r2.socket,
+        "getaddrinfo",
+        lambda *a, **k: [
+            (None, None, None, None, ("127.0.0.1", 0)),
+            (None, None, None, None, ("93.184.216.34", 0)),
+        ],
+    )
+    assert r2._public_ip_for_host("mixed.example.com") == "93.184.216.34"
+
+
+def test_public_ip_for_host_returns_none_on_dns_failure(monkeypatch):
+    def raise_gaierror(*a, **k):
+        raise r2.socket.gaierror("no se pudo resolver")
+
+    monkeypatch.setattr(r2.socket, "getaddrinfo", raise_gaierror)
+    assert r2._public_ip_for_host("no-existe.invalid") is None
+
+
+def test_upload_rejects_host_resolving_to_private_ip(monkeypatch):
+    """Un hostname que resuelve a loopback/LAN/link-local nunca debe llegar
+    a requests.get -- ni siquiera se intenta la descarga."""
+    monkeypatch.setattr(r2, "get_client", lambda: _FakeUploadClient())
+    monkeypatch.setattr(
+        r2.socket,
+        "getaddrinfo",
+        lambda *a, **k: [(None, None, None, None, ("169.254.169.254", 0))],
+    )
+    called = []
+    monkeypatch.setattr(
+        r2.requests, "get", lambda *a, **k: called.append(1) or _FakeUploadResp(b"x")
+    )
+
+    result = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert result is None
+    assert called == []
+
+
+def test_upload_pins_dns_to_the_validated_ip(monkeypatch):
+    """Simula un rebinding real: el resolver "real" da una IP pública en la
+    validación inicial pero, para cuando se conecta, ya cambió a una IP
+    privada. Sin pinning, la conexión resolvería de nuevo y caería en la
+    trampa; con pinning tiene que seguir usando la IP ya validada."""
+    client = _FakeUploadClient()
+    _patch_upload(monkeypatch, client, b"GIF89a-datos")
+
+    real_answers = iter(["93.184.216.34", "169.254.169.254"])
+
+    def rebinding_getaddrinfo(host, *a, **k):
+        # Un IP literal (como el que pasa _pinned) se resuelve a sí mismo,
+        # igual que el socket.getaddrinfo real -- solo un hostname de verdad
+        # dispara una nueva consulta "DNS" (y, en este mock, la respuesta
+        # rebindeada).
+        try:
+            r2.ipaddress.ip_address(host)
+            return [(None, None, None, None, (host, 0))]
+        except ValueError:
+            return [(None, None, None, None, (next(real_answers), 0))]
+
+    monkeypatch.setattr(r2.socket, "getaddrinfo", rebinding_getaddrinfo)
+
+    seen_during_request = {}
+
+    def spying_get(*a, **k):
+        # Mientras la "conexión" está en curso, getaddrinfo tiene que
+        # devolver la IP ya pinneada, no volver a resolver (lo que daría la
+        # IP rebindeada, la segunda del iterador).
+        seen_during_request["ip"] = r2.socket.getaddrinfo("cdn.discordapp.com", None)[
+            0
+        ][4][0]
+        return _FakeUploadResp(b"GIF89a-datos")
+
+    monkeypatch.setattr(r2.requests, "get", spying_get)
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert up is not None
+    assert seen_during_request["ip"] == "93.184.216.34"
+    # Fuera del bloque de la request, getaddrinfo vuelve a ser el mock
+    # original (no queda parchado globalmente después de la llamada).
+    assert r2.socket.getaddrinfo is rebinding_getaddrinfo
+
+
+# ---------- cogs.gifs: concurrencia acotada de subidas (Sección 4, ronda 2) ----------
+#
+# r2.upload_gif_sync es caro (descarga + gifsicle + hash) y corre en el
+# thread pool default compartido con el resto del bot. save_gif_candidates
+# se dispara en on_message para CUALQUIER mensaje de CUALQUIER miembro (no
+# hace falta ser admin) -- sin tope, una ráfaga de mensajes con GIFs de
+# cdn.discordapp.com podía saturar ese pool para todo el proceso. El fix es
+# un semáforo, no un rate limit que descarte: nunca hay que perder un GIF
+# legítimo por llegar en ráfaga (ver la investigación del auto-borrado).
+
+
+def test_upload_throttled_never_exceeds_semaphore_size(monkeypatch):
+    """Ninguna llamada a r2.upload_gif_sync debe correr más de
+    _UPLOAD_CONCURRENCY veces en simultáneo, sin importar cuántas lleguen
+    a la vez -- y ninguna se pierde, solo esperan su turno."""
+    import threading
+    import time
+
+    gate = threading.Lock()
+    state = {"current": 0, "max": 0}
+
+    def fake_upload_sync(url):
+        with gate:
+            state["current"] += 1
+            state["max"] = max(state["max"], state["current"])
+        time.sleep(0.05)
+        with gate:
+            state["current"] -= 1
+        return url
+
+    monkeypatch.setattr(r2, "upload_gif_sync", fake_upload_sync)
+
+    async def run():
+        return await asyncio.gather(
+            *[gifs_mod._upload_gif_throttled(f"https://x/{i}") for i in range(8)]
+        )
+
+    results = asyncio.run(run())
+    assert results == [f"https://x/{i}" for i in range(8)]
+    assert state["max"] <= 2  # tamaño real de _UPLOAD_CONCURRENCY
 
 
 # ---------- r2: optimización con gifsicle ----------

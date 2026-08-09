@@ -165,6 +165,25 @@ def test_patch_sin_pack_id_en_el_body_devuelve_400(memory_db):
     assert resp.status == 400
 
 
+def test_patch_no_puede_asignar_un_pack_de_otro_guild(memory_db):
+    """Sección 6, ronda 1: pack_id es un autoincrement global -- sin la
+    validación de guild, un admin podía apuntar su propia frase al pack_id
+    de OTRO servidor (adivinable/enumerable por ser secuencial)."""
+    otro_guild = _GUILD + 1
+    ajeno = asyncio.run(db.add_frase_pack(otro_guild, "Pack ajeno"))
+    asyncio.run(db.add_frase_especial(_GUILD, 1, "u", "hola"))
+    frase_id = asyncio.run(db.list_frases_especiales(_GUILD))[0]["id"]
+
+    resp = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"pack_id": ajeno}),
+    )
+
+    assert _json(resp)["updated"] is False
+    frase = asyncio.run(db.get_frase_especial(_GUILD, frase_id))
+    assert frase["pack_id"] is None  # no quedó apuntando al pack ajeno
+
+
 # ── Packs: CRUD ───────────────────────────────────────────────────────────────
 
 
@@ -222,6 +241,19 @@ def test_asignar_y_listar_canales_de_un_pack(memory_db):
     channels = _json(get)["channels"]
     assert len(channels) == 1
     assert channels[0]["id"] == "10"
+
+
+def test_asignar_canal_a_un_pack_de_otro_guild_devuelve_404(memory_db):
+    otro_guild = _GUILD + 1
+    ajeno = asyncio.run(db.add_frase_pack(otro_guild, "Pack ajeno"))
+
+    resp = _run(
+        webapi._api_frase_pack_channels_post,
+        FakeRequest(match_info={"pack_id": str(ajeno)}, body={"channel_id": "10"}),
+    )
+
+    assert resp.status == 404
+    assert asyncio.run(db.get_effective_frase_pool(_GUILD, 10)) is None
 
 
 def test_desasignar_un_canal_de_un_pack(memory_db):

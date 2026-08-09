@@ -74,6 +74,24 @@ def test_pack_id_se_guarda_para_frase_de_pack(temp_db):
     assert triggers[0]["pack_id"] == pack_id
 
 
+def test_pack_id_de_otro_guild_se_rechaza(temp_db):
+    """Sección 6, ronda 1: pack_id es un autoincrement global -- mismo IDOR
+    que assign_pack_to_channel/set_frase_pack. Un guild no debe poder crear
+    un trigger apuntando al pack_id de OTRO servidor."""
+
+    async def run():
+        guild_a, guild_b = 1, 2
+        ajeno = await db.add_frase_pack(guild_b, "Pack de B")
+        trigger_id = await db.add_channel_trigger(
+            guild_a, 10, "exact", "feliz", "frase_de_pack", pack_id=ajeno
+        )
+        return trigger_id, await db.list_channel_triggers(guild_a, 10)
+
+    trigger_id, triggers = asyncio.run(run())
+    assert trigger_id is None
+    assert triggers == []  # no se creó nada, ni siquiera con pack_id NULL
+
+
 def test_triggers_se_recortan_al_limite(temp_db, monkeypatch):
     monkeypatch.setenv("MAX_CHANNEL_TRIGGERS_PER_GUILD_FREE", "2")
 

@@ -146,6 +146,19 @@ class General(commands.Cog):
                 return
             purged = 0
             for guild_id in expired:
+                # expired se armó con una sola lectura al principio del loop;
+                # purgar guilds grandes (muchos GIFs) puede tardar. Si el bot
+                # vuelve a este guild mientras tanto, on_guild_join ya limpió
+                # guild_departures, pero esa lectura vieja no se entera -- sin
+                # este re-chequeo, un guild recién reincorporado perdería su
+                # corpus/GIFs/config igual, de forma irreversible. bot.get_guild
+                # refleja la membresía ACTUAL, no la de cuando arrancó el loop.
+                if self.bot.get_guild(guild_id) is not None:
+                    log.info(
+                        "guild_cleanup: guild %s volvió a estar activo, se salta la purga",
+                        guild_id,
+                    )
+                    continue
                 try:
                     if r2.available() and r2.public_url():
                         # release_gif_reference, NO r2.delete_url: los GIFs con

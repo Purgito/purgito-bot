@@ -372,7 +372,9 @@ class Memes(commands.Cog):
             log.debug("No se pudo reaccionar ❌ al mensaje %s", message.id)
         try:
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
-            await user.send(f"No pude agregar esa imagen a la colección de memes: {reason}")
+            await user.send(
+                f"No pude agregar esa imagen a la colección de memes: {reason}"
+            )
         except Exception:
             pass  # DMs cerrados: la reacción ❌ ya es la señal mínima
 
@@ -510,16 +512,31 @@ class Memes(commands.Cog):
                 await channel.send(
                     file=discord.File(io.BytesIO(meme_bytes), filename="meme.png")
                 )
+            except Exception:
+                log.exception(
+                    "auto_meme: error inesperado para canal %s", schedule["channel_id"]
+                )
+                continue
+
+            # El meme YA se posteó. Si update_meme_last_posted falla acá, el
+            # schedule sigue "due" y se repostea en la próxima corrida (10
+            # min) -- duplicado visible. Log distinto y más fuerte que el de
+            # arriba a propósito: esto no es "no se pudo generar el meme",
+            # es "se generó y se mandó, pero puede reenviarse".
+            try:
                 await update_meme_last_posted(guild_id, schedule["channel_id"])
                 log.info(
                     "auto_meme: meme posteado en canal %s con caption: %s",
                     schedule["channel_id"],
                     caption,
                 )
-
             except Exception:
-                log.exception(
-                    "auto_meme: error inesperado para canal %s", schedule["channel_id"]
+                log.error(
+                    "auto_meme: se posteó el meme en canal %s pero no se pudo "
+                    "marcar como enviado -- probablemente se repostee en la "
+                    "próxima corrida (10 min)",
+                    schedule["channel_id"],
+                    exc_info=True,
                 )
 
     @auto_meme_task.before_loop

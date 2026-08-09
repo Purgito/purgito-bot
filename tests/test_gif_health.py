@@ -259,9 +259,7 @@ def test_resolve_media_url_tenor_uses_thumbnail_url(monkeypatch):
                 {"thumbnail_url": "https://media.tenor.com/x.png"}
             ),
         )
-        result = await gifs_mod.resolve_media_url(
-            "https://tenor.com/view/foo-gif-123"
-        )
+        result = await gifs_mod.resolve_media_url("https://tenor.com/view/foo-gif-123")
         assert result == "https://media.tenor.com/x.png"
 
     asyncio.run(run())

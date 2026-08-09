@@ -75,6 +75,14 @@ _muted_reply_cooldowns: LRUDict = LRUDict(256)
 _MENTION_RATE_WINDOW = 3600.0
 _mention_hits: LRUDict = LRUDict(8192)
 
+# El gateway de Discord puede reenviar el mismo MESSAGE_CREATE tras un RESUME
+# (documentado, no hipotético): sin este guard, el mismo message.id procesado
+# dos veces dispara una respuesta a mención (o un trigger de canal) duplicada
+# y gasta doble cupo de mention_rate_limit por nada. El guardado al corpus ya
+# es idempotente por UNIQUE(guild_id, message_id) -- esto es lo que le falta
+# al resto del handler (reacción, trigger, respuesta a mención).
+_recent_message_ids: LRUDict = LRUDict(2048)
+
 
 def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
     """True si al usuario le queda cupo en su ventana de 1 h (y lo consume).
@@ -426,6 +434,24 @@ class Chat(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
+        if message.id in _recent_message_ids:
+            return
+        _recent_message_ids[message.id] = True
+        try:
+            await self._on_message_impl(message)
+        except Exception:
+            # Si el handler no llegó a terminar (excepción a mitad de camino:
+            # una llamada a R2/Discord que falló, un error de DB), NO dejar
+            # este message.id marcado como "ya procesado" -- si el gateway
+            # reenvía este mismo mensaje (RESUME), merece un intento fresco,
+            # no quedar descartado en silencio por el guard de dedup de
+            # arriba. discord.py ya loguea la excepción (_run_event/on_error
+            # default) y sigue con el resto de los listeners -- acá solo se
+            # deshace la marca antes de dejarla propagar.
+            _recent_message_ids.pop(message.id, None)
+            raise
+
+    async def _on_message_impl(self, message: discord.Message) -> None:
         if is_meme_trigger(self.bot, message):
             return  # lo maneja el cog de memes; no entra al corpus
         if (message.content or "").strip().startswith(OTHER_BOT_PREFIXES):
@@ -1320,7 +1346,27 @@ class Chat(commands.Cog):
                     exc_info=True,
                 )
 
-        self.start_refeed_channels(interaction.guild, progress_msg, interaction.channel)
+        started = self.start_refeed_channels(
+            interaction.guild, progress_msg, interaction.channel
+        )
+        if not started:
+            # El chequeo de _refeed_running de arriba no tiene await entre
+            # medio y una escritura, así que no es atómico con el registro
+            # real (adentro de start_refeed_channels): dos invocaciones casi
+            # simultáneas pueden pasar las DOS el chequeo de arriba y llegar
+            # hasta acá, pero solo una gana el registro atómico -- la otra
+            # no debe dejar el mensaje "Empezando..." como si su propia
+            # corrida hubiera arrancado, cuando en realidad no hizo nada.
+            try:
+                await progress_msg.edit(
+                    content="⏳ Ya había una importación en curso en este servidor "
+                    "(arrancó justo antes); esta invocación no hizo nada nuevo."
+                )
+            except Exception:
+                log.debug(
+                    "refeed_channels: no se pudo editar el aviso de carrera perdida",
+                    exc_info=True,
+                )
 
     @app_commands.command(
         name="corpus_info",

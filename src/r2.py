@@ -5,12 +5,17 @@ entorno el módulo igual importa sin romper nada y available() devuelve False.
 """
 
 import asyncio
+import contextlib
 import hashlib
 import io
+import ipaddress
 import logging
 import os
+import socket
 import subprocess
+import threading
 from typing import NamedTuple
+from urllib.parse import urlparse
 
 import requests
 
@@ -231,6 +236,65 @@ def _closest_phash_match(phash: str, max_distance: int) -> tuple[str, str] | Non
     return best
 
 
+def _public_ip_for_host(hostname: str) -> str | None:
+    """Resuelve `hostname` y devuelve la primera IP que sea públicamente
+    enrutable, o None si ninguna lo es (localhost, LAN, link-local,
+    endpoints de metadata de cloud, etc.) -- defensa SSRF.
+
+    No hay ruta explotable hoy (el único caller real ya valida el hostname
+    exacto contra cdn.discordapp.com antes de llegar acá), pero es barato y
+    cubre a un caller futuro menos cuidadoso."""
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return None
+    for info in infos:
+        ip = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if not (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_multicast
+            or addr.is_reserved
+            or addr.is_unspecified
+        ):
+            return ip
+    return None
+
+
+# Serializa las descargas que pinnean DNS: socket.getaddrinfo es un global
+# del proceso, así que parchearlo sin lock correría el riesgo de que dos
+# descargas concurrentes en threads distintos se pisen el parche entre sí.
+# ponytail: lock global en vez de pinning por-conexión (requeriría un
+# HTTPAdapter/SSLContext a medida) -- las descargas de GIF no son un path de
+# alto throughput, así que serializar esto no es un cuello de botella real.
+_dns_pin_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def _pinned_dns(hostname: str, ip: str):
+    """Fija la resolución de `hostname` a la IP ya validada como pública,
+    durante el bloque. Sin esto, `requests` volvería a resolver el hostname
+    por su cuenta al conectar -- una ventana de milisegundos después de la
+    validación en la que un DNS rebinding attack (el mismo hostname resuelve
+    distinto la segunda vez) haría inútil el chequeo de arriba."""
+    real_getaddrinfo = socket.getaddrinfo
+
+    def _pinned(host, *args, **kwargs):
+        return real_getaddrinfo(ip if host == hostname else host, *args, **kwargs)
+
+    with _dns_pin_lock:
+        socket.getaddrinfo = _pinned
+        try:
+            yield
+        finally:
+            socket.getaddrinfo = real_getaddrinfo
+
+
 def upload_gif_sync(url: str) -> GifUpload | None:
     """Descarga el GIF, lo identifica por el sha256 de su contenido y lo sube
     solo si ese contenido no está ya en el bucket. Retorna un GifUpload,
@@ -246,15 +310,24 @@ def upload_gif_sync(url: str) -> GifUpload | None:
     if client is None:
         return None
     max_bytes = _env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
+    hostname = urlparse(url).hostname or ""
+    ip = _public_ip_for_host(hostname)
+    if ip is None:
+        log.warning("GIF descartado (host no resuelve a una IP pública): %s", url)
+        return None
     try:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; bot)"}
         # allow_redirects=False: la key de este link ya se validó como
         # cdn.discordapp.com en el caller (ver cogs/gifs.py) ANTES de llegar
         # acá -- si se siguiera un redirect, ese chequeo de host quedaría sin
         # efecto para el destino real de la descarga.
-        resp = requests.get(
-            url, headers=headers, timeout=15, stream=True, allow_redirects=False
-        )
+        # _pinned_dns: fija la conexión a la IP ya validada arriba, para que
+        # un DNS rebinding (el hostname resuelve distinto entre el chequeo y
+        # la conexión real) no evada el filtro de IP pública.
+        with _pinned_dns(hostname, ip):
+            resp = requests.get(
+                url, headers=headers, timeout=15, stream=True, allow_redirects=False
+            )
         if resp.status_code != 200:
             log.error("HTTP %s al descargar GIF para R2: %s", resp.status_code, url)
             return None

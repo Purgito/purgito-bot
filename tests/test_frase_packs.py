@@ -193,6 +193,56 @@ def test_unassign_exige_el_pack_id_esperado(temp_db):
     assert effective is not None  # sigue apuntando a B, no se tocó
 
 
+# ─── Sección 6, ronda 1: pack_id es un autoincrement global, no scopeado por
+# guild -- assign_pack_to_channel/set_frase_pack tienen que validar que el
+# pack pertenezca al guild que lo usa, o un guild podría apuntar su propio
+# canal/frase al pack_id de OTRO guild (adivinable/enumerable, autoincrement
+# secuencial). Hoy ningún query de lectura junta contenido ajeno a través de
+# eso (get_random_frase_especial siempre filtra por guild_id Y pack_id
+# juntos), pero es la validación que faltaba para que siga siendo así aunque
+# algo nuevo se apoye en pack_id solo.
+
+
+def test_asignar_pack_de_otro_guild_a_un_canal_se_rechaza(temp_db):
+    async def run():
+        guild_a, guild_b = 1, 2
+        ajeno = await db.add_frase_pack(guild_b, "Pack de B")
+        ok = await db.assign_pack_to_channel(guild_a, 10, ajeno)
+        return ok, await db.get_effective_frase_pool(guild_a, 10)
+
+    ok, effective = asyncio.run(run())
+    assert ok is False
+    assert effective is None  # el canal de A no quedó apuntando al pack de B
+
+
+def test_asignar_pack_propio_sigue_funcionando_tras_la_validacion(temp_db):
+    """La validación nueva no debe romper el caso normal (mismo guild)."""
+
+    async def run():
+        pack_id = await db.add_frase_pack(1, "Navidad")
+        ok = await db.assign_pack_to_channel(1, 10, pack_id)
+        return ok, await db.get_effective_frase_pool(1, 10)
+
+    ok, effective = asyncio.run(run())
+    assert ok is True
+    assert effective is not None
+
+
+def test_reasignar_frase_a_pack_de_otro_guild_se_rechaza(temp_db):
+    async def run():
+        guild_a, guild_b = 1, 2
+        await db.add_frase_especial(guild_a, 5, "user", "hola")
+        frase_id = (await db.list_frases_especiales(guild_a))[0]["id"]
+        ajeno = await db.add_frase_pack(guild_b, "Pack de B")
+        updated = await db.set_frase_pack(guild_a, frase_id, ajeno)
+        frases = await db.list_frases_especiales(guild_a)
+        return updated, frases[0]["pack_id"]
+
+    updated, pack_id_after = asyncio.run(run())
+    assert updated is False
+    assert pack_id_after is None  # no quedó apuntando al pack ajeno
+
+
 def test_unassign_con_el_pack_correcto_libera_el_canal(temp_db):
     async def run():
         pack_id = await db.add_frase_pack(1, "Navidad")

@@ -5,6 +5,8 @@ DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db."""
 
 import asyncio
 import json
+import logging
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
@@ -83,15 +85,15 @@ def test_too_many_fields():
 
 
 def test_field_name_and_value_limits():
-    assert validate_embed_payload(
-        {"fields": [{"name": "x" * 257, "value": "v"}]}
-    ) is not None
-    assert validate_embed_payload(
-        {"fields": [{"name": "n", "value": "x" * 1025}]}
-    ) is not None
-    assert validate_embed_payload(
-        {"fields": [{"name": "", "value": "v"}]}
-    ) is not None
+    assert (
+        validate_embed_payload({"fields": [{"name": "x" * 257, "value": "v"}]})
+        is not None
+    )
+    assert (
+        validate_embed_payload({"fields": [{"name": "n", "value": "x" * 1025}]})
+        is not None
+    )
+    assert validate_embed_payload({"fields": [{"name": "", "value": "v"}]}) is not None
 
 
 def test_footer_and_author_limits():
@@ -103,7 +105,10 @@ def test_total_over_6000():
     # Cada parte respeta su propio límite, pero la suma pasa de 6000.
     embed = {
         "description": "x" * 4000,
-        "fields": [{"name": "n", "value": "x" * 1024}, {"name": "n", "value": "x" * 1024}],
+        "fields": [
+            {"name": "n", "value": "x" * 1024},
+            {"name": "n", "value": "x" * 1024},
+        ],
     }
     assert validate_embed_payload(embed) is not None
 
@@ -217,7 +222,9 @@ def test_template_ownership_checks(memory_db):
     assert asyncio.run(
         db.update_embed_template(template_id, owner, "renombrada", embed_json)
     )
-    assert asyncio.run(db.get_embed_template(template_id, owner))["name"] == "renombrada"
+    assert (
+        asyncio.run(db.get_embed_template(template_id, owner))["name"] == "renombrada"
+    )
     assert asyncio.run(db.delete_embed_template(template_id, owner))
     assert asyncio.run(db.get_embed_template(template_id, owner)) is None
 
@@ -247,7 +254,9 @@ def _run_announcement_loop(channel):
 
 def test_scheduled_announcement_plain_text_branch(memory_db):
     asyncio.run(
-        db.add_scheduled_announcement(1, 10, "hola texto", "interval", 1, interval_minutes=30)
+        db.add_scheduled_announcement(
+            1, 10, "hola texto", "interval", 1, interval_minutes=30
+        )
     )
     channel = _fake_channel()
     _run_announcement_loop(channel)
@@ -257,8 +266,13 @@ def test_scheduled_announcement_plain_text_branch(memory_db):
 def test_scheduled_announcement_delete_after_forwarded(memory_db):
     asyncio.run(
         db.add_scheduled_announcement(
-            1, 10, "se autoborra", "interval", 1,
-            interval_minutes=30, delete_after_seconds=1,
+            1,
+            10,
+            "se autoborra",
+            "interval",
+            1,
+            interval_minutes=30,
+            delete_after_seconds=1,
         )
     )
     channel = _fake_channel()
@@ -268,11 +282,48 @@ def test_scheduled_announcement_delete_after_forwarded(memory_db):
 
 def test_scheduled_announcement_no_delete_after_omits_kwarg(memory_db):
     asyncio.run(
-        db.add_scheduled_announcement(1, 10, "queda", "interval", 1, interval_minutes=30)
+        db.add_scheduled_announcement(
+            1, 10, "queda", "interval", 1, interval_minutes=30
+        )
     )
     channel = _fake_channel()
     _run_announcement_loop(channel)
     channel.send.assert_awaited_once_with("queda")
+
+
+def test_scheduled_announcement_logs_loudly_if_mark_sent_fails_after_send(
+    memory_db, monkeypatch, caplog
+):
+    """Sección 5, ronda 2: si el envío a Discord tuvo éxito pero el UPDATE de
+    last_sent_at falla, el mensaje YA salió -- la próxima corrida (1 min) lo
+    va a reenviar como duplicado visible. No hay forma barata de hacerlo
+    atómico con el envío, así que el fix mínimo es que quede un rastro
+    explícito y distinguible de "se mandó pero no se pudo marcar", no un
+    log genérico indistinguible de un fallo de envío real."""
+    import cogs.anuncios as anuncios_mod
+
+    asyncio.run(
+        db.add_scheduled_announcement(
+            1, 10, "hola texto", "interval", 1, interval_minutes=30
+        )
+    )
+
+    async def failing_mark_sent(announcement_id):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(
+        anuncios_mod, "update_announcement_last_sent", failing_mark_sent
+    )
+
+    channel = _fake_channel()
+    with caplog.at_level(logging.ERROR):
+        _run_announcement_loop(channel)
+
+    channel.send.assert_awaited_once_with("hola texto")  # el mensaje SÍ salió
+    assert any(
+        "SE ENVIÓ" in r.message and "no se pudo marcar" in r.message
+        for r in caplog.records
+    )
 
 
 def test_scheduled_announcement_delete_after_registers_pending_deletion(memory_db):
@@ -280,8 +331,13 @@ def test_scheduled_announcement_delete_after_registers_pending_deletion(memory_d
     # pending_message_deletions (channel_id, message_id del mensaje enviado).
     asyncio.run(
         db.add_scheduled_announcement(
-            1, 10, "se autoborra", "interval", 1,
-            interval_minutes=30, delete_after_seconds=60,
+            1,
+            10,
+            "se autoborra",
+            "interval",
+            1,
+            interval_minutes=30,
+            delete_after_seconds=60,
         )
     )
     channel = _fake_channel(channel_id=10, sent_message_id=555)
@@ -322,7 +378,9 @@ def test_pending_deletion_notfound_is_silently_cleared(memory_db):
     asyncio.run(db.add_pending_deletion(10, 555, past))
 
     channel = _fake_channel(channel_id=10)
-    channel.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404), "unknown message"))
+    channel.fetch_message = AsyncMock(
+        side_effect=discord.NotFound(MagicMock(status=404), "unknown message")
+    )
     bot = MagicMock()
     bot.get_channel.return_value = channel
     cog = Anuncios(bot)
@@ -337,8 +395,13 @@ def test_scheduled_announcement_legacy_dict_embed_branch(memory_db):
     embed_dict = {"title": "anuncio embed", "color": 0x8B6EF5}
     asyncio.run(
         db.add_scheduled_announcement(
-            1, 10, "[embed]", "interval", 1,
-            interval_minutes=30, embed_json=json.dumps(embed_dict),
+            1,
+            10,
+            "[embed]",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json=json.dumps(embed_dict),
         )
     )
     channel = _fake_channel()
@@ -357,8 +420,13 @@ def test_scheduled_announcement_multi_embed_array_branch(memory_db):
     embeds_json = json.dumps([{"title": "uno"}, {"title": "dos"}])
     asyncio.run(
         db.add_scheduled_announcement(
-            1, 10, "[embed]", "interval", 1,
-            interval_minutes=30, embed_json=embeds_json,
+            1,
+            10,
+            "[embed]",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json=embeds_json,
         )
     )
     channel = _fake_channel()
@@ -370,8 +438,13 @@ def test_scheduled_announcement_multi_embed_array_branch(memory_db):
 def test_get_due_includes_embed_json(memory_db):
     asyncio.run(
         db.add_scheduled_announcement(
-            1, 10, "[embed]", "interval", 1,
-            interval_minutes=30, embed_json='{"title": "x"}',
+            1,
+            10,
+            "[embed]",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json='{"title": "x"}',
         )
     )
     due = asyncio.run(db.get_due_scheduled_announcements())
@@ -398,7 +471,10 @@ VALID_LAYOUT = {
                 {"type": "media_gallery", "items": [{"url": "https://a/1.png"}]},
             ],
         },
-        {"type": "action_row", "buttons": [{"style": "link", "label": "Ir", "url": "https://x"}]},
+        {
+            "type": "action_row",
+            "buttons": [{"style": "link", "label": "Ir", "url": "https://x"}],
+        },
     ]
 }
 
@@ -414,38 +490,49 @@ def test_layout_must_be_dict_with_blocks():
 
 
 def test_layout_text_total_4000_shared():
-    over = {"blocks": [
-        {"type": "text", "content": "x" * 2001},
-        {"type": "text", "content": "y" * 2000},
-    ]}
-    ok = {"blocks": [
-        {"type": "text", "content": "x" * 2000},
-        {"type": "text", "content": "y" * 2000},
-    ]}
+    over = {
+        "blocks": [
+            {"type": "text", "content": "x" * 2001},
+            {"type": "text", "content": "y" * 2000},
+        ]
+    }
+    ok = {
+        "blocks": [
+            {"type": "text", "content": "x" * 2000},
+            {"type": "text", "content": "y" * 2000},
+        ]
+    }
     assert validate_layout_v2_payload(over) is not None
     assert validate_layout_v2_payload(ok) is None
 
 
 def test_layout_section_max_3_texts():
     def section(n):
-        return {"blocks": [{
-            "type": "section",
-            "texts": ["t"] * n,
-            "accessory": {"type": "thumbnail", "url": "u"},
-        }]}
+        return {
+            "blocks": [
+                {
+                    "type": "section",
+                    "texts": ["t"] * n,
+                    "accessory": {"type": "thumbnail", "url": "u"},
+                }
+            ]
+        }
+
     assert validate_layout_v2_payload(section(3)) is None
     assert validate_layout_v2_payload(section(4)) is not None
 
 
 def test_layout_section_requires_accessory():
-    assert validate_layout_v2_payload(
-        {"blocks": [{"type": "section", "texts": ["a"]}]}
-    ) is not None
+    assert (
+        validate_layout_v2_payload({"blocks": [{"type": "section", "texts": ["a"]}]})
+        is not None
+    )
 
 
 def test_layout_media_gallery_1_to_10():
     def gallery(n):
         return {"blocks": [{"type": "media_gallery", "items": [{"url": "u"}] * n}]}
+
     assert validate_layout_v2_payload(gallery(0)) is not None
     assert validate_layout_v2_payload(gallery(10)) is None
     assert validate_layout_v2_payload(gallery(11)) is not None
@@ -459,15 +546,34 @@ def test_layout_max_40_components():
 
 
 def test_layout_no_nested_containers():
-    nested = {"blocks": [{"type": "container", "children": [
-        {"type": "container", "children": [{"type": "text", "content": "x"}]}
-    ]}]}
+    nested = {
+        "blocks": [
+            {
+                "type": "container",
+                "children": [
+                    {
+                        "type": "container",
+                        "children": [{"type": "text", "content": "x"}],
+                    }
+                ],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(nested) is not None
 
 
 def test_layout_only_link_buttons_in_phase2():
-    role_btn = {"blocks": [{"type": "action_row", "buttons": [{"style": "role", "label": "x"}]}]}
-    link_btn = {"blocks": [{"type": "action_row", "buttons": [{"style": "link", "label": "Ir", "url": "https://x"}]}]}
+    role_btn = {
+        "blocks": [{"type": "action_row", "buttons": [{"style": "role", "label": "x"}]}]
+    }
+    link_btn = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [{"style": "link", "label": "Ir", "url": "https://x"}],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(role_btn) is not None
     assert validate_layout_v2_payload(link_btn) is None
 
@@ -481,9 +587,7 @@ def test_build_layout_view_smoke():
 
 
 def test_template_content_mode_roundtrip(memory_db):
-    tid = asyncio.run(
-        db.add_embed_template(1, "lay", '{"blocks": []}', "layout_v2")
-    )
+    tid = asyncio.run(db.add_embed_template(1, "lay", '{"blocks": []}', "layout_v2"))
     assert asyncio.run(db.get_embed_template(tid, 1))["content_mode"] == "layout_v2"
     assert asyncio.run(db.list_embed_templates(1))[0]["content_mode"] == "layout_v2"
 
@@ -497,8 +601,13 @@ def test_scheduled_announcement_layout_v2_branch(memory_db):
     layout = {"blocks": [{"type": "text", "content": "layout va"}]}
     asyncio.run(
         db.add_scheduled_announcement(
-            1, 10, "[layout]", "interval", 1,
-            interval_minutes=30, embed_json=json.dumps(layout),
+            1,
+            10,
+            "[layout]",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json=json.dumps(layout),
             content_mode="layout_v2",
         )
     )
@@ -514,44 +623,90 @@ def test_scheduled_announcement_layout_v2_branch(memory_db):
 
 
 def test_role_button_valid():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "role", "label": "Suscriptor", "role_id": 555},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "role", "label": "Suscriptor", "role_id": 555},
+                ],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(layout) is None
 
 
 def test_role_button_accepts_numeric_string_role_id():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "role", "label": "x", "role_id": "555"},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "role", "label": "x", "role_id": "555"},
+                ],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(layout) is None
 
 
 def test_role_button_requires_role_id():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "role", "label": "x"},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "role", "label": "x"},
+                ],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(layout) is not None
 
 
 def test_role_button_rejects_non_numeric_role_id():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "role", "label": "x", "role_id": "abc"},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "role", "label": "x", "role_id": "abc"},
+                ],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(layout) is not None
 
 
 def test_unknown_button_style_rejected():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "modal", "label": "x"},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "modal", "label": "x"},
+                ],
+            }
+        ]
+    }
     assert validate_layout_v2_payload(layout) is not None
 
 
 def test_section_accessory_role_button_valid():
-    layout = {"blocks": [{"type": "section", "texts": ["hola"], "accessory": {
-        "type": "button", "style": "role", "label": "Rol", "role_id": 1,
-    }}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "section",
+                "texts": ["hola"],
+                "accessory": {
+                    "type": "button",
+                    "style": "role",
+                    "label": "Rol",
+                    "role_id": 1,
+                },
+            }
+        ]
+    }
     assert validate_layout_v2_payload(layout) is None
 
 
@@ -559,10 +714,17 @@ def test_section_accessory_role_button_valid():
 
 
 def test_assign_custom_ids_only_role_buttons():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "link", "label": "Ir", "url": "https://x"},
-        {"style": "role", "label": "Suscriptor", "role_id": 555},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "link", "label": "Ir", "url": "https://x"},
+                    {"style": "role", "label": "Suscriptor", "role_id": 555},
+                ],
+            }
+        ]
+    }
     assigned = assign_button_custom_ids(layout)
     assert len(assigned) == 1
     assert assigned[0]["role_id"] == 555
@@ -572,9 +734,16 @@ def test_assign_custom_ids_only_role_buttons():
 
 
 def test_assign_custom_ids_idempotent():
-    layout = {"blocks": [{"type": "action_row", "buttons": [
-        {"style": "role", "label": "x", "role_id": 1},
-    ]}]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "role", "label": "x", "role_id": 1},
+                ],
+            }
+        ]
+    }
     first = assign_button_custom_ids(layout)
     cid = layout["blocks"][0]["buttons"][0]["custom_id"]
     second = assign_button_custom_ids(layout)
@@ -584,14 +753,29 @@ def test_assign_custom_ids_idempotent():
 
 
 def test_assign_custom_ids_walks_nested_container_and_section():
-    layout = {"blocks": [
-        {"type": "container", "children": [
-            {"type": "action_row", "buttons": [{"style": "role", "label": "a", "role_id": 1}]},
-        ]},
-        {"type": "section", "texts": ["t"], "accessory": {
-            "type": "button", "style": "role", "label": "b", "role_id": 2,
-        }},
-    ]}
+    layout = {
+        "blocks": [
+            {
+                "type": "container",
+                "children": [
+                    {
+                        "type": "action_row",
+                        "buttons": [{"style": "role", "label": "a", "role_id": 1}],
+                    },
+                ],
+            },
+            {
+                "type": "section",
+                "texts": ["t"],
+                "accessory": {
+                    "type": "button",
+                    "style": "role",
+                    "label": "b",
+                    "role_id": 2,
+                },
+            },
+        ]
+    }
     assigned = assign_button_custom_ids(layout)
     assert len(assigned) == 2
     assert {a["role_id"] for a in assigned} == {1, 2}

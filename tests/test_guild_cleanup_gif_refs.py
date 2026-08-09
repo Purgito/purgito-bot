@@ -17,6 +17,17 @@ import r2
 from cogs.general import General
 
 
+class _FakeBot:
+    """get_guild refleja la membresía ACTUAL del bot -- no None a secas,
+    porque el fix de la ronda 1 de Sección 5 depende de poder consultarlo."""
+
+    def __init__(self, active_guild_ids=()):
+        self._active = set(active_guild_ids)
+
+    def get_guild(self, guild_id):
+        return object() if guild_id in self._active else None
+
+
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
@@ -89,7 +100,7 @@ def test_guild_cleanup_no_borra_el_gif_de_un_guild_que_sigue_activo(temp_db, fak
         await _seed_shared_gif(conn, guild_a, guild_b, content_hash, url)
         await _mark_departed(conn, guild_a)
 
-        cog = General(bot=None)
+        cog = General(bot=_FakeBot())
         await cog.guild_cleanup_task.coro(cog)
 
         async with conn.execute(
@@ -135,7 +146,7 @@ def test_guild_cleanup_libera_el_objeto_cuando_nadie_mas_lo_referencia(
         await conn.commit()
         await _mark_departed(conn, guild_a)
 
-        cog = General(bot=None)
+        cog = General(bot=_FakeBot())
         await cog.guild_cleanup_task.coro(cog)
 
         async with conn.execute(
@@ -145,3 +156,60 @@ def test_guild_cleanup_libera_el_objeto_cuando_nadie_mas_lo_referencia(
 
     assert asyncio.run(run()) is None  # la fila de gif_objects desapareció
     assert fake_r2["delete_key"] == [r2.gif_key(content_hash)]
+
+
+def test_guild_cleanup_no_purga_un_guild_que_volvio_a_estar_activo(temp_db, fake_r2):
+    """Sección 5, ronda 1: expired se arma con UNA lectura al principio del
+    loop. Si el bot vuelve a este guild mientras el loop todavía no llegó a
+    su turno (on_guild_join ya limpió guild_departures, pero esa lectura
+    vieja no se entera), purgarlo igual sería borrar de forma irreversible
+    el corpus/GIFs/config de un guild que volvió a estar activo. La fuente
+    de verdad tiene que ser la membresía ACTUAL (bot.get_guild), no la lista
+    ya leída."""
+    guild_id = 333
+    content_hash = "c" * 64
+    url = f"https://cdn.example.com/{r2.gif_key(content_hash)}"
+
+    async def run():
+        conn = await db.get_db()
+        await conn.execute(
+            "INSERT INTO corpus_gifs (guild_id, url, content_hash) VALUES (?, ?, ?)",
+            (guild_id, url, content_hash),
+        )
+        await conn.execute(
+            "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes) "
+            "VALUES (?, ?, 1, 10)",
+            (content_hash, r2.gif_key(content_hash)),
+        )
+        await conn.commit()
+        await _mark_departed(conn, guild_id)
+
+        # El bot está de nuevo en este guild (simula on_guild_join habiendo
+        # corrido antes de que el loop de purga llegara a su turno).
+        cog = General(bot=_FakeBot(active_guild_ids=[guild_id]))
+        await cog.guild_cleanup_task.coro(cog)
+
+        async with conn.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            gif_count = (await cur.fetchone())[0]
+        async with conn.execute(
+            "SELECT 1 FROM gif_objects WHERE content_hash=?", (content_hash,)
+        ) as cur:
+            object_row = await cur.fetchone()
+        async with conn.execute(
+            "SELECT 1 FROM guild_departures WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            departure_row = await cur.fetchone()
+        return gif_count, object_row, departure_row
+
+    gif_count, object_row, departure_row = asyncio.run(run())
+
+    assert fake_r2["delete_key"] == []  # nada se tocó en R2
+    assert fake_r2["delete_url"] == []
+    assert gif_count == 1  # el corpus del guild sigue intacto
+    assert object_row is not None  # el objeto de R2 sigue referenciado
+    assert departure_row is not None  # la fila de partida no se limpió acá
+    # (clear_guild_departure es responsabilidad de on_guild_join, no de esta
+    # tarea -- este test solo cubre que la purga se saltee, no que la
+    # limpie; en producción on_guild_join ya la habría limpiado.)

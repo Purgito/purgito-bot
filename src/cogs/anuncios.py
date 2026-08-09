@@ -76,12 +76,34 @@ class Anuncios(commands.Cog):
                     msg = await channel.send(embeds=embeds, **delete_kwarg, **extra)
                 else:
                     msg = await channel.send(item["message"], **delete_kwarg)
+            except Exception:
+                log.exception("Error enviando anuncio programado %s", item["id"])
+                return
+
+            # A partir de acá el mensaje YA salió a Discord. Si algo de esto
+            # falla, la fila sigue "due" (get_due_scheduled_announcements no
+            # se enteró) y la próxima corrida, en 1 minuto, la va a reenviar
+            # -- un duplicado visible en el canal. No hay forma barata de
+            # hacer esto atómico con el envío (son dos sistemas distintos),
+            # así que al menos queda un rastro explícito con el id del
+            # mensaje YA enviado, para poder borrarlo a mano si hace falta.
+            try:
                 if delete_after:
-                    delete_at = datetime.now(timezone.utc) + timedelta(seconds=delete_after)
+                    delete_at = datetime.now(timezone.utc) + timedelta(
+                        seconds=delete_after
+                    )
                     await add_pending_deletion(channel.id, msg.id, delete_at)
                 await update_announcement_last_sent(item["id"])
             except Exception:
-                log.exception("Error enviando anuncio programado %s", item["id"])
+                log.error(
+                    "Anuncio %s SE ENVIÓ (mensaje %s en canal %s) pero no se pudo "
+                    "marcar como enviado -- probablemente se reenvíe en la próxima "
+                    "corrida (1 min)",
+                    item["id"],
+                    msg.id,
+                    item["channel_id"],
+                    exc_info=True,
+                )
 
         await asyncio.gather(*(_send_one(item) for item in due))
 
@@ -104,7 +126,8 @@ class Anuncios(commands.Cog):
             except discord.Forbidden:
                 log.warning(
                     "Sin permiso para borrar mensaje %s en canal %s",
-                    item["message_id"], item["channel_id"],
+                    item["message_id"],
+                    item["channel_id"],
                 )
             except Exception:
                 log.exception("Error en sweep de borrado pendiente %s", item["id"])

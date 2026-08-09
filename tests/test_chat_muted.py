@@ -9,6 +9,7 @@ simula con un fake mínimo, y el flujo async se ejecuta con asyncio.run.
 """
 
 import asyncio
+import itertools
 from types import SimpleNamespace
 
 import pytest
@@ -19,11 +20,15 @@ from cogs.chat import Chat
 from config import get_dashboard_url
 
 BOT_ID = 999
+_next_message_id = itertools.count(1)
 
 
 class FakeMessage:
     def __init__(self, mention=True, guild_id=1, channel_id=10, role_ids=()):
-        self.id = 123
+        # IDs únicas de verdad (como los snowflakes reales): on_message ahora
+        # deduplica por message.id (ver _recent_message_ids en cogs/chat.py),
+        # así que dos FakeMessage con el mismo id se pisarían entre sí.
+        self.id = next(_next_message_id)
         self.author = SimpleNamespace(
             bot=False,
             id=5,
@@ -60,6 +65,7 @@ class FakeMessage:
 def cog(monkeypatch):
     """Cog de Chat aislado: cooldowns limpios, db parcheada, azar desactivado."""
     chat_mod._muted_reply_cooldowns.clear()
+    chat_mod._recent_message_ids.clear()
     # random() = 1.0: nunca dispara la reacción aleatoria (0.05) ni el GIF (0.45).
     monkeypatch.setattr(chat_mod, "random", SimpleNamespace(random=lambda: 1.0))
 
@@ -138,6 +144,99 @@ def _patch_ctx(
         chat_mod, "list_spontaneous_channels", fake_spontaneous_channels
     )
     monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_exempt)
+
+
+# ─── Sección 5, ronda 1: reenvío de eventos duplicados del gateway ───────────
+#
+# El gateway de Discord puede reenviar el mismo MESSAGE_CREATE tras un RESUME
+# (documentado, no hipotético). Sin dedup, el mismo message.id procesado dos
+# veces respondía a la mención dos veces y gastaba doble cupo de
+# mention_rate_limit -- el guardado al corpus ya era idempotente por
+# UNIQUE(guild_id, message_id), pero la respuesta a mención no.
+
+
+def test_mismo_message_id_procesado_dos_veces_no_duplica_la_respuesta(cog):
+    chat, saved, mp = cog
+    _patch_ctx(mp)
+    _patch_generation(mp)
+
+    original = FakeMessage()
+    duplicate = FakeMessage()
+    duplicate.id = original.id  # mismo message.id: reenvío del gateway
+
+    asyncio.run(chat.on_message(original))
+    asyncio.run(chat.on_message(duplicate))
+
+    assert original.replies == ["respuesta"]
+    assert duplicate.replies == []  # la segunda entrega es un no-op total
+    assert saved == ["hola"]  # tampoco se re-intenta guardar al corpus
+
+
+def test_mismo_message_id_concurrente_tampoco_duplica(cog):
+    """Mismo escenario pero con las dos entregas llegando 'a la vez'
+    (asyncio.gather), como sugiere el formato de la auditoría para simular
+    concurrencia real en vez de secuencial."""
+    chat, saved, mp = cog
+    _patch_ctx(mp)
+    _patch_generation(mp)
+
+    m1 = FakeMessage()
+    m2 = FakeMessage()
+    m2.id = m1.id
+
+    async def run():
+        await asyncio.gather(chat.on_message(m1), chat.on_message(m2))
+
+    asyncio.run(run())
+
+    total_replies = len(m1.replies) + len(m2.replies)
+    assert total_replies == 1  # una sola de las dos entregas respondió
+    assert saved == ["hola"]
+
+
+def test_excepcion_a_mitad_de_camino_no_deja_el_id_bloqueado_para_siempre(cog):
+    """Si on_message tira una excepción antes de terminar, el message.id NO
+    debe quedar marcado como "ya procesado" -- si el gateway reenvía ESE
+    mismo mensaje (el escenario que _recent_message_ids existe para cubrir),
+    merece un intento fresco, no quedar descartado en silencio para siempre
+    por el guard de dedup."""
+    chat, saved, mp = cog
+
+    call_count = {"n": 0}
+
+    async def flaky_settings(guild_id, channel_id):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("fallo transitorio (ej. R2/DB)")
+        return {
+            "enabled": True,
+            "channel_id": None,
+            "mention_rate_limit": 0,
+            "auto_generate_every": 15,
+            "auto_generate_probability": 0.6,
+            "reaction_probability": 0.0,
+            "gif_response_probability": 0.0,
+            "frase_probability": 0.0,
+        }
+
+    mp.setattr(chat_mod, "get_effective_chat_settings", flaky_settings)
+    mp.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
+    mp.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_false())
+    mp.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
+    mp.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+    _patch_generation(mp)
+
+    first = FakeMessage()
+    with pytest.raises(RuntimeError):
+        asyncio.run(chat.on_message(first))
+    assert first.id not in chat_mod._recent_message_ids
+
+    # Reenvío del gateway: mismo message.id, la causa del fallo ya no está
+    # -- tiene que procesarse de cero, no quedar mudo por el guard.
+    redelivered = FakeMessage()
+    redelivered.id = first.id
+    asyncio.run(chat.on_message(redelivered))
+    assert redelivered.replies == ["respuesta"]
 
 
 # ─── Throttle: mensaje completo la primera vez, 🤐 dentro del cooldown ────────
