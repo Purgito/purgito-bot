@@ -910,7 +910,11 @@ h1 {
   padding: 6px 12px;
   border-radius: 6px;
 }
-.lv2-btn-role { background: color-mix(in srgb, #4E5058 70%, var(--accent)); }
+/* Colores reales de Discord (Fase 4) -- .lv2-btn ya es el gris de "secondary"
+   por default, estos son los otros 3 que puede tener un botón de rol. */
+.lv2-btn-primary { background: #5865F2; }
+.lv2-btn-success { background: #248046; }
+.lv2-btn-danger { background: #DA373C; }
 .lv2-btn-tag {
   font-size: 9px;
   font-weight: 700;

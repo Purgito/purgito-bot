@@ -448,7 +448,7 @@ export function renderClassicEditor(box, channels, roles) {
         el('label', { class: 'toggle' }, modeNow, 'Enviar ahora'),
         el('label', { class: 'toggle' }, modeSched, 'Programar'),
         schedControls),
-      sendOptionsPanel(doc.sendOpts, roles)),
+      sendOptionsPanel(doc.sendOpts, roles, channels, chSel)),
     alertBox,
     el('div', { class: 'embed-actions' },
       sendBtn, saveBtn, shareBtn, clearBtn,

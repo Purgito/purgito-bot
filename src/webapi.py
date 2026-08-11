@@ -67,7 +67,7 @@ from config import (
     get_invite_url,
 )
 from cogs.chat import simulate_message
-from cogs.gifs import HEALTH_CHECK_BATCH, run_gif_health_check
+from cogs.gifs import HEALTH_CHECK_BATCH, resolve_tenor_gif_url, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.youtube import resolve_youtube_channel
 from db import (
@@ -745,6 +745,11 @@ async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
                 "name": c.name,
                 # Para marcar "canal sin permisos" en los selectores del dashboard.
                 "can_send": perms.view_channel and perms.send_messages,
+                # Idem para el aviso de identidad personalizada (Fase 4) -- un
+                # override a nivel canal puede sacarle este permiso al bot
+                # aunque lo tenga a nivel servidor, así que hay que chequearlo
+                # por canal, no alcanza con el permiso del bot en general.
+                "can_manage_webhooks": perms.manage_webhooks,
             }
         )
     return web.json_response({"channels": channels})
@@ -2841,6 +2846,25 @@ async def _api_embeds_uploads_get(request: web.Request, guild_id: int) -> web.Re
     return web.json_response({"urls": await list_uploaded_images(guild_id)})
 
 
+@guild_api
+async def _api_embeds_resolve_gif(request: web.Request, guild_id: int) -> web.Response:
+    """Resuelve un link de tenor.com/view/... al .gif animado real (Fase 4)
+    — el navegador no puede pegarle a tenor.com directo por CORS, así que
+    esto corre del lado del servidor. `url: null` (no un error) si no se
+    pudo resolver -- el frontend cae al aviso manual de siempre."""
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_upload, ip, 10):
+        return web.json_response({"error": "rate limit"}, status=429)
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    url = (data.get("url") or "").strip()
+    if not url:
+        return web.json_response({"error": "falta la url"}, status=400)
+    resolved = await resolve_tenor_gif_url(url)
+    return web.json_response({"url": resolved})
+
+
 # ---------------- API: bloques File de Layout V2 ----------------
 #
 # Un bloque File de Components V2 necesita el archivo real adjunto al MISMO
@@ -3646,6 +3670,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/embeds/validate", _api_embeds_validate)
         app.router.add_post(f"{base}/embeds/upload", _api_embeds_upload)
         app.router.add_get(f"{base}/embeds/uploads", _api_embeds_uploads_get)
+        app.router.add_post(f"{base}/embeds/resolve-gif", _api_embeds_resolve_gif)
         app.router.add_post(
             f"{base}/embeds/upload-file/{{filename}}", _api_layout_file_upload
         )

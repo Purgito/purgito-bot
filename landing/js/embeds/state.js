@@ -235,10 +235,10 @@ export function blankLayoutDoc() {
 
 export function newBlock(type) {
   if (type === 'text') return { type: 'text', content: '' };
-  if (type === 'section') return { type: 'section', texts: [''], accessory: { type: 'thumbnail', url: '', description: '', label: '', style: 'link', role_id: '' } };
+  if (type === 'section') return { type: 'section', texts: [''], accessory: { type: 'thumbnail', url: '', description: '', label: '', style: 'link', role_id: '', color: 'secondary' } };
   if (type === 'media_gallery') return { type: 'media_gallery', items: [{ url: '', description: '' }] };
   if (type === 'separator') return { type: 'separator', visible: true, spacing: 'small' };
-  if (type === 'action_row') return { type: 'action_row', buttons: [{ style: 'link', label: '', url: '', role_id: '' }] };
+  if (type === 'action_row') return { type: 'action_row', buttons: [{ style: 'link', label: '', url: '', role_id: '', color: 'secondary' }] };
   if (type === 'file') return { type: 'file', upload: null, spoiler: false };
   return { type: 'container', accent: true, accent_color: '#8B6EF5', children: [] };
 }
@@ -258,13 +258,21 @@ export function colorToHex(c) {
 // custom_id desde el frontend — lo asigna el backend recién al enviar/programar.
 export function buttonToApi(bt) {
   if (bt.style === 'role') {
-    return { style: 'role', label: bt.label, role_id: bt.role_id ? parseInt(bt.role_id, 10) : null };
+    // color (Fase 4): solo tiene sentido en botones de rol — Discord no deja
+    // recolorear uno de link, siempre es el mismo gris con ícono.
+    return {
+      style: 'role', label: bt.label, role_id: bt.role_id ? parseInt(bt.role_id, 10) : null,
+      color: bt.color || 'secondary',
+    };
   }
   return { style: 'link', label: bt.label, url: bt.url };
 }
 
 export function buttonFromApi(bt) {
-  return { style: bt.style === 'role' ? 'role' : 'link', label: bt.label || '', url: bt.url || '', role_id: bt.role_id != null ? String(bt.role_id) : '' };
+  return {
+    style: bt.style === 'role' ? 'role' : 'link', label: bt.label || '', url: bt.url || '',
+    role_id: bt.role_id != null ? String(bt.role_id) : '', color: bt.color || 'secondary',
+  };
 }
 
 // Estado del editor -> dict de bloque estilo API (lo que valida/construye el backend).

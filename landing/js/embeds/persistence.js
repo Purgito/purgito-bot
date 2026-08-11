@@ -162,11 +162,27 @@ export function openJsonModal() {
     loadEmbeds();
   };
 
+  // Descarga el contenido ACTUAL del textarea (no el payload original): si
+  // el usuario ya lo editó a mano, baja lo que está viendo, no lo de antes.
+  const downloadBtn = el('button', {
+    class: 'btn btn-secondary',
+    onclick: () => {
+      const blob = new Blob([ta.value], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = el('a', { href: url, download: `purgito-${isLayout ? 'layout' : 'embed'}.json` });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+  }, 'Descargar .json');
+
   panelModal('Editar como JSON', el('div', {},
     ta, errBox,
     el('div', { class: 'add-row' },
       applyBtn,
       el('button', { class: 'btn btn-secondary', onclick: () => document.querySelector('.modal-overlay')?.remove() }, 'Cancelar'),
+      downloadBtn,
       el('label', { class: 'toggle' }, wrapChk, 'Ajuste de línea'))));
   validate();
 }

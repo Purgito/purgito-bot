@@ -961,6 +961,53 @@ def test_unknown_button_style_rejected():
     assert validate_layout_v2_payload(layout) is not None
 
 
+# ─── Color de botón de rol (Fase 4) ───────────────────────────────────────────
+
+
+def _role_button_layout(color=None):
+    btn = {"style": "role", "label": "x", "role_id": 1}
+    if color is not None:
+        btn["color"] = color
+    return {"blocks": [{"type": "action_row", "buttons": [btn]}]}
+
+
+def test_role_button_accepts_valid_colors():
+    for color in ("primary", "secondary", "success", "danger"):
+        assert validate_layout_v2_payload(_role_button_layout(color)) is None
+
+
+def test_role_button_rejects_invalid_color():
+    assert validate_layout_v2_payload(_role_button_layout("purple")) is not None
+
+
+def test_role_button_color_defaults_when_absent():
+    # Un botón guardado antes de esta fase no trae "color" -- debe seguir
+    # siendo válido, no romperse por el campo nuevo.
+    assert validate_layout_v2_payload(_role_button_layout(None)) is None
+
+
+def test_build_button_maps_color_to_discord_style():
+    for color, expected in (
+        ("primary", discord.ButtonStyle.primary),
+        ("secondary", discord.ButtonStyle.secondary),
+        ("success", discord.ButtonStyle.success),
+        ("danger", discord.ButtonStyle.danger),
+    ):
+        layout = _role_button_layout(color)
+        layout["blocks"][0]["buttons"][0]["custom_id"] = "x"
+        view = build_layout_view(layout)
+        button = view.to_components()[0]["components"][0]
+        assert button["style"] == expected.value
+
+
+def test_build_button_defaults_to_secondary_without_color():
+    layout = _role_button_layout(None)
+    layout["blocks"][0]["buttons"][0]["custom_id"] = "x"
+    view = build_layout_view(layout)
+    button = view.to_components()[0]["components"][0]
+    assert button["style"] == discord.ButtonStyle.secondary.value
+
+
 def test_section_accessory_role_button_valid():
     layout = {
         "blocks": [

@@ -303,6 +303,98 @@ def test_resolve_media_url_giphy_uses_url(monkeypatch):
     asyncio.run(run())
 
 
+# ---------- cogs.gifs.resolve_tenor_gif_url (Fase 4 del editor de embeds) ----
+#
+# A diferencia de resolve_media_url (arriba, que usa el oEmbed y solo consigue
+# un thumbnail .png), esto lee el <meta property="og:image"> de la página de
+# Tenor -- ahí sí está el .gif animado real. Se mockea r2.fetch_public_url
+# (no requests.get): el propio hostname de la URL pasada es lo que se
+# fetchea acá (a diferencia del oEmbed, que fetchea un host fijo), así que
+# corresponde el wrapper con guardas SSRF, no requests.get pelado.
+
+
+class _FakeHtmlResp:
+    def __init__(self, text):
+        self.text = text
+
+
+def test_resolve_tenor_gif_url_extracts_og_image(monkeypatch):
+    html = '<meta property="og:image" content="https://media1.tenor.com/m/abc/x.gif">'
+    monkeypatch.setattr(
+        r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp(html)
+    )
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://tenor.com/view/foo-123")
+    )
+    assert result == "https://media1.tenor.com/m/abc/x.gif"
+
+
+def test_resolve_tenor_gif_url_attribute_order_independent(monkeypatch):
+    # content antes que property -- el parser no debe asumir un orden fijo.
+    html = '<meta content="https://media.tenor.com/x.gif" property="og:image">'
+    monkeypatch.setattr(
+        r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp(html)
+    )
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://tenor.com/view/foo-123")
+    )
+    assert result == "https://media.tenor.com/x.gif"
+
+
+def test_resolve_tenor_gif_url_rejects_non_tenor_host():
+    # Ni siquiera intenta fetchear -- se corta en el chequeo de host.
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://evil.com/view/foo-123")
+    )
+    assert result is None
+
+
+def test_resolve_tenor_gif_url_none_when_no_og_image_tag(monkeypatch):
+    monkeypatch.setattr(
+        r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp("<html></html>")
+    )
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://tenor.com/view/foo-123")
+    )
+    assert result is None
+
+
+def test_resolve_tenor_gif_url_rejects_og_image_off_host(monkeypatch):
+    # Si el og:image apuntara a otro host (oráculo de fetch arbitrario vía
+    # contenido de terceros), no debe colarse como resultado válido aunque
+    # termine en .gif.
+    html = '<meta property="og:image" content="https://evil.com/x.gif">'
+    monkeypatch.setattr(
+        r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp(html)
+    )
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://tenor.com/view/foo-123")
+    )
+    assert result is None
+
+
+def test_resolve_tenor_gif_url_rejects_non_gif_extension(monkeypatch):
+    html = '<meta property="og:image" content="https://media.tenor.com/x.png">'
+    monkeypatch.setattr(
+        r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp(html)
+    )
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://tenor.com/view/foo-123")
+    )
+    assert result is None
+
+
+def test_resolve_tenor_gif_url_none_on_fetch_error(monkeypatch):
+    def boom(method, url, **k):
+        raise r2.BlockedTarget(url)
+
+    monkeypatch.setattr(r2, "fetch_public_url", boom)
+    result = asyncio.run(
+        gifs_mod.resolve_tenor_gif_url("https://tenor.com/view/foo-123")
+    )
+    assert result is None
+
+
 # ---------- cogs.gifs.get_live_gif ----------
 #
 # Antes usaba r2.is_url_alive: cualquier fallo (timeout, 403, rate-limit...)

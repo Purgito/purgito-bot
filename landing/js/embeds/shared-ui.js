@@ -282,6 +282,20 @@ export async function uploadImageBlob(blob) {
   return data.url;
 }
 
+// Resuelve un link de tenor.com/view/... al .gif animado real (Fase 4) —
+// corre del lado del servidor porque CORS no deja pegarle a tenor.com desde
+// acá. null si no se pudo (el caller cae al aviso manual de siempre).
+export async function resolveTenorUrl(url) {
+  try {
+    const resp = await apiFetch(`/api/server/${GUILD_ID}/embeds/resolve-gif`, {
+      method: 'POST', body: { url },
+    });
+    return resp.url || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // --- Subida de archivos para bloques File de Layout V2 (Fase 2 ronda 2) ---
 // A diferencia de uploadImageBlob, esto NO persiste en R2: el backend lo
 // guarda en memoria del proceso con un TTL corto (ver _pending_layout_files
@@ -372,13 +386,26 @@ export function imageField(obj, key, onChange, opts = {}) {
       gifNote.className = 'embed-gif-note' + (d ? (d.warn ? ' warn' : ' ok') : '');
       gifNote.textContent = d ? d.note : '';
     };
-    url.onchange = () => {
+    url.onchange = async () => {
       let v = url.value.trim();
+      if (!v) return;
       if (opts.gif) {
         const d = detectGif(v);
-        if (d && !d.warn) v = d.url;
+        if (d && !d.warn) {
+          v = d.url; // Giphy: se deriva del lado del cliente, sin ir al backend.
+        } else if (d && d.warn) {
+          // Tenor: la página no expone el .gif directo en la URL misma (a
+          // diferencia de Giphy), así que hay que resolverla del lado del
+          // servidor (CORS no deja pegarle a tenor.com desde el navegador).
+          // Si falla, se manda igual la URL de la página como antes de esto
+          // — queda como chip roto con el mismo aviso manual de siempre.
+          gifNote.className = 'embed-gif-note';
+          gifNote.textContent = 'Resolviendo GIF de Tenor…';
+          const resolved = await resolveTenorUrl(v);
+          if (resolved) v = resolved;
+        }
       }
-      if (v) set(v);
+      set(v);
     };
 
     const fileInput = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', style: 'display:none' });
@@ -490,7 +517,10 @@ export function colorField(obj, key, onChange) {
 }
 
 // Panel colapsable (details/summary nativo) con las opciones de envío.
-export function sendOptionsPanel(o, roles) {
+// `channels` (con can_manage_webhooks por canal, ver _api_channels) y `chSel`
+// (el <select> de canal destino ya armado por el caller) son opcionales —
+// sin ellos simplemente no se muestra el aviso de permisos de Fase 4.
+export function sendOptionsPanel(o, roles, channels, chSel) {
   const silent = el('input', { type: 'checkbox', checked: o.silent });
   silent.onchange = () => { o.silent = silent.checked; };
   const restrict = el('input', { type: 'checkbox', checked: o.restrict });
@@ -515,11 +545,32 @@ export function sendOptionsPanel(o, roles) {
   });
   username.oninput = () => { o.username = username.value; };
   const avatarField = imageField(o, 'avatarUrl', () => {});
+
+  // Aviso proactivo (Fase 4): un permiso de canal faltante recién se
+  // enteraba al enviar y llevarse el error del webhook — esto lo anticipa
+  // apenas se elige el canal. No bloqueante: el resto del formulario sigue
+  // usable, el aviso solo dice que ESTOS DOS campos no van a funcionar ahí.
+  const identityWarn = el('div', { class: 'embed-warn', style: 'display:none' });
+  function refreshIdentityWarn() {
+    if (!channels || !chSel) return;
+    const ch = channels.find(c => c.id === chSel.value);
+    const blocked = !!ch && ch.can_manage_webhooks === false;
+    identityWarn.style.display = blocked ? '' : 'none';
+    identityWarn.textContent = blocked
+      ? 'El bot no tiene permiso de "Gestionar webhooks" en este canal, así '
+        + 'que nombre/avatar personalizado no va a funcionar acá — revisa '
+        + 'los permisos del canal o vuelve a invitar al bot.'
+      : '';
+  }
+  if (chSel) chSel.addEventListener('change', refreshIdentityWarn);
+  refreshIdentityWarn();
+
   const identityBlock = el('div', { class: 'field' },
     el('label', {}, 'Nombre y avatar personalizado'),
     el('p', { class: 'dim' },
       'Si completas alguno, el mensaje se manda con un webhook propio del '
       + 'canal en vez de como Purgito — los botones siguen funcionando igual.'),
+    identityWarn,
     el('div', { class: 'embed-two' },
       el('div', {}, el('label', {}, 'Nombre'), username),
       el('div', {}, el('label', {}, 'Avatar'), avatarField)));

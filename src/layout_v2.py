@@ -18,8 +18,11 @@ donde cada block es uno de:
     button, dos estilos:
         link: {"style": "link", "label": str, "url": str}
         role (Fase 3, toggle de rol): {"style": "role", "label": str, "role_id": int,
-              "custom_id": str?} — custom_id lo asigna el backend (ver
-              assign_button_custom_ids), nunca el frontend.
+              "custom_id": str?, "color": str?} — custom_id lo asigna el
+              backend (ver assign_button_custom_ids), nunca el frontend.
+              color (Fase 4) es uno de BUTTON_COLORS ('secondary' si falta,
+              para no cambiarle el aspecto a un botón guardado antes de
+              esto); no aplica a los de link, Discord no los deja recolorear.
     file (Fase 2 ronda 2): {"type": "file", "upload_id": str, "filename": str,
           "spoiler": bool} — a diferencia de todo lo demás (que son URLs que
           Discord fetchea solo), un bloque File necesita el archivo real
@@ -57,6 +60,15 @@ MAX_FILENAME_LEN = 256
 _SPACING = {
     "small": discord.SeparatorSpacing.small,
     "large": discord.SeparatorSpacing.large,
+}
+
+# Color visual de un botón de rol (Fase 4) -- "link" no entra acá, Discord no
+# lo deja recolorear. Mismos 4 estilos no-link que expone discord.py.
+BUTTON_COLORS = {
+    "primary": discord.ButtonStyle.primary,
+    "secondary": discord.ButtonStyle.secondary,
+    "success": discord.ButtonStyle.success,
+    "danger": discord.ButtonStyle.danger,
 }
 
 
@@ -125,6 +137,15 @@ def _validate_button(btn) -> str | None:
             or (isinstance(role_id, str) and role_id.strip().isdigit())
         ):
             return "un botón de rol necesita un role_id válido"
+        # Fase 4: color visual del botón. "style" ya está tomado por link/role
+        # (la ACCIÓN del botón, no el color) -- Discord no permite recolorear
+        # un botón de enlace (siempre es el mismo gris con ícono), así que
+        # esto solo aplica a los de rol. Default 'secondary' para que un
+        # botón guardado antes de este cambio (sin el campo) siga viéndose
+        # igual que hoy.
+        color = btn.get("color", "secondary")
+        if color not in BUTTON_COLORS:
+            return "color de botón inválido"
         return None
     return "tipo de botón no soportado (usa 'link' o 'role')"
 
@@ -295,7 +316,7 @@ def _build_button(btn) -> discord.ui.Button:
         # genérica registrada por cogs/layout_buttons.py, que matchea por
         # custom_id sin importar qué objeto de View lo envió originalmente.
         return discord.ui.Button(
-            style=discord.ButtonStyle.secondary,
+            style=BUTTON_COLORS.get(btn.get("color"), discord.ButtonStyle.secondary),
             label=(btn.get("label") or "").strip(),
             custom_id=btn["custom_id"],
         )

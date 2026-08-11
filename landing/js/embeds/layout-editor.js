@@ -156,14 +156,24 @@ export function buttonStyleFields(bt, onChange, roles) {
   urlInput.oninput = () => { bt.url = urlInput.value; onChange(); };
   const roleSel = roleSelect(roles, bt.role_id, 'Elegir rol…');
   roleSel.onchange = () => { bt.role_id = roleSel.value; onChange(); };
+  // Color (Fase 4): solo para botones de rol -- uno de link siempre es el
+  // mismo gris con ícono en Discord, no se puede recolorear.
+  const colorSel = el('select', {},
+    el('option', { value: 'secondary' }, 'Gris'),
+    el('option', { value: 'primary' }, 'Blurple'),
+    el('option', { value: 'success' }, 'Verde'),
+    el('option', { value: 'danger' }, 'Rojo'));
+  colorSel.value = bt.color || 'secondary';
+  colorSel.onchange = () => { bt.color = colorSel.value; onChange(); };
   function sync() {
     const isRole = styleSel.value === 'role';
     urlInput.style.display = isRole ? 'none' : '';
     roleSel.style.display = isRole ? '' : 'none';
+    colorSel.style.display = isRole ? '' : 'none';
   }
   styleSel.onchange = () => { bt.style = styleSel.value; sync(); onChange(); };
   sync();
-  return el('div', { class: 'add-row layout-btn-fields' }, styleSel, label, urlInput, roleSel,
+  return el('div', { class: 'add-row layout-btn-fields' }, styleSel, label, urlInput, roleSel, colorSel,
     helpIcon('"Asignar rol" alterna: si quien clickea no tiene el rol se lo da, si ya lo tiene se lo quita.'));
 }
 
@@ -208,7 +218,7 @@ export function renderBlockForm(b, onChange, roles) {
           buttonStyleFields(bt, onChange, roles),
           el('button', { class: 'btn btn-danger btn-sm', onclick: () => { b.buttons.splice(idx, 1); renderBtns(); onChange(); } }, '✗')));
       });
-      box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.buttons.length >= 5 || null, onclick: () => { b.buttons.push({ style: 'link', label: '', url: '', role_id: '' }); renderBtns(); onChange(); } }, '+ Botón'));
+      box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.buttons.length >= 5 || null, onclick: () => { b.buttons.push({ style: 'link', label: '', url: '', role_id: '', color: 'secondary' }); renderBtns(); onChange(); } }, '+ Botón'));
     }
     renderBtns();
     return box;
@@ -317,7 +327,10 @@ export function renderLayoutPreview(blocks) {
 // Botón del preview: los de "asignar rol" llevan una etiqueta de texto (sin
 // emoji, mismo criterio del resto del panel) para distinguirlos de un link.
 export function lv2Button(bt) {
-  return el('span', { class: 'lv2-btn' + (bt.style === 'role' ? ' lv2-btn-role' : '') },
+  // Color real de Discord (Fase 4) solo para botones de rol -- uno de link
+  // siempre se ve igual (gris + ícono), Discord no lo deja recolorear.
+  const colorClass = bt.style === 'role' ? ` lv2-btn-${bt.color || 'secondary'}` : '';
+  return el('span', { class: 'lv2-btn' + colorClass },
     bt.label || 'botón', bt.style === 'role' ? el('span', { class: 'lv2-btn-tag' }, 'ROL') : null);
 }
 
@@ -481,7 +494,7 @@ export function renderLayoutEditor(box, channels, roles) {
         el('label', { class: 'toggle' }, modeNow, 'Enviar ahora'),
         el('label', { class: 'toggle' }, modeSched, 'Programar'),
         schedControls),
-      sendOptionsPanel(doc.sendOpts, roles)),
+      sendOptionsPanel(doc.sendOpts, roles, channels, chSel)),
     alertBox,
     el('div', { class: 'embed-actions' },
       sendBtn, saveBtn, clearBtn,

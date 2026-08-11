@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from html.parser import HTMLParser
 from urllib.parse import quote, urlparse
 
 import discord
@@ -176,6 +177,54 @@ async def resolve_media_url(url: str) -> str | None:
         log.warning(
             "oEmbed devolvió un media_url fuera de los hosts de GIFs: %r", resolved
         )
+        return None
+    return resolved
+
+
+class _OgImageParser(HTMLParser):
+    """Busca el primer <meta property="og:image" content="..."> y se corta
+    ahí -- mismo mecanismo que usa Discord para armar el preview cuando
+    alguien pega un link de Tenor a secas en un canal (og:image ahí sí es la
+    URL directa del .gif animado, a diferencia del oEmbed -- ver el
+    comentario de resolve_media_url arriba)."""
+
+    def __init__(self):
+        super().__init__()
+        self.og_image: str | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if self.og_image or tag != "meta":
+            return
+        if dict(attrs).get("property") == "og:image":
+            self.og_image = dict(attrs).get("content")
+
+
+async def resolve_tenor_gif_url(url: str) -> str | None:
+    """Resuelve una página tenor.com/view/... a la URL directa de su .gif
+    animado, para el editor de embeds del panel (Fase 4). Sin API key ni
+    servicio externo nuevo: mismo host al que ya le pega resolve_media_url,
+    solo que leyendo la página en vez del oEmbed -- el oEmbed de Tenor no
+    expone el gif real, solo un thumbnail .png estático (inútil acá, aunque
+    alcance para el chequeo de salud que sí lo usa)."""
+    import requests
+
+    host = _gif_host(url)
+    if host != "tenor.com" and not host.endswith(".tenor.com"):
+        return None
+    try:
+        resp = await asyncio.to_thread(
+            r2.fetch_public_url, requests.get, url, timeout=8
+        )
+        html_text = resp.text
+    except Exception:
+        return None
+    parser = _OgImageParser()
+    try:
+        parser.feed(html_text)
+    except Exception:
+        return None
+    resolved = parser.og_image
+    if not resolved or not resolved.endswith(".gif") or not _valid_media_url(resolved):
         return None
     return resolved
 
