@@ -57,6 +57,8 @@ def test_sanitize_parses_and_caps_roles():
         "silent": True,
         "restrict_mentions": True,
         "allowed_role_ids": [12, 34],
+        "username": "",
+        "avatar_url": "",
     }
     # tope defensivo del listado
     out = sanitize_send_options(

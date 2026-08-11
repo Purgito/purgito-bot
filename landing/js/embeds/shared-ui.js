@@ -10,6 +10,7 @@ import { el, spinner, emptyState, icon, toast, embedImg, renderError, helpIcon }
 import { discordTimestampText } from '/js/core/markdown.js';
 import {
   detectGif, docFromLayout, docFromEmbeds, templateSnippet, layoutSnippet, colorToHex,
+  MAX_WEBHOOK_USERNAME,
 } from '/js/embeds/state.js';
 import {
   _embedTab, _embedMode, setEmbedTab, setEmbedMode, setLayoutDoc, setEmbedDoc,
@@ -281,6 +282,29 @@ export async function uploadImageBlob(blob) {
   return data.url;
 }
 
+// --- Subida de archivos para bloques File de Layout V2 (Fase 2 ronda 2) ---
+// A diferencia de uploadImageBlob, esto NO persiste en R2: el backend lo
+// guarda en memoria del proceso con un TTL corto (ver _pending_layout_files
+// en webapi.py), solo hasta que se manda con "Enviar ahora" — por eso este
+// tipo de bloque no se puede programar ni guardar en plantillas. Devuelve
+// { id, filename } para guardar en el bloque; el id es lo único que el envío
+// necesita para encontrar los bytes reales.
+export async function uploadLayoutFile(file) {
+  let r;
+  try {
+    r = await fetch(`/api/server/${GUILD_ID}/embeds/upload-file/${encodeURIComponent(file.name)}`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+  } catch (e) {
+    throw new Error('No se pudo conectar con el servidor.');
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || humanError(r.status));
+  return { id: data.upload_id, filename: data.filename };
+}
+
 // Modal con la galería de imágenes ya subidas por el guild; clickear una la
 // elige. Carga perezosa (solo al abrir), no en cada render del campo.
 function openImageLibrary(onPick) {
@@ -481,12 +505,32 @@ export function sendOptionsPanel(o, roles) {
     el('label', {}, 'Roles que SÍ pueden ser pingueados (vacío = nadie; Ctrl+click para varios)'),
     roleSel);
   restrict.onchange = () => { o.restrict = restrict.checked; roleBlock.style.display = o.restrict ? '' : 'none'; };
+
+  // Identidad personalizada (Fase 3): completar cualquiera de los dos hace
+  // que el envío pase de channel.send() a un webhook propio del canal (ver
+  // wants_custom_identity en message_options.py) — los botones de rol siguen
+  // funcionando igual, el webhook sigue siendo de la app de Purgito.
+  const username = el('input', {
+    type: 'text', maxlength: String(MAX_WEBHOOK_USERNAME), placeholder: 'Purgito', value: o.username,
+  });
+  username.oninput = () => { o.username = username.value; };
+  const avatarField = imageField(o, 'avatarUrl', () => {});
+  const identityBlock = el('div', { class: 'field' },
+    el('label', {}, 'Nombre y avatar personalizado'),
+    el('p', { class: 'dim' },
+      'Si completas alguno, el mensaje se manda con un webhook propio del '
+      + 'canal en vez de como Purgito — los botones siguen funcionando igual.'),
+    el('div', { class: 'embed-two' },
+      el('div', {}, el('label', {}, 'Nombre'), username),
+      el('div', {}, el('label', {}, 'Avatar'), avatarField)));
+
   const details = el('details', { class: 'send-opts' },
     el('summary', {}, 'Opciones de envío'),
     el('div', { class: 'field' }, el('label', { class: 'toggle' }, silent, 'Envío silencioso (sin notificación push)')),
     el('div', { class: 'field' }, el('label', { class: 'toggle' }, restrict, 'No mencionar a nadie salvo lo explícito')),
-    roleBlock);
-  if (o.silent || o.restrict) details.open = true;
+    roleBlock,
+    identityBlock);
+  if (o.silent || o.restrict || o.username || o.avatarUrl) details.open = true;
   return details;
 }
 

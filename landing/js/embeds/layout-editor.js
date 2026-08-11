@@ -2,16 +2,19 @@
 
 import { GUILD_ID } from '/js/core/config.js';
 import { apiFetch } from '/js/core/api.js';
-import { el, autoGrow, previewEmpty, toast, showFormAlert, formGroup, helpIcon } from '/js/core/dom.js';
+import { el, autoGrow, previewEmpty, toast, showFormAlert, formGroup, helpIcon, spinner } from '/js/core/dom.js';
 import { mdToNodes, previewImg, beginPreviewRender, endPreviewRender } from '/js/core/markdown.js';
 import {
   componentCount, newBlock, LAYOUT_MAX_COMPONENTS, blockWarning, blockSummary,
   BLOCK_LABELS, stripBlockIds, colorToHex, blankLayoutDoc, blankSendOpts,
-  blockToApi, sendOptsToApi,
+  blockToApi, sendOptsToApi, hasFileBlock, hasEmptyFileBlock, countFileBlocks,
+  formatBytes, LAYOUT_MAX_FILES, LAYOUT_MAX_FILE_BYTES,
 } from '/js/embeds/state.js';
 import { _layoutDoc, setLayoutDoc } from '/js/embeds/session.js';
 import { roleSelect, channelSelect } from '/js/panel-shell.js';
-import { insertWrap, imageField, colorField, sendOptionsPanel, loadEmbeds } from '/js/embeds/shared-ui.js';
+import {
+  insertWrap, imageField, colorField, sendOptionsPanel, loadEmbeds, uploadLayoutFile,
+} from '/js/embeds/shared-ui.js';
 import {
   readEmbedDraft, clearEmbedDraft, scheduleHistorySnapshot, scheduleDraftSave,
   openHistoryModal, openJsonModal,
@@ -20,12 +23,18 @@ import {
 // Lista editable de bloques (recursiva: un container tiene su propia lista).
 export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
   listEl.innerHTML = '';
+  // Token propio de esta lista (distinto en cada render): el drag & drop de
+  // abajo lo usa para que soltar un bloque solo reordene dentro de la MISMA
+  // lista de la que salió — un container tiene su propia lista anidada, y sin
+  // esto arrastrar un bloque del nivel raíz hasta adentro de un container (u
+  // otro container hermano) mezclaría índices de arrays distintos.
+  const listToken = Math.random().toString(36).slice(2);
   // Numeración correlativa POR TIPO (un Separator entre dos Textos no corre
   // la numeración de los Textos).
   const typeCounts = {};
   blocks.forEach((b, i) => {
     typeCounts[b.type] = (typeCounts[b.type] || 0) + 1;
-    listEl.append(renderBlockCard(listEl, blocks, i, typeCounts[b.type], inContainer, onChange, roles));
+    listEl.append(renderBlockCard(listEl, blocks, i, typeCounts[b.type], inContainer, onChange, roles, listToken));
   });
   // Outline recién iniciado: invitar a agregar el primer bloque en vez de una
   // lista vacía sin indicación.
@@ -36,20 +45,31 @@ export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
   const adder = el('div', { class: 'add-row layout-adder' });
   const atMax = componentCount(_layoutDoc ? _layoutDoc.blocks : blocks) >= LAYOUT_MAX_COMPONENTS;
   const types = [['text', '+ Texto'], ['section', '+ Sección'], ['media_gallery', '+ Galería'],
-                 ['separator', '+ Separador'], ['action_row', '+ Botones']];
+                 ['separator', '+ Separador'], ['action_row', '+ Botones'], ['file', '+ Archivo']];
   if (!inContainer) types.push(['container', '+ Container']);
   for (const [t, label] of types) {
+    // "+ Archivo" además respeta su propio tope (Discord: adjuntos por
+    // mensaje), independiente del tope general de componentes.
+    const atFileMax = t === 'file'
+      && countFileBlocks(_layoutDoc ? _layoutDoc.blocks : blocks) >= LAYOUT_MAX_FILES;
+    const disabled = atMax || atFileMax;
     adder.append(el('button', {
       class: 'btn btn-secondary btn-sm',
-      disabled: atMax || null,
-      title: atMax ? `Límite de ${LAYOUT_MAX_COMPONENTS} componentes por mensaje alcanzado` : null,
+      disabled: disabled || null,
+      title: atFileMax
+        ? `Máximo ${LAYOUT_MAX_FILES} archivos por mensaje`
+        : atMax ? `Límite de ${LAYOUT_MAX_COMPONENTS} componentes por mensaje alcanzado` : null,
       onclick: () => { blocks.push(newBlock(t)); renderBlocks(listEl, blocks, inContainer, onChange, roles); onChange(); },
     }, label));
   }
   listEl.append(adder);
 }
 
-export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChange, roles) {
+// MIME propio (no 'text/plain') para llevar el token de la lista de origen en
+// el dataTransfer, junto al índice — ver comentario del token en renderBlocks.
+const LV2_DRAG_TYPE = 'application/x-purgito-blocklist';
+
+export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChange, roles, listToken) {
   const b = blocks[i];
   function rerender() { renderBlocks(listEl, blocks, inContainer, onChange, roles); onChange(); }
   const warn = blockWarning(b);
@@ -65,9 +85,16 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
       rerender();
     },
   }, b._collapsed ? '▸' : '▾');
+  // Solo el handle es draggable (igual criterio que los fields del embed
+  // clásico): arrastrar desde un input/textarea del cuerpo del bloque debe
+  // seguir seleccionando texto normalmente, no mover el bloque.
+  const handle = el('span', {
+    class: 'layout-block-handle', draggable: 'true',
+    title: 'Arrastra para reordenar', 'aria-label': 'Arrastra para reordenar',
+  }, '⠿');
   const head = el('div', { class: 'layout-block-head' },
     el('span', { class: 'layout-block-title' },
-      toggle,
+      handle, toggle,
       el('span', { class: 'layout-block-type' }, `${BLOCK_LABELS[b.type]} ${typeNum}`),
       warn ? el('span', { class: 'layout-warn', title: warn }, '!') : null,
       summary ? el('span', { class: 'layout-block-summary dim' }, summary) : null),
@@ -82,10 +109,41 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
           rerender();
         },
       }, '⧉'),
+      // Las flechas quedan como fallback para touch (el drag HTML5 no anda
+      // ahí) y como acción rápida sin tener que arrastrar.
       el('button', { class: 'btn btn-secondary btn-sm', disabled: i === 0 || null, onclick: () => { [blocks[i - 1], blocks[i]] = [blocks[i], blocks[i - 1]]; rerender(); } }, '↑'),
       el('button', { class: 'btn btn-secondary btn-sm', disabled: i === blocks.length - 1 || null, onclick: () => { [blocks[i + 1], blocks[i]] = [blocks[i], blocks[i + 1]]; rerender(); } }, '↓'),
       el('button', { class: 'btn btn-danger btn-sm', onclick: () => { blocks.splice(i, 1); rerender(); } }, '✗')));
-  return el('div', { class: 'layout-block' }, head, body);
+  const card = el('div', { class: 'layout-block' }, head, body);
+
+  handle.ondragstart = (e) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(i));
+    e.dataTransfer.setData(LV2_DRAG_TYPE, listToken);
+    card.classList.add('dragging');
+  };
+  handle.ondragend = () => card.classList.remove('dragging');
+  card.ondragover = (e) => {
+    // dataTransfer.getData() no es legible en dragover en todos los
+    // navegadores (solo .types) — por eso el chequeo de lista propia se hace
+    // recién en ondrop; acá solo se anticipa la indicación visual.
+    if (!e.dataTransfer.types.includes(LV2_DRAG_TYPE)) return;
+    e.preventDefault();
+    card.classList.add('drag-over');
+  };
+  card.ondragleave = () => card.classList.remove('drag-over');
+  card.ondrop = (e) => {
+    card.classList.remove('drag-over');
+    if (e.dataTransfer.getData(LV2_DRAG_TYPE) !== listToken) return; // otra lista (raíz vs. un container u otro)
+    e.preventDefault();
+    const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    if (Number.isNaN(from) || from === i) return;
+    const [moved] = blocks.splice(from, 1);
+    blocks.splice(i, 0, moved);
+    rerender();
+  };
+
+  return card;
 }
 
 // Campos de un botón: selector Enlace/Asignar rol + los inputs correspondientes.
@@ -188,6 +246,52 @@ export function renderBlockForm(b, onChange, roles) {
       el('div', { class: 'field' }, el('label', {}, 'Textos (máx 3)'), textsBox),
       el('div', { class: 'field' }, el('label', {}, 'Accesorio'), accType, accBox));
   }
+  if (b.type === 'file') {
+    const box = el('div', {});
+    function render() {
+      box.innerHTML = '';
+      if (b.upload) {
+        box.append(el('div', { class: 'img-chip' },
+          el('span', { class: 'img-chip-name' }, b.upload.filename
+            + (b.upload.size ? ` (${formatBytes(b.upload.size)})` : '')),
+          el('button', { class: 'btn btn-danger btn-sm', onclick: () => { b.upload = null; render(); onChange(); } }, '✗')));
+        return;
+      }
+      const fileInput = el('input', { type: 'file', style: 'display:none' });
+      fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        if (file.size > LAYOUT_MAX_FILE_BYTES) {
+          toast(`El archivo supera el máximo de ${formatBytes(LAYOUT_MAX_FILE_BYTES)}`, 'warn');
+          return;
+        }
+        box.innerHTML = '';
+        box.append(el('div', { class: 'img-uploading' }, spinner(), el('span', {}, 'Subiendo archivo…')));
+        try {
+          const upload = await uploadLayoutFile(file);
+          b.upload = { id: upload.id, filename: upload.filename, size: file.size };
+          render();
+          onChange();
+        } catch (e) {
+          render();
+          box.prepend(el('div', { class: 'img-error' }, 'No se pudo subir: ' + e.message));
+          toast(e.message, e.status === 429 ? 'warn' : 'err');
+        }
+      };
+      box.append(
+        el('button', { type: 'button', class: 'btn btn-primary', onclick: () => fileInput.click() }, 'Elegir archivo'),
+        fileInput);
+    }
+    render();
+    const spoilerChk = el('input', { type: 'checkbox', checked: b.spoiler });
+    spoilerChk.onchange = () => { b.spoiler = spoilerChk.checked; onChange(); };
+    return el('div', {}, box,
+      el('div', { class: 'add-row' },
+        el('label', { class: 'toggle' }, spoilerChk, 'Marcar como spoiler'),
+        helpIcon('Se ve pixelado hasta que alguien lo abre a propósito.')),
+      el('p', { class: 'dim' },
+        `Máx. ${formatBytes(LAYOUT_MAX_FILE_BYTES)}. Solo funciona con "Enviar ahora" — no se puede programar ni guardar en una plantilla.`));
+  }
   // container
   const box = el('div', {});
   const accentChk = el('input', { type: 'checkbox', checked: b.accent });
@@ -241,6 +345,10 @@ export function renderPreviewBlock(b) {
   }
   if (b.type === 'separator') return el('div', { class: 'lv2-sep' + (b.visible ? ' visible' : '') });
   if (b.type === 'action_row') return el('div', { class: 'lv2-row' }, b.buttons.map(lv2Button));
+  if (b.type === 'file') {
+    return el('div', { class: 'lv2-file' + (b.spoiler ? ' lv2-file-spoiler' : '') },
+      b.filename || '(sin archivo)');
+  }
   return el('div', {});
 }
 
@@ -268,6 +376,15 @@ export function renderLayoutEditor(box, channels, roles) {
     beginPreviewRender();
     previewBox.append(renderLayoutPreview(doc.blocks.map(blockToApi)));
     endPreviewRender();
+    // Los bloques de archivo no persisten (ver auditoría) -- "Programar" no
+    // es una opción real mientras haya uno. Si ya estaba en "Programar"
+    // cuando aparece el primer bloque de archivo, se vuelve a "Enviar
+    // ahora" solo: dejar el radio inhabilitado pero marcado (el navegador lo
+    // permite) sería un estado confuso del que no se puede salir clickeando.
+    const blockedBySched = hasFileBlock(doc.blocks);
+    modeSched.disabled = blockedBySched;
+    modeSched.title = blockedBySched ? 'No disponible: el layout tiene un bloque de archivo' : '';
+    if (blockedBySched && modeSched.checked) { modeNow.checked = true; syncSched(); }
     scheduleHistorySnapshot();
     scheduleDraftSave();
   }
@@ -306,6 +423,8 @@ export function renderLayoutEditor(box, channels, roles) {
     onclick: async () => {
       if (!doc.blocks.length) { showFormAlert(alertBox, 'Agrega al menos un bloque'); return; }
       if (!chSel.value) { showFormAlert(alertBox, 'Elige un canal destino'); return; }
+      if (hasEmptyFileBlock(doc.blocks)) { showFormAlert(alertBox, 'Hay un bloque de archivo sin elegir todavía.'); return; }
+      if (modeSched.checked && hasFileBlock(doc.blocks)) { showFormAlert(alertBox, 'Los bloques de archivo no se pueden programar — usa "Enviar ahora".'); return; }
       showFormAlert(alertBox, '');
       const layout = { blocks: doc.blocks.map(blockToApi) };
       try {
@@ -329,6 +448,7 @@ export function renderLayoutEditor(box, channels, roles) {
     class: 'btn btn-secondary',
     onclick: async () => {
       if (!doc.blocks.length) { showFormAlert(alertBox, 'Agrega al menos un bloque'); return; }
+      if (hasFileBlock(doc.blocks)) { showFormAlert(alertBox, 'Los bloques de archivo no se pueden guardar en una plantilla — usa "Enviar ahora".'); return; }
       showFormAlert(alertBox, '');
       const layout = { blocks: doc.blocks.map(blockToApi) };
       const name = (prompt('Nombre de la plantilla:', doc.templateName || '') || '').trim();

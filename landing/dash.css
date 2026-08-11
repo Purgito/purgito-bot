@@ -849,6 +849,10 @@ h1 {
   color: var(--accent);
 }
 .layout-block-actions { display: flex; gap: 4px; }
+.layout-block-handle { cursor: grab; color: var(--text-muted); padding: 0 4px; touch-action: none; }
+.layout-block-handle:active { cursor: grabbing; }
+.layout-block.dragging { opacity: 0.4; }
+.layout-block.drag-over { border-top: 2px solid var(--accent); }
 .layout-block-body { display: flex; flex-direction: column; gap: 8px; }
 .layout-block-body input, .layout-block-body select { min-width: 120px; }
 .layout-nested {
@@ -888,6 +892,12 @@ h1 {
 .lv2-gallery img { width: calc(50% - 2px); height: 120px; object-fit: cover; border-radius: 6px; background: #000; }
 .lv2-sep { height: 8px; }
 .lv2-sep.visible { border-top: 1px solid #3f4147; height: 0; margin: 4px 0; }
+.lv2-file {
+  display: flex; align-items: center; gap: 8px;
+  background: #2B2D31; border: 1px solid #3f4147; border-radius: 6px;
+  padding: 8px 12px; font-size: 13px; color: #DBDEE1;
+}
+.lv2-file-spoiler { filter: blur(4px); }
 .lv2-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .lv2-btn {
   display: inline-flex;
@@ -1067,6 +1077,7 @@ h1 {
   /* DnD nativo no existe en touch: el handle solo confundiría — los botones
      ▲/▼ del header de cada field son la alternativa táctil. */
   .field-drag-handle { display: none; }
+  .layout-block-handle { display: none; }
 }
 
 /* ---------- Fase 5: modal, popover de inserción, imágenes, historial ---------- */

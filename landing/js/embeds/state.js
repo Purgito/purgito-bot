@@ -11,12 +11,19 @@ export const EMBED_LIMITS = {
   fieldValue: 1024, footer: 2048, author: 256, total: 6000, count: 10,
 };
 
+// Espejo de MAX_WEBHOOK_USERNAME en message_options.py.
+export const MAX_WEBHOOK_USERNAME = 80;
+
 export const BLOCK_LABELS = {
   text: 'Texto', section: 'Sección', media_gallery: 'Galería',
   separator: 'Separador', action_row: 'Botones', container: 'Container',
+  file: 'Archivo',
 };
 
 export const LAYOUT_MAX_COMPONENTS = 40;
+// Espejo de layout_v2.py (MAX_LAYOUT_FILES, MAX_LAYOUT_FILE_UPLOAD_BYTES).
+export const LAYOUT_MAX_FILES = 10;
+export const LAYOUT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 // Forma del objeto de contexto que en el futuro va a permitir un editor sin
 // guild (envío por webhook, sin plantillas, etc.). Por ahora nada lo consume
@@ -191,11 +198,19 @@ export function detectGif(raw) {
 
 // --- Opciones de envío finas (5.6) ---
 
-export function blankSendOpts() { return { silent: false, restrict: false, roleIds: [] }; }
+// username/avatarUrl (Fase 3): si alguno no está vacío, el envío pasa de
+// channel.send() a un webhook propio del canal — ver wants_custom_identity
+// en message_options.py, la MISMA regla vive espejada en el backend.
+export function blankSendOpts() {
+  return { silent: false, restrict: false, roleIds: [], username: '', avatarUrl: '' };
+}
 
 export function sendOptsToApi(o) {
-  if (!o || (!o.silent && !o.restrict)) return undefined; // defaults: no mandar nada
-  return { silent: o.silent, restrict_mentions: o.restrict, allowed_role_ids: o.roleIds };
+  if (!o || (!o.silent && !o.restrict && !o.username && !o.avatarUrl)) return undefined; // defaults: no mandar nada
+  return {
+    silent: o.silent, restrict_mentions: o.restrict, allowed_role_ids: o.roleIds,
+    username: o.username, avatar_url: o.avatarUrl,
+  };
 }
 
 export function sendOptsFromApi(so) {
@@ -204,6 +219,8 @@ export function sendOptsFromApi(so) {
     o.silent = !!so.silent;
     o.restrict = !!so.restrict_mentions;
     o.roleIds = (so.allowed_role_ids || []).map(String);
+    o.username = so.username || '';
+    o.avatarUrl = so.avatar_url || '';
   }
   return o;
 }
@@ -222,6 +239,7 @@ export function newBlock(type) {
   if (type === 'media_gallery') return { type: 'media_gallery', items: [{ url: '', description: '' }] };
   if (type === 'separator') return { type: 'separator', visible: true, spacing: 'small' };
   if (type === 'action_row') return { type: 'action_row', buttons: [{ style: 'link', label: '', url: '', role_id: '' }] };
+  if (type === 'file') return { type: 'file', upload: null, spoiler: false };
   return { type: 'container', accent: true, accent_color: '#8B6EF5', children: [] };
 }
 
@@ -263,6 +281,14 @@ export function blockToApi(b) {
   }
   if (b.type === 'media_gallery') return { type: 'media_gallery', items: b.items.map(it => ({ url: it.url, description: it.description })) };
   if (b.type === 'separator') return { type: 'separator', visible: b.visible, spacing: b.spacing };
+  if (b.type === 'file') {
+    return {
+      type: 'file',
+      upload_id: b.upload ? b.upload.id : '',
+      filename: b.upload ? b.upload.filename : '',
+      spoiler: !!b.spoiler,
+    };
+  }
   return { type: 'action_row', buttons: b.buttons.map(buttonToApi) };
 }
 
@@ -276,6 +302,17 @@ export function apiToBlock(b) {
   if (b.type === 'media_gallery') return { type: 'media_gallery', items: (b.items || []).map(it => ({ url: it.url || '', description: it.description || '' })) };
   if (b.type === 'separator') return { type: 'separator', visible: b.visible !== false, spacing: b.spacing || 'small' };
   if (b.type === 'action_row') return { type: 'action_row', buttons: (b.buttons || []).map(buttonFromApi) };
+  if (b.type === 'file') {
+    // upload_id es una referencia efímera (TTL corto, en memoria del
+    // servidor — ver layout_v2.py) — restaurarla acá es honesto: si ya
+    // venció, el envío lo va a rechazar con un error claro en vez de mandar
+    // basura. No hay bytes que reconstruir del lado del cliente.
+    return {
+      type: 'file',
+      upload: b.upload_id ? { id: b.upload_id, filename: b.filename || '', size: 0 } : null,
+      spoiler: !!b.spoiler,
+    };
+  }
   return { type: 'text', content: b.content || '' };
 }
 
@@ -306,6 +343,7 @@ export function blockSummary(b) {
   if (b.type === 'action_row') return b.buttons.map(bt => bt.label.trim()).filter(Boolean).join(', ');
   if (b.type === 'separator') return b.visible ? 'línea visible' : 'solo espacio';
   if (b.type === 'container') return `${b.children.length} bloque(s)`;
+  if (b.type === 'file') return b.upload ? b.upload.filename : '';
   return '';
 }
 
@@ -333,7 +371,36 @@ export function blockWarning(b) {
     if (!b.children.length) return 'Container vacío';
     for (const c of b.children) { const w = blockWarning(c); if (w) return w; }
   }
+  if (b.type === 'file' && !b.upload) return 'Sin archivo elegido';
   return null;
+}
+
+// --- Bloques File (Fase 2 ronda 2) ---
+// Sin persistencia (solo "Enviar ahora", ver auditoría): estos tres helpers
+// existen para que el editor avise ANTES de mandar, en vez de dejar que el
+// backend lo rechace con un error genérico.
+
+export function hasFileBlock(blocks) {
+  return blocks.some(b => b.type === 'file' || (b.type === 'container' && hasFileBlock(b.children)));
+}
+
+export function hasEmptyFileBlock(blocks) {
+  return blocks.some(b => (b.type === 'file' && !b.upload) || (b.type === 'container' && hasEmptyFileBlock(b.children)));
+}
+
+export function countFileBlocks(blocks) {
+  let n = 0;
+  for (const b of blocks) {
+    if (b.type === 'file') n++;
+    else if (b.type === 'container') n += countFileBlocks(b.children);
+  }
+  return n;
+}
+
+export function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // Espejo del conteo de validate_layout_v2_payload (máx 40 componentes).

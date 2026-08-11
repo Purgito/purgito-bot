@@ -23,6 +23,7 @@ Bloques:
 import asyncio
 import base64
 import hashlib
+import io
 import json
 import logging
 import math
@@ -166,13 +167,21 @@ from db import (
     update_last_video_id,
 )
 from layout_v2 import (
+    MAX_FILENAME_LEN,
     assign_button_custom_ids,
     build_layout_view,
+    has_file_block,
     iter_buttons,
     validate_layout_v2_payload,
 )
-from message_options import sanitize_send_options, send_kwargs
+from message_options import (
+    sanitize_send_options,
+    send_kwargs,
+    validate_send_options,
+    wants_custom_identity,
+)
 from utils import LRUDict
+from webhook_identity import WebhookIdentityError, send_via_webhook
 import r2
 
 log = logging.getLogger(__name__)
@@ -2238,11 +2247,28 @@ def _extract_content(data: dict) -> tuple[str, str, str, str | None]:
     "send_options": {...}} — normalize_embeds_json ya conoce ese wrapper."""
     mode = data.get("content_mode") or "classic_embed"
     options = sanitize_send_options(data.get("send_options"))
+    opts_err = validate_send_options(options)
+    if opts_err:
+        return "", "", "", opts_err
     if mode == "layout_v2":
         layout = data.get("layout")
         err = validate_layout_v2_payload(layout)
         if err:
             return "", "", "", err
+        # Los bloques de archivo referencian bytes en memoria de proceso con
+        # TTL corto (ver _pending_layout_files) — nada que sobreviva hasta el
+        # próximo disparo de un anuncio programado ni hasta que se cargue una
+        # plantilla guardada. Esta función es el punto único que usan
+        # /embeds/schedule y /embeds/templates (POST y PUT), así que el
+        # rechazo acá cubre los tres.
+        if has_file_block(layout.get("blocks")):
+            return (
+                "",
+                "",
+                "",
+                "los bloques de archivo no se pueden programar ni guardar en una"
+                ' plantilla — solo funcionan con "Enviar ahora"',
+            )
         if options:
             layout["send_options"] = options
         return mode, json.dumps(layout), _layout_preview(layout), None
@@ -2383,26 +2409,73 @@ async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
     )
     if denied is not None:
         return denied
-    extra = send_kwargs(sanitize_send_options(data.get("send_options")))
+    send_options = sanitize_send_options(data.get("send_options"))
+    opts_err = validate_send_options(send_options)
+    if opts_err:
+        return web.json_response({"error": opts_err}, status=400)
+    extra = send_kwargs(send_options)
+    custom_identity = wants_custom_identity(send_options)
+    discord_files: list[discord.File] = []
+    used_upload_ids: list[str] = []
     if mode == "layout_v2":
         denied = await _reject_unassignable_roles(request, guild_id, data["layout"])
         if denied is not None:
             return denied
+        discord_files, used_upload_ids, file_err = _resolve_layout_files(
+            data["layout"].get("blocks"), guild_id
+        )
+        if file_err:
+            return web.json_response({"error": file_err}, status=400)
     try:
         if mode == "layout_v2":
             layout = data["layout"]
             assignments = assign_button_custom_ids(layout)
             await _register_role_buttons(request.app["bot"], guild_id, assignments)
-            await channel.send(view=build_layout_view(layout), **extra)
+            view = build_layout_view(layout, files=discord_files)
+            # files solo se agrega al kwargs cuando hay algo -- ni channel.send
+            # ni (sobre todo) Webhook.send toleran files=None: channel.send lo
+            # traduce a MISSING solo, Webhook.send lo pasa crudo y explota
+            # iterándolo (ver handle_message_parameters en discord/http.py).
+            content_kwargs: dict = {"view": view, **extra}
+            if discord_files:
+                content_kwargs["files"] = discord_files
+            if custom_identity:
+                await send_via_webhook(
+                    request.app["bot"],
+                    guild_id,
+                    channel,
+                    username=send_options.get("username", ""),
+                    avatar_url=send_options.get("avatar_url", ""),
+                    **content_kwargs,
+                )
+            else:
+                await channel.send(**content_kwargs)
         else:
-            await channel.send(
-                embeds=[discord.Embed.from_dict(e) for e in data["embeds"]], **extra
-            )
+            embeds = [discord.Embed.from_dict(e) for e in data["embeds"]]
+            if custom_identity:
+                await send_via_webhook(
+                    request.app["bot"],
+                    guild_id,
+                    channel,
+                    username=send_options.get("username", ""),
+                    avatar_url=send_options.get("avatar_url", ""),
+                    embeds=embeds,
+                    **extra,
+                )
+            else:
+                await channel.send(embeds=embeds, **extra)
+    except WebhookIdentityError as e:
+        return web.json_response({"error": str(e)}, status=400)
     except discord.HTTPException as e:
         # Típicamente una URL de imagen/ícono que Discord rechaza.
         return web.json_response(
             {"error": f"Discord rechazó el contenido: {e.text or e}"}, status=400
         )
+    # Recién acá, con el envío confirmado: si hubiera fallado (permisos,
+    # Discord rechazando el contenido) los archivos pendientes quedan vivos
+    # para el reintento, en vez de obligar a resubirlos.
+    for upload_id in used_upload_ids:
+        _pending_layout_files.pop(upload_id, None)
     await _log_audit(
         request, guild_id, "embeds.send", detail=f"channel_id={channel.id}"
     )
@@ -2517,6 +2590,9 @@ async def _api_embeds_share(request: web.Request, guild_id: int) -> web.Response
     if err:
         return web.json_response({"error": err}, status=400)
     options = sanitize_send_options(data.get("send_options"))
+    opts_err = validate_send_options(options)
+    if opts_err:
+        return web.json_response({"error": opts_err}, status=400)
     payload = {"embeds": embeds}
     if options:
         payload["send_options"] = options
@@ -2763,6 +2839,139 @@ async def _api_embeds_uploads_get(request: web.Request, guild_id: int) -> web.Re
     selector de reutilización — R2 ya dedupe por contenido, esto es solo el
     índice de qué URLs subió el guild."""
     return web.json_response({"urls": await list_uploaded_images(guild_id)})
+
+
+# ---------------- API: bloques File de Layout V2 ----------------
+#
+# Un bloque File de Components V2 necesita el archivo real adjunto al MISMO
+# mensaje (Discord exige la referencia "attachment://<filename>", no una URL
+# — ver el comentario grande de layout_v2.py). Eso descarta subir directo a
+# R2 como las imágenes de embeds: acá no hace falta persistencia entre
+# sesiones (Fase 2 ronda 2 los dejó fuera de Programar y de plantillas por
+# eso mismo), solo un puente corto entre "el usuario elige el archivo en el
+# editor" y "hace click en Enviar ahora", segundos o minutos después.
+#
+# _pending_layout_files es un dict en memoria del proceso de Python, sin
+# tocar disco ni R2. NOTA PARA EL FUTURO: si alguna vez el bot corre con más
+# de un worker/proceso (hoy es uno solo), esto se rompe en silencio — un
+# upload que cae en el worker A y un /embeds/send que cae en el worker B no
+# van a encontrar la entrada. El día que eso pase, esta tabla necesita mudarse
+# a algo compartido entre procesos (Redis, o directo R2 con TTL corto).
+#
+# No se sube por el mismo endpoint que las imágenes de embeds (Content-Type
+# application/octet-stream, igual patrón) porque tampoco comparte su
+# validación: acá no se sniffean magic bytes de imagen -- puede ser
+# cualquier tipo de archivo, es justamente lo que distingue un bloque File de
+# un MediaGallery.
+
+MAX_LAYOUT_FILE_UPLOAD_BYTES = env_int("MAX_LAYOUT_FILE_UPLOAD_BYTES", 10 * 1024 * 1024)
+_PENDING_LAYOUT_FILE_TTL = 600  # 10 minutos
+_MAX_PENDING_LAYOUT_FILES = 200  # tope defensivo de memoria del proceso
+
+_pending_layout_files: dict[str, dict] = {}
+
+
+def _prune_pending_layout_files() -> None:
+    now = time.monotonic()
+    expired = [k for k, v in _pending_layout_files.items() if v["expires_at"] <= now]
+    for k in expired:
+        del _pending_layout_files[k]
+
+
+@guild_api
+async def _api_layout_file_upload(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_upload, ip, 10):
+        return web.json_response({"error": "rate limit"}, status=429)
+    filename = (request.match_info.get("filename") or "").strip()
+    if not filename:
+        return web.json_response({"error": "falta el nombre del archivo"}, status=400)
+    if len(filename) > MAX_FILENAME_LEN:
+        return web.json_response(
+            {
+                "error": f"el nombre del archivo supera los {MAX_FILENAME_LEN} caracteres"
+            },
+            status=400,
+        )
+    max_bytes = MAX_LAYOUT_FILE_UPLOAD_BYTES
+    if request.content_length and request.content_length > max_bytes:
+        return web.json_response(
+            {
+                "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
+            },
+            status=413,
+        )
+    data = await request.read()
+    if len(data) > max_bytes:
+        return web.json_response(
+            {
+                "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
+            },
+            status=413,
+        )
+    if not data:
+        return web.json_response({"error": "archivo vacío"}, status=400)
+    _prune_pending_layout_files()
+    if len(_pending_layout_files) >= _MAX_PENDING_LAYOUT_FILES:
+        return web.json_response(
+            {
+                "error": "demasiadas subidas pendientes en el servidor, intenta en unos minutos"
+            },
+            status=429,
+        )
+    upload_id = secrets.token_urlsafe(16)
+    _pending_layout_files[upload_id] = {
+        "data": data,
+        "filename": filename,
+        "guild_id": guild_id,
+        "expires_at": time.monotonic() + _PENDING_LAYOUT_FILE_TTL,
+    }
+    return web.json_response({"upload_id": upload_id, "filename": filename})
+
+
+def _resolve_layout_files(
+    blocks, guild_id: int
+) -> tuple[list[discord.File], list[str], str | None]:
+    """Recorre el layout en el mismo orden que build_layout_view/_build_block
+    y resuelve cada bloque "file" a un discord.File real, leyendo (sin
+    todavía borrar) de _pending_layout_files. Devuelve
+    (files_en_orden, upload_ids_usados, error) — el caller borra
+    upload_ids_usados de _pending_layout_files recién si el envío sale bien
+    (así un fallo de permisos no obliga a resubir el archivo)."""
+    _prune_pending_layout_files()
+    files: list[discord.File] = []
+    used: list[str] = []
+    seen_filenames: dict[str, int] = {}
+
+    def walk(items) -> str | None:
+        for b in items or []:
+            kind = b.get("type")
+            if kind == "container":
+                err = walk(b.get("children"))
+                if err:
+                    return err
+            elif kind == "file":
+                upload_id = b.get("upload_id")
+                entry = _pending_layout_files.get(upload_id)
+                if entry is None or entry["guild_id"] != guild_id:
+                    return (
+                        "un archivo adjunto expiró o no se encontró — vuelve a elegirlo"
+                    )
+                filename = entry["filename"]
+                # Discord exige nombres de adjunto únicos por mensaje -- pasa
+                # si el mismo archivo se usa en dos bloques (ej. "Duplicar
+                # bloque"). Mismos bytes, filename distinto por instancia.
+                count = seen_filenames.get(filename, 0)
+                seen_filenames[filename] = count + 1
+                if count:
+                    stem, dot, ext = filename.rpartition(".")
+                    filename = f"{stem or filename} ({count + 1}){dot}{ext}"
+                files.append(discord.File(io.BytesIO(entry["data"]), filename=filename))
+                used.append(upload_id)
+        return None
+
+    err = walk(blocks)
+    return files, used, err
 
 
 # ---------------- Auth OAuth2 ----------------
@@ -3437,6 +3646,9 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/embeds/validate", _api_embeds_validate)
         app.router.add_post(f"{base}/embeds/upload", _api_embeds_upload)
         app.router.add_get(f"{base}/embeds/uploads", _api_embeds_uploads_get)
+        app.router.add_post(
+            f"{base}/embeds/upload-file/{{filename}}", _api_layout_file_upload
+        )
         app.router.add_get(f"{base}/embeds/templates", _api_embed_templates_get)
         app.router.add_post(f"{base}/embeds/templates", _api_embed_templates_post)
         app.router.add_put(

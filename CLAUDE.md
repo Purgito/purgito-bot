@@ -76,7 +76,10 @@ Tres archivos, con reglas distintas:
   `MAX_IMAGES_PER_GUILD_*`, `MAX_ANNOUNCEMENTS_PER_GUILD_*`,
   `MAX_EMBED_TEMPLATES_PER_GUILD_*`. Sin par: `MAX_GIF_DOWNLOAD_BYTES`,
   `MAX_EMBED_IMAGE_UPLOAD_BYTES`, `MAX_SHARE_LINKS_PER_GUILD_DAY`,
-  `GIF_LOSSY_LEVEL` (nivel de `--lossy` de gifsicle al subir GIFs a R2).
+  `MAX_LAYOUT_FILE_UPLOAD_BYTES` (bloques "File" de Layout V2 — no persiste
+  en R2, vive en memoria del proceso con TTL corto, ver `_pending_layout_files`
+  en `webapi.py`), `GIF_LOSSY_LEVEL` (nivel de `--lossy` de gifsicle al subir
+  GIFs a R2).
 
 Los tres se cargan al importar `src/config.py`.
 

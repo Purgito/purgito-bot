@@ -21,7 +21,8 @@ from db import (
     update_announcement_last_sent,
 )
 from layout_v2 import build_layout_view
-from message_options import send_kwargs
+from message_options import send_kwargs, wants_custom_identity
+from webhook_identity import send_via_webhook
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,9 @@ class Anuncios(commands.Cog):
                 # delete_after= es el camino rápido (asyncio.sleep interno de
                 # discord.py, vive en memoria); add_pending_deletion de abajo
                 # es la red de seguridad que sobrevive a un restart del bot.
+                # Webhook.send() (identidad personalizada) no tiene ese kwarg
+                # -- para esos envíos el borrado depende solo de la red de
+                # seguridad, hasta 30s más tarde (ver sweep_pending_deletions).
                 delete_after = item.get("delete_after_seconds")
                 delete_kwarg = {"delete_after": delete_after} if delete_after else {}
                 if item.get("embed_json") and item.get("content_mode") == "layout_v2":
@@ -75,8 +79,20 @@ class Anuncios(commands.Cog):
                     if not perms.embed_links:
                         return
                     view = build_layout_view(json.loads(item["embed_json"]))
-                    extra = send_kwargs(extract_send_options(item["embed_json"]))
-                    msg = await channel.send(view=view, **delete_kwarg, **extra)
+                    options = extract_send_options(item["embed_json"])
+                    extra = send_kwargs(options)
+                    if wants_custom_identity(options):
+                        msg = await send_via_webhook(
+                            self.bot,
+                            item["guild_id"],
+                            channel,
+                            username=options.get("username", ""),
+                            avatar_url=options.get("avatar_url", ""),
+                            view=view,
+                            **extra,
+                        )
+                    else:
+                        msg = await channel.send(view=view, **delete_kwarg, **extra)
                 elif item.get("embed_json"):
                     # Embeds clásicos. El JSON es siempre una lista (Discord
                     # admite hasta 10); normalize_embeds_json envuelve el formato
@@ -87,8 +103,20 @@ class Anuncios(commands.Cog):
                         discord.Embed.from_dict(e)
                         for e in normalize_embeds_json(item["embed_json"])
                     ]
-                    extra = send_kwargs(extract_send_options(item["embed_json"]))
-                    msg = await channel.send(embeds=embeds, **delete_kwarg, **extra)
+                    options = extract_send_options(item["embed_json"])
+                    extra = send_kwargs(options)
+                    if wants_custom_identity(options):
+                        msg = await send_via_webhook(
+                            self.bot,
+                            item["guild_id"],
+                            channel,
+                            username=options.get("username", ""),
+                            avatar_url=options.get("avatar_url", ""),
+                            embeds=embeds,
+                            **extra,
+                        )
+                    else:
+                        msg = await channel.send(embeds=embeds, **delete_kwarg, **extra)
                 else:
                     msg = await channel.send(item["message"], **delete_kwarg)
             except Exception:

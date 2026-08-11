@@ -4,9 +4,11 @@ la rama embed_json vs texto plano en el envío de anuncios programados. Usa una
 DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db."""
 
 import asyncio
+import io
 import json
 import logging
 import sqlite3
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -21,6 +23,7 @@ from layout_v2 import (
     ROLE_TOGGLE_PREFIX,
     assign_button_custom_ids,
     build_layout_view,
+    has_file_block,
     validate_layout_v2_payload,
 )
 from embeds_core import validate_embed_payload, validate_embeds_payload
@@ -646,6 +649,207 @@ def test_layout_only_link_buttons_in_phase2():
 def test_build_layout_view_smoke():
     view = build_layout_view(VALID_LAYOUT)
     assert view.to_components()
+
+
+# ─── Bloques File (Fase 2 ronda 2) ────────────────────────────────────────────
+
+
+def _file_layout(upload_id="abc", filename="x.txt", spoiler=False):
+    return {
+        "blocks": [
+            {
+                "type": "file",
+                "upload_id": upload_id,
+                "filename": filename,
+                "spoiler": spoiler,
+            }
+        ]
+    }
+
+
+def test_file_block_valid():
+    assert validate_layout_v2_payload(_file_layout()) is None
+
+
+def test_file_block_missing_upload_id_rejected():
+    layout = _file_layout()
+    layout["blocks"][0]["upload_id"] = ""
+    assert validate_layout_v2_payload(layout) is not None
+
+
+def test_file_block_missing_filename_rejected():
+    layout = _file_layout()
+    layout["blocks"][0]["filename"] = ""
+    assert validate_layout_v2_payload(layout) is not None
+
+
+def test_file_block_filename_too_long_rejected():
+    layout = _file_layout(filename="x" * 257)
+    assert validate_layout_v2_payload(layout) is not None
+
+
+def test_file_block_spoiler_must_be_bool():
+    layout = _file_layout()
+    layout["blocks"][0]["spoiler"] = "yes"
+    assert validate_layout_v2_payload(layout) is not None
+
+
+def test_file_block_max_10_per_message():
+    ok = {
+        "blocks": [
+            {
+                "type": "file",
+                "upload_id": str(i),
+                "filename": f"{i}.txt",
+                "spoiler": False,
+            }
+            for i in range(10)
+        ]
+    }
+    over = {
+        "blocks": [
+            {
+                "type": "file",
+                "upload_id": str(i),
+                "filename": f"{i}.txt",
+                "spoiler": False,
+            }
+            for i in range(11)
+        ]
+    }
+    assert validate_layout_v2_payload(ok) is None
+    assert validate_layout_v2_payload(over) is not None
+
+
+def test_has_file_block_detects_top_level():
+    assert has_file_block(_file_layout()["blocks"]) is True
+    assert has_file_block(VALID_LAYOUT["blocks"]) is False
+
+
+def test_has_file_block_detects_nested_in_container():
+    layout = {
+        "blocks": [
+            {
+                "type": "container",
+                "accent_color": None,
+                "children": [{"type": "file", "upload_id": "a", "filename": "a.txt"}],
+            }
+        ]
+    }
+    assert has_file_block(layout["blocks"]) is True
+
+
+def test_build_layout_view_attaches_file_component():
+    layout = _file_layout(filename="doc.pdf")
+    discord_file = discord.File(io.BytesIO(b"contenido"), filename="doc.pdf")
+    view = build_layout_view(layout, files=[discord_file])
+    components = view.to_components()
+    assert components[0]["type"] == 13  # ComponentType.file
+    assert components[0]["file"]["url"] == "attachment://doc.pdf"
+
+
+def test_build_layout_view_raises_without_enough_files():
+    layout = _file_layout()
+    with pytest.raises(ValueError):
+        build_layout_view(layout, files=[])
+
+
+# ─── _resolve_layout_files / _pending_layout_files (webapi.py) ───────────────
+
+
+@pytest.fixture(autouse=False)
+def _clean_pending_files():
+    webapi._pending_layout_files.clear()
+    yield
+    webapi._pending_layout_files.clear()
+
+
+def test_resolve_layout_files_happy_path(_clean_pending_files):
+    webapi._pending_layout_files["up1"] = {
+        "data": b"hola",
+        "filename": "hola.txt",
+        "guild_id": 1,
+        "expires_at": time.monotonic() + 600,
+    }
+    files, used, err = webapi._resolve_layout_files(
+        _file_layout("up1", "hola.txt")["blocks"], guild_id=1
+    )
+    assert err is None
+    assert used == ["up1"]
+    assert len(files) == 1
+    assert files[0].filename == "hola.txt"
+
+
+def test_resolve_layout_files_missing_or_expired():
+    files, used, err = webapi._resolve_layout_files(
+        _file_layout("nope", "x.txt")["blocks"], guild_id=1
+    )
+    assert err is not None
+    assert files == []
+
+
+def test_resolve_layout_files_wrong_guild_rejected(_clean_pending_files):
+    webapi._pending_layout_files["up1"] = {
+        "data": b"hola",
+        "filename": "hola.txt",
+        "guild_id": 2,  # subido por otro guild
+        "expires_at": time.monotonic() + 600,
+    }
+    files, used, err = webapi._resolve_layout_files(
+        _file_layout("up1", "hola.txt")["blocks"], guild_id=1
+    )
+    assert err is not None
+
+
+def test_resolve_layout_files_dedupes_duplicate_filename(_clean_pending_files):
+    # Simula "Duplicar bloque": dos bloques file con el mismo upload_id.
+    webapi._pending_layout_files["up1"] = {
+        "data": b"hola",
+        "filename": "hola.txt",
+        "guild_id": 1,
+        "expires_at": time.monotonic() + 600,
+    }
+    blocks = _file_layout("up1", "hola.txt")["blocks"] * 2
+    files, used, err = webapi._resolve_layout_files(blocks, guild_id=1)
+    assert err is None
+    assert [f.filename for f in files] == ["hola.txt", "hola (2).txt"]
+    assert used == ["up1", "up1"]
+
+
+def test_prune_pending_layout_files_removes_expired():
+    webapi._pending_layout_files.clear()
+    webapi._pending_layout_files["old"] = {
+        "data": b"x",
+        "filename": "x.txt",
+        "guild_id": 1,
+        "expires_at": time.monotonic() - 1,
+    }
+    webapi._pending_layout_files["fresh"] = {
+        "data": b"x",
+        "filename": "x.txt",
+        "guild_id": 1,
+        "expires_at": time.monotonic() + 600,
+    }
+    webapi._prune_pending_layout_files()
+    assert list(webapi._pending_layout_files.keys()) == ["fresh"]
+    webapi._pending_layout_files.clear()
+
+
+# ─── File blocks bloqueados en Programar y en plantillas ─────────────────────
+
+
+def test_extract_content_rejects_file_block_for_schedule_or_templates():
+    data = {"content_mode": "layout_v2", "layout": _file_layout()}
+    content_mode, payload, preview, err = webapi._extract_content(data)
+    assert err is not None
+    assert content_mode == ""
+
+
+def test_extract_content_accepts_layout_without_file_block():
+    data = {"content_mode": "layout_v2", "layout": VALID_LAYOUT}
+    content_mode, payload, preview, err = webapi._extract_content(data)
+    assert err is None
+    assert content_mode == "layout_v2"
 
 
 # ─── content_mode: round-trip y branch de anuncios ───────────────────────────

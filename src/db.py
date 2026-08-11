@@ -227,6 +227,19 @@ CREATE TABLE IF NOT EXISTS meme_schedule (
     PRIMARY KEY (guild_id, channel_id)
 );
 
+-- Webhook propio del bot por canal, para mandar con nombre/avatar
+-- personalizado (Fase 3 del editor de embeds/dashboard) sin perder los
+-- botones interactivos -- el webhook lo crea Purgito (channel.create_webhook),
+-- así que sigue perteneciendo a su aplicación. Ver src/webhook_identity.py.
+CREATE TABLE IF NOT EXISTS channel_webhooks (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    webhook_id INTEGER NOT NULL,
+    webhook_token TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
 CREATE TABLE IF NOT EXISTS scheduled_announcements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER NOT NULL,
@@ -2735,6 +2748,47 @@ async def list_uploaded_images(guild_id: int, limit: int = 40) -> list[str]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
+
+
+# ─── Webhook propio por canal (identidad personalizada, Fase 3) ─────────────
+
+
+async def get_channel_webhook(guild_id: int, channel_id: int) -> dict | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT webhook_id, webhook_token FROM channel_webhooks "
+        "WHERE guild_id=? AND channel_id=?",
+        (guild_id, channel_id),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    return {"webhook_id": row[0], "webhook_token": row[1]}
+
+
+async def set_channel_webhook(
+    guild_id: int, channel_id: int, webhook_id: int, webhook_token: str
+) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO channel_webhooks (guild_id, channel_id, webhook_id, webhook_token) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(guild_id, channel_id) DO UPDATE SET "
+            "webhook_id=excluded.webhook_id, webhook_token=excluded.webhook_token",
+            (guild_id, channel_id, webhook_id, webhook_token),
+        )
+        await db.commit()
+
+
+async def delete_channel_webhook(guild_id: int, channel_id: int) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "DELETE FROM channel_webhooks WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        await db.commit()
 
 
 # ─── Embeds compartidos por link ─────────────────────────────────────────────

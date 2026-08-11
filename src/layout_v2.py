@@ -20,6 +20,18 @@ donde cada block es uno de:
         role (Fase 3, toggle de rol): {"style": "role", "label": str, "role_id": int,
               "custom_id": str?} — custom_id lo asigna el backend (ver
               assign_button_custom_ids), nunca el frontend.
+    file (Fase 2 ronda 2): {"type": "file", "upload_id": str, "filename": str,
+          "spoiler": bool} — a diferencia de todo lo demás (que son URLs que
+          Discord fetchea solo), un bloque File necesita el archivo real
+          adjunto al mismo mensaje vía multipart, referenciado como
+          "attachment://<filename>" (ver discord.ui.File). upload_id apunta a
+          bytes subidos de antemano y guardados en memoria de proceso en
+          webapi.py (_pending_layout_files, TTL corto, sin persistencia) — es
+          por eso que este tipo de bloque NO se puede programar ni guardar en
+          plantillas (ver has_file_block, usado por webapi.py para
+          rechazarlo en esos dos casos). El JSON de acá nunca lleva los bytes:
+          build_layout_view los recibe aparte, ya resueltos, vía el parámetro
+          `files`.
 """
 
 import uuid
@@ -37,6 +49,10 @@ MAX_SECTION_TEXTS = 3
 MAX_GALLERY_ITEMS = 10
 MAX_ROW_BUTTONS = 5
 MAX_BUTTON_LABEL = 80
+MAX_LAYOUT_FILES = (
+    10  # tope de bloques File por mensaje (mismo que adjuntos de Discord)
+)
+MAX_FILENAME_LEN = 256
 
 _SPACING = {
     "small": discord.SeparatorSpacing.small,
@@ -186,16 +202,41 @@ def _validate_blocks(blocks, state, in_container=False) -> str | None:
                 err = _validate_button(btn)
                 if err:
                     return err
+        elif kind == "file":
+            upload_id = b.get("upload_id")
+            filename = b.get("filename")
+            if not isinstance(upload_id, str) or not upload_id.strip():
+                return "un bloque de archivo necesita un archivo elegido"
+            if not isinstance(filename, str) or not filename.strip():
+                return "un bloque de archivo necesita un nombre de archivo"
+            if len(filename) > MAX_FILENAME_LEN:
+                return f"el nombre del archivo supera los {MAX_FILENAME_LEN} caracteres"
+            if not isinstance(b.get("spoiler", False), bool):
+                return "spoiler debe ser true/false"
+            state["files"] += 1
         else:
             return f"tipo de bloque desconocido: {kind}"
     return None
+
+
+def has_file_block(blocks) -> bool:
+    """True si el layout tiene al menos un bloque de tipo file — estos no
+    persisten bytes (ver el comentario grande del módulo), así que no se
+    pueden guardar en plantillas ni programar, solo enviar ahora."""
+    for b in blocks or []:
+        kind = b.get("type") if isinstance(b, dict) else None
+        if kind == "file":
+            return True
+        if kind == "container" and has_file_block(b.get("children")):
+            return True
+    return False
 
 
 def validate_layout_v2_payload(layout) -> str | None:
     """Devuelve un mensaje de error o None si el layout es válido."""
     if not isinstance(layout, dict):
         return "layout inválido: se esperaba un objeto"
-    state = {"count": 0, "text": 0}
+    state = {"count": 0, "text": 0, "files": 0}
     err = _validate_blocks(layout.get("blocks"), state)
     if err:
         return err
@@ -203,6 +244,8 @@ def validate_layout_v2_payload(layout) -> str | None:
         return f"el layout supera los {MAX_COMPONENTS} componentes"
     if state["text"] > MAX_TEXT_TOTAL:
         return f"el texto total supera los {MAX_TEXT_TOTAL} caracteres"
+    if state["files"] > MAX_LAYOUT_FILES:
+        return f"máximo {MAX_LAYOUT_FILES} archivos por mensaje"
     return None
 
 
@@ -279,10 +322,10 @@ def _gallery_item(it) -> discord.MediaGalleryItem:
     return discord.MediaGalleryItem(it["url"].strip())
 
 
-def _build_block(b):
+def _build_block(b, file_iter=None):
     kind = b.get("type")
     if kind == "container":
-        children = [_build_block(c) for c in b.get("children", [])]
+        children = [_build_block(c, file_iter) for c in b.get("children", [])]
         color = b.get("accent_color")
         if color is not None:
             return discord.ui.Container(*children, accent_colour=_parse_color(color))
@@ -305,15 +348,36 @@ def _build_block(b):
         return discord.ui.ActionRow(
             *[_build_button(btn) for btn in b.get("buttons", [])]
         )
+    if kind == "file":
+        # El archivo real (discord.File) lo resuelve el caller de antemano
+        # (ver _resolve_layout_files en webapi.py) y lo pasa acá ya en orden
+        # de aparición -- este dict nunca lleva los bytes, solo la referencia.
+        try:
+            discord_file = next(file_iter)
+        except (StopIteration, TypeError):
+            raise ValueError(
+                "bloque de archivo sin un discord.File resuelto (¿faltó pasar `files`?)"
+            ) from None
+        # ui.File deriva el "attachment://<filename>" solo de discord_file.uri
+        # -- los bytes en sí los toma channel.send() de su propio kwarg
+        # `files=`, que debe llevar ESTE MISMO objeto (ver _resolve_layout_files).
+        return discord.ui.File(discord_file, spoiler=bool(b.get("spoiler")))
     raise ValueError(f"tipo de bloque desconocido: {kind}")
 
 
 def build_layout_view(
-    layout: dict, timeout: float | None = None
+    layout: dict, files=None, timeout: float | None = None
 ) -> discord.ui.LayoutView:
     """Arma una LayoutView a partir del JSON del layout. Asume que el layout ya
-    pasó validate_layout_v2_payload."""
+    pasó validate_layout_v2_payload.
+
+    `files`: lista ordenada de discord.File ya resueltos para los bloques de
+    tipo "file", en el mismo orden en que aparecen en el layout (recorrido en
+    profundidad, containers incluidos) — ver _resolve_layout_files en
+    webapi.py, que además es responsable de pasar los MISMOS objetos como
+    kwarg `files=` de channel.send para que los bytes viajen de verdad."""
     view = discord.ui.LayoutView(timeout=timeout)
+    file_iter = iter(files or [])
     for block in layout.get("blocks", []):
-        view.add_item(_build_block(block))
+        view.add_item(_build_block(block, file_iter))
     return view
