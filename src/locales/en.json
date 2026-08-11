@@ -101,9 +101,11 @@
   "chat.muted.disabled": "🤐 Conversational chat is disabled on this server. An admin can enable it in `/settings` → Chat.",
   "chat.muted.wrong_channel": "🤐 I only reply in {channel}. You can change that from your dashboard: {url}.",
 
+  "chat.rate_limited": "⏳ You've mentioned me plenty this hour — let's talk again in a bit (an admin set this limit on this server).",
+
   "welcome.title": "Hi! I'm Purgito 👋",
   "welcome.intro": "I'm a Markov bot that learns to talk like your server.",
-  "welcome.getting_started": "**To get started:**\n• I'm not learning from anything yet — pick the channels you want me to listen to, to get started\n• Use the button below to pick them",
+  "welcome.getting_started": "**To get started:**\n• Pick the channels you want me to listen to — I haven't read anything yet\n• Use the button below",
   "welcome.limited_visibility": "🔍 Right now I can only read {seen} of {total} channels: {names}. If you want me to learn how people actually talk here, give Purgito access to the other channels too — channel permissions, or its role in Server Settings.",
   "welcome.premium_target": "• React to images with 🎯 to add them to the `/momo` pool",
   "welcome.commands_header": "**Main commands:**",
@@ -117,11 +119,11 @@
   "welcome.btn_configure": "⚙️ Set up Purgito",
 
   "dm.title": "👋 Thanks for adding me to {guild}!",
-  "dm.body": "I'm not learning from anything yet — the first step is picking the channels you want me to listen to: {url}\n\n**Whenever you want:**\n• `/help` — full command list\n• `/setup` — initial setup (language, chat)",
+  "dm.body": "First step: pick the channels you want me to listen to (I haven't read anything yet): {url}\n\n**Whenever you want:**\n• `/help` — full command list\n• `/setup` — initial setup (language, chat)",
   "dm.limited_visibility_extra": "Right now I can only read {seen} of {total} channels in this server. If you want me to learn better, give Purgito access to the rest — channel permissions, or its role in Server Settings.",
 
   "setup.title": "🚀 Purgito initial setup",
-  "setup.body": "I'll walk you through the essential settings. Use the menu below to go through each category:\n\n**1. Language** — pick the bot's language 🌐\n**2. Chat** — decide whether the bot replies when mentioned 💬\n\nThe rest of the configuration (channels, learning, frequency, reactions, phrases, limits) is done from your dashboard: {url}\n\nOnce you pick channels for the corpus, run `/refeed_channels` so the bot learns their history. You can come back to this panel anytime with `/settings`.",
+  "setup.body": "Essential settings, one at a time with the menu below:\n\n**1. Language** — pick the bot's language 🌐\n**2. Chat** — decide whether the bot replies when mentioned 💬\n\nThe rest (channels, learning, frequency, reactions, phrases, limits) is done from your dashboard: {url}\n\nOnce you pick channels for the corpus, run `/refeed_channels` so the bot learns their history. You can come back to this panel anytime with `/settings`.",
   "setup.panel_cta": "💻 **Web panel:** configure everything from the browser — includes a visual embed editor and interactive buttons: {url}",
   "setup.status_header": "**Right now:**\n👁️ I can see {seen} of {total} channels\n💬 I have {corpus} messages saved\n🚫 {ignored} channel(s) excluded\n\n",
 

@@ -53,7 +53,10 @@ function gifThumb(g) {
 }
 
 // Igual que el header de gif_gallery.py: total + desglose preview/link,
-// recalculado sobre el pool en memoria (no pide de nuevo al backend).
+// recalculado sobre el pool en memoria (no pide de nuevo al backend). El cupo
+// (_gifLimit) viene del backend y no cambia al borrar, así que se guarda aparte.
+let _gifLimit = 0;
+
 function updateGifStats() {
   if (!_gifStatsEl) return;
   let preview = 0, link = 0;
@@ -62,9 +65,31 @@ function updateGifStats() {
   }
   _gifStatsEl.innerHTML = '';
   _gifStatsEl.append(
-    el('strong', { class: 'stat-num' }, String(_gifPool.length)), ' GIFs — ',
+    el('strong', { class: 'stat-num' }, String(_gifPool.length)),
+    _gifLimit ? ` de ${_gifLimit.toLocaleString('es')} GIFs — ` : ' GIFs — ',
     el('strong', { class: 'stat-num' }, String(preview)), ' con preview · ',
     el('strong', { class: 'stat-num' }, String(link)), ' como link');
+  // Al llegar al cupo, guardar uno nuevo desaloja el más viejo: decirlo antes
+  // de que pase, no después.
+  if (_gifLimit && _gifPool.length >= _gifLimit * 0.9) {
+    _gifStatsEl.append(el('p', { class: 'dim' }, _gifPool.length >= _gifLimit
+      ? 'Llegaste al cupo: cada GIF nuevo que se guarde va a reemplazar al más antiguo.'
+      : 'Estás cerca del cupo — al llegar, cada GIF nuevo reemplaza al más antiguo.'));
+  }
+}
+
+/* Los GIFs que el chequeo de salud saca solos (3 chequeos "dead" seguidos)
+   antes desaparecían sin ningún rastro visible: para el admin era
+   indistinguible de un bug. El backend ahora los registra en el historial y
+   devuelve el conteo de los últimos 30 días. */
+function autoRemovedNote(count) {
+  if (!count) return null;
+  return el('p', { class: 'dim' },
+    count === 1
+      ? 'En los últimos 30 días se quitó 1 GIF solo porque su host dejó de servirlo. '
+      : `En los últimos 30 días se quitaron ${count} GIFs solos porque sus hosts dejaron de servirlos. `,
+    el('a', { href: `/es/dashboard/${GUILD_ID}/historial` }, 'Verlos en el historial'),
+    '.');
 }
 
 function syncGifMore() {
@@ -234,9 +259,11 @@ export async function loadGifs() {
     box.innerHTML = '';
 
     _gifPool = data.gifs;
-    _gifStatsEl = el('p', { class: 'dim gif-stats' });
+    _gifLimit = data.limit || 0;
+    _gifStatsEl = el('div', { class: 'dim gif-stats' });
     box.append(_gifStatsEl);
     updateGifStats();
+    box.append(autoRemovedNote(data.auto_removed_30d || 0));
 
     const input = el('input', { type: 'text', placeholder: 'https://tenor.com/… o URL de R2', style: 'flex:1' });
     const verifyBtn = el('button', {
@@ -253,9 +280,9 @@ export async function loadGifs() {
           const msg = resp.checking < resp.total
             ? `Verificando los ${resp.checking} más antiguos de ${resp.total} GIFs — el resto se cubre en próximos ciclos`
             : `Verificación de ${resp.total} GIFs iniciada en segundo plano`;
-          toast(`${msg} — recargá esta sección en unos minutos`, 'ok');
+          toast(`${msg} — recarga esta sección en unos minutos`, 'ok');
         } catch (e) {
-          toast(e.status === 429 ? 'Ya hay una verificación reciente — esperá antes de disparar otra' : e.message, e.status === 429 ? 'warn' : 'err');
+          toast(e.status === 429 ? 'Ya hay una verificación reciente — espera antes de disparar otra' : e.message, e.status === 429 ? 'warn' : 'err');
         } finally {
           verifyBtn.disabled = false;
           verifyBtn.textContent = original;

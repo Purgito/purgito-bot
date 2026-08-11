@@ -51,13 +51,13 @@ class FakeMessage:
         self.replies: list[str] = []
         self.reactions: list[str] = []
 
-    async def reply(self, text):
+    async def reply(self, text, **kwargs):
         self.replies.append(text)
 
     async def add_reaction(self, emoji):
         self.reactions.append(emoji)
 
-    async def _channel_send(self, text):
+    async def _channel_send(self, text, **kwargs):
         self.channel_sent.append(text)
 
 
@@ -66,6 +66,7 @@ def cog(monkeypatch):
     """Cog de Chat aislado: cooldowns limpios, db parcheada, azar desactivado."""
     chat_mod._muted_reply_cooldowns.clear()
     chat_mod._recent_message_ids.clear()
+    chat_mod._spontaneous_cooldowns.clear()
     # random() = 1.0: nunca dispara la reacción aleatoria (0.05) ni el GIF (0.45).
     monkeypatch.setattr(chat_mod, "random", SimpleNamespace(random=lambda: 1.0))
 
@@ -94,6 +95,7 @@ def _patch_ctx(
     reply_channels=(),
     spontaneous_channels=(),
     exempt_roles=(),
+    exempt_channels=(),
     gif_probability=0.45,
     frase_probability=0.0,
 ):
@@ -135,7 +137,11 @@ def _patch_ctx(
     async def fake_exempt(guild_id):
         return list(exempt_roles)
 
+    async def fake_exempt_channels(guild_id):
+        return list(exempt_channels)
+
     chat_mod._mention_hits.clear()
+    chat_mod._rate_limit_warned.clear()
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_ignored)
     monkeypatch.setattr(chat_mod, "is_corpus_allowed", fake_corpus_allowed)
     monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_settings)
@@ -144,6 +150,7 @@ def _patch_ctx(
         chat_mod, "list_spontaneous_channels", fake_spontaneous_channels
     )
     monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_exempt)
+    monkeypatch.setattr(chat_mod, "list_exempt_channels", fake_exempt_channels)
 
 
 # ─── Sección 5, ronda 1: reenvío de eventos duplicados del gateway ───────────
@@ -224,6 +231,7 @@ def test_excepcion_a_mitad_de_camino_no_deja_el_id_bloqueado_para_siempre(cog):
     mp.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_false())
     mp.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
     mp.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+    mp.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
     _patch_generation(mp)
 
     first = FakeMessage()
@@ -349,6 +357,105 @@ def test_mencion_y_espontaneo_usan_allowlists_independientes(cog):
     ]
 
 
+# ─── Piso de silencio de los mensajes espontáneos ────────────────────────────
+#
+# De los tres caminos que generan texto, el espontáneo era el único sin ningún
+# freno: con auto_generate_every=1 y auto_generate_probability=100% el bot
+# mandaba un mensaje por cada mensaje que aprendía (spam 1:1 con el canal), y
+# las dos perillas están en el dashboard. _SPONTANEOUS_COOLDOWN es un piso que
+# ninguna combinación de settings puede saltear.
+
+
+def _patch_auto_generate_siempre(mp, saved):
+    """El canal dispara la oportunidad de hablar solo en CADA mensaje: es la
+    config patológica (every=1, probability=100%) que el piso tiene que cortar."""
+
+    async def fake_save_saved(
+        guild_id, channel_id, author_id, name, text, message_id=None
+    ):
+        saved.append(text)
+        return (True, True)
+
+    mp.setattr(chat_mod, "save_corpus_and_user_message", fake_save_saved)
+    mp.setattr(
+        chat_mod.generation,
+        "note_message_for_auto_generate",
+        lambda guild_id, channel_id, every, probability: True,
+    )
+
+
+def test_espontaneo_no_habla_dos_veces_seguidas_en_el_mismo_canal(cog):
+    chat, saved, mp = cog
+    _patch_ctx(mp)
+    _patch_generation(mp)
+    _patch_auto_generate_siempre(mp, saved)
+
+    primero = FakeMessage(mention=False, channel_id=10)
+    asyncio.run(chat.on_message(primero))
+    assert primero.channel_sent == ["respuesta"]
+
+    # Mismo canal, en el mismo instante: el piso lo calla, aunque every y
+    # probability digan que le toca hablar.
+    for _ in range(5):
+        seguido = FakeMessage(mention=False, channel_id=10)
+        asyncio.run(chat.on_message(seguido))
+        assert seguido.channel_sent == []
+
+    # El corpus sigue aprendiendo de todos: el piso frena el hablar, no el leer.
+    # ("hola mundo" es el contenido que arma FakeMessage sin mención.)
+    assert saved == ["hola mundo"] * 6
+
+
+def test_el_piso_es_por_canal_no_por_servidor(cog):
+    """Un canal activo no debe dejar mudos a los demás del mismo servidor."""
+    chat, saved, mp = cog
+    _patch_ctx(mp)
+    _patch_generation(mp)
+    _patch_auto_generate_siempre(mp, saved)
+
+    a = FakeMessage(mention=False, channel_id=10)
+    asyncio.run(chat.on_message(a))
+    assert a.channel_sent == ["respuesta"]
+
+    b = FakeMessage(mention=False, channel_id=99)
+    asyncio.run(chat.on_message(b))
+    assert b.channel_sent == ["respuesta"]
+
+
+def test_pasado_el_piso_vuelve_a_hablar(cog):
+    chat, saved, mp = cog
+    _patch_ctx(mp)
+    _patch_generation(mp)
+    _patch_auto_generate_siempre(mp, saved)
+
+    asyncio.run(chat.on_message(FakeMessage(mention=False, channel_id=10)))
+
+    # Envejecer la marca del canal más allá del piso.
+    key = (1, 10)
+    chat_mod._spontaneous_cooldowns[key] -= chat_mod._SPONTANEOUS_COOLDOWN + 1
+
+    despues = FakeMessage(mention=False, channel_id=10)
+    asyncio.run(chat.on_message(despues))
+    assert despues.channel_sent == ["respuesta"]
+
+
+def test_el_piso_no_afecta_las_respuestas_a_menciones(cog):
+    """Una mención directa tiene su propio límite (mention_rate_limit): que el
+    bot acabe de hablar solo no puede dejarlo sin contestar a quien lo llama."""
+    chat, saved, mp = cog
+    _patch_ctx(mp)
+    _patch_generation(mp)
+    _patch_auto_generate_siempre(mp, saved)
+
+    espontaneo = FakeMessage(mention=False, channel_id=10)
+    asyncio.run(chat.on_message(espontaneo))
+    assert espontaneo.channel_sent == ["respuesta"]
+
+    mencion = FakeMessage(mention=True, channel_id=10)
+    asyncio.run(chat.on_message(mencion))
+    assert mencion.replies == ["respuesta"]
+
+
 # ─── Corpus: allowlist positiva ──────────────────────────────────────────────
 
 
@@ -413,7 +520,10 @@ def _patch_generation(monkeypatch, reply="respuesta"):
     monkeypatch.setattr(chat_mod.generation, "generate_response", fake_generate)
 
 
-def test_rate_limit_silences_mentions_without_any_notice(cog):
+def test_rate_limit_avisa_una_vez_y_despues_solo_reacciona(cog):
+    """Antes, pegar contra el tope dejaba al bot completamente mudo: para quien
+    lo sufría era indistinguible de "el bot está roto" (pasó de verdad, con
+    capturas). Ahora avisa una vez por ventana y después solo reacciona ⏳."""
     chat, saved, mp = cog
     _patch_ctx(mp, rate_limit=2)
     _patch_generation(mp)
@@ -423,16 +533,53 @@ def test_rate_limit_silences_mentions_without_any_notice(cog):
         asyncio.run(chat.on_message(m))
         assert m.replies and not m.reactions  # dentro del cupo: responde
 
-    # Tercera mención de la misma hora: ni respuesta, ni reacción, ni aviso.
+    # Tercera mención de la misma hora: el aviso completo, una sola vez.
     over = FakeMessage()
     asyncio.run(chat.on_message(over))
-    assert over.replies == [] and over.reactions == []
+    assert over.replies == [i18n.t("chat.rate_limited", "es")]
+    assert over.reactions == []
+
+    # Cuarta y quinta: ya avisó en esta ventana, solo la reacción corta.
+    for _ in range(2):
+        again = FakeMessage()
+        asyncio.run(chat.on_message(again))
+        assert again.replies == []
+        assert again.reactions == ["⏳"]
+
     # El mensaje igual entra al corpus: el tope frena las respuestas, no el aprendizaje.
-    assert saved == ["hola", "hola", "hola"]
+    assert saved == ["hola"] * 5
 
 
-def test_rate_limit_beats_the_muted_notice(cog):
-    """El aviso de 'chat desactivado' también es un mensaje spameable."""
+def test_rate_limit_vuelve_a_avisar_cuando_rota_la_ventana(cog):
+    """El aviso se rehabilita solo al rotar la ventana horaria, sin barrido:
+    _rate_limit_warned se compara contra el inicio de ventana de _mention_hits."""
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1)
+    _patch_generation(mp)
+
+    asyncio.run(chat.on_message(FakeMessage()))  # consume el único cupo
+    primero = FakeMessage()
+    asyncio.run(chat.on_message(primero))
+    assert primero.replies == [i18n.t("chat.rate_limited", "es")]
+
+    dentro = FakeMessage()
+    asyncio.run(chat.on_message(dentro))
+    assert dentro.reactions == ["⏳"]  # misma ventana: sin texto
+
+    # Envejecer la ventana del usuario más de una hora: arranca de cero.
+    key = (1, 5)
+    start, count = chat_mod._mention_hits[key]
+    chat_mod._mention_hits[key] = (start - chat_mod._MENTION_RATE_WINDOW - 1, count)
+
+    asyncio.run(chat.on_message(FakeMessage()))  # cupo nuevo: responde
+    nueva_ventana = FakeMessage()
+    asyncio.run(chat.on_message(nueva_ventana))
+    assert nueva_ventana.replies == [i18n.t("chat.rate_limited", "es")]
+
+
+def test_rate_limit_le_gana_al_aviso_de_silenciado(cog):
+    """Con el cupo agotado, el aviso que sale es el del tope — no el de 'chat
+    desactivado'. El camino del rate limit corta antes que _muted_reply."""
     chat, _, mp = cog
     _patch_ctx(mp, enabled=False, rate_limit=1)
 
@@ -442,7 +589,7 @@ def test_rate_limit_beats_the_muted_notice(cog):
 
     over = FakeMessage(guild_id=1)
     asyncio.run(chat.on_message(over))
-    assert over.replies == [] and over.reactions == []
+    assert over.replies == [i18n.t("chat.rate_limited", "es")]
 
 
 def test_rate_limit_is_per_user(cog):
@@ -452,17 +599,17 @@ def test_rate_limit_is_per_user(cog):
 
     mine = FakeMessage()
     asyncio.run(chat.on_message(mine))
-    assert mine.replies
+    assert mine.replies == ["respuesta"]
 
     blocked = FakeMessage()
     asyncio.run(chat.on_message(blocked))
-    assert blocked.replies == []
+    assert blocked.replies == [i18n.t("chat.rate_limited", "es")]
 
     # Otro usuario en el mismo servidor arranca con su cupo entero.
     other = FakeMessage()
     other.author = SimpleNamespace(bot=False, id=6, display_name="otro", roles=[])
     asyncio.run(chat.on_message(other))
-    assert other.replies
+    assert other.replies == ["respuesta"]
 
 
 # ─── Roles exentos del límite ────────────────────────────────────────────────
@@ -492,7 +639,7 @@ def test_rol_no_exento_sigue_topeado(cog):
 
     segundo = FakeMessage(role_ids=[123])
     asyncio.run(chat.on_message(segundo))
-    assert segundo.replies == []
+    assert segundo.replies == [i18n.t("chat.rate_limited", "es")]
 
 
 def test_sin_roles_exentos_configurados_el_tope_aplica_a_todos(cog):
@@ -503,7 +650,69 @@ def test_sin_roles_exentos_configurados_el_tope_aplica_a_todos(cog):
     asyncio.run(chat.on_message(FakeMessage(role_ids=[777])))
     bloqueado = FakeMessage(role_ids=[777])
     asyncio.run(chat.on_message(bloqueado))
-    assert bloqueado.replies == []
+    assert bloqueado.replies == [i18n.t("chat.rate_limited", "es")]
+
+
+# ─── Canales exentos del límite ──────────────────────────────────────────────
+#
+# Mismo concepto que los roles exentos pero por canal (#bot-testing y
+# similares): un admin no debería tener que inventar un rol solo para eximir
+# un canal.
+
+
+def test_canal_exento_ignora_el_tope_por_completo(cog):
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_channels=[10])
+    _patch_generation(mp)
+
+    # Con tope 1, el segundo mensaje ya estaría topeado en un canal normal.
+    for _ in range(5):
+        m = FakeMessage(channel_id=10)
+        asyncio.run(chat.on_message(m))
+        assert m.replies == ["respuesta"]
+        assert m.reactions == []
+
+
+def test_canal_no_exento_sigue_topeado(cog):
+    """La exención es del canal listado, no de todo el servidor."""
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_channels=[10])
+    _patch_generation(mp)
+
+    primero = FakeMessage(channel_id=99)
+    asyncio.run(chat.on_message(primero))
+    assert primero.replies == ["respuesta"]
+
+    segundo = FakeMessage(channel_id=99)
+    asyncio.run(chat.on_message(segundo))
+    assert segundo.replies == [i18n.t("chat.rate_limited", "es")]
+
+
+def test_canal_exento_no_gasta_cupo_del_usuario(cog):
+    """Hablar en un canal exento no debe consumir el cupo que el usuario tiene
+    para los demás canales: la exención saltea el conteo, no lo adelanta."""
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_channels=[10])
+    _patch_generation(mp)
+
+    for _ in range(3):
+        asyncio.run(chat.on_message(FakeMessage(channel_id=10)))
+
+    # El cupo del canal normal sigue intacto.
+    normal = FakeMessage(channel_id=99)
+    asyncio.run(chat.on_message(normal))
+    assert normal.replies == ["respuesta"]
+
+
+def test_sin_canales_exentos_el_tope_aplica_en_todos(cog):
+    chat, _, mp = cog
+    _patch_ctx(mp, rate_limit=1, exempt_channels=[])
+    _patch_generation(mp)
+
+    asyncio.run(chat.on_message(FakeMessage(channel_id=10)))
+    bloqueado = FakeMessage(channel_id=10)
+    asyncio.run(chat.on_message(bloqueado))
+    assert bloqueado.replies == [i18n.t("chat.rate_limited", "es")]
 
 
 # ─── Probabilidades por servidor ─────────────────────────────────────────────
@@ -590,6 +799,7 @@ def test_on_message_resuelve_settings_con_el_channel_id_del_mensaje(cog, monkeyp
     monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_false())
     monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
     monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+    monkeypatch.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
 
     m = FakeMessage(channel_id=42)
     asyncio.run(chat.on_message(m))
@@ -636,6 +846,7 @@ def test_override_de_canal_cambia_la_conducta_observable(cog, monkeypatch):
     monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_false())
     monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
     monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+    monkeypatch.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
 
     con_override = FakeMessage(channel_id=10)
     asyncio.run(chat.on_message(con_override))

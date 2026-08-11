@@ -119,15 +119,36 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
     return saved
 
 
+def _valid_media_url(resolved) -> bool:
+    """Un media_url resuelto solo se acepta si vuelve a caer en un host de
+    GIFs conocido.
+
+    Lo que devuelve un oEmbed de terceros no es un dato confiable: se guarda
+    en corpus_gifs.media_url y de ahí sale a tres lados sin volver a validarse
+    -- el bot lo POSTEA en el canal, el servidor lo FETCHEA en el chequeo de
+    salud, y el dashboard lo carga como <img src>. Un oEmbed que devuelva otra
+    cosa (por un open redirect, un reflejo del parámetro `url`, o un cambio de
+    formato del proveedor) no debe poder decidir ninguno de los tres.
+    """
+    return (
+        isinstance(resolved, str)
+        and resolved.startswith(("http://", "https://"))
+        and _is_gif_site(_gif_host(resolved))
+    )
+
+
 async def resolve_media_url(url: str) -> str | None:
     import requests
 
     try:
-        if "cdn.discordapp.com" in url or (
+        # Host real, no substring: "https://evil.com/?x=tenor.com" contiene
+        # "tenor.com" pero no es tenor (mismo criterio que save_gif_candidates).
+        host = _gif_host(url)
+        if host == "cdn.discordapp.com" or (
             r2.public_url() and url.startswith(r2.public_url())
         ):
             return url
-        if "tenor.com" in url:
+        if host == "tenor.com" or host.endswith(".tenor.com"):
             resp = await asyncio.to_thread(
                 requests.get,
                 f"https://tenor.com/oembed?url={quote(url, safe='')}&format=json",
@@ -137,8 +158,8 @@ async def resolve_media_url(url: str) -> str | None:
             # que expone es "thumbnail_url" (un .png estático del gif). No es
             # el gif animado, pero alcanza para el chequeo de salud -- que es
             # el único consumidor de media_url.
-            return resp.json()["thumbnail_url"]
-        if "giphy.com" in url:
+            resolved = resp.json()["thumbnail_url"]
+        elif host == "giphy.com" or host.endswith(".giphy.com"):
             resp = await asyncio.to_thread(
                 requests.get,
                 f"https://giphy.com/services/oembed?url={quote(url, safe='')}&format=json",
@@ -146,10 +167,17 @@ async def resolve_media_url(url: str) -> str | None:
             )
             # A diferencia de tenor, el oEmbed de giphy sí trae el .gif real
             # bajo "url" -- no tiene "thumbnail_url".
-            return resp.json()["url"]
+            resolved = resp.json()["url"]
+        else:
+            return None
     except Exception:
         return None
-    return None
+    if not _valid_media_url(resolved):
+        log.warning(
+            "oEmbed devolvió un media_url fuera de los hosts de GIFs: %r", resolved
+        )
+        return None
+    return resolved
 
 
 async def get_live_gif(

@@ -304,6 +304,14 @@ textarea { width: 100%; min-height: 70px; resize: vertical; }
 h1 .nav-icon { width: 22px; height: 22px; }
 h1 .nav-icon svg { width: 20px; height: 20px; }
 
+/* Tooltip nativo (title) para contexto breve — ver helpIcon() en core/dom.js. */
+.help-icon {
+  width: 14px; height: 14px; margin-left: 4px;
+  color: var(--text-muted); cursor: help; vertical-align: -2px;
+}
+.help-icon svg { width: 14px; height: 14px; }
+.help-icon:hover, .help-icon:focus-visible { color: var(--accent); }
+
 h1 {
   display: flex;
   align-items: center;
@@ -681,7 +689,14 @@ h1 {
    + overflow es el tope para que no crezca infinito en pantallas chicas. */
 .embed-form textarea.autogrow { min-height: 70px; max-height: 400px; overflow-y: auto; resize: none; }
 .embed-form input[type='color'] { width: 60px; height: 34px; padding: 2px; cursor: pointer; }
+.color-field-wrap { display: flex; flex-direction: column; gap: 8px; }
 .color-field { display: flex; align-items: center; gap: 8px; }
+.color-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.color-preset {
+  width: 20px; height: 20px; padding: 0; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); cursor: pointer; transition: transform var(--dur-fast) var(--ease);
+}
+.color-preset:hover { transform: scale(1.15); border-color: var(--accent); }
 .color-hex-input {
   width: 110px;
   font-family: monospace;
@@ -776,8 +791,12 @@ h1 {
 .char-counter { font-family: var(--font-mono); font-size: 12px; }
 .char-counter.near { color: var(--premium); }
 .char-counter.over { color: var(--danger); font-weight: 700; }
+.embed-pill-actions { display: inline-flex; align-items: center; gap: 4px; }
 .embed-pill-x { opacity: 0.6; font-size: 11px; }
 .embed-pill-x:hover { opacity: 1; color: var(--danger); }
+.embed-pill-move { opacity: 0.6; font-size: 11px; }
+.embed-pill-move:hover { opacity: 1; color: var(--accent); }
+.embed-pill-move.disabled { opacity: 0.2; pointer-events: none; }
 
 /* Aviso de GIF (Tenor/Giphy) bajo los campos de imagen. */
 .embed-gif-note { font-size: 11.5px; line-height: 1.4; margin-top: 4px; min-height: 0; }
@@ -1287,10 +1306,29 @@ h1 {
 
 /* Widget de imagen: "Subir" es la acción primaria (ancho completo); el campo
    de URL y "Pegar"/"Reusar" quedan como fila secundaria (ver ajuste 5.2). */
-.img-field-primary { margin-bottom: 6px; }
-.img-field-primary .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.img-field-primary { margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.img-field-primary .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .img-field-secondary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .img-field-secondary input[type='url'] { flex: 1; min-width: 140px; }
+
+.img-library { min-height: 60px; }
+.img-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+.img-library-item {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  aspect-ratio: 1;
+  cursor: pointer;
+  background: var(--surface-raised);
+  transition: border-color var(--transition);
+}
+.img-library-item:hover { border-color: var(--accent); }
+.img-library-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .img-uploading {
   display: flex;
   align-items: center;
@@ -1654,3 +1692,9 @@ h1 {
   .shell-main { padding: 16px; }
   .pf-toolbar { flex-direction: column; align-items: stretch; }
 }
+
+/* Avisos del Playground: frenos activos fuera del motor de generación (chat
+   apagado, allowlists, cupo horario, piso de silencio). Separados del texto
+   generado para que no se lean como parte de la respuesta simulada. */
+.playground-avisos { margin-top: 16px; }
+.playground-avisos .item-list { margin-bottom: 0; }

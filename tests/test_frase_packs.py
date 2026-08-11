@@ -73,6 +73,21 @@ def test_nombre_vacio_no_crea_pack(temp_db):
     assert asyncio.run(db.add_frase_pack(1, "   ")) is None
 
 
+def test_frase_larga_se_recorta_a_2000_caracteres(temp_db):
+    """Auditoría sección 9, punto 6: sin tope, una frase de varios MB dispara
+    chunk_message() y el bot manda decenas de mensajes seguidos apenas
+    dispara (spontaneous/mención/trigger). 2000 es el máximo real de un
+    mensaje de Discord, así que una frase guardada siempre entra en uno."""
+
+    async def run():
+        await db.add_frase_especial(1, 42, "user", "x" * 5000)
+        frases = await db.list_frases_especiales(1)
+        return frases
+
+    frases = asyncio.run(run())
+    assert len(frases[0]["frase"]) == 2000
+
+
 def test_nombre_duplicado_en_el_mismo_guild_se_rechaza(temp_db):
     async def run():
         primero = await db.add_frase_pack(1, "Navidad")

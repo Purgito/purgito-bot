@@ -159,6 +159,32 @@ async def generate_groq_meme_caption(
         return None
 
 
+def _download_capped(url: str, max_bytes: int) -> bytes | None:
+    """GET a `url`, cortando la descarga apenas se supera `max_bytes`.
+
+    Antes leía con `.content` (requests.get sin stream=True), que junta el
+    cuerpo entero en memoria ANTES de que el chequeo de tamaño de más arriba
+    pudiera actuar -- mismo anti-patrón que upload_gif_sync ya corrigió en
+    r2.py. Hoy no hay ruta de entrada real (las URLs que llegan al pool ya
+    están acotadas a MEME_MAX_BYTES desde que se guardaron), pero es el mismo
+    código sirviendo un pool de imágenes por guild -- barato de alinear con el
+    patrón ya establecido, y cubre a un caller futuro menos cuidadoso."""
+    resp = requests.get(url, timeout=15, stream=True)
+    if resp.status_code != 200:
+        resp.close()
+        return None
+    chunks: list[bytes] = []
+    total = 0
+    for chunk in resp.iter_content(chunk_size=262144):
+        total += len(chunk)
+        if total > max_bytes:
+            resp.close()
+            return None
+        chunks.append(chunk)
+    resp.close()
+    return b"".join(chunks)
+
+
 async def _pick_pool_image(
     guild_id: int, log_prefix: str
 ) -> tuple[bytes | None, str | None]:
@@ -171,16 +197,17 @@ async def _pick_pool_image(
         if not url_candidate:
             break
         try:
-            img_resp = await asyncio.to_thread(requests.get, url_candidate, timeout=15)
-            if img_resp.status_code == 200 and len(img_resp.content) <= MEME_MAX_BYTES:
-                img_bytes = img_resp.content
+            img_bytes_candidate = await asyncio.to_thread(
+                _download_capped, url_candidate, MEME_MAX_BYTES
+            )
+            if img_bytes_candidate is not None:
+                img_bytes = img_bytes_candidate
                 image_url = url_candidate
                 break
             else:
                 log.warning(
-                    "%s: URL inválida (HTTP %s), eliminando: %s",
+                    "%s: URL inválida o excede el tamaño máximo, eliminando: %s",
                     log_prefix,
-                    img_resp.status_code,
                     url_candidate,
                 )
                 await delete_image_url(guild_id, url_candidate)

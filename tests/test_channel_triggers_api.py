@@ -21,9 +21,13 @@ _USERNAME = "Frambuesa"
 
 
 class FakeRequest:
-    def __init__(self, guild_id=_GUILD, body=None, match_info=None):
+    def __init__(self, guild_id=_GUILD, body=None, match_info=None, ip="1.2.3.4"):
         self._body = body
         self.match_info = {"guild_id": str(guild_id), **(match_info or {})}
+        # El POST tiene rate limit por IP: cada test usa una IP distinta por
+        # defecto no hace falta, pero sí que estos atributos existan.
+        self.headers = {}
+        self.remote = ip
 
     async def json(self):
         if self._body is None:
@@ -56,6 +60,9 @@ def allow_guild_access(monkeypatch):
         "_bot_guild",
         lambda request, guild_id: SimpleNamespace(get_channel=lambda cid: None),
     )
+    # Rate limit del POST: es estado de módulo, así que sin esto los tests se
+    # contaminan entre sí (el sexto POST de la sesión daría 429).
+    monkeypatch.setattr(webapi, "_rate_post", webapi.LRUDict(64))
 
 
 def _run(handler, request):

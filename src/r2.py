@@ -15,7 +15,7 @@ import socket
 import subprocess
 import threading
 from typing import NamedTuple
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -307,6 +307,42 @@ def _pinned_dns(hostname: str, ip: str):
             socket.getaddrinfo = real_getaddrinfo
 
 
+class BlockedTarget(Exception):
+    """La URL (o alguno de sus redirects) apunta a una IP no pública."""
+
+
+# Los redirects de un host de GIFs son normales (media.tenor.com reparte a su
+# CDN), así que cortarlos de plano rompería links legítimos. Se siguen a mano
+# para poder validar CADA salto: con allow_redirects=True, requests resuelve y
+# conecta por su cuenta y el chequeo de IP pública solo cubriría el primer
+# host.
+_MAX_REDIRECTS = 5
+_REDIRECT_CODES = (301, 302, 303, 307, 308)
+
+
+def fetch_public_url(method, url: str, **kwargs):
+    """requests.get/head con el filtro SSRF puesto en todos los saltos.
+
+    Levanta BlockedTarget si algún host de la cadena no resuelve a una IP
+    públicamente enrutable (localhost, LAN, link-local, metadata de cloud) o
+    si la cadena de redirects se pasa de _MAX_REDIRECTS.
+    """
+    for _ in range(_MAX_REDIRECTS + 1):
+        hostname = urlparse(url).hostname or ""
+        ip = _public_ip_for_host(hostname)
+        if ip is None:
+            raise BlockedTarget(url)
+        with _pinned_dns(hostname, ip):
+            resp = method(url, allow_redirects=False, **kwargs)
+        location = resp.headers.get("Location")
+        if resp.status_code in _REDIRECT_CODES and location:
+            resp.close()
+            url = urljoin(url, location)
+            continue
+        return resp
+    raise BlockedTarget(url)
+
+
 def upload_gif_sync(url: str) -> GifUpload | None:
     """Descarga el GIF, lo identifica por el sha256 de su contenido y lo sube
     solo si ese contenido no está ya en el bucket. Retorna un GifUpload,
@@ -442,15 +478,28 @@ def check_gif_url_health(url: str, timeout: float = 6.0) -> str:
     es de imagen/video) -- esto también le va a fallar a Discord.
     "unreachable": fallo de red o timeout puntual, no alcanza para asegurar
     que el link esté muerto (podría ser una caída transitoria del host).
+
+    Sale por fetch_public_url, no por requests directo: acá llegan `url` y
+    sobre todo `media_url`, que la resuelve un oEmbed de terceros, y el
+    resultado tri-estado se le devuelve al panel -- sin el filtro esto era un
+    oráculo para sondear la red interna del droplet salto por salto.
     """
     headers = {"User-Agent": "Mozilla/5.0 (compatible; bot)"}
     try:
-        resp = requests.head(
-            url, headers=headers, timeout=timeout, allow_redirects=True
-        )
+        resp = fetch_public_url(requests.head, url, headers=headers, timeout=timeout)
         if resp.status_code == 405 or not resp.headers.get("Content-Type"):
-            resp = requests.get(url, headers=headers, timeout=timeout, stream=True)
+            resp = fetch_public_url(
+                requests.get, url, headers=headers, timeout=timeout, stream=True
+            )
             resp.close()
+    except BlockedTarget:
+        # "unreachable" y no "dead" a propósito: _public_ip_for_host también
+        # devuelve None cuando el DNS falla, y "dead" acumula strikes que
+        # terminan borrando el GIF (_DEAD_STREAK_THRESHOLD). Una caída de DNS
+        # no debe vaciarle el corpus a nadie -- para frenar el SSRF alcanza
+        # con no haber hecho el request.
+        log.warning("Chequeo de salud descartado (destino no público): %s", url)
+        return "unreachable"
     except Exception:
         return "unreachable"
 

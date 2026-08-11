@@ -22,6 +22,23 @@ log = logging.getLogger(__name__)
 _db: aiosqlite.Connection | None = None
 
 
+# Caracteres de control C0/C1 (salvo \n y \t, que son texto legítimo) y los
+# controles de dirección explícita de Unicode. Los primeros incluyen el NUL,
+# que Discord rechaza al enviar -- una frase con un \x00 pegado se guardaba
+# bien y después no se podía postear nunca. Los segundos (RLO/LRO/isolates)
+# reordenan visualmente el resto de la línea: un nombre de pack con un U+202E
+# le da vuelta el renglón entero en la lista del dashboard y en el registro de
+# auditoría que ve otro admin. El texto RTL de verdad (árabe, hebreo) no los
+# necesita -- el algoritmo bidi de Unicode ya lo resuelve por su cuenta --, así
+# que sacarlos no rompe ningún idioma.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f‪-‮⁦-⁩]")
+
+
+def clean_admin_text(text: str | None) -> str:
+    """Normaliza un texto escrito por un admin antes de guardarlo."""
+    return _CONTROL_CHARS_RE.sub("", text or "").strip()
+
+
 class _RollbackOnErrorLock(asyncio.Lock):
     """asyncio.Lock, pero si el bloque `async with` termina por una
     excepción, hace ROLLBACK de la transacción de SQLite antes de soltar
@@ -239,6 +256,15 @@ CREATE TABLE IF NOT EXISTS embed_templates (
 );
 CREATE INDEX IF NOT EXISTS idx_embed_templates_guild ON embed_templates(guild_id);
 
+CREATE TABLE IF NOT EXISTS embed_uploaded_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, url)
+);
+CREATE INDEX IF NOT EXISTS idx_embed_uploaded_images_guild ON embed_uploaded_images(guild_id);
+
 CREATE TABLE IF NOT EXISTS layout_button_actions (
     custom_id TEXT PRIMARY KEY,
     guild_id INTEGER NOT NULL,
@@ -418,6 +444,15 @@ CREATE TABLE IF NOT EXISTS mention_rate_limit_exempt_roles (
     guild_id INTEGER NOT NULL,
     role_id INTEGER NOT NULL,
     PRIMARY KEY (guild_id, role_id)
+);
+
+-- Canales donde el tope de menciones por hora no aplica (#bot-testing, canales
+-- de spam a propósito). Mismo concepto que la tabla de roles de arriba, pero
+-- por canal: evita tener que inventar un rol solo para eximir un canal.
+CREATE TABLE IF NOT EXISTS mention_rate_limit_exempt_channels (
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
 );
 
 -- Migraciones de datos que corren una vez POR SERVIDOR (no por base). Existen
@@ -1282,6 +1317,20 @@ async def wipe_gifs(guild_id: int) -> int:
     return deleted
 
 
+def gifs_limit(guild_id: int | None) -> int:
+    """Máximo de GIFs guardables según plan del guild. Lo usan el insert (que
+    desaloja el más viejo al pasarse) y el endpoint que muestra el cupo en el
+    dashboard -- antes el literal estaba solo acá adentro y el dashboard no
+    tenía forma de mostrar el denominador."""
+    return _limit_for_guild(
+        guild_id,
+        "MAX_GIFS_PER_GUILD_FREE",
+        "MAX_GIFS_PER_GUILD_PREMIUM",
+        1_500,
+        4_000,
+    )
+
+
 async def save_gif_url(
     guild_id: int,
     url: str,
@@ -1312,13 +1361,7 @@ async def save_gif_url(
     u = (url or "").strip()
     if not u:
         return False, None
-    max_gifs = _limit_for_guild(
-        guild_id,
-        "MAX_GIFS_PER_GUILD_FREE",
-        "MAX_GIFS_PER_GUILD_PREMIUM",
-        1_500,
-        4_000,
-    )
+    max_gifs = gifs_limit(guild_id)
     db = await get_db()
     evicted_id: int | None = None
     evicted_url: str | None = None
@@ -1637,6 +1680,20 @@ async def record_gif_health_check(gif_id: int, status: str) -> bool:
         guild_id,
         url,
         streak,
+    )
+    # Que quede en el historial del servidor, no solo en el log del proceso: un
+    # GIF que desaparece sin rastro es indistinguible de un bug para el admin
+    # (pasó de verdad, y motivó la investigación forense de la Sección 7). El
+    # audit_log lo escribían solo las acciones de admin desde webapi; esta es la
+    # primera del propio bot, con user_id=0 para distinguirla de una persona.
+    # Fuera del `async with _db_lock` de arriba a propósito: log_audit toma el
+    # mismo lock y asyncio.Lock no es reentrante.
+    await log_audit(
+        guild_id,
+        0,
+        "Purgito",
+        "gifs.auto_removed",
+        detail=f"url={url} chequeos_dead={streak}",
     )
     await release_gif_reference(content_hash, url)
     return True
@@ -2127,6 +2184,49 @@ async def list_exempt_roles(guild_id: int) -> list[int]:
     return [r[0] for r in rows]
 
 
+# ─── Canales exentos del límite de menciones ─────────────────────────────────
+# Igual que los roles exentos, pero por canal. Lista vacía = el tope aplica en
+# todos los canales (default). No se cruza con ignored_channels: un canal
+# ignorado sigue mudo, exento o no — la exención solo saltea el conteo horario.
+
+
+async def add_exempt_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO mention_rate_limit_exempt_channels "
+            "(guild_id, channel_id) VALUES (?, ?)",
+            (guild_id, channel_id),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_exempt_channel(guild_id: int, channel_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM mention_rate_limit_exempt_channels "
+            "WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_exempt_channels(guild_id: int) -> list[int]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT channel_id FROM mention_rate_limit_exempt_channels WHERE guild_id=? "
+        "ORDER BY channel_id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
 # ─── Migraciones de datos por servidor ───────────────────────────────────────
 
 
@@ -2606,6 +2706,37 @@ async def delete_embed_template(template_id: int, guild_id: int) -> bool:
     return deleted
 
 
+# ─── Galería de imágenes ya subidas (reuso entre sesiones/plantillas) ───────
+# R2 ya deduplica por hash del contenido (ver _store_upload en webapi.py);
+# esta tabla es solo el índice "qué URLs subió este guild" para poblar el
+# selector de reutilización del editor. Orden por id (inserción), no por
+# created_at: CURRENT_TIMESTAMP de SQLite es de resolución de 1 segundo, así
+# que un ON CONFLICT que lo reescribiera para "traer al frente" una imagen
+# reusada no se distinguiría de forma confiable de otra fila insertada en el
+# mismo segundo. INSERT OR IGNORE (mismo patrón que corpus_images) alcanza.
+
+
+async def record_uploaded_image(guild_id: int, url: str) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT OR IGNORE INTO embed_uploaded_images (guild_id, url) VALUES (?, ?)",
+            (guild_id, url),
+        )
+        await db.commit()
+
+
+async def list_uploaded_images(guild_id: int, limit: int = 40) -> list[str]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT url FROM embed_uploaded_images WHERE guild_id=? "
+        "ORDER BY id DESC LIMIT ?",
+        (guild_id, limit),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
 # ─── Embeds compartidos por link ─────────────────────────────────────────────
 
 # TTL fijo de los links compartidos. No se expone al usuario por ahora;
@@ -2980,8 +3111,12 @@ async def add_frase_especial(
     """Guarda una frase especial. None si el guild ya llegó al límite de
     frases_limit (mismo criterio que add_embed_template); False si el texto
     está vacío. pack_id=None (default) la deja en el pool default del
-    servidor -- ver el comentario en frase_packs sobre esa semántica."""
-    text = (frase or "").strip()
+    servidor -- ver el comentario en frase_packs sobre esa semántica.
+
+    Recortada a 2000 caracteres (el máximo real de un mensaje de Discord):
+    sin tope, una frase gigante dispara chunk_message() y el bot manda
+    decenas de mensajes seguidos al canal cuando el trigger/frase dispara."""
+    text = clean_admin_text(frase)[:2000]
     if not text:
         return False
     max_frases = frases_limit(guild_id)
@@ -3158,7 +3293,7 @@ def frase_pack_limit(guild_id: int | None) -> int:
 async def add_frase_pack(guild_id: int, name: str) -> int | None:
     """Crea un pack. None si el guild llegó al límite de frase_pack_limit o
     si ya existe un pack con ese nombre en el servidor."""
-    clean_name = (name or "").strip()[:80]
+    clean_name = clean_admin_text(name)[:80]
     if not clean_name:
         return None
     max_packs = frase_pack_limit(guild_id)
@@ -3288,6 +3423,12 @@ async def get_effective_frase_pool(guild_id: int, channel_id: int) -> int | None
 TRIGGER_MATCH_TYPES = ("exact", "starts_with", "regex")
 TRIGGER_ACTIONS = ("frase_de_pack", "markov", "mezcla")
 
+# Largo máximo del pattern de un trigger. Un patrón (regex incluido) no tiene
+# motivo real para ser más largo, y sin tope nada impide mandar uno de
+# megabytes: compilarlo cuesta segundos de CPU y evaluarlo corre contra cada
+# mensaje del canal. Lo comparte webapi.py, que lo rechaza ANTES de compilar.
+MAX_TRIGGER_PATTERN = 500
+
 
 def channel_triggers_limit(guild_id: int | None) -> int:
     """Máximo de triggers por guild (no por canal): cada uno corre una
@@ -3311,12 +3452,19 @@ async def add_channel_trigger(
     pack_id: int | None = None,
 ) -> int | None:
     """Crea un trigger. None si el guild llegó a channel_triggers_limit, si
-    match_type/action no son válidos, o si pattern está vacío o (para
-    match_type='regex') no compila. Esta función no confía en que el
-    llamador ya validó -- es la última barrera antes de la DB."""
-    clean_pattern = (pattern or "").strip()
+    match_type/action no son válidos, o si pattern está vacío, supera
+    MAX_TRIGGER_PATTERN o (para match_type='regex') no compila. Esta función
+    no confía en que el llamador ya validó -- es la última barrera antes de
+    la DB.
+
+    El pattern largo se RECHAZA, no se recorta: recortarlo guardaba un regex
+    distinto del que el llamador validó (los últimos caracteres de un regex
+    cambian lo que matchea, o lo dejan sin compilar), así que lo que corría
+    contra los mensajes del canal no era lo que el admin escribió."""
+    clean_pattern = clean_admin_text(pattern)
     if (
         not clean_pattern
+        or len(clean_pattern) > MAX_TRIGGER_PATTERN
         or match_type not in TRIGGER_MATCH_TYPES
         or action not in TRIGGER_ACTIONS
     ):
@@ -3422,6 +3570,23 @@ async def log_audit(
         await db.commit()
 
 
+async def count_audit_action(guild_id: int, action: str, days: int = 30) -> int:
+    """Cuántas veces se registró `action` en los últimos `days` días.
+
+    Para mostrar en el dashboard un "esto pasó N veces" sin traerse el
+    historial entero. created_at es un timestamp de SQLite en UTC, así que la
+    comparación va contra datetime('now', '-N days'), también UTC.
+    """
+    db = await get_db()
+    async with db.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE guild_id=? AND action=? "
+        f"AND created_at >= datetime('now', '-{int(days)} days')",
+        (guild_id, action),
+    ) as cursor:
+        row = await cursor.fetchone()
+    return int(row[0]) if row else 0
+
+
 async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
     db = await get_db()
     async with db.execute(
@@ -3469,10 +3634,16 @@ async def purge_old_audit_log_entries(retention_days: int) -> int:
 
 _CUSTOM_EMOJI_RE = re.compile(r"^<a?:\w+:\d+>$")
 
+# Un emoji unicode (hasta con modificadores y ZWJ) o un custom "<a:nombre:id>"
+# entran de sobra en 100 caracteres. Era el único campo de texto de admin sin
+# tope: la ruta del panel no limita el largo y el pool no tiene cuota de
+# filas, así que se podían guardar reacciones de cientos de KB cada una.
+MAX_REACTION_TEXT = 100
+
 
 async def add_reaction_to_pool(guild_id: int, emoji_text: str) -> bool:
-    text = (emoji_text or "").strip()
-    if not text:
+    text = clean_admin_text(emoji_text)
+    if not text or len(text) > MAX_REACTION_TEXT:
         return False
     is_custom = 1 if _CUSTOM_EMOJI_RE.match(text) else 0
     db = await get_db()
@@ -3816,6 +3987,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "channel_settings",
         "corpus_allowed_channels",
         "mention_rate_limit_exempt_roles",
+        "mention_rate_limit_exempt_channels",
         "applied_migrations",
         "audit_log",
     ]
@@ -3829,17 +4001,34 @@ async def purge_guild_data(guild_id: int) -> None:
 # ─── Storage limits ──────────────────────────────────────────────────────────
 
 
-async def trim_corpus_if_needed(guild_id: int, channel_id: int) -> None:
-    """Recorta corpus_messages al límite configurado, por canal (no por guild):
-    un canal con mucho historial no debe desplazar el corpus de otros canales
-    del mismo guild."""
-    max_msgs = _limit_for_guild(
+def corpus_channel_limit(guild_id: int | None) -> int:
+    """Tope de mensajes de corpus POR CANAL (el nombre del env dice
+    PER_GUILD por historia, pero trim_corpus_if_needed lo aplica por canal)."""
+    return _limit_for_guild(
         guild_id,
         "MAX_CORPUS_MESSAGES_PER_GUILD_FREE",
         "MAX_CORPUS_MESSAGES_PER_GUILD_PREMIUM",
         15_000,
         50_000,
     )
+
+
+def corpus_total_limit(guild_id: int | None) -> int:
+    """Tope del TOTAL de corpus del guild (todos los canales sumados)."""
+    return _limit_for_guild(
+        guild_id,
+        "MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE",
+        "MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_PREMIUM",
+        150_000,
+        500_000,
+    )
+
+
+async def trim_corpus_if_needed(guild_id: int, channel_id: int) -> None:
+    """Recorta corpus_messages al límite configurado, por canal (no por guild):
+    un canal con mucho historial no debe desplazar el corpus de otros canales
+    del mismo guild."""
+    max_msgs = corpus_channel_limit(guild_id)
     db = await get_db()
     async with db.execute(
         "SELECT COUNT(*) FROM corpus_messages WHERE guild_id=? AND channel_id=?",
@@ -3902,13 +4091,7 @@ async def trim_guild_total_if_needed(guild_id: int) -> None:
     global": dentro de cada canal recortado sí se borra más viejo primero
     (ahí es correcto, es el mismo canal), pero qué canal se recorta y cuánto
     depende de su tamaño relativo a los demás, no de cuándo se insertó."""
-    cap = _limit_for_guild(
-        guild_id,
-        "MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE",
-        "MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_PREMIUM",
-        150_000,
-        500_000,
-    )
+    cap = corpus_total_limit(guild_id)
     db = await get_db()
     async with db.execute(
         "SELECT channel_id, COUNT(*) FROM corpus_messages WHERE guild_id=? GROUP BY channel_id",

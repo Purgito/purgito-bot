@@ -44,7 +44,7 @@ export function blankEmbed() {
     authorName: '', authorIcon: '', footerText: '', footerIcon: '',
     // `url` no tiene campo visible: lo gestiona el atajo de galería, que agrupa
     // embeds consecutivos que comparten el mismo `url` (así los muestra Discord).
-    thumbnail: '', image: '', url: '', fields: [],
+    thumbnail: '', image: '', url: '', fields: [], timestamp: '',
   };
 }
 
@@ -65,6 +65,7 @@ export function embedDict(s) {
   }
   if (s.thumbnail.trim()) e.thumbnail = { url: s.thumbnail.trim() };
   if (s.image.trim()) e.image = { url: s.image.trim() };
+  if (s.timestamp) e.timestamp = s.timestamp;
   const fields = s.fields
     .filter(f => f.name.trim() && f.value.trim())
     .map(f => ({ name: f.name.trim(), value: f.value.trim(), inline: !!f.inline }));
@@ -86,8 +87,25 @@ export function embedToState(e) {
   s.footerIcon = (e.footer && e.footer.icon_url) || '';
   s.thumbnail = (e.thumbnail && e.thumbnail.url) || '';
   s.image = (e.image && e.image.url) || '';
+  s.timestamp = e.timestamp || '';
   s.fields = (e.fields || []).map(f => ({ name: f.name || '', value: f.value || '', inline: !!f.inline }));
   return s;
+}
+
+// Conversión entre el ISO que espera Discord (embed.timestamp) y el valor
+// local sin timezone que usa <input type="datetime-local">. Mismo truco de
+// restar el offset ya usado en el popover de fecha (shared-ui.js).
+export function isoToLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+export function localInputToIso(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
 }
 
 // Doc a partir de un array de embeds guardados (plantilla).
@@ -166,7 +184,7 @@ export function detectGif(raw) {
   }
   if (host.endsWith('tenor.com')) {
     if (host.startsWith('media') || host.startsWith('c.')) return null; // ya es archivo directo
-    return { warn: true, url, note: 'Página de Tenor detectada — para que se vea en el embed pegá el enlace directo del GIF (media.tenor.com/…), no el de la página.' };
+    return { warn: true, url, note: 'Página de Tenor detectada — para que se vea en el embed pega el enlace directo del GIF (media.tenor.com/…), no el de la página.' };
   }
   return null;
 }
@@ -207,9 +225,15 @@ export function newBlock(type) {
   return { type: 'container', accent: true, accent_color: '#8B6EF5', children: [] };
 }
 
+// Los previews concatenan lo que devuelve esto dentro de un atributo style
+// ("background:" + color), así que un string que no sea un hex de 6 dígitos se
+// descarta: si no, cualquier color guardado sirve para inyectar CSS al panel
+// de otro admin del servidor. El backend valida lo mismo al guardar
+// (_validate_color en layout_v2.py); esto es la segunda línea, para los
+// borradores de localStorage y las plantillas viejas.
 export function colorToHex(c) {
-  if (typeof c === 'number') return '#' + c.toString(16).padStart(6, '0');
-  return typeof c === 'string' ? c : null;
+  if (typeof c === 'number') return '#' + (c & 0xFFFFFF).toString(16).padStart(6, '0');
+  return typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c.trim()) ? c.trim() : null;
 }
 
 // Estado de un botón del editor -> dict API. Botones "role" nunca llevan

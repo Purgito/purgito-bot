@@ -31,7 +31,7 @@ export async function loadPremium() {
     const premiumRows = [
       ['Memes automáticos programados', 'No disponible', 'Disponible'],
       ['Mensajes guardados en memoria (corpus)', '15.000', '50.000'],
-      ['Mensajes de usuario en memoria', '5.000', '20.000'],
+      ['Mensajes de usuario en memoria', '2.000', '8.000'],
       ['GIFs guardados', '1.500', '4.000'],
       ['Imágenes en la colección de memes', '75', '200'],
       ['Plantillas de embeds guardadas', '20', '50'],
@@ -46,7 +46,7 @@ export async function loadPremium() {
           el('ul', { class: 'premium-receipt' },
             el('li', {}, 'Memes automáticos programados desbloqueados'),
             el('li', {}, 'Límites de corpus ampliados a 50.000 mensajes'),
-            el('li', {}, 'Límite de corpus de usuario ampliado a 20.000 mensajes'),
+            el('li', {}, 'Límite de corpus de usuario ampliado a 8.000 mensajes'),
             el('li', {}, 'Límite de GIFs guardados ampliado a 4.000'),
             el('li', {}, 'Colección de memes ampliada a 200 imágenes'),
             el('li', {}, 'Límite de plantillas de embeds ampliado a 50')))));

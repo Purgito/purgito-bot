@@ -150,6 +150,32 @@ detalla los tres server blocks. Quedan dos puntos sin verificar ahí (ruta
 del clon en el servidor, y si `/var/www/purgito-landing` es symlink o copia)
 — hasta confirmarlos en el droplet, esta sección manda.
 
+## Voz y copy
+
+Todo texto nuevo dirigido al usuario (claves de `src/locales/*.json`, embeds,
+mensajes de comandos, texto de `landing/`) sigue estas reglas — se detectaron
+por una auditoría de tono que encontró texto con "voz de IA" colado en varias
+claves:
+
+- Purgito nunca se auto-justifica ni se defiende preventivamente de algo que
+  nadie cuestionó (mal: *"No estoy roto, es un límite..."* — nadie lo acusó
+  de estar roto).
+- Nunca narra su propio estado interno como un asistente virtual en vez de
+  dar la instrucción directa (mal: *"Todavía no estoy aprendiendo de
+  nada..."* — mejor decir qué hacer primero).
+- Sin aperturas de "asistente haciendo onboarding" (mal: *"Te guío por los
+  ajustes esenciales..."*; también evitar "aquí tienes...", "no dudes en...").
+- Sin redundancia de relleno: decir la misma idea de una sola forma, no tres
+  (mal: *"Son irreversibles — úsalas con cuidado"* después de ya decir que
+  "borran datos").
+- Instrucciones directas, tono natural y casual, sin hedging (evitar "podría
+  ser que...", "tal vez quieras...").
+- **Español:** tuteo neutro, sin voseo ni regionalismos ("elige"/"tienes"/
+  "puedes", nunca "elegí"/"tenés"/"podés"). Confirmalo con grep antes de dar
+  por buena una clave nueva.
+- **Inglés:** neutro e internacional — sin britishisms mezclados con
+  americanisms, sin slang regional.
+
 ## Identidad visual
 
 Tema oscuro, acento cian/turquesa (`hsl(186 84% 46%)`, color de la mascota

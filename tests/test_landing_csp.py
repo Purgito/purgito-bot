@@ -51,3 +51,24 @@ def test_permite_las_fuentes_y_el_iframe_de_tenor_que_usa_el_sitio():
     gifs_js = (LANDING / "js" / "tabs" / "gifs.js").read_text("utf-8")
     assert "tenor.com/embed" in gifs_js
     assert "frame-src https://tenor.com" in build_docs.LANDING_CSP
+
+
+def test_el_no_setea_style_por_setattribute():
+    """Auditoría sección 12: sin unsafe-inline en style-src, CSP bloquea el
+    atributo style="..." sea escrito en HTML o puesto con setAttribute --
+    confirmado en un navegador real (no solo por lectura del spec). el() en
+    dom.js es la fábrica de nodos que usa TODO el resto del dashboard: si
+    vuelve a caer en el fallback genérico de setAttribute(k, v) para la clave
+    'style', cada color/display dinámico armado con el(..., { style }) -- la
+    barra de color de los embeds, los puntos de color de roles, los toggles
+    de display:none -- queda viniendo transparente/sin aplicar en producción,
+    en silencio (CSP no crashea, solo descarta el estilo).
+
+    node.style.cssText = v, en cambio, no pasa por el atributo -- confirmado
+    que no dispara la CSP -- así que tiene que ser esa rama, no
+    setAttribute('style', ...).
+    """
+    dom_js = (LANDING / "js" / "core" / "dom.js").read_text("utf-8")
+    assert "node.style.cssText = v" in dom_js
+    assert "setAttribute('style'" not in dom_js
+    assert 'setAttribute("style"' not in dom_js

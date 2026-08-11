@@ -71,12 +71,14 @@ from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.youtube import resolve_youtube_channel
 from db import (
     CHAT_TUNABLES,
+    MAX_TRIGGER_PATTERN,
     TRIGGER_ACTIONS,
     TRIGGER_MATCH_TYPES,
     add_button_action,
     add_channel_trigger,
     add_corpus_channel,
     add_embed_template,
+    add_exempt_channel,
     add_exempt_role,
     add_frase_channel,
     add_frase_especial,
@@ -90,6 +92,9 @@ from db import (
     assign_pack_to_channel,
     block_gif,
     channel_triggers_limit,
+    corpus_channel_limit,
+    corpus_total_limit,
+    count_audit_action,
     count_corpus_by_channel,
     count_gif_urls,
     count_guild_corpus_messages,
@@ -112,12 +117,14 @@ from db import (
     get_gif_by_url,
     get_shared_embed,
     get_updates_channel,
+    gifs_limit,
     import_corpus_messages,
     is_session_revoked,
     list_audit_log,
     list_blocked_gifs,
     list_corpus_channels,
     list_embed_templates,
+    list_exempt_channels,
     list_exempt_roles,
     list_frase_channels,
     list_frase_packs,
@@ -130,10 +137,13 @@ from db import (
     list_premium_guilds,
     list_reaction_pool,
     list_spontaneous_channels,
+    list_uploaded_images,
     list_youtube_subs,
     log_audit,
     normalize_embeds_json,
+    record_uploaded_image,
     remove_corpus_channel,
+    remove_exempt_channel,
     remove_exempt_role,
     remove_frase_channel,
     remove_mention_channel,
@@ -158,6 +168,7 @@ from db import (
 from layout_v2 import (
     assign_button_custom_ids,
     build_layout_view,
+    iter_buttons,
     validate_layout_v2_payload,
 )
 from message_options import sanitize_send_options, send_kwargs
@@ -202,7 +213,24 @@ _PUBLIC_GETS = ("/health",)
 
 
 def _client_ip(request: web.Request) -> str:
-    """IP real del cliente: detrás de Cloudflare + nginx, request.remote es siempre 127.0.0.1."""
+    """IP real del cliente: detrás de Cloudflare + nginx, request.remote es siempre 127.0.0.1.
+
+    Es la clave de bucket de TODOS los _rate_ok() del archivo -- ningún otro
+    dato decide qué tan seguido puede pegarle alguien a un endpoint. CF-Connecting-IP
+    se prioriza porque, con la config de nginx documentada en DEPLOY.md
+    ($remote_addr en vez de $proxy_add_x_forwarded_for para blindar
+    X-Forwarded-For contra spoofing), X-Forwarded-For termina siendo la IP de
+    borde de Cloudflare -- la misma para miles de visitantes -- y no serviría
+    para nada como clave de rate limit.
+
+    Confianza real: quien le hable directo a nginx (sin pasar por Cloudflare)
+    puede mandar el CF-Connecting-IP que quiera y este código lo cree, porque
+    nginx no lo limpia ni lo verifica -- nada en esta capa puede distinguir
+    "esto lo puso Cloudflare" de "esto lo forjó el cliente" una vez que la
+    conexión ya pasó por el proxy. Cerrarlo de verdad es un cambio de
+    infraestructura (Authenticated Origin Pulls o un allowlist de IPs de
+    Cloudflare en nginx, ver DEPLOY.md), no algo resoluble acá.
+    """
     return (
         request.headers.get("CF-Connecting-IP")
         or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
@@ -224,6 +252,13 @@ async def _security_headers_middleware(
     resp.headers["Content-Security-Policy"] = (
         "default-src 'none'; frame-ancestors 'none'"
     )
+    # aiohttp manda "Python/3.x aiohttp/3.x" acá con headers.setdefault(...) --
+    # solo pisa si el header ya está seteado, así que hay que setearlo con
+    # ALGO para que gane. Sin esto, cada respuesta (incluidos los errores)
+    # anuncia la versión exacta de Python y de aiohttp corriendo en
+    # producción: reconocimiento gratis para buscar CVEs puntuales, sin
+    # aportarle nada al usuario real.
+    resp.headers["Server"] = "Purgito"
     return resp
 
 
@@ -372,7 +407,38 @@ def guild_api(handler):
     return wrapper
 
 
+# Los únicos tres Content-Type que el Fetch/CORS spec deja mandar SIN
+# preflight ("simple request") -- son justo los tres únicos que un <form>
+# nativo de HTML puede emitir; ninguna otra API de navegador los produce sola.
+# Nuestro propio panel (apiFetch, landing/js/core/api.js) siempre manda
+# application/json, así que un body con uno de estos tres solo puede venir de
+# un <form> ajeno o de un fetch armado a mano para esquivar el preflight de
+# CORS -- y json.loads no mira el Content-Type, así que igual podía parsear
+# como JSON válido (el truco clásico de "JSON polyglot" en un form
+# enctype=text/plain con un único input). De ahí en más la única defensa
+# quedaba en SameSite=Lax de la cookie de sesión, que no cubre TODOS los
+# clientes (navegadores que ignoran el atributo, o la ventana de gracia que
+# algunos dan a una cookie Lax recién seteada en un POST de navegación
+# top-level). Rechazar acá hace que cualquier llamada cross-origin dependa
+# del preflight -- que ya bloquea el origin no permitido -- sin depender de
+# esa ventana de tiempo ni de qué tan bien un navegador puntual implemente
+# SameSite.
+_CORS_SAFELISTED_CONTENT_TYPES = (
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+    "text/plain",
+)
+
+
+def _is_simple_request_content_type(request: web.Request) -> bool:
+    headers = getattr(request, "headers", None) or {}
+    ctype = headers.get("Content-Type", "").split(";")[0].strip().lower()
+    return ctype in _CORS_SAFELISTED_CONTENT_TYPES
+
+
 async def _json_body(request: web.Request) -> dict | None:
+    if _is_simple_request_content_type(request):
+        return None
     try:
         data = await request.json()
     except Exception:
@@ -389,6 +455,37 @@ def _to_int(value) -> int | None:
 
 def _bot_guild(request: web.Request, guild_id: int):
     return request.app["bot"].get_guild(guild_id)
+
+
+async def _member_can_view_channel(request: web.Request, guild, channel) -> bool:
+    """True si el USUARIO de la sesión (no el bot) puede ver `channel` en
+    Discord real.
+
+    guild_api solo exige MANAGE_GUILD en algún lado del servidor -- ese
+    permiso NO incluye ver canales con overwrites que se los esconden
+    (Discord los trata separados). Sin este chequeo, alguien con MANAGE_GUILD
+    pero sin acceso a un canal privado podía anotarlo en
+    corpus_allowed_channels: el bot sí lo ve y aprende de ahí, y esa lectura
+    termina mezclada en el Markov que CUALQUIERA ve después en un canal
+    público -- el corpus se genera por guild entero, no por canal (ver
+    generation.build_markov_model). Mismo patrón de la Sección 9 (R1): un
+    permiso amplio (MANAGE_GUILD, ahí MANAGE_GUILD-sin-roles) no implica el
+    alcance puntual que la acción necesita.
+
+    fetch_member (no get_member): el bot corre con Intents.default(), sin el
+    intent privilegiado de members, así que su cache de miembros no es
+    confiable para alguien que solo usa el panel web y nunca interactúa por
+    Discord -- sin un fetch en vivo, el chequeo le fallaría igual a un admin
+    legítimo que a un atacante. Ante cualquier error (ya no es miembro,
+    Discord caído) se niega: mismo criterio restrictivo que
+    _reject_unassignable_roles.
+    """
+    session = await get_session(request)
+    try:
+        member = await guild.fetch_member(int(session["user_id"]))
+    except discord.HTTPException:
+        return False
+    return channel.permissions_for(member).view_channel
 
 
 async def _log_audit(
@@ -780,7 +877,12 @@ async def _api_chat_playground_post(
     data = await _json_body(request)
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
-    message_text = (data.get("message") or "").strip()
+    # Recortado al máximo real de un mensaje de Discord: simular algo más
+    # largo no tiene sentido, y sin tope el texto entraba entero al matcheo de
+    # cada trigger 'regex' del canal (hasta _TRIGGER_REGEX_TIMEOUT segundos de
+    # thread pool cada uno, el mismo pool compartido con la generación de
+    # Markov de todos los servidores).
+    message_text = (data.get("message") or "").strip()[:4000]
     if not message_text:
         return web.json_response(
             {"error": "el mensaje de prueba está vacío"}, status=400
@@ -876,6 +978,23 @@ async def _api_corpus_post(request: web.Request, guild_id: int) -> web.Response:
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    guild = _bot_guild(request, guild_id)
+    channel = guild.get_channel(channel_id)
+    if channel is None:
+        return web.json_response(
+            {"error": "el canal no existe en este servidor"}, status=400
+        )
+    # corpus_allowed_channels es la única allowlist que hace que el bot LEA
+    # mensajes -- las demás (spontaneous/mention/frases/triggers) solo hacen
+    # que el bot ESCRIBA ahí. Leer es más invasivo (ver el comentario de la
+    # tabla en db.py), así que esta es la primera en cerrarse: sin esto, un
+    # canal privado que el admin no puede ver terminaba entrenando el Markov
+    # que sale después en cualquier canal público (ver
+    # _member_can_view_channel). Las demás allowlists de canal quedan para
+    # una ronda siguiente -- mismo hueco, impacto menor (el bot escribe, no
+    # filtra contenido ajeno).
+    if not await _member_can_view_channel(request, guild, channel):
+        return web.json_response({"error": "no tienes acceso a ese canal"}, status=403)
     added = await add_corpus_channel(guild_id, channel_id)
     if added:
         await _log_audit(
@@ -908,6 +1027,16 @@ async def _api_corpus_import_post(request: web.Request, guild_id: int) -> web.Re
     channel_id = _to_int(request.match_info.get("channel_id"))
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    # Único endpoint de mutación fuera de _json_body que legítimamente acepta
+    # un Content-Type CORS-safelisted (el panel manda text/plain) -- por eso
+    # el mismo gate de _json_body no lo cubre, y por eso lo repite acá: un
+    # <form> ajeno con enctype="text/plain" podía entregar cualquier body sin
+    # preflight de CORS, dejando el import de corpus (contenido que el bot
+    # después puede repetir) apoyado solo en SameSite=Lax. El panel real manda
+    # application/octet-stream (landing/js/dash.js), que si o si dispara
+    # preflight.
+    if _is_simple_request_content_type(request):
+        return web.json_response({"error": "Content-Type inválido"}, status=400)
     ip = _client_ip(request)
     if not _rate_ok(_rate_corpus_import, ip, 3):
         return web.json_response({"error": "rate limit"}, status=429)
@@ -1012,6 +1141,57 @@ async def _api_exempt_roles_delete(request: web.Request, guild_id: int) -> web.R
     if removed:
         await _log_audit(
             request, guild_id, "exempt_roles.remove", detail=f"role_id={role_id}"
+        )
+    return web.json_response({"removed": removed})
+
+
+# --------------- API: canales exentos del límite de menciones ---------------
+# Mismo concepto que los roles exentos, por canal (#bot-testing y similares).
+
+
+@guild_api
+async def _api_exempt_channels_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    channels = [
+        {"id": str(cid), "name": _channel_name(guild, cid)}
+        for cid in await list_exempt_channels(guild_id)
+    ]
+    return web.json_response({"channels": channels})
+
+
+@guild_api
+async def _api_exempt_channels_post(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    data = await _json_body(request)
+    channel_id = _to_int(data.get("channel_id")) if data else None
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    added = await add_exempt_channel(guild_id, channel_id)
+    if added:
+        await _log_audit(
+            request,
+            guild_id,
+            "exempt_channels.add",
+            detail=f"channel_id={channel_id}",
+        )
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_exempt_channels_delete(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    channel_id = _to_int(request.match_info.get("channel_id"))
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+    removed = await remove_exempt_channel(guild_id, channel_id)
+    if removed:
+        await _log_audit(
+            request,
+            guild_id,
+            "exempt_channels.remove",
+            detail=f"channel_id={channel_id}",
         )
     return web.json_response({"removed": removed})
 
@@ -1176,6 +1356,15 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
             "gifs": await count_gif_urls(guild_id),
             "frases": len(await list_frases_especiales(guild_id)),
             "member_count": getattr(guild, "member_count", None),
+            # Denominadores de las tarjetas de estado: sin esto el dashboard
+            # muestra "14.982 mensajes" sin decir que el tope está en 15.000 y
+            # que a partir de ahí se van borrando los más viejos en silencio.
+            "limits": {
+                "corpus_total": corpus_total_limit(guild_id),
+                "corpus_per_channel": corpus_channel_limit(guild_id),
+                "gifs": gifs_limit(guild_id),
+                "frases": frases_limit(guild_id),
+            },
         }
     )
 
@@ -1611,6 +1800,8 @@ async def _api_triggers_get(request: web.Request, guild_id: int) -> web.Response
 
 @guild_api
 async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Response:
+    if not _rate_ok(_rate_post, _client_ip(request), 5):
+        return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     data = await _json_body(request)
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
@@ -1632,6 +1823,15 @@ async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Respons
     pattern = (data.get("pattern") or "").strip()
     if not pattern:
         return web.json_response({"error": "pattern vacío"}, status=400)
+    # El largo se chequea ANTES de compilar: regex.compile es sincrónico y
+    # bloquea el event loop entero (bot incluido) mientras corre -- un patrón
+    # de 1 MB tarda ~7 s. El tope es el mismo que aplica add_channel_trigger,
+    # así que lo que valida esta ruta es exactamente lo que se guarda.
+    if len(pattern) > MAX_TRIGGER_PATTERN:
+        return web.json_response(
+            {"error": f"pattern supera los {MAX_TRIGGER_PATTERN} caracteres"},
+            status=400,
+        )
     if match_type == "regex":
         try:
             regex.compile(pattern)
@@ -1680,7 +1880,19 @@ async def _api_triggers_delete(request: web.Request, guild_id: int) -> web.Respo
 @guild_api
 async def _api_server_gifs_get(request: web.Request, guild_id: int) -> web.Response:
     gifs = await list_gif_urls(guild_id)
-    return web.json_response({"gifs": gifs, "total": len(gifs)})
+    # `limit` da el denominador del contador de la pestaña, y `auto_removed_30d`
+    # los GIFs que el chequeo de salud sacó solo: sin esto desaparecían sin
+    # ningún rastro visible y era indistinguible de un bug.
+    return web.json_response(
+        {
+            "gifs": gifs,
+            "total": len(gifs),
+            "limit": gifs_limit(guild_id),
+            "auto_removed_30d": await count_audit_action(
+                guild_id, "gifs.auto_removed", days=30
+            ),
+        }
+    )
 
 
 @guild_api
@@ -1942,6 +2154,15 @@ def validate_embed_payload(embed: dict) -> str | None:
         embed["color"] = color
     if color is not None and not (isinstance(color, int) and 0 <= color <= 0xFFFFFF):
         return "color inválido: fuera de rango"
+
+    timestamp = embed.get("timestamp")
+    if timestamp is not None:
+        if not isinstance(timestamp, str):
+            return "timestamp inválido"
+        try:
+            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            return "timestamp inválido"
     return None
 
 
@@ -2058,6 +2279,70 @@ async def _register_role_buttons(bot, guild_id: int, assignments: list[dict]) ->
     await register_button_actions(bot, rows)
 
 
+async def _reject_unassignable_roles(request: web.Request, guild_id: int, layout):
+    """Respuesta de error si algún botón de rol del layout apunta a un rol que
+    no corresponde, o None si están todos bien.
+
+    validate_layout_v2_payload solo mira que role_id sea un número: sin esto,
+    el id podía ser de CUALQUIER rol (mismo IDOR por id numérico que pack_id).
+    Dos cosas distintas se cierran acá:
+
+    - Rol de otro servidor: el click ya fallaba (guild.get_role resuelve contra
+      el guild de la interacción), pero quedaba un botón muerto guardado en
+      layout_button_actions. Se rechaza al crearlo, no al clickearlo.
+    - Escalada de privilegios: el panel se entra con MANAGE_GUILD, que NO
+      incluye gestionar roles. Sin este chequeo, quien tuviera acceso al panel
+      podía fabricarse un botón que reparte cualquier rol por debajo del bot
+      -- Administrador incluido -- y clickearlo. Se aplica la misma jerarquía
+      que Discord aplica en su propia UI: nada por encima del top role de uno
+      mismo (el dueño del servidor no tiene ese techo).
+    """
+    role_ids = [
+        btn.get("role_id")
+        for btn in iter_buttons(layout.get("blocks") or [])
+        if btn.get("style") == "role"
+    ]
+    if not role_ids:
+        return None
+    guild = _bot_guild(request, guild_id)
+    session = await get_session(request)
+    member = guild.get_member(int(session["user_id"]))
+    for raw in role_ids:
+        role = guild.get_role(int(raw))
+        if role is None or role.is_default():
+            return web.json_response(
+                {
+                    "error": "un botón de rol apunta a un rol que no existe en este servidor"
+                },
+                status=400,
+            )
+        if role.managed:
+            return web.json_response(
+                {
+                    "error": f"el rol {role.name} lo gestiona una integración y no se puede repartir"
+                },
+                status=400,
+            )
+        if guild.me is None or role >= guild.me.top_role:
+            return web.json_response(
+                {
+                    "error": f"el rol {role.name} está por encima del rol de Purgito: el botón no podría asignarlo"
+                },
+                status=400,
+            )
+        # member None = no está cacheado; se trata como el caso restrictivo.
+        if guild.owner_id != getattr(member, "id", None) and (
+            member is None or role >= member.top_role
+        ):
+            return web.json_response(
+                {
+                    "error": f"no puedes repartir el rol {role.name}: está por encima del tuyo"
+                },
+                status=403,
+            )
+    return None
+
+
 def _embed_target_channel(request: web.Request, guild_id: int, channel_id: int | None):
     """(canal, None) si el canal es del guild y el bot puede mandar embeds ahí;
     si no, (None, respuesta de error)."""
@@ -2099,6 +2384,10 @@ async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
     if denied is not None:
         return denied
     extra = send_kwargs(sanitize_send_options(data.get("send_options")))
+    if mode == "layout_v2":
+        denied = await _reject_unassignable_roles(request, guild_id, data["layout"])
+        if denied is not None:
+            return denied
     try:
         if mode == "layout_v2":
             layout = data["layout"]
@@ -2140,8 +2429,14 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         # Mintea los custom_id de botones de rol UNA vez, acá: el JSON con los
         # custom_id ya horneados es lo que queda guardado en embed_json, así
         # que cada disparo periódico del anuncio reutiliza el mismo mapeo
-        # (nunca se re-mintea en el loop de anuncios.py).
+        # (nunca se re-mintea en el loop de anuncios.py). Por eso el chequeo
+        # de roles va ANTES de acuñar nada: un anuncio programado sobrevive a
+        # reinicios y se dispara solo, así que un botón mal formado acá queda
+        # repartiendo el rol para siempre.
         layout = data["layout"]
+        denied = await _reject_unassignable_roles(request, guild_id, layout)
+        if denied is not None:
+            return denied
         assignments = assign_button_custom_ids(layout)
         await _register_role_buttons(request.app["bot"], guild_id, assignments)
         payload = json.dumps(layout)
@@ -2458,7 +2753,16 @@ async def _api_embeds_upload(request: web.Request, guild_id: int) -> web.Respons
         return web.json_response(
             {"error": "no se pudo subir la imagen, intenta de nuevo"}, status=502
         )
+    await record_uploaded_image(guild_id, url)
     return web.json_response({"url": url})
+
+
+@guild_api
+async def _api_embeds_uploads_get(request: web.Request, guild_id: int) -> web.Response:
+    """Últimas imágenes subidas desde el editor de este guild, para el
+    selector de reutilización — R2 ya dedupe por contenido, esto es solo el
+    índice de qué URLs subió el guild."""
+    return web.json_response({"urls": await list_uploaded_images(guild_id)})
 
 
 # ---------------- Auth OAuth2 ----------------
@@ -2809,14 +3113,30 @@ async def _webhook_polar(request: web.Request) -> web.Response:
         # Firma válida pero polar-sdk 0.31.7 no modela el tipo (les pasa a
         # subscription.paused/resumed): se saca lo necesario del JSON crudo,
         # que ya fue verificado.
-        event = None
-        payload = json.loads(body)
-        event_type = payload.get("type")
-        data = payload.get("data") or {}
-        metadata = data.get("metadata") or {}
-        product_id = data.get("product_id")
-        status = data.get("status")
-        revoke_benefits = data.get("revoke_benefits")
+        #
+        # Con su propio try anidado: una excepción levantada DENTRO de un
+        # bloque `except` no la atrapa el `except Exception` de abajo, sale
+        # del handler entero. Esta es justo la rama que parsea JSON sin tipar
+        # -- la que más lo necesita -- y un body que no sea un objeto (una
+        # lista, o "data" como string) tumbaba el request con un 500, que es
+        # lo que el catch-all de abajo existe para evitar.
+        try:
+            event = None
+            payload = json.loads(body)
+            if not isinstance(payload, dict):
+                raise TypeError("el payload del webhook no es un objeto JSON")
+            event_type = payload.get("type")
+            data = payload.get("data")
+            data = data if isinstance(data, dict) else {}
+            metadata = data.get("metadata") or {}
+            product_id = data.get("product_id")
+            status = data.get("status")
+            revoke_benefits = data.get("revoke_benefits")
+        except Exception:
+            log.exception(
+                "Webhook de Polar de tipo no modelado con payload inesperado (firma OK)"
+            )
+            return web.json_response({"error": "payload inválido"}, status=400)
     except Exception:
         # Firma válida (o el body ni llegó a esa altura) pero el payload no
         # tiene la forma esperada -- JSON inválido, o JSON válido que no
@@ -3012,6 +3332,14 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_delete(
             f"{base}/settings/exempt-roles/{{role_id}}", _api_exempt_roles_delete
         )
+        app.router.add_get(f"{base}/settings/exempt-channels", _api_exempt_channels_get)
+        app.router.add_post(
+            f"{base}/settings/exempt-channels", _api_exempt_channels_post
+        )
+        app.router.add_delete(
+            f"{base}/settings/exempt-channels/{{channel_id}}",
+            _api_exempt_channels_delete,
+        )
         app.router.add_get(
             f"{base}/settings/spontaneous-channels", _api_spontaneous_channels_get
         )
@@ -3108,6 +3436,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/embeds/schedule", _api_embeds_schedule)
         app.router.add_post(f"{base}/embeds/validate", _api_embeds_validate)
         app.router.add_post(f"{base}/embeds/upload", _api_embeds_upload)
+        app.router.add_get(f"{base}/embeds/uploads", _api_embeds_uploads_get)
         app.router.add_get(f"{base}/embeds/templates", _api_embed_templates_get)
         app.router.add_post(f"{base}/embeds/templates", _api_embed_templates_post)
         app.router.add_put(

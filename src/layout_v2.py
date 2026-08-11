@@ -54,6 +54,39 @@ def _parse_color(value):
 # ─── Validación ──────────────────────────────────────────────────────────────
 
 
+def _validate_color(value) -> str | None:
+    """accent_color: '#RRGGBB' o int 0..0xFFFFFF. Sin esto, cualquier string
+    pasaba la validación y recién reventaba en _parse_color al construir el
+    mensaje -- con el layout ya guardado, así que un anuncio programado se
+    reintentaba en loop cada minuto sin poder enviarse nunca. El mismo string
+    llegaba además al preview del dashboard, que lo concatena dentro de un
+    atributo style."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "accent_color inválido: usa #RRGGBB"
+    if isinstance(value, str):
+        v = value.strip().lstrip("#")
+        if len(v) != 6 or any(c not in "0123456789abcdefABCDEF" for c in v):
+            return "accent_color inválido: usa #RRGGBB"
+        return None
+    if isinstance(value, int) and 0 <= value <= 0xFFFFFF:
+        return None
+    return "accent_color inválido: usa #RRGGBB"
+
+
+def _validate_media_url(url, what: str) -> str | None:
+    """Mismo criterio que los botones de enlace. Una URL sin esquema http(s)
+    la rechaza Discord al enviar, no acá, y para entonces el layout ya está
+    guardado (ver el comentario de _validate_color sobre el reintento en loop)."""
+    clean = (url or "").strip()
+    if not clean:
+        return f"{what} no tiene URL"
+    if not clean.startswith(("http://", "https://")):
+        return f"{what} necesita una URL http(s)"
+    return None
+
+
 def _validate_button(btn) -> str | None:
     if not isinstance(btn, dict):
         return "botón inválido"
@@ -86,9 +119,7 @@ def _validate_accessory(acc, state) -> str | None:
     state["count"] += 1
     kind = acc.get("type")
     if kind == "thumbnail":
-        if not (acc.get("url") or "").strip():
-            return "la miniatura de la sección no tiene URL"
-        return None
+        return _validate_media_url(acc.get("url"), "la miniatura de la sección")
     if kind == "button":
         return _validate_button(acc)
     return "accesorio inválido: usa una miniatura o un botón"
@@ -105,6 +136,9 @@ def _validate_blocks(blocks, state, in_container=False) -> str | None:
         if kind == "container":
             if in_container:
                 return "no se pueden anidar containers"
+            err = _validate_color(b.get("accent_color"))
+            if err:
+                return err
             err = _validate_blocks(b.get("children"), state, in_container=True)
             if err:
                 return err
@@ -115,7 +149,9 @@ def _validate_blocks(blocks, state, in_container=False) -> str | None:
             state["text"] += len(content)
         elif kind == "section":
             texts = b.get("texts")
-            if not isinstance(texts, list) or not (1 <= len(texts) <= MAX_SECTION_TEXTS):
+            if not isinstance(texts, list) or not (
+                1 <= len(texts) <= MAX_SECTION_TEXTS
+            ):
                 return f"una sección necesita entre 1 y {MAX_SECTION_TEXTS} textos"
             for tx in texts:
                 if not isinstance(tx, str) or not tx.strip():
@@ -127,11 +163,16 @@ def _validate_blocks(blocks, state, in_container=False) -> str | None:
                 return err
         elif kind == "media_gallery":
             items = b.get("items")
-            if not isinstance(items, list) or not (1 <= len(items) <= MAX_GALLERY_ITEMS):
+            if not isinstance(items, list) or not (
+                1 <= len(items) <= MAX_GALLERY_ITEMS
+            ):
                 return f"una galería necesita entre 1 y {MAX_GALLERY_ITEMS} imágenes"
             for it in items:
-                if not isinstance(it, dict) or not (it.get("url") or "").strip():
-                    return "una imagen de la galería no tiene URL"
+                if not isinstance(it, dict):
+                    return "una imagen de la galería es inválida"
+                err = _validate_media_url(it.get("url"), "una imagen de la galería")
+                if err:
+                    return err
         elif kind == "separator":
             pass
         elif kind == "action_row":
@@ -168,13 +209,13 @@ def validate_layout_v2_payload(layout) -> str | None:
 # ─── Asignación de custom_id (botones de rol) ────────────────────────────────
 
 
-def _iter_buttons(blocks):
+def iter_buttons(blocks):
     """Recorre un layout y produce cada dict de botón (los de action_row y los
     de accessory tipo botón de una section), sin importar el anidado en containers."""
     for b in blocks:
         kind = b.get("type")
         if kind == "container":
-            yield from _iter_buttons(b.get("children", []) or [])
+            yield from iter_buttons(b.get("children", []) or [])
         elif kind == "action_row":
             yield from (b.get("buttons", []) or [])
         elif kind == "section":
@@ -194,7 +235,7 @@ def assign_button_custom_ids(layout: dict) -> list[dict]:
     se re-serializa sin cambios) no se reasigna, así el mismo click sigue
     apuntando al mismo mapeo en sucesivos envíos periódicos."""
     assigned = []
-    for btn in _iter_buttons(layout.get("blocks", []) or []):
+    for btn in iter_buttons(layout.get("blocks", []) or []):
         if btn.get("style") == "role" and not btn.get("custom_id"):
             cid = f"{ROLE_TOGGLE_PREFIX}{uuid.uuid4().hex}"
             btn["custom_id"] = cid
@@ -252,16 +293,24 @@ def _build_block(b):
         texts = [discord.ui.TextDisplay(tx) for tx in b.get("texts", [])]
         return discord.ui.Section(*texts, accessory=_build_accessory(b["accessory"]))
     if kind == "media_gallery":
-        return discord.ui.MediaGallery(*[_gallery_item(it) for it in b.get("items", [])])
+        return discord.ui.MediaGallery(
+            *[_gallery_item(it) for it in b.get("items", [])]
+        )
     if kind == "separator":
-        spacing = _SPACING.get(b.get("spacing", "small"), discord.SeparatorSpacing.small)
+        spacing = _SPACING.get(
+            b.get("spacing", "small"), discord.SeparatorSpacing.small
+        )
         return discord.ui.Separator(visible=b.get("visible", True), spacing=spacing)
     if kind == "action_row":
-        return discord.ui.ActionRow(*[_build_button(btn) for btn in b.get("buttons", [])])
+        return discord.ui.ActionRow(
+            *[_build_button(btn) for btn in b.get("buttons", [])]
+        )
     raise ValueError(f"tipo de bloque desconocido: {kind}")
 
 
-def build_layout_view(layout: dict, timeout: float | None = None) -> discord.ui.LayoutView:
+def build_layout_view(
+    layout: dict, timeout: float | None = None
+) -> discord.ui.LayoutView:
     """Arma una LayoutView a partir del JSON del layout. Asume que el layout ya
     pasó validate_layout_v2_payload."""
     view = discord.ui.LayoutView(timeout=timeout)

@@ -12,6 +12,7 @@
 import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
+  confirmDelBtn,
 } from '/js/core/dom.js';
 import { GUILD_ID, currentLocale } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
@@ -119,6 +120,15 @@ else document.getElementById('dashHead').append(
 
 // ---------------- INICIO ----------------
 
+/* "14.982 / 15.000" cuando hay cupo conocido, el número solo si no. El
+   denominador es lo que le faltaba a estas tarjetas: sin él, nada le dice al
+   admin que al tocar el techo el bot empieza a borrar lo más viejo. */
+function withCap(used, cap) {
+  if (used == null) return null;
+  const n = Number(used).toLocaleString('es');
+  return cap ? `${n} / ${Number(cap).toLocaleString('es')}` : n;
+}
+
 function statTile(iconName, value, label) {
   return el('div', { class: 'stat-tile' },
     icon(iconName),
@@ -169,19 +179,37 @@ async function loadInicio() {
       el('p', { class: 'dim' }, 'Canal donde Purgito publica sus anuncios de actualizaciones y novedades.'),
       el('div', { class: 'field' }, sel)));
 
-    // Estados: lo que el bot tiene guardado y de dónde lee ahora mismo.
+    // Estados: lo que el bot tiene guardado y de dónde lee ahora mismo. Los
+    // que tienen cupo lo muestran: un número solo no dice que al llegar al
+    // tope el bot empieza a borrar lo más viejo sin avisar.
+    const lims = stats.limits || {};
     const tiles = el('div', { class: 'stat-grid' },
-      statTile('corpus', stats.corpus_total, 'Mensajes guardados'),
-      statTile('film', stats.gifs, 'GIFs guardados'),
+      statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), 'Mensajes guardados'),
+      statTile('film', withCap(stats.gifs, lims.gifs), 'GIFs guardados'),
       statTile('chat', `${stats.reading_channels}/${stats.text_channels}`, 'Canales que lee'),
       statTile('layout', `${stats.reply_channels}/${stats.text_channels}`, 'Canales donde responde'),
       statTile('smile', stats.reactions, 'Emojis de reacción'),
-      statTile('sparkle', stats.frases, 'Frases especiales'));
+      statTile('sparkle', withCap(stats.frases, lims.frases), 'Frases especiales'));
+    const cerca = [
+      [stats.corpus_total, lims.corpus_total, 'mensajes guardados'],
+      [stats.gifs, lims.gifs, 'GIFs'],
+    ].filter(([used, cap]) => cap && used >= cap * 0.9);
+    // Por canal el tope es otro (y más chico) que el total del servidor: un
+    // canal solo puede aportar corpus_per_channel mensajes.
+    const capCanal = lims.corpus_per_channel || 0;
     const byChannel = el('div', { class: 'stat-channels' },
       stats.corpus_by_channel.map(c => el('div', { class: 'stat-channel-row' },
         el('span', {}, '#' + (c.name || c.channel_id)),
-        el('span', { class: 'dim' }, `${c.count} mensajes`))));
+        el('span', { class: capCanal && c.count >= capCanal * 0.9 ? '' : 'dim' },
+          capCanal
+            ? `${c.count.toLocaleString('es')} de ${capCanal.toLocaleString('es')} mensajes`
+            : `${c.count} mensajes`))));
     box.append(formGroup('Estado del bot en este servidor', tiles,
+      cerca.length
+        ? el('p', { class: 'dim' },
+          `Estás cerca del cupo de ${cerca.map(c => c[2]).join(' y ')}: al llegar, `
+          + 'Purgito empieza a borrar lo más antiguo para hacer lugar a lo nuevo.')
+        : null,
       stats.corpus_by_channel.length
         ? el('div', {}, el('p', { class: 'dim' }, 'Mensajes guardados por canal:'), byChannel)
         : null));
@@ -380,7 +408,9 @@ function corpusImportForm(channels) {
       try {
         r = await fetch(`/api/server/${GUILD_ID}/settings/corpus/import/${chanSel.value}`, {
           method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'text/plain' },
+          // No text/plain: es uno de los tres Content-Type que un <form> ajeno
+          // puede mandar sin preflight de CORS (ver _api_corpus_import_post).
+          headers: { 'Content-Type': 'application/octet-stream' },
           body: file,
         });
         data = await r.json().catch(() => ({}));
@@ -674,7 +704,7 @@ async function loadChatTab() {
   const box = content();
   box.append(spinner());
   try {
-    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, triggers, exempt, channels, roles] =
+    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, triggers, exempt, exemptChans, channels, roles] =
       await Promise.all([
         apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
         apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
@@ -686,6 +716,7 @@ async function loadChatTab() {
         apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
         apiFetch(`/api/server/${GUILD_ID}/settings/triggers`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`),
         getChannels(),
         getRoles(),
       ]);
@@ -846,6 +877,7 @@ async function loadChatTab() {
     // --- Sub-pestaña: Límites ---
     function buildLimites() {
       const exemptSelected = new Set(exempt.roles.map(r => r.id));
+      const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
       return formGroup('Límite de actividad',
         el('p', { class: 'dim' },
           'Tope de interacciones por hora y por usuario, para evitar que alguien '
@@ -875,16 +907,38 @@ async function loadChatTab() {
               exemptSelected.delete(role.id);
             },
             listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
+          })),
+        el('div', { class: 'field' },
+          el('label', {}, 'Canales exentos del límite'),
+          el('p', { class: 'dim' },
+            'En estos canales el tope no cuenta: útil para un #bot-testing sin '
+            + 'tener que crear un rol solo para eso.'),
+          channelToggleList({
+            channels,
+            isSelected: id => exemptChannelsSelected.has(id),
+            add: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`, {
+                method: 'POST', body: { channel_id: ch.id },
+              });
+              exemptChannelsSelected.add(ch.id);
+            },
+            remove: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels/${ch.id}`, {
+                method: 'DELETE',
+              });
+              exemptChannelsSelected.delete(ch.id);
+            },
+            listBelow: 'Ningún canal exento — el límite aplica en todos.',
           })));
     }
 
     // --- Sub-pestaña: Frases ---
     function buildFrases() {
       const frasesBox = el('div', {});
-      renderFrases(frasesBox, frases.frases, frasePacks.packs);
+      renderFrases(frasesBox, frases.frases, frasePacks.packs, frases.limit);
 
       const packsBox = el('div', {});
-      renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox);
+      renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox, frasePacks.limit);
 
       const fraseChannelsSelected = new Set(fraseChannels.channels.map(c => c.id));
 
@@ -972,10 +1026,11 @@ async function loadChatTab() {
         el('p', { class: 'dim' },
           'Prueba cómo respondería Purgito a un mensaje en un canal puntual, con '
           + 'su configuración efectiva (overrides, packs y triggers incluidos). '
-          + 'No manda nada de verdad ni gasta el cooldown real de frases '
-          + 'especiales. No simula si el canal está habilitado para menciones o '
-          + 'respuesta espontánea, ni el límite de menciones por hora — solo el '
-          + 'motor de generación.'),
+          + 'No manda nada de verdad ni gasta cooldowns reales. Además del texto '
+          + 'que generaría, avisa si hay algo que lo frenaría antes: chat '
+          + 'desactivado, canal fuera de las listas de menciones o de charla '
+          + 'espontánea, tu cupo horario agotado, o el piso de silencio del '
+          + 'canal.'),
         el('div', { class: 'field' }, el('label', {}, 'Canal'), sel),
         el('div', { class: 'field' }, el('label', {}, 'Mensaje de prueba'), input),
         btn,
@@ -1165,9 +1220,20 @@ async function reloadReacciones(box) {
 
 // `packs` decide si se muestra el selector de pack por frase: sin packs
 // creados todavía no tiene sentido mostrar un <select> con una sola opción.
-function renderFrases(box, frases, packs) {
+/* "12 de 50 usadas" arriba de una lista con cupo. Antes el límite solo se
+   descubría al chocarlo (un 409 al agregar): nada mostraba cuánto quedaba. */
+function cupoLine(used, limit, singular, plural) {
+  if (!limit) return null;
+  const lleno = used >= limit;
+  return el('p', { class: lleno ? '' : 'dim' },
+    `${used} de ${limit} ${used === 1 ? singular : plural} usadas`,
+    lleno ? ' — llegaste al tope: eliminá una para poder agregar otra.' : '');
+}
+
+function renderFrases(box, frases, packs, limit) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
+  box.append(cupoLine(frases.length, limit, 'frase', 'frases'));
   if (!frases.length) list.append(el('li', { class: 'dim' }, 'Todavía no has agregado ninguna frase.'));
   for (const f of frases) {
     let packSelect = null;
@@ -1190,16 +1256,13 @@ function renderFrases(box, frases, packs) {
     list.append(el('li', {},
       el('span', {}, f.frase),
       packSelect,
-      el('button', {
-        class: 'btn btn-danger btn-sm',
-        onclick: async () => {
-          try {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
-            toast('Frase quitada', 'ok');
-          } catch (e) { toast('No se pudo quitar la frase, intenta de nuevo', 'err'); }
-          reloadFrases(box, packs);
-        },
-      }, 'Quitar')));
+      confirmDelBtn('¿Eliminar esta frase? No se puede recuperar.', async () => {
+        try {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
+          toast('Frase quitada', 'ok');
+        } catch (e) { toast('No se pudo quitar la frase, intenta de nuevo', 'err'); }
+        reloadFrases(box, packs);
+      })));
   }
   const input = el('input', { type: 'text', placeholder: 'Nueva frase…', maxlength: '300' });
   async function addFrase() {
@@ -1223,7 +1286,7 @@ function renderFrases(box, frases, packs) {
 async function reloadFrases(box, packs) {
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/frases`);
-    renderFrases(box, data.frases, packs);
+    renderFrases(box, data.frases, packs, data.limit);
   } catch (e) { /* se queda como estaba */ }
 }
 
@@ -1231,8 +1294,9 @@ async function reloadFrases(box, packs) {
 // mismo channelToggleList de arriba. La lista de canales del pack se pide
 // recién al abrirlo (no en el fetch inicial del tab) porque son N pedidos
 // más, uno por pack, que la mayoría de las veces nadie va a mirar.
-function renderFrasePacks(box, packs, channels, frasesBox) {
+function renderFrasePacks(box, packs, channels, frasesBox, limit) {
   box.innerHTML = '';
+  box.append(cupoLine(packs.length, limit, 'pack', 'packs'));
   if (!packs.length) {
     box.append(el('p', { class: 'dim' },
       'Sin packs todavía — todas las frases están en el pool default del servidor.'));
@@ -1244,9 +1308,11 @@ function renderFrasePacks(box, packs, channels, frasesBox) {
       el('summary', { class: 'embed-group-title' }, pack.name),
       el('div', { class: 'embed-group-body' },
         channelsBox,
-        el('button', {
-          class: 'btn btn-danger btn-sm',
-          onclick: async () => {
+        confirmDelBtn(
+          '¿Eliminar este pack? Sus frases no se borran: vuelven al pool '
+          + 'default del servidor, así que los canales que tenían este pack '
+          + 'asignado van a empezar a usar ese pool.',
+          async () => {
             try {
               await apiFetch(`/api/server/${GUILD_ID}/frases/packs/${pack.id}`, { method: 'DELETE' });
               toast('Pack eliminado', 'ok');
@@ -1255,7 +1321,7 @@ function renderFrasePacks(box, packs, channels, frasesBox) {
             // (delete_frase_pack en db.py): refresca también sus selects.
             refreshFrasesAndPacks(frasesBox, box, channels);
           },
-        }, 'Eliminar pack')));
+          { label: 'Eliminar pack' })));
     details.addEventListener('toggle', async () => {
       if (!details.open || loaded) return;
       loaded = true;
@@ -1313,8 +1379,8 @@ async function refreshFrasesAndPacks(frasesBox, packsBox, channels) {
       apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
       apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
     ]);
-    renderFrases(frasesBox, frasesData.frases, packsData.packs);
-    renderFrasePacks(packsBox, packsData.packs, channels, frasesBox);
+    renderFrases(frasesBox, frasesData.frases, packsData.packs, frasesData.limit);
+    renderFrasePacks(packsBox, packsData.packs, channels, frasesBox, packsData.limit);
   } catch (e) { /* se queda como estaba */ }
 }
 
@@ -1328,6 +1394,7 @@ const TRIGGER_ACTION_LABELS = {
 function renderTriggers(box, data, channels, packs) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
+  box.append(cupoLine(data.triggers.length, data.limit, 'trigger', 'triggers'));
   if (!data.triggers.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
   for (const trig of data.triggers) {
     const chan = channels.find(c => c.id === trig.channel_id);
@@ -1340,16 +1407,13 @@ function renderTriggers(box, data, channels, packs) {
     if (pack) parts.push(`(${pack.name})`);
     list.append(el('li', {},
       el('span', {}, parts.join(' ')),
-      el('button', {
-        class: 'btn btn-danger btn-sm',
-        onclick: async () => {
-          try {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
-            toast('Trigger eliminado', 'ok');
-          } catch (e) { toast('No se pudo eliminar el trigger, intenta de nuevo', 'err'); }
-          reloadTriggers(box, channels, packs);
-        },
-      }, 'Quitar')));
+      confirmDelBtn('¿Eliminar este trigger? Hay que volver a escribirlo desde cero.', async () => {
+        try {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
+          toast('Trigger eliminado', 'ok');
+        } catch (e) { toast('No se pudo eliminar el trigger, intenta de nuevo', 'err'); }
+        reloadTriggers(box, channels, packs);
+      })));
   }
   box.append(list, triggerForm(box, channels, packs, data));
 }
@@ -1416,11 +1480,47 @@ const PLAYGROUND_REASON_LABELS = {
   markov: 'Texto generado (Markov)',
 };
 
+/* Frenos que actúan ANTES del motor de generación. Cada texto dice a qué vía
+   de entrega aplica (mención o hablar solo): el playground no pregunta por
+   cuál llegaría el mensaje, así que un "no respondería" a secas mentiría en
+   la mitad de los casos. Es la respuesta a "¿por qué no me contesta?" que
+   antes el Playground no daba. */
+const PLAYGROUND_AVISO_LABELS = {
+  chat_desactivado:
+    'El chat está desactivado: no responde a menciones. Los mensajes '
+    + 'espontáneos, las reacciones y los triggers no dependen de este switch y '
+    + 'siguen saliendo.',
+  canal_sin_menciones:
+    'Este canal no está en la lista de canales donde responde a menciones: '
+    + 'si lo mencionan acá, avisa que solo contesta en los canales elegidos.',
+  canal_sin_espontaneo:
+    'Este canal no está en la lista de canales donde habla por su cuenta: '
+    + 'acá nunca va a arrancar una charla solo.',
+  cupo_horario_agotado:
+    'Ya agotaste tu cupo de menciones de esta hora: a vos no te contestaría '
+    + 'ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
+  cooldown_espontaneo:
+    'Acabó de hablar solo en este canal: por el piso de silencio entre '
+    + 'mensajes espontáneos no volvería a hacerlo todavía. No afecta a las '
+    + 'menciones.',
+};
+
+function playgroundAvisos(avisos) {
+  if (!avisos || !avisos.length) return null;
+  return el('div', { class: 'playground-avisos' },
+    el('p', { class: 'dim' }, avisos.length === 1
+      ? 'Hay un freno activo fuera del motor de generación:'
+      : `Hay ${avisos.length} frenos activos fuera del motor de generación:`),
+    el('ul', { class: 'item-list' }, avisos.map(code =>
+      el('li', {}, el('span', {}, PLAYGROUND_AVISO_LABELS[code] || code)))));
+}
+
 function renderPlaygroundResult(box, data) {
   box.innerHTML = '';
   if (!data.would_respond) {
     box.append(el('p', { class: 'dim' },
       PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'No respondería.'));
+    box.append(playgroundAvisos(data.avisos));
     return;
   }
   box.append(
@@ -1428,7 +1528,8 @@ function renderPlaygroundResult(box, data) {
     el('div', {
       style: 'border:1px solid var(--border);border-radius:var(--radius-sm);'
         + 'padding:12px;background:var(--surface-card)',
-    }, data.text));
+    }, data.text),
+    playgroundAvisos(data.avisos));
 }
 
 // ---------------- MEMES (stub) ----------------

@@ -6,6 +6,7 @@ data/bot.db."""
 
 import asyncio
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
@@ -46,28 +47,44 @@ def test_sanitize_defaults_returns_none():
 
 def test_sanitize_parses_and_caps_roles():
     out = sanitize_send_options(
-        {"silent": True, "restrict_mentions": True, "allowed_role_ids": ["12", 34, "x", None]}
+        {
+            "silent": True,
+            "restrict_mentions": True,
+            "allowed_role_ids": ["12", 34, "x", None],
+        }
     )
-    assert out == {"silent": True, "restrict_mentions": True, "allowed_role_ids": [12, 34]}
+    assert out == {
+        "silent": True,
+        "restrict_mentions": True,
+        "allowed_role_ids": [12, 34],
+    }
     # tope defensivo del listado
-    out = sanitize_send_options({"restrict_mentions": True, "allowed_role_ids": list(range(50))})
+    out = sanitize_send_options(
+        {"restrict_mentions": True, "allowed_role_ids": list(range(50))}
+    )
     assert len(out["allowed_role_ids"]) == 20
 
 
 def test_send_kwargs_silent_only():
-    kw = send_kwargs({"silent": True, "restrict_mentions": False, "allowed_role_ids": []})
+    kw = send_kwargs(
+        {"silent": True, "restrict_mentions": False, "allowed_role_ids": []}
+    )
     assert kw == {"silent": True}
 
 
 def test_send_kwargs_restrict_no_roles_pings_nobody():
-    kw = send_kwargs({"silent": False, "restrict_mentions": True, "allowed_role_ids": []})
+    kw = send_kwargs(
+        {"silent": False, "restrict_mentions": True, "allowed_role_ids": []}
+    )
     am = kw["allowed_mentions"]
     assert am.everyone is False and am.users is False and am.roles is False
     assert "silent" not in kw
 
 
 def test_send_kwargs_restrict_with_roles():
-    kw = send_kwargs({"silent": True, "restrict_mentions": True, "allowed_role_ids": [7, 8]})
+    kw = send_kwargs(
+        {"silent": True, "restrict_mentions": True, "allowed_role_ids": [7, 8]}
+    )
     assert kw["silent"] is True
     assert [r.id for r in kw["allowed_mentions"].roles] == [7, 8]
 
@@ -103,6 +120,10 @@ def test_extract_send_options_absent():
 
 def _fake_channel():
     channel = MagicMock(spec=discord.TextChannel)
+    # Todos los anuncios de este archivo se programan con guild_id=1 (ver
+    # add_scheduled_announcement más abajo); check_announcements ahora
+    # verifica channel.guild.id contra esa fila (sección 9 ronda 3).
+    channel.guild = SimpleNamespace(id=1, me=MagicMock())
     perms = MagicMock()
     perms.send_messages = True
     perms.embed_links = True
@@ -119,13 +140,27 @@ def _run_loop(channel):
 
 
 def test_scheduled_classic_with_send_options(memory_db):
-    payload = json.dumps({
-        "embeds": [{"title": "aviso"}],
-        "send_options": {"silent": True, "restrict_mentions": True, "allowed_role_ids": [5]},
-    })
-    asyncio.run(db.add_scheduled_announcement(
-        1, 10, "aviso", "interval", 1, interval_minutes=30, embed_json=payload,
-    ))
+    payload = json.dumps(
+        {
+            "embeds": [{"title": "aviso"}],
+            "send_options": {
+                "silent": True,
+                "restrict_mentions": True,
+                "allowed_role_ids": [5],
+            },
+        }
+    )
+    asyncio.run(
+        db.add_scheduled_announcement(
+            1,
+            10,
+            "aviso",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json=payload,
+        )
+    )
     channel = _fake_channel()
     _run_loop(channel)
     kwargs = channel.send.await_args.kwargs
@@ -135,14 +170,24 @@ def test_scheduled_classic_with_send_options(memory_db):
 
 
 def test_scheduled_layout_with_send_options(memory_db):
-    payload = json.dumps({
-        "blocks": [{"type": "text", "content": "hola"}],
-        "send_options": {"silent": True},
-    })
-    asyncio.run(db.add_scheduled_announcement(
-        1, 10, "[layout]", "interval", 1, interval_minutes=30,
-        embed_json=payload, content_mode="layout_v2",
-    ))
+    payload = json.dumps(
+        {
+            "blocks": [{"type": "text", "content": "hola"}],
+            "send_options": {"silent": True},
+        }
+    )
+    asyncio.run(
+        db.add_scheduled_announcement(
+            1,
+            10,
+            "[layout]",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json=payload,
+            content_mode="layout_v2",
+        )
+    )
     channel = _fake_channel()
     _run_loop(channel)
     kwargs = channel.send.await_args.kwargs
@@ -151,10 +196,17 @@ def test_scheduled_layout_with_send_options(memory_db):
 
 
 def test_scheduled_without_options_sends_plain_kwargs(memory_db):
-    asyncio.run(db.add_scheduled_announcement(
-        1, 10, "aviso", "interval", 1, interval_minutes=30,
-        embed_json='[{"title": "sin opciones"}]',
-    ))
+    asyncio.run(
+        db.add_scheduled_announcement(
+            1,
+            10,
+            "aviso",
+            "interval",
+            1,
+            interval_minutes=30,
+            embed_json='[{"title": "sin opciones"}]',
+        )
+    )
     channel = _fake_channel()
     _run_loop(channel)
     kwargs = channel.send.await_args.kwargs
@@ -203,10 +255,18 @@ def test_store_upload_same_bytes_same_url(monkeypatch):
 def test_duplicated_role_buttons_get_distinct_custom_ids():
     # Simula el flujo de "duplicar bloque" del panel: la copia llega al backend
     # sin custom_id (el frontend los limpia) y el minteo genera ids distintos.
-    layout = {"blocks": [
-        {"type": "action_row", "buttons": [{"style": "role", "label": "a", "role_id": 1}]},
-        {"type": "action_row", "buttons": [{"style": "role", "label": "a", "role_id": 1}]},
-    ]}
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [{"style": "role", "label": "a", "role_id": 1}],
+            },
+            {
+                "type": "action_row",
+                "buttons": [{"style": "role", "label": "a", "role_id": 1}],
+            },
+        ]
+    }
     assigned = assign_button_custom_ids(layout)
     ids = [a["custom_id"] for a in assigned]
     assert len(ids) == 2 and len(set(ids)) == 2

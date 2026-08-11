@@ -13,6 +13,16 @@ export function el(tag, attrs = {}, ...children) {
     if (k === 'class') node.className = v;
     else if (k.startsWith('on')) node[k] = v;
     else if (k === 'checked' || k === 'value') node[k] = v;
+    // style vía cssText, no setAttribute: la CSP del sitio (ver LANDING_CSP
+    // en build_docs.py) no tiene 'unsafe-inline' en style-src, y CSP trata
+    // el atributo style="..." (sea escrito en el HTML o puesto con
+    // setAttribute) como estilo inline -- lo bloquea igual. cssText, como
+    // cualquier asignación a propiedades de node.style, no pasa por el
+    // atributo y CSP no lo toca. Sin este caso especial, todo color/display
+    // dinámico armado con el(..., { style }) — la barra de color de los
+    // embeds, los puntos de color de roles, los toggles de display:none —
+    // quedaba viniendo transparente/sin aplicar en producción.
+    else if (k === 'style') node.style.cssText = v;
     else if (v !== null && v !== undefined) node.setAttribute(k, v);
   }
   for (const c of children.flat()) {
@@ -77,6 +87,44 @@ export function delBtn(box, fn, reload) {
   }, 'Quitar');
 }
 
+/* Borrado en dos pasos: botón -> "<pregunta> ✓ ✗" -> ejecuta o cancela.
+   Mismo patrón que ya usaban GIFs, YouTube y Amnesia; acá se factoriza para
+   que frases, packs, triggers y reacciones dejen de borrar con un solo click
+   sin confirmar (no tienen undo, y un pack además devuelve sus frases al pool
+   default del servidor).
+
+   `question` es la pregunta completa: cuando la acción tiene un efecto
+   colateral, decilo ahí y no en un genérico "¿Seguro?". */
+export function confirmDelBtn(question, onConfirm, { label = 'Quitar' } = {}) {
+  const wrap = el('div', { class: 'gif-actions' });
+
+  function showButton() {
+    wrap.innerHTML = '';
+    wrap.append(el('button', {
+      class: 'btn btn-danger btn-sm', onclick: showConfirm,
+    }, label));
+  }
+
+  function showConfirm() {
+    wrap.innerHTML = '';
+    wrap.append(el('div', { class: 'gif-confirm' },
+      question,
+      el('button', { class: 'btn btn-danger btn-sm', onclick: run }, '✓'),
+      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButton }, '✗')));
+  }
+
+  async function run() {
+    // Vuelve al botón antes de await: si onConfirm recarga la lista, este
+    // nodo ya no existe cuando termine, y tocar wrap.innerHTML ahí no haría
+    // nada visible igual.
+    showButton();
+    await onConfirm();
+  }
+
+  showButton();
+  return wrap;
+}
+
 // Imagen que se oculta sola si la URL no carga (igual que hace Discord).
 export function embedImg(attrs) {
   const img = el('img', attrs);
@@ -104,6 +152,18 @@ const ICONS = {
 export function icon(name) {
   const s = el('span', { class: 'nav-icon' });
   s.innerHTML = ICONS[name] || '';
+  return s;
+}
+
+// Ícono "?" con tooltip nativo (title): para contexto breve donde un párrafo
+// .dim sería ruido — junto a un label compacto, un toggle en una fila densa.
+// Para explicaciones más largas seguí usando un <p class="dim"> como en el
+// resto del panel (ver formGroup/accordionGroup).
+export function helpIcon(msg) {
+  const s = icon('info');
+  s.classList.add('help-icon');
+  s.title = msg;
+  s.tabIndex = 0;
   return s;
 }
 

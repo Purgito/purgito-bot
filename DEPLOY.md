@@ -365,6 +365,24 @@ server {
     #      el handshake TLS, no sirve sobre el listener 80.
     # ssl_client_certificate /etc/nginx/certs/cloudflare-origin-pull-ca.pem;
     # ssl_verify_client on;
+    #
+    # No es solo WAF/cache: _client_ip() en webapi.py (la clave de bucket de
+    # TODOS los rate limit por IP de la app) prioriza el header
+    # CF-Connecting-IP, y este server block lo deja pasar sin tocarlo. Sin
+    # AOP, cualquiera que le hable directo a nginx manda el
+    # CF-Connecting-IP que quiera y se salta CADA rate limit de la app (login,
+    # embeds/send, corpus/import, triggers, checkout de premium, todos) --
+    # X-Forwarded-For no sirve de red de respaldo acá: con
+    # $remote_addr en vez de $proxy_add_x_forwarded_for (ver más abajo), lo
+    # único que llega en X-Forwarded-For para tráfico legítimo es la IP de
+    # borde de Cloudflare, compartida por miles de visitantes.
+    #
+    # Si activar AOP completo (con el cambio de TLS que pide) no es viable
+    # todavía, un allowlist de IPs de Cloudflare en nginx alcanza para lo
+    # mismo sin tocar TLS: bajar https://www.cloudflare.com/ips/ y agregar
+    # un `allow <rango>;` por línea + `deny all;` al final de este server
+    # block (o el equivalente vía firewall del droplet). Más simple que AOP,
+    # mismo resultado: nada que no venga de Cloudflare llega a nginx.
 
     # ── Cabeceras de seguridad, para todo lo que sirve este server ──
     # (estático y proxeado). CSP queda afuera a propósito: la API ya pone
@@ -377,6 +395,11 @@ server {
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
+    # Sin esto, nginx manda "Server: nginx/1.x.x" -- la versión exacta ayuda
+    # a buscar CVEs puntuales y no le sirve a nadie real. server_tokens
+    # también vale en http{} para cubrir los dos server blocks heredados de
+    # más arriba de una sola vez, si se prefiere no repetirlo acá.
+    server_tokens off;
 
     # ── Dinámico: proxy a la app (rutas registradas en webapi.py) ──
     location /auth/     { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
@@ -440,6 +463,12 @@ sudo systemctl reload nginx
    `*.purg4t0ry.com` heredados), valor = IP del droplet, proxy ✅ (naranja).
    `panel.purgito.app` ya no se usa: no le hace falta registro.
 2. Cloudflare maneja el SSL automáticamente. No necesitas certbot ni HTTPS en nginx.
+3. SSL/TLS → Edge Certificates → activa **HSTS**. El panel maneja sesión con
+   cookie (`Secure`, per Sección 1/9 de la auditoría), pero eso protege la
+   cookie una vez que la conexión ya es HTTPS -- HSTS es lo que evita que el
+   PRIMER request de una red hostil (wifi pública, router comprometido)
+   viaje en HTTP plano antes de cualquier redirect (sslstrip clásico). Un
+   toggle en Cloudflare, no requiere tocar nginx ni la app.
 
 > **Cloudflare cachea la landing.** Si después de un deploy el sitio "no cambia",
 > sospecha primero de la caché de Cloudflare (purge) antes de asumir que el

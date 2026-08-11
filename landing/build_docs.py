@@ -222,8 +222,11 @@ def parse(md):
 # el bucket R2 configurado por env var). El hash cubre el único inline
 # handler que hay en todo el sitio (onerror="this.remove()" en los <img> del
 # navbar/botones de invitar) sin abrir 'unsafe-inline'. meta http-equiv NO
-# soporta frame-ancestors/sandbox/report-uri -- frame-ancestors va por la
-# cabecera real que pone nginx (ver DEPLOY.md).
+# soporta frame-ancestors/sandbox/report-uri -- la protección contra
+# clickjacking para estas páginas va por X-Frame-Options: DENY, que sí pone
+# nginx como cabecera real (ver DEPLOY.md); no hay una CSP con
+# frame-ancestors a nivel nginx (a propósito: se pisaría con esta CSP y con
+# la de la API, ver el comentario del add_header en DEPLOY.md).
 LANDING_CSP = (
     "default-src 'self'; "
     "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c='; "

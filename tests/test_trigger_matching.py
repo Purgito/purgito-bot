@@ -93,9 +93,11 @@ class FakeMessage:
         )
         self.author = SimpleNamespace(mention="<@5>", display_name="user")
         self.sent: list[str] = []
+        self.send_kwargs: list[dict] = []
 
-    async def _send(self, text):
+    async def _send(self, text, **kwargs):
         self.sent.append(text)
+        self.send_kwargs.append(kwargs)
 
 
 @pytest.fixture
@@ -152,6 +154,39 @@ def test_primer_trigger_que_matchea_gana_no_se_prueban_los_demas(chat_cog, monke
 
     assert handled is True
     assert message.sent == ["respuesta markov"]
+
+
+def test_trigger_reply_no_pinguea_everyone_ni_here(chat_cog, monkeypatch):
+    """Auditoría sección 9, punto 4: el texto que dispara un trigger 'markov'
+    viene del corpus de CUALQUIER miembro (no solo del admin que configuró el
+    trigger). Si el modelo reproduce un "@everyone" aprendido de un mensaje
+    viejo, _send_trigger_reply no debe dejar que eso pinguee al servidor."""
+
+    async def fake_list(guild_id, channel_id):
+        return [
+            {
+                "id": 1,
+                "match_type": "exact",
+                "pattern": "hola",
+                "action": "markov",
+                "pack_id": None,
+            }
+        ]
+
+    async def fake_markov(guild_id):
+        return "@everyone @here revisen esto"
+
+    monkeypatch.setattr(chat_mod, "list_channel_triggers", fake_list)
+    monkeypatch.setattr(chat_mod.generation, "generate_markov_reply", fake_markov)
+    monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
+    monkeypatch.setattr(chat_mod, "_trigger_markov_cooldowns", chat_mod.LRUDict(64))
+
+    message = FakeMessage("hola")
+    handled = asyncio.run(chat_cog._handle_trigger(message, _SETTINGS))
+
+    assert handled is True
+    assert message.send_kwargs[0]["allowed_mentions"] == chat_mod._SAFE_MENTIONS
+    assert chat_mod._SAFE_MENTIONS.everyone is False
 
 
 def test_action_markov_respeta_el_cooldown_por_canal(chat_cog, monkeypatch):

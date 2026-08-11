@@ -1176,7 +1176,12 @@ class Settings(commands.Cog):
                         seen=len(scan["visible"]),
                         total=scan["total"],
                         names=_format_channel_names(scan["visible"]),
-                    )
+                    ),
+                    # names son nombres de canal en crudo: un canal llamado
+                    # "@everyone" hacía que este aviso pinguee al servidor
+                    # entero con los permisos del bot. Este mensaje no
+                    # necesita mencionar a nadie.
+                    allowed_mentions=discord.AllowedMentions.none(),
                 )
             except Exception:
                 log.warning(

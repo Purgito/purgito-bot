@@ -3,12 +3,14 @@
 import { GUILD_ID, formatNumber } from '/js/core/config.js';
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, autoGrow, showFormAlert, accordionGroup, formGroup, previewEmpty, toast,
+  el, autoGrow, showFormAlert, accordionGroup, formGroup, previewEmpty, toast, helpIcon,
 } from '/js/core/dom.js';
-import { previewImg, mdToNodes, beginPreviewRender, endPreviewRender } from '/js/core/markdown.js';
+import {
+  previewImg, mdToNodes, beginPreviewRender, endPreviewRender, discordTimestampText,
+} from '/js/core/markdown.js';
 import {
   blankDoc, blankEmbed, blankSendOpts, embedDict, embedChars, EMBED_LIMITS,
-  docDicts, validateEmbedsClient, sendOptsToApi,
+  docDicts, validateEmbedsClient, sendOptsToApi, colorToHex, isoToLocalInput, localInputToIso,
 } from '/js/embeds/state.js';
 import { _embedDoc, setEmbedDoc } from '/js/embeds/session.js';
 import { channelSelect } from '/js/panel-shell.js';
@@ -43,12 +45,14 @@ export function renderEmbedPreview(e) {
   const body = el('div', { class: 'd-embed-body' }, main);
   if (e.thumbnail) body.append(el('div', { class: 'd-embed-thumb' }, previewImg({ src: e.thumbnail.url, alt: '' })));
   if (e.image) body.append(el('div', { class: 'd-embed-image' }, previewImg({ src: e.image.url, alt: '' })));
-  if (e.footer) {
+  if (e.footer || e.timestamp) {
+    const bits = [e.footer && e.footer.text, e.timestamp && discordTimestampText(new Date(e.timestamp), 'f')]
+      .filter(Boolean);
     body.append(el('div', { class: 'd-embed-footer' },
-      e.footer.icon_url ? previewImg({ src: e.footer.icon_url, alt: '' }) : null,
-      e.footer.text));
+      e.footer && e.footer.icon_url ? previewImg({ src: e.footer.icon_url, alt: '' }) : null,
+      bits.join(' • ')));
   }
-  const color = typeof e.color === 'string' ? e.color : '#8B6EF5';
+  const color = colorToHex(e.color) || '#8B6EF5';
   return el('div', { class: 'd-embed' },
     el('div', { class: 'd-embed-bar', style: 'background:' + color }), body);
 }
@@ -119,6 +123,24 @@ export function renderClassicEditor(box, channels, roles) {
 
   function fieldBlock(label, node) {
     return el('div', { class: 'field' }, el('label', {}, label), node);
+  }
+
+  // Timestamp del embed: datetime-local (hora del navegador) <-> ISO que
+  // espera Discord. Se guarda vacío por default — Discord no lo muestra si
+  // falta, no hace falta un toggle aparte para "sin timestamp".
+  function timestampField() {
+    const dt = el('input', { type: 'datetime-local', value: isoToLocalInput(s.timestamp) });
+    dt.oninput = () => { s.timestamp = localInputToIso(dt.value); updatePreview(); };
+    const nowBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      onclick: () => { s.timestamp = new Date().toISOString(); dt.value = isoToLocalInput(s.timestamp); updatePreview(); },
+    }, 'Ahora');
+    const clearBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      onclick: () => { s.timestamp = ''; dt.value = ''; updatePreview(); },
+    }, '✗');
+    return el('div', { class: 'add-row' }, dt, nowBtn, clearBtn,
+      helpIcon('Se muestra en el footer del embed, siempre convertido a la hora local de quien lo ve — no hace falta ajustar por zona horaria.'));
   }
 
   // --- fields dinámicos ---
@@ -218,13 +240,27 @@ export function renderClassicEditor(box, channels, roles) {
   // --- barra de embeds (tabs Embed 1..N + agregar + galería) ---
   const atMax = doc.embeds.length >= EMBED_LIMITS.count;
   const embedBar = el('div', { class: 'embed-bar-tabs' });
+  // Reordenar mueve el contenido, no el tab activo: si movés el embed que
+  // estás editando, la selección lo sigue a su nueva posición.
+  function moveEmbed(i, to) {
+    [doc.embeds[i], doc.embeds[to]] = [doc.embeds[to], doc.embeds[i]];
+    if (doc.active === i) doc.active = to;
+    else if (doc.active === to) doc.active = i;
+    loadEmbeds();
+  }
   doc.embeds.forEach((_, i) => {
-    const pill = el('div', {
-      class: 'embed-pill' + (i === doc.active ? ' active' : ''),
-      onclick: () => { doc.active = i; loadEmbeds(); },
-    },
-      'Embed ' + (i + 1),
-      doc.embeds.length > 1 ? el('span', {
+    const pillActions = doc.embeds.length > 1 ? el('span', { class: 'embed-pill-actions' },
+      el('span', {
+        class: 'embed-pill-move' + (i === 0 ? ' disabled' : ''),
+        title: 'Mover antes',
+        onclick: (ev) => { ev.stopPropagation(); if (i > 0) moveEmbed(i, i - 1); },
+      }, '◂'),
+      el('span', {
+        class: 'embed-pill-move' + (i === doc.embeds.length - 1 ? ' disabled' : ''),
+        title: 'Mover después',
+        onclick: (ev) => { ev.stopPropagation(); if (i < doc.embeds.length - 1) moveEmbed(i, i + 1); },
+      }, '▸'),
+      el('span', {
         class: 'embed-pill-x',
         onclick: (ev) => {
           ev.stopPropagation();
@@ -232,7 +268,11 @@ export function renderClassicEditor(box, channels, roles) {
           if (doc.active >= doc.embeds.length) doc.active = doc.embeds.length - 1;
           loadEmbeds();
         },
-      }, '✗') : null);
+      }, '✗')) : null;
+    const pill = el('div', {
+      class: 'embed-pill' + (i === doc.active ? ' active' : ''),
+      onclick: () => { doc.active = i; loadEmbeds(); },
+    }, 'Embed ' + (i + 1), pillActions);
     embedPills.push(pill);
     embedBar.append(pill);
   });
@@ -384,7 +424,8 @@ export function renderClassicEditor(box, channels, roles) {
       fieldBlock('Descripción', insertWrap(
         bound('textarea', 'description', { maxlength: String(EMBED_LIMITS.description) }),
         ['menciones', 'fecha', 'emoji'])),
-      fieldBlock('Color', colorField(s, 'color', updatePreview))),
+      fieldBlock('Color', colorField(s, 'color', updatePreview)),
+      fieldBlock('Fecha (opcional)', timestampField())),
     accordionGroup('Autor', !!(s.authorName || s.authorIcon),
       el('div', { class: 'embed-two' },
         fieldBlock('Nombre', insertWrap(

@@ -366,3 +366,76 @@ def test_get_live_gif_deletes_only_after_three_confirmed_dead(memory_db, monkeyp
         assert (await cur.fetchone())[0] == 0  # 3er "dead" seguido: se borra
 
     asyncio.run(run())
+
+
+# ─── El auto-borrado deja rastro en el historial del servidor ────────────────
+#
+# Antes solo salía en el log del proceso (log.warning), invisible para el admin:
+# los GIFs desaparecían y era indistinguible de un bug -- justo la confusión que
+# motivó la investigación forense de la Sección 7. audit_log lo escribían solo
+# las acciones de admin desde webapi; esta es la primera del propio bot.
+
+
+async def _audit(conn, guild_id=_GUILD):
+    cur = await conn.execute(
+        "SELECT user_id, user_name, action, detail FROM audit_log WHERE guild_id=?",
+        (guild_id,),
+    )
+    return await cur.fetchall()
+
+
+def test_el_auto_borrado_queda_en_el_audit_log(memory_db):
+    async def run():
+        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        for _ in range(3):
+            await db.record_gif_health_check(gid, "dead")
+
+        filas = await _audit(memory_db)
+        assert len(filas) == 1
+        user_id, user_name, action, detail = filas[0]
+        assert action == "gifs.auto_removed"
+        assert user_id == 0  # 0 = el bot, no una persona
+        assert user_name == "Purgito"
+        assert "https://example.com/a.gif" in detail
+        assert "chequeos_dead=3" in detail
+
+    asyncio.run(run())
+
+
+def test_no_se_audita_si_todavia_no_borro(memory_db):
+    """Dos 'dead' no borran: tampoco deben ensuciar el historial."""
+
+    async def run():
+        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        await db.record_gif_health_check(gid, "dead")
+        await db.record_gif_health_check(gid, "dead")
+        assert await _audit(memory_db) == []
+
+    asyncio.run(run())
+
+
+def test_un_ok_no_audita_nada(memory_db):
+    async def run():
+        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        await db.record_gif_health_check(gid, "ok")
+        assert await _audit(memory_db) == []
+
+    asyncio.run(run())
+
+
+def test_count_audit_action_cuenta_los_auto_borrados(memory_db):
+    """Es lo que consume la pestaña GIFS para el aviso de los últimos 30 días."""
+
+    async def run():
+        for n in range(2):
+            gid = await _insert_gif(memory_db, _GUILD, f"https://example.com/{n}.gif")
+            for _ in range(3):
+                await db.record_gif_health_check(gid, "dead")
+
+        assert await db.count_audit_action(_GUILD, "gifs.auto_removed", days=30) == 2
+        # Otro guild no ve los del primero.
+        assert await db.count_audit_action(999, "gifs.auto_removed", days=30) == 0
+        # Otra acción tampoco se mezcla.
+        assert await db.count_audit_action(_GUILD, "gifs.remove", days=30) == 0
+
+    asyncio.run(run())

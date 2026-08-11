@@ -143,9 +143,8 @@ class YouTube(commands.Cog):
                 if video is None:
                     return
                 if video["id"] != sub["last_video_id"]:
-                    mention = ""
-                    if sub.get("mention_role_id"):
-                        mention = f"<@&{sub['mention_role_id']}> "
+                    role_id = sub.get("mention_role_id")
+                    mention = f"<@&{role_id}> " if role_id else ""
                     locale = await guild_locale(sub["guild_id"])
                     await channel.send(
                         mention
@@ -155,7 +154,18 @@ class YouTube(commands.Cog):
                             author=video["author"],
                             title=video["title"],
                             url=video["url"],
-                        )
+                        ),
+                        # El título y el autor los escribe quien sube el video,
+                        # no el servidor: un video titulado "@everyone ..." hacía
+                        # que el bot pinguee a todo el servidor con SUS permisos.
+                        # Se permite únicamente el rol que el admin configuró
+                        # como aviso; todo lo demás que venga en el texto del
+                        # feed queda inerte.
+                        allowed_mentions=discord.AllowedMentions(
+                            everyone=False,
+                            users=False,
+                            roles=[discord.Object(id=role_id)] if role_id else False,
+                        ),
                     )
                     await update_last_video_id(
                         sub["guild_id"], sub["youtube_channel_id"], video["id"]

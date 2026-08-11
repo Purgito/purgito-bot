@@ -31,6 +31,7 @@ from db import (
     is_frase_allowed,
     list_channel_triggers,
     list_corpus_channels,
+    list_exempt_channels,
     list_exempt_roles,
     list_ignored_channels,
     list_mention_channels,
@@ -75,6 +76,15 @@ _muted_reply_cooldowns: LRUDict = LRUDict(256)
 _MENTION_RATE_WINDOW = 3600.0
 _mention_hits: LRUDict = LRUDict(8192)
 
+# (guild_id, user_id) -> inicio de la ventana en la que ya se avisó del tope.
+# Antes, pegar contra el tope dejaba al bot completamente mudo con ese usuario:
+# indistinguible de "el bot está roto" para quien lo sufre (pasó de verdad).
+# Ahora avisa una vez por ventana y después solo reacciona, mismo patrón que
+# _muted_reply. Se compara contra el inicio de ventana guardado en
+# _mention_hits, así el aviso se rehabilita solo cuando la ventana rota — sin
+# ningún barrido ni tarea de limpieza.
+_rate_limit_warned: LRUDict = LRUDict(8192)
+
 # El gateway de Discord puede reenviar el mismo MESSAGE_CREATE tras un RESUME
 # (documentado, no hipotético): sin este guard, el mismo message.id procesado
 # dos veces dispara una respuesta a mención (o un trigger de canal) duplicada
@@ -103,6 +113,24 @@ _generate_cooldowns: LRUDict = LRUDict(1024)
 _TRIGGER_MARKOV_COOLDOWN = 5.0
 _trigger_markov_cooldowns: LRUDict = LRUDict(1024)
 
+# Piso de silencio entre dos mensajes espontáneos en el MISMO canal. De los
+# tres caminos que generan texto, este era el único sin ningún freno: una
+# mención pasa por mention_rate_limit y un trigger por
+# _TRIGGER_MARKOV_COOLDOWN, pero hablar por su cuenta solo dependía de
+# auto_generate_every y auto_generate_probability -- los dos configurables
+# desde el dashboard. Con every=1 y probability=100% el bot contestaba un
+# mensaje por cada mensaje que aprendía, o sea spam 1:1 con el canal, y la
+# única salida visible para el servidor era echarlo.
+#
+# A propósito NO es configurable por servidor: es un piso de seguridad, y un
+# piso que el admin puede bajar a 0 no es un piso. Queda holgado (45 s) para
+# no cambiarle la conducta a nadie que ya tenga una config sana -- solo corta
+# el caso patológico.
+# ponytail: constante fija; si algún día hace falta afinarla, que sea una env
+# var del deploy y no un campo más del dashboard.
+_SPONTANEOUS_COOLDOWN = 45.0
+_spontaneous_cooldowns: LRUDict = LRUDict(1024)
+
 
 def _check_generate_cooldown(guild_id: int, user_id: int) -> int | None:
     """None si puede generar (y marca el cooldown); si no, segundos restantes."""
@@ -126,6 +154,23 @@ def _check_trigger_markov_cooldown(guild_id: int, channel_id: int) -> bool:
     return True
 
 
+def _check_spontaneous_cooldown(guild_id: int, channel_id: int) -> bool:
+    """True si el bot puede hablar solo en este canal ahora (y lo marca).
+
+    Se marca al consultar, no al enviar: así también frena los intentos de
+    generación (que cuestan un turno del ThreadPoolExecutor) cuando el canal
+    viene disparando la oportunidad una y otra vez, y cubre por igual el
+    camino del GIF y el del texto.
+    """
+    now = time.monotonic()
+    key = (guild_id, channel_id)
+    last = _spontaneous_cooldowns.get(key)
+    if last is not None and now - last < _SPONTANEOUS_COOLDOWN:
+        return False
+    _spontaneous_cooldowns[key] = now
+    return True
+
+
 def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
     """True si al usuario le queda cupo en su ventana de 1 h (y lo consume).
 
@@ -145,6 +190,21 @@ def _consume_interaction(guild_id: int, user_id: int, limit: int) -> bool:
         _mention_hits[key] = (start, count)  # refresca el LRU, no el cupo
         return False
     _mention_hits[key] = (start, count + 1)
+    return True
+
+
+def _should_warn_rate_limit(guild_id: int, user_id: int) -> bool:
+    """True la primera vez que este usuario pega contra el tope en la ventana
+    actual (y lo marca); False el resto de las veces dentro de la misma ventana.
+
+    Se llama solo después de que _consume_interaction devolvió False, así que
+    _mention_hits ya tiene la entrada con el inicio de ventana vigente.
+    """
+    key = (guild_id, user_id)
+    start = _mention_hits.get(key, (None, 0))[0]
+    if _rate_limit_warned.get(key) == start:
+        return False
+    _rate_limit_warned[key] = start
     return True
 
 
@@ -185,6 +245,24 @@ def _regex_search_with_timeout(pattern: str, content: str) -> bool:
     except regex.error:
         log.warning("Trigger con regex inválido: %r", pattern)
         return False
+
+
+# Todo lo que sale de acá (Markov entrenado con el corpus de CUALQUIER
+# miembro, una frase especial escrita por un admin, o el apodo que se puso un
+# miembro cualquiera) se manda sin revisión humana previa. Si el texto trae un
+# "@everyone"/"@here" literal -- aprendido de un mensaje viejo, o tipeado a
+# mano en una frase -- el bot lo repite con sus propios permisos y pinguea al
+# servidor entero. everyone=False cubre las dos palabras (Discord las trata
+# como el mismo flag "everyone" en allowed_mentions.parse).
+#
+# roles=False por el mismo motivo: un "<@&id>" literal escondido en una frase
+# pinguea al rol entero con los permisos del bot, aunque quien escribió la
+# frase no tenga "Mencionar a todos los roles". Es exactamente el agujero que
+# TEMPLATE_TAGS evita al no exponer un tag {{role.mention}} -- sin esto, la
+# mención cruda por atrás lo dejaba abierto igual. Ningún texto generado
+# necesita pinguear roles; los avisos que sí lo hacen a propósito (YouTube)
+# arman su propio AllowedMentions con el rol puntual configurado.
+_SAFE_MENTIONS = discord.AllowedMentions(everyone=False, roles=False)
 
 
 async def _trigger_matches(trigger: dict, content: str) -> bool:
@@ -297,6 +375,56 @@ async def _simulate_special_or_markov(
     return text, False
 
 
+async def _entrega_avisos(guild_id: int, channel_id: int, user_id: int, settings: dict):
+    """Códigos de aviso sobre lo que frenaría el mensaje ANTES de llegar al
+    motor de generación, sin consumir ni gastar nada.
+
+    `simulate_message` no puede devolver un solo veredicto para esto: cada
+    freno aplica a una vía distinta de entrega (mención vs. hablar solo) y el
+    playground no pregunta por cuál llegaría el mensaje. Así que en vez de
+    inventar una respuesta única, se listan los frenos activos y cada texto
+    del dashboard aclara a qué vía corresponde -- que es justo la pregunta que
+    el admin trae ("¿por qué no me contesta?").
+    """
+    avisos: list[str] = []
+
+    # `enabled` gatea SOLO la rama de menciones (un único chequeo en
+    # on_message): con el chat apagado, los mensajes espontáneos, las
+    # reacciones y los triggers siguen saliendo igual.
+    if not settings["enabled"]:
+        avisos.append("chat_desactivado")
+
+    mention_channels = await list_mention_channels(guild_id)
+    if mention_channels and channel_id not in mention_channels:
+        avisos.append("canal_sin_menciones")
+
+    spontaneous = await list_spontaneous_channels(guild_id)
+    if spontaneous and channel_id not in spontaneous:
+        avisos.append("canal_sin_espontaneo")
+
+    # Tope horario de menciones: se mira el cupo real de quien está probando
+    # (el admin logueado), sin consumirlo -- por eso no se usa
+    # _consume_interaction acá.
+    limit = settings["mention_rate_limit"]
+    if limit > 0:
+        exento = channel_id in await list_exempt_channels(guild_id)
+        if not exento:
+            start, count = _mention_hits.get((guild_id, user_id), (None, 0))
+            vigente = (
+                start is not None and time.monotonic() - start < _MENTION_RATE_WINDOW
+            )
+            if vigente and count >= limit:
+                avisos.append("cupo_horario_agotado")
+
+    # Piso de silencio del canal (ver _SPONTANEOUS_COOLDOWN): igual que arriba,
+    # se consulta sin marcarlo, para no gastarle el cooldown real al canal.
+    last = _spontaneous_cooldowns.get((guild_id, channel_id))
+    if last is not None and time.monotonic() - last < _SPONTANEOUS_COOLDOWN:
+        avisos.append("cooldown_espontaneo")
+
+    return avisos
+
+
 async def simulate_message(
     guild_id: int, channel_id: int, content: str, *, author, channel, guild
 ) -> dict:
@@ -305,17 +433,27 @@ async def simulate_message(
     bumpear contadores ni gastar cooldowns reales. Usado por el endpoint
     del playground del dashboard.
 
-    Ojo con el alcance: simula el MOTOR de generación (triggers y la
-    decisión frase-vs-Markov) con la config efectiva del canal -- no
-    reproduce si ese canal está en las allowlists de mención/espontáneo ni
-    el límite de menciones por hora, porque esas dependen de CÓMO llegaría
-    el mensaje (¿mención? ¿espontáneo?), algo que el playground no pide.
-    Lo único que sí replica sin ambigüedad es el mute total de un canal
-    ignorado.
+    `would_respond`/`reason` describen el MOTOR de generación (triggers y la
+    decisión frase-vs-Markov) con la config efectiva del canal. Lo que puede
+    frenar al mensaje antes de llegar al motor -- chat apagado, allowlists de
+    mención/espontáneo, tope horario, piso de silencio -- viene aparte en
+    `avisos`, porque depende de por qué vía llegaría el mensaje y el
+    playground no lo pregunta (ver _entrega_avisos). El mute total de un canal
+    ignorado sí es inequívoco y corta como reason.
     """
     settings = await get_effective_chat_settings(guild_id, channel_id)
     if await is_channel_ignored(guild_id, channel_id):
-        return {"would_respond": False, "reason": "canal_ignorado", "text": None}
+        # Mute total: los demás avisos serían ruido al lado de esto.
+        return {
+            "would_respond": False,
+            "reason": "canal_ignorado",
+            "text": None,
+            "avisos": [],
+        }
+
+    avisos = await _entrega_avisos(
+        guild_id, channel_id, getattr(author, "id", 0), settings
+    )
 
     triggers = await list_channel_triggers(guild_id, channel_id)
     stripped = content.strip()
@@ -328,6 +466,7 @@ async def simulate_message(
                     "reason": "trigger_sin_contenido",
                     "trigger_id": trigger["id"],
                     "text": None,
+                    "avisos": avisos,
                 }
             final = (
                 await render_frase_template(
@@ -341,13 +480,19 @@ async def simulate_message(
                 "reason": "trigger",
                 "trigger_id": trigger["id"],
                 "text": final,
+                "avisos": avisos,
             }
 
     text, is_special = await _simulate_special_or_markov(
         guild_id, channel_id, settings["frase_probability"]
     )
     if text is None:
-        return {"would_respond": False, "reason": "sin_corpus_suficiente", "text": None}
+        return {
+            "would_respond": False,
+            "reason": "sin_corpus_suficiente",
+            "text": None,
+            "avisos": avisos,
+        }
     final = (
         await render_frase_template(text, author=author, channel=channel, guild=guild)
         if is_special
@@ -357,6 +502,7 @@ async def simulate_message(
         "would_respond": True,
         "reason": "frase_especial" if is_special else "markov",
         "text": final,
+        "avisos": avisos,
     }
 
 
@@ -436,11 +582,16 @@ class Chat(commands.Cog):
         await mark_migration_applied(guild.id, CORPUS_ALLOWLIST_MIGRATION)
 
     async def _exempt_from_rate_limit(self, message: discord.Message) -> bool:
-        """True si el autor tiene algún rol exento del tope de menciones.
+        """True si esta mención se saltea el tope: por canal o por rol del autor.
 
+        El canal se chequea primero porque no depende del miembro (un canal
+        exento lo es para todos) y evita recorrer roles al vuelo.
         `message.author.roles` ya viene cacheado con el miembro: no hay llamada
         extra a la API. En un DM el autor es User y no tiene roles.
         """
+        exempt_channels = await list_exempt_channels(message.guild.id)
+        if message.channel.id in exempt_channels:
+            return True
         roles = getattr(message.author, "roles", None)
         if not roles:
             return False
@@ -569,6 +720,12 @@ class Chat(commands.Cog):
                 allowed = await list_spontaneous_channels(message.guild.id)
                 if allowed and message.channel.id not in allowed:
                     return
+                # Piso de silencio del canal: lo último antes de generar, así
+                # ninguna combinación de every/probability puede saltearlo.
+                if not _check_spontaneous_cooldown(
+                    message.guild.id, message.channel.id
+                ):
+                    return
                 try:
                     if random.random() < settings["gif_response_probability"]:
                         gif_url = await get_live_gif(message.guild.id)
@@ -592,7 +749,9 @@ class Chat(commands.Cog):
                         else:
                             final = generation.post_process_reply(text)
                         for chunk in chunk_message(final):
-                            await message.channel.send(chunk)
+                            await message.channel.send(
+                                chunk, allowed_mentions=_SAFE_MENTIONS
+                            )
                         await bump_counter(message.guild.id, "mensajes_enviados")
                 except Exception:
                     log.exception("Error en generación automática de respuesta")
@@ -601,14 +760,16 @@ class Chat(commands.Cog):
         if not message.guild:
             return
 
-        # Pasado el tope de la hora, esta mención no existe: ni respuesta, ni
-        # aviso de límite. Va antes de todo lo que manda mensajes —incluido
-        # _muted_reply— para que el propio aviso no se vuelva el spam.
-        # Los roles exentos (moderación, boosters…) se saltan el tope entero.
+        # Pasado el tope de la hora no hay respuesta generada, pero sí un aviso
+        # de por qué (una vez por ventana; después solo una reacción). Va antes
+        # de todo lo demás que manda mensajes —incluido _muted_reply— para que
+        # este camino sea el único que contesta cuando el cupo se agotó.
+        # Los canales y roles exentos se saltan el tope entero.
         if not await self._exempt_from_rate_limit(message):
             if not _consume_interaction(
                 message.guild.id, message.author.id, settings["mention_rate_limit"]
             ):
+                await self._rate_limited_reply(message)
                 return
 
         # Mención directa pero el bot no puede conversar aquí: avisar por qué
@@ -670,12 +831,12 @@ class Chat(commands.Cog):
         else:
             reply = generation.post_process_reply(text)
         for chunk in chunk_message(reply):
-            await message.reply(chunk)
+            await message.reply(chunk, allowed_mentions=_SAFE_MENTIONS)
         await bump_counter(message.guild.id, "mensajes_enviados")
 
     async def _send_trigger_reply(self, message: discord.Message, text: str) -> None:
         for chunk in chunk_message(text):
-            await message.channel.send(chunk)
+            await message.channel.send(chunk, allowed_mentions=_SAFE_MENTIONS)
         await bump_counter(message.guild.id, "mensajes_enviados")
 
     async def _run_trigger_action(
@@ -772,6 +933,22 @@ class Chat(commands.Cog):
         except discord.HTTPException:
             log.debug("No se pudo enviar aviso de chat silenciado", exc_info=True)
 
+    async def _rate_limited_reply(self, message: discord.Message) -> None:
+        """Avisa que el usuario agotó su cupo de menciones de la hora. Primera vez
+        en su ventana: el aviso completo; después solo una reacción ⏳, para que
+        el aviso no se vuelva el spam que el propio tope trata de evitar."""
+        if not _should_warn_rate_limit(message.guild.id, message.author.id):
+            try:
+                await message.add_reaction("⏳")
+            except discord.HTTPException:
+                pass  # sin permiso de reaccionar o mensaje borrado: no importa
+            return
+        locale = await i18n.guild_locale(message.guild.id)
+        try:
+            await message.reply(i18n.t("chat.rate_limited", locale))
+        except discord.HTTPException:
+            log.debug("No se pudo enviar aviso de límite de menciones", exc_info=True)
+
     @commands.Cog.listener()
     async def on_guild_channel_update(
         self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel
@@ -816,8 +993,14 @@ class Chat(commands.Cog):
         if report_channel is None:
             return
         try:
+            locale = await i18n.guild_locale(after.guild.id)
             await report_channel.send(
-                f"👀 Ya pude leer {after.mention}: {res['saved']:,} mensajes nuevos guardados."
+                i18n.t(
+                    "chat.channel_visible_report",
+                    locale,
+                    channel=after.mention,
+                    saved=f"{res['saved']:,}",
+                )
             )
         except Exception:
             log.debug("on_guild_channel_update: no se pudo avisar en %s", channel_id)
@@ -829,23 +1012,27 @@ class Chat(commands.Cog):
         description="Genera un mensaje usando la memoria del canal.",
     )
     async def generar(self, interaction: discord.Interaction):
+        locale = await i18n.guild_locale(
+            interaction.guild.id if interaction.guild else None
+        )
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", locale), ephemeral=True
             )
             return
 
         remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
+                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
+                ephemeral=True,
             )
             return
 
         await interaction.response.defer(thinking=True)
         if interaction.channel is None:
             await interaction.followup.send(
-                "No puedo determinar el canal.", ephemeral=True
+                i18n.t("chat.cannot_determine_channel", locale), ephemeral=True
             )
             return
         settings = await get_effective_chat_settings(
@@ -858,7 +1045,6 @@ class Chat(commands.Cog):
         )
         if text is None:
             # Comando explícito: siempre el mensaje completo con instrucciones.
-            locale = await i18n.guild_locale(interaction.guild.id)
             reply = generation.empty_corpus_reply(interaction.guild.id, locale)
         elif is_special:
             reply = await render_frase_template(
@@ -869,7 +1055,7 @@ class Chat(commands.Cog):
             )
         else:
             reply = generation.post_process_reply(text)
-        await interaction.followup.send(reply)
+        await interaction.followup.send(reply, allowed_mentions=_SAFE_MENTIONS)
 
     @app_commands.command(
         name="imitar",
@@ -877,16 +1063,20 @@ class Chat(commands.Cog):
     )
     @app_commands.describe(usuario="Usuario a imitar")
     async def imitar(self, interaction: discord.Interaction, usuario: discord.Member):
+        locale = await i18n.guild_locale(
+            interaction.guild.id if interaction.guild else None
+        )
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", locale), ephemeral=True
             )
             return
 
         remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
         if remaining is not None:
             await interaction.response.send_message(
-                f"⏳ Espera {remaining}s antes de generar de nuevo.", ephemeral=True
+                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
+                ephemeral=True,
             )
             return
 
@@ -895,7 +1085,13 @@ class Chat(commands.Cog):
         count = await count_user_messages(interaction.guild.id, usuario.id)
         if count < 30:
             await interaction.followup.send(
-                f"⚠️ **{usuario.display_name}** solo tiene {count} mensaje(s) guardados. Necesita al menos 30."
+                i18n.t(
+                    "chat.imitar_not_enough_messages",
+                    locale,
+                    user=usuario.display_name,
+                    count=count,
+                ),
+                allowed_mentions=_SAFE_MENTIONS,
             )
             return
 
@@ -904,12 +1100,18 @@ class Chat(commands.Cog):
         )
         if result is None:
             await interaction.followup.send(
-                f"⚠️ No se pudo generar un mensaje para **{usuario.display_name}**. Prueba más tarde."
+                i18n.t(
+                    "chat.imitar_generation_failed", locale, user=usuario.display_name
+                ),
+                allowed_mentions=_SAFE_MENTIONS,
             )
             return
 
         await interaction.followup.send(
-            f'🎭 **{usuario.display_name}** diría: "{result}"'
+            i18n.t(
+                "chat.imitar_result", locale, user=usuario.display_name, text=result
+            ),
+            allowed_mentions=_SAFE_MENTIONS,
         )
 
     # --- CORPUS ---
@@ -1312,15 +1514,18 @@ class Chat(commands.Cog):
         description="Importa los últimos mensajes del canal a la memoria del bot.",
     )
     async def refeed(self, interaction: discord.Interaction):
+        locale = await i18n.guild_locale(
+            interaction.guild.id if interaction.guild else None
+        )
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", locale), ephemeral=True
             )
             return
 
         if not has_admin_permission(interaction):
             await interaction.response.send_message(
-                "❌ No tienes permisos para usar este comando.", ephemeral=True
+                i18n.t("general.error.no_permission", locale), ephemeral=True
             )
             return
 
@@ -1328,19 +1533,20 @@ class Chat(commands.Cog):
 
         channel = interaction.channel
         if not isinstance(channel, discord.abc.Messageable):
-            await interaction.followup.send("No puedo leer el historial de este canal.")
+            await interaction.followup.send(
+                i18n.t("chat.refeed.cannot_read_history", locale)
+            )
             return
 
         if await is_channel_ignored(interaction.guild.id, channel.id):
             await interaction.followup.send(
-                "⚠️ Este canal está en la lista de ignorados. Quítalo primero desde `/settings` si quieres incluirlo."
+                i18n.t("chat.refeed.channel_ignored", locale)
             )
             return
 
         if not await is_corpus_allowed(interaction.guild.id, channel.id):
             await interaction.followup.send(
-                "⚠️ Este canal no está entre los elegidos para aprender. "
-                "Agrégalo desde el dashboard (tab CHAT > Canales) y vuelve a intentar."
+                i18n.t("chat.refeed.channel_not_allowed", locale)
             )
             return
 
@@ -1349,21 +1555,34 @@ class Chat(commands.Cog):
         )
 
         if res["forbidden"] and res["saved"] == 0:
-            await interaction.followup.send(
-                "❌ Sin permisos para leer el historial de este canal."
-            )
+            await interaction.followup.send(i18n.t("chat.refeed.forbidden", locale))
             return
         gifs_suffix = (
-            f" y {res['gifs_saved']} GIF(s) nuevo(s)" if res["gifs_saved"] else ""
+            i18n.t("chat.refeed.gifs_suffix", locale, count=res["gifs_saved"])
+            if res["gifs_saved"]
+            else ""
         )
         if res["was_incremental"]:
-            result = f"⏭️ Este canal ya estaba al día: {res['saved']} mensajes nuevos guardados{gifs_suffix}."
+            result = i18n.t(
+                "chat.refeed.result_incremental",
+                locale,
+                saved=res["saved"],
+                gifs=gifs_suffix,
+            )
         elif res["backfill_complete"]:
-            result = f"✅ Historial completo leído: {res['saved']} mensajes guardados{gifs_suffix}."
+            result = i18n.t(
+                "chat.refeed.result_complete",
+                locale,
+                saved=res["saved"],
+                gifs=gifs_suffix,
+            )
         else:
-            result = (
-                f"✅ Guardados {res['saved']} mensajes{gifs_suffix} (leyendo el historial por primera vez).\n"
-                f"⚠️ Límite de {REFEED_MAX_MESSAGES:,} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó."
+            result = i18n.t(
+                "chat.refeed.result_partial",
+                locale,
+                saved=res["saved"],
+                gifs=gifs_suffix,
+                limit=f"{REFEED_MAX_MESSAGES:,}",
             )
         await interaction.followup.send(result)
 
@@ -1372,28 +1591,31 @@ class Chat(commands.Cog):
         description="Importa mensajes de los canales elegidos para el corpus a la memoria del bot.",
     )
     async def refeed_channels(self, interaction: discord.Interaction):
+        locale = await i18n.guild_locale(
+            interaction.guild.id if interaction.guild else None
+        )
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", locale), ephemeral=True
             )
             return
 
         if not has_admin_permission(interaction):
             await interaction.response.send_message(
-                "❌ No tienes permisos para usar este comando.", ephemeral=True
+                i18n.t("general.error.no_permission", locale), ephemeral=True
             )
             return
 
         existing = _refeed_running.get(interaction.guild.id)
         if existing and not existing.done():
             await interaction.response.send_message(
-                "⏳ Ya hay una importación en curso en este servidor; espera a que termine.",
+                i18n.t("chat.refeed_channels.already_running", locale),
                 ephemeral=True,
             )
             return
 
         await interaction.response.send_message(
-            "🔄 Empezando a leer el historial de los canales…"
+            i18n.t("chat.refeed_channels.starting", locale)
         )
         progress_msg = await interaction.original_response()
         # Refetch como Message normal: la edición vía interaction muere a los 15 min con el token.
@@ -1419,8 +1641,7 @@ class Chat(commands.Cog):
             # corrida hubiera arrancado, cuando en realidad no hizo nada.
             try:
                 await progress_msg.edit(
-                    content="⏳ Ya había una importación en curso en este servidor "
-                    "(arrancó justo antes); esta invocación no hizo nada nuevo."
+                    content=i18n.t("chat.refeed_channels.race_lost", locale)
                 )
             except Exception:
                 log.debug(
@@ -1433,24 +1654,27 @@ class Chat(commands.Cog):
         description="Muestra cuántos mensajes hay en el corpus del canal actual.",
     )
     async def corpus_info(self, interaction: discord.Interaction):
+        locale = await i18n.guild_locale(
+            interaction.guild.id if interaction.guild else None
+        )
         if not interaction.guild:
             await interaction.response.send_message(
-                "Solo en servidores.", ephemeral=True
+                i18n.t("general.guild_only", locale), ephemeral=True
             )
             return
 
         if interaction.channel is None:
             await interaction.response.send_message(
-                "No puedo determinar el canal.", ephemeral=True
+                i18n.t("chat.cannot_determine_channel", locale), ephemeral=True
             )
             return
 
         count = await count_corpus_messages(
             interaction.guild.id, interaction.channel.id
         )
-        msg = f"📊 El corpus de este canal tiene {count} mensajes."
+        msg = i18n.t("chat.corpus_info.count", locale, count=count)
         if count < 50:
-            msg += "\n⚠️ Necesita al menos 50 mensajes para generar bien."
+            msg += "\n" + i18n.t("chat.corpus_info.needs_more", locale)
         await interaction.response.send_message(msg)
 
 

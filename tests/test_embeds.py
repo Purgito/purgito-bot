@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import sqlite3
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
@@ -14,6 +15,7 @@ import discord
 import pytest
 
 import db
+import webapi
 from cogs.anuncios import Anuncios
 from layout_v2 import (
     ROLE_TOGGLE_PREFIX,
@@ -229,12 +231,68 @@ def test_template_ownership_checks(memory_db):
     assert asyncio.run(db.get_embed_template(template_id, owner)) is None
 
 
+# ─── Timestamp del embed (Fase 1) ─────────────────────────────────────────────
+# webapi.validate_embed_payload es el validador que corre de verdad en
+# producción (embeds_core.validate_embed_payload, importado arriba, es una
+# copia sin usar — ver auditoría; no se toca acá).
+
+
+def test_timestamp_valid_iso_accepted():
+    embed = {"title": "t", "timestamp": "2026-08-10T12:00:00.000Z"}
+    assert webapi.validate_embed_payload(embed) is None
+
+
+def test_timestamp_invalid_string_rejected():
+    assert (
+        webapi.validate_embed_payload({"title": "t", "timestamp": "no es una fecha"})
+        is not None
+    )
+
+
+def test_timestamp_wrong_type_rejected():
+    assert webapi.validate_embed_payload({"title": "t", "timestamp": 12345}) is not None
+
+
+def test_timestamp_absent_is_fine():
+    assert webapi.validate_embed_payload({"title": "t"}) is None
+
+
+# ─── Galería de imágenes ya subidas (Fase 1) ─────────────────────────────────
+
+
+def test_record_and_list_uploaded_images(memory_db):
+    asyncio.run(db.record_uploaded_image(1, "https://cdn/a.png"))
+    asyncio.run(db.record_uploaded_image(1, "https://cdn/b.png"))
+    # Más reciente primero.
+    assert asyncio.run(db.list_uploaded_images(1)) == [
+        "https://cdn/b.png",
+        "https://cdn/a.png",
+    ]
+
+
+def test_record_uploaded_image_dedupes(memory_db):
+    asyncio.run(db.record_uploaded_image(1, "https://cdn/a.png"))
+    asyncio.run(db.record_uploaded_image(1, "https://cdn/a.png"))
+    assert asyncio.run(db.list_uploaded_images(1)) == ["https://cdn/a.png"]
+
+
+def test_list_uploaded_images_scoped_by_guild(memory_db):
+    asyncio.run(db.record_uploaded_image(1, "https://cdn/a.png"))
+    asyncio.run(db.record_uploaded_image(2, "https://cdn/b.png"))
+    assert asyncio.run(db.list_uploaded_images(1)) == ["https://cdn/a.png"]
+    assert asyncio.run(db.list_uploaded_images(2)) == ["https://cdn/b.png"]
+
+
 # ─── Anuncios: rama embed_json vs texto plano ────────────────────────────────
 
 
-def _fake_channel(channel_id=10, sent_message_id=999):
+def _fake_channel(channel_id=10, sent_message_id=999, guild_id=1):
     channel = MagicMock(spec=discord.TextChannel)
     channel.id = channel_id
+    # channel.guild.id lo compara check_announcements contra la fila (defensa
+    # de scoping cross-guild, sección 9 ronda 3) -- todos los tests de este
+    # archivo programan con guild_id=1, así que el default matchea.
+    channel.guild = SimpleNamespace(id=guild_id, me=MagicMock())
     perms = MagicMock()
     perms.send_messages = True
     perms.embed_links = True
@@ -513,7 +571,7 @@ def test_layout_section_max_3_texts():
                 {
                     "type": "section",
                     "texts": ["t"] * n,
-                    "accessory": {"type": "thumbnail", "url": "u"},
+                    "accessory": {"type": "thumbnail", "url": "https://x.test/i.png"},
                 }
             ]
         }
@@ -531,7 +589,14 @@ def test_layout_section_requires_accessory():
 
 def test_layout_media_gallery_1_to_10():
     def gallery(n):
-        return {"blocks": [{"type": "media_gallery", "items": [{"url": "u"}] * n}]}
+        return {
+            "blocks": [
+                {
+                    "type": "media_gallery",
+                    "items": [{"url": "https://x.test/i.png"}] * n,
+                }
+            ]
+        }
 
     assert validate_layout_v2_payload(gallery(0)) is not None
     assert validate_layout_v2_payload(gallery(10)) is None

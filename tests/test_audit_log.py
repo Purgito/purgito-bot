@@ -8,6 +8,7 @@ _bot_guild parcheados para que guild_api deje pasar.
 import asyncio
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import aiosqlite
 import pytest
@@ -49,6 +50,15 @@ async def _open_memory_db() -> aiosqlite.Connection:
     return conn
 
 
+def _fake_channel(cid):
+    # view_channel=True: estos tests ejercitan otra cosa (quién queda
+    # registrado en el audit log), no el scoping de canal de la sección 10 --
+    # ese tiene su propio archivo (test_channel_scope_authorization.py).
+    return SimpleNamespace(
+        id=cid, permissions_for=lambda member: SimpleNamespace(view_channel=True)
+    )
+
+
 @pytest.fixture(autouse=True)
 def allow_guild_access(monkeypatch):
     async def fake_get_session(request):
@@ -62,7 +72,10 @@ def allow_guild_access(monkeypatch):
     monkeypatch.setattr(
         webapi,
         "_bot_guild",
-        lambda request, guild_id: SimpleNamespace(get_channel=lambda cid: None),
+        lambda request, guild_id: SimpleNamespace(
+            get_channel=_fake_channel,
+            fetch_member=AsyncMock(return_value=SimpleNamespace(id=int(_USER_ID))),
+        ),
     )
 
 

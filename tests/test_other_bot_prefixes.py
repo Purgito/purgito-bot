@@ -35,13 +35,13 @@ class FakeMessage:
         self.replies: list[str] = []
         self.reactions: list[str] = []
 
-    async def reply(self, text):
+    async def reply(self, text, **kwargs):
         self.replies.append(text)
 
     async def add_reaction(self, emoji):
         self.reactions.append(emoji)
 
-    async def _channel_send(self, text):
+    async def _channel_send(self, text, **kwargs):
         self.channel_sent.append(text)
 
 
@@ -87,6 +87,7 @@ def cog(monkeypatch):
     monkeypatch.setattr(chat_mod, "list_mention_channels", fake_empty_list)
     monkeypatch.setattr(chat_mod, "list_spontaneous_channels", fake_empty_list)
     monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_empty_list)
+    monkeypatch.setattr(chat_mod, "list_exempt_channels", fake_empty_list)
     monkeypatch.setattr(chat_mod.generation, "generate_response", fake_generate)
 
     bot = SimpleNamespace(user=SimpleNamespace(id=BOT_ID))

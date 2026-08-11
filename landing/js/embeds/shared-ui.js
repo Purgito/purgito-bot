@@ -2,12 +2,14 @@
 // Embeds (loadEmbeds / renderEmbedEditor / renderEmbedTemplates) y la carga de
 // un link compartido. Es el módulo más acoplado del bloque de embeds.
 
-import { GUILD_ID, emojiCache, setEmojiCache } from '/js/core/config.js';
+import {
+  GUILD_ID, emojiCache, setEmojiCache, uploadedImagesCache, setUploadedImagesCache,
+} from '/js/core/config.js';
 import { apiFetch, humanError } from '/js/core/api.js';
-import { el, spinner, emptyState, icon, toast, embedImg, renderError } from '/js/core/dom.js';
+import { el, spinner, emptyState, icon, toast, embedImg, renderError, helpIcon } from '/js/core/dom.js';
 import { discordTimestampText } from '/js/core/markdown.js';
 import {
-  detectGif, docFromLayout, docFromEmbeds, templateSnippet, layoutSnippet,
+  detectGif, docFromLayout, docFromEmbeds, templateSnippet, layoutSnippet, colorToHex,
 } from '/js/embeds/state.js';
 import {
   _embedTab, _embedMode, setEmbedTab, setEmbedMode, setLayoutDoc, setEmbedDoc,
@@ -38,6 +40,14 @@ export function panelModal(title, body) {
 export async function getEmojis() {
   if (!emojiCache) setEmojiCache((await apiFetch(`/api/server/${GUILD_ID}/emojis`)).emojis);
   return emojiCache;
+}
+
+// Galería de imágenes ya subidas por este guild (persistente entre sesiones y
+// plantillas — R2 dedupe por contenido, esto solo lista qué URLs subió el
+// guild). Cache en config.js, igual criterio que getEmojis.
+export async function getUploadedImages() {
+  if (!uploadedImagesCache) setUploadedImagesCache((await apiFetch(`/api/server/${GUILD_ID}/embeds/uploads`)).urls);
+  return uploadedImagesCache;
 }
 
 // Emojis unicode comunes con palabras clave en español para el buscador.
@@ -250,10 +260,7 @@ export function insertWrap(input, tabs) {
 
 // --- Subida directa de imágenes (5.2) ---
 
-// Archivos subidos en esta sesión de página, para el desplegable "reusar".
-let _uploadedImages = [];
-
-export async function uploadImageBlob(blob, name) {
+export async function uploadImageBlob(blob) {
   let r;
   try {
     r = await fetch(`/api/server/${GUILD_ID}/embeds/upload`, {
@@ -266,10 +273,34 @@ export async function uploadImageBlob(blob, name) {
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || humanError(r.status));
-  if (!_uploadedImages.some(u => u.url === data.url)) {
-    _uploadedImages.push({ name: name || 'imagen', url: data.url });
+  // El backend ya la indexó en la galería persistente del guild; si el cache
+  // local ya está cargado, adelantamos el resultado sin esperar un refetch.
+  if (uploadedImagesCache && !uploadedImagesCache.includes(data.url)) {
+    setUploadedImagesCache([data.url, ...uploadedImagesCache]);
   }
   return data.url;
+}
+
+// Modal con la galería de imágenes ya subidas por el guild; clickear una la
+// elige. Carga perezosa (solo al abrir), no en cada render del campo.
+function openImageLibrary(onPick) {
+  const body = el('div', { class: 'img-library' }, spinner());
+  panelModal('Imágenes subidas antes', body);
+  getUploadedImages().then((urls) => {
+    body.innerHTML = '';
+    if (!urls.length) {
+      body.append(emptyState('Todavía no subiste ninguna imagen en este servidor.'));
+      return;
+    }
+    const grid = el('div', { class: 'img-library-grid' });
+    for (const u of urls) {
+      grid.append(el('button', {
+        type: 'button', class: 'img-library-item', title: u,
+        onclick: () => { onPick(u); document.querySelector('.modal-overlay')?.remove(); },
+      }, embedImg({ src: u, alt: '' })));
+    }
+    body.append(grid);
+  }).catch((e) => { body.innerHTML = ''; body.append(el('p', { class: 'error' }, e.message)); });
 }
 
 const _PASTE_HINT = /mac/i.test(navigator.platform || '') ? '⌘V' : 'Ctrl+V';
@@ -286,7 +317,7 @@ export function imageField(obj, key, onChange, opts = {}) {
     wrap.innerHTML = '';
     wrap.append(el('div', { class: 'img-uploading' }, spinner(), el('span', {}, 'Subiendo imagen…')));
     try {
-      const url = await uploadImageBlob(file, file.name);
+      const url = await uploadImageBlob(file);
       set(url);
       toast('Imagen subida', 'ok');
     } catch (e) {
@@ -302,11 +333,9 @@ export function imageField(obj, key, onChange, opts = {}) {
     wrap.innerHTML = '';
     const val = (obj[key] || '').trim();
     if (val) {
-      const known = _uploadedImages.find(u => u.url === val);
       wrap.append(el('div', { class: 'img-chip' },
         embedImg({ src: val, class: 'img-chip-thumb', alt: '' }),
-        el('span', { class: 'img-chip-name', title: val },
-          known ? known.name : (val.length > 42 ? val.slice(0, 42) + '…' : val)),
+        el('span', { class: 'img-chip-name', title: val }, val.length > 42 ? val.slice(0, 42) + '…' : val),
         el('button', { class: 'btn btn-danger btn-sm', onclick: () => set('') }, '✗')));
       return;
     }
@@ -335,6 +364,7 @@ export function imageField(obj, key, onChange, opts = {}) {
     // "esto empieza con una URL".
     const uploadBtn = el('button', { type: 'button', class: 'btn btn-primary', onclick: () => fileInput.click() },
       icon('image'), 'Subir imagen');
+    const uploadHint = helpIcon('PNG, JPG, GIF o WEBP, hasta 8 MB.');
     const pasteBtn = el('button', {
       type: 'button', class: 'btn btn-secondary btn-sm', title: 'También puedes pegar con ' + _PASTE_HINT + ' con el campo enfocado',
       onclick: async () => {
@@ -357,15 +387,13 @@ export function imageField(obj, key, onChange, opts = {}) {
       if (file) { ev.preventDefault(); handleUpload(file); }
     });
 
-    const secondary = el('div', { class: 'img-field-secondary' }, url, pasteBtn);
-    if (_uploadedImages.length) {
-      const reuse = el('select', {}, el('option', { value: '' }, 'Reusar archivo ya subido…'));
-      for (const u of _uploadedImages) reuse.append(el('option', { value: u.url }, u.name));
-      reuse.onchange = () => { if (reuse.value) set(reuse.value); };
-      secondary.append(reuse);
-    }
+    const libraryBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      onclick: () => openImageLibrary(set),
+    }, 'Elegir de subidas anteriores');
+    const secondary = el('div', { class: 'img-field-secondary' }, url, pasteBtn, libraryBtn);
     wrap.append(
-      el('div', { class: 'img-field-primary' }, uploadBtn, fileInput),
+      el('div', { class: 'img-field-primary' }, uploadBtn, fileInput, uploadHint),
       secondary, gifNote);
   }
 
@@ -373,7 +401,17 @@ export function imageField(obj, key, onChange, opts = {}) {
   return wrap;
 }
 
-// Swatch nativo + input de texto para hex, sincronizados en ambos sentidos.
+// Presets rápidos: el acento propio de Purgito primero, después un puñado de
+// colores reconocibles (paleta de Discord + básicos) — mismo criterio que los
+// swatches de rol de Discohook, sin pretender cubrir cada hue posible.
+const COLOR_PRESETS = [
+  ['#13C4D8', 'Purgito'], ['#ED4245', 'Rojo'], ['#FEE75C', 'Amarillo'],
+  ['#57F287', 'Verde'], ['#5865F2', 'Blurple'], ['#EB459E', 'Rosa'],
+  ['#9B59B6', 'Violeta'], ['#FFFFFF', 'Blanco'], ['#2B2D31', 'Negro'],
+];
+
+// Swatch nativo + input de texto para hex, sincronizados en ambos sentidos,
+// más una fila de presets rápidos.
 export function colorField(obj, key, onChange) {
   const swatch = el('input', { type: 'color', value: /^#[0-9a-fA-F]{6}$/.test(obj[key]) ? obj[key] : '#8B6EF5' });
   const text = el('input', {
@@ -416,7 +454,15 @@ export function colorField(obj, key, onChange) {
 
   text.onblur = () => { text.value = obj[key] || ''; text.classList.remove('invalid'); };
 
-  return el('div', { class: 'color-field' }, swatch, text);
+  const presets = el('div', { class: 'color-presets' });
+  for (const [hex, name] of COLOR_PRESETS) {
+    presets.append(el('button', {
+      type: 'button', class: 'color-preset', style: 'background:' + hex, title: name,
+      onclick: () => { obj[key] = hex; swatch.value = hex; text.value = hex; text.classList.remove('invalid'); onChange(); },
+    }));
+  }
+
+  return el('div', { class: 'color-field-wrap' }, el('div', { class: 'color-field' }, swatch, text), presets);
 }
 
 // Panel colapsable (details/summary nativo) con las opciones de envío.
@@ -506,8 +552,7 @@ export async function renderEmbedTemplates(box) {
     const isLayout = t.content_mode === 'layout_v2';
     const embeds = t.embeds || [];
     const first = embeds.find(x => x && Object.keys(x).length) || {};
-    const color = typeof first.color === 'number' ? '#' + first.color.toString(16).padStart(6, '0')
-      : (typeof first.color === 'string' ? first.color : '#8B6EF5');
+    const color = colorToHex(first.color) || '#8B6EF5';
     const badge = isLayout
       ? el('span', { class: 'badge badge-premium' }, 'LAYOUT')
       : (embeds.length > 1 ? el('span', { class: 'badge' }, embeds.length + ' embeds') : null);

@@ -47,6 +47,21 @@ class Anuncios(commands.Cog):
                 channel = self.bot.get_channel(item["channel_id"])
                 if not isinstance(channel, discord.TextChannel):
                     return
+                # get_channel es una búsqueda GLOBAL (los ids de canal son
+                # snowflakes únicos en todo Discord, no por guild): si algún
+                # día otra vía de escritura guarda una fila con guild_id y
+                # channel_id de servidores distintos -- hoy no la hay, la
+                # única (_api_embeds_schedule) valida el canal contra el guild
+                # antes de guardar, ver _embed_target_channel --, esto evita
+                # mandar el contenido de un guild al canal de otro.
+                if channel.guild.id != item["guild_id"]:
+                    log.error(
+                        "Anuncio %s: channel_id %s no pertenece al guild_id %s de la fila, se descarta",
+                        item["id"],
+                        item["channel_id"],
+                        item["guild_id"],
+                    )
+                    return
                 perms = channel.permissions_for(channel.guild.me)
                 if not perms.send_messages:
                     return

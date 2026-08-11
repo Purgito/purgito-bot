@@ -103,12 +103,14 @@ class FakeTextChannel:
         self.guild = SimpleNamespace(me=object())
         self._send_messages = send_messages
         self.sent: list[str] = []
+        self.allowed_mentions: list = []
 
     def permissions_for(self, member):
         return FakePermissions(self._send_messages)
 
-    async def send(self, content):
+    async def send(self, content, allowed_mentions=None):
         self.sent.append(content)
+        self.allowed_mentions.append(allowed_mentions)
 
 
 def _video(video_id="video-nuevo"):

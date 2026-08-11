@@ -54,6 +54,31 @@ def test_regex_invalido_no_compila_y_se_rechaza(temp_db):
     assert asyncio.run(db.add_channel_trigger(1, 10, "regex", "(", "markov")) is None
 
 
+def test_pattern_largo_se_rechaza(temp_db):
+    """Sin tope, un patrón de varios MB queda guardado y se evalúa contra cada
+    mensaje del canal. Se rechaza en vez de recortarlo: un regex recortado es
+    OTRO regex (o directamente no compila), así que lo que corría contra los
+    mensajes no era lo que el admin escribió ni lo que la API validó."""
+
+    async def run():
+        trigger_id = await db.add_channel_trigger(1, 10, "exact", "x" * 5000, "markov")
+        triggers = await db.list_channel_triggers(1, 10)
+        return trigger_id, triggers
+
+    trigger_id, triggers = asyncio.run(run())
+    assert trigger_id is None
+    assert triggers == []
+
+
+def test_pattern_en_el_limite_exacto_se_acepta(temp_db):
+    async def run():
+        return await db.add_channel_trigger(
+            1, 10, "exact", "x" * db.MAX_TRIGGER_PATTERN, "markov"
+        )
+
+    assert asyncio.run(run()) is not None
+
+
 def test_regex_valido_se_acepta(temp_db):
     trigger_id = asyncio.run(
         db.add_channel_trigger(1, 10, "regex", r"^hola.*mundo$", "markov")

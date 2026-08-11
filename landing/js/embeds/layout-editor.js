@@ -2,7 +2,7 @@
 
 import { GUILD_ID } from '/js/core/config.js';
 import { apiFetch } from '/js/core/api.js';
-import { el, autoGrow, previewEmpty, toast, showFormAlert, formGroup } from '/js/core/dom.js';
+import { el, autoGrow, previewEmpty, toast, showFormAlert, formGroup, helpIcon } from '/js/core/dom.js';
 import { mdToNodes, previewImg, beginPreviewRender, endPreviewRender } from '/js/core/markdown.js';
 import {
   componentCount, newBlock, LAYOUT_MAX_COMPONENTS, blockWarning, blockSummary,
@@ -105,7 +105,8 @@ export function buttonStyleFields(bt, onChange, roles) {
   }
   styleSel.onchange = () => { bt.style = styleSel.value; sync(); onChange(); };
   sync();
-  return el('div', { class: 'add-row layout-btn-fields' }, styleSel, label, urlInput, roleSel);
+  return el('div', { class: 'add-row layout-btn-fields' }, styleSel, label, urlInput, roleSel,
+    helpIcon('"Asignar rol" alterna: si quien clickea no tiene el rol se lo da, si ya lo tiene se lo quita.'));
 }
 
 export function renderBlockForm(b, onChange, roles) {
@@ -191,7 +192,10 @@ export function renderBlockForm(b, onChange, roles) {
   const box = el('div', {});
   const accentChk = el('input', { type: 'checkbox', checked: b.accent });
   accentChk.onchange = () => { b.accent = accentChk.checked; onChange(); };
-  box.append(el('div', { class: 'add-row' }, el('label', { class: 'toggle' }, accentChk, 'Barra de color'), colorField(b, 'accent_color', onChange)));
+  box.append(el('div', { class: 'add-row' },
+    el('label', { class: 'toggle' }, accentChk, 'Barra de color'),
+    helpIcon('Pinta un borde de color a la izquierda de todo el container, como el de un embed clásico.'),
+    colorField(b, 'accent_color', onChange)));
   const nested = el('div', { class: 'layout-nested' });
   renderBlocks(nested, b.children, true, onChange, roles);
   box.append(nested);
