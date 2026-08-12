@@ -656,29 +656,82 @@ también pueden ser `.gif`), ni los huérfanos, que solo informa.
 
 ### Backups de `data/bot.db`
 
-**No existen backups automatizados** (confirmado 2026-08-12: `crontab -l`
-vacío para `opc`, no hay systemd timer, no hay ningún script en `scripts/`
-que haga esto). Lo único que hay en `data/` son dos copias sueltas
-(`bot.db.back-pre-gif-debup`, `bot.db.bak-20260711`) que alguien sacó a mano
-antes de correr una migración riesgosa puntual -- no es una estrategia de
-backup, viven en el mismo disco que la base real, y no se van a actualizar
-solas. Si el disco del droplet falla o la instancia se pierde, se pierde
-todo: corpus de Markov de cada servidor, configuración, estado de premium.
-
-Snapshot manual seguro (no usar `cp` -- la base corre en modo WAL, `cp`
+Automatizado con [`deploy/backup_db.sh`](deploy/backup_db.sh): corre diario
+por cron, usa `sqlite3 .backup` (no `cp` -- la base corre en modo WAL, `cp`
 sobre un archivo en uso puede copiar un estado inconsistente entre
-`bot.db`/`bot.db-wal`; `.backup` de sqlite3 sí es consistente con el proceso
-corriendo):
+`bot.db`/`bot.db-wal`) y borra los backups de más de 14 días después de cada
+corrida exitosa. Antes de esto no había nada automatizado -- solo dos
+copias sueltas en `data/` (`bot.db.back-pre-gif-debup`, `bot.db.bak-20260711`)
+que alguien sacó a mano antes de una migración riesgosa puntual, en el mismo
+disco que la base real.
+
+**No está instalado en el droplet todavía** -- lo de abajo es para aplicar a
+mano por SSH, revisando cada paso antes de correrlo.
+
+**1. Permisos -- confirmado (2026-08-12).** El cron corre como `opc`.
+Después del `chown -R bot-purg:bot-purg data/` (ronda de hardening de
+permisos), se verificó en el droplet que `opc` conserva lectura sobre
+`bot.db`:
 
 ```bash
-sqlite3 /home/opc/purgito-bot/data/bot.db ".backup '/home/opc/purgito-bot/data/backup-$(date +%Y%m%d).db'"
+$ sudo -u opc test -r /home/opc/purgito-bot/data/bot.db && echo "opc puede leer" || echo "opc NO puede leer"
+opc puede leer
 ```
 
-Sigue viviendo en el mismo disco -- sirve contra "corrompí la base con una
-migración", no contra "se murió el droplet". Automatizar esto (cron/timer +
-copiarlo fuera del droplet, por ejemplo al mismo bucket R2 que ya se usa
-para GIFs) es una decisión de proceso que no se implementó acá: hay que
-decidir frecuencia, retención y destino antes de escribir el cron.
+No hace falta ningún ajuste de grupo. Si en el futuro se re-aplica el
+`chown` con bits de permiso distintos y esto deja de cumplirse, el ajuste
+mínimo -- sin reabrir el resto del esquema de permisos -- es sumar `opc` al
+grupo `bot-purg` y dar lectura de grupo sobre la base:
+
+```bash
+sudo usermod -aG bot-purg opc
+sudo chmod g+rx /home/opc/purgito-bot/data
+sudo chmod g+r /home/opc/purgito-bot/data/bot.db
+sudo chmod g+r /home/opc/purgito-bot/data/bot.db-wal /home/opc/purgito-bot/data/bot.db-shm 2>/dev/null || true
+```
+
+Cron no necesita que `opc` reabra sesión para que el grupo nuevo tenga
+efecto: cada corrida es un proceso nuevo que lee `/etc/group` en el momento.
+
+**2. Instalar el cron.** El destino queda fuera del árbol del repo a
+propósito -- si algo corrompe `data/` o rompe el checkout, los backups no
+se van con él:
+
+```bash
+mkdir -p /home/opc/purgito-bot-backups
+crontab -e
+```
+
+Agregar (corre a las 3:17 AM, horario de bajo tráfico del bot):
+
+```cron
+17 3 * * * DB_SRC=/home/opc/purgito-bot/data/bot.db BACKUP_DIR=/home/opc/purgito-bot-backups /home/opc/purgito-bot/deploy/backup_db.sh >> /home/opc/purgito-bot-backups/backup.log 2>&1
+```
+
+**3. Confirmar que corre bien** (opcional, antes de esperar a las 3 AM):
+
+```bash
+DB_SRC=/home/opc/purgito-bot/data/bot.db BACKUP_DIR=/home/opc/purgito-bot-backups /home/opc/purgito-bot/deploy/backup_db.sh
+cat /home/opc/purgito-bot-backups/backup.log   # si se corrió por cron
+ls /home/opc/purgito-bot-backups/
+```
+
+**Restaurar desde un backup:**
+
+```bash
+sudo systemctl stop bot-purg
+sqlite3 /home/opc/purgito-bot/data/bot.db ".restore '/home/opc/purgito-bot-backups/bot-20260812-031700.db'"
+sudo systemctl start bot-purg
+```
+
+`.restore` sobreescribe la base activa -- parar el bot antes, o se restaura
+sobre un archivo con escrituras en curso.
+
+Sigue siendo un backup en el mismo droplet -- protege contra "una migración
+corrompió la base" o "se llenó el disco de golpe", no contra "se perdió la
+instancia entera". Sacarlo fuera del droplet (al bucket R2 que ya se usa
+para GIFs, por ejemplo) queda pendiente como mejora futura, no se implementó
+acá.
 
 ### Dos puntos que ya estaban sin verificar, confirmados (2026-08-12)
 
