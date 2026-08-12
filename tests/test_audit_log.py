@@ -129,6 +129,75 @@ def test_list_audit_log_respeta_limit_y_offset(memory_db):
     assert page[1]["detail"] == "url-2"
 
 
+# ── db.list_audit_log_page (cursor, tab HISTORIAL) ────────────────────────────
+
+
+def test_list_audit_log_page_primera_pagina_sin_cursor(memory_db):
+    for i in range(6):
+        asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", f"url-{i}"))
+
+    entries, has_more = asyncio.run(db.list_audit_log_page(_GUILD, limit=5))
+
+    assert [e["detail"] for e in entries] == [
+        "url-5",
+        "url-4",
+        "url-3",
+        "url-2",
+        "url-1",
+    ]
+    assert has_more is True
+
+
+def test_list_audit_log_page_con_cursor_trae_la_siguiente_tanda(memory_db):
+    for i in range(6):
+        asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", f"url-{i}"))
+    primera, _ = asyncio.run(db.list_audit_log_page(_GUILD, limit=5))
+    ultimo_id_visto = primera[-1]["id"]
+
+    entries, has_more = asyncio.run(
+        db.list_audit_log_page(_GUILD, before_id=ultimo_id_visto, limit=5)
+    )
+
+    assert [e["detail"] for e in entries] == ["url-0"]
+    assert has_more is False
+
+
+def test_list_audit_log_page_cursor_en_el_limite_exacto(memory_db):
+    """Quedan exactamente `limit` filas viejas: la página se llena justo y
+    no debe sobrar una fila fantasma que dispare has_more."""
+    for i in range(10):
+        asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", f"url-{i}"))
+    primera, _ = asyncio.run(db.list_audit_log_page(_GUILD, limit=5))
+    ultimo_id_visto = primera[-1]["id"]
+
+    entries, has_more = asyncio.run(
+        db.list_audit_log_page(_GUILD, before_id=ultimo_id_visto, limit=5)
+    )
+
+    assert len(entries) == 5
+    assert has_more is False
+
+
+def test_list_audit_log_page_cursor_pasado_el_final(memory_db):
+    asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", "url-0"))
+    entries, _ = asyncio.run(db.list_audit_log_page(_GUILD, limit=5))
+    id_mas_viejo = entries[-1]["id"]
+
+    entries, has_more = asyncio.run(
+        db.list_audit_log_page(_GUILD, before_id=id_mas_viejo, limit=5)
+    )
+
+    assert entries == []
+    assert has_more is False
+
+
+def test_list_audit_log_page_guild_sin_acciones_todavia(memory_db):
+    entries, has_more = asyncio.run(db.list_audit_log_page(_GUILD, limit=5))
+
+    assert entries == []
+    assert has_more is False
+
+
 # ── Endpoints de mutación de verdad loguean con el user_id de la sesión ──────
 
 
@@ -193,22 +262,27 @@ def test_get_audit_log_devuelve_las_entradas_del_guild(memory_db):
     resp = _run(webapi._api_audit_log_get, FakeRequest())
 
     assert resp.status == 200
-    entries = _json(resp)["entries"]
-    assert len(entries) == 1
-    assert entries[0]["detail"] == "url-1"
+    body = _json(resp)
+    assert len(body["entries"]) == 1
+    assert body["entries"][0]["detail"] == "url-1"
+    assert body["has_more"] is False
 
 
-def test_get_audit_log_pagina_con_limit_y_offset(memory_db):
+def test_get_audit_log_pagina_por_cursor_con_before_id(memory_db):
     for i in range(3):
         asyncio.run(db.log_audit(_GUILD, 1, "A", "gifs.add", f"url-{i}"))
+    primera = _run(webapi._api_audit_log_get, FakeRequest(query={"limit": "1"}))
+    primer_id = _json(primera)["entries"][0]["id"]
 
     resp = _run(
-        webapi._api_audit_log_get, FakeRequest(query={"limit": "1", "offset": "1"})
+        webapi._api_audit_log_get,
+        FakeRequest(query={"limit": "1", "before_id": str(primer_id)}),
     )
 
-    entries = _json(resp)["entries"]
-    assert len(entries) == 1
-    assert entries[0]["detail"] == "url-1"
+    body = _json(resp)
+    assert len(body["entries"]) == 1
+    assert body["entries"][0]["detail"] == "url-1"
+    assert body["has_more"] is True
 
 
 # ── db.purge_old_audit_log_entries (Sección 7) ────────────────────────────────

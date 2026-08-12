@@ -121,7 +121,7 @@ from db import (
     gifs_limit,
     import_corpus_messages,
     is_session_revoked,
-    list_audit_log,
+    list_audit_log_page,
     list_blocked_gifs,
     list_corpus_channels,
     list_embed_templates,
@@ -1437,13 +1437,16 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
 
 @guild_api
 async def _api_audit_log_get(request: web.Request, guild_id: int) -> web.Response:
-    """Últimas mutaciones de config del guild, paginado simple por
-    limit/offset. Sin UI todavía -- lo consumirá el dashboard más adelante."""
-    limit = _to_int(request.query.get("limit")) or 50
-    limit = max(1, min(limit, 200))
-    offset = max(0, _to_int(request.query.get("offset")) or 0)
-    entries = await list_audit_log(guild_id, limit=limit, offset=offset)
-    return web.json_response({"entries": entries})
+    """Últimas mutaciones de config del guild, paginado por cursor (id
+    descendente) para el tab HISTORIAL del dashboard -- ver
+    list_audit_log_page sobre por qué cursor y no offset."""
+    limit = _to_int(request.query.get("limit")) or 5
+    limit = max(1, min(limit, 50))
+    before_id = _to_int(request.query.get("before_id"))
+    entries, has_more = await list_audit_log_page(
+        guild_id, before_id=before_id, limit=limit
+    )
+    return web.json_response({"entries": entries, "has_more": has_more})
 
 
 _STYLE_MIME = {

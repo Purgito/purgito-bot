@@ -3664,6 +3664,48 @@ async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> lis
     ]
 
 
+async def list_audit_log_page(
+    guild_id: int, before_id: int | None = None, limit: int = 5
+) -> tuple[list[dict], bool]:
+    """Paginación por cursor (id descendente) para el tab HISTORIAL del
+    dashboard -- a diferencia de list_audit_log (limit/offset, que el resto
+    del código usa como "traeme todo"), audit_log crece todo el tiempo, así
+    que OFFSET puede duplicar o saltear filas si se inserta una nueva
+    mientras el admin sigue paginando.
+
+    Pide limit+1 y descarta la última fila como señal de si hay más
+    páginas, en vez de un COUNT(*) aparte.
+    """
+    db = await get_db()
+    if before_id is None:
+        query = (
+            "SELECT id, user_id, user_name, action, detail, created_at "
+            "FROM audit_log WHERE guild_id=? ORDER BY id DESC LIMIT ?"
+        )
+        params = (guild_id, limit + 1)
+    else:
+        query = (
+            "SELECT id, user_id, user_name, action, detail, created_at "
+            "FROM audit_log WHERE guild_id=? AND id<? ORDER BY id DESC LIMIT ?"
+        )
+        params = (guild_id, before_id, limit + 1)
+    async with db.execute(query, params) as cursor:
+        rows = await cursor.fetchall()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    return [
+        {
+            "id": r[0],
+            "user_id": r[1],
+            "user_name": r[2],
+            "action": r[3],
+            "detail": r[4],
+            "created_at": r[5],
+        }
+        for r in rows
+    ], has_more
+
+
 async def purge_old_audit_log_entries(retention_days: int) -> int:
     """Borra entradas de audit_log más viejas que retention_days. Lo llama el
     loop diario de limpieza de guilds -- mismo patrón que

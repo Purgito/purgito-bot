@@ -3,7 +3,7 @@ import { el, spinner, emptyState, renderError, formGroup, toast } from '/js/core
 import { GUILD_ID, formatDateTime } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 5;
 
 // Traduce el "action" que graba db.log_audit (ver _log_audit en webapi.py) a
 // un texto legible. Lo que no está mapeado se muestra tal cual: mejor un
@@ -84,7 +84,7 @@ export async function loadHistorial() {
   const box = content();
   box.append(spinner());
   try {
-    const data = await apiFetch(`${AUDIT_PATH(GUILD_ID)}?limit=${PAGE_SIZE}&offset=0`);
+    const data = await apiFetch(`${AUDIT_PATH(GUILD_ID)}?limit=${PAGE_SIZE}`);
     box.innerHTML = '';
 
     if (!data.entries.length) {
@@ -96,25 +96,44 @@ export async function loadHistorial() {
     for (const entry of data.entries) list.append(entryRow(entry));
     box.append(formGroup('Historial de cambios', list));
 
-    if (data.entries.length === PAGE_SIZE) {
-      let offset = PAGE_SIZE;
-      const moreBtn = el('button', {
-        class: 'btn btn-secondary',
-        onclick: async () => {
-          moreBtn.disabled = true;
-          try {
-            const more = await apiFetch(`${AUDIT_PATH(GUILD_ID)}?limit=${PAGE_SIZE}&offset=${offset}`);
-            for (const entry of more.entries) list.append(entryRow(entry));
-            offset += PAGE_SIZE;
-            if (more.entries.length < PAGE_SIZE) moreBtn.remove();
-          } catch (e) {
-            toast(e.message, 'err');
-          } finally {
-            moreBtn.disabled = false;
-          }
-        },
-      }, 'Cargar más');
-      box.append(moreBtn);
-    }
+    // Cursor por id (no offset): la tabla crece todo el tiempo, así que
+    // paginar por offset podría duplicar o saltear filas si se inserta una
+    // nueva mientras el admin sigue clickeando "Cargar más".
+    let cursor = data.entries[data.entries.length - 1].id;
+    let hasMore = data.has_more;
+
+    // Clase reutilizada de tabs/gifs.js (mismo estilo "botón centrado
+    // debajo de una lista paginada"), no hace falta una nueva regla en
+    // dash.css para esto.
+    const footer = el('div', { class: 'gif-more-wrap' });
+    box.append(footer);
+
+    const renderFooter = () => {
+      footer.innerHTML = '';
+      if (!hasMore) {
+        footer.append(el('span', { class: 'dim' }, 'No hay más acciones'));
+        return;
+      }
+      const btn = el('button', { class: 'btn btn-secondary', onclick: () => loadMore(btn) }, 'Cargar más');
+      footer.append(btn);
+    };
+
+    const loadMore = async (btn) => {
+      btn.disabled = true;
+      btn.textContent = 'Cargando…';
+      try {
+        const more = await apiFetch(`${AUDIT_PATH(GUILD_ID)}?limit=${PAGE_SIZE}&before_id=${cursor}`);
+        for (const entry of more.entries) list.append(entryRow(entry));
+        if (more.entries.length) cursor = more.entries[more.entries.length - 1].id;
+        hasMore = more.has_more;
+        renderFooter();
+      } catch (e) {
+        toast(e.message, 'err');
+        btn.disabled = false;
+        btn.textContent = 'Cargar más';
+      }
+    };
+
+    renderFooter();
   } catch (e) { renderError(box, e); }
 }

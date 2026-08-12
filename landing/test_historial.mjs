@@ -25,6 +25,7 @@ class FakeElement extends Node {
     this.disabled = false;
     this.children = [];
     this._html = '';
+    this.style = {};
   }
   setAttribute() {}
   append(...nodes) { this.children.push(...nodes); }
@@ -73,13 +74,15 @@ function freshBox() {
 
 const { loadHistorial } = await import('./js/tabs/historial.js');
 
-// ── Lista con entradas: traduce el action y muestra usuario + detail ────────
+// ── Lista con entradas (sin más páginas): traduce el action, muestra
+//    usuario + detail, y el pie dice "No hay más acciones" en vez de botón ──
 {
   const box = freshBox();
   const urls = [];
   fetchImpl = async (url) => {
     urls.push(url);
     return jsonResponse({
+      has_more: false,
       entries: [
         {
           id: 2, user_id: 1, user_name: 'Ana', action: 'gifs.add',
@@ -96,13 +99,14 @@ const { loadHistorial } = await import('./js/tabs/historial.js');
   await loadHistorial();
 
   assert.equal(urls.length, 1);
-  assert.match(urls[0], /^\/api\/guilds\/123456789\/audit\?limit=50&offset=0$/);
+  assert.match(urls[0], /^\/api\/guilds\/123456789\/audit\?limit=5$/);
   const text = box.text();
   assert.match(text, /Ana/);
   assert.match(text, /Agregó un GIF/);
   assert.match(text, /https:\/\/tenor\.com\/view\/x/);
   assert.match(text, /Cambió el rol de mención de YouTube/);
-  // Sin botón "Cargar más": menos de 50 entradas en la primera página.
+  assert.match(text, /No hay más acciones/);
+  // Sin más páginas: no debe quedar un botón "Cargar más" inerte.
   assert.equal(box.findByClass('btn-secondary').length, 0);
 }
 
@@ -110,6 +114,7 @@ const { loadHistorial } = await import('./js/tabs/historial.js');
 {
   const box = freshBox();
   fetchImpl = async () => jsonResponse({
+    has_more: false,
     entries: [{
       id: 1, user_id: 1, user_name: 'Ana', action: 'algo.nuevo.sin_mapear',
       detail: null, created_at: '2026-08-05 12:00:00',
@@ -132,11 +137,12 @@ const { loadHistorial } = await import('./js/tabs/historial.js');
   assert.match(box.text(), /Todavía no hay cambios registrados en este servidor\./);
 }
 
-// ── Página llena (50): aparece "Cargar más" y trae la página siguiente ──────
+// ── Página llena (5) con más atrás: "Cargar más" -> loading -> trae la
+//    siguiente tanda por cursor (before_id, no offset) -> sin más, texto ────
 {
   const box = freshBox();
-  const page1 = Array.from({ length: 50 }, (_, i) => ({
-    id: 50 - i, user_id: 1, user_name: 'Ana', action: 'corpus.add',
+  const page1 = Array.from({ length: 5 }, (_, i) => ({
+    id: 5 - i, user_id: 1, user_name: 'Ana', action: 'corpus.add',
     detail: `channel_id=${i}`, created_at: '2026-08-05 12:00:00',
   }));
   const page2 = [{
@@ -144,19 +150,34 @@ const { loadHistorial } = await import('./js/tabs/historial.js');
     detail: 'channel_id=999', created_at: '2026-08-05 13:00:00',
   }];
   const urls = [];
+  let resolvePage2;
   fetchImpl = async (url) => {
     urls.push(url);
-    return jsonResponse({ entries: url.includes('offset=0') ? page1 : page2 });
+    if (url.includes('before_id')) {
+      return new Promise((resolve) => {
+        resolvePage2 = () => resolve(jsonResponse({ has_more: false, entries: page2 }));
+      });
+    }
+    return jsonResponse({ has_more: true, entries: page1 });
   };
 
   await loadHistorial();
   const [moreBtn] = box.findByClass('btn-secondary');
-  assert.ok(moreBtn, 'debería mostrar "Cargar más" con una página llena');
+  assert.ok(moreBtn, 'debería mostrar "Cargar más" con una página llena y más atrás');
 
-  await moreBtn.onclick();
+  const pending = moreBtn.onclick();
+  // Estado de loading mientras la request sigue pendiente: deshabilitado,
+  // para que un doble click no dispare dos requests superpuestas.
+  assert.equal(moreBtn.disabled, true);
+  assert.equal(moreBtn.textContent, 'Cargando…');
 
-  assert.equal(urls[1], '/api/guilds/123456789/audit?limit=50&offset=50');
+  resolvePage2();
+  await pending;
+
+  assert.equal(urls[1], '/api/guilds/123456789/audit?limit=5&before_id=1');
   assert.match(box.text(), /channel_id=999/);
+  assert.match(box.text(), /No hay más acciones/);
+  assert.equal(box.findByClass('btn-secondary').length, 0);
 }
 
 // ── Error de red: usa renderError, no revienta ──────────────────────────────
