@@ -208,7 +208,12 @@ def compute_phash(data: bytes) -> str | None:
         # tener efecto -- Image.MAX_IMAGE_PIXELS es un global del proceso,
         # así que fijarlo acá también es idempotente y no pisa nada.
         Image.MAX_IMAGE_PIXELS = 15_000_000
-        with Image.open(io.BytesIO(data)) as img:
+        # formats=("GIF",): data llega de una URL de host confiable (CDN de
+        # Discord/Tenor/Giphy, ya validado por el caller), pero el HOST
+        # confiable no garantiza que el contenido en esa URL sea realmente
+        # un GIF -- sin esto, Image.open() prueba cualquier formato que
+        # Pillow sepa leer (TIFF, ICO, EPS, etc.) contra esos bytes.
+        with Image.open(io.BytesIO(data), formats=("GIF",)) as img:
             return str(imagehash.dhash(img))
     except Exception:
         log.debug("No se pudo calcular el phash del GIF", exc_info=True)

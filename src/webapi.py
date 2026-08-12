@@ -220,6 +220,25 @@ _MANAGE_GUILD = 1 << 5
 _GUILDS_CACHE_TTL = 60.0
 _PUBLIC_GETS = ("/health",)
 
+# CSS de /auth/error (único HTML que sirve esta API). Antes vivía como
+# atributos style="..." inline en el HTML, pero la CSP global de abajo es
+# default-src 'none' sin style-src -- eso bloquea TAMBIÉN los atributos
+# style, no solo <script>/<link>, así que la página salía sin ningún color
+# ni layout aplicado. Un <style> con hash en vez de 'unsafe-inline' arregla
+# la página sin aflojar la CSP para el resto de las respuestas (JSON puro,
+# nunca usa estilos).
+_AUTH_ERROR_STYLE = (
+    "body{background:#0B0C10;color:#EDEAE3;font-family:system-ui,sans-serif;"
+    "display:flex;align-items:center;justify-content:center;min-height:100vh;"
+    "text-align:center;padding:24px}"
+    "h1{color:#8B6EF5}"
+    "a{color:#A28BF7}"
+)
+_AUTH_ERROR_STYLE_HASH = (
+    "sha256-"
+    + base64.b64encode(hashlib.sha256(_AUTH_ERROR_STYLE.encode()).digest()).decode()
+)
+
 
 def _client_ip(request: web.Request) -> str:
     """IP real del cliente: detrás de Cloudflare + nginx, request.remote es siempre 127.0.0.1.
@@ -254,12 +273,23 @@ async def _security_headers_middleware(
 ) -> web.StreamResponse:
     """Cabeceras defensivas para toda respuesta: esto es una API JSON pura,
     nunca debería terminar embebida en un frame ni interpretada como HTML."""
-    resp = await handler(request)
+    try:
+        resp = await handler(request)
+    except web.HTTPException as ex:
+        # web.HTTPFound/HTTPException son excepciones Y Response a la vez.
+        # Sin este except, un `raise web.HTTPFound(...)` (todo /auth/login,
+        # /auth/callback y /auth/logout) se propaga por encima de este
+        # middleware en vez de pasar por `resp = await handler(...)` --
+        # confirmado con un servidor aiohttp mínimo -- y esas respuestas
+        # salen sin ninguna cabecera de las de abajo, Server real de aiohttp
+        # incluido.
+        resp = ex
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     resp.headers["Content-Security-Policy"] = (
-        "default-src 'none'; frame-ancestors 'none'"
+        f"default-src 'none'; style-src '{_AUTH_ERROR_STYLE_HASH}'; "
+        "frame-ancestors 'none'"
     )
     # aiohttp manda "Python/3.x aiohttp/3.x" acá con headers.setdefault(...) --
     # solo pisa si el header ya está seteado, así que hay que setearlo con
@@ -268,6 +298,15 @@ async def _security_headers_middleware(
     # producción: reconocimiento gratis para buscar CVEs puntuales, sin
     # aportarle nada al usuario real.
     resp.headers["Server"] = "Purgito"
+    # GET /api/* siempre es por-sesión (config de guild, stats, tokens de
+    # share): con Cloudflare delante, sin esto un GET sin Cache-Control
+    # propio (la mayoría de los ~25 endpoints de /api/server/{guild_id}/...)
+    # queda a merced de la política de caché default del proxy -- el mismo
+    # motivo por el que /api/me y /api/me/guilds ya lo seteaban a mano.
+    # setdefault: no pisa un Cache-Control más específico que un handler
+    # puntual ya haya puesto.
+    if request.path.startswith("/api/") and request.method == "GET":
+        resp.headers.setdefault("Cache-Control", "no-store")
     return resp
 
 
@@ -277,7 +316,10 @@ async def _cors_middleware(request: web.Request, handler) -> web.StreamResponse:
     if request.method == "OPTIONS":
         resp: web.StreamResponse = web.Response()
     else:
-        resp = await handler(request)
+        try:
+            resp = await handler(request)
+        except web.HTTPException as ex:
+            resp = ex
     if (
         DASHBOARD_ENABLED
         and origin
@@ -288,6 +330,13 @@ async def _cors_middleware(request: web.Request, handler) -> web.StreamResponse:
         # Allow-Credentials son incompatibles.
         resp.headers["Access-Control-Allow-Origin"] = origin
         resp.headers["Access-Control-Allow-Credentials"] = "true"
+        # El valor de Allow-Origin depende del Origin del request -- sin Vary,
+        # un caché compartido delante (Cloudflare) podría guardar la respuesta
+        # armada para un origin confiable y servirla tal cual a otro. No es
+        # una fuga (el navegador igual compara Allow-Origin contra SU propio
+        # origin y bloquea si no matchea), pero rompe el fetch legítimo del
+        # origin que no recibió su propio eco.
+        resp.headers["Vary"] = "Origin"
     elif request.method in ("GET", "OPTIONS") and request.path in _PUBLIC_GETS:
         resp.headers["Access-Control-Allow-Origin"] = "*"
     resp.headers["Access-Control-Allow-Methods"] = (
@@ -3171,13 +3220,11 @@ async def _auth_error(request: web.Request) -> web.Response:
     body = (
         "<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
-        "<title>Purgito · Acceso denegado</title></head>"
-        "<body style='background:#0B0C10;color:#EDEAE3;font-family:system-ui,sans-serif;"
-        "display:flex;align-items:center;justify-content:center;min-height:100vh;"
-        "text-align:center;padding:24px'>"
-        "<div><h1 style='color:#8B6EF5'>Acceso denegado</h1>"
+        "<title>Purgito · Acceso denegado</title>"
+        f"<style>{_AUTH_ERROR_STYLE}</style></head>"
+        "<body><div><h1>Acceso denegado</h1>"
         f"<p>{message}</p>"
-        "<a style='color:#A28BF7' href='/auth/login'>Volver a intentar</a>"
+        "<a href='/auth/login'>Volver a intentar</a>"
         "</div></body></html>"
     )
     return web.Response(text=body, content_type="text/html", charset="utf-8")
@@ -3691,9 +3738,15 @@ async def start_web_server(bot: commands.Bot) -> None:
 
     _runner = web.AppRunner(app)
     await _runner.setup()
-    site = web.TCPSite(_runner, "0.0.0.0", WEB_PORT)
+    # 127.0.0.1, no 0.0.0.0: nginx es el único que le habla a este puerto
+    # (proxy_pass http://127.0.0.1:8080 en los tres server blocks, ver
+    # DEPLOY.md) -- escuchar en todas las interfaces lo dejaba alcanzable
+    # directo desde internet si el firewall del droplet no lo tapaba,
+    # saltándose Cloudflare y nginx por completo (rate limits por IP
+    # incluidos, ver _client_ip más arriba).
+    site = web.TCPSite(_runner, "127.0.0.1", WEB_PORT)
     await site.start()
-    log.info("Web API iniciada en 0.0.0.0:%s", WEB_PORT)
+    log.info("Web API iniciada en 127.0.0.1:%s", WEB_PORT)
 
 
 async def stop_web_server() -> None:

@@ -219,17 +219,21 @@ def parse(md):
 # (@import de fuentes en style.css), tenor.com (iframe de preview de GIFs en
 # la tab de gifs del dashboard), img-src ancho porque las imágenes salen de
 # hosts variables según guild (avatares e emojis de Discord, GIFs de Giphy,
-# el bucket R2 configurado por env var). El hash cubre el único inline
-# handler que hay en todo el sitio (onerror="this.remove()" en los <img> del
-# navbar/botones de invitar) sin abrir 'unsafe-inline'. meta http-equiv NO
-# soporta frame-ancestors/sandbox/report-uri -- la protección contra
-# clickjacking para estas páginas va por X-Frame-Options: DENY, que sí pone
-# nginx como cabecera real (ver DEPLOY.md); no hay una CSP con
-# frame-ancestors a nivel nginx (a propósito: se pisaría con esta CSP y con
-# la de la API, ver el comentario del add_header en DEPLOY.md).
+# el bucket R2 configurado por env var). El primer hash cubre el único
+# inline handler que hay en todo el sitio (onerror="this.remove()" en los
+# <img> del navbar/botones de invitar); el segundo cubre el <script> inline
+# de redirect de idioma que solo vive en index.html (tiene que ir en el
+# <head>, antes de pintar nada, así que no puede ser /script.js externo) --
+# ambos sin abrir 'unsafe-inline'. meta http-equiv NO soporta
+# frame-ancestors/sandbox/report-uri -- la protección contra clickjacking
+# para estas páginas va por X-Frame-Options: DENY, que sí pone nginx como
+# cabecera real (ver DEPLOY.md); no hay una CSP con frame-ancestors a nivel
+# nginx (a propósito: se pisaría con esta CSP y con la de la API, ver el
+# comentario del add_header en DEPLOY.md).
 LANDING_CSP = (
     "default-src 'self'; "
-    "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c='; "
+    "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' "
+    "'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; "
     "style-src 'self' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' https: data:; "

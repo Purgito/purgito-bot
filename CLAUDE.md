@@ -136,8 +136,10 @@ La config de nginx vive FUERA de este repo, en
 `sites-enabled`). Un solo server block cubre `purgito.app` +
 `www.purgito.app` y distingue **por ruta**: `/auth/*`, `/api/*`,
 `/webhooks/*` y `/health` proxean a esta app en el puerto 8080; todo lo
-demás sale estático de `/var/www/purgito-landing` (copia separada de
-`landing/`, no el repo en sí). Cloudflare está delante de todo — si algo
+demás sale estático de `/var/www/purgito-landing` (symlink a `landing/`
+dentro del clon real, confirmado 2026-08-12 — no una copia separada: un
+`git pull` alcanza para publicar cambios de la landing, sin paso de sync
+aparte). Cloudflare está delante de todo — si algo
 "no cambia" después de un deploy, sospecha primero de caché antes de
 asumir que el código está mal.
 
@@ -149,9 +151,10 @@ idioma nuevo con dashboard propio no rompa en silencio). Sin agregarlo, esa
 URL sirve la homepage. `/es/perfil*` no lo necesita: son carpetas reales.
 
 `DEPLOY.md` ya no contradice esto: se actualizó a Oracle Linux + `conf.d` y
-detalla los tres server blocks. Quedan dos puntos sin verificar ahí (ruta
-del clon en el servidor, y si `/var/www/purgito-landing` es symlink o copia)
-— hasta confirmarlos en el droplet, esta sección manda.
+detalla los tres server blocks. Ruta real del clon confirmada en el droplet
+(2026-08-12): `/home/opc/purgito-bot`, corriendo como `opc` — no como el
+usuario dedicado `bot-purg` que documenta `deploy/bot-purg.service` (esa
+migración quedó pendiente, ver DEPLOY.md § "Migrar a un usuario dedicado").
 
 ## Voz y copy
 

@@ -25,6 +25,23 @@ def test_las_paginas_generadas_tienen_la_csp():
         assert build_docs.LANDING_CSP in html, page["slug"]
 
 
+def test_index_html_tambien_tiene_la_csp():
+    """Auditoría sección 12: index.html se escribe a mano (build_docs.py no
+    lo regenera, solo le resella el ?v=) y por eso había quedado afuera de
+    la CSP que sí tienen todas las páginas generadas -- justo la de más
+    tráfico del sitio entero."""
+    html = (LANDING / "index.html").read_text("utf-8")
+    assert '<meta http-equiv="Content-Security-Policy"' in html
+    assert build_docs.LANDING_CSP in html
+
+
+def test_el_hash_del_script_de_redirect_de_index_es_correcto():
+    html = (LANDING / "index.html").read_text("utf-8")
+    script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    assert f"sha256-{digest}" in build_docs.LANDING_CSP
+
+
 def test_la_csp_no_abre_unsafe_inline():
     assert "unsafe-inline" not in build_docs.LANDING_CSP
 

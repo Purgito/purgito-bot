@@ -1,6 +1,13 @@
 # Unit file canónico de Purgito. Copia en el droplet:
 #   sudo cp deploy/bot-purg.service /etc/systemd/system/bot-purg.service
 #   sudo systemctl daemon-reload && sudo systemctl restart bot-purg
+#
+# ⚠️ User=bot-purg es el estado OBJETIVO, todavía no el real: confirmado en el
+# droplet (2026-08-12) que el unit activo hoy corre como User=opc (un usuario
+# con sudo) desde WorkingDirectory=/home/opc/purgito-bot -- este archivo nunca
+# se copió a producción tal cual. Migrar a bot-purg requiere crear el usuario
+# y re-asignar el dueño del árbol ANTES de reemplazar el unit activo, o el
+# servicio no arranca (ver DEPLOY.md, sección "Migrar a un usuario dedicado").
 
 [Unit]
 Description=Bot Discord PURG4TORY
@@ -14,12 +21,45 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 User=bot-purg
-WorkingDirectory=/opt/bot-discord-purg
-ExecStart=/opt/bot-discord-purg/.venv/bin/python src/bot.py
+WorkingDirectory=/home/opc/purgito-bot
+ExecStart=/home/opc/purgito-bot/.venv/bin/python src/bot.py
 Restart=on-failure
 RestartSec=15
 StandardOutput=journal
 StandardError=journal
+
+# ── Sandboxing ────────────────────────────────────────────────────
+# El proceso solo necesita escribir bajo data/ (bot.db, bot.log, flags de
+# migración -- ver DATA_DIR en db.py y _LOG_PATH en bot.py) y leer el resto
+# del checkout + su propio venv. gifsicle corre por stdin/stdout (ver
+# optimize_gif_bytes en r2.py), sin archivos temporales.
+#
+# ProtectHome=true esconde TODO /home por default (incluido lo que sea que
+# más viva en el home de opc, como .ssh) -- ReadOnlyPaths/ReadWritePaths
+# perforan una excepción puntual solo para el checkout del bot, sin exponer
+# el resto de /home/opc. Sin verificar todavía en un systemd de Oracle Linux
+# 9 real: probar con `systemctl start` + `journalctl -u bot-purg` después de
+# aplicar, por si el proceso no puede ni siquiera importar su propio código.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/home/opc/purgito-bot
+ReadWritePaths=/home/opc/purgito-bot/data
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+# El bot no necesita ningún capability de root (no abre puertos <1024, no
+# cambia de usuario, no monta nada): arranca sin ninguno.
+CapabilityBoundingSet=
+AmbientCapabilities=
 
 [Install]
 WantedBy=multi-user.target

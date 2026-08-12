@@ -243,6 +243,14 @@ gifsicle --version
 
 ### Clonar en el servidor
 
+> **Estado real en producción (confirmado 2026-08-12):** el droplet actual
+> tiene el clon en `/home/opc/purgito-bot` y el bot corre como `opc` (usuario
+> con sudo), no como un usuario dedicado. Lo de abajo es el procedimiento
+> correcto para una instalación nueva -- si estás tocando el droplet
+> existente, no lo muevas de lugar solo para que coincida con esta guía; ver
+> "Migrar a un usuario dedicado" más abajo para hacerlo bien, sin downtime
+> sorpresa.
+
 ```bash
 sudo mkdir -p /opt/bot-discord-purg
 sudo chown $USER:$USER /opt/bot-discord-purg
@@ -261,12 +269,39 @@ nano .env
 ### Configurar systemd
 
 El unit file canónico vive en el repo: [`deploy/bot-purg.service`](deploy/bot-purg.service).
+Asume que el clon está en `/opt/bot-discord-purg` y corre como `bot-purg` --
+si tu clon vive en otro lado (como el droplet real hoy,
+`/home/opc/purgito-bot`), editá `WorkingDirectory`/`ExecStart`/`ReadOnlyPaths`/`ReadWritePaths`
+antes de copiarlo.
 
 ```bash
 sudo cp deploy/bot-purg.service /etc/systemd/system/bot-purg.service
 ```
 
-> ⚠️ **Seguridad**: crea un usuario dedicado con `sudo useradd -r -s /bin/false bot-purg` y otórgale permisos sobre `/opt/bot-discord-purg`.
+> ⚠️ **Seguridad**: crea un usuario dedicado con `sudo useradd -r -s /bin/false bot-purg` y otórgale permisos sobre `/opt/bot-discord-purg`. **El droplet de producción actual no hizo esto** -- corre como `opc`, que tiene sudo. Cualquier RCE en el proceso del bot (una dependencia comprometida, un parser de imagen/feed malicioso) hoy equivale a comprometer una cuenta con sudo, no solo la cuenta del bot. Ver "Migrar a un usuario dedicado" abajo.
+
+#### Migrar a un usuario dedicado (pendiente en el droplet real)
+
+No se aplicó todavía -- requiere una ventana con el bot parado. Comandos
+propuestos, para correr a mano y con aprobación explícita antes de tocar
+producción:
+
+```bash
+sudo useradd -r -s /sbin/nologin bot-purg
+sudo chown -R bot-purg:bot-purg /home/opc/purgito-bot
+# el usuario opc sigue necesitando poder actualizar el código (git pull) --
+# agregarlo al grupo alcanza para eso sin volver a correr todo como opc:
+sudo usermod -aG bot-purg opc
+sudo chmod -R g+rX /home/opc/purgito-bot
+
+sudo cp deploy/bot-purg.service /etc/systemd/system/bot-purg.service   # ya trae WorkingDirectory=/home/opc/purgito-bot
+sudo systemctl daemon-reload
+sudo systemctl restart bot-purg
+sudo systemctl status bot-purg   # confirmar que arrancó como bot-purg, no opc
+journalctl -u bot-purg -f        # mirar por errores de permisos (ProtectHome
+                                  # + ReadOnlyPaths es nuevo, puede fallar si
+                                  # algo escribe fuera de data/ que no se vio)
+```
 
 Claves del unit:
 - `Restart=on-failure` + `RestartSec=15` — reinicio automático si el proceso muere, con espera entre intentos para no entrar en loops agresivos.
@@ -483,7 +518,7 @@ solo corre lint (`ruff`) sobre los PRs; no despliega nada.
 
 ```bash
 ssh opc@<droplet>
-cd /opt/bot-discord-purg          # ver nota de abajo sobre la ruta
+cd /home/opc/purgito-bot
 git pull
 source .venv/bin/activate
 pip install -r requirements.txt   # solo si requirements.txt cambió
@@ -492,6 +527,43 @@ sudo systemctl status bot-purg
 ```
 
 > Si `.env.example` tiene variables nuevas, añádelas manualmente a tu `.env` antes de reiniciar.
+
+### Desplegar un cambio de infraestructura (systemd, nginx-adjacente)
+
+Un cambio a `deploy/bot-purg.service` (o cualquier archivo que se copia a mano
+fuera del checkout, como la config de nginx) **no existe para el droplet
+hasta que se pushea y se pullea ahí.** Ya pasó una vez (2026-08-12): un fix
+de rutas + hardening en `deploy/bot-purg.service` quedó commiteado solo en
+local, nunca llegó al droplet, y al reinstalar el servicio se copió la
+versión vieja del unit —con `WorkingDirectory`/`ExecStart` apuntando a una
+ruta que ya no existía— y el bot quedó en crash-loop (`status=203/EXEC`)
+hasta que se parcheó a mano en caliente.
+
+Antes de tocar el unit de systemd en el droplet:
+
+1. `git diff` local del archivo que vas a desplegar — confirmar que es el
+   cambio que creés que es.
+2. Commitear y pushear.
+3. En el droplet: `git pull`, y después **confirmar con `cat`** que el
+   archivo que acabás de bajar es el que esperás — no asumir que el pull
+   trajo lo que pensás, es exactamente el paso que faltó la vez anterior.
+   ```bash
+   cat deploy/bot-purg.service   # ¿dice lo que el repo local dice?
+   ```
+4. Recién ahí copiar el unit:
+   ```bash
+   sudo cp deploy/bot-purg.service /etc/systemd/system/bot-purg.service
+   sudo systemctl daemon-reload
+   sudo systemctl restart bot-purg
+   ```
+5. **No cortar la sesión SSH todavía.** Mirar que arranque bien en vivo:
+   ```bash
+   journalctl -u bot-purg -f
+   ```
+   Si no levanta (`status=203/EXEC`, permisos, rutas que no existen), el
+   rollback es volver a copiar la versión anterior del unit (`git show
+   HEAD~1:deploy/bot-purg.service > /tmp/bot-purg.service.bak` si hace falta
+   reconstruirla) y repetir 4-5 con esa.
 
 ### Migraciones de datos por servidor
 
@@ -582,33 +654,42 @@ clusters ya fusionados no vuelven a aparecer.
 Nunca toca objetos referenciados por `corpus_images` (las imágenes de memes
 también pueden ser `.gif`), ni los huérfanos, que solo informa.
 
-### Dos puntos sin verificar
+### Backups de `data/bot.db`
 
-No pude confirmarlos desde la máquina de desarrollo (sin acceso SSH al
-droplet). Están documentados como pendientes a propósito, en vez de darlos por
-hecho:
+**No existen backups automatizados** (confirmado 2026-08-12: `crontab -l`
+vacío para `opc`, no hay systemd timer, no hay ningún script en `scripts/`
+que haga esto). Lo único que hay en `data/` son dos copias sueltas
+(`bot.db.back-pre-gif-debup`, `bot.db.bak-20260711`) que alguien sacó a mano
+antes de correr una migración riesgosa puntual -- no es una estrategia de
+backup, viven en el mismo disco que la base real, y no se van a actualizar
+solas. Si el disco del droplet falla o la instancia se pierde, se pierde
+todo: corpus de Markov de cada servidor, configuración, estado de premium.
 
-1. **Ruta del clon en el servidor.** `deploy/bot-purg.service` declara
-   `WorkingDirectory=/opt/bot-discord-purg` (y `User=bot-purg`), pero `CLAUDE.md`
-   describe el deploy como `cd purgito-bot && git pull` desde el home de `opc`.
-   Verificar cuál es la real:
+Snapshot manual seguro (no usar `cp` -- la base corre en modo WAL, `cp`
+sobre un archivo en uso puede copiar un estado inconsistente entre
+`bot.db`/`bot.db-wal`; `.backup` de sqlite3 sí es consistente con el proceso
+corriendo):
 
-   ```bash
-   systemctl show bot-purg -p WorkingDirectory -p User
-   ```
+```bash
+sqlite3 /home/opc/purgito-bot/data/bot.db ".backup '/home/opc/purgito-bot/data/backup-$(date +%Y%m%d).db'"
+```
 
-2. **Qué es `/var/www/purgito-landing`.** Si es un symlink al `landing/` del
-   clon, `git pull` alcanza para publicar la landing. Si es una copia separada,
-   hace falta un paso de sincronización explícito (`cp -r landing/. /var/www/purgito-landing/`
-   o `rsync`) que hoy no está documentado en ningún lado. Verificar:
+Sigue viviendo en el mismo disco -- sirve contra "corrompí la base con una
+migración", no contra "se murió el droplet". Automatizar esto (cron/timer +
+copiarlo fuera del droplet, por ejemplo al mismo bucket R2 que ya se usa
+para GIFs) es una decisión de proceso que no se implementó acá: hay que
+decidir frecuencia, retención y destino antes de escribir el cron.
 
-   ```bash
-   ls -la /var/www/ | grep purgito
-   file /var/www/purgito-landing
-   ```
+### Dos puntos que ya estaban sin verificar, confirmados (2026-08-12)
 
-   Ojo: `CLAUDE.md` dice hoy que es una **copia separada**. Si resulta ser un
-   symlink, hay que corregir esa línea de `CLAUDE.md` también.
+1. **Ruta del clon en el servidor:** `/home/opc/purgito-bot`, corriendo como
+   `opc` (no `bot-purg` -- ese usuario dedicado nunca se creó, ver "Migrar a
+   un usuario dedicado" arriba). `deploy/bot-purg.service` en el repo asumía
+   `/opt/bot-discord-purg` y ya se corrigió para reflejar la ruta real.
+2. **`/var/www/purgito-landing` es un symlink** a `/home/opc/purgito-bot/landing`
+   (no una copia separada). `git pull` alcanza para publicar cambios de la
+   landing, no hace falta ningún paso de sincronización aparte. `CLAUDE.md`
+   decía lo contrario -- ya corregido ahí también.
 
 ---
 

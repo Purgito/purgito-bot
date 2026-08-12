@@ -11,13 +11,25 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _FONT_PATH = os.path.join(_BASE_DIR, "assets", "Impact.ttf")
 
 
+# Mismo allowlist que ya exige el caller por extensión (cogs/memes.py) --
+# formats= restringe qué decoder de Pillow llega a tocar los bytes. Sin
+# esto, Image.open() prueba TODOS los formatos que Pillow sabe leer
+# (TIFF, ICO, EPS -- que puede shellear a Ghostscript --, PCX, etc.) contra
+# contenido de un adjunto de Discord con la extensión falseada: cualquiera
+# puede subir un .png que en realidad es otra cosa, y el nombre de archivo
+# nunca llega hasta acá (Image.open ve puros bytes). Nada de esto depende
+# de que el paquete tenga un CVE conocido -- es reducir qué parsers de
+# Pillow quedan expuestos a bytes no confiables, conocido o no.
+_ALLOWED_FORMATS = ("PNG", "JPEG", "WEBP")
+
+
 def is_valid_image(data: bytes) -> bool:
     """Verifica que los bytes sean una imagen real (no solo por extensión)
     antes de persistirlos: Image.verify() decodifica el header y rechaza
     contenido corrupto o que no sea una imagen. MAX_IMAGE_PIXELS (arriba)
     también aplica acá, así que un decompression bomb también cae."""
     try:
-        with Image.open(io.BytesIO(data)) as img:
+        with Image.open(io.BytesIO(data), formats=_ALLOWED_FORMATS) as img:
             img.verify()
         return True
     except Exception:
@@ -40,7 +52,10 @@ def _try_short_sentence(model, max_chars: int = 80, tries: int = 100) -> str | N
 
 
 def render_caption(image_bytes: bytes, caption: str) -> bytes:
-    base = Image.open(io.BytesIO(image_bytes))
+    # image_bytes ya pasó por is_valid_image antes de entrar al pool -- se
+    # repite formats= igual, no puede depender de que ese chequeo haya
+    # corrido antes en el mismo proceso.
+    base = Image.open(io.BytesIO(image_bytes), formats=_ALLOWED_FORMATS)
     if hasattr(base, "n_frames") and base.n_frames > 1:
         base.seek(0)
     base = base.convert("RGBA")
@@ -204,8 +219,14 @@ def render_meme(image_bytes: bytes, caption: str) -> bytes:
         for line in lines:
             line_w = font.getlength(line)
             x = int((img_w - line_w) / 2)
-            draw.text((x, y), line, font=font, fill=(255, 255, 255),
-                      stroke_width=stroke, stroke_fill=(0, 0, 0))
+            draw.text(
+                (x, y),
+                line,
+                font=font,
+                fill=(255, 255, 255),
+                stroke_width=stroke,
+                stroke_fill=(0, 0, 0),
+            )
             y += line_h
 
     draw_outlined_text(top_text, "top")
