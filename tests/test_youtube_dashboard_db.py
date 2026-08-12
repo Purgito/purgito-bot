@@ -144,10 +144,11 @@ class _FakeResp:
     def __init__(self, content, status=200):
         self.content = content
         self._status = status
+        self.status_code = status
 
     def raise_for_status(self):
         if self._status >= 400:
-            raise youtube_mod.requests.HTTPError(f"HTTP {self._status}")
+            raise youtube_mod.requests.HTTPError(f"HTTP {self._status}", response=self)
 
 
 def test_resolve_youtube_channel_with_videos_returns_name_and_latest_id(monkeypatch):
@@ -197,5 +198,29 @@ def test_get_latest_video_still_returns_none_when_channel_has_no_videos(monkeypa
         youtube_mod.requests,
         "get",
         lambda *a, **k: _FakeResp(_feed_xml()),
+    )
+    assert asyncio.run(youtube_mod.get_latest_video(_YT_ID)) is None
+
+
+# ---------- cogs/youtube: get_latest_video distingue 404 permanente de error transitorio ----------
+
+
+def test_get_latest_video_raises_feed_not_found_on_404(monkeypatch):
+    monkeypatch.setattr(
+        youtube_mod.requests,
+        "get",
+        lambda *a, **k: _FakeResp(b"", status=404),
+    )
+    with pytest.raises(youtube_mod.YouTubeFeedNotFound):
+        asyncio.run(youtube_mod.get_latest_video(_YT_ID))
+
+
+def test_get_latest_video_returns_none_on_transient_http_error(monkeypatch):
+    """500/429/etc no son "el canal no existe": se tratan como antes (None,
+    reintenta sin marcar error) -- solo el 404 es un YouTubeFeedNotFound."""
+    monkeypatch.setattr(
+        youtube_mod.requests,
+        "get",
+        lambda *a, **k: _FakeResp(b"", status=500),
     )
     assert asyncio.run(youtube_mod.get_latest_video(_YT_ID)) is None

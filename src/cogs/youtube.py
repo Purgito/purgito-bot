@@ -11,6 +11,7 @@ from discord.ext import commands, tasks
 
 from db import (
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
+    YOUTUBE_ERROR_FEED_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
     get_all_youtube_subs,
     set_youtube_sub_error,
@@ -19,6 +20,11 @@ from db import (
 from i18n import guild_locale, t
 
 log = logging.getLogger(__name__)
+
+
+class YouTubeFeedNotFound(Exception):
+    """El RSS del canal devolvió 404: canal borrado o channel_id inválido,
+    a diferencia de un error transitorio (500, timeout) que sí se reintenta."""
 
 
 async def _fetch_feed(youtube_channel_id: str):
@@ -54,6 +60,14 @@ async def get_latest_video(youtube_channel_id: str) -> dict | None:
             "url": entry.get("link", ""),
             "author": entry.get("author", ""),
         }
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            log.warning(
+                "Canal YouTube %s no encontrado, RSS devolvió 404", youtube_channel_id
+            )
+            raise YouTubeFeedNotFound(youtube_channel_id) from e
+        log.exception("Error obteniendo RSS para canal YouTube %s", youtube_channel_id)
+        return None
     except Exception:
         log.exception("Error obteniendo RSS para canal YouTube %s", youtube_channel_id)
         return None
@@ -129,7 +143,10 @@ class YouTube(commands.Cog):
                         )
                     return
 
-                if sub["last_error"]:
+                if sub["last_error"] in (
+                    YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
+                    YOUTUBE_ERROR_NO_PERMISSION,
+                ):
                     await set_youtube_sub_error(
                         sub["guild_id"], sub["youtube_channel_id"], None
                     )
@@ -139,7 +156,33 @@ class YouTube(commands.Cog):
                         sub["guild_id"],
                     )
 
-                video = await get_latest_video(sub["youtube_channel_id"])
+                try:
+                    video = await get_latest_video(sub["youtube_channel_id"])
+                except YouTubeFeedNotFound:
+                    if sub["last_error"] != YOUTUBE_ERROR_FEED_NOT_FOUND:
+                        log.warning(
+                            "Suscripción YouTube %s (guild %s) no puede avisar: %s",
+                            sub["youtube_channel_id"],
+                            sub["guild_id"],
+                            YOUTUBE_ERROR_FEED_NOT_FOUND,
+                        )
+                        await set_youtube_sub_error(
+                            sub["guild_id"],
+                            sub["youtube_channel_id"],
+                            YOUTUBE_ERROR_FEED_NOT_FOUND,
+                        )
+                    return
+
+                if sub["last_error"] == YOUTUBE_ERROR_FEED_NOT_FOUND:
+                    await set_youtube_sub_error(
+                        sub["guild_id"], sub["youtube_channel_id"], None
+                    )
+                    log.info(
+                        "Suscripción YouTube %s (guild %s) recuperada, reanuda avisos",
+                        sub["youtube_channel_id"],
+                        sub["guild_id"],
+                    )
+
                 if video is None:
                     return
                 if video["id"] != sub["last_video_id"]:

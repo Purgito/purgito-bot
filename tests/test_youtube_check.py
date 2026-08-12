@@ -22,8 +22,12 @@ import pytest
 
 import cogs.youtube as youtube_mod
 import db
-from cogs.youtube import YouTube
-from db import YOUTUBE_ERROR_CHANNEL_NOT_FOUND, YOUTUBE_ERROR_NO_PERMISSION
+from cogs.youtube import YouTube, YouTubeFeedNotFound
+from db import (
+    YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
+    YOUTUBE_ERROR_FEED_NOT_FOUND,
+    YOUTUBE_ERROR_NO_PERMISSION,
+)
 
 _GUILD = 1
 _YT_CHANNEL_ID = "UCxxx"
@@ -216,3 +220,67 @@ def test_unrelated_exception_still_falls_into_generic_handler(
     assert channel.sent == []
     # No es un problema de canal/permiso: last_error no se toca por esto.
     assert asyncio.run(_sub_row(memory_db)) == ("old", None)
+
+
+# ---------- feed de YouTube 404 (canal borrado / channel_id inválido) ----------
+
+
+def _make_cog_feed_not_found(monkeypatch, get_channel):
+    async def fake_get_latest_video(youtube_channel_id):
+        raise YouTubeFeedNotFound(youtube_channel_id)
+
+    monkeypatch.setattr(youtube_mod, "get_latest_video", fake_get_latest_video)
+    return YouTube(SimpleNamespace(get_channel=get_channel))
+
+
+def test_feed_not_found_marks_error_once(memory_db, monkeypatch, caplog):
+    asyncio.run(_add_sub(memory_db))
+    channel = FakeTextChannel(send_messages=True)
+    cog = _make_cog_feed_not_found(monkeypatch, get_channel=lambda cid: channel)
+
+    with caplog.at_level(logging.WARNING, logger="cogs.youtube"):
+        _run(cog)
+
+    assert channel.sent == []
+    assert asyncio.run(_sub_row(memory_db)) == ("old", YOUTUBE_ERROR_FEED_NOT_FOUND)
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="cogs.youtube"):
+        _run(cog)  # segunda corrida, sigue en 404: no se vuelve a avisar
+
+    assert asyncio.run(_sub_row(memory_db)) == ("old", YOUTUBE_ERROR_FEED_NOT_FOUND)
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def test_transient_error_does_not_mark_feed_not_found(memory_db, monkeypatch):
+    """500/timeout: get_latest_video devuelve None (no levanta
+    YouTubeFeedNotFound) -- se reintenta sin marcar error, como siempre."""
+    asyncio.run(_add_sub(memory_db))
+    channel = FakeTextChannel(send_messages=True)
+    cog = _make_cog(monkeypatch, get_channel=lambda cid: channel, video=None)
+
+    _run(cog)
+
+    assert channel.sent == []
+    assert asyncio.run(_sub_row(memory_db)) == ("old", None)
+
+
+def test_feed_recovery_clears_error_and_sends_pending_video(
+    memory_db, monkeypatch, caplog
+):
+    asyncio.run(_add_sub(memory_db, last_error=YOUTUBE_ERROR_FEED_NOT_FOUND))
+    channel = FakeTextChannel(send_messages=True)
+    cog = _make_cog(
+        monkeypatch, get_channel=lambda cid: channel, video=_video("video-pendiente")
+    )
+
+    with caplog.at_level(logging.INFO, logger="cogs.youtube"):
+        _run(cog)
+
+    assert len(channel.sent) == 1
+    assert asyncio.run(_sub_row(memory_db)) == ("video-pendiente", None)
+    assert any(
+        r.levelno == logging.INFO and "recuperada" in r.getMessage()
+        for r in caplog.records
+    )

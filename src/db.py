@@ -1863,13 +1863,15 @@ async def update_last_video_id(
 
 YOUTUBE_ERROR_NO_PERMISSION = "sin_permiso"
 YOUTUBE_ERROR_CHANNEL_NOT_FOUND = "canal_no_encontrado"
+YOUTUBE_ERROR_FEED_NOT_FOUND = "feed_no_encontrado"
 
 
 async def set_youtube_sub_error(
     guild_id: int, youtube_channel_id: str, error: str | None
 ) -> None:
     """Marca (o limpia, con error=None) el estado roto de una suscripción:
-    YOUTUBE_ERROR_NO_PERMISSION o YOUTUBE_ERROR_CHANNEL_NOT_FOUND.
+    YOUTUBE_ERROR_NO_PERMISSION, YOUTUBE_ERROR_CHANNEL_NOT_FOUND o
+    YOUTUBE_ERROR_FEED_NOT_FOUND.
     Ver cogs/youtube.py._check_one."""
     db = await get_db()
     async with _db_lock:
