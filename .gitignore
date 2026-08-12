@@ -16,10 +16,18 @@ venv/
 .vscode/
 .idea/
 
-# Database
-data/*.db
+# Todo lo generado en runtime dentro de data/ (DB + sidecars de WAL, logs
+# rotados, flags de migración, backups ad-hoc con nombre arbitrario) --
+# antes solo cubría data/*.db y *.log, que no alcanzan a bot.db-shm/-wal
+# (sufijo distinto de .db), bot.log.1/.log.2 (*.log no matchea sufijos
+# numéricos) ni a bot.db.bak-<fecha> (*.bak exige que el nombre TERMINE en
+# .bak). Confirmado real en el droplet: esos cuatro tipos de archivo
+# aparecían como untracked en `git status`, a un `git add -A` de terminar
+# commiteados a un repo público. data/.gitkeep es la única excepción.
+data/*
+!data/.gitkeep
 
-# Logs
+# Logs (fuera de data/, si los hubiera)
 *.log
 *.out
 *.err
