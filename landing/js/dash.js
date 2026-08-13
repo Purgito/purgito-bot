@@ -332,7 +332,10 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
     'Seleccionar canales…', el('span', { class: 'dd-caret' }, '▾'));
   const dd = el('div', { class: 'dd' }, btn, panel);
   btn.onclick = (e) => { e.stopPropagation(); dd.classList.toggle('open'); };
-  const list = el('ul', { class: 'item-list chan-list' });
+  // Chips compactos que wrappean en vez de filas de alto completo (revisión
+  // UX de CHAT): con 15-20 canales seleccionados, una fila por canal se
+  // volvía un scroll largo e incómodo.
+  const list = el('div', { class: 'chan-chips' });
 
   let busy = false;
   async function toggle(ch) {
@@ -374,12 +377,14 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
     list.innerHTML = '';
     const sel = channels.filter(c => isSelected(c.id));
     if (!sel.length) {
-      list.append(el('li', { class: 'dim' }, listBelow));
+      list.append(el('span', { class: 'dim' }, listBelow));
     }
     for (const ch of sel) {
-      list.append(el('li', {},
+      list.append(el('span', { class: 'chan-chip' },
         chanLabel(ch),
-        el('button', { class: 'btn btn-danger btn-sm', onclick: () => toggle(ch) }, 'Quitar')));
+        el('button', {
+          class: 'chan-chip-x', 'aria-label': `Quitar #${ch.name || ch.id}`, onclick: () => toggle(ch),
+        }, '✕')));
     }
   }
   render();
@@ -506,30 +511,36 @@ function numberField(label, help, { key, value, min, max, step, suffix, save = s
     help ? el('p', { class: 'dim' }, help) : null);
 }
 
-/* Probabilidad 0–1 editada como porcentaje entero: el slider y el número van
-   sincronizados y solo el `change` (soltar el slider) guarda. */
-function percentField(label, help, { key, value, save = saveTunable }) {
+/* Probabilidad 0–1 editada como porcentaje entero: input numérico como
+   control primario (se puede escribir el número exacto) + barra de progreso
+   de solo lectura debajo como feedback visual -- reemplaza el slider, que
+   como único control obligaba a arrastrar con el mouse para acertar un
+   número (revisión UX de CHAT). Autoguarda en `change`, igual que antes. */
+function probabilityField(label, help, { key, value, save = saveTunable }) {
   const pct = Math.round(value * 100);
-  const range = el('input', { type: 'range', min: '0', max: '100', step: '1', value: String(pct) });
-  const out = el('span', { class: 'pct-value' }, `${pct}%`);
-  range.oninput = () => { out.textContent = `${range.value}%`; };
-  range.onchange = () => {
-    save(key, Number(range.value) / 100, label, (saved) => {
+  const input = el('input', {
+    type: 'number', min: '0', max: '100', step: '1', value: String(pct), class: 'num-input',
+  });
+  const bar = el('progress', { class: 'prob-bar', value: String(pct), max: '100' });
+  input.onchange = () => {
+    const clamped = Math.max(0, Math.min(100, Number(input.value) || 0));
+    save(key, clamped / 100, label, (saved) => {
       const back = Math.round(saved * 100);
-      range.value = String(back);
-      out.textContent = `${back}%`;
+      input.value = String(back);
+      bar.value = back;
     });
   };
   return el('div', { class: 'field' },
     el('label', {}, label),
-    el('div', { class: 'pct-row' }, range, out),
+    el('div', { class: 'prob-row' }, input, el('span', { class: 'dim' }, '%')),
+    bar,
     help ? el('p', { class: 'dim' }, help) : null);
 }
 
 /* Override por canal de los tunables de chat (Fase 2) — reusa numberField y
-   percentField tal cual (les agrega `save` para el endpoint de canal en vez
-   del de servidor), así que la fila real de edición es exactamente la misma
-   que ya conoce el admin en Personalidad/Límites. */
+   probabilityField tal cual (les agrega `save` para el endpoint de canal en
+   vez del de servidor), así que la fila real de edición es exactamente la
+   misma que ya conoce el admin en Personalidad/Límites. */
 
 function channelOverrideBadge(active) {
   return el('span', { class: 'badge' + (active ? '' : ' badge-dim') },
@@ -672,15 +683,24 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
 // del dashboard). Viven en el hash de la URL —#canales, #personalidad…— en
 // vez de un segmento de path, porque el path ya está tomado por el tab
 // principal ('chat') y por el GUILD_ID.
+//
+// `group` separa "lo esencial para que el bot funcione a gusto" de "ajuste
+// fino que se toca poco" (revisión UX de CHAT): la subnav pinta un caption
+// antes del primer link de cada grupo, sin agregar una pestaña nueva.
+// 'Por canal' depende de que Personalidad/Límites ya estén definidos, así
+// que va casi al final; Playground queda último porque es el paso de
+// verificar lo ya configurado, no configuración en sí.
 const CHAT_SUBTABS = [
-  { key: 'canales', label: 'Canales' },
-  { key: 'personalidad', label: 'Personalidad' },
-  { key: 'limites', label: 'Límites' },
-  { key: 'porcanal', label: 'Por canal' },
-  { key: 'frases', label: 'Frases' },
-  { key: 'triggers', label: 'Triggers' },
-  { key: 'playground', label: 'Playground' },
+  { key: 'canales', label: 'Canales', group: 'esencial' },
+  { key: 'personalidad', label: 'Personalidad', group: 'esencial' },
+  { key: 'limites', label: 'Límites', group: 'avanzado' },
+  { key: 'frases', label: 'Frases', group: 'avanzado' },
+  { key: 'triggers', label: 'Triggers', group: 'avanzado' },
+  { key: 'datos', label: 'Datos', group: 'avanzado' },
+  { key: 'porcanal', label: 'Por canal', group: 'avanzado' },
+  { key: 'playground', label: 'Playground', group: 'avanzado' },
 ];
+const CHAT_SUBTAB_GROUP_LABELS = { esencial: 'Esencial', avanzado: 'Avanzado' };
 
 function currentChatSubtab() {
   const key = location.hash.slice(1);
@@ -698,6 +718,48 @@ function channelCard(iconName, title, ...children) {
   return el('div', { class: 'channel-card' },
     el('div', { class: 'channel-card-head' }, icon(iconName), el('h3', {}, title)),
     ...children);
+}
+
+// Banner "Primeros pasos" (revisión UX de CHAT): sin canales de aprendizaje
+// nada del resto de la config tiene efecto práctico, así que esa es la única
+// señal que chequeamos -- preferible a un AND de varias condiciones (tunables
+// en default + sin frases + sin triggers...), que además de más frágil
+// parpadearía en estados de config parcial. Dismissible, no modal: no hay
+// wizard que interrumpa. El dismiss se guarda en localStorage por guild (no
+// en la DB, sin aprobación para eso todavía): si el admin administra más de
+// un servidor, cerrarlo en uno no debe ocultarlo en los demás. Trade-off
+// conocido: un admin que ya configuró todo y después queda con la lista de
+// canales vacía (a propósito o por error) va a volver a ver el banner aunque
+// no sea su primera vez -- no hay un estado real de "primera vez" sin tocar
+// el backend, y no hace falta resolverlo en esta pasada.
+function chatOnboardingDismissedKey() {
+  return `purgito_chat_onboarding_dismissed_${GUILD_ID}`;
+}
+
+function buildOnboardingBanner(corpus, activateSubtab) {
+  if (corpus.channels.length > 0) return null;
+  if (localStorage.getItem(chatOnboardingDismissedKey())) return null;
+
+  const banner = el('div', { class: 'onboarding-banner' },
+    el('button', {
+      class: 'onboarding-dismiss', 'aria-label': 'Cerrar',
+      onclick: () => { localStorage.setItem(chatOnboardingDismissedKey(), '1'); banner.remove(); },
+    }, '✕'),
+    el('h3', {}, 'Primeros pasos'),
+    el('p', { class: 'dim' },
+      'Purgito todavía no está aprendiendo de ningún canal — sin eso, el '
+      + 'resto de la configuración de acá no tiene mucho efecto.'),
+    el('ul', { class: 'onboarding-steps' },
+      el('li', {}, el('a', {
+        href: '#canales', onclick: (ev) => { ev.preventDefault(); activateSubtab('canales'); },
+      }, 'Elegí de qué canales aprende')),
+      el('li', {}, el('a', {
+        href: '#personalidad', onclick: (ev) => { ev.preventDefault(); activateSubtab('personalidad'); },
+      }, 'Revisá cómo habla (Personalidad)')),
+      el('li', {}, el('a', {
+        href: '#triggers', onclick: (ev) => { ev.preventDefault(); activateSubtab('triggers'); },
+      }, 'Opcional: agregá un trigger o una frase especial'))));
+  return banner;
 }
 
 async function loadChatTab() {
@@ -815,7 +877,18 @@ async function loadChatTab() {
               corpusSelected.delete(ch.id);
             },
             listBelow: 'Purgito no está aprendiendo de ningún canal.',
-          })),
+          })));
+    }
+
+    // --- Sub-pestaña: Datos ---
+    // Importar corpus y Amnesia vivían en Canales solo porque "también son de
+    // CHAT" -- sin relación real con elegir canales de aprendizaje/menciones,
+    // y Amnesia además es destructiva. Canales ya tiene 3 selectores de
+    // canales; meter acciones acá competiría por atención en la misma
+    // pantalla, así que quedan en su propia sub-pestaña (revisión UX de
+    // CHAT).
+    function buildDatos() {
+      return el('div', {},
         formGroup('Importar corpus desde un archivo',
           el('p', { class: 'dim' },
             'Sube un .txt: cada línea no vacía entra al corpus del canal '
@@ -830,48 +903,67 @@ async function loadChatTab() {
     }
 
     // --- Sub-pestaña: Personalidad ---
+    //
+    // "Reacciones" queda aparte porque el roll de reaction_probability corre
+    // en cada mensaje que el bot lee, sin relación con si decide hablar o no
+    // (ver src/cogs/chat.py, se tira antes y por fuera de auto_generate). La
+    // cadena real de 3 pasos es: [habla espontáneo O le mencionan] → GIF o
+    // texto → (si es texto) frase especial o Markov -- auto_generate_probability
+    // solo gobierna el primer paso (arranca una charla solo), pero
+    // gif_response_probability y frase_probability se evalúan igual cuando
+    // Purgito responde una mención, no solo cuando decide hablar por su
+    // cuenta. La card "Cuando decide responder" lo deja dicho en texto
+    // visible, no solo en el código.
     function buildPersonalidad() {
       const reaccionesBox = el('div', {});
       renderReacciones(reaccionesBox, reactions.reactions);
       return el('div', {},
-        formGroup('Frecuencia de mensajes espontáneos',
-          el('p', { class: 'dim' },
-            'Cada tantos mensajes nuevos que aprende en un canal, Purgito puede '
-            + 'decidir hablar solo. La probabilidad evita que sea siempre exacto.'),
-          numberField('Cada cuántos mensajes', null, {
-            key: 'auto_generate_every',
-            value: chat.auto_generate_every,
-            min: (lim.auto_generate_every || [1])[0],
-            max: (lim.auto_generate_every || [null, 1000])[1],
-            suffix: 'mensajes',
-          }),
-          percentField('Probabilidad de hablar', 'Al llegar a ese número, cuántas veces de cada 100 habla.', {
-            key: 'auto_generate_probability',
-            value: chat.auto_generate_probability,
-          })),
         formGroup('Reacciones',
-          el('p', { class: 'dim' }, 'Colección de emojis con los que el bot reacciona a los usuarios.'),
-          percentField('Probabilidad de reaccionar', 'De cada 100 mensajes que lee, a cuántos les pone un emoji.', {
+          el('p', { class: 'dim' },
+            'Colección de emojis con los que el bot reacciona a los usuarios. '
+            + 'Es independiente de si decide hablar o no: se evalúa en cada '
+            + 'mensaje que lee.'),
+          probabilityField('Probabilidad de reaccionar', 'De cada 100 mensajes que lee, a cuántos les pone un emoji.', {
             key: 'reaction_probability',
             value: chat.reaction_probability,
           }),
           reaccionesBox),
-        formGroup('GIF o texto',
+        formGroup('Cuando decide responder',
           el('p', { class: 'dim' },
-            'Con qué frecuencia responde con un GIF de su galería en vez de un '
-            + 'mensaje generado.'),
-          percentField('Probabilidad de responder con GIF', null, {
-            key: 'gif_response_probability',
-            value: chat.gif_response_probability,
-          })),
-        formGroup('Frases especiales',
-          el('p', { class: 'dim' },
-            'Con qué frecuencia responde con una frase especial (ver la '
-            + 'sub-pestaña Frases) en vez de un mensaje generado por Markov.'),
-          percentField('Probabilidad de usar una frase especial', null, {
-            key: 'frase_probability',
-            value: chat.frase_probability,
-          })));
+            'Estos tres pasos corren en orden cada vez que Purgito manda una '
+            + 'respuesta generada. El primero solo aplica cuando habla por su '
+            + 'cuenta -- si te mencionan, ya va a responder y arranca directo '
+            + 'en el paso 2.'),
+          el('div', { class: 'chain' },
+            el('div', { class: 'chain-step' },
+              el('div', { class: 'chain-step-label' }, '1. ¿Habla por su cuenta?'),
+              numberField('Cada cuántos mensajes', null, {
+                key: 'auto_generate_every',
+                value: chat.auto_generate_every,
+                min: (lim.auto_generate_every || [1])[0],
+                max: (lim.auto_generate_every || [null, 1000])[1],
+                suffix: 'mensajes',
+              }),
+              probabilityField('Probabilidad de hablar', 'Al llegar a ese número, cuántas veces de cada 100 habla.', {
+                key: 'auto_generate_probability',
+                value: chat.auto_generate_probability,
+              })),
+            el('div', { class: 'chain-step' },
+              el('div', { class: 'chain-step-label' }, '2. ¿GIF o texto?'),
+              el('p', { class: 'dim' },
+                'También corre así responda por mención, no solo cuando habla solo.'),
+              probabilityField('Probabilidad de responder con GIF', null, {
+                key: 'gif_response_probability',
+                value: chat.gif_response_probability,
+              })),
+            el('div', { class: 'chain-step' },
+              el('div', { class: 'chain-step-label' }, '3. Si es texto: ¿frase especial o generado?'),
+              el('p', { class: 'dim' },
+                'Frase especial = una de las que armaste en la sub-pestaña Frases.'),
+              probabilityField('Probabilidad de usar una frase especial', null, {
+                key: 'frase_probability',
+                value: chat.frase_probability,
+              })))));
     }
 
     // --- Sub-pestaña: Límites ---
@@ -1057,15 +1149,15 @@ async function loadChatTab() {
               min: (lim2.auto_generate_every || [1])[0], max: (lim2.auto_generate_every || [null, 1000])[1],
               suffix: 'mensajes', format: v => `${v} mensajes`,
             }),
-            channelTunableRow(channelId, percentField, 'Probabilidad de hablar', null, {
+            channelTunableRow(channelId, probabilityField,'Probabilidad de hablar', null, {
               key: 'auto_generate_probability', effective: eff.auto_generate_probability,
               override: ov.auto_generate_probability, format: v => `${Math.round(v * 100)}%`,
             }),
-            channelTunableRow(channelId, percentField, 'Probabilidad de reaccionar', null, {
+            channelTunableRow(channelId, probabilityField,'Probabilidad de reaccionar', null, {
               key: 'reaction_probability', effective: eff.reaction_probability,
               override: ov.reaction_probability, format: v => `${Math.round(v * 100)}%`,
             }),
-            channelTunableRow(channelId, percentField, 'Probabilidad de responder con GIF', null, {
+            channelTunableRow(channelId, probabilityField,'Probabilidad de responder con GIF', null, {
               key: 'gif_response_probability', effective: eff.gif_response_probability,
               override: ov.gif_response_probability, format: v => `${Math.round(v * 100)}%`,
             }),
@@ -1074,7 +1166,7 @@ async function loadChatTab() {
               min: (lim2.mention_rate_limit || [0])[0], max: (lim2.mention_rate_limit || [null, 1000])[1],
               suffix: 'por usuario', format: v => `${v} por usuario`,
             }),
-            channelTunableRow(channelId, percentField, 'Probabilidad de usar una frase especial', null, {
+            channelTunableRow(channelId, probabilityField,'Probabilidad de usar una frase especial', null, {
               key: 'frase_probability', effective: eff.frase_probability,
               override: ov.frase_probability, format: v => `${Math.round(v * 100)}%`,
             }));
@@ -1097,14 +1189,20 @@ async function loadChatTab() {
       porcanal: buildPorCanal,
       frases: buildFrases,
       triggers: buildTriggers,
+      datos: buildDatos,
       playground: buildPlayground,
     };
 
     const subnav = el('nav', { class: 'chat-subtabs' });
     const panels = {};
+    let lastGroup = null;
     for (const st of CHAT_SUBTABS) {
       panels[st.key] = BUILDERS[st.key]();
       panels[st.key].hidden = true;
+      if (st.group !== lastGroup) {
+        subnav.append(el('span', { class: 'chat-subtabs-caption' }, CHAT_SUBTAB_GROUP_LABELS[st.group]));
+        lastGroup = st.group;
+      }
       subnav.append(el('a', {
         class: 'chat-subtab',
         'data-key': st.key,
@@ -1132,6 +1230,8 @@ async function loadChatTab() {
       history.replaceState(null, '', `${location.pathname}${location.search}#${key}`);
     }
 
+    const onboarding = buildOnboardingBanner(corpus, activateSubtab);
+    if (onboarding) box.append(onboarding);
     box.append(subnav, panelsWrap);
     activateSubtab(currentChatSubtab());
 
@@ -1391,22 +1491,37 @@ const TRIGGER_ACTION_LABELS = {
   frase_de_pack: 'Frase de un pack', markov: 'Markov (generado)', mezcla: 'Mezcla (frase o Markov)',
 };
 
+/* Arma la oración legible de un trigger ("#general — Texto exacto "gg" →
+   Frase de un pack (Victorias)"), compartida entre la lista de triggers ya
+   creados y el preview en vivo del formulario de alta -- así ninguno de los
+   dos textos puede quedar desincronizado del otro. `trig` puede ser un
+   trigger real (con id) o el estado actual del formulario (sin id todavía). */
+function describeTrigger(trig, channels, packs) {
+  const chan = channels.find(c => c.id === trig.channel_id);
+  const pack = trig.pack_id != null && trig.pack_id !== ''
+    ? packs.find(p => String(p.id) === String(trig.pack_id)) : null;
+  return {
+    channelLabel: '#' + (chan ? chan.name : trig.channel_id),
+    matchLabel: TRIGGER_MATCH_TYPE_LABELS[trig.match_type] || trig.match_type,
+    pattern: trig.pattern,
+    actionLabel: TRIGGER_ACTION_LABELS[trig.action] || trig.action,
+    packName: pack ? pack.name : null,
+  };
+}
+
 function renderTriggers(box, data, channels, packs) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
   box.append(cupoLine(data.triggers.length, data.limit, 'trigger', 'triggers'));
   if (!data.triggers.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
   for (const trig of data.triggers) {
-    const chan = channels.find(c => c.id === trig.channel_id);
-    const pack = trig.pack_id != null ? packs.find(p => String(p.id) === String(trig.pack_id)) : null;
-    const parts = [
-      '#' + (chan ? chan.name : trig.channel_id),
-      '—', TRIGGER_MATCH_TYPE_LABELS[trig.match_type] || trig.match_type,
-      `"${trig.pattern}"`, '→', TRIGGER_ACTION_LABELS[trig.action] || trig.action,
-    ];
-    if (pack) parts.push(`(${pack.name})`);
-    list.append(el('li', {},
-      el('span', {}, parts.join(' ')),
+    const d = describeTrigger(trig, channels, packs);
+    list.append(el('li', { class: 'trigger-card' },
+      el('div', { class: 'trigger-card-main' },
+        el('span', { class: 'badge trigger-chan-badge' }, d.channelLabel),
+        el('span', {}, d.matchLabel, ' ', el('code', { class: 'cmd' }, `"${d.pattern}"`)),
+        el('span', { class: 'trigger-arrow' }, '→'),
+        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : '')),
       confirmDelBtn('¿Eliminar este trigger? Hay que volver a escribirlo desde cero.', async () => {
         try {
           await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
@@ -1422,15 +1537,40 @@ function triggerForm(box, channels, packs, data) {
   const chanSel = channelSelect(channels);
   const matchSel = el('select', {});
   for (const mt of data.match_types) matchSel.append(el('option', { value: mt }, TRIGGER_MATCH_TYPE_LABELS[mt] || mt));
-  const patternInput = el('input', { type: 'text', placeholder: 'Patrón…', style: 'flex:1' });
+  const patternInput = el('input', { type: 'text', placeholder: 'gg, !ban, ^hola.*' });
   const actionSel = el('select', {});
   for (const ac of data.actions) actionSel.append(el('option', { value: ac }, TRIGGER_ACTION_LABELS[ac] || ac));
   const packSel = el('select', {});
   packSel.append(el('option', { value: '' }, 'Sin pack (default)'));
   for (const p of packs) packSel.append(el('option', { value: String(p.id) }, p.name));
-  function syncPackVisibility() { packSel.style.display = actionSel.value === 'markov' ? 'none' : ''; }
-  actionSel.onchange = syncPackVisibility;
+
+  const packField = el('div', { class: 'field' }, el('label', {}, 'Pack'), packSel);
+  const previewLine = el('p', { class: 'dim trigger-preview' });
+
+  function syncPackVisibility() { packField.style.display = actionSel.value === 'markov' ? 'none' : ''; }
+
+  function updatePreview() {
+    const pattern = patternInput.value.trim();
+    if (!chanSel.value || !pattern) {
+      previewLine.textContent = 'Elegí un canal y escribí un patrón para ver la vista previa.';
+      return;
+    }
+    const d = describeTrigger({
+      channel_id: chanSel.value, match_type: matchSel.value, pattern,
+      action: actionSel.value, pack_id: actionSel.value !== 'markov' ? packSel.value : null,
+    }, channels, packs);
+    previewLine.textContent =
+      `Vista previa: en ${d.channelLabel}, si el mensaje ${d.matchLabel.toLowerCase()} `
+      + `"${d.pattern}" → ${d.actionLabel.toLowerCase()}${d.packName ? ` (${d.packName})` : ''}.`;
+  }
+
+  chanSel.onchange = updatePreview;
+  matchSel.onchange = updatePreview;
+  patternInput.oninput = updatePreview;
+  actionSel.onchange = () => { syncPackVisibility(); updatePreview(); };
+  packSel.onchange = updatePreview;
   syncPackVisibility();
+  updatePreview();
 
   const addBtn = el('button', {
     class: 'btn btn-primary',
@@ -1458,8 +1598,15 @@ function triggerForm(box, channels, packs, data) {
     },
   }, 'Agregar');
 
-  return el('div', { class: 'add-row' },
-    chanSel, matchSel, patternInput, actionSel, packs.length ? packSel : null, addBtn);
+  return el('div', {},
+    el('div', { class: 'add-row trigger-form' },
+      el('div', { class: 'field' }, el('label', {}, 'Canal'), chanSel),
+      el('div', { class: 'field' }, el('label', {}, 'Tipo de match'), matchSel),
+      el('div', { class: 'field', style: 'flex:1;min-width:180px' }, el('label', {}, 'Patrón'), patternInput),
+      el('div', { class: 'field' }, el('label', {}, 'Acción'), actionSel),
+      packs.length ? packField : null,
+      addBtn),
+    previewLine);
 }
 
 async function reloadTriggers(box, channels, packs) {

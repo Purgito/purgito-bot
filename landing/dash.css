@@ -1612,6 +1612,16 @@ h1 {
 .chat-subtab:hover { color: var(--text); }
 .chat-subtab.active { color: var(--text); border-bottom-color: var(--accent-2); }
 
+/* Caption de grupo ("Esencial" / "Avanzado") antes del primer link de cada
+   grupo -- no es una pestaña nueva, solo señala jerarquía dentro de la misma
+   subnav (revisión UX de CHAT: 7 sub-pestañas sin ninguna indicación de qué
+   es esencial tocar primero). */
+.chat-subtabs-caption {
+  align-self: center; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
+}
+.chat-subtabs-caption:not(:first-child) { margin-left: 4px; padding-left: 14px; border-left: 1px solid var(--border); }
+
 /* Cards de "Canales" (dónde responde / de dónde aprende). Antes eran dos
    formGroup idénticos separados por un simple divisor — la confusión que
    motivó darles su propia sub-pestaña — así que ahora cada una es una caja
@@ -1624,6 +1634,48 @@ h1 {
 .channel-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .channel-card-head .nav-icon { width: 20px; height: 20px; color: var(--accent); flex: none; }
 .channel-card-head h3 { margin: 0; font-size: var(--t-md); font-weight: 700; color: var(--text); }
+
+/* CHAT → Personalidad: cadena de 3 pasos ("Cuando decide responder"). Línea
+   vertical + conector corto por paso en vez de un componente de árbol nuevo
+   -- comunica la dependencia secuencial real (ver comentario de
+   buildPersonalidad en dash.js) sin inventar interacción nueva. */
+.chain { display: flex; flex-direction: column; margin-left: 10px; padding-left: 20px; border-left: 2px solid var(--border-card); }
+.chain-step {
+  position: relative; background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: var(--space-4);
+}
+.chain-step + .chain-step { margin-top: 18px; }
+.chain-step::before {
+  content: ''; position: absolute; left: -21px; top: 22px; width: 12px; height: 2px;
+  background: var(--border-card);
+}
+.chain-step-label { font-weight: 700; font-size: var(--t-sm); color: var(--accent-2); margin-bottom: 8px; }
+
+/* CHAT → Triggers: card en vez de fila de texto plano, canal como badge y
+   acción destacada para escanear la lista de un vistazo. */
+.trigger-card-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.trigger-chan-badge { margin-left: 0; }
+.trigger-arrow { color: var(--text-muted); }
+.trigger-action { font-weight: 600; color: var(--accent-2); }
+.trigger-preview { margin-top: 4px; }
+
+/* CHAT: banner dismissible "Primeros pasos" (revisión UX). No es un modal:
+   no interrumpe, solo ofrece atajos a lo esencial cuando el guild todavía no
+   tiene canales de aprendizaje configurados. */
+.onboarding-banner {
+  position: relative; background: var(--accent-soft-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: var(--radius-lg); padding: var(--space-6); margin-bottom: var(--space-6);
+}
+.onboarding-banner h3 { margin: 0 0 6px; font-size: var(--t-md); color: var(--text); }
+.onboarding-dismiss {
+  position: absolute; top: 10px; right: 10px; background: none; border: 0;
+  color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 4px 8px; line-height: 1;
+}
+.onboarding-dismiss:hover { color: var(--text); }
+.onboarding-steps { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.onboarding-steps a { color: var(--accent-2); font-weight: 600; text-decoration: none; }
+.onboarding-steps a:hover { text-decoration: underline; }
 
 /* INICIO: estilo + stats */
 .style-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -1672,19 +1724,42 @@ h1 {
 .chan-noperm { color: var(--premium); }
 .chan-warn { font-size: 13px; }
 .chan-list { margin-bottom: 0; }
-/* CHAT: ajustes numéricos (frecuencia, probabilidades, tope de menciones) */
+
+/* Canales seleccionados como chips que wrappean, en vez de filas de alto
+   completo -- con 15-20 canales seleccionados una fila por canal era un
+   scroll largo e incómodo (revisión UX de CHAT). Usado por Canales, Límites
+   (canales exentos) y Frases (canales con frase especial). */
+.chan-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chan-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 6px 4px 10px; font-size: 13px;
+  transition: border-color var(--transition);
+}
+.chan-chip:hover { border-color: color-mix(in srgb, var(--border) 55%, var(--accent)); }
+.chan-chip-x {
+  background: none; border: 0; color: var(--text-muted); cursor: pointer;
+  font-size: 11px; width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+}
+.chan-chip-x:hover { color: var(--danger); background: var(--danger-soft); }
+/* CHAT: ajustes numéricos (frecuencia, tope de menciones) */
 .num-row { display: flex; align-items: center; gap: 8px; }
 .num-input { width: 7rem; }
-.pct-row { display: flex; align-items: center; gap: 12px; }
-.pct-row input[type="range"] {
-  flex: 1; max-width: 22rem; padding: 0; height: 1.25rem;
-  accent-color: var(--accent); background: none; border: 0;
+
+/* CHAT: probabilidades (revisión UX) -- input numérico como control primario
+   más una barra de solo lectura debajo como feedback visual. <progress>
+   nativo: accesible y sin pisar la restricción de CSP sobre style inline que
+   ya documenta el() en core/dom.js. */
+.prob-row { display: flex; align-items: center; gap: 6px; }
+.prob-row .num-input { width: 5rem; }
+.prob-bar {
+  display: block; width: 100%; max-width: 22rem; height: 6px; margin-top: 6px;
+  appearance: none; border: none; border-radius: 999px; overflow: hidden;
 }
-/* Tabular para que el número no baile de ancho mientras se arrastra el slider. */
-.pct-value {
-  min-width: 3.5rem; font-family: var(--font-mono); font-size: var(--t-sm);
-  color: var(--text); font-variant-numeric: tabular-nums;
-}
+.prob-bar::-webkit-progress-bar { background: var(--surface-raised); border-radius: 999px; }
+.prob-bar::-webkit-progress-value { background: var(--accent); border-radius: 999px; transition: width var(--transition); }
+.prob-bar::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
 
 /* Roles exentos: mismo dropdown que los canales, con el color del rol. */
 .role-name { display: inline-flex; align-items: center; gap: 8px; }

@@ -16,6 +16,10 @@ venv/
 .vscode/
 .idea/
 
+# Claude Code: plugins/skills instalados localmente (/plugin), no config del
+# proyecto -- se reinstalan solos, no hace falta versionarlos.
+.claude/
+
 # Todo lo generado en runtime dentro de data/ (DB + sidecars de WAL, logs
 # rotados, flags de migración, backups ad-hoc con nombre arbitrario) --
 # antes solo cubría data/*.db y *.log, que no alcanzan a bot.db-shm/-wal
