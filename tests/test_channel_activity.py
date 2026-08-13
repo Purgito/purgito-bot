@@ -109,17 +109,25 @@ def test_canal_activo_dispara_donde_uno_tranquilo_no_dispara(monkeypatch):
     assert hot_result is True
 
 
-def test_la_probabilidad_boosteada_nunca_llega_a_1(monkeypatch):
+def test_la_probabilidad_boosteada_nunca_supera_el_cap_de_095(monkeypatch):
     _clock(monkeypatch, 1000.0)
     for _ in range(1000):
         generation._bump_channel_activity(1, 10)  # actividad extrema
 
     monkeypatch.setattr(generation.random, "random", lambda: 0.951)
 
-    result = generation.note_message_for_auto_generate(1, 10, every=1, probability=1.0)
-    # random()=0.951 > el tope de 0.95: ni con actividad extrema y
-    # probability=1.0 debería dispararse siempre.
+    result = generation.note_message_for_auto_generate(1, 10, every=1, probability=0.9)
+    # random()=0.951 > el tope de 0.95: para probability < 1.0 el boost
+    # nunca supera 0.95.
     assert result is False
+
+
+def test_probabilidad_1_0_siempre_dispara(monkeypatch):
+    """probability=1.0 configurado explícitamente dispara siempre al cumplirse every."""
+    _clock(monkeypatch, 1000.0)
+    monkeypatch.setattr(generation.random, "random", lambda: 0.999)
+    result = generation.note_message_for_auto_generate(1, 10, every=1, probability=1.0)
+    assert result is True
 
 
 def test_sin_boost_se_comporta_igual_que_antes(monkeypatch):

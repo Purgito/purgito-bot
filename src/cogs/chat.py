@@ -122,12 +122,24 @@ _trigger_markov_cooldowns: LRUDict = LRUDict(1024)
 # mensaje por cada mensaje que aprendía, o sea spam 1:1 con el canal, y la
 # única salida visible para el servidor era echarlo.
 #
+# Piso de silencio entre dos mensajes espontáneos en el MISMO canal. De los
+# tres caminos que generan texto, este era el único sin ningún freno: una
+# mención pasa por mention_rate_limit y un trigger por
+# _TRIGGER_MARKOV_COOLDOWN, pero hablar por su cuenta solo dependía de
+# auto_generate_every y auto_generate_probability -- los dos configurables
+# desde el dashboard. Con every=1 y probability=100% el bot contestaba un
+# mensaje por cada mensaje que aprendía, o sea spam 1:1 con el canal, y la
+# única salida visible para el servidor era echarlo.
+#
 # A propósito NO es configurable por servidor: es un piso de seguridad, y un
 # piso que el admin puede bajar a 0 no es un piso. Queda holgado (45 s) para
 # no cambiarle la conducta a nadie que ya tenga una config sana -- solo corta
 # el caso patológico.
-# ponytail: constante fija; si algún día hace falta afinarla, que sea una env
-# var del deploy y no un campo más del dashboard.
+#
+# NOTA DE SEGURIDAD (S8): Esta constante es una defensa de ritmo por canal en
+# Discord. La protección PRINCIPAL contra agotamiento del ThreadPoolExecutor
+# compartido por múltiples guilds/canales reside en generation.markov_limiter (semáforo
+# global con descarte no-bloqueante), no en un cooldown local.
 _SPONTANEOUS_COOLDOWN = 45.0
 _spontaneous_cooldowns: LRUDict = LRUDict(1024)
 
@@ -158,9 +170,8 @@ def _check_spontaneous_cooldown(guild_id: int, channel_id: int) -> bool:
     """True si el bot puede hablar solo en este canal ahora (y lo marca).
 
     Se marca al consultar, no al enviar: así también frena los intentos de
-    generación (que cuestan un turno del ThreadPoolExecutor) cuando el canal
-    viene disparando la oportunidad una y otra vez, y cubre por igual el
-    camino del GIF y el del texto.
+    generación cuando el canal viene disparando la oportunidad una y otra vez,
+    y cubre por igual el camino del GIF y el del texto.
     """
     now = time.monotonic()
     key = (guild_id, channel_id)
@@ -737,6 +748,7 @@ class Chat(commands.Cog):
                         message.guild.id,
                         message.channel.id,
                         special_phrase_probability=settings["frase_probability"],
+                        wait=False,
                     )
                     if text is not None:
                         if is_special:

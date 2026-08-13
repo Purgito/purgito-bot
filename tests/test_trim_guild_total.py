@@ -31,7 +31,9 @@ def test_water_fill_threshold_small_channels_never_forced_below_their_own_count(
 
 
 def test_water_fill_threshold_under_cap_is_noop():
-    assert db._water_fill_threshold([5, 3, 2], 100) == 5  # max(counts), nada que recortar
+    assert (
+        db._water_fill_threshold([5, 3, 2], 100) == 5
+    )  # max(counts), nada que recortar
 
 
 def test_water_fill_threshold_empty():
@@ -59,7 +61,12 @@ async def _insert_n(conn, guild_id, channel_id, n, start=0):
         await conn.execute(
             "INSERT INTO corpus_messages (guild_id, channel_id, message_id, content) "
             "VALUES (?, ?, ?, ?)",
-            (guild_id, channel_id, guild_id * 1_000_000 + channel_id * 1000 + i, f"msg{i}"),
+            (
+                guild_id,
+                channel_id,
+                guild_id * 1_000_000 + channel_id * 1000 + i,
+                f"msg{i}",
+            ),
         )
     await conn.commit()
 
@@ -106,7 +113,9 @@ def test_trim_deletes_oldest_within_each_trimmed_channel(memory_db):
         )
         remaining = [r[0] async for r in cur]
         # quedan los 4 más nuevos de los 8 originales (msg4..msg7)
-        assert remaining == [_GUILD * 1_000_000 + _CHAN_A * 1000 + i for i in (4, 5, 6, 7)]
+        assert remaining == [
+            _GUILD * 1_000_000 + _CHAN_A * 1000 + i for i in (4, 5, 6, 7)
+        ]
 
     asyncio.run(run())
 

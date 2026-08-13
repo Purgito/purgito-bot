@@ -5,6 +5,7 @@ cadencia de generación). Cualquier cambio aquí afecta el tono en producción.
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 import logging
 import random
 import re
@@ -209,6 +210,66 @@ def _activity_multiplier(score: float) -> float:
     return min(_ACTIVITY_BOOST_CAP, 1.0 + score / _ACTIVITY_PER_BOOST)
 
 
+_MAX_CONCURRENT_MARKOV_TASKS = 4
+
+
+class MarkovConcurrencyLimiter:
+    """Límite global de concurrencia para generación y entrenamiento Markov (S8).
+
+    Protege el ThreadPoolExecutor global compartido contra saturación por
+    múltiples guilds/canales intentando generar o entrenar modelos en paralelo.
+
+    - slot(wait=False): Adquiere un slot de forma no bloqueante y atómica. Si no
+      hay slots libres, yield False de inmediato. Usado por la generación espontánea
+      para descartar la oportunidad de inmediato sin encolar trabajo en el executor.
+    - slot(wait=True): Adquisición asíncrona estándar (espera slot). Usado por
+      comandos explícitos del usuario (/generar, /imitar, menciones, playground)
+      donde el usuario espera activamente una respuesta.
+    """
+
+    def __init__(self, max_concurrent: int = _MAX_CONCURRENT_MARKOV_TASKS):
+        self.max_concurrent = max_concurrent
+        self._sem: asyncio.Semaphore | None = None
+
+    def _get_sem(self) -> asyncio.Semaphore:
+        if self._sem is None:
+            self._sem = asyncio.Semaphore(self.max_concurrent)
+        return self._sem
+
+    def try_acquire(self) -> bool:
+        sem = self._get_sem()
+        if sem.locked():
+            return False
+        # En el bucle de eventos single-threaded de asyncio, decrementar _value
+        # de forma síncrona cuando not locked() es atómico y sin carreras.
+        sem._value -= 1
+        return True
+
+    async def acquire(self) -> None:
+        sem = self._get_sem()
+        await sem.acquire()
+
+    def release(self) -> None:
+        sem = self._get_sem()
+        sem.release()
+
+    @asynccontextmanager
+    async def slot(self, *, wait: bool = False):
+        if not wait:
+            if not self.try_acquire():
+                yield False
+                return
+        else:
+            await self.acquire()
+        try:
+            yield True
+        finally:
+            self.release()
+
+
+markov_limiter = MarkovConcurrencyLimiter()
+
+
 def note_message_for_auto_generate(
     guild_id: int,
     channel_id: int,
@@ -225,9 +286,11 @@ def note_message_for_auto_generate(
     de mensajes hace que el bot intervenga con más ganas, no solo cuando el
     contador fijo se cumple. Un canal recién creado (sin historial de
     actividad todavía) arranca en multiplicador 1.0 -- ningún cambio de
-    conducta hasta que de verdad haya actividad que medir. Tope en 0.95 --
-    ni con el canal más activo posible deja de haber margen para que no
-    hable, la sorpresa es parte de la gracia.
+    conducta hasta que de verdad haya actividad que medir.
+
+    Si el admin configuró explícitamente probability >= 1.0 (100%), la probabilidad
+    es 1.0 exacta. Para valores menores a 1.0, el boost por actividad está topeado en 0.95
+    para mantener margen de sorpresa en uso casual.
 
     `every`/`probability` son por servidor y los pasa cogs/chat.py desde
     get_effective_chat_settings; los de config.py quedaron solo como
@@ -245,6 +308,8 @@ def note_message_for_auto_generate(
     # sin avanzar nunca y el bot mudo: se trata igual que 1.
     if n >= max(1, every):
         _message_counter[key] = 0
+        if probability >= 1.0:
+            return True
         boosted = min(0.95, probability * _activity_multiplier(activity_before))
         return random.random() < boosted
     _message_counter[key] = n
@@ -289,75 +354,92 @@ async def build_markov_model(guild_id: int) -> SimpleMarkov | None:
     return model
 
 
-async def generate_markov_reply(guild_id: int) -> str | None:
-    model = await build_markov_model(guild_id)
-    if not model or model.is_empty:
-        return None
+async def generate_markov_reply(guild_id: int, *, wait: bool = True) -> str | None:
+    async with markov_limiter.slot(wait=wait) as acquired:
+        if not acquired:
+            log.debug(
+                "Generación Markov descartada por saturación global (guild %s)",
+                guild_id,
+            )
+            return None
+        model = await build_markov_model(guild_id)
+        if not model or model.is_empty:
+            return None
 
-    try:
-        sentence = await asyncio.to_thread(
-            model.generate,
-            max_words=20,
-            max_attempts=5,
-            min_words=1,
-        )
-    except Exception:
-        log.exception("Error generando frase Markov para guild %s", guild_id)
-        sentence = None
+        try:
+            sentence = await asyncio.to_thread(
+                model.generate,
+                max_words=20,
+                max_attempts=5,
+                min_words=1,
+            )
+        except Exception:
+            log.exception("Error generando frase Markov para guild %s", guild_id)
+            sentence = None
 
-    return sentence
+        return sentence
 
 
-async def generate_markov_word(guild_id: int) -> str | None:
+async def generate_markov_word(guild_id: int, *, wait: bool = True) -> str | None:
     """Una sola palabra del modelo Markov del guild -- para el tag
     {{markov.word}} de las frases especiales (ver render_frase_template en
     cogs/chat.py). Mismo modelo cacheado que generate_markov_reply."""
-    model = await build_markov_model(guild_id)
-    if not model or model.is_empty:
-        return None
-    try:
-        word = await asyncio.to_thread(
-            model.generate, max_words=1, max_attempts=5, min_words=1
-        )
-    except Exception:
-        log.exception("Error generando palabra Markov para guild %s", guild_id)
-        word = None
-    return word
-
-
-async def generate_markov_for_user(guild_id: int, author_id: int) -> str | None:
-    key = (guild_id, author_id)
-    model = _user_markov_cache.get(key)
-    if model is None:
-        corpus = await get_user_messages(
-            guild_id, author_id, limit=config.USER_MARKOV_TRAINING_MESSAGES
-        )
-        if len(corpus) < 30:
+    async with markov_limiter.slot(wait=wait) as acquired:
+        if not acquired:
             return None
+        model = await build_markov_model(guild_id)
+        if not model or model.is_empty:
+            return None
+        try:
+            word = await asyncio.to_thread(
+                model.generate, max_words=1, max_attempts=5, min_words=1
+            )
+        except Exception:
+            log.exception("Error generando palabra Markov para guild %s", guild_id)
+            word = None
+        return word
 
-        def build() -> SimpleMarkov:
-            m = SimpleMarkov()
-            m.add_many(corpus)
-            return m
+
+async def generate_markov_for_user(
+    guild_id: int, author_id: int, *, wait: bool = True
+) -> str | None:
+    async with markov_limiter.slot(wait=wait) as acquired:
+        if not acquired:
+            return None
+        key = (guild_id, author_id)
+        model = _user_markov_cache.get(key)
+        if model is None:
+            corpus = await get_user_messages(
+                guild_id, author_id, limit=config.USER_MARKOV_TRAINING_MESSAGES
+            )
+            if len(corpus) < 30:
+                return None
+
+            def build() -> SimpleMarkov:
+                m = SimpleMarkov()
+                m.add_many(corpus)
+                return m
+
+            try:
+                model = await asyncio.to_thread(build)
+            except Exception:
+                log.exception(
+                    "Error construyendo modelo Markov para usuario %s", author_id
+                )
+                return None
+            _user_markov_cache[key] = model
 
         try:
-            model = await asyncio.to_thread(build)
+            sentence = await asyncio.to_thread(
+                model.generate,
+                max_words=20,
+                max_attempts=5,
+                min_words=1,
+            )
         except Exception:
-            log.exception("Error construyendo modelo Markov para usuario %s", author_id)
-            return None
-        _user_markov_cache[key] = model
-
-    try:
-        sentence = await asyncio.to_thread(
-            model.generate,
-            max_words=20,
-            max_attempts=5,
-            min_words=1,
-        )
-    except Exception:
-        log.exception("Error generando frase Markov para usuario %s", author_id)
-        sentence = None
-    return sentence
+            log.exception("Error generando frase Markov para usuario %s", author_id)
+            sentence = None
+        return sentence
 
 
 def empty_corpus_reply(guild_id: int, locale: str, throttle: bool = False) -> str:
@@ -382,6 +464,7 @@ async def generate_response(
     channel_id: int,
     *,
     special_phrase_probability: float = config.SPECIAL_PHRASE_PROBABILITY,
+    wait: bool = True,
 ) -> tuple[str | None, bool]:
     """Decide entre frase especial o Markov. Retorna (texto, es_especial).
     es_especial=True indica que el texto no debe pasar por post_process_reply.
@@ -392,6 +475,7 @@ async def generate_response(
     chat directo, igual que note_message_for_auto_generate recibe `every`/
     `probability` en vez de leerlos de settings él mismo. El default de la
     firma solo cubre a /imitar y otros llamadores que todavía no la resuelven.
+    `wait=False` descarta inmediatamente si el semáforo Markov global está ocupado.
     """
     now = time.monotonic()
     cooldown_ok = (
@@ -408,4 +492,8 @@ async def generate_response(
         if phrase:
             _special_phrase_cooldowns[guild_id] = now
             return phrase, True
-    return await generate_markov_reply(guild_id), False
+    try:
+        reply = await generate_markov_reply(guild_id, wait=wait)
+    except TypeError:
+        reply = await generate_markov_reply(guild_id)
+    return reply, False

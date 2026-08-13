@@ -12,7 +12,7 @@ import discord
 import pytest
 
 import db
-from cogs.layout_buttons import LayoutButtons, register_button_actions
+from cogs.layout_buttons import LayoutButtons
 
 
 @pytest.fixture

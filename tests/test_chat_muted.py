@@ -514,7 +514,7 @@ def _patch_generation(monkeypatch, reply="respuesta"):
     """Corta el Markov: estos tests miran si el bot habla o no, no qué dice.
     Sin esto la rama de respuesta real iría a la DB, que acá no está montada."""
 
-    async def fake_generate(guild_id, channel_id, *, special_phrase_probability=None):
+    async def fake_generate(guild_id, channel_id, *args, **kwargs):
         return reply, True  # is_special=True: se manda tal cual, sin post-proceso
 
     monkeypatch.setattr(chat_mod.generation, "generate_response", fake_generate)

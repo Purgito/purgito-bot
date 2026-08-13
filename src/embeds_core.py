@@ -88,8 +88,15 @@ def validate_embed_payload(embed: dict) -> str | None:
 
     # Discord rechaza embeds sin contenido visible.
     if not any(
-        (title.strip(), description.strip(), fields, footer_text.strip(),
-         author_name.strip(), embed.get("image"), embed.get("thumbnail"))
+        (
+            title.strip(),
+            description.strip(),
+            fields,
+            footer_text.strip(),
+            author_name.strip(),
+            embed.get("image"),
+            embed.get("thumbnail"),
+        )
     ):
         return "el embed está vacío: completa al menos un campo"
 
@@ -100,9 +107,7 @@ def validate_embed_payload(embed: dict) -> str | None:
         except ValueError:
             return "color inválido: usa formato #RRGGBB"
         embed["color"] = color
-    if color is not None and not (
-        isinstance(color, int) and 0 <= color <= 0xFFFFFF
-    ):
+    if color is not None and not (isinstance(color, int) and 0 <= color <= 0xFFFFFF):
         return "color inválido: fuera de rango"
     return None
 

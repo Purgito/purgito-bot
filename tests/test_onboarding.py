@@ -26,7 +26,11 @@ def _guild(channels):
 
 
 def test_scan_separates_visible_and_hidden():
-    chans = [_channel("general", True), _channel("staff", False), _channel("bots", True)]
+    chans = [
+        _channel("general", True),
+        _channel("staff", False),
+        _channel("bots", True),
+    ]
     scan = _scan_channel_visibility(_guild(chans))
     assert scan["total"] == 3
     assert [c.name for c in scan["visible"]] == ["general", "bots"]

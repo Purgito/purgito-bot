@@ -36,7 +36,12 @@ async def _insert_n(conn, guild_id, channel_id, n, start=0):
         await conn.execute(
             "INSERT INTO corpus_messages (guild_id, channel_id, message_id, content) "
             "VALUES (?, ?, ?, ?)",
-            (guild_id, channel_id, guild_id * 1_000_000 + channel_id * 1000 + i, f"msg{i}"),
+            (
+                guild_id,
+                channel_id,
+                guild_id * 1_000_000 + channel_id * 1000 + i,
+                f"msg{i}",
+            ),
         )
     await conn.commit()
 
@@ -75,9 +80,7 @@ def test_trim_deletes_oldest_first(memory_db):
         )
         remaining = [r[0] async for r in cur]
         # se insertaron msg0..msg4 (ids ascendentes); deben quedar los 3 más nuevos
-        assert remaining == [
-            _GUILD * 1_000_000 + _CHAN_A * 1000 + i for i in (2, 3, 4)
-        ]
+        assert remaining == [_GUILD * 1_000_000 + _CHAN_A * 1000 + i for i in (2, 3, 4)]
 
     asyncio.run(run())
 

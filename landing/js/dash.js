@@ -1009,8 +1009,9 @@ async function loadChatTab() {
           el('div', { class: 'chain-step-head' },
             el('span', { class: 'chain-num' }, '1'),
             el('h3', {}, '¿Arranca una charla solo?'),
-            helpIcon('Solo para cuando habla por su cuenta. Si lo mencionan '
-              + 'responde igual, sin pasar por este paso.')),
+            helpIcon('Solo para cuando habla por su cuenta (con un piso de silencio de '
+              + '45 s en el canal para no spamear). Si lo mencionan responde directo, '
+              + 'sin pasar por este paso.')),
           el('div', { class: 'chain-fields' },
             numberField('Cada cuántos mensajes nuevos', null, {
               key: 'auto_generate_every',
