@@ -189,6 +189,11 @@ de Purgito). La inspiración de layout/pulido viene de wamellow.com, pero
 nunca copiar su violeta, su mascota ni contenido específico de ellos —
 solo la técnica.
 
+Patrones de UI ya validados en el tab CHAT del dashboard (paleta de uso,
+`probabilityField`, chips, matriz de canales, override por canal, regla de
+uso de ⓘ) están documentados en `landing/DESIGN_SYSTEM.md` — revisarlo antes
+de reinventar algo parecido al propagar la arquitectura de CHAT a otros tabs.
+
 ## Convención de bocetos
 
 Un recuadro vacío junto a un texto en los wireframes de `bocetos/` es un

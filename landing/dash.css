@@ -1800,10 +1800,10 @@ h1 {
 }
 
 /* Ajustes propios de un canal: una fila por tunable. El estado (hereda vs
-   propio) lo carga el campo — atenuado si hereda, normal y con ↺ si no — en
-   vez de la oración "Valor efectivo acá: X (default del servidor)" que antes
-   se repetía por cada uno de los seis. */
-.ovr-hint { margin: 0 0 var(--space-3); font-size: var(--t-sm); }
+   propio) lo carga el campo — atenuado si hereda, normal y con ↺ si no — y
+   la cifra real va en .ovr-caption debajo de cada uno ("15 mensajes · valor
+   del servidor" / "valor propio de este canal"), no en un párrafo único
+   arriba de la grilla explicando de dónde salen los valores atenuados. */
 .ovr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-3) var(--space-4); }
 .ovr-row > label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 13px; }
 .ovr-control { display: flex; align-items: center; gap: 6px; }
@@ -1811,6 +1811,7 @@ h1 {
 .ovr-row.is-override .num-input { color: var(--text); border-color: var(--accent); }
 .ovr-row.is-override > label { color: var(--accent-2); }
 .ovr-suffix { font-size: 12px; }
+.ovr-caption { display: block; margin-top: 4px; font-size: 12px; }
 .ovr-reset {
   background: none; border: 0; color: var(--text-muted); cursor: pointer;
   font-size: 14px; line-height: 1; padding: 4px 6px; border-radius: var(--radius-sm);

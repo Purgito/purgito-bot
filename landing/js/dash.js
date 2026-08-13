@@ -481,6 +481,22 @@ function amnesiaButton() {
 
 /* Guarda un ajuste numérico del chat. El backend recorta al rango y devuelve
    lo que quedó, así que el input se corrige solo si te pasaste. */
+/* Un <input type="number"> dispara `change` en cada paso del stepper nativo
+   (flechita o ↑/↓ con foco), no solo al salir del campo -- confirmado a mano,
+   no es la lectura habitual de "change = onBlur". Bajar 3 puntos de una
+   tocaba 3 PUT y 3 filas de Historial para el mismo campo. Debounce por
+   campo (cada llamada a numberField/probabilityField/channelOverrideRow crea
+   su propio temporizador) junta esos pasos en un solo guardado. */
+function debounce(fn, delayMs) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delayMs);
+  };
+}
+
+const TUNABLE_SAVE_DEBOUNCE_MS = 500;
+
 async function saveTunable(key, value, label, onSaved) {
   try {
     const r = await apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
@@ -494,17 +510,18 @@ async function saveTunable(key, value, label, onSaved) {
 }
 
 /* Campo numérico con autoguardado al salir del input (change, no input: no
-   tiene sentido pegarle a la API en cada tecla). */
+   tiene sentido pegarle a la API en cada tecla) -- debounced, ver nota en
+   debounce() arriba. */
 function numberField(label, help, { key, value, min, max, step, suffix, save = saveTunable }) {
   const input = el('input', {
     type: 'number', value: String(value), min: String(min),
     max: String(max), step: String(step || 1), class: 'num-input',
   });
-  input.onchange = () => {
+  input.onchange = debounce(() => {
     save(key, Number(input.value), label, (saved) => {
       input.value = String(saved);
     });
-  };
+  }, TUNABLE_SAVE_DEBOUNCE_MS);
   return el('div', { class: 'field' },
     el('label', {}, label),
     el('div', { class: 'num-row' }, input, suffix ? el('span', { class: 'dim' }, suffix) : null),
@@ -522,14 +539,14 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
     type: 'number', min: '0', max: '100', step: '1', value: String(pct), class: 'num-input',
   });
   const bar = el('progress', { class: 'prob-bar', value: String(pct), max: '100' });
-  input.onchange = () => {
+  input.onchange = debounce(() => {
     const clamped = Math.max(0, Math.min(100, Number(input.value) || 0));
     save(key, clamped / 100, label, (saved) => {
       const back = Math.round(saved * 100);
       input.value = String(back);
       bar.value = back;
     });
-  };
+  }, TUNABLE_SAVE_DEBOUNCE_MS);
   return el('div', { class: 'field' },
     el('label', {}, label),
     el('div', { class: 'prob-row' }, input, el('span', { class: 'dim' }, '%')),
@@ -560,18 +577,29 @@ function channelOverrideRow(channelId, spec) {
     class: 'ovr-reset', title: 'Volver al valor del servidor', 'aria-label': 'Volver al valor del servidor',
     onclick: () => save(null),
   }, '↺');
+  const caption = el('span', { class: 'dim ovr-caption' });
   const row = el('div', { class: 'ovr-row' },
     el('label', {}, label, help ? helpIcon(help) : null),
     el('div', { class: 'ovr-control' },
       input,
       suffix ? el('span', { class: 'dim ovr-suffix' }, suffix) : null,
-      reset));
+      reset),
+    caption);
+
+  const fmt = v => {
+    const n = toInput(v);
+    if (!suffix) return String(n);
+    return kind === 'percent' ? `${n}${suffix}` : `${n} ${suffix}`;
+  };
 
   function paint() {
     const inherited = override === null || override === undefined;
     input.value = String(toInput(inherited ? effective : override));
     row.classList.toggle('is-override', !inherited);
     reset.hidden = inherited;
+    caption.textContent = inherited
+      ? `${fmt(effective)} · valor del servidor`
+      : 'valor propio de este canal';
   }
 
   async function save(raw) {
@@ -590,11 +618,11 @@ function channelOverrideRow(channelId, spec) {
     }
   }
 
-  input.onchange = () => {
+  input.onchange = debounce(() => {
     const lo = kind === 'percent' ? 0 : min;
     const hi = kind === 'percent' ? 100 : max;
     save(Math.max(lo, Math.min(hi, Number(input.value) || 0)));
-  };
+  }, TUNABLE_SAVE_DEBOUNCE_MS);
 
   paint();
   return row;
@@ -906,8 +934,6 @@ async function loadChatTab() {
         const rng = (k, d) => lim2[k] || d;
         panel.innerHTML = '';
         panel.append(
-          el('p', { class: 'dim ovr-hint' },
-            'Los valores atenuados los toma del servidor. Edita uno y este canal usa el suyo.'),
           el('div', { class: 'ovr-grid' },
             channelOverrideRow(ch.id, {
               key: 'auto_generate_every', label: 'Cada cuántos mensajes', kind: 'number',
@@ -1034,8 +1060,7 @@ async function loadChatTab() {
         }),
         el('div', { class: 'field' },
           el('label', {}, 'Emojis que puede usar', helpIcon(
-            'Elige de cuáles saca el emoji. Se evalúa en cada mensaje que lee, '
-            + 'sin relación con si decide responder.')),
+            'Se evalúa en cada mensaje que lee, sin relación con si decide responder.')),
           reaccionesBox));
     }
 
@@ -1044,8 +1069,7 @@ async function loadChatTab() {
       const exemptSelected = new Set(exempt.roles.map(r => r.id));
       const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
       return formGroup(el('span', {}, 'Límite de actividad',
-        helpIcon('Tope de interacciones por hora y por usuario, para que nadie '
-          + 'genere actividad falsa con Purgito. 0 = sin límite.')),
+        helpIcon('0 = sin límite.')),
         numberField('Menciones por hora', null, {
           key: 'mention_rate_limit',
           value: chat.mention_rate_limit,
@@ -1073,9 +1097,7 @@ async function loadChatTab() {
             listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
           })),
         el('div', { class: 'field' },
-          el('label', {}, 'Canales exentos del límite',
-            helpIcon('Acá el tope no cuenta: útil para un #bot-testing sin tener '
-              + 'que crear un rol solo para eso.')),
+          el('label', {}, 'Canales exentos del límite'),
           channelToggleList({
             channels,
             isSelected: id => exemptChannelsSelected.has(id),
@@ -1116,9 +1138,7 @@ async function loadChatTab() {
 
       return el('div', {},
         formGroup(el('span', {}, 'Frases',
-          helpIcon('Frases tuyas que Purgito manda de vez en cuando, en vez de '
-            + 'inventar el mensaje. Con qué frecuencia lo hace se ajusta en '
-            + 'Comportamiento, paso 3.')),
+          helpIcon('Con qué frecuencia las usa se ajusta en Comportamiento, paso 3.')),
           frasesBox,
           accordionGroup('Tags que puedes usar en una frase', false,
             el('div', { class: 'tag-list' },
@@ -1355,8 +1375,9 @@ function cupoLine(used, limit, singular, plural, lleno_msg) {
 function renderFrases(box, frases, packs, limit) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
-  box.append(cupoLine(frases.length, limit, 'frase usada', 'frases usadas',
-    'elimina una para agregar otra.'));
+  const cupo = cupoLine(frases.length, limit, 'frase usada', 'frases usadas',
+    'elimina una para agregar otra.');
+  if (cupo) box.append(cupo);
   if (!frases.length) list.append(el('li', { class: 'dim' }, 'Todavía no has agregado ninguna frase.'));
   for (const f of frases) {
     let packSelect = null;
@@ -1419,8 +1440,9 @@ async function reloadFrases(box, packs) {
 // más, uno por pack, que la mayoría de las veces nadie va a mirar.
 function renderFrasePacks(box, packs, channels, frasesBox, limit) {
   box.innerHTML = '';
-  box.append(cupoLine(packs.length, limit, 'pack usado', 'packs usados',
-    'elimina uno para agregar otro.'));
+  const cupo = cupoLine(packs.length, limit, 'pack usado', 'packs usados',
+    'elimina uno para agregar otro.');
+  if (cupo) box.append(cupo);
   if (!packs.length) {
     box.append(el('p', { class: 'dim' },
       'Sin packs todavía — todas las frases están en el pool default del servidor.'));
@@ -1543,8 +1565,9 @@ function describeTrigger(trig, channels, packs) {
 function renderTriggers(box, data, channels, packs) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
-  box.append(cupoLine(data.triggers.length, data.limit, 'trigger usado', 'triggers usados',
-    'elimina uno para agregar otro.'));
+  const cupo = cupoLine(data.triggers.length, data.limit, 'trigger usado', 'triggers usados',
+    'elimina uno para agregar otro.');
+  if (cupo) box.append(cupo);
   if (!data.triggers.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
   for (const trig of data.triggers) {
     const d = describeTrigger(trig, channels, packs);
@@ -1697,10 +1720,11 @@ function playgroundAvisos(avisos) {
 
 function renderPlaygroundResult(box, data) {
   box.innerHTML = '';
+  const avisos = playgroundAvisos(data.avisos);
   if (!data.would_respond) {
     box.append(el('p', { class: 'dim' },
       PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'No respondería.'));
-    box.append(playgroundAvisos(data.avisos));
+    if (avisos) box.append(avisos);
     return;
   }
   box.append(
@@ -1708,8 +1732,8 @@ function renderPlaygroundResult(box, data) {
     el('div', {
       style: 'border:1px solid var(--border);border-radius:var(--radius-sm);'
         + 'padding:12px;background:var(--surface-card)',
-    }, data.text),
-    playgroundAvisos(data.avisos));
+    }, data.text));
+  if (avisos) box.append(avisos);
 }
 
 // ---------------- MEMES (stub) ----------------

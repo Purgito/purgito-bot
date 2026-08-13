@@ -263,7 +263,8 @@ export async function loadGifs() {
     _gifStatsEl = el('div', { class: 'dim gif-stats' });
     box.append(_gifStatsEl);
     updateGifStats();
-    box.append(autoRemovedNote(data.auto_removed_30d || 0));
+    const autoRemoved = autoRemovedNote(data.auto_removed_30d || 0);
+    if (autoRemoved) box.append(autoRemoved);
 
     const input = el('input', { type: 'text', placeholder: 'https://tenor.com/… o URL de R2', style: 'flex:1' });
     const verifyBtn = el('button', {
