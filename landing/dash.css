@@ -50,6 +50,12 @@ h1 { font-family: var(--font-head); font-size: var(--t-2xl); font-weight: 700; c
 .dim { color: var(--text-muted); }
 .error { color: var(--danger); }
 
+/* El `display` de cualquier clase propia gana por especificidad sobre el
+   `[hidden] { display: none }` del navegador: un panel con display:flex
+   quedaba visible pese a tener el atributo puesto (así se ocultan las
+   sub-pestañas de CHAT y las filas filtradas de la matriz de canales). */
+[hidden] { display: none !important; }
+
 /* ---------- Foco visible por teclado y motion reducido ---------- */
 
 a:focus-visible,
@@ -1612,44 +1618,51 @@ h1 {
 .chat-subtab:hover { color: var(--text); }
 .chat-subtab.active { color: var(--text); border-bottom-color: var(--accent-2); }
 
-/* Caption de grupo ("Esencial" / "Avanzado") antes del primer link de cada
-   grupo -- no es una pestaña nueva, solo señala jerarquía dentro de la misma
-   subnav (revisión UX de CHAT: 7 sub-pestañas sin ninguna indicación de qué
-   es esencial tocar primero). */
-.chat-subtabs-caption {
-  align-self: center; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
-}
-.chat-subtabs-caption:not(:first-child) { margin-left: 4px; padding-left: 14px; border-left: 1px solid var(--border); }
+/* La subnav es solo links: la jerarquía la da el orden y el peso, no captions
+   de texto intercalados (competían por el mismo espacio que los tabs). */
+.chat-subtabs { justify-content: space-between; align-items: flex-end; }
+.chat-subtabs-links { display: flex; gap: 18px; overflow-x: auto; }
 
-/* Cards de "Canales" (dónde responde / de dónde aprende). Antes eran dos
-   formGroup idénticos separados por un simple divisor — la confusión que
-   motivó darles su propia sub-pestaña — así que ahora cada una es una caja
-   con borde propio, no solo un título más. */
-.channel-card {
-  background: var(--surface-card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: var(--space-6);
+/* "Probar" (Playground): acción, no sección — separada a la derecha y con
+   forma de boton para que se lea distinto de los tabs de configuración. */
+.chat-subtab-try {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px;
+  padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-card); color: var(--text-dim);
 }
-.channel-card + .channel-card { margin-top: var(--space-4); }
-.channel-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.channel-card-head .nav-icon { width: 20px; height: 20px; color: var(--accent); flex: none; }
-.channel-card-head h3 { margin: 0; font-size: var(--t-md); font-weight: 700; color: var(--text); }
+.chat-subtab-try:hover { border-color: var(--accent); color: var(--text); }
+.chat-subtab-try.active { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft-bg); }
+.chat-subtab-try .nav-icon { width: 14px; height: 14px; }
+.chat-subtab-try .nav-icon svg { width: 14px; height: 14px; }
 
-/* CHAT → Personalidad: cadena de 3 pasos ("Cuando decide responder"). Línea
-   vertical + conector corto por paso en vez de un componente de árbol nuevo
-   -- comunica la dependencia secuencial real (ver comentario de
-   buildPersonalidad en dash.js) sin inventar interacción nueva. */
-.chain { display: flex; flex-direction: column; margin-left: 10px; padding-left: 20px; border-left: 2px solid var(--border-card); }
-.chain-step {
-  position: relative; background: var(--surface-card); border: 1px solid var(--border);
-  border-radius: var(--radius-md); padding: var(--space-4);
+/* Switch maestro del chat: una línea sobre la subnav, no un formGroup con
+   título y párrafo propio que se comía ~100px en todas las sub-pestañas. */
+.chat-master { display: flex; align-items: center; gap: 6px; margin-bottom: var(--space-4); }
+
+/* CHAT → Comportamiento: la cadena como UNA secuencia, no tres cards sueltas.
+   La linea vertical corre por detras de los numeros y los une; cada paso es
+   una fila, no una caja con borde propio, para que se lea como un flujo. */
+.chain { position: relative; display: flex; flex-direction: column; gap: var(--space-6); }
+.chain::before {
+  content: ''; position: absolute; left: 13px; top: 14px; bottom: 14px;
+  width: 2px; background: var(--border-card);
 }
-.chain-step + .chain-step { margin-top: 18px; }
-.chain-step::before {
-  content: ''; position: absolute; left: -21px; top: 22px; width: 12px; height: 2px;
-  background: var(--border-card);
+.chain-step { position: relative; }
+.chain-step-head { display: flex; align-items: center; gap: 10px; }
+.chain-step-head h3 { margin: 0; font-size: var(--t-md); font-weight: 700; color: var(--text); }
+.chain-num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-raised); border: 2px solid var(--border-card);
+  color: var(--accent-2); font-weight: 700; font-size: 13px;
+  font-family: var(--font-mono); z-index: 1;
 }
-.chain-step-label { font-weight: 700; font-size: var(--t-sm); color: var(--accent-2); margin-bottom: 8px; }
+/* Los campos alineados con el titulo, pasada la columna de numeros. */
+.chain-fields { display: flex; flex-wrap: wrap; gap: var(--space-6); margin: 10px 0 0 38px; }
+.chain-fields .field { margin-bottom: 0; }
+
+/* Lista de tags de frase: chips en vez de un parrafo con comas. */
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* CHAT → Triggers: card en vez de fila de texto plano, canal como badge y
    acción destacada para escanear la lista de un vistazo. */
@@ -1659,23 +1672,23 @@ h1 {
 .trigger-action { font-weight: 600; color: var(--accent-2); }
 .trigger-preview { margin-top: 4px; }
 
-/* CHAT: banner dismissible "Primeros pasos" (revisión UX). No es un modal:
-   no interrumpe, solo ofrece atajos a lo esencial cuando el guild todavía no
-   tiene canales de aprendizaje configurados. */
+/* CHAT: aviso dismissible de "todavía no aprende de nada". Una línea, no una
+   card con título y lista: es un atajo, y ocupaba pantalla en la sub-pestaña
+   donde justamente hay que trabajar. */
 .onboarding-banner {
-  position: relative; background: var(--accent-soft-bg);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  border-radius: var(--radius-lg); padding: var(--space-6); margin-bottom: var(--space-6);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--accent-soft-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius-md); padding: 8px 12px; margin-bottom: var(--space-4);
+  font-size: var(--t-sm);
 }
-.onboarding-banner h3 { margin: 0 0 6px; font-size: var(--t-md); color: var(--text); }
+.onboarding-banner a { color: var(--accent-2); font-weight: 600; text-decoration: none; }
+.onboarding-banner a:hover { text-decoration: underline; }
 .onboarding-dismiss {
-  position: absolute; top: 10px; right: 10px; background: none; border: 0;
-  color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 4px 8px; line-height: 1;
+  margin-left: auto; background: none; border: 0;
+  color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 2px 6px; line-height: 1;
 }
 .onboarding-dismiss:hover { color: var(--text); }
-.onboarding-steps { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
-.onboarding-steps a { color: var(--accent-2); font-weight: 600; text-decoration: none; }
-.onboarding-steps a:hover { text-decoration: underline; }
 
 /* INICIO: estilo + stats */
 .style-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -1743,6 +1756,79 @@ h1 {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
 }
 .chan-chip-x:hover { color: var(--danger); background: var(--danger-soft); }
+
+/* CHAT → Canales: una fila por canal con sus tres pertenencias y sus ajustes
+   propios plegados. Reemplaza 3 dropdowns + 3 listas de chips + la vieja
+   sub-pestaña "Por canal". Grid compartido entre cabecera y filas para que
+   las columnas queden alineadas sin tabla. */
+/* Acotada: con el ancho completo del panel, las casillas quedaban a 700px del
+   nombre del canal y seguir una fila con la vista costaba. */
+.chan-matrix { display: flex; flex-direction: column; gap: 2px; max-width: 680px; }
+.chan-filter { max-width: 280px; margin-bottom: var(--space-3); }
+.chan-matrix-head,
+.chan-matrix-row {
+  display: grid; grid-template-columns: 1fr repeat(4, 76px);
+  align-items: center; gap: 8px;
+}
+/* Sticky: con 18+ canales la cabecera se iba de pantalla y las columnas
+   quedaban sin nombre justo cuando hay que distinguirlas. */
+.chan-matrix-head {
+  position: sticky; top: 0; z-index: 2; background: var(--bg);
+  padding: 6px 12px 8px; border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;
+}
+.chan-matrix-col { display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.chan-matrix-row {
+  padding: 7px 12px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+.chan-matrix-row:hover { background: var(--surface-card); }
+.chan-matrix-row.open { background: var(--surface-card); border-color: var(--border); border-bottom-color: transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.chan-matrix-cell { display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.chan-matrix-cell input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+.chan-gear {
+  background: none; border: 0; color: var(--text-muted); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 3px 6px; border-radius: var(--radius-sm);
+}
+.chan-gear:hover { color: var(--accent-2); background: var(--surface-raised); }
+.chan-matrix-panel {
+  background: var(--surface-card); border: 1px solid var(--border); border-top: 0;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  margin-bottom: 4px;
+}
+
+/* Ajustes propios de un canal: una fila por tunable. El estado (hereda vs
+   propio) lo carga el campo — atenuado si hereda, normal y con ↺ si no — en
+   vez de la oración "Valor efectivo acá: X (default del servidor)" que antes
+   se repetía por cada uno de los seis. */
+.ovr-hint { margin: 0 0 var(--space-3); font-size: var(--t-sm); }
+.ovr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-3) var(--space-4); }
+.ovr-row > label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 13px; }
+.ovr-control { display: flex; align-items: center; gap: 6px; }
+.ovr-control .num-input { width: 5.5rem; color: var(--text-muted); }
+.ovr-row.is-override .num-input { color: var(--text); border-color: var(--accent); }
+.ovr-row.is-override > label { color: var(--accent-2); }
+.ovr-suffix { font-size: 12px; }
+.ovr-reset {
+  background: none; border: 0; color: var(--text-muted); cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 4px 6px; border-radius: var(--radius-sm);
+}
+.ovr-reset:hover { color: var(--accent-2); background: var(--surface-raised); }
+
+@media (max-width: 720px) {
+  /* Columnas más angostas, pero la cabecera NO se oculta: sin ella las tres
+     casillas quedan sin ninguna etiqueta y no hay forma de saber cuál es
+     cuál. Lo que se cae son los ⓘ, que son el extra, no el rótulo. */
+  .chan-matrix-head,
+  .chan-matrix-row { grid-template-columns: minmax(0, 1fr) repeat(4, 52px); gap: 4px; padding-inline: 6px; }
+  .chan-matrix-head { font-size: 9px; letter-spacing: 0; }
+  .chan-matrix-head .help-icon { display: none; }
+  .chan-matrix-row > .chan-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  /* Los ajustes del canal en una sola columna: dos no entran. */
+  .ovr-grid { grid-template-columns: 1fr; }
+}
 /* CHAT: ajustes numéricos (frecuencia, tope de menciones) */
 .num-row { display: flex; align-items: center; gap: 8px; }
 .num-input { width: 7rem; }

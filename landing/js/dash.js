@@ -12,7 +12,7 @@
 import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
-  confirmDelBtn,
+  confirmDelBtn, helpIcon, accordionGroup,
 } from '/js/core/dom.js';
 import { GUILD_ID, currentLocale } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
@@ -537,91 +537,67 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
     help ? el('p', { class: 'dim' }, help) : null);
 }
 
-/* Override por canal de los tunables de chat (Fase 2) — reusa numberField y
-   probabilityField tal cual (les agrega `save` para el endpoint de canal en
-   vez del de servidor), así que la fila real de edición es exactamente la
-   misma que ya conoce el admin en Personalidad/Límites. */
+/* Ajuste de un canal puntual: una sola fila por tunable, sin checkbox de
+   "override" ni frase de estado repetida campo por campo. El input siempre
+   muestra el valor que rige acá; atenuado mientras lo hereda del servidor,
+   normal (y con botón de volver a heredar) cuando el canal tiene el suyo.
+   Editar el input ES activar el override, y ↺ es sacarlo: dos gestos en vez
+   de tres controles, y el estado lo carga el propio campo en vez de una
+   oración que antes se repetía seis veces por canal. */
+function channelOverrideRow(channelId, spec) {
+  const { key, label, help, kind, effective, min, max, suffix } = spec;
+  let override = spec.override;
 
-function channelOverrideBadge(active) {
-  return el('span', { class: 'badge' + (active ? '' : ' badge-dim') },
-    active ? 'Override activo acá' : 'Usando default del servidor');
-}
+  const toInput = v => (kind === 'percent' ? Math.round(v * 100) : v);
+  const toApi = v => (kind === 'percent' ? v / 100 : v);
 
-function makeChannelTunableSaver(channelId) {
-  return async (key, value, label, onSaved) => {
+  const input = el('input', {
+    type: 'number', class: 'num-input',
+    min: String(kind === 'percent' ? 0 : min), max: String(kind === 'percent' ? 100 : max),
+    step: '1',
+  });
+  const reset = el('button', {
+    class: 'ovr-reset', title: 'Volver al valor del servidor', 'aria-label': 'Volver al valor del servidor',
+    onclick: () => save(null),
+  }, '↺');
+  const row = el('div', { class: 'ovr-row' },
+    el('label', {}, label, help ? helpIcon(help) : null),
+    el('div', { class: 'ovr-control' },
+      input,
+      suffix ? el('span', { class: 'dim ovr-suffix' }, suffix) : null,
+      reset));
+
+  function paint() {
+    const inherited = override === null || override === undefined;
+    input.value = String(toInput(inherited ? effective : override));
+    row.classList.toggle('is-override', !inherited);
+    reset.hidden = inherited;
+  }
+
+  async function save(raw) {
+    const prev = override;
     try {
       const r = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
-        method: 'PUT', body: { [key]: value },
+        method: 'PUT', body: { [key]: raw === null ? null : toApi(raw) },
       });
-      if (onSaved && r.saved && key in r.saved) onSaved(r.saved[key]);
-      toast(`${label} actualizado para este canal`, 'ok');
+      override = raw === null ? null : r.saved[key];
+      paint();
+      toast(raw === null ? `${label}: vuelve al valor del servidor` : `${label} actualizado en este canal`, 'ok');
     } catch (e) {
+      override = prev;
+      paint();
       toast(`No se pudo guardar ${label.toLowerCase()}, intenta de nuevo`, 'err');
-    }
-  };
-}
-
-/* Una fila = un tunable + su estado de override en un canal puntual. El
-   toggle prende/apaga el override de verdad (PUT inmediato al marcarlo o
-   desmarcarlo, no solo al tocar el valor) para que el badge nunca mienta:
-   "activo" siempre corresponde a una fila real en channel_settings, nunca a
-   una casilla marcada sin guardar todavía. */
-function channelTunableRow(channelId, buildField, label, help, tunable) {
-  const { key, effective, format } = tunable;
-  let override = tunable.override;
-  let isOverride = override !== null && override !== undefined;
-
-  const badge = channelOverrideBadge(isOverride);
-  const checkbox = el('input', { type: 'checkbox', checked: isOverride });
-  const slot = el('div', {});
-
-  function renderSlot() {
-    slot.innerHTML = '';
-    if (isOverride) {
-      slot.append(buildField(label, help, {
-        ...tunable, value: override, save: makeChannelTunableSaver(channelId),
-      }));
-    } else {
-      slot.append(el('p', { class: 'dim' },
-        `Valor efectivo acá: ${format(effective)} (default del servidor).`));
     }
   }
 
-  checkbox.onchange = async () => {
-    const turningOn = checkbox.checked;
-    try {
-      if (turningOn) {
-        // Arranca en el valor efectivo actual: activar el override no cambia
-        // la conducta del canal hasta que se edite el campo.
-        const r = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
-          method: 'PUT', body: { [key]: override !== null && override !== undefined ? override : effective },
-        });
-        override = r.saved[key];
-        toast(`${label}: override activado para este canal`, 'ok');
-      } else {
-        await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
-          method: 'PUT', body: { [key]: null },
-        });
-        override = null;
-        toast(`${label}: vuelve a usar el default del servidor`, 'ok');
-      }
-    } catch (e) {
-      checkbox.checked = !turningOn;
-      toast('No se pudo actualizar el override, intenta de nuevo', 'err');
-      return;
-    }
-    isOverride = turningOn;
-    badge.className = 'badge' + (isOverride ? '' : ' badge-dim');
-    badge.textContent = isOverride ? 'Override activo acá' : 'Usando default del servidor';
-    renderSlot();
+  input.onchange = () => {
+    const lo = kind === 'percent' ? 0 : min;
+    const hi = kind === 'percent' ? 100 : max;
+    save(Math.max(lo, Math.min(hi, Number(input.value) || 0)));
   };
 
-  renderSlot();
-  return el('div', { class: 'field channel-tunable' },
-    el('div', { style: 'display:flex;align-items:center;gap:8px;justify-content:space-between' },
-      el('label', {}, label), badge),
-    el('label', { class: 'toggle' }, checkbox, ' Override en este canal'),
-    slot);
+  paint();
+  return row;
 }
 
 /* Multi-select de roles con toggle, gemelo de channelToggleList. Los roles no
@@ -632,7 +608,10 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
     'Seleccionar roles…', el('span', { class: 'dd-caret' }, '▾'));
   const dd = el('div', { class: 'dd' }, btn, panel);
   btn.onclick = (e) => { e.stopPropagation(); dd.classList.toggle('open'); };
-  const list = el('ul', { class: 'item-list chan-list' });
+  // Mismos chips que los canales: en Límites conviven las dos listas y una
+  // como filas altas junto a la otra como chips se veía como dos componentes
+  // distintos sin motivo.
+  const list = el('div', { class: 'chan-chips' });
 
   let busy = false;
   async function toggle(role) {
@@ -668,11 +647,13 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
     }
     list.innerHTML = '';
     const sel = roles.filter(r => selected.has(r.id));
-    if (!sel.length) list.append(el('li', { class: 'dim' }, listBelow));
+    if (!sel.length) list.append(el('span', { class: 'dim' }, listBelow));
     for (const role of sel) {
-      list.append(el('li', {},
+      list.append(el('span', { class: 'chan-chip' },
         roleLabel(role),
-        el('button', { class: 'btn btn-danger btn-sm', onclick: () => toggle(role) }, 'Quitar')));
+        el('button', {
+          class: 'chan-chip-x', 'aria-label': `Quitar @${role.name}`, onclick: () => toggle(role),
+        }, '✕')));
     }
   }
   render();
@@ -684,41 +665,33 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
 // vez de un segmento de path, porque el path ya está tomado por el tab
 // principal ('chat') y por el GUILD_ID.
 //
-// `group` separa "lo esencial para que el bot funcione a gusto" de "ajuste
-// fino que se toca poco" (revisión UX de CHAT): la subnav pinta un caption
-// antes del primer link de cada grupo, sin agregar una pestaña nueva.
-// 'Por canal' depende de que Personalidad/Límites ya estén definidos, así
-// que va casi al final; Playground queda último porque es el paso de
-// verificar lo ya configurado, no configuración en sí.
+// Cada sub-pestaña es una intención del admin ("qué hace", "dónde", "cuánto
+// aguanta", "qué dice"), no el nombre del campo en la DB. El orden es la
+// jerarquía: no hay captions de grupo intercalados entre los links —
+// competían por el mismo espacio que los tabs clickeables.
+//
+// 'Por canal' ya no existe como pestaña: vive dentro de Canales, que es el
+// contexto donde se piensa ("en #general quiero que hable más"). Frases y
+// Triggers se unificaron en Contenido: las dos son lo que Purgito dice, y
+// un trigger referencia un pack de frases.
 const CHAT_SUBTABS = [
-  { key: 'canales', label: 'Canales', group: 'esencial' },
-  { key: 'personalidad', label: 'Personalidad', group: 'esencial' },
-  { key: 'limites', label: 'Límites', group: 'avanzado' },
-  { key: 'frases', label: 'Frases', group: 'avanzado' },
-  { key: 'triggers', label: 'Triggers', group: 'avanzado' },
-  { key: 'datos', label: 'Datos', group: 'avanzado' },
-  { key: 'porcanal', label: 'Por canal', group: 'avanzado' },
-  { key: 'playground', label: 'Playground', group: 'avanzado' },
+  { key: 'comportamiento', label: 'Comportamiento' },
+  { key: 'canales', label: 'Canales' },
+  { key: 'contenido', label: 'Contenido' },
+  { key: 'reacciones', label: 'Reacciones' },
+  { key: 'limites', label: 'Límites' },
+  { key: 'datos', label: 'Datos' },
+  { key: 'playground', label: 'Playground' },
 ];
-const CHAT_SUBTAB_GROUP_LABELS = { esencial: 'Esencial', avanzado: 'Avanzado' };
 
 function currentChatSubtab() {
   const key = location.hash.slice(1);
-  return CHAT_SUBTABS.some(t => t.key === key) ? key : 'canales';
+  return CHAT_SUBTABS.some(t => t.key === key) ? key : 'comportamiento';
 }
 
 // El listener de hashchange (soporta el botón atrás/adelante y links directos
 // a #frases, etc.) vive en `_chatHashHandler`, declarado arriba junto a
 // activate() — ver el comentario ahí sobre por qué no puede declararse acá.
-
-// Card con ícono propio para distinguir "dónde responde" de "de dónde
-// aprende" — antes eran dos formGroup visualmente idénticos separados por un
-// simple divisor, la confusión que motivó separarlos en su propia sub-pestaña.
-function channelCard(iconName, title, ...children) {
-  return el('div', { class: 'channel-card' },
-    el('div', { class: 'channel-card-head' }, icon(iconName), el('h3', {}, title)),
-    ...children);
-}
 
 // Banner "Primeros pasos" (revisión UX de CHAT): sin canales de aprendizaje
 // nada del resto de la config tiene efecto práctico, así que esa es la única
@@ -741,25 +714,86 @@ function buildOnboardingBanner(corpus, activateSubtab) {
   if (localStorage.getItem(chatOnboardingDismissedKey())) return null;
 
   const banner = el('div', { class: 'onboarding-banner' },
+    el('span', {}, 'Purgito no aprende de ningún canal todavía.'),
+    el('a', {
+      href: '#canales', onclick: (ev) => { ev.preventDefault(); activateSubtab('canales'); },
+    }, 'Elegir canales'),
     el('button', {
       class: 'onboarding-dismiss', 'aria-label': 'Cerrar',
       onclick: () => { localStorage.setItem(chatOnboardingDismissedKey(), '1'); banner.remove(); },
-    }, '✕'),
-    el('h3', {}, 'Primeros pasos'),
-    el('p', { class: 'dim' },
-      'Purgito todavía no está aprendiendo de ningún canal — sin eso, el '
-      + 'resto de la configuración de acá no tiene mucho efecto.'),
-    el('ul', { class: 'onboarding-steps' },
-      el('li', {}, el('a', {
-        href: '#canales', onclick: (ev) => { ev.preventDefault(); activateSubtab('canales'); },
-      }, 'Elegí de qué canales aprende')),
-      el('li', {}, el('a', {
-        href: '#personalidad', onclick: (ev) => { ev.preventDefault(); activateSubtab('personalidad'); },
-      }, 'Revisá cómo habla (Personalidad)')),
-      el('li', {}, el('a', {
-        href: '#triggers', onclick: (ev) => { ev.preventDefault(); activateSubtab('triggers'); },
-      }, 'Opcional: agregá un trigger o una frase especial'))));
+    }, '✕'));
   return banner;
+}
+
+/* Matriz de canales: una fila por canal con sus tres pertenencias (habla /
+   responde / aprende) y, plegado, sus ajustes propios. Reemplaza tres
+   dropdowns con tres listas de chips MÁS la sub-pestaña "Por canal": la
+   pregunta real del admin es "¿qué hace Purgito en #general?", y antes había
+   que cruzar cuatro pantallas para contestarla. El filtro de arriba es lo que
+   mantiene esto usable en un server con muchos canales. */
+function channelMatrix({ channels, cols, openOverrides }) {
+  const wrap = el('div', { class: 'chan-matrix' });
+  const filter = el('input', {
+    type: 'search', placeholder: 'Filtrar canales…', class: 'chan-filter', autocomplete: 'off',
+  });
+  const body = el('div', { class: 'chan-matrix-body' });
+
+  const head = el('div', { class: 'chan-matrix-head' },
+    el('span', {}, 'Canal'),
+    ...cols.map(c => el('span', { class: 'chan-matrix-col' }, c.short, helpIcon(c.help))),
+    el('span', { class: 'chan-matrix-col' }, 'Ajustes'));
+
+  function rowFor(ch) {
+    const row = el('div', { class: 'chan-matrix-row' });
+    const panel = el('div', { class: 'chan-matrix-panel' });
+    panel.hidden = true;
+    let loaded = false;
+
+    const gear = el('button', {
+      class: 'chan-gear', title: `Ajustes de #${ch.name}`, 'aria-label': `Ajustes de #${ch.name}`,
+      onclick: async () => {
+        panel.hidden = !panel.hidden;
+        row.classList.toggle('open', !panel.hidden);
+        if (panel.hidden || loaded) return;
+        loaded = true;
+        panel.append(spinner());
+        try { await openOverrides(ch, panel); } catch (e) { renderError(panel, e); }
+      },
+    }, '⚙');
+
+    row.append(
+      el('span', { class: 'chan-name' + (ch.can_send === false ? ' chan-noperm' : '') },
+        '#' + (ch.name || ch.id),
+        ch.can_send === false
+          ? el('span', { class: 'chan-warn', title: 'El bot no puede leer o escribir en este canal' }, '⚠')
+          : null),
+      ...cols.map((c) => {
+        const box = el('input', { type: 'checkbox', checked: c.isSelected(ch.id) });
+        box.onchange = async () => {
+          const on = box.checked;
+          try {
+            if (on) await c.add(ch); else await c.remove(ch);
+            toast(`#${ch.name}: ${on ? c.onLabel : c.offLabel}`, 'ok');
+          } catch (e) {
+            box.checked = !on;
+            toast('No se pudo guardar, intenta de nuevo', 'err');
+          }
+        };
+        return el('label', { class: 'chan-matrix-cell', title: c.short }, box);
+      }),
+      el('span', { class: 'chan-matrix-cell' }, gear));
+    return el('div', { class: 'chan-matrix-item' }, row, panel);
+  }
+
+  const items = channels.map(ch => ({ ch, node: rowFor(ch) }));
+  for (const it of items) body.append(it.node);
+  filter.oninput = () => {
+    const q = filter.value.trim().toLowerCase();
+    for (const it of items) it.node.hidden = q && !(it.ch.name || '').toLowerCase().includes(q);
+  };
+
+  wrap.append(filter, head, body);
+  return wrap;
 }
 
 async function loadChatTab() {
@@ -785,7 +819,10 @@ async function loadChatTab() {
     box.innerHTML = '';
     const lim = chat.limits || {};
 
-    // --- Switch maestro: fuera de las sub-pestañas, igual que hoy ---
+    // --- Switch maestro: una línea, fuera de las sub-pestañas ---
+    // Antes era un formGroup entero con título y párrafo, ~100px que se comían
+    // en TODAS las sub-pestañas; el detalle de qué apaga exactamente ahora va
+    // en el ⓘ.
     const check = el('input', { type: 'checkbox', checked: chat.enabled });
     check.onchange = async () => {
       try {
@@ -798,10 +835,10 @@ async function loadChatTab() {
         toast('No se pudo guardar, intenta de nuevo', 'err');
       }
     };
-    box.append(formGroup('Chat',
-      el('div', { class: 'field' },
-        el('label', { class: 'toggle' }, check, 'Chat activado'),
-        el('p', { class: 'dim' }, 'Si está activado, Purgito responde cuando lo mencionan (@Purgito).'))));
+    box.append(el('div', { class: 'chat-master' },
+      el('label', { class: 'toggle' }, check, 'Chat activado'),
+      helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, '
+        + 'las reacciones y los triggers no dependen de este switch.')));
 
     // --- Sub-pestaña: Canales ---
     function buildCanales() {
@@ -809,75 +846,106 @@ async function loadChatTab() {
       const mentionSelected = new Set(mentionChans.channels.map(c => c.id));
       const corpusSelected = new Set(corpus.channels.map(c => c.id));
       const ignoredSet = new Set(corpus.ignored || []);
+
+      const cols = [
+        {
+          short: 'Habla', onLabel: 'habla por su cuenta acá', offLabel: 'ya no habla solo acá',
+          help: 'Purgito puede arrancar una charla por su cuenta en este canal. '
+            + 'Sin ningún canal marcado, puede hacerlo en todos.',
+          isSelected: id => spontaneousSelected.has(id),
+          add: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
+              method: 'POST', body: { channel_id: ch.id },
+            });
+            spontaneousSelected.add(ch.id);
+          },
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels/${ch.id}`, { method: 'DELETE' });
+            spontaneousSelected.delete(ch.id);
+          },
+        },
+        {
+          short: 'Responde', onLabel: 'responde menciones acá', offLabel: 'ya no responde menciones acá',
+          help: 'Purgito contesta cuando lo mencionan en este canal. Sin ningún '
+            + 'canal marcado, responde en todos.',
+          isSelected: id => mentionSelected.has(id),
+          add: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
+              method: 'POST', body: { channel_id: ch.id },
+            });
+            mentionSelected.add(ch.id);
+          },
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels/${ch.id}`, { method: 'DELETE' });
+            mentionSelected.delete(ch.id);
+          },
+        },
+        {
+          short: 'Aprende', onLabel: 'aprende de acá', offLabel: 'ya no aprende de acá',
+          help: 'Purgito guarda los mensajes de este canal para armar su estilo. '
+            + 'Sin ningún canal marcado, no aprende de nada.',
+          isSelected: id => corpusSelected.has(id),
+          add: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
+              method: 'POST', body: { channel_id: ch.id },
+            });
+            corpusSelected.add(ch.id);
+          },
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, { method: 'DELETE' });
+            corpusSelected.delete(ch.id);
+          },
+        },
+      ];
+
+      // Ajustes propios del canal, plegados dentro de su fila: es el viejo tab
+      // "Por canal" pero sin salir del contexto donde se piensa la pregunta.
+      async function openOverrides(ch, panel) {
+        const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${ch.id}/settings`);
+        const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
+        const rng = (k, d) => lim2[k] || d;
+        panel.innerHTML = '';
+        panel.append(
+          el('p', { class: 'dim ovr-hint' },
+            'Los valores atenuados los toma del servidor. Edita uno y este canal usa el suyo.'),
+          el('div', { class: 'ovr-grid' },
+            channelOverrideRow(ch.id, {
+              key: 'auto_generate_every', label: 'Cada cuántos mensajes', kind: 'number',
+              effective: eff.auto_generate_every, override: ov.auto_generate_every,
+              min: rng('auto_generate_every', [1])[0], max: rng('auto_generate_every', [null, 1000])[1],
+              suffix: 'mensajes',
+            }),
+            channelOverrideRow(ch.id, {
+              key: 'auto_generate_probability', label: 'Probabilidad de hablar', kind: 'percent',
+              effective: eff.auto_generate_probability, override: ov.auto_generate_probability, suffix: '%',
+            }),
+            channelOverrideRow(ch.id, {
+              key: 'gif_response_probability', label: 'Responde con GIF', kind: 'percent',
+              effective: eff.gif_response_probability, override: ov.gif_response_probability, suffix: '%',
+            }),
+            channelOverrideRow(ch.id, {
+              key: 'frase_probability', label: 'Usa una frase especial', kind: 'percent',
+              effective: eff.frase_probability, override: ov.frase_probability, suffix: '%',
+            }),
+            channelOverrideRow(ch.id, {
+              key: 'reaction_probability', label: 'Reacciona con emoji', kind: 'percent',
+              effective: eff.reaction_probability, override: ov.reaction_probability, suffix: '%',
+            }),
+            channelOverrideRow(ch.id, {
+              key: 'mention_rate_limit', label: 'Menciones por hora', kind: 'number',
+              effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
+              min: rng('mention_rate_limit', [0])[0], max: rng('mention_rate_limit', [null, 1000])[1],
+              suffix: 'por usuario',
+            })));
+      }
+
       return el('div', {},
-        channelCard('sparkle', 'Canales donde habla espontáneamente',
-          el('p', { class: 'dim' },
-            'Elige en qué canales puede hablar Purgito por su cuenta. Si no '
-            + 'eliges ninguno, puede hacerlo en todos.'),
-          channelToggleList({
-            channels,
-            isSelected: id => spontaneousSelected.has(id),
-            add: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
-                method: 'POST', body: { channel_id: ch.id },
-              });
-              spontaneousSelected.add(ch.id);
-            },
-            remove: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels/${ch.id}`, {
-                method: 'DELETE',
-              });
-              spontaneousSelected.delete(ch.id);
-            },
-            listBelow: 'Sin canales elegidos — Purgito puede hablar en cualquiera.',
-          })),
-        channelCard('chat', 'Canales donde responde a menciones',
-          el('p', { class: 'dim' },
-            'Elige en qué canales responde Purgito cuando lo mencionan. Si no '
-            + 'eliges ninguno, responde en todos.'),
-          channelToggleList({
-            channels,
-            isSelected: id => mentionSelected.has(id),
-            add: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
-                method: 'POST', body: { channel_id: ch.id },
-              });
-              mentionSelected.add(ch.id);
-            },
-            remove: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels/${ch.id}`, {
-                method: 'DELETE',
-              });
-              mentionSelected.delete(ch.id);
-            },
-            listBelow: 'Sin canales elegidos — Purgito responde en cualquiera.',
-          })),
-        channelCard('corpus', 'Canales de los que aprende',
-          el('p', { class: 'dim' },
-            'Purgito solo guarda mensajes de los canales que elijas acá. Si '
-            + 'no eliges ninguno, no aprende de nada.'),
-          ignoredSet.size
-            ? el('p', { class: 'dim' },
-              `${ignoredSet.size} canal(es) ignorado(s) desde /settings quedan fuera `
-              + 'aunque los elijas: ahí Purgito está completamente mudo.')
-            : null,
-          channelToggleList({
-            channels,
-            isSelected: id => corpusSelected.has(id),
-            add: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
-                method: 'POST', body: { channel_id: ch.id },
-              });
-              corpusSelected.add(ch.id);
-            },
-            remove: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, {
-                method: 'DELETE',
-              });
-              corpusSelected.delete(ch.id);
-            },
-            listBelow: 'Purgito no está aprendiendo de ningún canal.',
-          })));
+        ignoredSet.size
+          ? el('p', { class: 'dim' }, ignoredSet.size === 1
+            ? 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.'
+            : `Hay ${ignoredSet.size} canales silenciados desde /settings: quedan fuera aunque los marques acá.`)
+          : null,
+        channelMatrix({ channels, cols, openOverrides }));
     }
 
     // --- Sub-pestaña: Datos ---
@@ -902,78 +970,82 @@ async function loadChatTab() {
           amnesiaButton()));
     }
 
-    // --- Sub-pestaña: Personalidad ---
+    // --- Sub-pestaña: Comportamiento ---
     //
-    // "Reacciones" queda aparte porque el roll de reaction_probability corre
-    // en cada mensaje que el bot lee, sin relación con si decide hablar o no
-    // (ver src/cogs/chat.py, se tira antes y por fuera de auto_generate). La
-    // cadena real de 3 pasos es: [habla espontáneo O le mencionan] → GIF o
-    // texto → (si es texto) frase especial o Markov -- auto_generate_probability
-    // solo gobierna el primer paso (arranca una charla solo), pero
-    // gif_response_probability y frase_probability se evalúan igual cuando
-    // Purgito responde una mención, no solo cuando decide hablar por su
-    // cuenta. La card "Cuando decide responder" lo deja dicho en texto
-    // visible, no solo en el código.
-    function buildPersonalidad() {
+    // Una sola cadena, no dos bloques: los pasos 2 y 3 corren tanto cuando
+    // Purgito arranca solo como cuando contesta una mención (cogs/chat.py:
+    // ~730/736 el camino espontáneo, ~805/812 el de mención, mismos dos
+    // rolls). Solo el paso 1 es exclusivo del camino espontáneo, y eso lo
+    // dice el ⓘ del paso, no un párrafo permanente.
+    function buildComportamiento() {
+      return el('div', { class: 'chain' },
+        el('div', { class: 'chain-step' },
+          el('div', { class: 'chain-step-head' },
+            el('span', { class: 'chain-num' }, '1'),
+            el('h3', {}, '¿Arranca una charla solo?'),
+            helpIcon('Solo para cuando habla por su cuenta. Si lo mencionan '
+              + 'responde igual, sin pasar por este paso.')),
+          el('div', { class: 'chain-fields' },
+            numberField('Cada cuántos mensajes nuevos', null, {
+              key: 'auto_generate_every',
+              value: chat.auto_generate_every,
+              min: (lim.auto_generate_every || [1])[0],
+              max: (lim.auto_generate_every || [null, 1000])[1],
+              suffix: 'mensajes',
+            }),
+            probabilityField('Y ahí, cuántas veces habla', null, {
+              key: 'auto_generate_probability',
+              value: chat.auto_generate_probability,
+            }))),
+        el('div', { class: 'chain-step' },
+          el('div', { class: 'chain-step-head' },
+            el('span', { class: 'chain-num' }, '2'),
+            el('h3', {}, '¿Manda un GIF o escribe?'),
+            helpIcon('Los GIFs salen de la galería del tab GIFS.')),
+          el('div', { class: 'chain-fields' },
+            probabilityField('Manda un GIF', null, {
+              key: 'gif_response_probability',
+              value: chat.gif_response_probability,
+            }))),
+        el('div', { class: 'chain-step' },
+          el('div', { class: 'chain-step-head' },
+            el('span', { class: 'chain-num' }, '3'),
+            el('h3', {}, 'Si escribe, ¿frase tuya o inventada?'),
+            helpIcon('Las frases se cargan en Contenido. El resto de las veces '
+              + 'arma el mensaje solo, con lo que aprendió del servidor.')),
+          el('div', { class: 'chain-fields' },
+            probabilityField('Usa una frase tuya', null, {
+              key: 'frase_probability',
+              value: chat.frase_probability,
+            }))));
+    }
+
+    // --- Sub-pestaña: Reacciones ---
+    // Aparte de la cadena a propósito: el roll de reaction_probability corre
+    // en cada mensaje que lee, decida hablar o no (cogs/chat.py ~683, antes y
+    // por fuera de auto_generate).
+    function buildReacciones() {
       const reaccionesBox = el('div', {});
       renderReacciones(reaccionesBox, reactions.reactions);
       return el('div', {},
-        formGroup('Reacciones',
-          el('p', { class: 'dim' },
-            'Colección de emojis con los que el bot reacciona a los usuarios. '
-            + 'Es independiente de si decide hablar o no: se evalúa en cada '
-            + 'mensaje que lee.'),
-          probabilityField('Probabilidad de reaccionar', 'De cada 100 mensajes que lee, a cuántos les pone un emoji.', {
-            key: 'reaction_probability',
-            value: chat.reaction_probability,
-          }),
-          reaccionesBox),
-        formGroup('Cuando decide responder',
-          el('p', { class: 'dim' },
-            'Estos tres pasos corren en orden cada vez que Purgito manda una '
-            + 'respuesta generada. El primero solo aplica cuando habla por su '
-            + 'cuenta -- si te mencionan, ya va a responder y arranca directo '
-            + 'en el paso 2.'),
-          el('div', { class: 'chain' },
-            el('div', { class: 'chain-step' },
-              el('div', { class: 'chain-step-label' }, '1. ¿Habla por su cuenta?'),
-              numberField('Cada cuántos mensajes', null, {
-                key: 'auto_generate_every',
-                value: chat.auto_generate_every,
-                min: (lim.auto_generate_every || [1])[0],
-                max: (lim.auto_generate_every || [null, 1000])[1],
-                suffix: 'mensajes',
-              }),
-              probabilityField('Probabilidad de hablar', 'Al llegar a ese número, cuántas veces de cada 100 habla.', {
-                key: 'auto_generate_probability',
-                value: chat.auto_generate_probability,
-              })),
-            el('div', { class: 'chain-step' },
-              el('div', { class: 'chain-step-label' }, '2. ¿GIF o texto?'),
-              el('p', { class: 'dim' },
-                'También corre así responda por mención, no solo cuando habla solo.'),
-              probabilityField('Probabilidad de responder con GIF', null, {
-                key: 'gif_response_probability',
-                value: chat.gif_response_probability,
-              })),
-            el('div', { class: 'chain-step' },
-              el('div', { class: 'chain-step-label' }, '3. Si es texto: ¿frase especial o generado?'),
-              el('p', { class: 'dim' },
-                'Frase especial = una de las que armaste en la sub-pestaña Frases.'),
-              probabilityField('Probabilidad de usar una frase especial', null, {
-                key: 'frase_probability',
-                value: chat.frase_probability,
-              })))));
+        probabilityField('Reacciona con un emoji', null, {
+          key: 'reaction_probability',
+          value: chat.reaction_probability,
+        }),
+        el('div', { class: 'field' },
+          el('label', {}, 'Emojis que puede usar', helpIcon(
+            'Elige de cuáles saca el emoji. Se evalúa en cada mensaje que lee, '
+            + 'sin relación con si decide responder.')),
+          reaccionesBox));
     }
 
     // --- Sub-pestaña: Límites ---
     function buildLimites() {
       const exemptSelected = new Set(exempt.roles.map(r => r.id));
       const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
-      return formGroup('Límite de actividad',
-        el('p', { class: 'dim' },
-          'Tope de interacciones por hora y por usuario, para evitar que alguien '
-          + 'genere actividad falsa con Purgito. 0 = sin límite.'),
+      return formGroup(el('span', {}, 'Límite de actividad',
+        helpIcon('Tope de interacciones por hora y por usuario, para que nadie '
+          + 'genere actividad falsa con Purgito. 0 = sin límite.')),
         numberField('Menciones por hora', null, {
           key: 'mention_rate_limit',
           value: chat.mention_rate_limit,
@@ -1001,10 +1073,9 @@ async function loadChatTab() {
             listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
           })),
         el('div', { class: 'field' },
-          el('label', {}, 'Canales exentos del límite'),
-          el('p', { class: 'dim' },
-            'En estos canales el tope no cuenta: útil para un #bot-testing sin '
-            + 'tener que crear un rol solo para eso.'),
+          el('label', {}, 'Canales exentos del límite',
+            helpIcon('Acá el tope no cuenta: útil para un #bot-testing sin tener '
+              + 'que crear un rol solo para eso.')),
           channelToggleList({
             channels,
             isSelected: id => exemptChannelsSelected.has(id),
@@ -1024,8 +1095,12 @@ async function loadChatTab() {
           })));
     }
 
-    // --- Sub-pestaña: Frases ---
-    function buildFrases() {
+    // --- Sub-pestaña: Contenido (frases + packs + triggers) ---
+    // Frases y triggers eran dos pestañas separadas pese a ser lo mismo desde
+    // la intención del admin ("qué dice Purgito"), y un trigger encima elige
+    // un pack de frases: separarlas obligaba a saltar de pestaña para armar
+    // una sola cosa. Packs y canales van plegados: son el ajuste fino.
+    function buildContenido() {
       const frasesBox = el('div', {});
       renderFrases(frasesBox, frases.frases, frasePacks.packs, frases.limit);
 
@@ -1033,30 +1108,31 @@ async function loadChatTab() {
       renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox, frasePacks.limit);
 
       const fraseChannelsSelected = new Set(fraseChannels.channels.map(c => c.id));
+      const triggersBox = el('div', {});
+      renderTriggers(triggersBox, triggers, channels, frasePacks.packs);
+
+      const TAGS = ['{{user.mention}}', '{{user.name}}', '{{channel.name}}',
+        '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
 
       return el('div', {},
-        formGroup('Frases',
-          el('p', { class: 'dim' }, 'Frases especiales que el bot puede enviar de vez en cuando.'),
-          el('p', { class: 'dim' },
-            'Puedes usar estos tags y se reemplazan al enviarse: ',
-            el('code', { class: 'cmd' }, '{{user.mention}}'), ', ',
-            el('code', { class: 'cmd' }, '{{user.name}}'), ', ',
-            el('code', { class: 'cmd' }, '{{channel.name}}'), ', ',
-            el('code', { class: 'cmd' }, '{{channel.mention}}'), ', ',
-            el('code', { class: 'cmd' }, '{{guild.name}}'), ', ',
-            el('code', { class: 'cmd' }, '{{markov.word}}'), ' y ',
-            el('code', { class: 'cmd' }, '{{markov.sentence}}'), '.'),
-          frasesBox),
-        formGroup('Packs de frases',
-          el('p', { class: 'dim' },
-            'Agrupá frases en un pack y asignaselo a uno o más canales para que '
-            + 'solo salgan esas ahí. Una frase sin pack (o un canal sin pack '
-            + 'asignado) usa el pool default del servidor, de arriba.'),
+        formGroup(el('span', {}, 'Frases',
+          helpIcon('Frases tuyas que Purgito manda de vez en cuando, en vez de '
+            + 'inventar el mensaje. Con qué frecuencia lo hace se ajusta en '
+            + 'Comportamiento, paso 3.')),
+          frasesBox,
+          accordionGroup('Tags que puedes usar en una frase', false,
+            el('div', { class: 'tag-list' },
+              TAGS.map(t => el('code', { class: 'cmd' }, t))))),
+        formGroup(el('span', {}, 'Packs',
+          helpIcon('Un pack agrupa frases y se asigna a canales: ahí solo salen '
+            + 'esas. Una frase sin pack queda en el pool general del servidor.')),
           packsBox),
-        channelCard('star', 'Canales donde pueden salir frases especiales',
-          el('p', { class: 'dim' },
-            'Elige en qué canales puede aparecer una frase especial. Si no '
-            + 'eliges ninguno, puede salir en cualquiera.'),
+        formGroup(el('span', {}, 'Triggers',
+          helpIcon('Si el mensaje matchea el patrón, Purgito responde sin esperar '
+            + 'mención ni el roll de frecuencia. Con varios en el mismo canal gana '
+            + 'el primero que matchea.')),
+          triggersBox),
+        accordionGroup('Dónde pueden salir las frases especiales', false,
           channelToggleList({
             channels,
             isSelected: id => fraseChannelsSelected.has(id),
@@ -1074,18 +1150,6 @@ async function loadChatTab() {
             },
             listBelow: 'Sin canales elegidos — puede salir en cualquiera.',
           })));
-    }
-
-    // --- Sub-pestaña: Triggers ---
-    function buildTriggers() {
-      const box = el('div', {});
-      renderTriggers(box, triggers, channels, frasePacks.packs);
-      return formGroup('Triggers de canal',
-        el('p', { class: 'dim' },
-          'Reglas de auto-respuesta: si el mensaje matchea el patrón, Purgito '
-          + 'responde sin esperar mención ni el roll de frecuencia espontánea. '
-          + `Con varios en el mismo canal gana el primero que matchea (${triggers.total}/${triggers.limit} usados).`),
-        box);
     }
 
     // --- Sub-pestaña: Playground ---
@@ -1114,102 +1178,50 @@ async function loadChatTab() {
         },
       }, 'Simular');
 
-      return formGroup('Playground',
-        el('p', { class: 'dim' },
-          'Prueba cómo respondería Purgito a un mensaje en un canal puntual, con '
-          + 'su configuración efectiva (overrides, packs y triggers incluidos). '
-          + 'No manda nada de verdad ni gasta cooldowns reales. Además del texto '
-          + 'que generaría, avisa si hay algo que lo frenaría antes: chat '
-          + 'desactivado, canal fuera de las listas de menciones o de charla '
-          + 'espontánea, tu cupo horario agotado, o el piso de silencio del '
-          + 'canal.'),
-        el('div', { class: 'field' }, el('label', {}, 'Canal'), sel),
+      return el('div', {},
+        el('div', { class: 'field' },
+          el('label', {}, 'Canal', helpIcon(
+            'Simula con la configuración efectiva del canal: overrides, packs y '
+            + 'triggers incluidos. No manda nada de verdad ni gasta cooldowns.')),
+          sel),
         el('div', { class: 'field' }, el('label', {}, 'Mensaje de prueba'), input),
         btn,
         resultBox);
     }
 
-    // --- Sub-pestaña: Por canal (overrides de Personalidad/Límites) ---
-    function buildPorCanal() {
-      const sel = channelSelect(channels, null, 'Elige un canal…');
-      const resultBox = el('div', {});
-
-      async function loadChannel() {
-        resultBox.innerHTML = '';
-        if (!sel.value) return;
-        const channelId = sel.value;
-        resultBox.append(spinner());
-        try {
-          const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`);
-          resultBox.innerHTML = '';
-          const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
-          resultBox.append(
-            channelTunableRow(channelId, numberField, 'Cada cuántos mensajes', null, {
-              key: 'auto_generate_every', effective: eff.auto_generate_every, override: ov.auto_generate_every,
-              min: (lim2.auto_generate_every || [1])[0], max: (lim2.auto_generate_every || [null, 1000])[1],
-              suffix: 'mensajes', format: v => `${v} mensajes`,
-            }),
-            channelTunableRow(channelId, probabilityField,'Probabilidad de hablar', null, {
-              key: 'auto_generate_probability', effective: eff.auto_generate_probability,
-              override: ov.auto_generate_probability, format: v => `${Math.round(v * 100)}%`,
-            }),
-            channelTunableRow(channelId, probabilityField,'Probabilidad de reaccionar', null, {
-              key: 'reaction_probability', effective: eff.reaction_probability,
-              override: ov.reaction_probability, format: v => `${Math.round(v * 100)}%`,
-            }),
-            channelTunableRow(channelId, probabilityField,'Probabilidad de responder con GIF', null, {
-              key: 'gif_response_probability', effective: eff.gif_response_probability,
-              override: ov.gif_response_probability, format: v => `${Math.round(v * 100)}%`,
-            }),
-            channelTunableRow(channelId, numberField, 'Menciones por hora', null, {
-              key: 'mention_rate_limit', effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
-              min: (lim2.mention_rate_limit || [0])[0], max: (lim2.mention_rate_limit || [null, 1000])[1],
-              suffix: 'por usuario', format: v => `${v} por usuario`,
-            }),
-            channelTunableRow(channelId, probabilityField,'Probabilidad de usar una frase especial', null, {
-              key: 'frase_probability', effective: eff.frase_probability,
-              override: ov.frase_probability, format: v => `${Math.round(v * 100)}%`,
-            }));
-        } catch (e) { renderError(resultBox, e); }
-      }
-      sel.onchange = loadChannel;
-
-      return formGroup('Ajustes por canal',
-        el('p', { class: 'dim' },
-          'Cada canal usa por default los valores de Personalidad y Límites de '
-          + 'arriba. Elige uno acá para revisar u overridear alguno puntualmente.'),
-        el('div', { class: 'field' }, el('label', {}, 'Canal'), sel),
-        resultBox);
-    }
-
     const BUILDERS = {
+      comportamiento: buildComportamiento,
       canales: buildCanales,
-      personalidad: buildPersonalidad,
+      contenido: buildContenido,
+      reacciones: buildReacciones,
       limites: buildLimites,
-      porcanal: buildPorCanal,
-      frases: buildFrases,
-      triggers: buildTriggers,
       datos: buildDatos,
       playground: buildPlayground,
     };
 
     const subnav = el('nav', { class: 'chat-subtabs' });
+    const links = el('div', { class: 'chat-subtabs-links' });
     const panels = {};
-    let lastGroup = null;
     for (const st of CHAT_SUBTABS) {
       panels[st.key] = BUILDERS[st.key]();
       panels[st.key].hidden = true;
-      if (st.group !== lastGroup) {
-        subnav.append(el('span', { class: 'chat-subtabs-caption' }, CHAT_SUBTAB_GROUP_LABELS[st.group]));
-        lastGroup = st.group;
-      }
-      subnav.append(el('a', {
+      // Playground no va entre los links: es "probar lo configurado", no una
+      // sección más que configurar. Va como acción a la derecha, siempre
+      // visible desde cualquier sub-pestaña.
+      if (st.key === 'playground') continue;
+      links.append(el('a', {
         class: 'chat-subtab',
         'data-key': st.key,
         href: `#${st.key}`,
         onclick: (ev) => { ev.preventDefault(); activateSubtab(st.key); },
       }, st.label));
     }
+    subnav.append(links, el('a', {
+      class: 'chat-subtab chat-subtab-try',
+      'data-key': 'playground',
+      href: '#playground',
+      onclick: (ev) => { ev.preventDefault(); activateSubtab('playground'); },
+    }, icon('play'), 'Probar'));
     const panelsWrap = el('div', {}, CHAT_SUBTABS.map(st => panels[st.key]));
 
     // Todo se autoguarda al toque (sin botón "Guardar" ni estado sin
@@ -1244,15 +1256,18 @@ async function loadChatTab() {
 async function renderReacciones(box, pool) {
   box.innerHTML = '';
   const inPool = new Set(pool.map(r => r.emoji_text));
-  const list = el('ul', { class: 'item-list' });
-  if (!pool.length) list.append(el('li', { class: 'dim' }, 'Todavía no hay emojis en la colección.'));
+  // Chips, no filas de alto completo: un emoji ocupa dos caracteres y una fila
+  // entera con un botón "Quitar" rojo por cada uno era la misma incomodidad
+  // que la lista de canales.
+  const list = el('div', { class: 'chan-chips' });
+  if (!pool.length) list.append(el('span', { class: 'dim' }, 'Todavía no hay emojis en la colección.'));
   for (const r of pool) {
-    list.append(el('li', {},
+    list.append(el('span', { class: 'chan-chip' },
       el('span', {}, r.emoji_text),
       el('button', {
-        class: 'btn btn-danger btn-sm',
+        class: 'chan-chip-x', 'aria-label': `Quitar ${r.emoji_text}`,
         onclick: () => removeReaction(box, r.id),
-      }, 'Quitar')));
+      }, '✕')));
   }
 
   async function addEmoji(emojiText) {
@@ -1300,7 +1315,10 @@ async function renderReacciones(box, pool) {
     }
   } catch (e) { /* sin emojis custom no pasa nada, queda el input */ }
 
-  box.append(list, addRow, grid.children.length ? grid : null);
+  // append() es el nativo, no el(): un null acá se agrega como el texto
+  // "null" (se veía en cualquier servidor sin emojis propios).
+  box.append(list, addRow);
+  if (grid.children.length) box.append(grid);
 }
 
 async function removeReaction(box, id) {
@@ -1322,18 +1340,23 @@ async function reloadReacciones(box) {
 // creados todavía no tiene sentido mostrar un <select> con una sola opción.
 /* "12 de 50 usadas" arriba de una lista con cupo. Antes el límite solo se
    descubría al chocarlo (un 409 al agregar): nada mostraba cuánto quedaba. */
-function cupoLine(used, limit, singular, plural) {
+/* `singular`/`plural` traen ya el participio concordado ('pack usado',
+   'frases usadas'): el género lo pone quien llama, porque acá se usa tanto
+   para frases (femenino) como para packs y triggers (masculino) -- estaba
+   fijo en "usadas" y salía "3 de 10 triggers usadas". */
+function cupoLine(used, limit, singular, plural, lleno_msg) {
   if (!limit) return null;
   const lleno = used >= limit;
   return el('p', { class: lleno ? '' : 'dim' },
-    `${used} de ${limit} ${used === 1 ? singular : plural} usadas`,
-    lleno ? ' — llegaste al tope: eliminá una para poder agregar otra.' : '');
+    `${used} de ${limit} ${used === 1 ? singular : plural}`,
+    lleno ? ` — llegaste al tope: ${lleno_msg}` : '');
 }
 
 function renderFrases(box, frases, packs, limit) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
-  box.append(cupoLine(frases.length, limit, 'frase', 'frases'));
+  box.append(cupoLine(frases.length, limit, 'frase usada', 'frases usadas',
+    'elimina una para agregar otra.'));
   if (!frases.length) list.append(el('li', { class: 'dim' }, 'Todavía no has agregado ninguna frase.'));
   for (const f of frases) {
     let packSelect = null;
@@ -1396,13 +1419,14 @@ async function reloadFrases(box, packs) {
 // más, uno por pack, que la mayoría de las veces nadie va a mirar.
 function renderFrasePacks(box, packs, channels, frasesBox, limit) {
   box.innerHTML = '';
-  box.append(cupoLine(packs.length, limit, 'pack', 'packs'));
+  box.append(cupoLine(packs.length, limit, 'pack usado', 'packs usados',
+    'elimina uno para agregar otro.'));
   if (!packs.length) {
     box.append(el('p', { class: 'dim' },
       'Sin packs todavía — todas las frases están en el pool default del servidor.'));
   }
   for (const pack of packs) {
-    const channelsBox = el('div', {}, el('p', { class: 'dim' }, 'Abrí para ver los canales asignados…'));
+    const channelsBox = el('div', {}, el('p', { class: 'dim' }, 'Abre para ver los canales asignados…'));
     let loaded = false;
     const details = el('details', { class: 'embed-group' },
       el('summary', { class: 'embed-group-title' }, pack.name),
@@ -1487,6 +1511,13 @@ async function refreshFrasesAndPacks(frasesBox, packsBox, channels) {
 const TRIGGER_MATCH_TYPE_LABELS = {
   exact: 'Texto exacto', starts_with: 'Empieza con', regex: 'Regex',
 };
+/* Los de arriba son rótulos de <option>; en la vista previa van dentro de una
+   oración y en minúscula quedaban como "si el mensaje texto exacto...". */
+const TRIGGER_MATCH_PHRASES = {
+  exact: p => `es exactamente "${p}"`,
+  starts_with: p => `empieza con "${p}"`,
+  regex: p => `matchea la regex "${p}"`,
+};
 const TRIGGER_ACTION_LABELS = {
   frase_de_pack: 'Frase de un pack', markov: 'Markov (generado)', mezcla: 'Mezcla (frase o Markov)',
 };
@@ -1512,7 +1543,8 @@ function describeTrigger(trig, channels, packs) {
 function renderTriggers(box, data, channels, packs) {
   box.innerHTML = '';
   const list = el('ul', { class: 'item-list' });
-  box.append(cupoLine(data.triggers.length, data.limit, 'trigger', 'triggers'));
+  box.append(cupoLine(data.triggers.length, data.limit, 'trigger usado', 'triggers usados',
+    'elimina uno para agregar otro.'));
   if (!data.triggers.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
   for (const trig of data.triggers) {
     const d = describeTrigger(trig, channels, packs);
@@ -1552,16 +1584,17 @@ function triggerForm(box, channels, packs, data) {
   function updatePreview() {
     const pattern = patternInput.value.trim();
     if (!chanSel.value || !pattern) {
-      previewLine.textContent = 'Elegí un canal y escribí un patrón para ver la vista previa.';
+      previewLine.textContent = 'Elige un canal y escribe un patrón para ver la vista previa.';
       return;
     }
     const d = describeTrigger({
       channel_id: chanSel.value, match_type: matchSel.value, pattern,
       action: actionSel.value, pack_id: actionSel.value !== 'markov' ? packSel.value : null,
     }, channels, packs);
+    const phrase = (TRIGGER_MATCH_PHRASES[matchSel.value] || (p => `matchea "${p}"`))(d.pattern);
     previewLine.textContent =
-      `Vista previa: en ${d.channelLabel}, si el mensaje ${d.matchLabel.toLowerCase()} `
-      + `"${d.pattern}" → ${d.actionLabel.toLowerCase()}${d.packName ? ` (${d.packName})` : ''}.`;
+      `Vista previa: en ${d.channelLabel}, si el mensaje ${phrase}, responde con `
+      + `${d.actionLabel.toLowerCase()}${d.packName ? ` (${d.packName})` : ''}.`;
   }
 
   chanSel.onchange = updatePreview;
