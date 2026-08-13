@@ -126,14 +126,23 @@ else document.getElementById('dashHead').append(
 function withCap(used, cap) {
   if (used == null) return null;
   const n = Number(used).toLocaleString('es');
-  return cap ? `${n} / ${Number(cap).toLocaleString('es')}` : n;
+  if (!cap) return n;
+  return el('span', { class: 'stat-cap-wrap' },
+    el('span', { class: 'stat-num-main' }, n),
+    el('span', { class: 'stat-num-cap dim' }, ` / ${Number(cap).toLocaleString('es')}`));
 }
 
 function statTile(iconName, value, label) {
+  const valEl = el('div', { class: 'stat-value' });
+  if (value instanceof Node) {
+    valEl.append(value);
+  } else {
+    valEl.textContent = value != null ? String(value) : '—';
+  }
   return el('div', { class: 'stat-tile' },
     icon(iconName),
     el('div', {},
-      el('div', { class: 'stat-value' }, value != null ? String(value) : '—'),
+      valEl,
       el('div', { class: 'stat-label dim' }, label)));
 }
 
@@ -198,12 +207,17 @@ async function loadInicio() {
     // canal solo puede aportar corpus_per_channel mensajes.
     const capCanal = lims.corpus_per_channel || 0;
     const byChannel = el('div', { class: 'stat-channels' },
-      stats.corpus_by_channel.map(c => el('div', { class: 'stat-channel-row' },
-        el('span', {}, '#' + (c.name || c.channel_id)),
-        el('span', { class: capCanal && c.count >= capCanal * 0.9 ? '' : 'dim' },
-          capCanal
-            ? `${c.count.toLocaleString('es')} de ${capCanal.toLocaleString('es')} mensajes`
-            : `${c.count} mensajes`))));
+      stats.corpus_by_channel.map(c => {
+        const chanLabel = c.name
+          ? el('span', {}, '#' + c.name)
+          : el('span', {}, 'Canal desconocido ', el('span', { class: 'dim' }, `#${c.channel_id}`));
+        return el('div', { class: 'stat-channel-row' },
+          chanLabel,
+          el('span', { class: capCanal && c.count >= capCanal * 0.9 ? '' : 'dim' },
+            capCanal
+              ? `${c.count.toLocaleString('es')} de ${capCanal.toLocaleString('es')} mensajes`
+              : `${c.count} mensajes`));
+      }));
     box.append(formGroup('Estado del bot en este servidor', tiles,
       cerca.length
         ? el('p', { class: 'dim' },

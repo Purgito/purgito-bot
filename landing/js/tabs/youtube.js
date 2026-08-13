@@ -49,7 +49,8 @@ function subDeleteActions(sub, reload) {
 
 function subRow(sub, roles, reload) {
   const note = errorNote(sub.last_error);
-  const sel = roleSelect(roles, sub.mention_role_id, 'Sin mención');
+  const sel = roleSelect(roles, sub.mention_role_id, 'Sin mención a rol');
+  sel.title = 'Rol a mencionar al avisar nuevos videos';
   sel.onchange = async () => {
     try {
       await apiFetch(`/api/server/${GUILD_ID}/youtube/${sub.id}`, {
@@ -116,11 +117,13 @@ export async function loadYoutube() {
         'Solo acepta el ID del canal de YouTube (el que empieza con UC…), no la URL completa ni @handle.'),
       el('div', { class: 'add-row' }, idInput, chanSel, addBtn)));
 
-    const list = el('ul', { class: 'item-list' });
     if (!data.subscriptions.length) {
-      list.append(el('li', { class: 'dim' }, 'Todavía no hay suscripciones de YouTube.'));
+      box.append(formGroup('Suscripciones activas',
+        emptyState('Todavía no hay suscripciones activas. Agrega un canal de YouTube arriba para que Purgito avise cuando haya videos nuevos.')));
+    } else {
+      const list = el('ul', { class: 'item-list' });
+      for (const sub of data.subscriptions) list.append(subRow(sub, roles, loadYoutube));
+      box.append(formGroup('Suscripciones activas', list));
     }
-    for (const sub of data.subscriptions) list.append(subRow(sub, roles, loadYoutube));
-    box.append(formGroup('Suscripciones activas', list));
   } catch (e) { renderError(box, e); }
 }

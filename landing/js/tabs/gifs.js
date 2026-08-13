@@ -176,7 +176,6 @@ function gifCardActions(gifId, card) {
       removeCard();
     } catch (e) {
       toast(e.status === 429 ? 'Rate limit — espera antes de bloquear más' : e.message, e.status === 429 ? 'warn' : 'err');
-      showButtons();
     }
   }
 
@@ -184,10 +183,32 @@ function gifCardActions(gifId, card) {
   return wrap;
 }
 
+function gifOriginLabel(g) {
+  if (!g) return 'Enlace';
+  const { type } = classifyGif(g);
+  const u = (g.url || '').toLowerCase();
+  let source = 'Enlace';
+  if (u.includes('r2.dev') || (g.media_url && g.media_url.includes('r2.dev'))) source = 'R2';
+  else if (u.includes('tenor.com')) source = 'Tenor';
+  else if (u.includes('giphy.com')) source = 'Giphy';
+  else if (u.includes('discordapp.com') || u.includes('discord.gg')) source = 'Discord';
+  else if (u.endsWith('.gif')) source = 'GIF directo';
+
+  const kind = type === 'link' ? 'enlace' : 'preview';
+  return `${source} · ${kind}`;
+}
+
 function gifCard(g) {
+  const origin = gifOriginLabel(g);
   const card = el('div', { class: 'gif-card' },
     gifThumb(g),
-    el('a', { class: 'gif-url', href: g.url, target: '_blank', rel: 'noopener' }, g.url));
+    el('a', {
+      class: 'gif-url gif-source-badge',
+      href: g.url,
+      target: '_blank',
+      rel: 'noopener',
+      title: g.url,
+    }, origin));
   card.append(gifCardActions(g.id, card));
   return card;
 }
@@ -197,8 +218,9 @@ function gifCard(g) {
 function blockedGifRow(b, list) {
   const key = b.content_hash || b.url;
   const btn = el('button', { class: 'btn btn-secondary btn-sm' }, 'Desbloquear');
+  const label = b.url ? `${gifOriginLabel(b)} · ${b.url}` : b.content_hash;
   const row = el('div', { class: 'gif-blocked-row' },
-    el('span', { class: 'gif-url' }, b.url || b.content_hash), btn);
+    el('span', { class: 'gif-url', title: b.url || b.content_hash }, label), btn);
   btn.onclick = async () => {
     btn.disabled = true;
     try {

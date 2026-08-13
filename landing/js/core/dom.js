@@ -188,7 +188,7 @@ export function accordionGroup(title, open, ...children) {
 export function previewEmpty(msg) {
   return el('div', { class: 'preview-empty' },
     el('div', { class: 'caret', 'aria-hidden': 'true' }, '▍'),
-    el('div', {}, msg || 'Así se va a ver tu mensaje'));
+    el('div', {}, msg || 'Tu embed aparecerá acá…'));
 }
 
 // Error de validación inline y persistente (a diferencia del toast). Vaciar con msg falsy.
