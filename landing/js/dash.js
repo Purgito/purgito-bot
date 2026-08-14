@@ -83,12 +83,12 @@ async function loadHead() {
     head.append(back,
       el('div', { class: 'dash-guild' },
         guildIcon(g),
-        el('div', {},
-          el('h1', {}, g.name,
+        el('div', { class: 'dash-guild-info' },
+          el('h1', { class: 'dash-guild-name' }, g.name,
             g.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null),
           el('div', { class: 'dash-guild-members dim' },
             icon('members'),
-            g.member_count != null ? `${g.member_count} miembros` : 'Servidor'))));
+            g.member_count != null ? `${Number(g.member_count).toLocaleString('es')} miembros` : 'Servidor'))));
   } catch (e) {
     head.innerHTML = '';
     head.append(back);
@@ -121,8 +121,8 @@ else document.getElementById('dashHead').append(
 // ---------------- INICIO ----------------
 
 /* "14.982 / 15.000" cuando hay cupo conocido, el número solo si no. El
-   denominador es lo que le faltaba a estas tarjetas: sin él, nada le dice al
-   admin que al tocar el techo el bot empieza a borrar lo más viejo. */
+   denominador es lo que le da contexto a estas tarjetas: sin él, nada le dice al
+   admin que al tocar el techo el bot empieza a descartar lo más viejo. */
 function withCap(used, cap) {
   if (used == null) return null;
   const n = Number(used).toLocaleString('es');
@@ -137,13 +137,13 @@ function statTile(iconName, value, label) {
   if (value instanceof Node) {
     valEl.append(value);
   } else {
-    valEl.textContent = value != null ? String(value) : '—';
+    valEl.textContent = value != null ? (typeof value === 'number' ? value.toLocaleString('es') : String(value)) : '—';
   }
   return el('div', { class: 'stat-tile' },
-    icon(iconName),
-    el('div', {},
-      valEl,
-      el('div', { class: 'stat-label dim' }, label)));
+    el('div', { class: 'stat-icon-wrap' }, icon(iconName)),
+    el('div', { class: 'stat-content' },
+      el('div', { class: 'stat-label dim' }, label),
+      valEl));
 }
 
 async function loadInicio() {
@@ -174,7 +174,7 @@ async function loadInicio() {
           onclick: () => openStyleModal(style),
         }, 'Editar estilo'))));
 
-    // Canal de actualizaciones del bot
+    // Canal de actualizaciones del bot (diseño compacto en fila)
     const sel = channelSelect(channels, updates.channel_id, 'Sin canal — no publicar');
     sel.onchange = async () => {
       try {
@@ -185,56 +185,89 @@ async function loadInicio() {
       } catch (e) { toast('No se pudo guardar el canal, intenta de nuevo', 'err'); }
     };
     box.append(formGroup('Actualizaciones del Bot',
-      el('p', { class: 'dim' }, 'Canal donde Purgito publica sus anuncios de actualizaciones y novedades.'),
-      el('div', { class: 'field' }, sel)));
+      el('div', { class: 'updates-row' },
+        el('div', { class: 'updates-info' },
+          el('p', { class: 'dim' }, 'Canal donde Purgito publica anuncios y novedades de actualizaciones.')),
+        el('div', { class: 'updates-control' }, sel))));
 
-    // Estados: lo que el bot tiene guardado y de dónde lee ahora mismo. Los
-    // que tienen cupo lo muestran: un número solo no dice que al llegar al
-    // tope el bot empieza a borrar lo más viejo sin avisar.
+    // Estados: lo que el bot tiene guardado y de dónde lee ahora mismo.
     const lims = stats.limits || {};
     const tiles = el('div', { class: 'stat-grid' },
       statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), 'Mensajes guardados'),
       statTile('film', withCap(stats.gifs, lims.gifs), 'GIFs guardados'),
-      statTile('chat', `${stats.reading_channels}/${stats.text_channels}`, 'Canales que lee'),
-      statTile('layout', `${stats.reply_channels}/${stats.text_channels}`, 'Canales donde responde'),
+      statTile('chat', `${stats.reading_channels} / ${stats.text_channels}`, 'Canales que lee'),
+      statTile('layout', `${stats.reply_channels} / ${stats.text_channels}`, 'Canales donde responde'),
       statTile('smile', stats.reactions, 'Emojis de reacción'),
       statTile('sparkle', withCap(stats.frases, lims.frases), 'Frases especiales'));
+
+    const alcanzados = [
+      [stats.corpus_total, lims.corpus_total, 'mensajes guardados'],
+      [stats.gifs, lims.gifs, 'GIFs'],
+      [stats.frases, lims.frases, 'frases especiales'],
+    ].filter(([used, cap]) => cap && used >= cap);
+
     const cerca = [
       [stats.corpus_total, lims.corpus_total, 'mensajes guardados'],
       [stats.gifs, lims.gifs, 'GIFs'],
-    ].filter(([used, cap]) => cap && used >= cap * 0.9);
-    // Por canal el tope es otro (y más chico) que el total del servidor: un
-    // canal solo puede aportar corpus_per_channel mensajes.
+      [stats.frases, lims.frases, 'frases especiales'],
+    ].filter(([used, cap]) => cap && used >= cap * 0.9 && used < cap);
+
+    let quotaNotice = null;
+    if (alcanzados.length) {
+      quotaNotice = el('p', { class: 'stat-quota-msg dim' },
+        `Has alcanzado el límite de ${alcanzados.map(c => c[2]).join(' y ')}. ` +
+        'Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.');
+    } else if (cerca.length) {
+      quotaNotice = el('p', { class: 'stat-quota-msg dim' },
+        `Estás cerca del cupo de ${cerca.map(c => c[2]).join(' y ')}: al alcanzarlo, ` +
+        'Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.');
+    }
+
     const capCanal = lims.corpus_per_channel || 0;
     const byChannel = el('div', { class: 'stat-channels' },
       stats.corpus_by_channel.map(c => {
+        const isFull = capCanal && c.count >= capCanal;
+        const isNear = capCanal && c.count >= capCanal * 0.9 && !isFull;
         const chanLabel = c.name
-          ? el('span', {}, '#' + c.name)
-          : el('span', {}, 'Canal desconocido ', el('span', { class: 'dim' }, `#${c.channel_id}`));
+          ? el('span', { class: 'stat-chan-name' }, '#' + c.name)
+          : el('span', { class: 'stat-chan-unavailable' },
+              el('span', { class: 'stat-chan-unavail-title' }, 'Canal no disponible'),
+              el('span', { class: 'stat-chan-id dim' }, `ID: ${c.channel_id}`));
+        const countText = capCanal
+          ? `${c.count.toLocaleString('es')} de ${capCanal.toLocaleString('es')} mensajes`
+          : `${c.count.toLocaleString('es')} mensajes`;
         return el('div', { class: 'stat-channel-row' },
           chanLabel,
-          el('span', { class: capCanal && c.count >= capCanal * 0.9 ? '' : 'dim' },
-            capCanal
-              ? `${c.count.toLocaleString('es')} de ${capCanal.toLocaleString('es')} mensajes`
-              : `${c.count} mensajes`));
+          el('span', { class: isFull ? 'stat-chan-full' : (isNear ? 'stat-chan-warn' : 'dim') },
+            countText));
       }));
-    box.append(formGroup('Estado del bot en este servidor', tiles,
-      cerca.length
-        ? el('p', { class: 'dim' },
-          `Estás cerca del cupo de ${cerca.map(c => c[2]).join(' y ')}: al llegar, `
-          + 'Purgito empieza a borrar lo más antiguo para hacer lugar a lo nuevo.')
-        : null,
+
+    box.append(formGroup('Estado del bot en este servidor',
+      tiles,
+      quotaNotice,
       stats.corpus_by_channel.length
-        ? el('div', {}, el('p', { class: 'dim' }, 'Mensajes guardados por canal:'), byChannel)
+        ? el('div', { class: 'stat-by-channel' },
+            el('p', { class: 'dim' }, 'Mensajes guardados por canal:'),
+            byChannel)
         : null));
 
     // Logs: acumulado histórico de lo que el bot mandó (guild_counters).
     const counters = stats.counters || {};
     box.append(formGroup('Actividad',
-      el('p', { class: 'dim' }, 'Lo que Purgito lleva enviado en este servidor desde que entró.'),
-      el('div', { class: 'stat-grid' },
-        statTile('film', counters.gifs_enviados || 0, 'GIFs enviados'),
-        statTile('chat', counters.mensajes_enviados || 0, 'Mensajes enviados'))));
+      el('p', { class: 'dim' }, 'Actividad acumulada en este servidor desde que se unió Purgito.'),
+      el('div', { class: 'activity-grid' },
+        el('div', { class: 'activity-card' },
+          el('div', { class: 'activity-icon-wrap' }, icon('film')),
+          el('div', { class: 'activity-content' },
+            el('div', { class: 'activity-value' }, Number(counters.gifs_enviados || 0).toLocaleString('es')),
+            el('div', { class: 'activity-label' }, 'GIFs enviados'),
+            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado'))),
+        el('div', { class: 'activity-card' },
+          el('div', { class: 'activity-icon-wrap' }, icon('chat')),
+          el('div', { class: 'activity-content' },
+            el('div', { class: 'activity-value' }, Number(counters.mensajes_enviados || 0).toLocaleString('es')),
+            el('div', { class: 'activity-label' }, 'Mensajes enviados'),
+            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado'))))));
   } catch (e) { renderError(box, e); }
 }
 

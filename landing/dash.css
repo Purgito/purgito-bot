@@ -1584,25 +1584,28 @@ h1 {
 /* Dashboard */
 .dash-back {
   display: inline-flex; align-items: center; gap: 8px;
-  color: var(--text-muted); font-size: var(--t-sm); margin-bottom: 16px;
+  color: var(--text-muted); font-size: var(--t-sm); margin-bottom: 20px;
+  text-decoration: none;
   transition: color var(--transition);
 }
 .dash-back:hover { color: var(--text); }
 .dash-back:hover .dash-back-arrow { transform: translateX(-3px); }
 .dash-back-arrow { transition: transform var(--transition); }
-.dash-guild { display: flex; align-items: center; gap: 14px; }
-.dash-guild .guild-icon { width: 56px; height: 56px; border-radius: 14px; font-size: 22px; }
-.dash-guild h1 { margin: 0 0 2px; display: flex; align-items: center; gap: 10px; font-size: var(--t-2xl); }
+.dash-guild { display: flex; align-items: center; gap: 16px; }
+.dash-guild .guild-icon { width: 56px; height: 56px; border-radius: 14px; font-size: 22px; flex: none; }
+.dash-guild-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dash-guild-name { margin: 0; display: flex; align-items: center; gap: 10px; font-size: var(--t-2xl); line-height: 1.2; flex-wrap: wrap; }
 .dash-guild-members { display: flex; align-items: center; gap: 6px; font-size: var(--t-sm); }
-.dash-guild-members .nav-icon { width: 16px; height: 16px; }
+.dash-guild-members .nav-icon { width: 15px; height: 15px; color: var(--text-muted); }
 .dash-tabs {
-  display: flex; gap: 2px; margin: 20px 0 24px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 2px; margin: 24px 0 28px; border-bottom: 1px solid var(--border);
   overflow-x: auto;
 }
 .dash-tab {
   padding: 10px 14px; text-decoration: none; color: var(--text-muted);
   font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
   border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
 }
 .dash-tab:hover { color: var(--text); }
 .dash-tab.active { color: var(--text); border-bottom-color: var(--accent); }
@@ -1698,7 +1701,7 @@ h1 {
 }
 .onboarding-dismiss:hover { color: var(--text); }
 
-/* INICIO: estilo + stats */
+/* INICIO: estilo + actualizaciones + stats + actividad */
 .style-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .style-preview {
   display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;
@@ -1716,27 +1719,81 @@ h1 {
 .style-counter { float: right; font-size: 12px; }
 .style-img-body { display: flex; gap: 8px; margin-top: 8px; }
 .style-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+/* Actualizaciones del Bot (fila compacta) */
+.updates-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.updates-info { flex: 1; min-width: 220px; }
+.updates-info p { margin: 0; font-size: var(--t-sm); line-height: 1.5; }
+.updates-control { flex: none; min-width: 220px; max-width: 100%; }
+.updates-control select { width: 100%; }
+
+/* Métricas de estado */
 .stat-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
   gap: 12px; margin-bottom: 16px;
 }
 .stat-tile {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 14px;
   background: var(--surface-card); border: 1px solid var(--border);
-  border-radius: var(--radius-md); padding: 14px;
+  border-radius: var(--radius-md); padding: 14px 16px;
+  transition: border-color var(--transition);
 }
-.stat-tile .nav-icon { color: var(--accent); }
-.stat-value { font-size: 20px; font-weight: 700; font-family: var(--font-mono); }
-.stat-cap-wrap { display: inline-flex; align-items: baseline; }
-.stat-num-main { font-size: 20px; font-weight: 700; color: var(--text-heading, #fff); }
-.stat-num-cap { font-size: 13px; font-weight: 400; opacity: 0.7; }
-.stat-label { font-size: 12px; }
+.stat-tile:hover { border-color: color-mix(in srgb, var(--border) 60%, var(--accent)); }
+.stat-icon-wrap {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  background: var(--accent-soft-bg); color: var(--accent); flex: none;
+}
+.stat-icon-wrap .nav-icon { width: 18px; height: 18px; }
+.stat-content { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stat-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+  color: var(--text-muted); text-transform: uppercase;
+}
+.stat-value { font-size: 18px; font-weight: 700; font-family: var(--font-mono); line-height: 1.2; }
+.stat-cap-wrap { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 2px; }
+.stat-num-main { font-size: 18px; font-weight: 700; color: var(--text); }
+.stat-num-cap { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.stat-quota-msg { margin: 12px 0 16px; font-size: 13px; line-height: 1.5; }
+
+/* Desglose por canal */
+.stat-by-channel { margin-top: 12px; }
+.stat-by-channel > p { margin-bottom: 8px; font-size: 13px; }
 .stat-channels { display: flex; flex-direction: column; gap: 6px; }
 .stat-channel-row {
-  display: flex; justify-content: space-between; gap: 12px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
   background: var(--surface-card); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 8px 12px; font-size: 14px;
+  border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px;
 }
+.stat-chan-name { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text); }
+.stat-chan-unavailable { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.stat-chan-unavail-title { color: var(--text-muted); font-style: italic; }
+.stat-chan-id { font-family: var(--font-mono); font-size: 11px; }
+.stat-chan-full { color: var(--premium); font-weight: 600; font-size: 12px; }
+.stat-chan-warn { color: var(--accent); font-size: 12px; }
+
+/* Actividad acumulada */
+.activity-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.activity-card {
+  display: flex; align-items: center; gap: 16px;
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 16px 20px;
+  transition: border-color var(--transition);
+}
+.activity-card:hover { border-color: color-mix(in srgb, var(--border) 60%, var(--accent)); }
+.activity-icon-wrap {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: var(--radius-md);
+  background: var(--accent-soft-bg); color: var(--accent); flex: none;
+}
+.activity-icon-wrap .nav-icon { width: 22px; height: 22px; }
+.activity-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.activity-value { font-size: 24px; font-weight: 700; font-family: var(--font-mono); color: var(--text); line-height: 1.1; }
+.activity-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.activity-sub { font-size: 11px; }
 
 /* CHAT: multi-select de canales */
 .chan-picker { display: flex; flex-direction: column; gap: 10px; }

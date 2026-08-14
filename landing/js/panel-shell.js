@@ -29,7 +29,14 @@ export async function getRoles() {
 export function channelSelect(channels, selectedId, noneLabel) {
   const sel = el('select', {});
   if (noneLabel !== undefined) sel.append(el('option', { value: '' }, noneLabel));
-  for (const ch of channels) sel.append(el('option', { value: ch.id }, '#' + (ch.name || ch.id)));
+  let hasSelected = false;
+  for (const ch of channels) {
+    if (String(ch.id) === String(selectedId)) hasSelected = true;
+    sel.append(el('option', { value: ch.id }, '#' + (ch.name || ch.id)));
+  }
+  if (selectedId && !hasSelected) {
+    sel.append(el('option', { value: selectedId }, `Canal no disponible (ID: ${selectedId})`));
+  }
   sel.value = selectedId || '';
   return sel;
 }
