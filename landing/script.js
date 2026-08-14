@@ -325,37 +325,37 @@ function svgIcon(paths) {
 
     popover(btn, menu, wrap);
 
-    var isProfileActive = /^\/(?:[a-z]{2}\/)?perfil(?:\/.*)?$/.test(location.pathname);
+    var isProfileActive = /^\/(?:[a-z]{2}\/)?(?:perfil|dashboard)(?:\/.*)?$/.test(location.pathname);
 
-    // Enlace independiente 'Perfil' en la navbar desktop para usuarios autenticados (a la derecha de Premium)
+    // Enlace independiente 'Dashboard' en la navbar desktop para usuarios autenticados (a la derecha de Premium)
     var navLinks = document.querySelector('.nav-links');
-    if (navLinks && !navLinks.querySelector('.nav-link-perfil')) {
-      var navPerfil = document.createElement('a');
-      navPerfil.className = 'nav-link nav-link-perfil' + (isProfileActive ? ' is-active' : '');
-      navPerfil.href = '/' + LOC + '/perfil';
-      navPerfil.textContent = 'Perfil';
+    if (navLinks && !navLinks.querySelector('.nav-link-dashboard')) {
+      var navDash = document.createElement('a');
+      navDash.className = 'nav-link nav-link-dashboard' + (isProfileActive ? ' is-active' : '');
+      navDash.href = '/' + LOC + '/perfil/servidores';
+      navDash.textContent = 'Dashboard';
       if (isProfileActive) {
-        navPerfil.setAttribute('aria-current', 'page');
+        navDash.setAttribute('aria-current', 'page');
       }
       var premLink = navLinks.querySelector('a[href*="/premium"]');
       if (premLink && premLink.nextSibling) {
-        navLinks.insertBefore(navPerfil, premLink.nextSibling);
+        navLinks.insertBefore(navDash, premLink.nextSibling);
       } else {
-        navLinks.appendChild(navPerfil);
+        navLinks.appendChild(navDash);
       }
     }
 
-    // Enlace independiente 'Perfil' en el panel móvil para usuarios autenticados (a la derecha/debajo de Premium)
+    // Enlace independiente 'Dashboard' en el panel móvil para usuarios autenticados (a la derecha/debajo de Premium)
     var mobContent = document.querySelector('.nav-mobile-content');
-    if (mobContent && !mobContent.querySelector('.nav-mobile-item-perfil')) {
-      var mobPerfil = document.createElement('a');
-      mobPerfil.className = 'nav-mobile-item nav-mobile-item-perfil' + (isProfileActive ? ' is-active' : '');
-      mobPerfil.href = '/' + LOC + '/perfil';
-      mobPerfil.innerHTML = '<span>Perfil</span>';
+    if (mobContent && !mobContent.querySelector('.nav-mobile-item-dashboard')) {
+      var mobDash = document.createElement('a');
+      mobDash.className = 'nav-mobile-item nav-mobile-item-dashboard' + (isProfileActive ? ' is-active' : '');
+      mobDash.href = '/' + LOC + '/perfil/servidores';
+      mobDash.innerHTML = '<span>Dashboard</span>';
       if (isProfileActive) {
-        mobPerfil.setAttribute('aria-current', 'page');
+        mobDash.setAttribute('aria-current', 'page');
       }
-      mobPerfil.addEventListener('click', function () {
+      mobDash.addEventListener('click', function () {
         var panel = document.getElementById('nav-mobile-panel');
         var toggle = document.getElementById('nav-mobile-toggle');
         if (panel) panel.hidden = true;
@@ -364,9 +364,9 @@ function svgIcon(paths) {
       });
       var mobPrem = mobContent.querySelector('a[href*="/premium"]');
       if (mobPrem && mobPrem.nextSibling) {
-        mobContent.insertBefore(mobPerfil, mobPrem.nextSibling);
+        mobContent.insertBefore(mobDash, mobPrem.nextSibling);
       } else {
-        mobContent.appendChild(mobPerfil);
+        mobContent.appendChild(mobDash);
       }
     }
   }

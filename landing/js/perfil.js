@@ -249,7 +249,8 @@ export async function initPerfil() {
     return;
   }
 
-  const seg = location.pathname.split('/')[3] || 'perfil';
+  const m = location.pathname.match(/\/perfil(?:\/([^\/?#]+))?/);
+  const seg = (m && m[1]) ? m[1] : 'perfil';
   const tab = TABS.some(t => t.key === seg) ? seg : 'perfil';
   const main = document.getElementById('contenido');
 

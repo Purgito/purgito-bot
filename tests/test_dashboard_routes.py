@@ -616,8 +616,8 @@ def test_popover_positioning_and_viewport_resilience():
     assert "will-change: transform;" in style_css
 
 
-def test_perfil_en_navbar_y_menu_de_usuario_para_autenticados():
-    """Verifica que Perfil aparece en el menú de usuario, navbar desktop y drawer móvil para autenticados."""
+def test_dashboard_en_navbar_y_menu_de_usuario_para_autenticados():
+    """Verifica que Dashboard aparece en navbar desktop y drawer móvil para autenticados, y Perfil en el menú de usuario."""
     script = (LANDING / "script.js").read_text("utf-8")
     style = (LANDING / "style.css").read_text("utf-8")
 
@@ -626,9 +626,9 @@ def test_perfil_en_navbar_y_menu_de_usuario_para_autenticados():
     assert "label: 'Perfil'" in script
     assert "icon: ICONS.user" in script
 
-    # Inyección de enlace 'Perfil' en navbar desktop y panel móvil
-    assert "nav-link-perfil" in script
-    assert "nav-mobile-item-perfil" in script
+    # Inyección de enlace 'Dashboard' en navbar desktop y panel móvil
+    assert "nav-link-dashboard" in script
+    assert "nav-mobile-item-dashboard" in script
     assert "isProfileActive" in script
     assert "aria-current" in script
 
