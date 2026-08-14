@@ -97,21 +97,84 @@ export function insertAtCursor(input, text) {
 // --- Popover unificado de inserción (menciones / fecha / emoji) ---
 
 let _insPop = null;
+let _insPopAnchor = null;
+let _insPopFrame = null;
+
 export function closeInsertPopover() {
   if (_insPop) { _insPop.remove(); _insPop = null; }
+  _insPopAnchor = null;
+  if (_insPopFrame !== null) {
+    cancelAnimationFrame(_insPopFrame);
+    _insPopFrame = null;
+  }
+  document.removeEventListener('pointerdown', _insPopOutside);
   document.removeEventListener('mousedown', _insPopOutside);
   document.removeEventListener('scroll', _insPopScroll, true);
+  window.removeEventListener('resize', _scheduleInsertPopoverPosition);
+  window.removeEventListener('orientationchange', _scheduleInsertPopoverPosition);
+  window.visualViewport?.removeEventListener('resize', _scheduleInsertPopoverPosition);
+  window.visualViewport?.removeEventListener('scroll', _scheduleInsertPopoverPosition);
 }
 function _insPopOutside(e) {
-  if (_insPop && !_insPop.contains(e.target)) closeInsertPopover();
+  if (_insPop && !_insPop.contains(e.target) && (!_insPopAnchor || !_insPopAnchor.contains(e.target))) {
+    closeInsertPopover();
+  }
 }
-// El popover es position:fixed calculado una sola vez al abrir; si el
-// formulario/preview (ahora con scroll propio) se mueve por debajo, el
-// popover quedaría "flotando" desconectado de su campo. Cerrarlo en
-// cualquier scroll fuera de él mismo (su lista interna sí puede scrollear
-// sin cerrarse). 'scroll' no burbujea, así que se escucha en captura.
+// El popover es position:fixed anclado a su campo; si el formulario o contenedor
+// se mueve por debajo, el popover se reposiciona o cierra si el campo sale de vista.
 function _insPopScroll(e) {
-  if (_insPop && !_insPop.contains(e.target)) closeInsertPopover();
+  if (_insPop && !_insPop.contains(e.target)) {
+    _scheduleInsertPopoverPosition();
+  }
+}
+
+// Los `position: fixed` se calculan contra el viewport visible. En Safari
+// móvil ese viewport cambia al abrir el teclado, contraer la barra URL o rotar
+// el dispositivo; requestAnimationFrame agrupa los eventos de resize/scroll en
+// una sola lectura y escritura por frame.
+function _positionInsertPopover() {
+  _insPopFrame = null;
+  if (!_insPop || !_insPopAnchor || !_insPopAnchor.isConnected) {
+    closeInsertPopover();
+    return;
+  }
+  const margin = 8;
+  const anchor = _insPopAnchor.getBoundingClientRect();
+  const pop = _insPop.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const left = viewport ? viewport.offsetLeft : 0;
+  const top = viewport ? viewport.offsetTop : 0;
+  const width = viewport ? viewport.width : window.innerWidth;
+  const height = viewport ? viewport.height : window.innerHeight;
+
+  // Si el anchor quedó completamente fuera de la vista visible, cerrar.
+  if (anchor.bottom < top || anchor.top > top + height) {
+    closeInsertPopover();
+    return;
+  }
+
+  // Decidir si abrir hacia abajo o hacia arriba según el espacio libre en el viewport
+  const spaceBelow = top + height - anchor.bottom - 4;
+  const spaceAbove = anchor.top - top - 4;
+  const fitsBelow = spaceBelow >= pop.height;
+
+  let calculatedTop;
+  if (fitsBelow || spaceBelow >= spaceAbove) {
+    calculatedTop = anchor.bottom + 4;
+  } else {
+    calculatedTop = anchor.top - pop.height - 4;
+  }
+
+  const maxLeft = Math.max(left + margin, left + width - pop.width - margin);
+  const maxTop = Math.max(top + margin, top + height - pop.height - margin);
+
+  _insPop.style.left = Math.max(left + margin, Math.min(anchor.left, maxLeft)) + 'px';
+  _insPop.style.top = Math.max(top + margin, Math.min(calculatedTop, maxTop)) + 'px';
+}
+
+function _scheduleInsertPopoverPosition() {
+  if (_insPopFrame !== null) cancelAnimationFrame(_insPopFrame);
+  _insPopFrame = requestAnimationFrame(_positionInsertPopover);
 }
 
 const INS_TAB_LABELS = { menciones: 'Menciones', fecha: 'Fecha', emoji: 'Emoji' };
@@ -128,7 +191,11 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
     for (const t of tabs) {
       tabBar.append(el('div', {
         class: 'ins-pop-tab' + (t === active ? ' active' : ''),
-        onclick: () => { active = t; renderTabs(); renderBody(); },
+        onclick: () => {
+          active = t;
+          renderTabs();
+          renderBody().finally(_scheduleInsertPopoverPosition);
+        },
       }, INS_TAB_LABELS[t]));
     }
   }
@@ -145,7 +212,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
       body.append(spinner());
       let roles, channels;
       try { [roles, channels] = await Promise.all([getRoles(), getChannels()]); }
-      catch (e) { body.innerHTML = ''; body.append(el('p', { class: 'error' }, e.message)); return; }
+      catch (e) { body.innerHTML = ''; body.append(el('p', { class: 'error' }, e.message)); _scheduleInsertPopoverPosition(); return; }
       body.innerHTML = '';
       const search = el('input', { type: 'text', placeholder: 'Buscar rol o canal…' });
       const list = el('div', { class: 'ins-pop-list' });
@@ -163,6 +230,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
           list.append(el('div', { class: 'ins-pop-item', onclick: (ev) => insert(`<#${c.id}>`, ev) }, '#' + c.name));
         }
         if (!list.children.length) list.append(el('p', { class: 'dim', style: 'padding:8px' }, 'Sin resultados'));
+        _scheduleInsertPopoverPosition();
       }
       search.oninput = renderList;
       body.append(search, list);
@@ -191,6 +259,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
             el('span', { class: 'ins-item-label' }, label),
             el('span', { class: 'dim' }, discordTimestampText(date, code))));
         }
+        _scheduleInsertPopoverPosition();
       }
       dt.onchange = renderStyles;
       body.append(el('div', { class: 'field' }, dt), list);
@@ -217,6 +286,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
           grid.append(el('button', { class: 'ins-emoji', onclick: (ev) => insert(ch, ev) }, ch));
         }
         if (!grid.children.length) grid.append(el('p', { class: 'dim', style: 'padding:8px' }, 'Sin resultados'));
+        _scheduleInsertPopoverPosition();
       }
       search.oninput = renderGrid;
       body.append(search, grid);
@@ -228,17 +298,18 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
   pop.append(tabBar, body);
   pop.onkeydown = (e) => { if (e.key === 'Escape') { closeInsertPopover(); input.focus(); } };
   document.body.append(pop);
-  // Posicionar bajo el ancla, sin salirse del viewport.
-  const rect = anchor.getBoundingClientRect();
-  pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 340) + 'px';
-  pop.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
   _insPop = pop;
-  setTimeout(() => {
-    document.addEventListener('mousedown', _insPopOutside);
-    document.addEventListener('scroll', _insPopScroll, true);
-  }, 0);
+  _insPopAnchor = anchor;
+  document.addEventListener('pointerdown', _insPopOutside);
+  document.addEventListener('mousedown', _insPopOutside);
+  document.addEventListener('scroll', _insPopScroll, true);
+  window.addEventListener('resize', _scheduleInsertPopoverPosition);
+  window.addEventListener('orientationchange', _scheduleInsertPopoverPosition);
+  window.visualViewport?.addEventListener('resize', _scheduleInsertPopoverPosition);
+  window.visualViewport?.addEventListener('scroll', _scheduleInsertPopoverPosition);
   renderTabs();
-  renderBody();
+  _scheduleInsertPopoverPosition();
+  renderBody().finally(_scheduleInsertPopoverPosition);
 }
 
 // Envuelve un input/textarea con el botón de inserción asistida + atajos

@@ -452,6 +452,34 @@ def test_dash_refreshes_load_head_on_inicio_navigation():
     assert "loadHead();" in dash
 
 
+def test_insert_popover_se_reposiciona_con_cambios_de_viewport():
+    """El popover fixed del editor no puede conservar coordenadas viejas al
+    aparecer el teclado o cambiar la orientación en Safari móvil."""
+    shared_ui = (LANDING / "js" / "embeds" / "shared-ui.js").read_text("utf-8")
+
+    assert "window.visualViewport" in shared_ui
+    assert (
+        "window.addEventListener('resize', _scheduleInsertPopoverPosition)" in shared_ui
+    )
+    assert (
+        "window.addEventListener('orientationchange', _scheduleInsertPopoverPosition)"
+        in shared_ui
+    )
+    assert "requestAnimationFrame(_positionInsertPopover)" in shared_ui
+    assert "window.visualViewport?.removeEventListener('resize'" in shared_ui
+
+
+def test_dashboard_y_premium_tienen_fallbacks_de_viewport_y_blur():
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+    style_css = (LANDING / "style.css").read_text("utf-8")
+
+    assert "max-height: 85vh;" in dash_css
+    assert "max-height: 85dvh;" in dash_css
+    assert "height: calc(100dvh - 230px);" in dash_css
+    assert ".prem-float-chip" in style_css
+    assert "-webkit-backdrop-filter: blur(12px);" in style_css
+
+
 def test_pagina_premium_redisenada_tiene_elementos_y_limites_reales():
     """Verifica que /es/premium/ contiene la estructura rediseñada y límites de limits.env."""
     prem_page = (LANDING / "es" / "premium" / "index.html").read_text("utf-8")
@@ -523,3 +551,59 @@ def test_navbar_dropdowns_and_mobile_menu_structure_and_behavior():
     assert ".nav-drop-item" in style
     assert ".nav-mobile-panel" in style
     assert ".nav-mobile-toggle" in style
+
+
+def test_documentacion_inicio_redisenada_con_recursos_rapidos_y_categorias():
+    """Verifica que el Inicio de /es/documentacion incluye encabezado compacto, recursos rápidos y categorías."""
+    docs_home = (LANDING / "es" / "documentacion" / "index.html").read_text("utf-8")
+
+    # Encabezado y recursos rápidos
+    assert 'class="docs-home-head"' in docs_home
+    assert 'class="docs-home-lead"' in docs_home
+    assert 'class="docs-quick-links"' in docs_home
+    assert "dash-link" in docs_home
+    assert "https://discord.gg/5U7HKyxnBv" in docs_home
+    assert "client_id=1471724794411089920" in docs_home
+
+    # Separación y sección de exploración
+    assert 'class="docs-divider"' in docs_home
+    assert 'class="docs-section-heading"' in docs_home
+    assert "Explora la documentación" in docs_home
+
+    # Categorías de documentación técnica
+    for cat in (
+        "arquitectura",
+        "discord",
+        "api",
+        "generacion",
+        "almacenamiento",
+        "seguridad",
+        "infraestructura",
+        "desarrollo",
+        "referencia",
+    ):
+        assert f'href="/es/documentacion/{cat}"' in docs_home
+
+
+def test_popover_positioning_and_viewport_resilience():
+    """Verifica que los popovers del editor y el layout del dashboard gestionan viewport y limpieza."""
+    shared_ui = (LANDING / "js" / "embeds" / "shared-ui.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+    style_css = (LANDING / "style.css").read_text("utf-8")
+
+    # shared-ui.js maneja visualViewport, pointerdown, resize, orientación y limpieza
+    assert "window.visualViewport?.addEventListener('resize'" in shared_ui
+    assert "window.visualViewport?.removeEventListener('resize'" in shared_ui
+    assert "pointerdown" in shared_ui
+    assert "orientationchange" in shared_ui
+    assert "fitsBelow" in shared_ui
+    assert "closeInsertPopover" in shared_ui
+
+    # dash.css tiene restricciones de viewport dvh/vh para popovers y modales
+    assert "max-height: calc(100dvh - 16px);" in dash_css
+    assert "max-height: 85dvh;" in dash_css
+
+    # style.css aísla la capa del dropdown y soporta dvh en el menú móvil
+    assert ".nav-mobile-panel" in style_css
+    assert "height: calc(100dvh - var(--nav-h));" in style_css
+    assert "will-change: transform;" in style_css

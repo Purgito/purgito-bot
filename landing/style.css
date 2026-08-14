@@ -100,6 +100,7 @@
 html { background: var(--bg); scroll-behavior: smooth; }
 
 body {
+  min-height: 100vh;
   min-height: 100svh;
   font-family: var(--font-body);
   font-size: var(--t-md);
@@ -405,10 +406,8 @@ input::placeholder { color: var(--text-muted); }
   background: var(--surface-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 48px -12px rgb(0 0 0 / 0.8), inset 0 1px 0 color-mix(in srgb, var(--accent) 25%, transparent);
+  box-shadow: 0 20px 48px -12px rgb(0 0 0 / 0.85), inset 0 1px 0 color-mix(in srgb, var(--accent) 25%, transparent);
   z-index: 60;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   animation: nav-drop-enter 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: top left;
 }
@@ -552,14 +551,20 @@ input::placeholder { color: var(--text-muted); }
   left: 0;
   right: 0;
   bottom: 0;
+  height: calc(100vh - var(--nav-h));
+  height: calc(100dvh - var(--nav-h));
   background: color-mix(in srgb, var(--bg) 97%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   z-index: 45;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 1.25rem;
   border-top: 1px solid var(--border-card);
   animation: nav-mobile-slide 0.2s ease-out;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-mobile-panel { background: var(--bg); }
 }
 @keyframes nav-mobile-slide {
   from { opacity: 0; transform: translateY(-8px); }
@@ -1472,8 +1477,7 @@ body:has(.prem-page) .prem-page { flex: 1; }
   width: 120%;
   height: 120%;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 0%, color-mix(in srgb, var(--prem-purple) 15%, transparent) 45%, transparent 70%);
-  filter: blur(40px);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent) 0%, color-mix(in srgb, var(--prem-purple) 16%, transparent) 45%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -1513,11 +1517,18 @@ body:has(.prem-page) .prem-page { flex: 1; }
   border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
   border-radius: var(--radius-lg);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
   font-size: var(--t-xs);
   line-height: 1.2;
   z-index: 2;
+  will-change: transform;
   animation: prem-float 6s ease-in-out infinite;
+}
+/* El blur es decorativo: si no existe, el fondo opaco conserva contraste y
+   jerarquía sin sumar una ruta específica para ningún navegador. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .prem-float-chip { background: var(--surface-card); }
 }
 .prem-chip-icon { font-size: 1.15rem; flex-shrink: 0; }
 .prem-chip-text { display: flex; flex-direction: column; text-align: left; }
@@ -2865,9 +2876,142 @@ body:has(.estado) .estado { flex: 1; }
 .docs-badge--put { background: hsl(40 90% 55% / 0.12); border-color: hsl(40 90% 55% / 0.35); color: hsl(40 90% 65%); }
 .docs-badge--delete { background: hsl(0 70% 55% / 0.12); border-color: hsl(0 70% 55% / 0.35); color: hsl(0 80% 70%); }
 
-/* Tarjetas de categoría en /es/documentacion (índice). */
-.docs-cards { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1.5rem; }
-@media (min-width: 640px) { .docs-cards { grid-template-columns: 1fr 1fr; } }
-.docs-card { display: block; }
-.docs-card h3 { margin-top: 0; }
-.docs-card p { color: var(--text-dim); font-size: var(--t-sm); margin-top: 0.375rem; }
+/* ── Portada de documentación (/es/documentacion) ── */
+.docs-home-head {
+  margin-bottom: 1.5rem;
+}
+.docs-home-lead {
+  font-size: var(--t-md);
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin-top: 0.35rem;
+  margin-bottom: 1.25rem;
+  max-width: 38rem;
+}
+
+.docs-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.docs-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border-card);
+  color: var(--text-dim);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color var(--dur), color var(--dur), border-color var(--dur), transform var(--dur);
+}
+.docs-quick-btn:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-card));
+  transform: translateY(-1px);
+}
+.docs-quick-btn .i {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--accent-2);
+  flex-shrink: 0;
+}
+
+.docs-divider {
+  border: 0;
+  height: 1px;
+  background: var(--border-card);
+  margin: 1.75rem 0;
+}
+
+.docs-section-heading {
+  font-family: var(--font-head);
+  font-size: var(--t-lg);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 1.25rem 0;
+  letter-spacing: -0.01em;
+}
+
+/* Tarjetas de categoría en /es/documentacion (índice) */
+.docs-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 640px) {
+  .docs-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.docs-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
+  transition: transform var(--dur), border-color var(--dur), box-shadow var(--dur), background-color var(--dur);
+}
+.docs-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-card));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+.docs-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.docs-card-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.docs-card-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.docs-card-icon--blurple {
+  background: color-mix(in srgb, var(--blurple) 15%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--blurple) 30%, transparent);
+  color: var(--blurple);
+}
+.docs-card-chev {
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+  transition: transform var(--dur), color var(--dur);
+}
+.docs-card:hover .docs-card-chev {
+  color: var(--accent-2);
+  transform: translateX(3px);
+}
+
+.docs-card h3 {
+  font-family: var(--font-head);
+  font-size: var(--t-md);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.35rem 0;
+  line-height: 1.3;
+}
+.docs-card p {
+  color: var(--text-dim);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  margin: 0;
+}

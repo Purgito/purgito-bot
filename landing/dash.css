@@ -1078,6 +1078,7 @@ h1 {
 @media (min-width: 1101px) {
   .embed-layout {
     height: calc(100vh - 230px);
+    height: calc(100dvh - 230px);
     min-height: 360px;
     overflow: hidden;
   }
@@ -1117,6 +1118,9 @@ h1 {
   padding: 16px;
   width: min(720px, 100%);
   max-height: 85vh;
+  /* Safari 15.4+ ajusta dvh cuando aparecen teclado y barras del navegador;
+     el vh previo queda como fallback para navegadores anteriores. */
+  max-height: 85dvh;
   overflow-y: auto;
 }
 .modal-head {
@@ -1151,6 +1155,9 @@ h1 {
   position: fixed;
   z-index: 9500;
   width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
   background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
