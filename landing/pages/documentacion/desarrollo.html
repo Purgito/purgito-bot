@@ -1,6 +1,6 @@
-<h1>Development</h1>
+<h1>Desarrollo</h1>
 
-<h2 id="estructura-del-proyecto">Project Structure</h2>
+<h2 id="estructura-del-proyecto">Estructura del proyecto</h2>
 <ul>
   <li><code>src/cogs/</code> — comandos y features del bot (chat, gifs,
   memes, youtube, premium, anuncios, layout_buttons, settings, general).</li>
@@ -14,14 +14,14 @@
   <li><code>data/bot.db</code> — la base SQLite.</li>
 </ul>
 
-<h2 id="entorno-local">Local Setup</h2>
+<h2 id="entorno-local">Entorno local</h2>
 <p>El bot es Python 3.11+; CI corre en 3.12. Tres archivos de entorno con
 reglas distintas: <code>.env</code> (secretos, no versionado — nombres
 esperados en <code>.env.example</code>), <code>urls.env</code> (URLs
 públicas, versionado) y <code>limits.env</code> (cuotas por servidor,
 versionado). Los tres se cargan al importar <code>src/config.py</code>.</p>
 
-<h2 id="tests">Testing</h2>
+<h2 id="tests">Tests</h2>
 <pre><code># pytest no está en requirements.txt — usar el venv del proyecto.
 .venv/bin/python -m pytest tests -q
 

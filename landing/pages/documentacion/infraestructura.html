@@ -1,6 +1,6 @@
-<h1>Infrastructure</h1>
-<p>Despliegue manual sobre un único droplet: nginx en el borde, el proceso
-de Python detrás, Cloudflare delante de todo.</p>
+<h1>Infraestructura</h1>
+<p>Arquitectura de despliegue sobre un único servidor: nginx en el borde,
+el proceso de Python detrás y Cloudflare como CDN y proxy frontal.</p>
 
 <h2 id="runtime">Runtime</h2>
 <p>El bot y su API corren como un único proceso de Python. La API escucha
@@ -9,27 +9,27 @@ el único punto de entrada real.</p>
 
 <h2 id="nginx">Nginx</h2>
 <p>Nginx separa por ruta: <code>/auth/*</code>, <code>/api/*</code>,
-<code>/webhooks/*</code> y <code>/health</code> se mandan al proceso de
-Python; todo lo demás — la landing, el dashboard, las páginas legales,
-esta misma documentación — sale directo de archivos estáticos en el
-checkout del repo, sin pasar por Python. Como el sitio tiene rutas por
-idioma (<code>/es/...</code>), la única ruta con un segmento realmente
-dinámico (el ID de servidor en la URL del dashboard) necesita una regla de
-nginx propia; el resto son carpetas reales en disco.</p>
+<code>/webhooks/*</code> y <code>/health</code> se envían al proceso de
+Python; todo lo demás — la landing, el dashboard, las páginas legales y
+esta documentación — se sirve directamente desde archivos estáticos, sin
+pasar por Python. Como el sitio tiene rutas por idioma (<code>/es/...</code>),
+la única ruta con un segmento dinámico (el ID de servidor en la URL del
+dashboard) cuenta con una regla de nginx dedicada; el resto son rutas
+estáticas en disco.</p>
 
 <h2 id="cloudflare">Cloudflare</h2>
-<p>Cloudflare está delante de nginx: termina TLS y cachea el contenido
-estático del sitio. Si un cambio recién desplegado "no se ve", el
-diagnóstico habitual es purgar caché antes de sospechar del código.</p>
+<p>Cloudflare actúa como capa de CDN y proxy inverso delante de nginx:
+gestiona la terminación TLS, protege el servidor de origen y cachea el
+contenido estático del sitio, reduciendo la carga sobre el servidor.</p>
 
-<h2 id="deployment">Deployment</h2>
-<p>No hay CI/CD: el despliegue es manual — conectarse al droplet,
-actualizar el checkout con <code>git pull</code> y reiniciar el servicio.
-Como el HTML de este mismo sitio de documentación se genera y se commitea
-en el repo (no en el servidor), un <code>git pull</code> alcanza para
-publicarlo, sin paso de build aparte.</p>
+<h2 id="deployment">Despliegue</h2>
+<p>El despliegue se basa en la sincronización del repositorio: al estar
+el sitio estático y la documentación pregenerados y versionados en el
+repositorio, no se requiere un paso de compilación (<em>build step</em>)
+en el servidor; basta con sincronizar los cambios con <code>git pull</code>
+y reiniciar el servicio de la aplicación.</p>
 
-<h2 id="health-checks">Health Checks</h2>
+<h2 id="health-checks">Chequeos de salud</h2>
 <p><code>/health</code> es un chequeo de vida simple: confirma que el
 proceso está corriendo y respondiendo, no que la base de datos o la
 conexión con Discord estén sanas. Existe para monitoreo básico, no como

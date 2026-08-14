@@ -1,9 +1,9 @@
-<h1>Generation Engine</h1>
+<h1>Motor de generación</h1>
 <p>Purgito no usa un LLM: genera texto con una cadena de Markov de primer
 orden, propia y sin dependencias externas, entrenada con el corpus de
 mensajes reales de cada servidor.</p>
 
-<h2 id="motor-markov">Markov Engine</h2>
+<h2 id="motor-markov">Motor de Markov</h2>
 <p>El modelo enlaza cada palabra con las que la siguieron en el corpus de
 entrenamiento y arma una respuesta caminando esa cadena palabra por
 palabra desde un estado inicial hasta un estado final, con un tope de
@@ -26,7 +26,7 @@ triggers a la vez, independientemente de la lista de permitidos.</p>
 <p>Hay también un modelo por usuario, entrenado solo con los mensajes de
 esa persona, usado por los comandos que imitan a alguien en particular.</p>
 
-<h2 id="pipeline">Generation Pipeline</h2>
+<h2 id="pipeline">Pipeline de generación</h2>
 <ol>
   <li>Llega un mensaje; se descarta si es de un bot o ya se procesó (guarda
   contra reintentos del gateway).</li>
@@ -42,7 +42,7 @@ esa persona, usado por los comandos que imitan a alguien en particular.</p>
   el límite de longitud de Discord antes de enviarse.</li>
 </ol>
 
-<h2 id="concurrencia-y-limites">Concurrency &amp; Limits</h2>
+<h2 id="concurrencia-y-limites">Concurrencia y límites</h2>
 <p>Un semáforo global limita cuántas generaciones/entrenamientos de Markov
 corren en simultáneo en todo el proceso — no es por servidor, es un tope
 compartido para no saturar el pool de hilos. Los mensajes espontáneos usan

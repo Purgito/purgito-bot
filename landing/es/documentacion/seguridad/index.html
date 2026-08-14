@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security — Documentación técnica — Purgito</title>
+<title>Seguridad — Documentación técnica — Purgito</title>
 <meta name="description" content="Modelo de seguridad de Purgito: OAuth2, sesiones, permisos y límites de uso.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
@@ -74,23 +74,23 @@
     </li>
     <li><a href="/es/documentacion/api">API</a>
     </li>
-    <li><a href="/es/documentacion/generacion">Generation</a>
+    <li><a href="/es/documentacion/generacion">Generación</a>
     </li>
-    <li><a href="/es/documentacion/almacenamiento">Storage</a>
+    <li><a href="/es/documentacion/almacenamiento">Almacenamiento</a>
     </li>
-    <li><a class="active" href="/es/documentacion/seguridad">Security</a>
-      <ul class="docs-subnav"><li><a href="#oauth2">OAuth2</a></li><li><a href="#permisos">Permissions</a></li><li><a href="#rate-limits">Rate Limits</a></li><li><a href="#modelo-de-seguridad">Security Model</a></li></ul>
+    <li><a class="active" href="/es/documentacion/seguridad">Seguridad</a>
+      <ul class="docs-subnav"><li><a href="#oauth2">OAuth2</a></li><li><a href="#permisos">Permisos</a></li><li><a href="#rate-limits">Límites de uso</a></li><li><a href="#modelo-de-seguridad">Modelo de seguridad</a></li></ul>
     </li>
-    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    <li><a href="/es/documentacion/infraestructura">Infraestructura</a>
     </li>
-    <li><a href="/es/documentacion/desarrollo">Development</a>
+    <li><a href="/es/documentacion/desarrollo">Desarrollo</a>
     </li>
-    <li><a href="/es/documentacion/referencia">Reference</a>
+    <li><a href="/es/documentacion/referencia">Referencia</a>
     </li>
   </ul>
 </details>
   <main id="contenido" class="docs-content">
-<h1>Security</h1>
+<h1>Seguridad</h1>
 <p>Modelo de seguridad de Purgito a nivel conceptual: qué existe y por
 qué, sin los números ni los mecanismos exactos — esta página es pública.</p>
 
@@ -105,7 +105,7 @@ accesible desde JavaScript y no viaja en navegación cruzada entre sitios
 salvo los casos que el navegador permite por diseño (por eso hay una
 defensa adicional contra ese caso puntual).</p>
 
-<h2 id="permisos">Permissions</h2>
+<h2 id="permisos">Permisos</h2>
 <p>Ninguna acción sobre un servidor específico se resuelve confiando en
 datos que mande el navegador: cada vez que el dashboard pide algo de un
 servidor, Purgito le pregunta directamente a la API de Discord, con el
@@ -115,7 +115,7 @@ propia petición. Del lado de Discord, las acciones administrativas del
 bot (comandos de configuración, paneles) verifican el permiso
 <code>Administrar servidor</code> de quien invoca.</p>
 
-<h2 id="rate-limits">Rate Limits</h2>
+<h2 id="rate-limits">Límites de uso</h2>
 <p>Purgito aplica límites de uso en varias capas independientes: por
 dirección IP en la API pública, por usuario dentro de cada servidor para
 comandos interactivos (generar contenido, invocar memes), y por canal
@@ -125,7 +125,7 @@ texto puede correr en simultáneo, para que ningún servidor sature el
 proceso a costa de los demás. Los valores concretos de esos límites no
 son públicos.</p>
 
-<h2 id="modelo-de-seguridad">Security Model</h2>
+<h2 id="modelo-de-seguridad">Modelo de seguridad</h2>
 <p>Los principios generales: aislar los datos de cada servidor por diseño
 del esquema, no confiar en nada que el cliente declare sobre sí mismo sin
 verificarlo contra la fuente (Discord), validar el contenido real de lo

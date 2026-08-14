@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Storage — Documentación técnica — Purgito</title>
+<title>Almacenamiento — Documentación técnica — Purgito</title>
 <meta name="description" content="SQLite, Cloudflare R2, cachés en memoria y retención de datos en Purgito.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
@@ -74,23 +74,23 @@
     </li>
     <li><a href="/es/documentacion/api">API</a>
     </li>
-    <li><a href="/es/documentacion/generacion">Generation</a>
+    <li><a href="/es/documentacion/generacion">Generación</a>
     </li>
-    <li><a class="active" href="/es/documentacion/almacenamiento">Storage</a>
-      <ul class="docs-subnav"><li><a href="#sqlite">SQLite</a></li><li><a href="#r2">R2</a></li><li><a href="#cache">Caching</a></li><li><a href="#retencion">Data Retention</a></li></ul>
+    <li><a class="active" href="/es/documentacion/almacenamiento">Almacenamiento</a>
+      <ul class="docs-subnav"><li><a href="#sqlite">SQLite</a></li><li><a href="#r2">R2</a></li><li><a href="#cache">Caché</a></li><li><a href="#retencion">Retención de datos</a></li></ul>
     </li>
-    <li><a href="/es/documentacion/seguridad">Security</a>
+    <li><a href="/es/documentacion/seguridad">Seguridad</a>
     </li>
-    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    <li><a href="/es/documentacion/infraestructura">Infraestructura</a>
     </li>
-    <li><a href="/es/documentacion/desarrollo">Development</a>
+    <li><a href="/es/documentacion/desarrollo">Desarrollo</a>
     </li>
-    <li><a href="/es/documentacion/referencia">Reference</a>
+    <li><a href="/es/documentacion/referencia">Referencia</a>
     </li>
   </ul>
 </details>
   <main id="contenido" class="docs-content">
-<h1>Storage</h1>
+<h1>Almacenamiento</h1>
 <p>Todo el estado de Purgito vive en una única base SQLite —
 <code>data/bot.db</code> — sin motor de base de datos externo. Los
 archivos binarios (GIFs, imágenes) van opcionalmente a Cloudflare R2.</p>
@@ -116,7 +116,7 @@ con conteo de referencias para saber cuándo borrarlo de verdad. Las
 imágenes del editor de embeds, en cambio, se guardan por servidor, no
 compartidas entre servidores.</p>
 
-<h2 id="cache">Caching</h2>
+<h2 id="cache">Caché</h2>
 <p>Todo el caching de Purgito es en memoria del propio proceso — no hay
 Redis ni ninguna caché externa — así que se pierde por completo en cada
 reinicio. Esto incluye los modelos de Markov ya entrenados por servidor y
@@ -126,7 +126,7 @@ embeds mientras esperan a que alguien apriete "enviar" (con un tiempo de
 vida corto, pensado para un solo proceso — no sobreviviría a correr varias
 instancias del bot a la vez).</p>
 
-<h2 id="retencion">Data Retention</h2>
+<h2 id="retencion">Retención de datos</h2>
 <p>Hay una tarea periódica que corre una vez al día y se encarga de la
 retención basada en tiempo: cuando el bot sale de un servidor, sus datos
 no se borran al toque — quedan marcados y se purgan recién después de un
@@ -135,7 +135,7 @@ purga). La misma tarea limpia el registro de auditoría viejo, los links
 compartibles de embeds vencidos y las sesiones revocadas ya expiradas.</p>
 <p>El corpus de mensajes en sí no tiene expiración por edad mientras el
 servidor siga activo — se recorta únicamente por capacidad, no por
-antigüedad (ver <a href="/es/documentacion/generacion#concurrencia-y-limites">Generation Engine</a>).</p>
+antigüedad (ver <a href="/es/documentacion/generacion#concurrencia-y-limites">Motor de generación</a>).</p>
   </main>
 </div>
 

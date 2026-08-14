@@ -2,7 +2,7 @@
 <p>Purgito es un bot de discord.py estructurado como una colección de cogs
 — cada uno con una responsabilidad — cargados al arrancar el proceso.</p>
 
-<h2 id="bot-y-cogs">Bot &amp; Cogs</h2>
+<h2 id="bot-y-cogs">Bot y cogs</h2>
 <p>El entrypoint (<code>src/bot.py</code>) carga los cogs en un orden
 deliberado: <code>premium</code> primero, porque expone
 <code>is_premium_guild</code> al resto.</p>
@@ -19,7 +19,7 @@ deliberado: <code>premium</code> primero, porque expone
 <tr><td><code>layout_buttons</code></td><td>Acciones funcionales de los botones del editor de embeds (Layout V2).</td></tr>
 </table>
 
-<h2 id="eventos">Events</h2>
+<h2 id="eventos">Eventos</h2>
 <p>Además de <code>on_ready</code> (arranque, sincroniza los slash commands
 y levanta la API web), los cogs escuchan los eventos que necesitan:
 <code>on_message</code> (chat, captura de GIFs, captura de memes por
@@ -31,7 +31,7 @@ pasan por el mismo canal que los de comandos con prefijo, así que tienen
 su propio manejador (<code>on_app_command_error</code>), cableado a mano
 en vez de con el decorador estándar.</p>
 
-<h2 id="permisos">Permissions</h2>
+<h2 id="permisos">Permisos</h2>
 <p>No hay un sistema de roles propio del bot: todo chequeo de permiso mira
 directamente los permisos nativos de Discord. Las acciones administrativas
 (abrir el panel de configuración, tocar ajustes) verifican que quien
@@ -40,7 +40,7 @@ acción que requiere permisos del propio bot — como asignar un rol desde un
 botón de embed — el bot verifica sus propios permisos y la jerarquía de
 roles, no solo los de quien hizo clic.</p>
 
-<h2 id="interacciones">Interactions</h2>
+<h2 id="interacciones">Interacciones</h2>
 <p>Prácticamente todos los comandos son slash commands; <code>!ping</code>
 es la única excepción con prefijo. Los paneles y menús se construyen con
 vistas de discord.py (botones, selects) y cada vista restringe quién puede

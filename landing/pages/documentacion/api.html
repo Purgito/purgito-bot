@@ -4,20 +4,20 @@ ningún endpoint. Corre en el mismo proceso que el bot, escuchando solo en
 localhost; nginx es quien la expone hacia afuera bajo <code>/api/*</code>,
 <code>/auth/*</code> y <code>/webhooks/*</code>.</p>
 
-<h2 id="vision-general">Overview</h2>
+<h2 id="vision-general">Visión general</h2>
 <p>Dos categorías de endpoints: un puñado públicos, sin sesión (health
 check, estado del bot, el webhook de pagos), y los endpoints por servidor
 bajo <code>/api/server/{guild_id}/...</code>, que requieren sesión
 autenticada y que quien llama administre ese servidor específico.</p>
 
-<h2 id="autenticacion">Authentication</h2>
+<h2 id="autenticacion">Autenticación</h2>
 <p>OAuth2 estándar de Discord (Authorization Code flow), implementado
 directo sobre aiohttp sin librería de OAuth. El login redirige a Discord;
 el callback intercambia el código por un token, trae el usuario y sus
 servidores, y arma la sesión. Si el usuario no administra ningún servidor,
 el login se rechaza.</p>
 
-<h2 id="sesiones">Sessions</h2>
+<h2 id="sesiones">Sesiones</h2>
 <p>La sesión vive cifrada enteramente en la cookie (sin tabla de sesiones
 en el servidor) — httpOnly, SameSite=Lax, marcada segura. Como una cookie
 cifrada robada seguiría siendo válida hasta expirar, el logout no alcanza

@@ -75,17 +75,17 @@
     </li>
     <li><a href="/es/documentacion/api">API</a>
     </li>
-    <li><a href="/es/documentacion/generacion">Generation</a>
+    <li><a href="/es/documentacion/generacion">Generación</a>
     </li>
-    <li><a href="/es/documentacion/almacenamiento">Storage</a>
+    <li><a href="/es/documentacion/almacenamiento">Almacenamiento</a>
     </li>
-    <li><a href="/es/documentacion/seguridad">Security</a>
+    <li><a href="/es/documentacion/seguridad">Seguridad</a>
     </li>
-    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    <li><a href="/es/documentacion/infraestructura">Infraestructura</a>
     </li>
-    <li><a href="/es/documentacion/desarrollo">Development</a>
+    <li><a href="/es/documentacion/desarrollo">Desarrollo</a>
     </li>
-    <li><a href="/es/documentacion/referencia">Reference</a>
+    <li><a href="/es/documentacion/referencia">Referencia</a>
     </li>
   </ul>
 </details>
@@ -113,7 +113,7 @@ webhook) y Cloudflare como capa de CDN/proxy delante de nginx.</p>
       │
       ▼
 ┌──────────────────┐        ┌────────────────────┐
-│   Bot (Python)    │──────▶│  Generation Engine  │
+│   Bot (Python)    │──────▶│ Motor de generación│
 │  src/cogs/*.py    │        │  Markov + corpus    │
 └──────────────────┘        └────────────────────┘
       │        │
@@ -140,19 +140,19 @@ Servicios externos: Cloudflare R2 (GIFs/imágenes, opcional) · Polar (pagos, v�
 </code></pre>
 
 <h2 id="componentes">Componentes</h2>
-<h3>Bot &amp; cogs</h3>
+<h3>Bot y cogs</h3>
 <p>El bot se arma como una colección de <em>cogs</em> de discord.py, cada
 uno responsable de un área: chat/Markov, gifs, memes, youtube, anuncios
 programados, premium, ajustes generales, el panel de configuración y los
 botones de layout del editor de embeds. Ver <a href="/es/documentacion/discord">Discord</a>.</p>
-<h3>Generation Engine</h3>
+<h3>Motor de generación</h3>
 <p>Construye y cachea un modelo de Markov por servidor a partir del corpus
 guardado, con un límite global de tareas de generación concurrentes. Ver
-<a href="/es/documentacion/generacion">Generation Engine</a>.</p>
+<a href="/es/documentacion/generacion">Motor de generación</a>.</p>
 <h3>SQLite</h3>
 <p>Una única base de datos (<code>data/bot.db</code>) para configuración,
 corpus, GIFs, sesiones y todo lo demás — sin motor externo. Ver
-<a href="/es/documentacion/almacenamiento">Storage</a>.</p>
+<a href="/es/documentacion/almacenamiento">Almacenamiento</a>.</p>
 <h3>API + Dashboard</h3>
 <p>La API JSON autentica por sesión (cookie cifrada) y autoriza cada
 llamada verificando en vivo, contra la propia API de Discord, que quien
