@@ -66,8 +66,15 @@ recordar una regla mientras se mira el input.
 secciones principales del Dashboard (`INICIO`, `CHAT`, `GIFS`, `MEMES`, `EMBEDS`,
 `PREMIUM`, `YOUTUBE`, `HISTORIAL`). Cuando una sección con sub-pestañas (`CHAT`)
 está activa, despliega sus subsecciones (`.dash-subtabs-list`) con un ítem final
-destacado (`.dash-subtab-try`) para "Probar configuración". En móviles (`<= 860px`)
-se colapsa en un selector compacto (`.dash-mobile-nav-toggle`).
+destacado (`.dash-subtab-try`) para "Probar configuración".
+
+- **Modo foco / Rail lateral (`FOCUS_TABS`)**: Pestañas de edición ancha como
+  `EMBEDS` entran automáticamente en modo compacto/rail (`.dash-sidebar.collapsed`,
+  48px de ancho) maximizando el espacio horizontal para el formulario y el preview de
+  Discord. Un botón en la cabecera del sidebar (`.dash-sidebar-collapse-btn`) permite
+  expandir o colapsar manualmente la navegación en cualquier momento sin recargar.
+- **Móviles (`<= 860px`)**: Se colapsa en un selector compacto (`.dash-mobile-nav-toggle`),
+  sin rail lateral invasivo.
 
 ## Regla de uso de ⓘ (`helpIcon`)
 

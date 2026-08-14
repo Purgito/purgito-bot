@@ -718,8 +718,15 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert 'id="dashTabs" class="dash-sidebar"' in dash_html
     assert 'id="catContent" class="dash-content"' in dash_html
 
-    # JS lógica de renderizado contextual y toggle móvil
+    # JS lógica de renderizado contextual, modo foco y toggle móvil
     assert "renderSidebar" in dash_js
+    assert "navigateChatSubtab" in dash_js
+    assert "FOCUS_TABS" in dash_js
+    assert "'embeds'" in dash_js
+    assert "toggleSidebarCollapse" in dash_js
+    assert "dash-sidebar-collapse-btn" in dash_js
+    assert "Mostrar navegación" in dash_js
+    assert "Ocultar navegación" in dash_js
     assert "dash-sidebar-inner" in dash_js
     assert "dash-subtabs-list" in dash_js
     assert "dash-subtab-try" in dash_js
@@ -727,9 +734,21 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert "dash-mobile-nav-toggle" in dash_js
     assert "dash-mobile-nav-current" in dash_js
 
-    # CSS Sticky y diseño contextual
+    # Encapsulación de panels y activateSubtab
+    assert "const panels = {};" in dash_js
+    assert "window.panels" not in dash_js
+    assert "globalThis.panels" not in dash_js
+
+    # CSS Sticky, layout fluido progresivo, modo foco / rail colapsable y responsive
+    assert ".shell-main:has(.dash-layout)" in dash_css
+    assert "min(94vw, 1720px)" in dash_css
+    assert "@media (min-width: 1440px)" in dash_css
+    assert "@media (min-width: 2560px)" in dash_css
     assert ".dash-layout" in dash_css
+    assert ".dash-layout.sidebar-collapsed" in dash_css
     assert ".dash-sidebar" in dash_css
+    assert ".dash-sidebar.collapsed" in dash_css
+    assert ".dash-sidebar-collapse-btn" in dash_css
     assert "position: sticky" in dash_css
     assert ".dash-subtabs-list" in dash_css
     assert ".dash-subtab" in dash_css

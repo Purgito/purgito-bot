@@ -25,15 +25,37 @@ import {
 } from '/js/embeds/shared-ui.js';
 
 const TABS = [
-  { key: 'inicio', label: 'INICIO', load: loadInicio },
-  { key: 'chat', label: 'CHAT', load: loadChatTab },
-  { key: 'gifs', label: 'GIFS', load: loadGifs },
-  { key: 'memes', label: 'MEMES', load: loadMemes },
-  { key: 'embeds', label: 'EMBEDS', load: loadEmbeds },
-  { key: 'premium', label: 'PREMIUM', load: loadPremium },
-  { key: 'youtube', label: 'YOUTUBE', load: loadYoutube },
-  { key: 'historial', label: 'HISTORIAL', load: loadHistorial },
+  { key: 'inicio', label: 'INICIO', icon: 'home', load: loadInicio },
+  { key: 'chat', label: 'CHAT', icon: 'chat', load: loadChatTab },
+  { key: 'gifs', label: 'GIFS', icon: 'film', load: loadGifs },
+  { key: 'memes', label: 'MEMES', icon: 'image', load: loadMemes },
+  { key: 'embeds', label: 'EMBEDS', icon: 'layout', load: loadEmbeds },
+  { key: 'premium', label: 'PREMIUM', icon: 'star', load: loadPremium },
+  { key: 'youtube', label: 'YOUTUBE', icon: 'youtube', load: loadYoutube },
+  { key: 'historial', label: 'HISTORIAL', icon: 'history', load: loadHistorial },
 ];
+
+const FOCUS_TABS = ['embeds'];
+let _sidebarCollapsed = false;
+
+function isFocusTab(key) {
+  return FOCUS_TABS.includes(key);
+}
+
+function updateSidebarLayoutState() {
+  const layout = document.querySelector('.dash-layout');
+  const nav = document.getElementById('dashTabs');
+  if (layout) layout.classList.toggle('sidebar-collapsed', _sidebarCollapsed);
+  if (nav) nav.classList.toggle('collapsed', _sidebarCollapsed);
+}
+
+function toggleSidebarCollapse() {
+  _sidebarCollapsed = !_sidebarCollapsed;
+  updateSidebarLayoutState();
+  const currentKey = currentTab();
+  const currentSub = currentKey === 'chat' ? currentChatSubtab() : null;
+  renderSidebar(currentKey, currentSub);
+}
 
 const CHAT_SUBTABS = [
   { key: 'comportamiento', label: 'Comportamiento' },
@@ -54,6 +76,17 @@ function currentChatSubtab() {
 let _activeChatSubtabSetter = null;
 let _chatHashHandler = null;
 
+function navigateChatSubtab(key) {
+  if (_activeChatSubtabSetter) {
+    _activeChatSubtabSetter(key);
+  } else {
+    location.hash = `#${key}`;
+    if (currentTab() !== 'chat') {
+      activate('chat', true);
+    }
+  }
+}
+
 function currentTab() {
   const key = location.pathname.split('/')[4] || 'inicio';
   return TABS.some(t => t.key === key) ? key : 'inicio';
@@ -62,14 +95,30 @@ function currentTab() {
 function renderSidebar(activeTab, activeSubtab) {
   const nav = document.getElementById('dashTabs');
   if (!nav) return;
-  nav.className = 'dash-sidebar';
+  nav.className = 'dash-sidebar' + (_sidebarCollapsed ? ' collapsed' : '');
   nav.innerHTML = '';
+  updateSidebarLayoutState();
 
   const activeTabObj = TABS.find(t => t.key === activeTab) || TABS[0];
   const activeSubtabObj = activeTab === 'chat'
     ? (CHAT_SUBTABS.find(s => s.key === activeSubtab) || CHAT_SUBTABS[0])
     : null;
 
+  // Botón colapsar / expandir en desktop
+  const collapseBtn = el('button', {
+    type: 'button',
+    class: 'dash-sidebar-collapse-btn',
+    title: _sidebarCollapsed ? 'Mostrar navegación' : 'Ocultar navegación',
+    'aria-label': _sidebarCollapsed ? 'Mostrar navegación' : 'Ocultar navegación',
+    'aria-expanded': String(!_sidebarCollapsed),
+    onclick: () => {
+      toggleSidebarCollapse();
+    },
+  }, icon(_sidebarCollapsed ? 'panelOpen' : 'panelClose'));
+
+  const header = el('div', { class: 'dash-sidebar-header' }, collapseBtn);
+
+  // Toggle para móvil
   const currentLabelWrap = el('span', { class: 'dash-mobile-nav-current' },
     el('span', { class: 'dash-mobile-tab-name' }, activeTabObj.label),
     activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-sep' }, '·') : null,
@@ -111,16 +160,20 @@ function renderSidebar(activeTab, activeSubtab) {
       'data-key': t.key,
       href: `/${currentLocale()}/dashboard/${GUILD_ID}/${t.key}`,
       'aria-current': isTabActive ? 'page' : null,
+      title: t.label,
       onclick: (ev) => {
         ev.preventDefault();
         closeMobileNav();
         activate(t.key, true);
       },
-    }, t.label);
+    },
+      icon(t.icon),
+      el('span', { class: 'dash-tab-label' }, t.label)
+    );
 
     item.append(tabLink);
 
-    if (t.key === 'chat' && isTabActive) {
+    if (t.key === 'chat' && isTabActive && !_sidebarCollapsed) {
       const subList = el('ul', { class: 'dash-subtabs-list' });
       for (const st of CHAT_SUBTABS) {
         const isSubActive = st.key === (activeSubtab || 'comportamiento');
@@ -134,8 +187,7 @@ function renderSidebar(activeTab, activeSubtab) {
                 onclick: (ev) => {
                   ev.preventDefault();
                   closeMobileNav();
-                  if (_activeChatSubtabSetter) _activeChatSubtabSetter('playground');
-                  else location.hash = '#playground';
+                  navigateChatSubtab('playground');
                 },
               },
                 el('span', { class: 'try-sparkle', 'aria-hidden': 'true' }, '✦'),
@@ -151,8 +203,7 @@ function renderSidebar(activeTab, activeSubtab) {
                 onclick: (ev) => {
                   ev.preventDefault();
                   closeMobileNav();
-                  if (_activeChatSubtabSetter) _activeChatSubtabSetter(st.key);
-                  else location.hash = `#${st.key}`;
+                  navigateChatSubtab(st.key);
                 },
               }, st.label))
           );
@@ -165,10 +216,11 @@ function renderSidebar(activeTab, activeSubtab) {
   }
 
   inner.append(list);
-  nav.append(toggleBtn, inner);
+  nav.append(header, toggleBtn, inner);
 }
 
 function activate(key, push) {
+  _sidebarCollapsed = isFocusTab(key);
   const currentSub = key === 'chat' ? currentChatSubtab() : null;
   renderSidebar(key, currentSub);
   if (push) {
@@ -1389,6 +1441,11 @@ async function loadChatTab() {
       playground: buildPlayground,
     };
 
+    const panels = {};
+    for (const st of CHAT_SUBTABS) {
+      panels[st.key] = BUILDERS[st.key]();
+      panels[st.key].hidden = true;
+    }
     const panelsWrap = el('div', { class: 'chat-panels-wrap' }, CHAT_SUBTABS.map(st => panels[st.key]));
 
     // Todo se autoguarda al toque (sin botón "Guardar" ni estado sin
