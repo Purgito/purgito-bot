@@ -3089,7 +3089,7 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
     plan = request.query.get("plan")
     locale = request.query.get("locale", "es")
     if plan in ("monthly", "annual") and locale in ("es", "en", "ru", "ja", "de"):
-        session["auth_return_to"] = f"/{locale}/perfil?plan={plan}"
+        session["auth_return_to"] = f"/{locale}/perfil/servidores?plan={plan}"
     else:
         session.pop("auth_return_to", None)
     params = urlencode(

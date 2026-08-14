@@ -1551,23 +1551,91 @@ h1 {
 
 /* Perfil */
 .pf-head { border-bottom: 1px solid var(--border); margin-bottom: 24px; }
-.pf-id { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
-.pf-avatar { width: 64px; height: 64px; border-radius: 50%; }
-.pf-id h1 { margin: 0 0 4px; font-size: var(--t-4xl); }
-/* Datos sueltos del usuario separados por punto medio, sin viñetas: la lista
-   es semántica (son ítems), la separación es tipográfica. */
-.pf-meta {
-  list-style: none; margin: 0; padding: 0;
-  display: flex; flex-wrap: wrap; gap: 0 0.5rem; font-size: var(--t-sm);
-}
-.pf-meta li + li::before { content: '·'; margin-right: 0.5rem; }
-.pf-tabs { display: flex; gap: 4px; }
+.pf-head-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.pf-title { margin: 0; font-size: var(--t-3xl); font-family: var(--font-head); font-weight: 700; color: var(--text); }
+.pf-tabs { display: flex; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .pf-tab {
-  padding: 8px 14px; text-decoration: none; color: var(--text-muted);
-  font-size: 14px; border-bottom: 2px solid transparent;
+  padding: 8px 16px; text-decoration: none; color: var(--text-muted);
+  font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent;
+  white-space: nowrap; transition: color var(--dur), border-color var(--dur);
 }
 .pf-tab:hover { color: var(--text); }
-.pf-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.pf-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* Tarjeta de información de Perfil */
+.pf-profile-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 42rem;
+}
+.pf-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.pf-profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.pf-profile-ident {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pf-profile-name {
+  margin: 0;
+  font-size: var(--t-2xl);
+  font-family: var(--font-head);
+  font-weight: 700;
+  color: var(--text);
+}
+.badge-discord {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #5865f2 20%, transparent);
+  color: #7983f5;
+  border: 1px solid color-mix(in srgb, #5865f2 35%, transparent);
+}
+.pf-profile-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.pf-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pf-detail-label {
+  font-size: var(--t-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pf-detail-val {
+  font-size: var(--t-sm);
+  color: var(--text);
+  font-weight: 500;
+}
+.pf-detail-mono {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--t-xs);
+  color: var(--text-dim);
+}
 .pf-toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
 .pf-search {
   flex: 1; min-width: 220px;

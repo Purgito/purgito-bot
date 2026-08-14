@@ -1,5 +1,5 @@
-// Página de perfil (/es/perfil, /es/perfil/conexiones, /es/perfil/facturacion):
-// header de usuario, tabs y contenido por tab. Los tabs son links reales a tres
+// Página de cuenta (/es/perfil, /es/perfil/servidores, /es/perfil/conexiones, /es/perfil/facturacion):
+// header compacto, tabs y contenido por tab. Los tabs son links reales a cuatro
 // páginas estáticas distintas — no hay SPA que valga la pena acá.
 //
 // Los datos del usuario salen de /api/me (la misma llamada que usa el navbar);
@@ -11,7 +11,8 @@ import { el, spinner, emptyState, renderError, guildIcon, toast } from '/js/core
 import { currentLocale, formatDate } from '/js/core/config.js';
 
 const TABS = [
-  { key: 'servidores', label: 'Servidores', path: '' },
+  { key: 'perfil', label: 'Perfil', path: '' },
+  { key: 'servidores', label: 'Servidores', path: '/servidores' },
   { key: 'conexiones', label: 'Conexiones', path: '/conexiones' },
   { key: 'facturacion', label: 'Facturación', path: '/facturacion' },
 ];
@@ -28,21 +29,39 @@ function accountCreated(userId) {
 }
 
 function header(me, tab, locale) {
-  const created = accountCreated(me.user_id);
   return el('section', { class: 'pf-head' },
-    el('div', { class: 'pf-id' },
-      me.avatar_url ? el('img', { class: 'pf-avatar', src: me.avatar_url, alt: '' }) : null,
-      el('div', {},
-        el('h1', {}, me.name || 'Tu perfil'),
-        el('ul', { class: 'pf-meta dim' },
-          el('li', {}, 'Usuario de Discord'),
-          created ? el('li', {}, `En Discord desde ${created}`) : null,
-          me.email ? el('li', {}, me.email) : null))),
-    el('nav', { class: 'pf-tabs' },
+    el('div', { class: 'pf-head-bar' },
+      el('h1', { class: 'pf-title' }, 'Tu cuenta')),
+    el('nav', { class: 'pf-tabs', 'aria-label': 'Pestañas de cuenta' },
       TABS.map(t => el('a', {
         class: 'pf-tab' + (t.key === tab ? ' active' : ''),
         href: `/${locale}/perfil${t.path}`,
+        'aria-current': t.key === tab ? 'page' : null,
       }, t.label))));
+}
+
+function tabPerfil(box, me) {
+  const created = accountCreated(me.user_id);
+  box.append(
+    el('div', { class: 'pf-profile-card' },
+      el('div', { class: 'pf-profile-header' },
+        me.avatar_url ? el('img', { class: 'pf-profile-avatar', src: me.avatar_url, alt: me.name || '' }) : null,
+        el('div', { class: 'pf-profile-ident' },
+          el('h2', { class: 'pf-profile-name' }, me.name || 'Usuario'),
+          el('span', { class: 'badge badge-discord' }, 'Usuario de Discord'))),
+      el('div', { class: 'pf-profile-details' },
+        el('div', { class: 'pf-detail-item' },
+          el('span', { class: 'pf-detail-label' }, 'Correo electrónico'),
+          el('span', { class: 'pf-detail-val' }, me.email || 'No disponible')),
+        created ? el('div', { class: 'pf-detail-item' },
+          el('span', { class: 'pf-detail-label' }, 'Antigüedad en Discord'),
+          el('span', { class: 'pf-detail-val' }, `En Discord desde ${created}`)) : null,
+        me.user_id ? el('div', { class: 'pf-detail-item' },
+          el('span', { class: 'pf-detail-label' }, 'ID de usuario'),
+          el('span', { class: 'pf-detail-val pf-detail-mono' }, me.user_id)) : null
+      )
+    )
+  );
 }
 
 function actionButtons(onReload) {
@@ -172,8 +191,15 @@ async function tabFacturacion(box, locale) {
 
 export async function initPerfil() {
   const locale = currentLocale();
-  const seg = location.pathname.split('/')[3] || 'servidores';
-  const tab = TABS.some(t => t.key === seg) ? seg : 'servidores';
+  const params = new URLSearchParams(location.search);
+  // Compatibilidad: si entran a /es/perfil con ?plan=... o ?share=..., redirigir a servidores
+  if (!location.pathname.includes('/servidores') && !location.pathname.includes('/conexiones') && !location.pathname.includes('/facturacion') && (params.has('plan') || params.has('share'))) {
+    location.replace(`/${locale}/perfil/servidores${location.search}`);
+    return;
+  }
+
+  const seg = location.pathname.split('/')[3] || 'perfil';
+  const tab = TABS.some(t => t.key === seg) ? seg : 'perfil';
   const main = document.getElementById('contenido');
 
   let me = {};
@@ -188,7 +214,8 @@ export async function initPerfil() {
 
   const box = el('div', { class: 'pf-content' });
   main.append(box);
-  if (tab === 'conexiones') tabConexiones(box);
+  if (tab === 'perfil') tabPerfil(box, me);
+  else if (tab === 'conexiones') tabConexiones(box);
   else if (tab === 'facturacion') await tabFacturacion(box, locale);
   else await tabServidores(box, locale);
 }

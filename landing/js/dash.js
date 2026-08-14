@@ -67,7 +67,7 @@ function activate(key, push) {
 
 async function loadHead() {
   const head = document.getElementById('dashHead');
-  const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil` },
+  const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
     el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver atrás');
   try {
     const data = await apiFetch('/api/me/guilds');

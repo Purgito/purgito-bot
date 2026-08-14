@@ -279,8 +279,8 @@ def test_paginas_del_dashboard_existen_con_sus_huecos():
         assert hole in dash, hole
     assert "/js/dash.js?v=" in dash
 
-    # Las tres tabs del perfil son páginas reales, no anclas.
-    for slug in ("conexiones", "facturacion"):
+    # Las cuatro tabs de cuenta/perfil son páginas reales, no anclas.
+    for slug in ("servidores", "conexiones", "facturacion"):
         assert (LANDING / "es" / "perfil" / slug / "index.html").exists()
 
 
@@ -303,8 +303,7 @@ def test_el_navbar_no_tiene_ningun_dashboard_suelto():
     # …ni botón suelto en el nav.
     assert not re.search(r'class="nav-link[^"]*"[^>]*>\s*Dashboard', index)
     # El bloque avatar+nombre navega al perfil.
-    assert "profile.href = DASHBOARD" in script
-    assert "'/' + LOC + '/perfil'" in script
+    assert "profile.href = '/' + LOC + '/perfil'" in script
 
 
 # ── Frescura de datos en Header y Dashboard ──────────────────────────────────
@@ -613,3 +612,44 @@ def test_popover_positioning_and_viewport_resilience():
     assert ".nav-mobile-panel" in style_css
     assert "height: calc(100dvh - var(--nav-h));" in style_css
     assert "will-change: transform;" in style_css
+
+
+def test_perfil_en_navbar_y_menu_de_usuario_para_autenticados():
+    """Verifica que Perfil aparece en el menú de usuario, navbar desktop y drawer móvil para autenticados."""
+    script = (LANDING / "script.js").read_text("utf-8")
+    style = (LANDING / "style.css").read_text("utf-8")
+
+    # Ícono y opción 'Perfil' en el menú de usuario
+    assert "user:" in script
+    assert "label: 'Perfil'" in script
+    assert "icon: ICONS.user" in script
+
+    # Inyección de enlace 'Perfil' en navbar desktop y panel móvil
+    assert "nav-link-perfil" in script
+    assert "nav-mobile-item-perfil" in script
+    assert "isProfileActive" in script
+    assert "aria-current" in script
+
+    # Estilos de estado activo en desktop y mobile
+    assert ".nav-link.is-active" in style
+    assert ".nav-mobile-item.is-active" in style
+
+
+def test_estructura_de_cuatro_tabs_en_perfil():
+    """Verifica que perfil.js define y renderiza las 4 pestañas: Perfil, Servidores, Conexiones y Facturación."""
+    perfil_js = (LANDING / "js" / "perfil.js").read_text("utf-8")
+    assert "{ key: 'perfil', label: 'Perfil', path: '' }" in perfil_js
+    assert (
+        "{ key: 'servidores', label: 'Servidores', path: '/servidores' }" in perfil_js
+    )
+    assert (
+        "{ key: 'conexiones', label: 'Conexiones', path: '/conexiones' }" in perfil_js
+    )
+    assert (
+        "{ key: 'facturacion', label: 'Facturación', path: '/facturacion' }"
+        in perfil_js
+    )
+    assert "tabPerfil" in perfil_js
+    assert "tabServidores" in perfil_js
+    assert "tabConexiones" in perfil_js
+    assert "tabFacturacion" in perfil_js

@@ -34,7 +34,8 @@ function popover(btn, menu, container) {
 /* Íconos outline de 24×24 — mismo trazo que el resto del sitio. El color y el
    grosor salen del CSS (.menu-i), acá solo viven los paths. */
 var ICONS = {
-  help:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>' +
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  help: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>' +
         '<path d="m5.6 5.6 3.2 3.2m6.4 6.4 3.2 3.2m0-12.8-3.2 3.2m-6.4 6.4-3.2 3.2"/>',
   book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>',
   star: '<path d="M12 3 14.3 8.8 20.6 9.2 15.7 13.2 17.3 19.3 12 15.9 6.7 19.3 8.3 13.2 3.4 9.2 9.7 8.8Z"/>',
@@ -171,7 +172,7 @@ function svgIcon(paths) {
   var LOC = locale();
 
   // Entrada al panel: la lista de servidores del perfil, no el selector viejo.
-  var DASHBOARD = PANEL + '/' + LOC + '/perfil';
+  var DASHBOARD = PANEL + '/' + LOC + '/perfil/servidores';
 
   document.querySelectorAll('.dash-link').forEach(function (a) {
     a.href = DASHBOARD;
@@ -223,12 +224,10 @@ function svgIcon(paths) {
     wrap.className = 'auth-wrap';
 
     /* El bloque avatar+nombre es un LINK directo al perfil, y el chevron de al
-       lado es el único que abre el menú. Antes había además un botón
-       "Dashboard" suelto en el nav y otro repetido dentro del menú: tres
-       caminos a la misma pantalla. Queda uno solo, el más directo. */
+       lado es el único que abre el menú. */
     var profile = document.createElement('a');
     profile.className = 'auth-btn';
-    profile.href = DASHBOARD;
+    profile.href = '/' + LOC + '/perfil';
 
     if (data.avatar_url) {
       var img = document.createElement('img');
@@ -283,9 +282,9 @@ function svgIcon(paths) {
     head.appendChild(ident);
     menu.appendChild(head);
 
-    /* null = separador entre grupos, tal cual el boceto. Sin "Dashboard": a esa
-       pantalla se llega clickeando el bloque avatar+nombre de arriba. */
+    /* Menú de cuenta autenticada: Perfil, Soporte, Documentación, separador, Premium, Cerrar sesión. */
     [
+      { href: '/' + LOC + '/perfil', label: 'Perfil', icon: ICONS.user },
       { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte', icon: ICONS.help },
       { href: '/' + LOC + '/documentacion', label: 'Documentación', icon: ICONS.book },
       null,
@@ -330,6 +329,41 @@ function svgIcon(paths) {
     slot.appendChild(wrap);
 
     popover(btn, menu, wrap);
+
+    var isProfileActive = /^\/(?:[a-z]{2}\/)?perfil(?:\/.*)?$/.test(location.pathname);
+
+    // Enlace independiente 'Perfil' en la navbar desktop para usuarios autenticados
+    var navLinks = document.querySelector('.nav-links');
+    if (navLinks && !navLinks.querySelector('.nav-link-perfil')) {
+      var navPerfil = document.createElement('a');
+      navPerfil.className = 'nav-link nav-link-perfil' + (isProfileActive ? ' is-active' : '');
+      navPerfil.href = '/' + LOC + '/perfil';
+      navPerfil.textContent = 'Perfil';
+      if (isProfileActive) {
+        navPerfil.setAttribute('aria-current', 'page');
+      }
+      navLinks.appendChild(navPerfil);
+    }
+
+    // Enlace independiente 'Perfil' en el panel móvil para usuarios autenticados
+    var mobContent = document.querySelector('.nav-mobile-content');
+    if (mobContent && !mobContent.querySelector('.nav-mobile-item-perfil')) {
+      var mobPerfil = document.createElement('a');
+      mobPerfil.className = 'nav-mobile-item nav-mobile-item-perfil' + (isProfileActive ? ' is-active' : '');
+      mobPerfil.href = '/' + LOC + '/perfil';
+      mobPerfil.innerHTML = '<span>Perfil</span>';
+      if (isProfileActive) {
+        mobPerfil.setAttribute('aria-current', 'page');
+      }
+      mobPerfil.addEventListener('click', function () {
+        var panel = document.getElementById('nav-mobile-panel');
+        var toggle = document.getElementById('nav-mobile-toggle');
+        if (panel) panel.hidden = true;
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('no-scroll');
+      });
+      mobContent.appendChild(mobPerfil);
+    }
   }
 
   fetch(PANEL + '/api/me', { credentials: 'include' })

@@ -112,13 +112,20 @@ HTML_PAGES = [
     {
         "slug": "perfil",
         "src": "perfil.html",
-        "title": "Tu perfil",
-        "meta": "Tus servidores de Discord con Purgito: entra al dashboard de "
-        "cada uno o invítalo a los que falten.",
+        "title": "Perfil",
+        "meta": "Tu cuenta de Purgito: información de perfil de Discord, servidores y suscripciones.",
         "app": "perfil.js",
     },
     # Mismo cuerpo que /es/perfil: perfil.js decide la tab por la URL. Existen
     # como páginas propias para que cada una tenga su título y su link real.
+    {
+        "slug": "perfil/servidores",
+        "src": "perfil.html",
+        "title": "Servidores",
+        "meta": "Tus servidores de Discord con Purgito: entra al dashboard de "
+        "cada uno o invítalo a los que falten.",
+        "app": "perfil.js",
+    },
     {
         "slug": "perfil/conexiones",
         "src": "perfil.html",

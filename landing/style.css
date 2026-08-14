@@ -365,6 +365,12 @@ input::placeholder { color: var(--text-muted); }
   transition: background-color var(--dur), color var(--dur);
 }
 .nav-link:hover { background: var(--surface); color: var(--text); }
+.nav-link.is-active,
+.nav-link[aria-current="page"] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
 
 /* ── Dropdowns de navegación (desktop) ── */
 .nav-item {
@@ -670,6 +676,12 @@ input::placeholder { color: var(--text-muted); }
   font-weight: 600;
   font-size: var(--t-md);
   text-decoration: none;
+}
+.nav-mobile-item.is-active,
+.nav-mobile-item[aria-current="page"] {
+  background: var(--surface-raised);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
 }
 .nav-mobile-item--highlight {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
