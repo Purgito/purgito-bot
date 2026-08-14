@@ -126,7 +126,7 @@ LANDING_ORIGINS = frozenset(
 # Links del navbar/footer del panel (rediseño dashboard/perfil). Configurables
 # en urls.env; los defaults apuntan a destinos que existen hoy.
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://purgito.app").rstrip("/")
-DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/docs").rstrip("/")
+DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/es/documentacion").rstrip("/")
 REPO_URL = os.getenv(
     "REPO_URL", "https://github.com/punkyyy01/bot-discord-purg"
 ).rstrip("/")

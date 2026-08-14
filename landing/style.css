@@ -1763,3 +1763,115 @@ body:has(.estado) .estado { flex: 1; }
   }
   .shot-tilt, .shot-tilt-l, .shot-tilt-r { transform: none; }
 }
+
+/* ══════════════════ DOCUMENTACIÓN TÉCNICA (/es/documentacion) ══════════════════ */
+/* Sidebar + contenido a dos columnas. Sin JS: la categoría activa la marca
+   doc_sidebar() en build time (landing/build_docs.py), no un scrollspy. En
+   mobile el sidebar se pliega en un <details> — mismo patrón sin JS que ya
+   usan las preguntas frecuentes de la home (.q/.q summary). */
+.docs-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+  padding-block: 3rem 5rem;
+}
+@media (max-width: 860px) {
+  .docs-shell { grid-template-columns: 1fr; gap: 1.5rem; }
+}
+
+.docs-sidebar { position: sticky; top: 6rem; }
+.docs-sidebar ul { list-style: none; padding: 0; margin: 0; }
+.docs-sidebar > ul > li { margin-bottom: 0.25rem; }
+.docs-sidebar summary {
+  display: none;
+  cursor: pointer;
+  list-style: none;
+}
+.docs-sidebar summary::-webkit-details-marker { display: none; }
+.docs-sidebar > ul > li > a {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm, 0.5rem);
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: var(--t-sm);
+}
+.docs-sidebar > ul > li > a:hover { background: var(--surface); color: var(--text); }
+.docs-sidebar > ul > li > a.active { background: hsl(186 84% 46% / 0.12); color: var(--accent-soft); }
+.docs-subnav { margin: 0.125rem 0 0.5rem 0.75rem; border-left: 1px solid var(--border-card); }
+.docs-subnav li a {
+  display: block;
+  padding: 0.375rem 0.75rem;
+  font-size: var(--t-xs);
+  color: var(--text-muted);
+}
+.docs-subnav li a:hover { color: var(--text); }
+
+@media (max-width: 860px) {
+  .docs-sidebar { position: static; }
+  .docs-sidebar summary {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    font-weight: 600;
+    font-size: var(--t-sm);
+  }
+}
+
+.docs-content { max-width: 48rem; color: var(--text-dim); }
+.docs-content h1 { font-size: var(--t-4xl); color: var(--text); margin-bottom: 0.5rem; }
+.docs-content h2 {
+  font-size: var(--t-2xl);
+  color: var(--text);
+  margin-top: 3rem;
+  padding-top: 1rem;
+  scroll-margin-top: 6rem;
+}
+.docs-content h2:first-of-type { margin-top: 2rem; }
+.docs-content h3 { font-size: var(--t-lg); color: var(--text); margin-top: 1.75rem; scroll-margin-top: 6rem; }
+.docs-content p, .docs-content ul, .docs-content ol { margin-top: 0.75rem; line-height: 1.7; }
+.docs-content ul, .docs-content ol { padding-left: 1.25rem; }
+.docs-content li + li { margin-top: 0.375rem; }
+.docs-content a { color: var(--accent-soft); text-decoration: underline; text-underline-offset: 2px; }
+
+.docs-content pre {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-sm, 0.5rem);
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  overflow-x: auto;
+  font-size: var(--t-sm);
+}
+.docs-content code { font-family: var(--font-mono, monospace); }
+.docs-content :not(pre) > code {
+  background: hsl(186 84% 46% / 0.1);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.9em;
+}
+
+.docs-content table { width: 100%; margin-top: 1rem; border-collapse: collapse; font-size: var(--t-sm); }
+.docs-content th, .docs-content td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-card);
+  vertical-align: top;
+}
+.docs-content th { color: var(--text); font-weight: 600; }
+.docs-content table + p, .docs-content pre + p { margin-top: 1.5rem; }
+
+/* Badges de método HTTP: reusan .badge (definida arriba) con un color por método. */
+.docs-badge { font-family: var(--font-mono, monospace); }
+.docs-badge--get { background: hsl(150 60% 45% / 0.12); border-color: hsl(150 60% 45% / 0.35); color: hsl(150 70% 65%); }
+.docs-badge--post { background: hsl(210 80% 55% / 0.12); border-color: hsl(210 80% 55% / 0.35); color: hsl(210 80% 70%); }
+.docs-badge--put { background: hsl(40 90% 55% / 0.12); border-color: hsl(40 90% 55% / 0.35); color: hsl(40 90% 65%); }
+.docs-badge--delete { background: hsl(0 70% 55% / 0.12); border-color: hsl(0 70% 55% / 0.35); color: hsl(0 80% 70%); }
+
+/* Tarjetas de categoría en /es/documentacion (índice). */
+.docs-cards { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1.5rem; }
+@media (min-width: 640px) { .docs-cards { grid-template-columns: 1fr 1fr; } }
+.docs-card { display: block; }
+.docs-card h3 { margin-top: 0; }
+.docs-card p { color: var(--text-dim); font-size: var(--t-sm); margin-top: 0.375rem; }

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Purgito Premium — Purgito</title>
-<meta name="description" content="Apoya a Purgito y obtén beneficios exclusivos: más memoria, más GIFs, memes automáticos y plantillas de embeds.">
+<title>Storage — Documentación técnica — Purgito</title>
+<meta name="description" content="SQLite, Cloudflare R2, cachés en memoria y retención de datos en Purgito.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css?v=a6f90a96">
@@ -62,99 +62,82 @@
   </div>
 </nav>
 
-<!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
-     landing/build_docs.py — no los agregues acá.
-     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
-<main id="contenido" class="wrap premium">
+<div class="docs-shell wrap">
+<details class="docs-sidebar" open aria-label="Documentación técnica">
+  <summary>Categorías</summary>
+  <ul>
+    <li><a href="/es/documentacion">Inicio</a>
+    </li>
+    <li><a href="/es/documentacion/arquitectura">Arquitectura</a>
+    </li>
+    <li><a href="/es/documentacion/discord">Discord</a>
+    </li>
+    <li><a href="/es/documentacion/api">API</a>
+    </li>
+    <li><a href="/es/documentacion/generacion">Generation</a>
+    </li>
+    <li><a class="active" href="/es/documentacion/almacenamiento">Storage</a>
+      <ul class="docs-subnav"><li><a href="#sqlite">SQLite</a></li><li><a href="#r2">R2</a></li><li><a href="#cache">Caching</a></li><li><a href="#retencion">Data Retention</a></li></ul>
+    </li>
+    <li><a href="/es/documentacion/seguridad">Security</a>
+    </li>
+    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    </li>
+    <li><a href="/es/documentacion/desarrollo">Development</a>
+    </li>
+    <li><a href="/es/documentacion/referencia">Reference</a>
+    </li>
+  </ul>
+</details>
+  <main id="contenido" class="docs-content">
+<h1>Storage</h1>
+<p>Todo el estado de Purgito vive en una única base SQLite —
+<code>data/bot.db</code> — sin motor de base de datos externo. Los
+archivos binarios (GIFs, imágenes) van opcionalmente a Cloudflare R2.</p>
 
-  <header class="premium-head">
-    <h1 class="premium-title">Purgito Premium</h1>
-    <p class="premium-sub">Apoya a Purgito y obtén beneficios exclusivos</p>
-  </header>
+<h2 id="sqlite">SQLite</h2>
+<p>Un esquema de varias decenas de tablas, casi todas indexadas por
+<code>guild_id</code>: configuración por servidor, corpus de mensajes (por
+canal y por usuario), reacciones y frases especiales configurables,
+triggers, GIFs e imágenes guardadas, plantillas de embeds, anuncios
+programados, estado de premium, sesiones revocadas y un registro de
+auditoría de cambios hechos desde el dashboard. La separación entre
+servidores es por esquema — columnas <code>guild_id</code> indexadas — no
+por archivos ni bases separadas.</p>
 
-  <div class="plans">
+<h2 id="r2">R2</h2>
+<p>El uso de Cloudflare R2 es enteramente opcional: si no está configurado,
+Purgito sigue funcionando y usa directamente las URLs de Discord/Giphy/
+Tenor en vez de tener copia propia. Cuando está activo, los GIFs se
+descargan (con protecciones contra que la URL apunte a una red interna),
+se optimizan y se guardan direccionados por el hash de su contenido —
+así un mismo GIF subido por dos servidores distintos ocupa un solo objeto,
+con conteo de referencias para saber cuándo borrarlo de verdad. Las
+imágenes del editor de embeds, en cambio, se guardan por servidor, no
+compartidas entre servidores.</p>
 
-    <article class="box plan">
-      <h2 class="plan-name">Purgito</h2>
-      <p class="plan-price">
-        <span class="plan-amount">$0</span><span class="plan-per">/por siempre</span>
-      </p>
+<h2 id="cache">Caching</h2>
+<p>Todo el caching de Purgito es en memoria del propio proceso — no hay
+Redis ni ninguna caché externa — así que se pierde por completo en cada
+reinicio. Esto incluye los modelos de Markov ya entrenados por servidor y
+por usuario, la lista de servidores que puede administrar cada usuario
+logueado, y los archivos subidos a un bloque "Archivo" del editor de
+embeds mientras esperan a que alguien apriete "enviar" (con un tiempo de
+vida corto, pensado para un solo proceso — no sobreviviría a correr varias
+instancias del bot a la vez).</p>
 
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>No disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>15.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>2.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>1.500</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>75</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>20</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>3</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <a class="btn btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
-          <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
-        </a>
-      </div>
-    </article>
-
-    <article class="box plan plan-premium">
-      <h2 class="plan-name">Purgito Premium</h2>
-      <p class="plan-price">
-        <span class="plan-amount" id="plan-amount">$4.99</span><span class="plan-per" id="plan-per">/mensual</span>
-      </p>
-
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>Disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>50.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>8.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>4.000</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>200</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>50</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>10</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <p class="plan-trial" id="plan-trial">7 días gratis</p>
-
-        <!-- El checkout real necesita un guild_id que esta página no tiene: el
-             botón solo enruta al panel (login → selector de servidores), donde
-             vive la activación. El href estático es el fallback sin JS. -->
-        <a class="btn btn-accent btn-lg plan-cta js-subscribe"
-           href="/auth/login?from=landing&amp;locale=es">Subscribirse</a>
-
-        <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
-          <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
-          <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual</button>
-        </div>
-      </div>
-    </article>
-
-  </div>
-
-  <p class="plans-legal">
-    Al continuar aceptas los <a href="/es/terminos">Términos</a>,
-    <a href="/es/reembolsos">Políticas de Reembolso</a> y la
-    <a href="/es/privacidad">Política de Privacidad</a>.
-  </p>
-
-  <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
-    <div class="donate-copy">
-      <h2 class="donate-title">Dona la cantidad que desees</h2>
-      <p class="donate-sub">También puedes apoyarme donando en mi Ko-Fi</p>
-      <p class="donate-fine">Donar es completamente voluntario. No se recibirá nada dentro del bot.</p>
-    </div>
-    <!-- Mismo path que el ícono de Ko-fi del footer. width/height van en el
-         SVG además del CSS: si style.css no carga, queda a 40px en vez de
-         estirarse al tamaño por defecto de un SVG sin dimensionar. -->
-    <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
-  </a>
-
-  <p class="donate-legal">
-    Al donar o suscribirte, tú aceptas los términos y políticas.
-    Contacta a <a href="mailto:billing@purgito.app">billing@purgito.app</a> para más detalles.
-  </p>
-
-</main>
+<h2 id="retencion">Data Retention</h2>
+<p>Hay una tarea periódica que corre una vez al día y se encarga de la
+retención basada en tiempo: cuando el bot sale de un servidor, sus datos
+no se borran al toque — quedan marcados y se purgan recién después de un
+período de gracia (si el servidor reinvita al bot antes, se cancela la
+purga). La misma tarea limpia el registro de auditoría viejo, los links
+compartibles de embeds vencidos y las sesiones revocadas ya expiradas.</p>
+<p>El corpus de mensajes en sí no tiene expiración por edad mientras el
+servidor siga activo — se recorta únicamente por capacidad, no por
+antigüedad (ver <a href="/es/documentacion/generacion#concurrencia-y-limites">Generation Engine</a>).</p>
+  </main>
+</div>
 
 <footer class="footer">
   <div class="wrap box foot-inner">

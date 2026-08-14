@@ -271,7 +271,7 @@ function svgIcon(paths) {
        pantalla se llega clickeando el bloque avatar+nombre de arriba. */
     [
       { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte', icon: ICONS.help },
-      { href: '/' + LOC + '/docs', label: 'Documentación', icon: ICONS.book },
+      { href: '/' + LOC + '/documentacion', label: 'Documentación', icon: ICONS.book },
       null,
       { href: '/' + LOC + '/premium', label: 'Premium', icon: ICONS.star },
       {

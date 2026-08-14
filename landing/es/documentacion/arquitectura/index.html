@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Purgito Premium — Purgito</title>
-<meta name="description" content="Apoya a Purgito y obtén beneficios exclusivos: más memoria, más GIFs, memes automáticos y plantillas de embeds.">
+<title>Arquitectura — Documentación técnica — Purgito</title>
+<meta name="description" content="Cómo se conectan el bot de Discord, el motor de generación, la base de datos y el dashboard de Purgito.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css?v=a6f90a96">
@@ -62,99 +62,129 @@
   </div>
 </nav>
 
-<!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
-     landing/build_docs.py — no los agregues acá.
-     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
-<main id="contenido" class="wrap premium">
+<div class="docs-shell wrap">
+<details class="docs-sidebar" open aria-label="Documentación técnica">
+  <summary>Categorías</summary>
+  <ul>
+    <li><a href="/es/documentacion">Inicio</a>
+    </li>
+    <li><a class="active" href="/es/documentacion/arquitectura">Arquitectura</a>
+      <ul class="docs-subnav"><li><a href="#vision-general">Visión general</a></li><li><a href="#componentes">Componentes</a></li><li><a href="#flujo-de-una-peticion">Flujo de una petición</a></li></ul>
+    </li>
+    <li><a href="/es/documentacion/discord">Discord</a>
+    </li>
+    <li><a href="/es/documentacion/api">API</a>
+    </li>
+    <li><a href="/es/documentacion/generacion">Generation</a>
+    </li>
+    <li><a href="/es/documentacion/almacenamiento">Storage</a>
+    </li>
+    <li><a href="/es/documentacion/seguridad">Security</a>
+    </li>
+    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    </li>
+    <li><a href="/es/documentacion/desarrollo">Development</a>
+    </li>
+    <li><a href="/es/documentacion/referencia">Reference</a>
+    </li>
+  </ul>
+</details>
+  <main id="contenido" class="docs-content">
+<h1>Arquitectura</h1>
+<p>Purgito son tres piezas que comparten una única base de datos SQLite:
+el bot de Discord, una API JSON en aiohttp y un sitio estático que sirve
+tanto la landing pública como el dashboard.</p>
 
-  <header class="premium-head">
-    <h1 class="premium-title">Purgito Premium</h1>
-    <p class="premium-sub">Apoya a Purgito y obtén beneficios exclusivos</p>
-  </header>
+<h2 id="vision-general">Visión general</h2>
+<p>El bot (Python + <code>discord.py</code>) es el proceso principal:
+mantiene la conexión con el gateway de Discord, corre el motor de
+generación de texto y escribe/lee directamente sobre <code>data/bot.db</code>.
+Dentro del mismo proceso corre un servidor aiohttp (<code>src/webapi.py</code>)
+que expone una API JSON pura — no renderiza HTML — escuchando solo en
+<code>127.0.0.1</code>; nginx es el único que le habla desde afuera. El
+dashboard y el resto del sitio son HTML/CSS/JS planos sin build step,
+servidos directamente por nginx desde el checkout del repo, sin pasar por
+el proceso de Python en absoluto salvo cuando llaman a la API.</p>
+<p>Servicios externos: Discord (gateway + OAuth2), Cloudflare R2 (opcional,
+almacena GIFs e imágenes si está configurado), Polar (pagos de Premium vía
+webhook) y Cloudflare como capa de CDN/proxy delante de nginx.</p>
 
-  <div class="plans">
+<pre><code>Discord (gateway + OAuth2)
+      │
+      ▼
+┌──────────────────┐        ┌────────────────────┐
+│   Bot (Python)    │──────▶│  Generation Engine  │
+│  src/cogs/*.py    │        │  Markov + corpus    │
+└──────────────────┘        └────────────────────┘
+      │        │
+      │        └────────────▶  data/bot.db (SQLite)
+      │                              ▲
+      ▼                              │
+┌──────────────────┐                 │
+│  aiohttp (JSON)   │─────────────────┘
+│  src/webapi.py     │  127.0.0.1 únicamente
+└──────────────────┘
+      ▲
+      │  /auth/*  /api/*  /webhooks/*  /health
+      │
+┌──────────────────┐        ┌────────────────────┐
+│      nginx        │◀──────│    Cloudflare       │◀── navegador
+│  (droplet)         │        │  CDN + proxy TLS    │
+└──────────────────┘        └────────────────────┘
+      │
+      └── todo lo demás (landing, dashboard, esta
+          documentación) sale de archivos estáticos,
+          sin pasar por el proceso de Python
 
-    <article class="box plan">
-      <h2 class="plan-name">Purgito</h2>
-      <p class="plan-price">
-        <span class="plan-amount">$0</span><span class="plan-per">/por siempre</span>
-      </p>
+Servicios externos: Cloudflare R2 (GIFs/imágenes, opcional) · Polar (pagos, vía webhook)
+</code></pre>
 
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>No disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>15.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>2.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>1.500</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>75</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>20</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>3</dd></div>
-      </dl>
+<h2 id="componentes">Componentes</h2>
+<h3>Bot &amp; cogs</h3>
+<p>El bot se arma como una colección de <em>cogs</em> de discord.py, cada
+uno responsable de un área: chat/Markov, gifs, memes, youtube, anuncios
+programados, premium, ajustes generales, el panel de configuración y los
+botones de layout del editor de embeds. Ver <a href="/es/documentacion/discord">Discord</a>.</p>
+<h3>Generation Engine</h3>
+<p>Construye y cachea un modelo de Markov por servidor a partir del corpus
+guardado, con un límite global de tareas de generación concurrentes. Ver
+<a href="/es/documentacion/generacion">Generation Engine</a>.</p>
+<h3>SQLite</h3>
+<p>Una única base de datos (<code>data/bot.db</code>) para configuración,
+corpus, GIFs, sesiones y todo lo demás — sin motor externo. Ver
+<a href="/es/documentacion/almacenamiento">Storage</a>.</p>
+<h3>API + Dashboard</h3>
+<p>La API JSON autentica por sesión (cookie cifrada) y autoriza cada
+llamada verificando en vivo, contra la propia API de Discord, que quien
+llama administra el servidor que pide. El dashboard es JS plano que
+consume esa API. Ver <a href="/es/documentacion/api">API</a>.</p>
 
-      <div class="plan-foot">
-        <a class="btn btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
-          <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
-        </a>
-      </div>
-    </article>
-
-    <article class="box plan plan-premium">
-      <h2 class="plan-name">Purgito Premium</h2>
-      <p class="plan-price">
-        <span class="plan-amount" id="plan-amount">$4.99</span><span class="plan-per" id="plan-per">/mensual</span>
-      </p>
-
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>Disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>50.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>8.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>4.000</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>200</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>50</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>10</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <p class="plan-trial" id="plan-trial">7 días gratis</p>
-
-        <!-- El checkout real necesita un guild_id que esta página no tiene: el
-             botón solo enruta al panel (login → selector de servidores), donde
-             vive la activación. El href estático es el fallback sin JS. -->
-        <a class="btn btn-accent btn-lg plan-cta js-subscribe"
-           href="/auth/login?from=landing&amp;locale=es">Subscribirse</a>
-
-        <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
-          <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
-          <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual</button>
-        </div>
-      </div>
-    </article>
-
-  </div>
-
-  <p class="plans-legal">
-    Al continuar aceptas los <a href="/es/terminos">Términos</a>,
-    <a href="/es/reembolsos">Políticas de Reembolso</a> y la
-    <a href="/es/privacidad">Política de Privacidad</a>.
-  </p>
-
-  <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
-    <div class="donate-copy">
-      <h2 class="donate-title">Dona la cantidad que desees</h2>
-      <p class="donate-sub">También puedes apoyarme donando en mi Ko-Fi</p>
-      <p class="donate-fine">Donar es completamente voluntario. No se recibirá nada dentro del bot.</p>
-    </div>
-    <!-- Mismo path que el ícono de Ko-fi del footer. width/height van en el
-         SVG además del CSS: si style.css no carga, queda a 40px en vez de
-         estirarse al tamaño por defecto de un SVG sin dimensionar. -->
-    <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
-  </a>
-
-  <p class="donate-legal">
-    Al donar o suscribirte, tú aceptas los términos y políticas.
-    Contacta a <a href="mailto:billing@purgito.app">billing@purgito.app</a> para más detalles.
-  </p>
-
-</main>
+<h2 id="flujo-de-una-peticion">Flujo de una petición</h2>
+<h3>Un mensaje en Discord</h3>
+<ol>
+  <li>El gateway entrega el evento <code>on_message</code>.</li>
+  <li>Se resuelven los ajustes efectivos del canal (overrides sobre los del
+  servidor).</li>
+  <li>Si el canal está habilitado para aprender, el mensaje se guarda en el
+  corpus.</li>
+  <li>Se evalúan triggers configurados, y si el mensaje menciona o responde
+  al bot, o si toca generar espontáneamente, se pasa al motor de
+  generación.</li>
+  <li>El motor arma (o reutiliza del caché) el modelo de Markov del
+  servidor, genera una respuesta y la post-procesa.</li>
+  <li>El bot envía la respuesta.</li>
+</ol>
+<h3>Una petición al dashboard</h3>
+<ol>
+  <li>El navegador manda la cookie de sesión (cifrada, sin estado en el
+  servidor más allá de una lista de revocación).</li>
+  <li>Cada endpoint de servidor específico verifica, contra la propia API
+  de Discord y no contra nada que mande el cliente, que la sesión
+  administra ese servidor.</li>
+  <li>El handler lee o escribe en SQLite y devuelve JSON — nunca HTML.</li>
+</ol>
+  </main>
+</div>
 
 <footer class="footer">
   <div class="wrap box foot-inner">

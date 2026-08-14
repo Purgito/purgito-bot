@@ -1,0 +1,44 @@
+<h1>Security</h1>
+<p>Modelo de seguridad de Purgito a nivel conceptual: qué existe y por
+qué, sin los números ni los mecanismos exactos — esta página es pública.</p>
+
+<h2 id="oauth2">OAuth2</h2>
+<p>El login usa el flujo estándar de Discord: la identidad la confirma
+Discord, Purgito nunca ve ni guarda una contraseña. La sesión resultante
+vive cifrada en una cookie del navegador — el servidor no guarda una copia
+de la sesión, solo una lista de qué sesiones fueron cerradas
+explícitamente, para poder invalidarlas aunque la cookie cifrada siga
+existiendo en algún lado. La cookie está restringida a HTTPS, no es
+accesible desde JavaScript y no viaja en navegación cruzada entre sitios
+salvo los casos que el navegador permite por diseño (por eso hay una
+defensa adicional contra ese caso puntual).</p>
+
+<h2 id="permisos">Permissions</h2>
+<p>Ninguna acción sobre un servidor específico se resuelve confiando en
+datos que mande el navegador: cada vez que el dashboard pide algo de un
+servidor, Purgito le pregunta directamente a la API de Discord, con el
+token de quien está logueado, si esa persona administra ese servidor —
+nunca a partir de una lista guardada de antes ni de algo que venga en la
+propia petición. Del lado de Discord, las acciones administrativas del
+bot (comandos de configuración, paneles) verifican el permiso
+<code>Administrar servidor</code> de quien invoca.</p>
+
+<h2 id="rate-limits">Rate Limits</h2>
+<p>Purgito aplica límites de uso en varias capas independientes: por
+dirección IP en la API pública, por usuario dentro de cada servidor para
+comandos interactivos (generar contenido, invocar memes), y por canal
+dentro de cada servidor para comportamiento autónomo (respuestas
+espontáneas, triggers). Hay además un tope global de cuánta generación de
+texto puede correr en simultáneo, para que ningún servidor sature el
+proceso a costa de los demás. Los valores concretos de esos límites no
+son públicos.</p>
+
+<h2 id="modelo-de-seguridad">Security Model</h2>
+<p>Los principios generales: aislar los datos de cada servidor por diseño
+del esquema, no confiar en nada que el cliente declare sobre sí mismo sin
+verificarlo contra la fuente (Discord), validar el contenido real de lo
+que se sube en vez de confiar en lo que el cliente dice que es, y
+verificar la firma de cualquier webhook externo antes de procesarlo. La
+superficie pública es intencionalmente chica: la API no renderiza HTML,
+así que buena parte de las clases de vulnerabilidad típicas de una app web
+tradicional no aplican directamente.</p>

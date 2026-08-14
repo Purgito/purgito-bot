@@ -137,7 +137,204 @@ HTML_PAGES = [
         "con Discord y cantidad de servidores. Pública, sin necesidad de login.",
         "module": "estado.js",
     },
+    {
+        "slug": "documentacion",
+        "src": "documentacion/index.html",
+        "title": "Documentación técnica",
+        "meta": "Documentación técnica sobre la arquitectura, APIs, sistemas "
+        "internos e infraestructura de Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/arquitectura",
+        "src": "documentacion/arquitectura.html",
+        "title": "Arquitectura — Documentación técnica",
+        "meta": "Cómo se conectan el bot de Discord, el motor de generación, "
+        "la base de datos y el dashboard de Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/discord",
+        "src": "documentacion/discord.html",
+        "title": "Discord — Documentación técnica",
+        "meta": "Cogs, eventos, permisos e interacciones del bot de Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/api",
+        "src": "documentacion/api.html",
+        "title": "API — Documentación técnica",
+        "meta": "Autenticación, sesiones, endpoints y webhooks de la API de Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/generacion",
+        "src": "documentacion/generacion.html",
+        "title": "Generation Engine — Documentación técnica",
+        "meta": "Cómo genera texto Purgito: cadenas de Markov, corpus, "
+        "concurrencia y límites.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "src": "documentacion/almacenamiento.html",
+        "title": "Storage — Documentación técnica",
+        "meta": "SQLite, Cloudflare R2, cachés en memoria y retención de "
+        "datos en Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "src": "documentacion/seguridad.html",
+        "title": "Security — Documentación técnica",
+        "meta": "Modelo de seguridad de Purgito: OAuth2, sesiones, permisos "
+        "y límites de uso.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "src": "documentacion/infraestructura.html",
+        "title": "Infrastructure — Documentación técnica",
+        "meta": "Runtime, nginx, Cloudflare y despliegue de Purgito en producción.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "src": "documentacion/desarrollo.html",
+        "title": "Development — Documentación técnica",
+        "meta": "Estructura del proyecto, entorno local y tests de Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/referencia",
+        "src": "documentacion/referencia.html",
+        "title": "Reference — Documentación técnica",
+        "meta": "Variables de entorno de Purgito.",
+        "doc": True,
+    },
 ]
+
+# Estructura de /es/documentacion: una entrada por página. Los "subs" son
+# anclas dentro de esa misma página (no páginas propias) — ver Task 1 del
+# plan de documentación técnica para el porqué de la granularidad agrupada.
+DOC_SECTIONS = [
+    {"slug": "documentacion", "label": "Inicio", "subs": []},
+    {
+        "slug": "documentacion/arquitectura",
+        "label": "Arquitectura",
+        "subs": [
+            ("vision-general", "Visión general"),
+            ("componentes", "Componentes"),
+            ("flujo-de-una-peticion", "Flujo de una petición"),
+        ],
+    },
+    {
+        "slug": "documentacion/discord",
+        "label": "Discord",
+        "subs": [
+            ("bot-y-cogs", "Bot & Cogs"),
+            ("eventos", "Events"),
+            ("permisos", "Permissions"),
+            ("interacciones", "Interactions"),
+        ],
+    },
+    {
+        "slug": "documentacion/api",
+        "label": "API",
+        "subs": [
+            ("vision-general", "Overview"),
+            ("autenticacion", "Authentication"),
+            ("sesiones", "Sessions"),
+            ("endpoints", "Endpoints"),
+            ("webhooks", "Webhooks"),
+        ],
+    },
+    {
+        "slug": "documentacion/generacion",
+        "label": "Generation",
+        "subs": [
+            ("motor-markov", "Markov Engine"),
+            ("corpus", "Corpus"),
+            ("pipeline", "Generation Pipeline"),
+            ("concurrencia-y-limites", "Concurrency & Limits"),
+        ],
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "label": "Storage",
+        "subs": [
+            ("sqlite", "SQLite"),
+            ("r2", "R2"),
+            ("cache", "Caching"),
+            ("retencion", "Data Retention"),
+        ],
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "label": "Security",
+        "subs": [
+            ("oauth2", "OAuth2"),
+            ("permisos", "Permissions"),
+            ("rate-limits", "Rate Limits"),
+            ("modelo-de-seguridad", "Security Model"),
+        ],
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "label": "Infrastructure",
+        "subs": [
+            ("runtime", "Runtime"),
+            ("nginx", "Nginx"),
+            ("cloudflare", "Cloudflare"),
+            ("deployment", "Deployment"),
+            ("health-checks", "Health Checks"),
+        ],
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "label": "Development",
+        "subs": [
+            ("estructura-del-proyecto", "Project Structure"),
+            ("entorno-local", "Local Setup"),
+            ("tests", "Testing"),
+        ],
+    },
+    {
+        "slug": "documentacion/referencia",
+        "label": "Reference",
+        "subs": [
+            ("variables-de-entorno", "Environment Variables"),
+        ],
+    },
+]
+
+
+def doc_sidebar(current_slug):
+    """Sidebar de /es/documentacion: categorías + anclas de la página activa.
+
+    Sin JS: la categoría activa se resuelve en build time (cada página sabe
+    su propio slug) y las anclas son <a href="#id"> normales.
+    """
+    items = []
+    for sec in DOC_SECTIONS:
+        active = sec["slug"] == current_slug
+        cls = ' class="active"' if active else ""
+        href = "/es/%s" % sec["slug"]
+        items.append(
+            '    <li><a%s href="%s">%s</a>' % (cls, href, html.escape(sec["label"]))
+        )
+        if active and sec["subs"]:
+            sub_items = "".join(
+                '<li><a href="#%s">%s</a></li>' % (anchor, html.escape(label))
+                for anchor, label in sec["subs"]
+            )
+            items.append('      <ul class="docs-subnav">%s</ul>' % sub_items)
+        items.append("    </li>")
+    return (
+        '<details class="docs-sidebar" open aria-label="Documentación técnica">\n'
+        "  <summary>Categorías</summary>\n"
+        "  <ul>\n%s\n  </ul>\n</details>" % "\n".join(items)
+    )
 
 
 # ── markdown → html ──────────────────────────────────────────────────────────
@@ -355,7 +552,8 @@ def build_html_page(page, nav, footer):
     tal cual. Existe para que esas piezas no se dupliquen fuera de index.html.
     Las que traen "app" suman además dash.css y su módulo de entrada; las que
     traen "module" suman el módulo pero NO dash.css (páginas públicas con su
-    propio JS, ej. /es/estado, que no son parte del dashboard).
+    propio JS, ej. /es/estado, que no son parte del dashboard). Las que traen
+    "doc" son de /es/documentacion: se envuelven en el sidebar de doc_sidebar().
     """
     entry = page.get("app") or page.get("module")
     if page.get("app"):
@@ -364,11 +562,18 @@ def build_html_page(page, nav, footer):
         head = MODULE_HEAD.format(importmap=import_map())
     else:
         head = ""
+    raw_body = (LANDING / "pages" / page["src"]).read_text("utf-8").strip()
+    if page.get("doc"):
+        raw_body = (
+            '<div class="docs-shell wrap">\n%s\n'
+            '  <main id="contenido" class="docs-content">\n%s\n  </main>\n</div>'
+            % (doc_sidebar(page["slug"]), raw_body)
+        )
     return SHELL.format(
         title=html.escape(page["title"]),
         meta=html.escape(page["meta"]),
         nav=nav,
-        body=(LANDING / "pages" / page["src"]).read_text("utf-8").strip(),
+        body=raw_body,
         footer=footer,
         head=head,
         scripts=APP_SCRIPT.format(src=entry, v=js_files()[0]) if entry else "",

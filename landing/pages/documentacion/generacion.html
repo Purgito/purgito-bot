@@ -1,0 +1,59 @@
+<h1>Generation Engine</h1>
+<p>Purgito no usa un LLM: genera texto con una cadena de Markov de primer
+orden, propia y sin dependencias externas, entrenada con el corpus de
+mensajes reales de cada servidor.</p>
+
+<h2 id="motor-markov">Markov Engine</h2>
+<p>El modelo enlaza cada palabra con las que la siguieron en el corpus de
+entrenamiento y arma una respuesta caminando esa cadena palabra por
+palabra desde un estado inicial hasta un estado final, con un tope de
+longitud y reintentos si el resultado sale demasiado corto. Sin librerías
+externas de terceros — es una implementación propia deliberadamente
+simple.</p>
+
+<h2 id="corpus">Corpus</h2>
+<p>Cada servidor tiene su propio corpus: los mensajes que aprende se
+guardan tal cual (limpiados de menciones, URLs y IDs) en SQLite. El modelo
+de un servidor se entrena con una muestra aleatoria de su corpus completo
+— no está limitado al canal donde se generó el mensaje — y requiere un
+mínimo de mensajes guardados antes de poder generar nada; por debajo de
+ese mínimo, Purgito lo dice en vez de fallar en silencio.</p>
+<p>Qué canales alimentan el corpus lo decide una lista de permitidos
+propia: vacía significa que el bot no aprende de ningún canal todavía —
+aprender es más invasivo que responder, así que el default seguro es no
+aprender. Un canal separado, de "silenciados", corta corpus, reacciones y
+triggers a la vez, independientemente de la lista de permitidos.</p>
+<p>Hay también un modelo por usuario, entrenado solo con los mensajes de
+esa persona, usado por los comandos que imitan a alguien en particular.</p>
+
+<h2 id="pipeline">Generation Pipeline</h2>
+<ol>
+  <li>Llega un mensaje; se descarta si es de un bot o ya se procesó (guarda
+  contra reintentos del gateway).</li>
+  <li>Se resuelven los ajustes efectivos del canal.</li>
+  <li>Si corresponde, el mensaje se limpia y se guarda en el corpus.</li>
+  <li>Se evalúan triggers configurados a mano; si uno matchea, corta ahí.</li>
+  <li>Si el mensaje menciona o responde al bot, o si toca una generación
+  espontánea según la cadencia configurada, se arma la respuesta: primero
+  se evalúa si toca una "frase especial" (contenido fijo, no generado) y
+  si no, se cae a Markov.</li>
+  <li>La respuesta se post-procesa — minúsculas, se sacan emojis y
+  conectores finales sueltos ("y", "o", "pero"...) — y se corta si excede
+  el límite de longitud de Discord antes de enviarse.</li>
+</ol>
+
+<h2 id="concurrencia-y-limites">Concurrency &amp; Limits</h2>
+<p>Un semáforo global limita cuántas generaciones/entrenamientos de Markov
+corren en simultáneo en todo el proceso — no es por servidor, es un tope
+compartido para no saturar el pool de hilos. Los mensajes espontáneos usan
+un modo no bloqueante (si no hay lugar, se saltea esa generación en vez de
+esperar); las respuestas a menciones sí esperan su turno. Las escrituras a
+SQLite comparten un único lock de proceso — no hay lock por servidor — así
+que la separación entre servidores la da el esquema (todo indexado por
+<code>guild_id</code>), no la concurrencia.</p>
+<p>El corpus tiene topes de tamaño por canal, por usuario y por servidor
+completo (con un plan gratuito y uno premium). Al superarse, se recorta lo
+más viejo primero; el tope de servidor completo reparte el espacio
+proporcionalmente entre canales en vez de vaciar uno solo. El recorte no
+corre en cada mensaje — se dispara cada cierta cantidad de inserciones,
+como tarea de fondo.</p>

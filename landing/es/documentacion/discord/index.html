@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Purgito Premium — Purgito</title>
-<meta name="description" content="Apoya a Purgito y obtén beneficios exclusivos: más memoria, más GIFs, memes automáticos y plantillas de embeds.">
+<title>Discord — Documentación técnica — Purgito</title>
+<meta name="description" content="Cogs, eventos, permisos e interacciones del bot de Purgito.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css?v=a6f90a96">
@@ -62,99 +62,84 @@
   </div>
 </nav>
 
-<!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
-     landing/build_docs.py — no los agregues acá.
-     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
-<main id="contenido" class="wrap premium">
+<div class="docs-shell wrap">
+<details class="docs-sidebar" open aria-label="Documentación técnica">
+  <summary>Categorías</summary>
+  <ul>
+    <li><a href="/es/documentacion">Inicio</a>
+    </li>
+    <li><a href="/es/documentacion/arquitectura">Arquitectura</a>
+    </li>
+    <li><a class="active" href="/es/documentacion/discord">Discord</a>
+      <ul class="docs-subnav"><li><a href="#bot-y-cogs">Bot &amp; Cogs</a></li><li><a href="#eventos">Events</a></li><li><a href="#permisos">Permissions</a></li><li><a href="#interacciones">Interactions</a></li></ul>
+    </li>
+    <li><a href="/es/documentacion/api">API</a>
+    </li>
+    <li><a href="/es/documentacion/generacion">Generation</a>
+    </li>
+    <li><a href="/es/documentacion/almacenamiento">Storage</a>
+    </li>
+    <li><a href="/es/documentacion/seguridad">Security</a>
+    </li>
+    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    </li>
+    <li><a href="/es/documentacion/desarrollo">Development</a>
+    </li>
+    <li><a href="/es/documentacion/referencia">Reference</a>
+    </li>
+  </ul>
+</details>
+  <main id="contenido" class="docs-content">
+<h1>Discord</h1>
+<p>Purgito es un bot de discord.py estructurado como una colección de cogs
+— cada uno con una responsabilidad — cargados al arrancar el proceso.</p>
 
-  <header class="premium-head">
-    <h1 class="premium-title">Purgito Premium</h1>
-    <p class="premium-sub">Apoya a Purgito y obtén beneficios exclusivos</p>
-  </header>
+<h2 id="bot-y-cogs">Bot &amp; Cogs</h2>
+<p>El entrypoint (<code>src/bot.py</code>) carga los cogs en un orden
+deliberado: <code>premium</code> primero, porque expone
+<code>is_premium_guild</code> al resto.</p>
+<table>
+<tr><th>Cog</th><th>Responsabilidad</th></tr>
+<tr><td><code>premium</code></td><td>Estado premium por servidor, gestionado desde el dashboard.</td></tr>
+<tr><td><code>chat</code></td><td>Corpus, cadenas de Markov y respuestas automáticas.</td></tr>
+<tr><td><code>gifs</code></td><td>Captura y gestión de GIFs: detección en mensajes, subida a R2, galería web.</td></tr>
+<tr><td><code>memes</code></td><td>Memes: comando, generación automática, captura de imágenes con reacción.</td></tr>
+<tr><td><code>youtube</code></td><td>Notificaciones de YouTube por RSS.</td></tr>
+<tr><td><code>anuncios</code></td><td>Mensajes programados a un canal, por intervalo o a hora fija.</td></tr>
+<tr><td><code>general</code></td><td>Comando de ayuda, ping, errores y ciclo de vida de servidores.</td></tr>
+<tr><td><code>settings</code></td><td>Panel unificado de configuración y onboarding al unirse a un servidor.</td></tr>
+<tr><td><code>layout_buttons</code></td><td>Acciones funcionales de los botones del editor de embeds (Layout V2).</td></tr>
+</table>
 
-  <div class="plans">
+<h2 id="eventos">Events</h2>
+<p>Además de <code>on_ready</code> (arranque, sincroniza los slash commands
+y levanta la API web), los cogs escuchan los eventos que necesitan:
+<code>on_message</code> (chat, captura de GIFs, captura de memes por
+reacción), <code>on_guild_join</code>/<code>on_guild_remove</code> (ciclo
+de vida — la salida de un servidor programa el borrado diferido de sus
+datos), <code>on_raw_reaction_add</code> (captura de memes) y
+<code>on_guild_channel_update</code>. Los errores de slash commands no
+pasan por el mismo canal que los de comandos con prefijo, así que tienen
+su propio manejador (<code>on_app_command_error</code>), cableado a mano
+en vez de con el decorador estándar.</p>
 
-    <article class="box plan">
-      <h2 class="plan-name">Purgito</h2>
-      <p class="plan-price">
-        <span class="plan-amount">$0</span><span class="plan-per">/por siempre</span>
-      </p>
+<h2 id="permisos">Permissions</h2>
+<p>No hay un sistema de roles propio del bot: todo chequeo de permiso mira
+directamente los permisos nativos de Discord. Las acciones administrativas
+(abrir el panel de configuración, tocar ajustes) verifican que quien
+invoca tenga <code>Administrar servidor</code>. Antes de ejecutar una
+acción que requiere permisos del propio bot — como asignar un rol desde un
+botón de embed — el bot verifica sus propios permisos y la jerarquía de
+roles, no solo los de quien hizo clic.</p>
 
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>No disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>15.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>2.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>1.500</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>75</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>20</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>3</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <a class="btn btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
-          <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
-        </a>
-      </div>
-    </article>
-
-    <article class="box plan plan-premium">
-      <h2 class="plan-name">Purgito Premium</h2>
-      <p class="plan-price">
-        <span class="plan-amount" id="plan-amount">$4.99</span><span class="plan-per" id="plan-per">/mensual</span>
-      </p>
-
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>Disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>50.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>8.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>4.000</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>200</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>50</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>10</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <p class="plan-trial" id="plan-trial">7 días gratis</p>
-
-        <!-- El checkout real necesita un guild_id que esta página no tiene: el
-             botón solo enruta al panel (login → selector de servidores), donde
-             vive la activación. El href estático es el fallback sin JS. -->
-        <a class="btn btn-accent btn-lg plan-cta js-subscribe"
-           href="/auth/login?from=landing&amp;locale=es">Subscribirse</a>
-
-        <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
-          <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
-          <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual</button>
-        </div>
-      </div>
-    </article>
-
-  </div>
-
-  <p class="plans-legal">
-    Al continuar aceptas los <a href="/es/terminos">Términos</a>,
-    <a href="/es/reembolsos">Políticas de Reembolso</a> y la
-    <a href="/es/privacidad">Política de Privacidad</a>.
-  </p>
-
-  <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
-    <div class="donate-copy">
-      <h2 class="donate-title">Dona la cantidad que desees</h2>
-      <p class="donate-sub">También puedes apoyarme donando en mi Ko-Fi</p>
-      <p class="donate-fine">Donar es completamente voluntario. No se recibirá nada dentro del bot.</p>
-    </div>
-    <!-- Mismo path que el ícono de Ko-fi del footer. width/height van en el
-         SVG además del CSS: si style.css no carga, queda a 40px en vez de
-         estirarse al tamaño por defecto de un SVG sin dimensionar. -->
-    <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
-  </a>
-
-  <p class="donate-legal">
-    Al donar o suscribirte, tú aceptas los términos y políticas.
-    Contacta a <a href="mailto:billing@purgito.app">billing@purgito.app</a> para más detalles.
-  </p>
-
-</main>
+<h2 id="interacciones">Interactions</h2>
+<p>Prácticamente todos los comandos son slash commands; <code>!ping</code>
+es la única excepción con prefijo. Los paneles y menús se construyen con
+vistas de discord.py (botones, selects) y cada vista restringe quién puede
+usarla a quien la abrió — un botón de configuración de otra persona no
+responde si lo tocas vos.</p>
+  </main>
+</div>
 
 <footer class="footer">
   <div class="wrap box foot-inner">

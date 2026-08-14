@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Purgito Premium — Purgito</title>
-<meta name="description" content="Apoya a Purgito y obtén beneficios exclusivos: más memoria, más GIFs, memes automáticos y plantillas de embeds.">
+<title>Security — Documentación técnica — Purgito</title>
+<meta name="description" content="Modelo de seguridad de Purgito: OAuth2, sesiones, permisos y límites de uso.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css?v=a6f90a96">
@@ -62,99 +62,80 @@
   </div>
 </nav>
 
-<!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
-     landing/build_docs.py — no los agregues acá.
-     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
-<main id="contenido" class="wrap premium">
+<div class="docs-shell wrap">
+<details class="docs-sidebar" open aria-label="Documentación técnica">
+  <summary>Categorías</summary>
+  <ul>
+    <li><a href="/es/documentacion">Inicio</a>
+    </li>
+    <li><a href="/es/documentacion/arquitectura">Arquitectura</a>
+    </li>
+    <li><a href="/es/documentacion/discord">Discord</a>
+    </li>
+    <li><a href="/es/documentacion/api">API</a>
+    </li>
+    <li><a href="/es/documentacion/generacion">Generation</a>
+    </li>
+    <li><a href="/es/documentacion/almacenamiento">Storage</a>
+    </li>
+    <li><a class="active" href="/es/documentacion/seguridad">Security</a>
+      <ul class="docs-subnav"><li><a href="#oauth2">OAuth2</a></li><li><a href="#permisos">Permissions</a></li><li><a href="#rate-limits">Rate Limits</a></li><li><a href="#modelo-de-seguridad">Security Model</a></li></ul>
+    </li>
+    <li><a href="/es/documentacion/infraestructura">Infrastructure</a>
+    </li>
+    <li><a href="/es/documentacion/desarrollo">Development</a>
+    </li>
+    <li><a href="/es/documentacion/referencia">Reference</a>
+    </li>
+  </ul>
+</details>
+  <main id="contenido" class="docs-content">
+<h1>Security</h1>
+<p>Modelo de seguridad de Purgito a nivel conceptual: qué existe y por
+qué, sin los números ni los mecanismos exactos — esta página es pública.</p>
 
-  <header class="premium-head">
-    <h1 class="premium-title">Purgito Premium</h1>
-    <p class="premium-sub">Apoya a Purgito y obtén beneficios exclusivos</p>
-  </header>
+<h2 id="oauth2">OAuth2</h2>
+<p>El login usa el flujo estándar de Discord: la identidad la confirma
+Discord, Purgito nunca ve ni guarda una contraseña. La sesión resultante
+vive cifrada en una cookie del navegador — el servidor no guarda una copia
+de la sesión, solo una lista de qué sesiones fueron cerradas
+explícitamente, para poder invalidarlas aunque la cookie cifrada siga
+existiendo en algún lado. La cookie está restringida a HTTPS, no es
+accesible desde JavaScript y no viaja en navegación cruzada entre sitios
+salvo los casos que el navegador permite por diseño (por eso hay una
+defensa adicional contra ese caso puntual).</p>
 
-  <div class="plans">
+<h2 id="permisos">Permissions</h2>
+<p>Ninguna acción sobre un servidor específico se resuelve confiando en
+datos que mande el navegador: cada vez que el dashboard pide algo de un
+servidor, Purgito le pregunta directamente a la API de Discord, con el
+token de quien está logueado, si esa persona administra ese servidor —
+nunca a partir de una lista guardada de antes ni de algo que venga en la
+propia petición. Del lado de Discord, las acciones administrativas del
+bot (comandos de configuración, paneles) verifican el permiso
+<code>Administrar servidor</code> de quien invoca.</p>
 
-    <article class="box plan">
-      <h2 class="plan-name">Purgito</h2>
-      <p class="plan-price">
-        <span class="plan-amount">$0</span><span class="plan-per">/por siempre</span>
-      </p>
+<h2 id="rate-limits">Rate Limits</h2>
+<p>Purgito aplica límites de uso en varias capas independientes: por
+dirección IP en la API pública, por usuario dentro de cada servidor para
+comandos interactivos (generar contenido, invocar memes), y por canal
+dentro de cada servidor para comportamiento autónomo (respuestas
+espontáneas, triggers). Hay además un tope global de cuánta generación de
+texto puede correr en simultáneo, para que ningún servidor sature el
+proceso a costa de los demás. Los valores concretos de esos límites no
+son públicos.</p>
 
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>No disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>15.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>2.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>1.500</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>75</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>20</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>3</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <a class="btn btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
-          <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
-        </a>
-      </div>
-    </article>
-
-    <article class="box plan plan-premium">
-      <h2 class="plan-name">Purgito Premium</h2>
-      <p class="plan-price">
-        <span class="plan-amount" id="plan-amount">$4.99</span><span class="plan-per" id="plan-per">/mensual</span>
-      </p>
-
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>Disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>50.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>8.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>4.000</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>200</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>50</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>10</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <p class="plan-trial" id="plan-trial">7 días gratis</p>
-
-        <!-- El checkout real necesita un guild_id que esta página no tiene: el
-             botón solo enruta al panel (login → selector de servidores), donde
-             vive la activación. El href estático es el fallback sin JS. -->
-        <a class="btn btn-accent btn-lg plan-cta js-subscribe"
-           href="/auth/login?from=landing&amp;locale=es">Subscribirse</a>
-
-        <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
-          <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
-          <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual</button>
-        </div>
-      </div>
-    </article>
-
-  </div>
-
-  <p class="plans-legal">
-    Al continuar aceptas los <a href="/es/terminos">Términos</a>,
-    <a href="/es/reembolsos">Políticas de Reembolso</a> y la
-    <a href="/es/privacidad">Política de Privacidad</a>.
-  </p>
-
-  <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
-    <div class="donate-copy">
-      <h2 class="donate-title">Dona la cantidad que desees</h2>
-      <p class="donate-sub">También puedes apoyarme donando en mi Ko-Fi</p>
-      <p class="donate-fine">Donar es completamente voluntario. No se recibirá nada dentro del bot.</p>
-    </div>
-    <!-- Mismo path que el ícono de Ko-fi del footer. width/height van en el
-         SVG además del CSS: si style.css no carga, queda a 40px en vez de
-         estirarse al tamaño por defecto de un SVG sin dimensionar. -->
-    <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
-  </a>
-
-  <p class="donate-legal">
-    Al donar o suscribirte, tú aceptas los términos y políticas.
-    Contacta a <a href="mailto:billing@purgito.app">billing@purgito.app</a> para más detalles.
-  </p>
-
-</main>
+<h2 id="modelo-de-seguridad">Security Model</h2>
+<p>Los principios generales: aislar los datos de cada servidor por diseño
+del esquema, no confiar en nada que el cliente declare sobre sí mismo sin
+verificarlo contra la fuente (Discord), validar el contenido real de lo
+que se sube en vez de confiar en lo que el cliente dice que es, y
+verificar la firma de cualquier webhook externo antes de procesarlo. La
+superficie pública es intencionalmente chica: la API no renderiza HTML,
+así que buena parte de las clases de vulnerabilidad típicas de una app web
+tradicional no aplican directamente.</p>
+  </main>
+</div>
 
 <footer class="footer">
   <div class="wrap box foot-inner">

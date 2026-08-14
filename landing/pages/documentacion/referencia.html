@@ -1,0 +1,63 @@
+<h1>Reference</h1>
+
+<h2 id="variables-de-entorno">Environment Variables</h2>
+<p>Tres archivos, con reglas distintas: <code>.env</code> son secretos y
+nunca se versionan; <code>urls.env</code> y <code>limits.env</code> sí
+están en el repo. Los tres se cargan al importar <code>src/config.py</code>.
+Ninguno de los valores reales aparece acá — solo los nombres y para qué
+sirve cada uno.</p>
+
+<h3><code>.env</code> — secretos y configuración específica del despliegue</h3>
+<table>
+<tr><th>Variable</th><th>Para qué</th></tr>
+<tr><td><code>DISCORD_TOKEN</code></td><td>Token del bot.</td></tr>
+<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td>Activa el intent de contenido de mensajes.</td></tr>
+<tr><td><code>GUILD_ID</code></td><td>Servidor de desarrollo para sincronizar slash commands al instante.</td></tr>
+<tr><td><code>BOT_TRIGGER_NAME</code></td><td>Palabra que dispara la generación de memes por texto.</td></tr>
+<tr><td><code>BOT_OWNER_ID</code></td><td>ID de Discord del dueño del bot.</td></tr>
+<tr><td><code>GROQ_API_KEY</code></td><td>Clave de Groq para captions de memes con IA (si falta, cae a Markov).</td></tr>
+<tr><td><code>REFEED_MAX_MESSAGES</code> / <code>REFEED_ALL_MAX_MESSAGES</code></td><td>Tope de mensajes leídos por <code>/refeed</code> y <code>/refeed_all</code>.</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code> / <code>USER_MARKOV_TRAINING_MESSAGES</code></td><td>Tamaño de muestra para entrenar el modelo por servidor / por usuario.</td></tr>
+<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td>Probabilidad de respuesta espontánea (fallback si el servidor no configuró la propia).</td></tr>
+<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td>Período de gracia antes de purgar los datos de un servidor que echó al bot.</td></tr>
+<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td>Antigüedad máxima del registro de auditoría.</td></tr>
+<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td>Credenciales de Cloudflare R2 — las cinco activan R2 juntas.</td></tr>
+<tr><td><code>WEB_PORT</code></td><td>Puerto local de la API.</td></tr>
+<tr><td><code>DISCORD_CLIENT_ID</code> / <code>DISCORD_CLIENT_SECRET</code></td><td>Credenciales de la app OAuth2 del dashboard.</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td>Clave de cifrado de la cookie de sesión.</td></tr>
+<tr><td><code>DASHBOARD_ENABLED</code></td><td>Fuerza el dashboard on/off.</td></tr>
+<tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code>, <code>POLAR_SERVER</code>, <code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td>Integración de pagos con Polar.</td></tr>
+<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td>Zona horaria para anuncios programados a hora fija.</td></tr>
+</table>
+
+<h3><code>urls.env</code> — URLs públicas, versionado en git</h3>
+<table>
+<tr><th>Variable</th><th>Para qué</th></tr>
+<tr><td><code>PANEL_URL</code></td><td>URL pública del dashboard.</td></tr>
+<tr><td><code>DASHBOARD_BASE_URL</code></td><td>Host usado para armar el <code>redirect_uri</code> de OAuth2.</td></tr>
+<tr><td><code>LANDING_URL</code></td><td>Destino tras loguearse desde la landing.</td></tr>
+<tr><td><code>LANDING_ORIGINS</code></td><td>Orígenes permitidos para pedidos autenticados entre sitios.</td></tr>
+<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>Dominio de la cookie de sesión.</td></tr>
+<tr><td><code>SUPPORT_URL</code></td><td>Link al servidor de soporte.</td></tr>
+<tr><td><code>DOCS_URL</code></td><td>URL pública de esta documentación.</td></tr>
+<tr><td><code>REPO_URL</code></td><td>Link al repositorio.</td></tr>
+</table>
+
+<h3><code>limits.env</code> — cuotas por servidor, versionado en git</h3>
+<p>Casi todas van en pares para el plan gratuito y el premium.</p>
+<table>
+<tr><th>Variable</th><th>Para qué</th></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de corpus por canal.</td></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Tope de corpus por servidor completo.</td></tr>
+<tr><td><code>MAX_CORPUS_IMPORT_BYTES</code></td><td>Tamaño máximo de una importación de corpus por archivo.</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de corpus por autor.</td></tr>
+<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de GIFs guardados por servidor.</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Tamaño máximo de GIF aceptado.</td></tr>
+<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Nivel de compresión al subir GIFs.</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de imágenes de memes por servidor.</td></tr>
+<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de anuncios programados.</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de plantillas de embed guardadas.</td></tr>
+<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Tamaño máximo de imagen subida desde el editor de embeds.</td></tr>
+<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Tope diario de links de embed compartibles generados.</td></tr>
+<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Tamaño máximo de archivo subido en un bloque "Archivo" del editor.</td></tr>
+</table>
