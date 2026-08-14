@@ -29,9 +29,19 @@ function accountCreated(userId) {
 }
 
 function header(me, tab, locale) {
+  const created = accountCreated(me.user_id);
+  const metaItems = [
+    el('li', {}, 'Usuario de Discord'),
+    created ? el('li', {}, `En Discord desde ${created}`) : null,
+    me.email ? el('li', {}, me.email) : null,
+  ].filter(Boolean);
+
   return el('section', { class: 'pf-head' },
-    el('div', { class: 'pf-head-bar' },
-      el('h1', { class: 'pf-title' }, 'Tu cuenta')),
+    el('div', { class: 'pf-hero' },
+      me.avatar_url ? el('img', { class: 'pf-avatar-lg', src: me.avatar_url, alt: me.name || '' }) : null,
+      el('div', { class: 'pf-hero-info' },
+        el('h1', { class: 'pf-hero-name' }, me.name || 'Tu cuenta'),
+        el('ul', { class: 'pf-meta dim' }, metaItems))),
     el('nav', { class: 'pf-tabs', 'aria-label': 'Pestañas de cuenta' },
       TABS.map(t => el('a', {
         class: 'pf-tab' + (t.key === tab ? ' active' : ''),
@@ -40,28 +50,63 @@ function header(me, tab, locale) {
       }, t.label))));
 }
 
-function tabPerfil(box, me) {
-  const created = accountCreated(me.user_id);
+async function tabPerfil(box, me, locale) {
+  const summaryGrid = el('div', { class: 'pf-summary-grid' });
   box.append(
-    el('div', { class: 'pf-profile-card' },
-      el('div', { class: 'pf-profile-header' },
-        me.avatar_url ? el('img', { class: 'pf-profile-avatar', src: me.avatar_url, alt: me.name || '' }) : null,
-        el('div', { class: 'pf-profile-ident' },
-          el('h2', { class: 'pf-profile-name' }, me.name || 'Usuario'),
-          el('span', { class: 'badge badge-discord' }, 'Usuario de Discord'))),
-      el('div', { class: 'pf-profile-details' },
-        el('div', { class: 'pf-detail-item' },
-          el('span', { class: 'pf-detail-label' }, 'Correo electrónico'),
-          el('span', { class: 'pf-detail-val' }, me.email || 'No disponible')),
-        created ? el('div', { class: 'pf-detail-item' },
-          el('span', { class: 'pf-detail-label' }, 'Antigüedad en Discord'),
-          el('span', { class: 'pf-detail-val' }, `En Discord desde ${created}`)) : null,
-        me.user_id ? el('div', { class: 'pf-detail-item' },
-          el('span', { class: 'pf-detail-label' }, 'ID de usuario'),
-          el('span', { class: 'pf-detail-val pf-detail-mono' }, me.user_id)) : null
-      )
-    )
-  );
+    el('div', { class: 'pf-overview' },
+      el('h2', { class: 'pf-section-title' }, 'Resumen de la cuenta'),
+      summaryGrid));
+
+  summaryGrid.append(spinner());
+
+  try {
+    const guilds = await apiFetch('/api/me/guilds');
+    const configuredCount = (guilds.configured || []).length;
+    const premiumCount = (guilds.configured || []).filter(g => g.is_premium).length;
+    const totalManageable = configuredCount + (guilds.available || []).length;
+
+    summaryGrid.innerHTML = '';
+    summaryGrid.append(
+      el('div', { class: 'pf-stat-card' },
+        el('div', { class: 'pf-stat-header' },
+          el('span', { class: 'pf-stat-label' }, 'Servidores administrados'),
+          el('a', { class: 'pf-stat-link', href: `/${locale}/perfil/servidores` }, 'Ver servidores →')),
+        el('div', { class: 'pf-stat-val' }, String(configuredCount)),
+        el('div', { class: 'pf-stat-sub dim' },
+          totalManageable > configuredCount
+            ? `${configuredCount} con Purgito activo de ${totalManageable} disponibles`
+            : `${configuredCount} servidores configurados`)),
+
+      el('div', { class: 'pf-stat-card' },
+        el('div', { class: 'pf-stat-header' },
+          el('span', { class: 'pf-stat-label' }, 'Suscripciones Premium'),
+          el('a', { class: 'pf-stat-link', href: `/${locale}/perfil/facturacion` }, 'Facturación →')),
+        el('div', { class: 'pf-stat-val' },
+          premiumCount > 0 ? `${premiumCount} ${premiumCount === 1 ? 'activo' : 'activos'}` : 'Sin planes activos'),
+        el('div', { class: 'pf-stat-sub dim' },
+          premiumCount > 0
+            ? 'En tus servidores configurados'
+            : el('a', { href: `/${locale}/premium`, class: 'link-accent' }, 'Conoce Purgito Premium'))),
+
+      el('div', { class: 'pf-stat-card pf-stat-card--wide' },
+        el('div', { class: 'pf-stat-header' },
+          el('span', { class: 'pf-stat-label' }, 'Datos de la cuenta de Discord')),
+        el('div', { class: 'pf-account-details' },
+          el('div', { class: 'pf-acc-item' },
+            el('span', { class: 'pf-acc-label' }, 'ID de Discord'),
+            el('span', { class: 'pf-acc-val pf-mono' }, me.user_id || 'No disponible')),
+          el('div', { class: 'pf-acc-item' },
+            el('span', { class: 'pf-acc-label' }, 'Correo electrónico'),
+            el('span', { class: 'pf-acc-val' }, me.email || 'No disponible')),
+          accountCreated(me.user_id) ? el('div', { class: 'pf-acc-item' },
+            el('span', { class: 'pf-acc-label' }, 'Miembro en Discord'),
+            el('span', { class: 'pf-acc-val' }, `Desde ${accountCreated(me.user_id)}`)) : null
+        ))
+    );
+  } catch (e) {
+    summaryGrid.innerHTML = '';
+    renderError(summaryGrid, e);
+  }
 }
 
 function actionButtons(onReload) {
@@ -214,7 +259,7 @@ export async function initPerfil() {
 
   const box = el('div', { class: 'pf-content' });
   main.append(box);
-  if (tab === 'perfil') tabPerfil(box, me);
+  if (tab === 'perfil') await tabPerfil(box, me, locale);
   else if (tab === 'conexiones') tabConexiones(box);
   else if (tab === 'facturacion') await tabFacturacion(box, locale);
   else await tabServidores(box, locale);
