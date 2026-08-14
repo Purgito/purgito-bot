@@ -32,12 +32,21 @@ ROOT = Path(__file__).resolve().parents[1]
 LANDING = ROOT / "landing"
 DOCS = ROOT / "docs"
 
+BASE_URL = "https://purgito.app"
+DEFAULT_OG_IMAGE = f"{BASE_URL}/assets/og-purgito.png"
+DEFAULT_OG_IMAGE_WIDTH = "512"
+DEFAULT_OG_IMAGE_HEIGHT = "512"
+DEFAULT_OG_IMAGE_ALT = "Purgito"
+DEFAULT_OG_LOCALE = "es_ES"
+DEFAULT_TWITTER_CARD = "summary"
+
 # Las descripciones del índice no salen del markdown (no existen ahí): se
 # escriben acá, una línea por sección, en el mismo orden del documento.
 PAGES = [
     {
         "slug": "terminos",
         "src": "TERMS.md",
+        "title": "Términos del Servicio",
         "meta": "Condiciones del servicio de Purgito: uso aceptable, licencia, "
         "contenido generado, suscripciones y límites de responsabilidad.",
         "toc": [
@@ -54,6 +63,7 @@ PAGES = [
     {
         "slug": "privacidad",
         "src": "PRIVACY.md",
+        "title": "Política de Privacidad",
         "meta": "Qué datos recopila Purgito, para qué los usa, con qué servicios "
         "los comparte y cómo eliminarlos.",
         "toc": [
@@ -71,7 +81,9 @@ PAGES = [
     {
         "slug": "reembolsos",
         "src": "REFUNDS.md",
-        "meta": "Política de reembolsos de las suscripciones premium de Purgito.",
+        "title": "Política de Reembolso",
+        "meta": "Política de reembolsos de las suscripciones premium de Purgito y "
+        "condiciones de la prueba gratuita.",
         "toc": [
             "La prueba gratuita de 7 días y sus condiciones.",
             "Cómo cancelar la suscripción desde el portal de Polar.",
@@ -94,8 +106,8 @@ HTML_PAGES = [
         "slug": "premium",
         "src": "premium.html",
         "title": "Purgito Premium",
-        "meta": "Lleva tu servidor al siguiente nivel con Purgito Premium: memoria ampliada, "
-        "memes automáticos, 4.000 GIFs y automatizaciones avanzadas.",
+        "meta": "Lleva tu servidor al siguiente nivel con Purgito Premium: memoria ampliada "
+        "de 50.000 mensajes, memes automáticos, 4.000 GIFs y soporte prioritario.",
     },
     {
         "slug": "perfil",
@@ -111,14 +123,14 @@ HTML_PAGES = [
         "slug": "perfil/conexiones",
         "src": "perfil.html",
         "title": "Conexiones",
-        "meta": "Conexiones de tu cuenta de Purgito.",
+        "meta": "Conexiones de tu cuenta de Purgito con Discord y servicios vinculados.",
         "app": "perfil.js",
     },
     {
         "slug": "perfil/facturacion",
         "src": "perfil.html",
         "title": "Facturación",
-        "meta": "Estado de tus suscripciones Premium de Purgito.",
+        "meta": "Estado de tus suscripciones Premium de Purgito y gestión de facturación.",
         "app": "perfil.js",
     },
     {
@@ -141,7 +153,7 @@ HTML_PAGES = [
         "slug": "documentacion",
         "src": "documentacion/index.html",
         "title": "Documentación técnica",
-        "meta": "Documentación técnica sobre la arquitectura, APIs, sistemas "
+        "meta": "Guías, referencia y detalles sobre la arquitectura, APIs, sistemas "
         "internos e infraestructura de Purgito.",
         "doc": True,
     },
@@ -448,9 +460,28 @@ SHELL = (
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="%s">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} — Purgito</title>
+<title>{full_title}</title>
 <meta name="description" content="{meta}">
 <meta name="theme-color" content="#13c4d8">
+
+<!-- Open Graph / Link Previews (Discord, Twitter, Telegram, Slack, etc.) -->
+<meta property="og:type" content="{og_type}">
+<meta property="og:site_name" content="Purgito">
+<meta property="og:url" content="{canonical_url}">
+<meta property="og:title" content="{full_title}">
+<meta property="og:description" content="{meta}">
+<meta property="og:image" content="{og_image}">
+<meta property="og:image:width" content="{og_image_width}">
+<meta property="og:image:height" content="{og_image_height}">
+<meta property="og:image:alt" content="{og_image_alt}">
+<meta property="og:locale" content="{og_locale}">
+
+<meta name="twitter:card" content="{twitter_card}">
+<meta name="twitter:title" content="{full_title}">
+<meta name="twitter:description" content="{meta}">
+<meta name="twitter:image" content="{og_image}">
+
+<link rel="canonical" href="{canonical_url}">
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css">
 {head}</head>
@@ -534,9 +565,20 @@ def build_page(page, nav, footer):
             "\n".join(blocks),
         )
     )
+    full_title = f"{html.escape(page.get('title', title))} — Purgito"
+    canonical_url = f"{BASE_URL}/es/{page['slug']}"
+    og_image = page.get("og_image", DEFAULT_OG_IMAGE)
     return SHELL.format(
-        title=html.escape(title),
+        full_title=full_title,
         meta=html.escape(page["meta"]),
+        canonical_url=canonical_url,
+        og_type="article",
+        og_image=og_image,
+        og_image_width=page.get("og_image_width", DEFAULT_OG_IMAGE_WIDTH),
+        og_image_height=page.get("og_image_height", DEFAULT_OG_IMAGE_HEIGHT),
+        og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
+        og_locale=DEFAULT_OG_LOCALE,
+        twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
         nav=nav,
         body=body,
         footer=footer,
@@ -569,9 +611,21 @@ def build_html_page(page, nav, footer):
             '  <main id="contenido" class="docs-content">\n%s\n  </main>\n</div>'
             % (doc_sidebar(page["slug"]), raw_body)
         )
+    full_title = f"{html.escape(page['title'])} — Purgito"
+    canonical_url = f"{BASE_URL}/es/{page['slug']}"
+    og_image = page.get("og_image", DEFAULT_OG_IMAGE)
+    og_type = "article" if page.get("doc") else "website"
     return SHELL.format(
-        title=html.escape(page["title"]),
+        full_title=full_title,
         meta=html.escape(page["meta"]),
+        canonical_url=canonical_url,
+        og_type=og_type,
+        og_image=og_image,
+        og_image_width=page.get("og_image_width", DEFAULT_OG_IMAGE_WIDTH),
+        og_image_height=page.get("og_image_height", DEFAULT_OG_IMAGE_HEIGHT),
+        og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
+        og_locale=DEFAULT_OG_LOCALE,
+        twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
         nav=nav,
         body=raw_body,
         footer=footer,

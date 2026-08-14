@@ -545,12 +545,18 @@ def test_navbar_dropdowns_and_mobile_menu_structure_and_behavior():
     assert "setMobileOpen" in script
     assert "ArrowDown" in script
     assert "Escape" in script
+    assert "is-scrolled" in script
+    assert "updateNavScroll" in script
 
     # Estilos en style.css
     assert ".nav-dropdown" in style
     assert ".nav-drop-item" in style
     assert ".nav-mobile-panel" in style
     assert ".nav-mobile-toggle" in style
+    assert ".nav.is-scrolled" in style
+
+    # El logo es completamente estático (sin rotación ni transformación hover)
+    assert ".nav-brand:hover" not in style
 
 
 def test_documentacion_inicio_redisenada_con_recursos_rapidos_y_categorias():

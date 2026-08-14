@@ -278,23 +278,31 @@ input::placeholder { color: var(--text-muted); }
 @media (min-width: 768px) { .box { padding: 2.5rem 4rem; } }
 
 /* ══════════════════ NAVBAR ══════════════════ */
-/* Fijo arriba con fondo propio: el gradiente teal es de la sección hero, no
-   del navbar, así que sin esto el contenido se vería pasar por debajo apenas
-   se scrollea hacia el negro plano. Los dropdowns son descendientes del nav,
-   así que quedan por encima solos. */
+/* Fijo arriba: transparente al inicio (scrollY = 0) para integrarse
+   naturalmente con el fondo de la página, y con fondo translúcido + blur
+   cuando el usuario hace scroll para dar contraste sobre el contenido. */
 .nav {
   position: sticky;
   top: 0;
   z-index: 50;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nav.is-scrolled,
+.nav.is-mobile-open {
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-card);
+  border-bottom-color: var(--border-card);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.35);
 }
 
 /* Sin backdrop-filter el fondo translúcido deja leer el contenido de atrás. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .nav { background: var(--bg); }
+  .nav.is-scrolled,
+  .nav.is-mobile-open { background: var(--bg); }
 }
 
 /* Sin esto el navbar fijo tapa el destino del skip link. */
@@ -314,8 +322,6 @@ input::placeholder { color: var(--text-muted); }
 
 .nav-brand { display: flex; align-items: center; gap: 0.75rem; flex: none; }
 .nav-logo { width: 2rem; height: 2rem; border-radius: 6px; }
-.nav-brand:hover .nav-logo { transform: rotate(45deg); }
-.nav-logo { transition: transform var(--dur); }
 .nav-brand-name {
   font-family: var(--font-head);
   font-weight: 600;

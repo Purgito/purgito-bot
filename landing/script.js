@@ -541,12 +541,14 @@ function svgIcon(paths) {
 (function () {
   var toggle = document.getElementById('nav-mobile-toggle');
   var panel = document.getElementById('nav-mobile-panel');
+  var nav = document.querySelector('.nav');
   if (!toggle || !panel) return;
 
   function setMobileOpen(open) {
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     document.body.classList.toggle('no-scroll', open);
+    if (nav) nav.classList.toggle('is-mobile-open', open);
   }
 
   toggle.addEventListener('click', function (e) {
@@ -587,3 +589,32 @@ function svgIcon(paths) {
     }
   });
 })();
+
+/* ── Fondo dinámico de la navbar según scroll:
+   Transparente en la parte superior (scrollY = 0) para integrarse naturalmente
+   con la página, y con fondo translúcido + blur al desplazarse (> 16px). */
+
+(function () {
+  var nav = document.querySelector('.nav');
+  if (!nav) return;
+
+  var SCROLL_THRESHOLD = 16;
+  var ticking = false;
+
+  function updateNavScroll() {
+    var scrolled = window.scrollY > SCROLL_THRESHOLD;
+    nav.classList.toggle('is-scrolled', scrolled);
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      window.requestAnimationFrame(updateNavScroll);
+      ticking = true;
+    }
+  }, { passive: true });
+
+  // Evaluar estado al cargar o refrescar la página
+  updateNavScroll();
+})();
+
