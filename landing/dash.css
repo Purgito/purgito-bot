@@ -195,12 +195,14 @@ textarea { width: 100%; min-height: 70px; resize: vertical; }
    existía. La firma de Purgito (bot que "escribe" imitando cada server) es el
    caret ▍ del eyebrow: va como ::before (decorativo, no lo anuncia el lector
    de pantalla) y se repite el mismo motivo, parpadeante, en el preview vacío. */
-.form-group + .form-group { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border); }
+.form-group + .form-group { margin-top: 36px; padding-top: 32px; border-top: 1px solid var(--border); }
+.form-group + .embed-group { margin-top: 32px; }
+.form-group > .embed-group { margin-top: 20px; }
 .form-group-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 var(--space-3);
+  margin: 0 0 14px;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
@@ -392,10 +394,12 @@ h1 {
 .add-row input, .add-row select { min-width: 180px; }
 
 /* ---------- Frases especiales: búsqueda, edición y paginación ---------- */
-.frases-container { display: flex; flex-direction: column; gap: 12px; }
-.frases-toolbar { display: flex; gap: 10px; align-items: center; }
+.frases-container { display: flex; flex-direction: column; gap: 14px; }
+.frases-cupo { margin-bottom: 2px; }
+.frases-cupo p { margin: 0; }
+.frases-toolbar { display: flex; gap: 10px; align-items: center; margin-top: 2px; margin-bottom: 4px; }
 .frases-search-input { width: 100%; }
-.frases-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.frases-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
 .frase-item {
   display: flex;
   align-items: center;
@@ -403,7 +407,8 @@ h1 {
   background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
+  padding: 9px 12px;
+  min-height: 42px;
   transition: border-color var(--transition);
 }
 .frase-item:hover { border-color: color-mix(in srgb, var(--border) 55%, var(--accent)); }
@@ -429,15 +434,19 @@ h1 {
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
 }
+.frases-pagination-wrapper { margin-top: 10px; margin-bottom: 6px; }
 .frases-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin: 4px 0 8px;
+  gap: 14px;
+  padding: 4px 0;
   flex-wrap: wrap;
 }
 .frases-pagination-info { font-size: 13px; color: var(--text-muted); }
+.frases-container > .add-row { margin-top: 8px; }
+.embed-group + .add-row { margin-top: 16px; }
+
 @media (max-width: 640px) {
   .frase-item:not(.frase-item-editing) {
     flex-direction: column;
@@ -448,6 +457,7 @@ h1 {
   .frase-item:not(.frase-item-editing) .frase-actions { justify-content: flex-end; }
   .frase-item-editing { flex-direction: column; align-items: stretch; }
   .frase-item-editing .frase-actions { justify-content: flex-end; }
+  .frases-pagination { gap: 10px; }
 }
 
 .premium-card {
