@@ -11,10 +11,10 @@ import { el, spinner, emptyState, renderError, guildIcon, toast } from '/js/core
 import { currentLocale, formatDate } from '/js/core/config.js';
 
 const TABS = [
-  { key: 'perfil', label: 'Perfil', path: '' },
   { key: 'servidores', label: 'Servidores', path: '/servidores' },
   { key: 'conexiones', label: 'Conexiones', path: '/conexiones' },
   { key: 'facturacion', label: 'Facturación', path: '/facturacion' },
+  { key: 'perfil', label: 'Perfil', path: '' },
 ];
 
 const INVITE = 'https://discord.com/oauth2/authorize?client_id=1471724794411089920';
@@ -29,19 +29,25 @@ function accountCreated(userId) {
 }
 
 function header(me, tab, locale) {
-  const created = accountCreated(me.user_id);
-  const metaItems = [
-    el('li', {}, 'Usuario de Discord'),
-    created ? el('li', {}, `En Discord desde ${created}`) : null,
-    me.email ? el('li', {}, me.email) : null,
-  ].filter(Boolean);
+  let meta = null;
+  if (tab === 'perfil') {
+    const created = accountCreated(me.user_id);
+    const metaItems = [
+      el('li', {}, 'Usuario de Discord'),
+      created ? el('li', {}, `En Discord desde ${created}`) : null,
+      me.email ? el('li', {}, me.email) : null,
+    ].filter(Boolean);
+    if (metaItems.length) {
+      meta = el('ul', { class: 'pf-meta dim' }, metaItems);
+    }
+  }
 
   return el('section', { class: 'pf-head' },
     el('div', { class: 'pf-hero' },
       me.avatar_url ? el('img', { class: 'pf-avatar-lg', src: me.avatar_url, alt: me.name || '' }) : null,
       el('div', { class: 'pf-hero-info' },
         el('h1', { class: 'pf-hero-name' }, me.name || 'Tu cuenta'),
-        el('ul', { class: 'pf-meta dim' }, metaItems))),
+        meta)),
     el('nav', { class: 'pf-tabs', 'aria-label': 'Pestañas de cuenta' },
       TABS.map(t => el('a', {
         class: 'pf-tab' + (t.key === tab ? ' active' : ''),
@@ -96,11 +102,11 @@ async function tabPerfil(box, me, locale) {
             el('span', { class: 'pf-acc-label' }, 'ID de Discord'),
             el('span', { class: 'pf-acc-val pf-mono' }, me.user_id || 'No disponible')),
           el('div', { class: 'pf-acc-item' },
-            el('span', { class: 'pf-acc-label' }, 'Correo electrónico'),
-            el('span', { class: 'pf-acc-val' }, me.email || 'No disponible')),
-          accountCreated(me.user_id) ? el('div', { class: 'pf-acc-item' },
-            el('span', { class: 'pf-acc-label' }, 'Miembro en Discord'),
-            el('span', { class: 'pf-acc-val' }, `Desde ${accountCreated(me.user_id)}`)) : null
+            el('span', { class: 'pf-acc-label' }, 'Autenticación'),
+            el('span', { class: 'pf-acc-val' }, 'Discord OAuth2')),
+          el('div', { class: 'pf-acc-item' },
+            el('span', { class: 'pf-acc-label' }, 'Estado de sesión'),
+            el('span', { class: 'pf-acc-val' }, 'Conectado'))
         ))
     );
   } catch (e) {

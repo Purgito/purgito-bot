@@ -638,7 +638,9 @@ def test_perfil_en_navbar_y_menu_de_usuario_para_autenticados():
 
 
 def test_estructura_de_cuatro_tabs_en_perfil():
-    """Verifica que perfil.js define y renderiza las 4 pestañas: Perfil, Servidores, Conexiones y Facturación."""
+    """Verifica que perfil.js define y renderiza las 4 pestañas en orden:
+    Servidores, Conexiones, Facturación y Perfil (Perfil siempre al final),
+    y que la metadata del header solo se incluye en la pestaña Perfil."""
     perfil_js = (LANDING / "js" / "perfil.js").read_text("utf-8")
     assert "{ key: 'perfil', label: 'Perfil', path: '' }" in perfil_js
     assert (
@@ -651,7 +653,18 @@ def test_estructura_de_cuatro_tabs_en_perfil():
         "{ key: 'facturacion', label: 'Facturación', path: '/facturacion' }"
         in perfil_js
     )
+    # Orden exacto: Servidores, Conexiones, Facturación, Perfil
+    idx_serv = perfil_js.index("'servidores'")
+    idx_con = perfil_js.index("'conexiones'")
+    idx_fact = perfil_js.index("'facturacion'")
+    idx_perf = perfil_js.index("'perfil'")
+    assert idx_serv < idx_con < idx_fact < idx_perf
+
+    # Cabecera condicional para pestaña perfil
+    assert "tab === 'perfil'" in perfil_js
+
     assert "tabPerfil" in perfil_js
     assert "tabServidores" in perfil_js
     assert "tabConexiones" in perfil_js
     assert "tabFacturacion" in perfil_js
+
