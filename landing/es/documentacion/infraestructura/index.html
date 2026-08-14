@@ -97,10 +97,7 @@ de Python detrás, Cloudflare delante de todo.</p>
 <h2 id="runtime">Runtime</h2>
 <p>El bot y su API corren como un único proceso de Python. La API escucha
 solo en localhost — nunca expuesta directo a internet — así que nginx es
-el único punto de entrada real. Producción corre actualmente bajo una
-cuenta con privilegios de administrador del sistema en vez de una cuenta
-dedicada sin privilegios; es una migración pendiente y documentada, no un
-detalle que esta página deba maquillar.</p>
+el único punto de entrada real.</p>
 
 <h2 id="nginx">Nginx</h2>
 <p>Nginx separa por ruta: <code>/auth/*</code>, <code>/api/*</code>,
