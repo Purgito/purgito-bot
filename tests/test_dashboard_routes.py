@@ -617,24 +617,28 @@ def test_popover_positioning_and_viewport_resilience():
 
 
 def test_dashboard_en_navbar_y_menu_de_usuario_para_autenticados():
-    """Verifica que Dashboard aparece en navbar desktop y drawer móvil para autenticados, y Perfil en el menú de usuario."""
+    """Verifica que Dashboard aparece en navbar desktop y drawer móvil para autenticados apuntando a /perfil/servidores, y Perfil en el menú de usuario."""
     script = (LANDING / "script.js").read_text("utf-8")
     style = (LANDING / "style.css").read_text("utf-8")
 
-    # Ícono y opción 'Perfil' en el menú de usuario
+    # Ícono y opción 'Perfil' en el menú de usuario apuntando a /perfil
     assert "user:" in script
     assert "label: 'Perfil'" in script
     assert "icon: ICONS.user" in script
+    assert "'/' + LOC + '/perfil'" in script
 
-    # Inyección de enlace 'Dashboard' en navbar desktop y panel móvil
-    assert "nav-link-dashboard" in script
-    assert "nav-mobile-item-dashboard" in script
-    assert "isProfileActive" in script
-    assert "aria-current" in script
-
-    # Estilos de estado activo en desktop y mobile
-    assert ".nav-link.is-active" in style
-    assert ".nav-mobile-item.is-active" in style
+    # Regex de estado activo del Dashboard en la navbar: solo activo en /perfil/servidores y /dashboard
+    pattern = re.search(r'isDashboardActive = (/.*?/)\.test', script).group(1).strip('/')
+    active_re = re.compile(pattern)
+    assert active_re.search("/es/perfil/servidores")
+    assert active_re.search("/es/perfil/servidores/")
+    assert active_re.search("/es/dashboard")
+    assert active_re.search("/es/dashboard/12345")
+    assert not active_re.search("/es/perfil")
+    assert not active_re.search("/es/perfil/")
+    assert not active_re.search("/es/perfil/conexiones")
+    assert not active_re.search("/es/perfil/facturacion")
+    assert not active_re.search("/es/premium")
 
 
 def test_estructura_de_cuatro_tabs_en_perfil():

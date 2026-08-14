@@ -325,16 +325,16 @@ function svgIcon(paths) {
 
     popover(btn, menu, wrap);
 
-    var isProfileActive = /^\/(?:[a-z]{2}\/)?(?:perfil|dashboard)(?:\/.*)?$/.test(location.pathname);
+    var isDashboardActive = /^\/(?:[a-z]{2}\/)?(?:perfil\/servidores(?:\/.*)?|dashboard(?:\/.*)?)$/.test(location.pathname);
 
     // Enlace independiente 'Dashboard' en la navbar desktop para usuarios autenticados (a la derecha de Premium)
     var navLinks = document.querySelector('.nav-links');
     if (navLinks && !navLinks.querySelector('.nav-link-dashboard')) {
       var navDash = document.createElement('a');
-      navDash.className = 'nav-link nav-link-dashboard' + (isProfileActive ? ' is-active' : '');
+      navDash.className = 'nav-link nav-link-dashboard' + (isDashboardActive ? ' is-active' : '');
       navDash.href = '/' + LOC + '/perfil/servidores';
       navDash.textContent = 'Dashboard';
-      if (isProfileActive) {
+      if (isDashboardActive) {
         navDash.setAttribute('aria-current', 'page');
       }
       var premLink = navLinks.querySelector('a[href*="/premium"]');
@@ -349,10 +349,10 @@ function svgIcon(paths) {
     var mobContent = document.querySelector('.nav-mobile-content');
     if (mobContent && !mobContent.querySelector('.nav-mobile-item-dashboard')) {
       var mobDash = document.createElement('a');
-      mobDash.className = 'nav-mobile-item nav-mobile-item-dashboard' + (isProfileActive ? ' is-active' : '');
+      mobDash.className = 'nav-mobile-item nav-mobile-item-dashboard' + (isDashboardActive ? ' is-active' : '');
       mobDash.href = '/' + LOC + '/perfil/servidores';
       mobDash.innerHTML = '<span>Dashboard</span>';
-      if (isProfileActive) {
+      if (isDashboardActive) {
         mobDash.setAttribute('aria-current', 'page');
       }
       mobDash.addEventListener('click', function () {
