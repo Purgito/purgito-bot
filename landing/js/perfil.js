@@ -62,7 +62,13 @@ function actionButtons(onReload) {
     reload);
 }
 
-function serverCard(g, configured, locale) {
+function selectedPremiumPlan() {
+  const plan = new URLSearchParams(location.search).get('plan');
+  return plan === 'monthly' || plan === 'annual' ? plan : null;
+}
+
+function serverCard(g, configured, locale, plan) {
+  const dashboardHref = `/${locale}/dashboard/${g.id}${plan ? `/premium?plan=${plan}` : ''}`;
   return el('div', { class: 'card' },
     guildIcon(g),
     el('div', { class: 'card-info' },
@@ -73,11 +79,12 @@ function serverCard(g, configured, locale) {
           ? (g.member_count != null ? g.member_count + ' miembros' : '')
           : 'Purgito no está aquí')),
     configured
-      ? el('a', { class: 'btn btn-primary', href: `/${locale}/dashboard/${g.id}` }, 'Dashboard')
+      ? el('a', { class: 'btn btn-primary', href: dashboardHref }, plan ? 'Elegir este servidor' : 'Dashboard')
       : el('a', { class: 'btn btn-secondary', href: g.invite_url, target: '_blank', rel: 'noopener' }, 'Invitar a Purgito'));
 }
 
 async function tabServidores(box, locale) {
+  const plan = selectedPremiumPlan();
   const search = el('input', {
     type: 'search', class: 'pf-search', placeholder: 'Buscar por nombre o ID…',
   });
@@ -90,7 +97,7 @@ async function tabServidores(box, locale) {
     const hits = all.filter(([g]) =>
       !q || (g.name || '').toLowerCase().includes(q) || g.id.includes(q));
     if (!hits.length) grid.append(emptyState('Ningún servidor coincide con la búsqueda.'));
-    for (const [g, conf] of hits) grid.append(serverCard(g, conf, locale));
+    for (const [g, conf] of hits) grid.append(serverCard(g, conf, locale, plan));
   }
 
   /* `force` manda ?refresh=1, que hace que el backend vuelva a preguntarle la

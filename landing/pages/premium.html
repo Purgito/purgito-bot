@@ -26,7 +26,7 @@
         <div class="prem-hero-actions">
           <!-- El checkout real necesita el guild_id del panel: el botón enruta
                al selector de servidores. El href estático es el fallback sin JS. -->
-          <a class="btn btn-accent btn-lg prem-cta-main js-subscribe" href="/auth/login?from=landing&amp;locale=es">
+          <a class="btn btn-accent btn-lg prem-cta-main js-subscribe" href="/auth/login?from=landing&amp;locale=es&amp;plan=monthly">
             Comenzar 7 días gratis
           </a>
           <a class="btn btn-lg prem-cta-sec" href="#planes">
@@ -35,7 +35,7 @@
         </div>
 
         <div class="prem-trust-strip">
-          <div class="prem-trust-item">
+          <div class="prem-trust-item" id="plan-trust-trial">
             <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>7 días de prueba</span>
           </div>
@@ -160,99 +160,112 @@
     </div>
   </section>
 
-  <!-- ── 3. SECCIÓN VISUAL DEL PRODUCTO / SHOWCASE ───────── -->
+  <!-- ── 3. COMPARATIVA DE LÍMITES TÉCNICOS ──────────────── -->
   <section class="prem-section wrap">
     <div class="prem-section-head">
-      <h2 class="prem-section-title">Capacidad pensada para servidores activos</h2>
-      <p class="prem-section-sub">Compara las cifras reales entre el plan gratuito y Purgito Premium.</p>
+      <h2 class="prem-section-title">Capacidad pensada para<br>servidores activos</h2>
+      <p class="prem-section-sub">Compara los límites reales entre el plan gratuito y Purgito Premium.</p>
     </div>
 
-    <div class="prem-showcase-bento">
-      <div class="box prem-stat-matrix">
-        <h3 class="prem-stat-matrix-title">
+    <div class="box prem-stat-matrix">
+      <div class="prem-stat-matrix-header">
+        <div class="prem-stat-col-title">
           <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          Comparativa de límites técnicos
-        </h3>
-        <div class="prem-stat-rows">
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">Mensajes por canal</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>15.000</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>50.000</span> <small>Premium (3.3x)</small></div>
-            </div>
-          </div>
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">Memoria total del servidor</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>150.000</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>500.000</span> <small>Premium (3.3x)</small></div>
-            </div>
-          </div>
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">Mensajes por usuario</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>2.000</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>8.000</span> <small>Premium (4.0x)</small></div>
-            </div>
-          </div>
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">GIFs guardados</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>1.500</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>4.000</span> <small>Premium (2.6x)</small></div>
-            </div>
-          </div>
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">Imágenes para memes</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>75</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>200</span> <small>Premium (2.6x)</small></div>
-            </div>
-          </div>
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">Plantillas de embeds</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>20</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>50</span> <small>Premium (2.5x)</small></div>
-            </div>
-          </div>
-          <div class="prem-stat-row">
-            <span class="prem-stat-name">Anuncios programados</span>
-            <div class="prem-stat-bars">
-              <div class="prem-stat-val prem-stat-val--free"><span>3</span> <small>Free</small></div>
-              <div class="prem-stat-val prem-stat-val--prem"><span>10</span> <small>Premium (3.3x)</small></div>
-            </div>
-          </div>
+          <span>Límite o característica</span>
         </div>
+        <div class="prem-stat-col-head prem-stat-col-head--free">Plan Gratis</div>
+        <div class="prem-stat-col-head prem-stat-col-head--prem">Purgito Premium</div>
       </div>
 
-      <div class="box prem-mockup-card">
-        <div class="prem-mockup-head">
-          <span class="prem-mockup-dot"></span>
-          <span class="prem-mockup-title">Simulación en vivo · Discord</span>
+      <div class="prem-stat-rows">
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Mensajes por canal</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">15.000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">50.000</span>
+            <span class="prem-stat-mult">3.3x</span>
+          </div>
         </div>
-        <div class="prem-mockup-body">
-          <div class="prem-discord-msg">
-            <img class="prem-msg-avatar" src="/assets/icon.png" alt="Purgito">
-            <div class="prem-msg-content">
-              <div class="prem-msg-header">
-                <span class="prem-msg-author">Purgito</span>
-                <span class="dm-badge">BOT</span>
-                <span class="badge badge-premium">PREMIUM</span>
-                <span class="prem-msg-time">Hoy a las 18:42</span>
-              </div>
-              <p class="prem-msg-text">No me miren con esa cara, yo solo vine por los memes del canal de general 🎭</p>
-              <div class="prem-mock-meme">
-                <div class="prem-mock-meme-banner">
-                  <span class="prem-mock-badge">MEME GENERADO</span>
-                  <span class="prem-mock-ctx">#general · 50.000 msgs</span>
-                </div>
-                <div class="prem-mock-meme-body">
-                  <span class="prem-mock-meme-txt">CUANDO EL SERVER ACTIVA PURGITO PREMIUM</span>
-                  <img class="prem-mock-thumb" src="/assets/galeria-gifs.png" alt="Vista previa de meme">
-                </div>
-              </div>
-            </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Memoria total del servidor</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">150.000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">500.000</span>
+            <span class="prem-stat-mult">3.3x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Mensajes por usuario</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">2.000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">8.000</span>
+            <span class="prem-stat-mult">4.0x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">GIFs guardados</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">1.500</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">4.000</span>
+            <span class="prem-stat-mult">2.6x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Imágenes para memes</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">75</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">200</span>
+            <span class="prem-stat-mult">2.6x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Plantillas de embeds</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">20</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">50</span>
+            <span class="prem-stat-mult">2.5x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Anuncios programados</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Gratis:</span>
+            <span class="prem-stat-val">3</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">10</span>
+            <span class="prem-stat-mult">3.3x</span>
           </div>
         </div>
       </div>
@@ -328,25 +341,18 @@
         </ul>
 
         <div class="prem-plan-action">
-          <a class="btn btn-accent btn-lg plan-cta js-subscribe" href="/auth/login?from=landing&amp;locale=es">
+          <a class="btn btn-accent btn-lg plan-cta js-subscribe" id="plan-cta" href="/auth/login?from=landing&amp;locale=es&amp;plan=monthly">
             Comenzar prueba gratis
           </a>
         </div>
       </article>
     </div>
 
-    <!-- Notas de suscripción y pasarelas de pago -->
+    <!-- Información secundaria sobre la prueba y facturación -->
     <div class="prem-sub-details">
-      <p class="prem-sub-notes">
+      <p class="prem-sub-notes" id="plan-sub-notes">
         La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo.
       </p>
-      
-      <div class="prem-cards-strip" aria-label="Métodos de pago aceptados">
-        <img class="prem-card-logo" src="/assets/visa.svg" alt="Visa" width="38" height="24">
-        <img class="prem-card-logo" src="/assets/mastercard.svg" alt="Mastercard" width="38" height="24">
-        <img class="prem-card-logo" src="/assets/americanexpress.svg" alt="American Express" width="38" height="24">
-        <img class="prem-card-logo" src="/assets/discover.svg" alt="Discover" width="38" height="24">
-      </div>
 
       <p class="plans-legal">
         Al suscribirte aceptas los <a href="/es/terminos">Términos del Servicio</a>, las <a href="/es/reembolsos">Políticas de Reembolso</a> y la <a href="/es/privacidad">Política de Privacidad</a>. Contacto: <a href="mailto:billing@purgito.app">billing@purgito.app</a>.
@@ -367,4 +373,3 @@
   </section>
 
 </main>
-

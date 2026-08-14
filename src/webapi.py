@@ -3082,6 +3082,16 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
     session = await get_session(request)
     state = secrets.token_urlsafe(24)
     session["oauth_state"] = state
+    # La landing de Premium no puede abrir checkout todavía: primero hay que
+    # elegir un guild. Solo conserva los dos planes conocidos y un locale de
+    # la lista soportada; así el destino post-login nunca acepta una URL que
+    # venga libremente del navegador.
+    plan = request.query.get("plan")
+    locale = request.query.get("locale", "es")
+    if plan in ("monthly", "annual") and locale in ("es", "en", "ru", "ja", "de"):
+        session["auth_return_to"] = f"/{locale}/perfil?plan={plan}"
+    else:
+        session.pop("auth_return_to", None)
     params = urlencode(
         {
             "client_id": DISCORD_CLIENT_ID,
@@ -3156,8 +3166,9 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     # Precarga el cache: /users/@me/guilds tiene rate limit estricto por token
     # (~1 req/s) y sin esto el primer request autenticado recibiría 429.
     _user_guilds_cache[user["id"]] = (time.monotonic() + _GUILDS_CACHE_TTL, manage)
-    # El panel ya no existe; el sitio nuevo define su propio destino post-login.
-    raise web.HTTPFound(LANDING_URL)
+    # Si llegó desde el selector de Premium, vuelve a elegir el servidor con
+    # el ciclo ya validado. Cualquier otro login conserva el destino general.
+    raise web.HTTPFound(session.pop("auth_return_to", LANDING_URL))
 
 
 async def _revoke_discord_token(request: web.Request, access_token: str) -> None:

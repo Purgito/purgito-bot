@@ -181,17 +181,32 @@ function svgIcon(paths) {
   var LOGIN = PANEL + '/auth/login?from=landing&locale=' + LOC;
 
   /* "Subscribirse" de /es/premium: sin sesión manda a login, con sesión al
-     selector de servidores. El checkout real es por guild y vive en el panel;
-     esta página no lo duplica, solo enruta hacia allá. */
-  function setSubscribe(href) {
-    document.querySelectorAll('.js-subscribe').forEach(function (a) { a.href = href; });
+     selector de servidores. Conserva el plan elegido hasta el panel, donde el
+     checkout sí conoce el guild y envía el producto correspondiente a Polar. */
+  function selectedPlan() {
+    var toggle = document.getElementById('plan-toggle');
+    return toggle && toggle.dataset.plan === 'annual' ? 'annual' : 'monthly';
   }
+
+  function setSubscribe(href) {
+    document.querySelectorAll('.js-subscribe').forEach(function (a) {
+      var url = new URL(href, location.origin);
+      url.searchParams.set('plan', selectedPlan());
+      a.href = url.pathname + url.search + url.hash;
+    });
+  }
+
+  var subscribeHref = LOGIN;
+  document.addEventListener('premiumplanchange', function () {
+    setSubscribe(subscribeHref);
+  });
 
   var slot = document.getElementById('auth-slot');
   if (!slot) return;
 
   function renderLogin() {
-    setSubscribe(LOGIN);
+    subscribeHref = LOGIN;
+    setSubscribe(subscribeHref);
     var a = document.createElement('a');
     a.className = 'nav-link btn-login';
     a.href = LOGIN;
@@ -202,7 +217,8 @@ function svgIcon(paths) {
   }
 
   function renderUser(data) {
-    setSubscribe(DASHBOARD);
+    subscribeHref = DASHBOARD;
+    setSubscribe(subscribeHref);
     var wrap = document.createElement('div');
     wrap.className = 'auth-wrap';
 
@@ -325,39 +341,60 @@ function svgIcon(paths) {
     .catch(renderLogin);
 })();
 
-/* ── Toggle Mensual/Anual de /es/premium. Solo cambia lo que se muestra
-   (precio, sufijo y el aviso de prueba gratis): la página es informativa y no
-   guarda estado — el ciclo real se elige en el checkout del panel. */
+/* ── Toggle Mensual/Anual de /es/premium. Mantiene sincronizados el precio,
+   los avisos de prueba y los CTA. El plan también viaja al panel, que es el
+   único lugar donde se puede iniciar el checkout por servidor. */
 
 (function () {
   var toggle = document.getElementById('plan-toggle');
   if (!toggle) return;
 
   var PLANS = {
-    mensual: { amount: '$4.99', per: '/mensual', trial: true },
-    anual: { amount: '$39.99', per: '/anual', trial: false }
+    mensual: {
+      key: 'monthly', amount: '$4.99', per: '/mensual', trial: true,
+      cta: 'Comenzar prueba gratis', heroCta: 'Comenzar 7 días gratis',
+      notes: 'La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo.'
+    },
+    anual: {
+      key: 'annual', amount: '$39.99', per: '/anual', trial: false,
+      cta: 'Suscribirse al plan anual', heroCta: 'Elegir plan anual',
+      notes: 'La suscripción anual se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. El primer cobro se realiza al suscribirte.'
+    }
   };
 
   var amount = document.getElementById('plan-amount');
   var per = document.getElementById('plan-per');
   var trial = document.getElementById('plan-trial');
+  var trustTrial = document.getElementById('plan-trust-trial');
+  var cta = document.getElementById('plan-cta');
+  var heroCta = document.querySelector('.prem-cta-main.js-subscribe');
+  var notes = document.getElementById('plan-sub-notes');
   var opts = toggle.querySelectorAll('.toggle-opt');
+
+  function selectPlan(name) {
+    var plan = PLANS[name];
+    if (!plan) return;
+
+    toggle.dataset.plan = plan.key;
+    opts.forEach(function (b) {
+      var on = b.dataset.plan === name;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    amount.textContent = plan.amount;
+    per.textContent = plan.per;
+    trial.hidden = !plan.trial;
+    trustTrial.hidden = !plan.trial;
+    cta.textContent = plan.cta;
+    heroCta.textContent = plan.heroCta;
+    notes.textContent = plan.notes;
+    document.dispatchEvent(new CustomEvent('premiumplanchange', { detail: { plan: plan.key } }));
+  }
 
   toggle.addEventListener('click', function (e) {
     var btn = e.target.closest('.toggle-opt');
     if (!btn) return;
-    var plan = PLANS[btn.dataset.plan];
-    if (!plan) return;
-
-    opts.forEach(function (b) {
-      var on = b === btn;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', String(on));
-    });
-
-    amount.textContent = plan.amount;
-    per.textContent = plan.per;
-    trial.hidden = !plan.trial;
+    selectPlan(btn.dataset.plan);
   });
 })();
 

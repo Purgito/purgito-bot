@@ -459,7 +459,7 @@ def test_pagina_premium_redisenada_tiene_elementos_y_limites_reales():
     # Secciones clave del rediseño
     assert 'class="prem-hero"' in prem_page
     assert 'class="prem-features-grid"' in prem_page
-    assert 'class="prem-showcase-bento"' in prem_page
+    assert 'class="box prem-stat-matrix"' in prem_page
     assert 'class="prem-plans-grid"' in prem_page
     assert 'class="box donate"' in prem_page
 
@@ -478,6 +478,10 @@ def test_pagina_premium_redisenada_tiene_elementos_y_limites_reales():
     assert 'href="/es/reembolsos"' in prem_page
     assert 'href="/es/privacidad"' in prem_page
     assert "billing@purgito.app" in prem_page
+
+    # Sin logos comerciales de métodos de pago en la zona de planes
+    assert "visa.svg" not in prem_page
+    assert "mastercard.svg" not in prem_page
 
 
 def test_navbar_dropdowns_and_mobile_menu_structure_and_behavior():

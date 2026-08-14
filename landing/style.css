@@ -1560,9 +1560,6 @@ body:has(.prem-page) .prem-page { flex: 1; }
   .prem-chip-bot {
     right: 4px;
   }
-  .prem-stat-bars {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1695,231 +1692,156 @@ body:has(.prem-page) .prem-page { flex: 1; }
   color: var(--prem-purple-soft);
 }
 
-/* ── 3. SHOWCASE / BENTO SECTION ── */
-.prem-showcase-bento {
-  display: grid;
-  gap: 1.5rem;
+/* ── 3. COMPARATIVA TÉCNICA A ANCHO COMPLETO ── */
+.prem-stat-matrix {
+  max-width: 56rem;
+  margin-inline: auto;
+  padding: 2rem 2.25rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
-@media (min-width: 1024px) {
-  .prem-showcase-bento {
-    grid-template-columns: 1.15fr 0.85fr;
+@media (max-width: 640px) {
+  .prem-stat-matrix {
+    padding: 1.25rem 1rem;
   }
 }
 
-.prem-stat-matrix {
-  padding: 2rem;
-  background: var(--surface-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+.prem-stat-matrix-header {
+  display: none;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-card);
 }
-.prem-stat-matrix-title {
+@media (min-width: 640px) {
+  .prem-stat-matrix-header {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    align-items: center;
+    gap: 1rem;
+  }
+}
+
+.prem-stat-col-title {
   font-family: var(--font-head);
   font-weight: 700;
-  font-size: var(--t-lg);
-  color: var(--text);
-  margin-bottom: 1.5rem;
+  font-size: var(--t-sm);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-.prem-stat-matrix-title .i {
-  width: 1.25rem;
-  height: 1.25rem;
+.prem-stat-col-title .i {
+  width: 1.15rem;
+  height: 1.15rem;
   color: var(--accent-2);
-}
-.prem-stat-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-}
-.prem-stat-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding-bottom: 1.15rem;
-  border-bottom: 1px solid var(--border-card);
-}
-.prem-stat-row:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-.prem-stat-name {
-  font-size: var(--t-sm);
-  font-weight: 500;
-  color: var(--text-dim);
-}
-.prem-stat-bars {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-.prem-stat-val {
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius);
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: var(--t-sm);
-  font-family: var(--font-mono);
-}
-.prem-stat-val--free {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-}
-.prem-stat-val--free small { color: var(--text-muted); font-size: var(--t-xxs); }
-.prem-stat-val--prem {
-  background: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--accent-2);
-  font-weight: 600;
-}
-.prem-stat-val--prem small {
-  color: var(--accent-soft);
-  font-size: var(--t-xxs);
-  font-family: var(--font-body);
-  font-weight: 500;
 }
 
-/* Discord Mockup Card */
-.prem-mockup-card {
-  padding: 1.75rem;
-  background: var(--surface-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  display: flex;
-  flex-direction: column;
-}
-.prem-mockup-head {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-card);
-  margin-bottom: 1.25rem;
-}
-.prem-mockup-dot {
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 8px var(--success);
-}
-.prem-mockup-title {
+.prem-stat-col-head {
   font-family: var(--font-head);
-  font-size: var(--t-xs);
-  font-weight: 600;
-  color: var(--text-dim);
+  font-weight: 700;
+  font-size: var(--t-sm);
+  text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.prem-stat-col-head--free {
+  color: var(--text-muted);
+}
+.prem-stat-col-head--prem {
+  color: var(--accent-2);
+}
 
-.prem-mockup-body {
-  flex: 1;
+.prem-stat-rows {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 0.75rem;
 }
-.prem-discord-msg {
+
+.prem-stat-row {
   display: flex;
-  gap: 0.85rem;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border-card);
+  transition: background-color var(--dur), border-color var(--dur);
 }
-.prem-msg-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  flex-shrink: 0;
+.prem-stat-row:hover {
+  background: var(--surface-raised);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-card));
 }
-.prem-msg-content {
-  flex: 1;
-  min-width: 0;
+@media (min-width: 640px) {
+  .prem-stat-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+  }
 }
-.prem-msg-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.35rem;
-}
-.prem-msg-author {
-  font-weight: 600;
+
+.prem-stat-name {
   font-size: var(--t-sm);
+  font-weight: 600;
   color: var(--text);
 }
-.dm-badge {
-  background: var(--blurple);
-  color: #fff;
-  font-size: 0.6rem;
+
+.prem-stat-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--radius);
+}
+@media (min-width: 640px) {
+  .prem-stat-cell {
+    justify-content: center;
+    padding: 0.35rem 0.5rem;
+  }
+}
+
+.prem-stat-cell--free {
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.prem-stat-cell--prem {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.prem-stat-mob-label {
+  font-family: var(--font-body);
+  font-size: var(--t-xxs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+@media (min-width: 640px) {
+  .prem-stat-mob-label {
+    display: none;
+  }
+}
+
+.prem-stat-mult {
+  font-family: var(--font-body);
+  font-size: var(--t-xxs);
   font-weight: 700;
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
-  line-height: 1;
-}
-.badge-premium {
+  border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent-2);
-  font-size: 0.6rem;
-  font-weight: 700;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-}
-.prem-msg-time {
-  font-size: var(--t-xxs);
-  color: var(--text-muted);
+  color: var(--accent-soft);
   margin-left: 0.25rem;
-}
-.prem-msg-text {
-  font-size: var(--t-sm);
-  color: var(--text);
-  line-height: 1.4;
-  margin-bottom: 0.75rem;
-}
-
-.prem-mock-meme {
-  border-left: 4px solid var(--accent);
-  background: var(--surface-raised);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.prem-mock-meme-banner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--t-xxs);
-}
-.prem-mock-badge {
-  font-family: var(--font-head);
-  font-weight: 700;
-  color: var(--accent-2);
-}
-.prem-mock-ctx {
-  color: var(--text-muted);
-}
-.prem-mock-meme-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.prem-mock-meme-txt {
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: var(--t-xs);
-  color: var(--text);
-  letter-spacing: 0.02em;
-}
-.prem-mock-thumb {
-  width: 100%;
-  height: 110px;
-  object-fit: cover;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
 }
 
 /* ── 4. PLANES Y PRECIOS ── */
@@ -2120,36 +2042,24 @@ body:has(.prem-page) .prem-page { flex: 1; }
 }
 
 .prem-sub-details {
-  max-width: 48rem;
+  max-width: 42rem;
   margin-inline: auto;
+  margin-top: 2rem;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.85rem;
 }
 .prem-sub-notes {
   font-size: var(--t-xs);
   line-height: 1.6;
   color: var(--text-muted);
-}
-.prem-cards-strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.25rem;
-}
-.prem-card-logo {
-  opacity: 0.75;
-  filter: grayscale(0.2);
-  transition: opacity var(--dur);
-}
-.prem-card-logo:hover {
-  opacity: 1;
+  margin: 0;
 }
 
 .plans-legal, .donate-legal {
-  margin-top: 1rem;
+  margin-top: 0.25rem;
   text-align: center;
   font-size: var(--t-xs);
   color: var(--text-muted);

@@ -102,6 +102,46 @@ def test_premium_checkout_no_escribe_nada_localmente(monkeypatch, temp_db):
     assert premium_guilds == []
 
 
+@pytest.mark.parametrize(
+    ("plan", "product_id"),
+    [("monthly", "prod-monthly"), ("annual", "prod-annual")],
+)
+def test_premium_checkout_usa_el_producto_del_plan_sin_forzar_trial(
+    monkeypatch, plan, product_id
+):
+    """El trial es una propiedad del producto mensual en Polar, no un flag
+    intercambiable que este endpoint pueda colar en el checkout anual."""
+    _allow_guild_access(monkeypatch)
+
+    class FakeCheckout:
+        url = "https://checkout.polar.sh/abc123"
+
+    calls = []
+
+    async def fake_create_async(request):
+        calls.append(request)
+        return FakeCheckout()
+
+    monkeypatch.setattr(
+        webapi,
+        "_polar",
+        SimpleNamespace(checkouts=SimpleNamespace(create_async=fake_create_async)),
+    )
+    monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_MONTHLY", "prod-monthly")
+    monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_ANNUAL", "prod-annual")
+
+    resp = asyncio.run(webapi._api_premium_checkout(FakeRequest({"plan": plan})))
+
+    assert resp.status == 200
+    assert calls == [
+        {
+            "products": [product_id],
+            "metadata": {"guild_id": "123"},
+            "success_url": f"{webapi.LANDING_URL}?checkout_id={{CHECKOUT_ID}}",
+        }
+    ]
+
+
 def test_premium_checkout_respeta_el_rate_limit(monkeypatch):
     _allow_guild_access(monkeypatch)
 
