@@ -76,9 +76,6 @@ un campo llamado "Roles exentos del límite" no necesita un ⓘ aclarando que
 
 ## Backlog (no implementar todavía — anotado para cuando duela)
 
-- **Contenido → Frases**: a ~200 frases la lista se vuelve una pared
-  vertical. Eventualmente necesita búsqueda, contador, editar sin
-  borrar/recrear, quizás paginación.
 - **Canales → matriz**: con muchos canales (ej. 100) pierde legibilidad.
   Eventualmente necesita búsqueda/filtro, quizás un toggle "solo
   configurados".

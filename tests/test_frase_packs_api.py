@@ -184,6 +184,84 @@ def test_patch_no_puede_asignar_un_pack_de_otro_guild(memory_db):
     assert frase["pack_id"] is None  # no quedó apuntando al pack ajeno
 
 
+def test_patch_edita_texto_de_una_frase_y_preserva_pack(memory_db):
+    pack_id = asyncio.run(db.add_frase_pack(_GUILD, "Navidad"))
+    asyncio.run(db.add_frase_especial(_GUILD, 1, "u", "texto original", pack_id=pack_id))
+    frase_id = asyncio.run(db.list_frases_especiales(_GUILD))[0]["id"]
+
+    resp = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": "texto editado"}),
+    )
+
+    assert _json(resp)["updated"] is True
+    frase = asyncio.run(db.get_frase_especial(_GUILD, frase_id))
+    assert frase["frase"] == "texto editado"
+    assert frase["pack_id"] == pack_id  # pack preservado
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert any(e["action"] == "frases.edit" and "texto editado" in e["detail"] for e in entries)
+
+
+def test_patch_edita_texto_y_pack_simultaneamente(memory_db):
+    p1 = asyncio.run(db.add_frase_pack(_GUILD, "Pack 1"))
+    p2 = asyncio.run(db.add_frase_pack(_GUILD, "Pack 2"))
+    asyncio.run(db.add_frase_especial(_GUILD, 1, "u", "antigua", pack_id=p1))
+    frase_id = asyncio.run(db.list_frases_especiales(_GUILD))[0]["id"]
+
+    resp = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": "nueva", "pack_id": p2}),
+    )
+
+    assert _json(resp)["updated"] is True
+    frase = asyncio.run(db.get_frase_especial(_GUILD, frase_id))
+    assert frase["frase"] == "nueva"
+    assert frase["pack_id"] == p2
+
+
+def test_patch_rechaza_frase_vacia_o_blancos(memory_db):
+    asyncio.run(db.add_frase_especial(_GUILD, 1, "u", "hola"))
+    frase_id = asyncio.run(db.list_frases_especiales(_GUILD))[0]["id"]
+
+    resp_empty = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": ""}),
+    )
+    assert resp_empty.status == 400
+
+    resp_spaces = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": "   \n  "}),
+    )
+    assert resp_spaces.status == 400
+
+
+def test_patch_rechaza_frase_mayor_a_300_caracteres(memory_db):
+    asyncio.run(db.add_frase_especial(_GUILD, 1, "u", "hola"))
+    frase_id = asyncio.run(db.list_frases_especiales(_GUILD))[0]["id"]
+
+    resp = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": "x" * 301}),
+    )
+    assert resp.status == 400
+
+
+def test_patch_no_puede_editar_frase_de_otro_guild(memory_db):
+    otro_guild = _GUILD + 1
+    asyncio.run(db.add_frase_especial(otro_guild, 1, "u", "frase ajena"))
+    ajena_id = asyncio.run(db.list_frases_especiales(otro_guild))[0]["id"]
+
+    resp = _run(
+        webapi._api_frases_patch,
+        FakeRequest(match_info={"frase_id": str(ajena_id)}, body={"frase": "hack"}),
+    )
+    assert _json(resp)["updated"] is False
+    frase = asyncio.run(db.get_frase_especial(otro_guild, ajena_id))
+    assert frase["frase"] == "frase ajena"
+
+
 # ── Packs: CRUD ───────────────────────────────────────────────────────────────
 
 

@@ -311,6 +311,51 @@ def test_reasignar_el_pack_de_una_frase_existente(temp_db):
     assert pack_id_guardado is not None
 
 
+def test_update_frase_especial_texto_y_pack(temp_db):
+    async def run():
+        p1 = await db.add_frase_pack(1, "Pack 1")
+        p2 = await db.add_frase_pack(1, "Pack 2")
+        await db.add_frase_especial(1, 1, "u", "frase original", pack_id=p1)
+        frase_id = (await db.list_frases_especiales(1))[0]["id"]
+
+        # 1. Editar solo texto
+        ok1 = await db.update_frase_especial(1, frase_id, frase="frase modificada")
+        f1 = await db.get_frase_especial(1, frase_id)
+
+        # 2. Editar solo pack
+        ok2 = await db.update_frase_especial(1, frase_id, pack_id=p2, update_pack=True)
+        f2 = await db.get_frase_especial(1, frase_id)
+
+        # 3. Editar texto y pack juntos
+        ok3 = await db.update_frase_especial(1, frase_id, frase="frase final", pack_id=None, update_pack=True)
+        f3 = await db.get_frase_especial(1, frase_id)
+
+        # 4. Rechazar texto vacío
+        ok_empty = await db.update_frase_especial(1, frase_id, frase="   ")
+
+        # 5. Rechazar pack de otro guild
+        ok_idor = await db.update_frase_especial(1, frase_id, pack_id=999, update_pack=True)
+
+        # 6. Rechazar frase inexistente
+        ok_missing = await db.update_frase_especial(1, 9999, frase="hola")
+
+        return ok1, f1, ok2, f2, ok3, f3, ok_empty, ok_idor, ok_missing
+
+    ok1, f1, ok2, f2, ok3, f3, ok_empty, ok_idor, ok_missing = asyncio.run(run())
+    assert ok1 is True
+    assert f1["frase"] == "frase modificada" and f1["pack_id"] is not None
+
+    assert ok2 is True
+    assert f2["frase"] == "frase modificada" and f2["pack_id"] is not None
+
+    assert ok3 is True
+    assert f3["frase"] == "frase final" and f3["pack_id"] is None
+
+    assert ok_empty is False
+    assert ok_idor is False
+    assert ok_missing is False
+
+
 # ─── Límite de frases ────────────────────────────────────────────────────────
 
 

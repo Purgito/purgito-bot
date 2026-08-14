@@ -27,6 +27,7 @@ const ACTION_LABELS = {
   'exempt_roles.add': 'Agregó un rol exento del límite de menciones',
   'exempt_roles.remove': 'Quitó un rol exento del límite de menciones',
   'frases.add': 'Agregó una frase especial',
+  'frases.edit': 'Editó una frase especial',
   'frases.remove': 'Eliminó una frase especial',
   'frases.set_pack': 'Cambió el pack de una frase',
   'frase_channels.add': 'Habilitó un canal para frases especiales',

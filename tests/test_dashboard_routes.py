@@ -672,3 +672,37 @@ def test_estructura_de_cuatro_tabs_en_perfil():
     assert "tabConexiones" in perfil_js
     assert "tabFacturacion" in perfil_js
 
+
+def test_frases_dashboard_ui_busqueda_paginacion_y_edicion():
+    """Verifica que dash.js y dash.css implementan búsqueda, paginación y edición inline en Frases."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+
+    # Búsqueda y filtrado antes de paginar
+    assert "frases-search-input" in dash_js
+    assert "Buscar una frase…" in dash_js
+    assert "frases-empty-search" in dash_js
+    assert "Limpiar búsqueda" in dash_js
+
+    # Paginación de 20 por página
+    assert "PAGE_SIZE = 20" in dash_js
+    assert "frases-pagination" in dash_js
+    assert "← Anterior" in dash_js
+    assert "Siguiente →" in dash_js
+
+    # Edición inline sin borrar/recrear
+    assert "frase-edit-input" in dash_js
+    assert "frase-item-editing" in dash_js
+    assert "'Guardar'" in dash_js or '"Guardar"' in dash_js
+    assert "'Cancelar'" in dash_js or '"Cancelar"' in dash_js
+    assert "maxlength: '300'" in dash_js
+    assert "Frase actualizada" in dash_js
+
+    # Estilos en dash.css
+    assert ".frases-container" in dash_css
+    assert ".frases-search-input" in dash_css
+    assert ".frase-item" in dash_css
+    assert ".frase-item-editing" in dash_css
+    assert ".frases-pagination" in dash_css
+    assert ".frases-empty-search" in dash_css
+

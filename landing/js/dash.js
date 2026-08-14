@@ -1424,58 +1424,311 @@ function cupoLine(used, limit, singular, plural, lleno_msg) {
 }
 
 function renderFrases(box, frases, packs, limit) {
+  const state = box._frasesState || {
+    search: '',
+    page: 1,
+    editingId: null,
+    editingText: '',
+    isSaving: false,
+  };
+  box._frasesState = state;
+  state.frases = frases || [];
+  state.packs = packs || [];
+  state.limit = limit || 200;
+
   box.innerHTML = '';
-  const list = el('ul', { class: 'item-list' });
-  const cupo = cupoLine(frases.length, limit, 'frase usada', 'frases usadas',
-    'elimina una para agregar otra.');
-  if (cupo) box.append(cupo);
-  if (!frases.length) list.append(el('li', { class: 'dim' }, 'Todavía no has agregado ninguna frase.'));
-  for (const f of frases) {
-    let packSelect = null;
-    if (packs.length) {
-      packSelect = el('select', {});
-      packSelect.append(el('option', { value: '' }, 'Sin pack (default)'));
-      for (const p of packs) packSelect.append(el('option', { value: String(p.id) }, p.name));
-      packSelect.value = f.pack_id != null ? String(f.pack_id) : '';
-      packSelect.onchange = async () => {
-        try {
-          await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, {
-            method: 'PATCH', body: { pack_id: packSelect.value || null },
-          });
-          toast('Pack de la frase actualizado', 'ok');
-        } catch (e) {
-          toast('No se pudo actualizar el pack, intenta de nuevo', 'err');
-        }
-      };
-    }
-    list.append(el('li', {},
-      el('span', {}, f.frase),
-      packSelect,
-      confirmDelBtn('¿Eliminar esta frase? No se puede recuperar.', async () => {
-        try {
-          await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
-          toast('Frase quitada', 'ok');
-        } catch (e) { toast('No se pudo quitar la frase, intenta de nuevo', 'err'); }
-        reloadFrases(box, packs);
-      })));
+  const container = el('div', { class: 'frases-container' });
+  const cupoWrapper = el('div', { class: 'frases-cupo' });
+  const searchWrapper = el('div', { class: 'frases-toolbar' });
+  const listWrapper = el('div', { class: 'frases-list-wrapper' });
+  const paginationWrapper = el('div', { class: 'frases-pagination-wrapper' });
+
+  function updateCupo() {
+    cupoWrapper.innerHTML = '';
+    const cupo = cupoLine(
+      state.frases.length,
+      state.limit,
+      'frase usada',
+      'frases usadas',
+      'elimina una para agregar otra.'
+    );
+    if (cupo) cupoWrapper.append(cupo);
   }
-  const input = el('input', { type: 'text', placeholder: 'Nueva frase…', maxlength: '300' });
+
+  const searchInput = el('input', {
+    type: 'search',
+    class: 'frases-search-input',
+    placeholder: 'Buscar una frase…',
+    value: state.search,
+    autocomplete: 'off',
+    'aria-label': 'Buscar una frase',
+  });
+
+  searchInput.oninput = () => {
+    state.search = searchInput.value;
+    state.page = 1;
+    renderListAndPagination();
+  };
+
+  searchWrapper.append(searchInput);
+
+  const PAGE_SIZE = 20;
+
+  function renderListAndPagination() {
+    listWrapper.innerHTML = '';
+    paginationWrapper.innerHTML = '';
+
+    if (!state.frases.length) {
+      searchWrapper.style.display = 'none';
+      listWrapper.append(
+        el('ul', { class: 'item-list frases-list' },
+          el('li', { class: 'dim' }, 'Todavía no has agregado ninguna frase.'))
+      );
+      return;
+    }
+
+    searchWrapper.style.display = '';
+
+    const q = (state.search || '').trim().toLowerCase();
+    const filtered = q
+      ? state.frases.filter(f => (f.frase || '').toLowerCase().includes(q))
+      : state.frases;
+
+    if (!filtered.length) {
+      listWrapper.append(
+        el('div', { class: 'frases-empty-search' },
+          el('p', { class: 'dim' }, 'No hay frases que coincidan con tu búsqueda.'),
+          el('button', {
+            class: 'btn btn-secondary btn-sm',
+            onclick: () => {
+              state.search = '';
+              searchInput.value = '';
+              state.page = 1;
+              renderListAndPagination();
+              searchInput.focus();
+            },
+          }, 'Limpiar búsqueda'))
+      );
+      return;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (state.page > totalPages) state.page = totalPages;
+    if (state.page < 1) state.page = 1;
+
+    const startIdx = (state.page - 1) * PAGE_SIZE;
+    const pageItems = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+
+    const list = el('ul', { class: 'item-list frases-list' });
+
+    for (const f of pageItems) {
+      if (state.editingId === f.id) {
+        const editInput = el('input', {
+          type: 'text',
+          class: 'frase-edit-input',
+          maxlength: '300',
+          value: state.editingText !== undefined ? state.editingText : f.frase,
+          disabled: state.isSaving,
+          'aria-label': 'Editar frase',
+        });
+
+        async function saveCurrentEdit() {
+          const newText = editInput.value.trim();
+          if (!newText) {
+            toast('La frase no puede estar vacía', 'warn');
+            return;
+          }
+          if (newText.length > 300) {
+            toast('La frase no puede superar los 300 caracteres', 'warn');
+            return;
+          }
+          if (newText === f.frase) {
+            state.editingId = null;
+            state.editingText = '';
+            renderListAndPagination();
+            return;
+          }
+          state.isSaving = true;
+          renderListAndPagination();
+          try {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, {
+              method: 'PATCH',
+              body: { frase: newText },
+            });
+            f.frase = newText;
+            state.editingId = null;
+            state.editingText = '';
+            state.isSaving = false;
+            toast('Frase actualizada', 'ok');
+            renderListAndPagination();
+          } catch (e) {
+            state.isSaving = false;
+            toast(e.message || 'No se pudo actualizar la frase, intenta de nuevo', 'err');
+            renderListAndPagination();
+          }
+        }
+
+        editInput.oninput = () => {
+          state.editingText = editInput.value;
+        };
+
+        editInput.onkeydown = (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            saveCurrentEdit();
+          } else if (ev.key === 'Escape') {
+            state.editingId = null;
+            state.editingText = '';
+            renderListAndPagination();
+          }
+        };
+
+        const saveBtn = el('button', {
+          class: 'btn btn-primary btn-sm',
+          disabled: state.isSaving,
+          onclick: saveCurrentEdit,
+        }, state.isSaving ? 'Guardando…' : 'Guardar');
+
+        const cancelBtn = el('button', {
+          class: 'btn btn-secondary btn-sm',
+          disabled: state.isSaving,
+          onclick: () => {
+            state.editingId = null;
+            state.editingText = '';
+            renderListAndPagination();
+          },
+        }, 'Cancelar');
+
+        list.append(
+          el('li', { class: 'frase-item frase-item-editing' },
+            editInput,
+            el('div', { class: 'frase-actions' }, saveBtn, cancelBtn))
+        );
+        setTimeout(() => editInput.focus(), 0);
+      } else {
+        let packSelect = null;
+        if (state.packs.length) {
+          packSelect = el('select', { class: 'frase-pack-select', 'aria-label': 'Pack de la frase' });
+          packSelect.append(el('option', { value: '' }, 'Sin pack (default)'));
+          for (const p of state.packs) {
+            packSelect.append(el('option', { value: String(p.id) }, p.name));
+          }
+          packSelect.value = f.pack_id != null ? String(f.pack_id) : '';
+          packSelect.onchange = async () => {
+            const chosen = packSelect.value ? Number(packSelect.value) : null;
+            try {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, {
+                method: 'PATCH',
+                body: { pack_id: chosen },
+              });
+              f.pack_id = chosen;
+              toast('Pack de la frase actualizado', 'ok');
+            } catch (e) {
+              toast('No se pudo actualizar el pack, intenta de nuevo', 'err');
+              packSelect.value = f.pack_id != null ? String(f.pack_id) : '';
+            }
+          };
+        }
+
+        const editBtn = el('button', {
+          class: 'btn btn-secondary btn-sm',
+          onclick: () => {
+            state.editingId = f.id;
+            state.editingText = f.frase;
+            renderListAndPagination();
+          },
+        }, 'Editar');
+
+        const delBtn = confirmDelBtn('¿Eliminar esta frase? No se puede recuperar.', async () => {
+          try {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
+            toast('Frase quitada', 'ok');
+            state.frases = state.frases.filter(item => item.id !== f.id);
+            if (state.editingId === f.id) {
+              state.editingId = null;
+              state.editingText = '';
+            }
+            updateCupo();
+            renderListAndPagination();
+          } catch (e) {
+            toast('No se pudo quitar la frase, intenta de nuevo', 'err');
+          }
+        });
+
+        list.append(
+          el('li', { class: 'frase-item' },
+            el('span', { class: 'frase-text' }, f.frase),
+            packSelect,
+            el('div', { class: 'frase-actions' }, editBtn, delBtn)
+          )
+        );
+      }
+    }
+
+    listWrapper.append(list);
+
+    if (totalPages > 1) {
+      const prevBtn = el('button', {
+        class: 'btn btn-secondary btn-sm',
+        disabled: state.page <= 1,
+        onclick: () => {
+          if (state.page > 1) {
+            state.page--;
+            renderListAndPagination();
+          }
+        },
+      }, '← Anterior');
+
+      const endIdx = Math.min(startIdx + PAGE_SIZE, filtered.length);
+      const infoText = `Página ${state.page} de ${totalPages} · Mostrando ${startIdx + 1}–${endIdx} de ${filtered.length}`;
+
+      const nextBtn = el('button', {
+        class: 'btn btn-secondary btn-sm',
+        disabled: state.page >= totalPages,
+        onclick: () => {
+          if (state.page < totalPages) {
+            state.page++;
+            renderListAndPagination();
+          }
+        },
+      }, 'Siguiente →');
+
+      paginationWrapper.append(
+        el('div', { class: 'frases-pagination' },
+          prevBtn,
+          el('span', { class: 'frases-pagination-info' }, infoText),
+          nextBtn
+        )
+      );
+    }
+  }
+
+  const addInput = el('input', { type: 'text', placeholder: 'Nueva frase…', maxlength: '300' });
   async function addFrase() {
-    const frase = input.value.trim();
+    const frase = addInput.value.trim();
     if (!frase) return;
     try {
       await apiFetch(`/api/server/${GUILD_ID}/settings/frases`, {
         method: 'POST', body: { frase },
       });
       toast('Frase agregada', 'ok');
-      reloadFrases(box, packs);
+      addInput.value = '';
+      reloadFrases(box, state.packs);
     } catch (e) {
       toast(e.status === 409 ? e.message : 'No se pudo agregar la frase, intenta de nuevo', e.status === 409 ? 'warn' : 'err');
     }
   }
-  input.onkeydown = (ev) => { if (ev.key === 'Enter') addFrase(); };
-  box.append(list, el('div', { class: 'add-row' }, input,
-    el('button', { class: 'btn btn-primary', onclick: addFrase }, 'Agregar')));
+  addInput.onkeydown = (ev) => { if (ev.key === 'Enter') addFrase(); };
+  const addRow = el('div', { class: 'add-row' },
+    addInput,
+    el('button', { class: 'btn btn-primary', onclick: addFrase }, 'Agregar')
+  );
+
+  updateCupo();
+  renderListAndPagination();
+
+  container.append(cupoWrapper, searchWrapper, listWrapper, paginationWrapper, addRow);
+  box.append(container);
 }
 
 async function reloadFrases(box, packs) {

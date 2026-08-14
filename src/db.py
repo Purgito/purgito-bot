@@ -3256,6 +3256,63 @@ async def delete_frase_especial(guild_id: int, frase_id: int) -> bool:
     return deleted
 
 
+async def update_frase_especial(
+    guild_id: int,
+    frase_id: int,
+    *,
+    frase: str | None = None,
+    pack_id: int | None = None,
+    update_pack: bool = False,
+) -> bool:
+    """Actualiza el texto y/o el pack de una frase especial existente.
+
+    Valida que la frase pertenezca a guild_id y que pack_id (si se especifica)
+    también pertenezca a este guild (evita IDOR).
+    """
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT 1 FROM frases_especiales WHERE guild_id=? AND id=?",
+            (guild_id, frase_id),
+        ) as cur:
+            if not await cur.fetchone():
+                return False
+
+        cols: list[str] = []
+        params: list[object] = []
+
+        if frase is not None:
+            text = clean_admin_text(frase)[:2000]
+            if not text:
+                return False
+            cols.append("frase=?")
+            params.append(text)
+
+        if update_pack:
+            if pack_id is not None:
+                async with db.execute(
+                    "SELECT 1 FROM frase_packs WHERE guild_id=? AND id=?",
+                    (guild_id, pack_id),
+                ) as cur:
+                    if not await cur.fetchone():
+                        return False
+            cols.append("pack_id=?")
+            params.append(pack_id)
+
+        if not cols:
+            return True
+
+        params.extend([guild_id, frase_id])
+        updates = ", ".join(cols)
+        cursor = await db.execute(
+            f"UPDATE frases_especiales SET {updates} WHERE guild_id=? AND id=?",
+            params,
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
 async def set_frase_pack(guild_id: int, frase_id: int, pack_id: int | None) -> bool:
     """Asigna (o quita, con pack_id=None) el pack de una frase existente.
 
@@ -3266,22 +3323,9 @@ async def set_frase_pack(guild_id: int, frase_id: int, pack_id: int | None) -> b
     (get_random_frase_especial siempre filtra por guild_id Y pack_id juntos),
     pero es el mismo patrón de validación que ya se usa en delete_frase_pack
     -- más vale no dejar un pack_id ajeno colgado en la fila."""
-    db = await get_db()
-    async with _db_lock:
-        if pack_id is not None:
-            async with db.execute(
-                "SELECT 1 FROM frase_packs WHERE guild_id=? AND id=?",
-                (guild_id, pack_id),
-            ) as cur:
-                if not await cur.fetchone():
-                    return False
-        cursor = await db.execute(
-            "UPDATE frases_especiales SET pack_id=? WHERE guild_id=? AND id=?",
-            (pack_id, guild_id, frase_id),
-        )
-        updated = cursor.rowcount > 0
-        await db.commit()
-    return updated
+    return await update_frase_especial(
+        guild_id, frase_id, pack_id=pack_id, update_pack=True
+    )
 
 
 # ─── Canales permitidos para frases especiales (frase_allowed_channels) ─────

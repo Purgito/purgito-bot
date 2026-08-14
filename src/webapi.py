@@ -164,6 +164,7 @@ from db import (
     unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
+    update_frase_especial,
     update_last_video_id,
 )
 from layout_v2 import (
@@ -1698,27 +1699,57 @@ async def _api_frases_delete(request: web.Request, guild_id: int) -> web.Respons
 
 @guild_api
 async def _api_frases_patch(request: web.Request, guild_id: int) -> web.Response:
-    """Reasigna el pack de una frase existente (pack_id null la vuelve al
+    """Edita el texto y/o el pack de una frase existente (pack_id null la vuelve al
     pool default del servidor)."""
     frase_id = _to_int(request.match_info.get("frase_id"))
     if frase_id is None:
         return web.json_response({"error": "frase_id inválido"}, status=400)
     data = await _json_body(request)
-    if data is None or "pack_id" not in data:
-        return web.json_response({"error": "pack_id es obligatorio"}, status=400)
-    pack_id = None
-    if data["pack_id"] is not None:
+    if data is None or ("pack_id" not in data and "frase" not in data):
+        return web.json_response(
+            {"error": "se requiere al menos 'frase' o 'pack_id'"}, status=400
+        )
+
+    frase_text: str | None = None
+    if "frase" in data:
+        raw_frase = data.get("frase")
+        if not isinstance(raw_frase, str) or not raw_frase.strip():
+            return web.json_response({"error": "frase vacía"}, status=400)
+        frase_text = raw_frase.strip()
+        if len(frase_text) > 300:
+            return web.json_response(
+                {"error": "la frase no puede tener más de 300 caracteres"}, status=400
+            )
+
+    update_pack = "pack_id" in data
+    pack_id: int | None = None
+    if update_pack and data["pack_id"] is not None:
         pack_id = _to_int(data["pack_id"])
         if pack_id is None:
             return web.json_response({"error": "pack_id inválido"}, status=400)
-    updated = await set_frase_pack(guild_id, frase_id, pack_id)
+
+    updated = await update_frase_especial(
+        guild_id,
+        frase_id,
+        frase=frase_text,
+        pack_id=pack_id,
+        update_pack=update_pack,
+    )
     if updated:
-        await _log_audit(
-            request,
-            guild_id,
-            "frases.set_pack",
-            detail=f"frase_id={frase_id} pack_id={pack_id}",
-        )
+        if frase_text is not None:
+            await _log_audit(
+                request,
+                guild_id,
+                "frases.edit",
+                detail=f"frase_id={frase_id} frase={frase_text}",
+            )
+        if update_pack:
+            await _log_audit(
+                request,
+                guild_id,
+                "frases.set_pack",
+                detail=f"frase_id={frase_id} pack_id={pack_id}",
+            )
     return web.json_response({"updated": updated})
 
 

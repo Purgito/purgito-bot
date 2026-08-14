@@ -391,6 +391,65 @@ h1 {
 .add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
 .add-row input, .add-row select { min-width: 180px; }
 
+/* ---------- Frases especiales: búsqueda, edición y paginación ---------- */
+.frases-container { display: flex; flex-direction: column; gap: 12px; }
+.frases-toolbar { display: flex; gap: 10px; align-items: center; }
+.frases-search-input { width: 100%; }
+.frases-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.frase-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  transition: border-color var(--transition);
+}
+.frase-item:hover { border-color: color-mix(in srgb, var(--border) 55%, var(--accent)); }
+.frase-text { flex: 1; word-break: break-word; font-size: 14px; line-height: 1.45; }
+.frase-pack-select { font-size: 13px; max-width: 180px; }
+.frase-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.frase-item-editing {
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--surface-raised);
+  border-color: var(--accent);
+}
+.frase-edit-input { flex: 1; min-width: 200px; }
+.frases-empty-search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: var(--surface-card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.frases-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 4px 0 8px;
+  flex-wrap: wrap;
+}
+.frases-pagination-info { font-size: 13px; color: var(--text-muted); }
+@media (max-width: 640px) {
+  .frase-item:not(.frase-item-editing) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .frase-item:not(.frase-item-editing) .frase-pack-select { max-width: 100%; }
+  .frase-item:not(.frase-item-editing) .frase-actions { justify-content: flex-end; }
+  .frase-item-editing { flex-direction: column; align-items: stretch; }
+  .frase-item-editing .frase-actions { justify-content: flex-end; }
+}
+
 .premium-card {
   background: var(--surface-card);
   border: 1px solid var(--premium);
