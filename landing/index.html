@@ -25,7 +25,7 @@
 <meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png">
 
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=0c0ea46f">
+<link rel="stylesheet" href="/style.css?v=2223f8ed">
 
 <!-- Sin prefijo de idioma en el path: elige el idioma del navegador con
      traducción disponible y cae a español. Va en el <head> para redirigir
@@ -73,7 +73,10 @@ window.READY_LANGS = ['es'];
     </a>
 
     <div class="nav-links">
-      <!-- Item 1: Recursos (Dropdown) -->
+      <!-- Item 1: Premium (Direct Link) -->
+      <a class="nav-link" href="/es/premium">Premium</a>
+
+      <!-- Item 2: Recursos (Dropdown) -->
       <div class="nav-item has-dropdown" data-nav-dropdown>
         <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-recursos">
           <span>Recursos</span>
@@ -109,12 +112,6 @@ window.READY_LANGS = ['es'];
           </div>
         </div>
       </div>
-
-      <!-- Item 2: Premium (Direct Link) -->
-      <a class="nav-link nav-link--highlight" href="/es/premium">
-        <span>Premium</span>
-        <span class="nav-badge-spark" aria-hidden="true">✨</span>
-      </a>
 
       <!-- Item 3: Comunidad (Dropdown) -->
       <div class="nav-item has-dropdown" data-nav-dropdown>
@@ -201,6 +198,10 @@ window.READY_LANGS = ['es'];
   <!-- Panel móvil desplegable -->
   <div class="nav-mobile-panel" id="nav-mobile-panel" hidden>
     <div class="nav-mobile-content">
+      <a class="nav-mobile-item nav-mobile-item--highlight" href="/es/premium">
+        <span>Purgito Premium</span>
+      </a>
+
       <div class="nav-mobile-group">
         <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
           <span>Recursos</span>
@@ -223,11 +224,6 @@ window.READY_LANGS = ['es'];
           </a>
         </div>
       </div>
-
-      <a class="nav-mobile-item nav-mobile-item--highlight" href="/es/premium">
-        <span>Purgito Premium</span>
-        <span class="badge badge-premium">7 días gratis</span>
-      </a>
 
       <div class="nav-mobile-group">
         <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">

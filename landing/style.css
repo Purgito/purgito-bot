@@ -493,11 +493,8 @@ input::placeholder { color: var(--text-muted); }
 }
 
 .nav-link--highlight {
-  gap: 0.35rem;
   color: var(--text);
-}
-.nav-badge-spark {
-  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 /* ── Menú móvil y Drawer ── */
