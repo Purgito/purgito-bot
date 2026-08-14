@@ -1842,58 +1842,230 @@ h1 {
 .dash-guild-name { margin: 0; display: flex; align-items: center; gap: 10px; font-size: var(--t-2xl); line-height: 1.2; flex-wrap: wrap; }
 .dash-guild-members { display: flex; align-items: center; gap: 6px; font-size: var(--t-sm); }
 .dash-guild-members .nav-icon { width: 15px; height: 15px; color: var(--text-muted); }
-.dash-tabs {
-  display: flex; gap: 2px; margin: 24px 0 28px; border-bottom: 1px solid var(--border);
-  overflow-x: auto;
+/* Dashboard layout con navegación lateral contextual y sticky */
+.dash-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+  margin-top: 24px;
 }
+
+/* Sidebar sticky en desktop */
+.dash-sidebar {
+  position: sticky;
+  top: 5.5rem;
+  max-height: calc(100vh - 6.5rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.dash-sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-sidebar-item {
+  display: flex;
+  flex-direction: column;
+}
+
 .dash-tab {
-  padding: 10px 14px; text-decoration: none; color: var(--text-muted);
-  font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
-  border-bottom: 2px solid transparent; white-space: nowrap;
-  transition: color var(--transition), border-color var(--transition);
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
 }
-.dash-tab:hover { color: var(--text); }
-.dash-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 
-/* Sub-pestañas dentro de un tab (hoy solo CHAT: Canales/Personalidad/Límites/
-   Frases). Mismo lenguaje visual que .dash-tab —subrayado, mismas
-   transiciones— pero un nivel más chica: texto más chico, menos padding
-   lateral (el espaciado lo da el gap en vez del padding) y el subrayado activo
-   en --accent-2 en vez de --accent, para que se lea como subordinada del tab
-   principal y no como una segunda barra del mismo peso. */
-.chat-subtabs {
-  display: flex; gap: 18px; margin: 4px 0 24px;
-  border-bottom: 1px solid var(--border); overflow-x: auto;
+.dash-tab:hover {
+  color: var(--text);
+  background: var(--surface-card);
 }
-.chat-subtab {
-  padding: 4px 2px 8px; text-decoration: none; color: var(--text-muted);
-  font-size: 12px; font-weight: 600; letter-spacing: 0.03em;
-  border-bottom: 2px solid transparent; white-space: nowrap;
-  transition: color var(--transition), border-color var(--transition);
-}
-.chat-subtab:hover { color: var(--text); }
-.chat-subtab.active { color: var(--text); border-bottom-color: var(--accent-2); }
 
-/* La subnav es solo links: la jerarquía la da el orden y el peso, no captions
-   de texto intercalados (competían por el mismo espacio que los tabs). */
-.chat-subtabs { justify-content: space-between; align-items: flex-end; }
-.chat-subtabs-links { display: flex; gap: 18px; overflow-x: auto; }
-
-/* "Probar" (Playground): acción, no sección — separada a la derecha y con
-   forma de boton para que se lea distinto de los tabs de configuración. */
-.chat-subtab-try {
-  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px;
-  padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px;
-  background: var(--surface-card); color: var(--text-dim);
+.dash-tab.active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
 }
-.chat-subtab-try:hover { border-color: var(--accent); color: var(--text); }
-.chat-subtab-try.active { border-color: var(--accent); color: var(--accent-2); background: var(--accent-soft-bg); }
-.chat-subtab-try .nav-icon { width: 14px; height: 14px; }
-.chat-subtab-try .nav-icon svg { width: 14px; height: 14px; }
+
+/* Subsecciones contextuales (solo visibles bajo la sección activa) */
+.dash-subtabs-list {
+  list-style: none;
+  padding: 4px 0 6px 12px;
+  margin: 4px 0 6px 6px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: reveal var(--dur-fast) var(--ease);
+}
+
+.dash-subtab {
+  display: block;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--transition), background var(--transition);
+}
+
+.dash-subtab:hover {
+  color: var(--text);
+  background: var(--surface-card);
+}
+
+.dash-subtab.active {
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+  font-weight: 600;
+}
+
+/* "Probar" (Playground): acción destacada al final del grupo de subtabs */
+.dash-subtab-try-item {
+  margin-top: 6px;
+  padding-top: 4px;
+}
+
+.dash-subtab-try {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  width: 100%;
+}
+
+.dash-subtab-try:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.dash-subtab-try.active {
+  border-color: var(--accent-2);
+  background: var(--accent-soft-bg);
+  color: var(--accent-2);
+}
+
+.dash-subtab-try .try-sparkle {
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Toggle móvil compacto */
+.dash-mobile-nav-toggle {
+  display: none;
+}
+
+.dash-content {
+  min-width: 0;
+  max-width: 100%;
+}
 
 /* Switch maestro del chat: una línea sobre la subnav, no un formGroup con
    título y párrafo propio que se comía ~100px en todas las sub-pestañas. */
 .chat-master { display: flex; align-items: center; gap: 6px; margin-bottom: var(--space-4); }
+
+@media (max-width: 860px) {
+  .dash-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .dash-sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dash-mobile-nav-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color var(--transition);
+  }
+
+  .dash-mobile-nav-toggle:hover {
+    border-color: var(--accent);
+  }
+
+  .dash-mobile-nav-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dash-mobile-subtab-sep {
+    color: var(--text-muted);
+  }
+
+  .dash-mobile-subtab-name {
+    color: var(--accent-2);
+    font-weight: 500;
+  }
+
+  .dash-mobile-nav-chev {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    transition: transform var(--transition);
+  }
+
+  .dash-sidebar.open .dash-mobile-nav-chev {
+    transform: rotate(180deg);
+  }
+
+  .dash-sidebar-inner {
+    display: none;
+    margin-top: 8px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .dash-sidebar.open .dash-sidebar-inner {
+    display: block;
+    animation: pop-in var(--dur-fast) var(--ease);
+  }
+
+  .dash-subtabs-list {
+    margin-left: 10px;
+    padding-left: 10px;
+  }
+}
 
 /* CHAT → Comportamiento: la cadena como UNA secuencia, no tres cards sueltas.
    La linea vertical corre por detras de los numeros y los une; cada paso es

@@ -35,11 +35,23 @@ const TABS = [
   { key: 'historial', label: 'HISTORIAL', load: loadHistorial },
 ];
 
-// Listener de hashchange de las sub-pestañas del tab CHAT (declarado acá, no
-// junto a loadChatTab): activate() corre de forma síncrona en la carga
-// inicial de la página, antes de que la evaluación del módulo llegue a
-// cualquier código que esté más abajo — un `let` declarado después de ese
-// punto todavía estaría en du temporal dead zone cuando activate() lo lea.
+const CHAT_SUBTABS = [
+  { key: 'comportamiento', label: 'Comportamiento' },
+  { key: 'canales', label: 'Canales' },
+  { key: 'contenido', label: 'Contenido' },
+  { key: 'reacciones', label: 'Reacciones' },
+  { key: 'limites', label: 'Límites' },
+  { key: 'datos', label: 'Datos' },
+  { key: 'playground', label: 'Playground' },
+];
+
+function currentChatSubtab() {
+  const key = location.hash.slice(1);
+  return CHAT_SUBTABS.some(t => t.key === key) ? key : 'comportamiento';
+}
+
+// Setter de sub-pestaña de CHAT registrado cuando el tab CHAT está montado
+let _activeChatSubtabSetter = null;
 let _chatHashHandler = null;
 
 function currentTab() {
@@ -47,17 +59,127 @@ function currentTab() {
   return TABS.some(t => t.key === key) ? key : 'inicio';
 }
 
+function renderSidebar(activeTab, activeSubtab) {
+  const nav = document.getElementById('dashTabs');
+  if (!nav) return;
+  nav.className = 'dash-sidebar';
+  nav.innerHTML = '';
+
+  const activeTabObj = TABS.find(t => t.key === activeTab) || TABS[0];
+  const activeSubtabObj = activeTab === 'chat'
+    ? (CHAT_SUBTABS.find(s => s.key === activeSubtab) || CHAT_SUBTABS[0])
+    : null;
+
+  const currentLabelWrap = el('span', { class: 'dash-mobile-nav-current' },
+    el('span', { class: 'dash-mobile-tab-name' }, activeTabObj.label),
+    activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-sep' }, '·') : null,
+    activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-name' },
+      activeSubtabObj.key === 'playground' ? 'Probar' : activeSubtabObj.label) : null
+  );
+
+  const toggleBtn = el('button', {
+    type: 'button',
+    class: 'dash-mobile-nav-toggle',
+    'aria-expanded': 'false',
+    'aria-label': 'Abrir navegación del dashboard',
+    onclick: () => {
+      const isOpen = nav.classList.toggle('open');
+      toggleBtn.setAttribute('aria-expanded', String(isOpen));
+    },
+  },
+    currentLabelWrap,
+    el('svg', { class: 'dash-mobile-nav-chev', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+      el('path', { d: 'M6 9l6 6 6-6' }))
+  );
+
+  function closeMobileNav() {
+    nav.classList.remove('open');
+    toggleBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  const inner = el('div', { class: 'dash-sidebar-inner' });
+  const list = el('ul', { class: 'dash-sidebar-list' });
+
+  for (const t of TABS) {
+    const isTabActive = t.key === activeTab;
+    const item = el('li', {
+      class: 'dash-sidebar-item' + (isTabActive ? ' active' : '') + (t.key === 'chat' && isTabActive ? ' has-subtabs' : ''),
+    });
+
+    const tabLink = el('a', {
+      class: 'dash-tab' + (isTabActive ? ' active' : ''),
+      'data-key': t.key,
+      href: `/${currentLocale()}/dashboard/${GUILD_ID}/${t.key}`,
+      'aria-current': isTabActive ? 'page' : null,
+      onclick: (ev) => {
+        ev.preventDefault();
+        closeMobileNav();
+        activate(t.key, true);
+      },
+    }, t.label);
+
+    item.append(tabLink);
+
+    if (t.key === 'chat' && isTabActive) {
+      const subList = el('ul', { class: 'dash-subtabs-list' });
+      for (const st of CHAT_SUBTABS) {
+        const isSubActive = st.key === (activeSubtab || 'comportamiento');
+        if (st.key === 'playground') {
+          subList.append(
+            el('li', { class: 'dash-subtab-try-item' },
+              el('a', {
+                class: 'dash-subtab dash-subtab-try' + (isSubActive ? ' active' : ''),
+                'data-key': 'playground',
+                href: '#playground',
+                onclick: (ev) => {
+                  ev.preventDefault();
+                  closeMobileNav();
+                  if (_activeChatSubtabSetter) _activeChatSubtabSetter('playground');
+                  else location.hash = '#playground';
+                },
+              },
+                el('span', { class: 'try-sparkle', 'aria-hidden': 'true' }, '✦'),
+                'Probar configuración'))
+          );
+        } else {
+          subList.append(
+            el('li', {},
+              el('a', {
+                class: 'dash-subtab' + (isSubActive ? ' active' : ''),
+                'data-key': st.key,
+                href: `#${st.key}`,
+                onclick: (ev) => {
+                  ev.preventDefault();
+                  closeMobileNav();
+                  if (_activeChatSubtabSetter) _activeChatSubtabSetter(st.key);
+                  else location.hash = `#${st.key}`;
+                },
+              }, st.label))
+          );
+        }
+      }
+      item.append(subList);
+    }
+
+    list.append(item);
+  }
+
+  inner.append(list);
+  nav.append(toggleBtn, inner);
+}
+
 function activate(key, push) {
-  document.querySelectorAll('.dash-tab').forEach(n =>
-    n.classList.toggle('active', n.dataset.key === key));
+  const currentSub = key === 'chat' ? currentChatSubtab() : null;
+  renderSidebar(key, currentSub);
   if (push) {
     history.pushState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${key}`);
   }
-  // Salir del tab CHAT no debe dejar un listener global reaccionando a
-  // cambios de hash sobre un DOM que ya no existe (content() lo reemplazó).
-  if (key !== 'chat' && _chatHashHandler) {
-    window.removeEventListener('hashchange', _chatHashHandler);
-    _chatHashHandler = null;
+  if (key !== 'chat') {
+    _activeChatSubtabSetter = null;
+    if (_chatHashHandler) {
+      window.removeEventListener('hashchange', _chatHashHandler);
+      _chatHashHandler = null;
+    }
   }
   if (key === 'inicio') {
     loadHead();
@@ -73,8 +195,6 @@ async function loadHead() {
     const data = await apiFetch('/api/me/guilds');
     const g = data.configured.find(x => x.id === GUILD_ID);
     if (!g) {
-      // Guild que el usuario no administra, o donde el bot no está: la API ya
-      // lo rechazaría tab por tab, mejor decirlo una vez y ofrecer la salida.
       head.innerHTML = '';
       head.append(back);
       content().append(emptyState('No encontramos ese servidor entre los que administras.'));
@@ -100,22 +220,35 @@ async function loadHead() {
 
 export function initDash() {
   loadHead();
-  const nav = document.getElementById('dashTabs');
-  for (const t of TABS) {
-    nav.append(el('a', {
-      class: 'dash-tab',
-      'data-key': t.key,
-      href: `/${currentLocale()}/dashboard/${GUILD_ID}/${t.key}`,
-      onclick: (ev) => { ev.preventDefault(); activate(t.key, true); },
-    }, t.label));
-  }
-  // Link compartido (/es/perfil?share=… → Dashboard): precarga el borrador en
-  // el editor y abre EMBEDS, sin importar en qué tab estuviera la URL.
   const shareId = new URLSearchParams(location.search).get('share');
-  if (shareId) loadSharedEmbed(shareId).finally(() => activate('embeds', true));
-  else activate(currentTab(), false);
+  if (shareId) {
+    loadSharedEmbed(shareId).finally(() => activate('embeds', true));
+  } else {
+    activate(currentTab(), false);
+  }
   window.onpopstate = () => activate(currentTab(), false);
 }
+
+// Cerrar menú móvil al presionar Escape o hacer click afuera
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') {
+    const nav = document.getElementById('dashTabs');
+    if (nav && nav.classList.contains('open')) {
+      nav.classList.remove('open');
+      const toggle = nav.querySelector('.dash-mobile-nav-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    }
+  }
+});
+
+document.addEventListener('click', (ev) => {
+  const nav = document.getElementById('dashTabs');
+  if (nav && nav.classList.contains('open') && !nav.contains(ev.target)) {
+    nav.classList.remove('open');
+    const toggle = nav.querySelector('.dash-mobile-nav-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  }
+});
 
 if (GUILD_ID) initDash();
 else document.getElementById('dashHead').append(
@@ -752,20 +885,6 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
 // contexto donde se piensa ("en #general quiero que hable más"). Frases y
 // Triggers se unificaron en Contenido: las dos son lo que Purgito dice, y
 // un trigger referencia un pack de frases.
-const CHAT_SUBTABS = [
-  { key: 'comportamiento', label: 'Comportamiento' },
-  { key: 'canales', label: 'Canales' },
-  { key: 'contenido', label: 'Contenido' },
-  { key: 'reacciones', label: 'Reacciones' },
-  { key: 'limites', label: 'Límites' },
-  { key: 'datos', label: 'Datos' },
-  { key: 'playground', label: 'Playground' },
-];
-
-function currentChatSubtab() {
-  const key = location.hash.slice(1);
-  return CHAT_SUBTABS.some(t => t.key === key) ? key : 'comportamiento';
-}
 
 // El listener de hashchange (soporta el botón atrás/adelante y links directos
 // a #frases, etc.) vive en `_chatHashHandler`, declarado arriba junto a
@@ -1270,52 +1389,35 @@ async function loadChatTab() {
       playground: buildPlayground,
     };
 
-    const subnav = el('nav', { class: 'chat-subtabs' });
-    const links = el('div', { class: 'chat-subtabs-links' });
-    const panels = {};
-    for (const st of CHAT_SUBTABS) {
-      panels[st.key] = BUILDERS[st.key]();
-      panels[st.key].hidden = true;
-      // Playground no va entre los links: es "probar lo configurado", no una
-      // sección más que configurar. Va como acción a la derecha, siempre
-      // visible desde cualquier sub-pestaña.
-      if (st.key === 'playground') continue;
-      links.append(el('a', {
-        class: 'chat-subtab',
-        'data-key': st.key,
-        href: `#${st.key}`,
-        onclick: (ev) => { ev.preventDefault(); activateSubtab(st.key); },
-      }, st.label));
-    }
-    subnav.append(links, el('a', {
-      class: 'chat-subtab chat-subtab-try',
-      'data-key': 'playground',
-      href: '#playground',
-      onclick: (ev) => { ev.preventDefault(); activateSubtab('playground'); },
-    }, icon('play'), 'Probar'));
-    const panelsWrap = el('div', {}, CHAT_SUBTABS.map(st => panels[st.key]));
+    const panelsWrap = el('div', { class: 'chat-panels-wrap' }, CHAT_SUBTABS.map(st => panels[st.key]));
 
     // Todo se autoguarda al toque (sin botón "Guardar" ni estado sin
     // confirmar), así que cambiar de sub-pestaña nunca pierde nada: no hay
     // que preservar más que qué pestaña estaba activa.
     function activateSubtab(key) {
-      subnav.querySelectorAll('.chat-subtab').forEach(n =>
+      document.querySelectorAll('.dash-subtab').forEach(n =>
         n.classList.toggle('active', n.dataset.key === key));
+      const mobileSubName = document.querySelector('.dash-mobile-subtab-name');
+      if (mobileSubName) {
+        const found = CHAT_SUBTABS.find(s => s.key === key);
+        mobileSubName.textContent = found ? (found.key === 'playground' ? 'Probar' : found.label) : '';
+      }
       for (const st of CHAT_SUBTABS) {
         const active = st.key === key;
-        panels[st.key].hidden = !active;
-        // Un dropdown de canales/roles que quedó abierto en una pestaña que
-        // se oculta no debe reaparecer abierto solo cuando se vuelve a ella.
-        if (!active) panels[st.key].querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+        if (panels[st.key]) {
+          panels[st.key].hidden = !active;
+          if (!active) {
+            panels[st.key].querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+          }
+        }
       }
-      // replaceState (no pushState): cambiar de sub-pestaña no debe acumular
-      // entradas en el historial — el botón atrás sigue siendo "otro tab".
       history.replaceState(null, '', `${location.pathname}${location.search}#${key}`);
     }
 
+    _activeChatSubtabSetter = activateSubtab;
     const onboarding = buildOnboardingBanner(corpus, activateSubtab);
     if (onboarding) box.append(onboarding);
-    box.append(subnav, panelsWrap);
+    box.append(panelsWrap);
     activateSubtab(currentChatSubtab());
 
     if (_chatHashHandler) window.removeEventListener('hashchange', _chatHashHandler);

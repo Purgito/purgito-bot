@@ -706,3 +706,34 @@ def test_frases_dashboard_ui_busqueda_paginacion_y_edicion():
     assert ".frases-pagination" in dash_css
     assert ".frases-empty-search" in dash_css
 
+
+def test_dashboard_sidebar_contextual_sticky_navigation():
+    """Verifica que el dashboard cuenta con navegación lateral contextual y sticky en desktop y compacta en móvil."""
+    dash_html = (LANDING / "es" / "dashboard" / "index.html").read_text("utf-8")
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+
+    # Layout HTML
+    assert 'class="dash-layout"' in dash_html
+    assert 'id="dashTabs" class="dash-sidebar"' in dash_html
+    assert 'id="catContent" class="dash-content"' in dash_html
+
+    # JS lógica de renderizado contextual y toggle móvil
+    assert "renderSidebar" in dash_js
+    assert "dash-sidebar-inner" in dash_js
+    assert "dash-subtabs-list" in dash_js
+    assert "dash-subtab-try" in dash_js
+    assert "Probar configuración" in dash_js
+    assert "dash-mobile-nav-toggle" in dash_js
+    assert "dash-mobile-nav-current" in dash_js
+
+    # CSS Sticky y diseño contextual
+    assert ".dash-layout" in dash_css
+    assert ".dash-sidebar" in dash_css
+    assert "position: sticky" in dash_css
+    assert ".dash-subtabs-list" in dash_css
+    assert ".dash-subtab" in dash_css
+    assert ".dash-subtab-try" in dash_css
+    assert ".dash-mobile-nav-toggle" in dash_css
+    assert "@media (max-width: 860px)" in dash_css
+

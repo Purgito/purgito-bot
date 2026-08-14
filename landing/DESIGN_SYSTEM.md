@@ -60,11 +60,14 @@ Reemplaza un párrafo único arriba de la grilla explicando la regla en
 abstracto — la cifra concreta por campo es más rápida de leer y no obliga a
 recordar una regla mientras se mira el input.
 
-## Subnav de sub-secciones
+## Navegación lateral contextual y sticky (Dashboard)
 
-`.chat-subtabs` (dash.css:1608): links de texto + un ítem final visualmente
-distinto (`.chat-subtab-try`, con ícono) para la acción "probar lo
-configurado" — no es una sección más, así que no compite en la lista.
+`.dash-sidebar` (dash.css): barra lateral sticky (`top: 5.5rem`) que contiene las
+secciones principales del Dashboard (`INICIO`, `CHAT`, `GIFS`, `MEMES`, `EMBEDS`,
+`PREMIUM`, `YOUTUBE`, `HISTORIAL`). Cuando una sección con sub-pestañas (`CHAT`)
+está activa, despliega sus subsecciones (`.dash-subtabs-list`) con un ítem final
+destacado (`.dash-subtab-try`) para "Probar configuración". En móviles (`<= 860px`)
+se colapsa en un selector compacto (`.dash-mobile-nav-toggle`).
 
 ## Regla de uso de ⓘ (`helpIcon`)
 
