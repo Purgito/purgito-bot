@@ -74,6 +74,8 @@ _special_phrase_cooldowns: LRUDict = LRUDict(256)
 # (con instrucciones) sale a lo sumo una vez cada 15 min por guild.
 _EMPTY_REPLY_COOLDOWN = 15 * 60
 _empty_reply_cooldowns: LRUDict = LRUDict(256)
+_EMPTY_FRASE_COOLDOWN = 15 * 60
+_empty_frase_cooldowns: LRUDict = LRUDict(256)
 
 _EMOJI_RE = regex.compile(
     r"[\p{Extended_Pictographic}\p{Emoji_Component}]+", regex.UNICODE
@@ -442,6 +444,41 @@ async def generate_markov_for_user(
         return sentence
 
 
+class GenerationResult(tuple):
+    """Resultado de generate_response. Subclase de tuple de 2 elementos
+    (texto, es_especial) para compatibilidad total hacia atrás con desempaquetado
+    `text, is_special = await generate_response(...)`.
+
+    Expone además `.reason`:
+    - None: éxito (frase generada o Markov generado) o Markov sin corpus (special_phrase_probability < 1.0)
+    - "no_phrases": 100% frase requerida, pero no hay frases disponibles en el pool
+    - "channel_not_allowed": 100% frase requerida, pero el canal no está en la whitelist de frases
+    - "cooldown": 100% frase requerida, pero el cooldown de frases especiales está activo
+    """
+
+    def __new__(
+        cls,
+        text: str | None,
+        is_special: bool,
+        reason: str | None = None,
+    ):
+        instance = super().__new__(cls, (text, is_special))
+        instance._reason = reason
+        return instance
+
+    @property
+    def text(self) -> str | None:
+        return self[0]
+
+    @property
+    def is_special(self) -> bool:
+        return self[1]
+
+    @property
+    def reason(self) -> str | None:
+        return self._reason
+
+
 def empty_corpus_reply(guild_id: int, locale: str, throttle: bool = False) -> str:
     """Mensaje amigable cuando el bot aún no tiene mensajes suficientes para generar.
 
@@ -459,15 +496,48 @@ def empty_corpus_reply(guild_id: int, locale: str, throttle: bool = False) -> st
     return t("chat.empty_reply.full", locale)
 
 
+def empty_frase_reply(
+    guild_id: int,
+    reason: str,
+    locale: str,
+    *,
+    throttle: bool = False,
+    url: str = "",
+) -> str | None:
+    """Mensaje amigable cuando frase_probability=100% pero no se pudo usar una frase.
+
+    Con throttle=False (/generar, comando explícito) siempre devuelve el mensaje explicativo.
+    Con throttle=True (menciones/mensajes) sale a lo sumo una vez por guild cada
+    _EMPTY_FRASE_COOLDOWN; dentro del cooldown retorna None para guardar silencio y no spamear.
+    """
+    if throttle:
+        now = time.monotonic()
+        last = _empty_frase_cooldowns.get(guild_id)
+        if last is not None and now - last < _EMPTY_FRASE_COOLDOWN:
+            return None
+        _empty_frase_cooldowns[guild_id] = now
+
+    key = f"chat.frase_fallback.{reason}"
+    return t(key, locale, url=url)
+
+
 async def generate_response(
     guild_id: int,
     channel_id: int,
     *,
     special_phrase_probability: float = config.SPECIAL_PHRASE_PROBABILITY,
     wait: bool = True,
-) -> tuple[str | None, bool]:
-    """Decide entre frase especial o Markov. Retorna (texto, es_especial).
+) -> GenerationResult:
+    """Decide entre frase especial o Markov. Retorna GenerationResult(texto, es_especial).
     es_especial=True indica que el texto no debe pasar por post_process_reply.
+
+    Cuando special_phrase_probability >= 1.0 (100%), el uso de frase propia es OBLIGATORIO:
+    si la frase no está disponible (sin frases, canal no permitido o en cooldown),
+    NO cae a Markov y retorna GenerationResult(None, True, reason=...), permitiendo
+    al llamador explicar la causa y evitar el fallback silencioso.
+
+    Para probabilidades menores (0.0 <= p < 1.0), si la frase no está disponible
+    continúa normalmente con la generación Markov.
 
     `special_phrase_probability` la resuelve el llamador vía
     get_effective_chat_settings (channel_settings.frase_probability puede
@@ -477,6 +547,26 @@ async def generate_response(
     firma solo cubre a /imitar y otros llamadores que todavía no la resuelven.
     `wait=False` descarta inmediatamente si el semáforo Markov global está ocupado.
     """
+    if special_phrase_probability >= 1.0:
+        if not await is_frase_allowed(guild_id, channel_id):
+            return GenerationResult(None, True, reason="channel_not_allowed")
+
+        pack_id = await get_effective_frase_pool(guild_id, channel_id)
+        phrase = await get_random_frase_especial(guild_id, pack_id)
+        if phrase is None:
+            return GenerationResult(None, True, reason="no_phrases")
+
+        now = time.monotonic()
+        cooldown_ok = (
+            now - _special_phrase_cooldowns.get(guild_id, 0.0)
+            >= config.SPECIAL_PHRASE_COOLDOWN
+        )
+        if not cooldown_ok:
+            return GenerationResult(None, True, reason="cooldown")
+
+        _special_phrase_cooldowns[guild_id] = now
+        return GenerationResult(phrase, True)
+
     now = time.monotonic()
     cooldown_ok = (
         now - _special_phrase_cooldowns.get(guild_id, 0.0)
@@ -491,9 +581,9 @@ async def generate_response(
         phrase = await get_random_frase_especial(guild_id, pack_id)
         if phrase:
             _special_phrase_cooldowns[guild_id] = now
-            return phrase, True
+            return GenerationResult(phrase, True)
     try:
         reply = await generate_markov_reply(guild_id, wait=wait)
     except TypeError:
         reply = await generate_markov_reply(guild_id)
-    return reply, False
+    return GenerationResult(reply, False)

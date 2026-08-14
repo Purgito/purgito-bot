@@ -8,28 +8,28 @@
 <meta name="description" content="Estado en vivo de Purgito: tiempo activo, memoria, latencia con Discord y cantidad de servidores. Pública, sin necesidad de login.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=e0b07f8c">
+<link rel="stylesheet" href="/style.css?v=45f20e3e">
 <script type="importmap">
 {
   "imports": {
-    "/js/core/api.js": "/js/core/api.js?v=b3aef4cf",
-    "/js/core/config.js": "/js/core/config.js?v=b3aef4cf",
-    "/js/core/dom.js": "/js/core/dom.js?v=b3aef4cf",
-    "/js/core/markdown.js": "/js/core/markdown.js?v=b3aef4cf",
-    "/js/dash.js": "/js/dash.js?v=b3aef4cf",
-    "/js/embeds/classic-editor.js": "/js/embeds/classic-editor.js?v=b3aef4cf",
-    "/js/embeds/layout-editor.js": "/js/embeds/layout-editor.js?v=b3aef4cf",
-    "/js/embeds/persistence.js": "/js/embeds/persistence.js?v=b3aef4cf",
-    "/js/embeds/session.js": "/js/embeds/session.js?v=b3aef4cf",
-    "/js/embeds/shared-ui.js": "/js/embeds/shared-ui.js?v=b3aef4cf",
-    "/js/embeds/state.js": "/js/embeds/state.js?v=b3aef4cf",
-    "/js/estado.js": "/js/estado.js?v=b3aef4cf",
-    "/js/panel-shell.js": "/js/panel-shell.js?v=b3aef4cf",
-    "/js/perfil.js": "/js/perfil.js?v=b3aef4cf",
-    "/js/tabs/gifs.js": "/js/tabs/gifs.js?v=b3aef4cf",
-    "/js/tabs/historial.js": "/js/tabs/historial.js?v=b3aef4cf",
-    "/js/tabs/premium.js": "/js/tabs/premium.js?v=b3aef4cf",
-    "/js/tabs/youtube.js": "/js/tabs/youtube.js?v=b3aef4cf"
+    "/js/core/api.js": "/js/core/api.js?v=b0491e8e",
+    "/js/core/config.js": "/js/core/config.js?v=b0491e8e",
+    "/js/core/dom.js": "/js/core/dom.js?v=b0491e8e",
+    "/js/core/markdown.js": "/js/core/markdown.js?v=b0491e8e",
+    "/js/dash.js": "/js/dash.js?v=b0491e8e",
+    "/js/embeds/classic-editor.js": "/js/embeds/classic-editor.js?v=b0491e8e",
+    "/js/embeds/layout-editor.js": "/js/embeds/layout-editor.js?v=b0491e8e",
+    "/js/embeds/persistence.js": "/js/embeds/persistence.js?v=b0491e8e",
+    "/js/embeds/session.js": "/js/embeds/session.js?v=b0491e8e",
+    "/js/embeds/shared-ui.js": "/js/embeds/shared-ui.js?v=b0491e8e",
+    "/js/embeds/state.js": "/js/embeds/state.js?v=b0491e8e",
+    "/js/estado.js": "/js/estado.js?v=b0491e8e",
+    "/js/panel-shell.js": "/js/panel-shell.js?v=b0491e8e",
+    "/js/perfil.js": "/js/perfil.js?v=b0491e8e",
+    "/js/tabs/gifs.js": "/js/tabs/gifs.js?v=b0491e8e",
+    "/js/tabs/historial.js": "/js/tabs/historial.js?v=b0491e8e",
+    "/js/tabs/premium.js": "/js/tabs/premium.js?v=b0491e8e",
+    "/js/tabs/youtube.js": "/js/tabs/youtube.js?v=b0491e8e"
   }
 }
 </script>
@@ -89,62 +89,232 @@
 <!-- Cuerpo de /es/estado. El navbar, el footer y el <head> los pega
      landing/build_docs.py — no los agregues acá.
      Todos los datos reales los trae estado.js desde /api/status y
-     /api/status/guild/{id}; acá solo va el esqueleto (placeholders "—"). -->
+     /api/status/guild/{id}; acá solo va el esqueleto estructurado. -->
 <main id="contenido" class="wrap estado">
 
   <header class="estado-head">
-    <h1 class="estado-title">Estado de Purgito</h1>
-    <p class="estado-sub">Comprueba el estado de Purgito</p>
+    <div class="estado-head-row">
+      <div class="estado-head-copy">
+        <h1 class="estado-title">Estado de Purgito</h1>
+        <p class="estado-sub">Monitoreo en tiempo real de los servicios y componentes de Purgito.</p>
+      </div>
+      <div class="estado-live-badge" title="Monitoreo activo · Consulta periódica cada 30 segundos">
+        <span class="live-pulse-dot" aria-hidden="true"></span>
+        <span id="estadoLastUpdate">Consultando estado…</span>
+      </div>
+    </div>
   </header>
 
-  <div class="estado-toolbar">
-    <select id="estadoMode" class="status-select" aria-label="Vista de estado">
-      <option value="general">Estado general</option>
-      <option value="buscar">Busca tu servidor</option>
-    </select>
-  </div>
-
-  <section id="estadoGeneral" class="estado-general">
-
-    <div class="box estado-summary">
-      <span id="estadoDot" class="estado-dot" aria-hidden="true"></span>
-      <span class="estado-host">Oracle Cloud</span>
-      <span class="estado-stat"><strong id="estadoUptime">—</strong><small>activo</small></span>
-      <span class="estado-stat"><strong id="estadoMemory">—</strong><small>memoria</small></span>
-      <span class="estado-stat"><strong id="estadoUsers">—</strong><small>usuarios</small></span>
-      <span class="estado-stat"><strong id="estadoGuilds">—</strong><small>servidores</small></span>
-      <span id="estadoLatency" class="estado-latency">— ms</span>
+  <!-- 1. Banner Principal de Estado Global -->
+  <section class="estado-banner" id="estadoGlobalBanner" aria-labelledby="estadoGlobalTitle">
+    <div class="estado-banner-top">
+      <div class="estado-banner-status">
+        <span id="estadoGlobalDot" class="estado-dot estado-dot-lg is-ok" aria-hidden="true"></span>
+        <div class="estado-banner-titles">
+          <h2 id="estadoGlobalTitle" class="estado-banner-title">Todos los sistemas operativos</h2>
+          <p id="estadoGlobalDesc" class="estado-banner-desc">Purgito y sus componentes están funcionando con normalidad.</p>
+        </div>
+      </div>
+      <span id="estadoGlobalBadge" class="status-badge is-ok">Operativo</span>
     </div>
 
-    <!-- Los dos "Placeholder: servidor" del boceto: acá van los dos
-         componentes reales de la infraestructura (bot + panel web), no
-         servidores de Discord — eso es lo que hace el buscador de al lado. -->
-    <div class="box estado-component">
-      <span id="estadoDotBot" class="estado-dot" aria-hidden="true"></span>
-      <div class="estado-component-copy">
-        <strong>Bot de Discord</strong>
-        <span id="estadoBotDetail" class="estado-component-detail">Consultando…</span>
+    <div class="estado-metrics-bar">
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Tiempo activo</span>
+        <strong id="estadoUptime" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Servidores</span>
+        <strong id="estadoGuilds" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Usuarios</span>
+        <strong id="estadoUsers" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Latencia Gateway</span>
+        <strong id="estadoLatency" class="estado-metric-value">—</strong>
       </div>
     </div>
-
-    <div class="box estado-component">
-      <span id="estadoDotWeb" class="estado-dot" aria-hidden="true"></span>
-      <div class="estado-component-copy">
-        <strong>Panel web</strong>
-        <span id="estadoWebDetail" class="estado-component-detail">Consultando…</span>
-      </div>
-    </div>
-
   </section>
 
-  <section id="estadoSearch" class="box estado-search" hidden>
-    <label class="estado-search-label" for="estadoGuildId">Busca tu servidor</label>
-    <div class="estado-search-row">
-      <input id="estadoGuildId" type="text" inputmode="numeric" autocomplete="off" placeholder="ID de tu servidor">
-      <button id="estadoSearchBtn" class="btn btn-accent" type="button">Buscar</button>
+  <!-- 2. Servicios del Bot -->
+  <section class="estado-section">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">Servicios</h2>
+      <span class="estado-section-sub">Componentes y subsistemas principales</span>
     </div>
-    <p class="estado-hint">Pega la ID de tu servidor para buscarlo</p>
-    <div id="estadoSearchResult"></div>
+
+    <div class="estado-card estado-list">
+      <!-- Fila 1: Bot de Discord -->
+      <div class="estado-row" id="rowBot">
+        <div class="estado-row-identity">
+          <span id="estadoDotBot" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Bot de Discord</strong>
+            <span id="estadoBotDetail" class="estado-row-desc">Conexión con Discord Gateway · Comandos y eventos</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Latencia</span>
+            <strong id="estadoBotLatency" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Servidores</span>
+            <strong id="estadoBotGuilds" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Usuarios</span>
+            <strong id="estadoBotMembers" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoBotBadge" class="status-badge is-ok">Conectado</span>
+        </div>
+      </div>
+
+      <!-- Fila 2: Panel Web y API HTTP -->
+      <div class="estado-row" id="rowWeb">
+        <div class="estado-row-identity">
+          <span id="estadoDotWeb" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Panel web y API</strong>
+            <span id="estadoWebDetail" class="estado-row-desc">Servidor HTTP aiohttp · purgito.app</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Latencia HTTP</span>
+            <strong id="estadoWebLatency" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Uptime</span>
+            <strong id="estadoWebUptime" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoWebBadge" class="status-badge is-ok">Operativo</span>
+        </div>
+      </div>
+
+      <!-- Fila 3: Proceso y Motor de Generación -->
+      <div class="estado-row" id="rowEngine">
+        <div class="estado-row-identity">
+          <span id="estadoDotEngine" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Proceso y memoria</strong>
+            <span id="estadoEngineDetail" class="estado-row-desc">Cadenas de Markov, generador de memes y tareas de fondo</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Memoria RSS</span>
+            <strong id="estadoEngineMemory" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Uptime</span>
+            <strong id="estadoEngineUptime" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoEngineBadge" class="status-badge is-ok">Normal</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Infraestructura -->
+  <section class="estado-section">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">Infraestructura</h2>
+      <span class="estado-section-sub">Entorno de ejecución y dependencias del sistema</span>
+    </div>
+
+    <div class="estado-grid-infra">
+      <div class="estado-infra-card">
+        <div class="estado-infra-header">
+          <div class="estado-infra-title-wrap">
+            <span id="estadoDotInfraDiscord" class="estado-dot is-ok" aria-hidden="true"></span>
+            <strong class="estado-infra-title">Discord Gateway</strong>
+          </div>
+          <span id="estadoBadgeInfraDiscord" class="status-badge status-badge-sm is-ok">Operativo</span>
+        </div>
+        <p class="estado-infra-desc">Conexión WebSocket directa con la API v10 de Discord.</p>
+        <div class="estado-infra-meta">
+          <span class="estado-infra-meta-label">Latencia ping</span>
+          <strong id="estadoInfraDiscordLatency" class="estado-infra-meta-value">—</strong>
+        </div>
+      </div>
+
+      <div class="estado-infra-card">
+        <div class="estado-infra-header">
+          <div class="estado-infra-title-wrap">
+            <span id="estadoDotInfraHost" class="estado-dot is-ok" aria-hidden="true"></span>
+            <strong class="estado-infra-title">Oracle Cloud (Host)</strong>
+          </div>
+          <span id="estadoBadgeInfraHost" class="status-badge status-badge-sm is-ok">Operativo</span>
+        </div>
+        <p class="estado-infra-desc">Instancia de cómputo en la nube (Linux x86_64 / ARM).</p>
+        <div class="estado-infra-meta">
+          <span class="estado-infra-meta-label">Memoria del proceso</span>
+          <strong id="estadoInfraHostMem" class="estado-infra-meta-value">—</strong>
+        </div>
+      </div>
+
+      <div class="estado-infra-card">
+        <div class="estado-infra-header">
+          <div class="estado-infra-title-wrap">
+            <span id="estadoDotInfraDb" class="estado-dot is-ok" aria-hidden="true"></span>
+            <strong class="estado-infra-title">Base de datos SQLite</strong>
+          </div>
+          <span id="estadoBadgeInfraDb" class="status-badge status-badge-sm is-ok">Operativo</span>
+        </div>
+        <p class="estado-infra-desc">Almacenamiento persistente local de configuración y corpus.</p>
+        <div class="estado-infra-meta">
+          <span class="estado-infra-meta-label">Modo journal</span>
+          <strong class="estado-infra-meta-value">WAL / Activo</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Registro de Incidentes / Disponibilidad en Sesión -->
+  <section class="estado-section">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">Registro de incidentes</h2>
+      <span class="estado-section-sub">Disponibilidad durante la sesión de ejecución actual</span>
+    </div>
+
+    <div class="estado-card estado-incident-card" id="estadoIncidentCard">
+      <div class="estado-incident-icon-wrap" id="estadoIncidentIcon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      </div>
+      <div class="estado-incident-body">
+        <strong id="estadoIncidentTitle" class="estado-incident-title">Sin incidentes reportados</strong>
+        <p id="estadoIncidentDesc" class="estado-incident-desc">Todos los servicios y componentes de Purgito operan sin anomalías desde el último inicio del proceso.</p>
+      </div>
+      <div class="estado-incident-side">
+        <span class="estado-incident-tag" id="estadoIncidentTag">Operativo</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Búsqueda de Servidor Específico -->
+  <section class="estado-section estado-section-search">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">¿Tienes problemas en tu servidor?</h2>
+      <p class="estado-section-sub">Comprueba si Purgito está conectado y disponible en tu servidor de Discord mediante su ID.</p>
+    </div>
+
+    <div class="estado-card estado-search-card">
+      <form class="estado-search-form" id="estadoSearchForm" onsubmit="return false;">
+        <div class="estado-search-input-wrap">
+          <svg class="estado-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="estadoGuildId" class="estado-search-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Pega el ID de tu servidor (ej. 1471724794411089920)" aria-label="ID del servidor de Discord">
+        </div>
+        <button id="estadoSearchBtn" class="btn btn-accent estado-search-btn" type="button">Comprobar servidor</button>
+      </form>
+      <p class="estado-hint">En Discord: Clic derecho en el ícono de tu servidor → Copiar ID del servidor (requiere Modo Desarrollador en Ajustes de Discord).</p>
+      <div id="estadoSearchResult" class="estado-search-result"></div>
+    </div>
   </section>
 
 </main>
@@ -224,6 +394,6 @@
 </footer>
 
 <script src="/script.js?v=e0cf236e"></script>
-<script type="module" src="/js/estado.js?v=b3aef4cf"></script>
+<script type="module" src="/js/estado.js?v=b0491e8e"></script>
 </body>
 </html>

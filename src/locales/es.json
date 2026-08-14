@@ -97,6 +97,10 @@
   "chat.empty_reply.full": "Todavía no puedo hablar como este servidor 😅 Necesito leer más mensajes primero. Un administrador puede elegir canales desde el dashboard y ejecutar `/refeed_channels` para que aprenda su historial, o `/setup` para terminar de configurarme.",
   "chat.empty_reply.short": "todavía estoy en blanco por aquí 👀",
 
+  "chat.frase_fallback.no_phrases": "💬 No tengo ninguna frase configurada para usar aquí. Añade algunas en Contenido → Frases desde tu dashboard: {url}.",
+  "chat.frase_fallback.channel_not_allowed": "💬 Las frases personalizadas están desactivadas en este canal. Puedes habilitarlas en Canales → Frases desde tu dashboard: {url}.",
+  "chat.frase_fallback.cooldown": "💬 Usé una frase hace poco. Espera un momento antes de pedir otra (el servidor tiene un tiempo de espera entre frases).",
+
   "chat.muted.ignored_channel": "🤐 Este canal está silenciado por completo. Actívalo de nuevo desde tu dashboard: {url}.",
   "chat.muted.disabled": "🤐 El chat conversacional está desactivado en este servidor. Un admin puede activarlo desde `/settings` → Chat.",
   "chat.muted.wrong_channel": "🤐 Solo respondo en {channel}. Puedes cambiarlo desde tu dashboard: {url}.",

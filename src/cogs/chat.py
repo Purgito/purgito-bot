@@ -363,6 +363,11 @@ async def _simulate_trigger_action(
             generation.post_process_reply(text) if text is not None else None
         ), False
     # 'mezcla'
+    if settings["frase_probability"] >= 1.0:
+        phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
+        if phrase is not None:
+            return phrase, True
+        return None, True
     if random.random() < settings["frase_probability"]:
         phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
         if phrase is not None:
@@ -377,6 +382,15 @@ async def _simulate_special_or_markov(
     """Como generation.generate_response, pero SIN tocar
     generation._special_phrase_cooldowns -- probar el playground no puede
     gastar el cooldown real de 40 minutos de las frases espontáneas."""
+    if probability >= 1.0:
+        if not await is_frase_allowed(guild_id, channel_id):
+            return None, True
+        pack_id = await get_effective_frase_pool(guild_id, channel_id)
+        phrase = await get_random_frase_especial(guild_id, pack_id)
+        if phrase is None:
+            return None, True
+        return phrase, True
+
     if random.random() < probability and await is_frase_allowed(guild_id, channel_id):
         pack_id = await get_effective_frase_pool(guild_id, channel_id)
         phrase = await get_random_frase_especial(guild_id, pack_id)
@@ -821,18 +835,35 @@ class Chat(commands.Cog):
                 await bump_counter(message.guild.id, "gifs_enviados")
                 return
 
-        text, is_special = await generation.generate_response(
+        res = await generation.generate_response(
             message.guild.id,
             message.channel.id,
             special_phrase_probability=settings["frase_probability"],
         )
+        text, is_special = res
         if text is None:
-            # Servidor sin historial suficiente: explicar en vez de contestar "...".
-            # throttle=True: las instrucciones completas salen 1 vez cada 15 min por guild.
             locale = await i18n.guild_locale(message.guild.id)
-            reply = generation.empty_corpus_reply(
-                message.guild.id, locale, throttle=True
-            )
+            if getattr(res, "reason", None) is not None:
+                url = get_dashboard_url(
+                    message.guild.id,
+                    locale,
+                    "chat#contenido"
+                    if res.reason == "no_phrases"
+                    else "chat#canales"
+                    if res.reason == "channel_not_allowed"
+                    else "",
+                )
+                reply = generation.empty_frase_reply(
+                    message.guild.id, res.reason, locale, throttle=True, url=url
+                )
+                if reply is None:
+                    return
+            else:
+                # Servidor sin historial suficiente: explicar en vez de contestar "...".
+                # throttle=True: las instrucciones completas salen 1 vez cada 15 min por guild.
+                reply = generation.empty_corpus_reply(
+                    message.guild.id, locale, throttle=True
+                )
         elif is_special:
             reply = await render_frase_template(
                 text,
@@ -890,6 +921,18 @@ class Chat(commands.Cog):
         # cooldown es para no saturar de frases las apariciones espontáneas,
         # pero un trigger es una regla explícita que el admin configuró para
         # que dispare siempre que matchee.
+        if settings["frase_probability"] >= 1.0:
+            phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
+            if phrase is not None:
+                rendered = await render_frase_template(
+                    phrase,
+                    author=message.author,
+                    channel=message.channel,
+                    guild=message.guild,
+                )
+                await self._send_trigger_reply(message, rendered)
+                return True
+            return False
         if random.random() < settings["frase_probability"]:
             phrase = await get_random_frase_especial(guild_id, trigger["pack_id"])
             if phrase is not None:
@@ -1050,14 +1093,29 @@ class Chat(commands.Cog):
         settings = await get_effective_chat_settings(
             interaction.guild.id, interaction.channel.id
         )
-        text, is_special = await generation.generate_response(
+        res = await generation.generate_response(
             interaction.guild.id,
             interaction.channel.id,
             special_phrase_probability=settings["frase_probability"],
         )
+        text, is_special = res
         if text is None:
-            # Comando explícito: siempre el mensaje completo con instrucciones.
-            reply = generation.empty_corpus_reply(interaction.guild.id, locale)
+            if getattr(res, "reason", None) is not None:
+                url = get_dashboard_url(
+                    interaction.guild.id,
+                    locale,
+                    "chat#contenido"
+                    if res.reason == "no_phrases"
+                    else "chat#canales"
+                    if res.reason == "channel_not_allowed"
+                    else "",
+                )
+                reply = generation.empty_frase_reply(
+                    interaction.guild.id, res.reason, locale, throttle=False, url=url
+                )
+            else:
+                # Comando explícito: siempre el mensaje completo con instrucciones.
+                reply = generation.empty_corpus_reply(interaction.guild.id, locale)
         elif is_special:
             reply = await render_frase_template(
                 text,
