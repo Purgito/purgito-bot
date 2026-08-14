@@ -742,18 +742,35 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
     configured, available = [], []
     for g in manage:
         gid = int(g["id"])
-        icon = g.get("icon")
-        icon_url = (
-            f"https://cdn.discordapp.com/icons/{gid}/{icon}.png?size=128"
-            if icon
+        oauth_icon = g.get("icon")
+        oauth_icon_url = (
+            f"https://cdn.discordapp.com/icons/{gid}/{oauth_icon}.png?size=128"
+            if oauth_icon
             else None
         )
+        oauth_name = g.get("name", "")
         if gid in bot_guild_ids:
             bot_guild = bot.get_guild(gid)
+            name = (
+                getattr(bot_guild, "name", None)
+                if bot_guild and getattr(bot_guild, "name", None)
+                else oauth_name
+            ) or ""
+            bot_icon = getattr(bot_guild, "icon", None) if bot_guild else None
+            if bot_icon is not None:
+                try:
+                    icon_url = bot_icon.with_size(128).url
+                except Exception:
+                    icon_url = (
+                        str(getattr(bot_icon, "url", None) or oauth_icon_url or "")
+                        or None
+                    )
+            else:
+                icon_url = oauth_icon_url
             configured.append(
                 {
                     "id": str(gid),
-                    "name": g.get("name", ""),
+                    "name": name,
                     "icon_url": icon_url,
                     "member_count": getattr(bot_guild, "member_count", None),
                     "is_premium": is_premium_guild(gid),
@@ -764,8 +781,8 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
             available.append(
                 {
                     "id": str(gid),
-                    "name": g.get("name", ""),
-                    "icon_url": icon_url,
+                    "name": oauth_name,
+                    "icon_url": oauth_icon_url,
                     "invite_url": get_invite_url(str(gid)),
                 }
             )

@@ -94,8 +94,8 @@ HTML_PAGES = [
         "slug": "premium",
         "src": "premium.html",
         "title": "Purgito Premium",
-        "meta": "Apoya a Purgito y obtén beneficios exclusivos: más memoria, "
-        "más GIFs, memes automáticos y plantillas de embeds.",
+        "meta": "Lleva tu servidor al siguiente nivel con Purgito Premium: memoria ampliada, "
+        "memes automáticos, 4.000 GIFs y automatizaciones avanzadas.",
     },
     {
         "slug": "perfil",

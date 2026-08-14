@@ -8,7 +8,7 @@
 <meta name="description" content="Runtime, nginx, Cloudflare y despliegue de Purgito en producción.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=a6f90a96">
+<link rel="stylesheet" href="/style.css?v=0c0ea46f">
 </head>
 <body>
 
@@ -35,8 +35,98 @@
     </a>
 
     <div class="nav-links">
-      <a class="nav-link" href="/es/documentacion">Documentación</a>
-      <a class="nav-link" href="/es/premium">Premium</a>
+      <!-- Item 1: Recursos (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-recursos">
+          <span>Recursos</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-recursos" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Recursos &amp; Guías</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/documentacion">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Documentación</span>
+                  <span class="nav-drop-desc">Guías, arquitectura, comandos y API</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/estado">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Estado del servicio</span>
+                  <span class="nav-drop-desc">Disponibilidad en vivo, shards y latencia</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 2: Premium (Direct Link) -->
+      <a class="nav-link nav-link--highlight" href="/es/premium">
+        <span>Premium</span>
+        <span class="nav-badge-spark" aria-hidden="true">✨</span>
+      </a>
+
+      <!-- Item 3: Comunidad (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-comunidad">
+          <span>Comunidad</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-comunidad" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Comunidad &amp; Enlaces</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--blurple">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Servidor de Discord</span>
+                  <span class="nav-drop-desc">Soporte, sugerencias y charla</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--topgg">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+                    <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+                    <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Votar en Top.gg</span>
+                  <span class="nav-drop-desc">Apoya a Purgito con tu voto</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Código fuente y desarrollo</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -58,6 +148,78 @@
       <!-- Slot de sesión: arranca vacío y se rellena ya resuelto (sin parpadeo).
            El acceso al dashboard vive dentro de este dropdown, no suelto en el nav. -->
       <div id="auth-slot" class="auth-slot"></div>
+
+      <!-- Botón de menú móvil -->
+      <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-expanded="false" aria-label="Abrir menú de navegación" aria-controls="nav-mobile-panel">
+        <span class="nav-hamburger" aria-hidden="true">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel móvil desplegable -->
+  <div class="nav-mobile-panel" id="nav-mobile-panel" hidden>
+    <div class="nav-mobile-content">
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Recursos</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/documentacion">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <div>
+              <div class="title">Documentación</div>
+              <div class="desc">Guías, arquitectura y comandos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/estado">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <div>
+              <div class="title">Estado del servicio</div>
+              <div class="desc">Disponibilidad en vivo y shards</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <a class="nav-mobile-item nav-mobile-item--highlight" href="/es/premium">
+        <span>Purgito Premium</span>
+        <span class="badge badge-premium">7 días gratis</span>
+      </a>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Comunidad</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+            <div>
+              <div class="title">Servidor de Discord</div>
+              <div class="desc">Soporte y comunidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path><path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path><path fill="#ffd23f" d="M15 10h7v4h-7z"></path></svg>
+            <div>
+              <div class="title">Votar en Top.gg</div>
+              <div class="desc">Vota por Purgito</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <div>
+              <div class="title">GitHub</div>
+              <div class="desc">Código abierto</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -203,6 +365,6 @@ diagnóstico completo del sistema.</p>
   </div>
 </footer>
 
-<script src="/script.js?v=04456dee"></script>
+<script src="/script.js?v=ab935111"></script>
 </body>
 </html>

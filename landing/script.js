@@ -384,3 +384,169 @@ function svgIcon(paths) {
 
   rows.forEach(function (row) { io.observe(row); });
 })();
+
+/* ── Dropdowns de navegación (desktop): Recursos, Comunidad, etc.
+   Inspirado en el comportamiento fluido de la referencia: hover bridge sin
+   desaparecer en la transición, soporte para click, cambio inmediato entre
+   dropdowns sin parpadeo, accesibilidad (aria-expanded), Escape y click fuera. */
+
+(function () {
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-nav-dropdown]'));
+  if (!items.length) return;
+
+  var currentOpen = null;
+  var closeTimer = null;
+
+  function openDropdown(item) {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
+    if (currentOpen && currentOpen !== item) {
+      closeDropdown(currentOpen);
+    }
+    var btn = item.querySelector('.nav-dropdown-btn');
+    var menu = item.querySelector('.nav-dropdown');
+    if (!btn || !menu) return;
+
+    item.classList.add('is-open');
+    btn.setAttribute('aria-expanded', 'true');
+    menu.hidden = false;
+    currentOpen = item;
+  }
+
+  function closeDropdown(item) {
+    if (!item) return;
+    var btn = item.querySelector('.nav-dropdown-btn');
+    var menu = item.querySelector('.nav-dropdown');
+    item.classList.remove('is-open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    if (menu) menu.hidden = true;
+    if (currentOpen === item) currentOpen = null;
+  }
+
+  function scheduleClose(item) {
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(function () {
+      closeDropdown(item);
+      closeTimer = null;
+    }, 140);
+  }
+
+  items.forEach(function (item) {
+    var btn = item.querySelector('.nav-dropdown-btn');
+    var menu = item.querySelector('.nav-dropdown');
+    if (!btn || !menu) return;
+
+    // Pointer/Hover (solo para mouse/puntero fino)
+    item.addEventListener('mouseenter', function () {
+      openDropdown(item);
+    });
+    item.addEventListener('mouseleave', function () {
+      scheduleClose(item);
+    });
+
+    // Click en el botón
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (item.classList.contains('is-open')) {
+        closeDropdown(item);
+      } else {
+        openDropdown(item);
+      }
+    });
+
+    // Teclado: flechas y atajos accesibles
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDropdown(item);
+        var firstLink = menu.querySelector('a');
+        if (firstLink) firstLink.focus();
+      }
+    });
+
+    menu.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeDropdown(item);
+        btn.focus();
+      }
+    });
+
+    // Al clickear un enlace dentro, cerrar el menú
+    menu.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        closeDropdown(item);
+      });
+    });
+  });
+
+  // Click fuera cierra cualquier dropdown abierto
+  document.addEventListener('click', function (e) {
+    if (currentOpen && !currentOpen.contains(e.target)) {
+      closeDropdown(currentOpen);
+    }
+  });
+
+  // Escape global
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && currentOpen) {
+      var btn = currentOpen.querySelector('.nav-dropdown-btn');
+      closeDropdown(currentOpen);
+      if (btn) btn.focus();
+    }
+  });
+})();
+
+/* ── Menú móvil y acordeones para pantallas pequeñas (< 900px).
+   Sin dependencia de hover, navegación táctil y accesible. */
+
+(function () {
+  var toggle = document.getElementById('nav-mobile-toggle');
+  var panel = document.getElementById('nav-mobile-panel');
+  if (!toggle || !panel) return;
+
+  function setMobileOpen(open) {
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    document.body.classList.toggle('no-scroll', open);
+  }
+
+  toggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setMobileOpen(panel.hidden);
+  });
+
+  // Acordeones internos de Recursos y Comunidad
+  panel.querySelectorAll('.nav-mobile-accordion-btn').forEach(function (btn) {
+    var sub = btn.nextElementSibling;
+    if (!sub) return;
+    btn.addEventListener('click', function () {
+      var isClosed = sub.hidden;
+      sub.hidden = !isClosed;
+      btn.setAttribute('aria-expanded', String(isClosed));
+    });
+  });
+
+  // Click en cualquier enlace dentro del panel cierra el menú
+  panel.querySelectorAll('a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      setMobileOpen(false);
+    });
+  });
+
+  // Escape cierra el menú móvil
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !panel.hidden) {
+      setMobileOpen(false);
+      toggle.focus();
+    }
+  });
+
+  // Si se redimensiona la ventana a escritorio, cerrar automáticamente
+  window.addEventListener('resize', function () {
+    if (window.innerWidth > 900 && !panel.hidden) {
+      setMobileOpen(false);
+    }
+  });
+})();

@@ -59,6 +59,9 @@ function activate(key, push) {
     window.removeEventListener('hashchange', _chatHashHandler);
     _chatHashHandler = null;
   }
+  if (key === 'inicio') {
+    loadHead();
+  }
   TABS.find(t => t.key === key).load();
 }
 
@@ -154,7 +157,7 @@ async function loadInicio() {
       apiFetch(`/api/server/${GUILD_ID}/style`),
       apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
       apiFetch(`/api/server/${GUILD_ID}/stats`),
-      getChannels(),
+      getChannels({ force: true }),
     ]);
     box.innerHTML = '';
 
@@ -888,7 +891,7 @@ async function loadChatTab() {
         apiFetch(`/api/server/${GUILD_ID}/settings/triggers`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`),
-        getChannels(),
+        getChannels({ force: true }),
         getRoles(),
       ]);
     box.innerHTML = '';

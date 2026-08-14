@@ -305,3 +305,217 @@ def test_el_navbar_no_tiene_ningun_dashboard_suelto():
     # El bloque avatar+nombre navega al perfil.
     assert "profile.href = DASHBOARD" in script
     assert "'/' + LOC + '/perfil'" in script
+
+
+# ── Frescura de datos en Header y Dashboard ──────────────────────────────────
+
+
+class _FakeAsset:
+    def __init__(self, url):
+        self.url = url
+
+    def with_size(self, size):
+        return _FakeAsset(f"{self.url.split('?')[0]}?size={size}")
+
+
+class _FakeGuild:
+    def __init__(self, id, name, icon_url=None, member_count=10):
+        self.id = id
+        self.name = name
+        self.icon = _FakeAsset(icon_url) if icon_url else None
+        self.member_count = member_count
+
+
+def test_api_me_guilds_prioritizes_gateway_bot_guild_data(temp_db, monkeypatch):
+    """Para guilds configurados, el nombre e icono salen en vivo del Gateway."""
+    original = webapi.get_session
+    live_guild = _FakeGuild(
+        id=123,
+        name="Live Gateway Server",
+        icon_url="https://cdn.discordapp.com/icons/123/live_icon.png",
+        member_count=77,
+    )
+    fake_bot = _FakeBot()
+    fake_bot.guilds = [live_guild]
+    fake_bot.get_guild = lambda gid: live_guild if gid == 123 else None
+
+    http = _FakeHttp(
+        payload=[
+            {
+                "id": "123",
+                "name": "Stale OAuth Server",
+                "icon": "stale_oauth_icon",
+                "owner": True,
+            }
+        ]
+    )
+    req = _guilds_env(monkeypatch, http)
+    req.app["bot"] = fake_bot
+
+    try:
+        resp = asyncio.run(webapi._api_me_guilds(req))
+        data = json.loads(resp.body)
+        assert len(data["configured"]) == 1
+        conf = data["configured"][0]
+        # Prioriza los datos en vivo del Gateway sobre los cacheados de OAuth
+        assert conf["name"] == "Live Gateway Server"
+        assert (
+            conf["icon_url"]
+            == "https://cdn.discordapp.com/icons/123/live_icon.png?size=128"
+        )
+        assert conf["member_count"] == 77
+    finally:
+        webapi.get_session = original
+
+
+def test_api_me_guilds_falls_back_to_oauth_when_bot_guild_is_none_or_missing_icon(
+    temp_db, monkeypatch
+):
+    """Guard de caso límite: si bot_guild es None o no tiene icono, usa el fallback de OAuth."""
+    original = webapi.get_session
+
+    # Caso 1: bot_guild es None (ej. gap de reconexión/sincronización)
+    fake_bot_none = _FakeBot()
+    fake_bot_none.guilds = [_FakeGuild(id=123, name="")]  # id presente en bot_guild_ids
+    fake_bot_none.get_guild = lambda gid: None  # pero get_guild retorna None
+
+    http = _FakeHttp(
+        payload=[
+            {
+                "id": "123",
+                "name": "Fallback OAuth Name",
+                "icon": "fallback_oauth_icon",
+                "owner": True,
+            }
+        ]
+    )
+    req = _guilds_env(monkeypatch, http)
+    req.app["bot"] = fake_bot_none
+
+    try:
+        resp = asyncio.run(webapi._api_me_guilds(req))
+        data = json.loads(resp.body)
+        conf = data["configured"][0]
+        assert conf["name"] == "Fallback OAuth Name"
+        assert (
+            conf["icon_url"]
+            == "https://cdn.discordapp.com/icons/123/fallback_oauth_icon.png?size=128"
+        )
+
+        # Caso 2: bot_guild existe pero sin icono en Discord (icon=None), OAuth sí tiene
+        live_no_icon = _FakeGuild(id=123, name="Live Name", icon_url=None)
+        fake_bot_no_icon = _FakeBot()
+        fake_bot_no_icon.guilds = [live_no_icon]
+        fake_bot_no_icon.get_guild = lambda gid: live_no_icon if gid == 123 else None
+
+        req.app["bot"] = fake_bot_no_icon
+        resp2 = asyncio.run(webapi._api_me_guilds(req))
+        data2 = json.loads(resp2.body)
+        conf2 = data2["configured"][0]
+        assert conf2["name"] == "Live Name"
+        assert (
+            conf2["icon_url"]
+            == "https://cdn.discordapp.com/icons/123/fallback_oauth_icon.png?size=128"
+        )
+
+        # Caso 3: sin icono en ninguno
+        http_no_icon = _FakeHttp(
+            payload=[{"id": "123", "name": "Live Name", "icon": None, "owner": True}]
+        )
+        monkeypatch.setattr(webapi, "_user_guilds_cache", webapi.LRUDict(8))
+        req_no_icon = _guilds_env(monkeypatch, http_no_icon)
+        req_no_icon.app["bot"] = fake_bot_no_icon
+        resp3 = asyncio.run(webapi._api_me_guilds(req_no_icon))
+        data3 = json.loads(resp3.body)
+        conf3 = data3["configured"][0]
+        assert conf3["icon_url"] is None
+    finally:
+        webapi.get_session = original
+
+
+def test_get_channels_force_refetch_contract():
+    """panel-shell.js acepta force y dash.js lo usa al activar INICIO y CHAT."""
+    panel_shell = (LANDING / "js" / "panel-shell.js").read_text("utf-8")
+    dash = (LANDING / "js" / "dash.js").read_text("utf-8")
+
+    assert "export async function getChannels(opts = {})" in panel_shell
+    assert "force" in panel_shell
+
+    # loadInicio y loadChatTab deben pedir canales con force
+    assert "getChannels({ force: true })" in dash
+
+
+def test_dash_refreshes_load_head_on_inicio_navigation():
+    """Al volver a INICIO desde otra pestaña, activate() dispara loadHead()."""
+    dash = (LANDING / "js" / "dash.js").read_text("utf-8")
+    assert "if (key === 'inicio')" in dash
+    assert "loadHead();" in dash
+
+
+def test_pagina_premium_redisenada_tiene_elementos_y_limites_reales():
+    """Verifica que /es/premium/ contiene la estructura rediseñada y límites de limits.env."""
+    prem_page = (LANDING / "es" / "premium" / "index.html").read_text("utf-8")
+
+    # Secciones clave del rediseño
+    assert 'class="prem-hero"' in prem_page
+    assert 'class="prem-features-grid"' in prem_page
+    assert 'class="prem-showcase-bento"' in prem_page
+    assert 'class="prem-plans-grid"' in prem_page
+    assert 'class="box donate"' in prem_page
+
+    # Elementos interactivos que script.js escucha
+    assert 'id="plan-toggle"' in prem_page
+    assert 'id="plan-amount"' in prem_page
+    assert 'id="plan-per"' in prem_page
+    assert 'id="plan-trial"' in prem_page
+
+    # Límites reales de limits.env presentes en la comparativa
+    for limit in ("50.000", "500.000", "4.000", "200", "50", "10"):
+        assert limit in prem_page, f"Falta el límite {limit} en la página premium"
+
+    # Enlaces legales y de contacto
+    assert 'href="/es/terminos"' in prem_page
+    assert 'href="/es/reembolsos"' in prem_page
+    assert 'href="/es/privacidad"' in prem_page
+    assert "billing@purgito.app" in prem_page
+
+
+def test_navbar_dropdowns_and_mobile_menu_structure_and_behavior():
+    """Verifica que la navbar cuenta con dropdowns accesibles, enlaces reales y menú móvil."""
+    index = (LANDING / "index.html").read_text("utf-8")
+    script = (LANDING / "script.js").read_text("utf-8")
+    style = (LANDING / "style.css").read_text("utf-8")
+
+    # Contenedores de dropdowns desktop
+    assert "data-nav-dropdown" in index
+    assert 'id="nav-btn-recursos"' in index
+    assert 'id="nav-btn-comunidad"' in index
+    assert 'aria-haspopup="true"' in index
+    assert 'aria-expanded="false"' in index
+
+    # Enlaces reales en dropdowns
+    assert 'href="/es/documentacion"' in index
+    assert 'href="/es/estado"' in index
+    assert 'href="/es/premium"' in index
+    assert 'href="https://discord.gg/5U7HKyxnBv"' in index
+    assert 'href="https://top.gg/bot/1471724794411089920"' in index
+    assert 'href="https://github.com/punkyyy01/bot-discord-purg"' in index
+
+    # Toggle y Drawer móvil
+    assert 'id="nav-mobile-toggle"' in index
+    assert 'id="nav-mobile-panel"' in index
+    assert 'class="nav-mobile-accordion-btn"' in index
+
+    # Lógica en script.js
+    assert "openDropdown" in script
+    assert "closeDropdown" in script
+    assert "scheduleClose" in script
+    assert "setMobileOpen" in script
+    assert "ArrowDown" in script
+    assert "Escape" in script
+
+    # Estilos en style.css
+    assert ".nav-dropdown" in style
+    assert ".nav-drop-item" in style
+    assert ".nav-mobile-panel" in style
+    assert ".nav-mobile-toggle" in style

@@ -5,10 +5,10 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Purgito Premium — Purgito</title>
-<meta name="description" content="Apoya a Purgito y obtén beneficios exclusivos: más memoria, más GIFs, memes automáticos y plantillas de embeds.">
+<meta name="description" content="Lleva tu servidor al siguiente nivel con Purgito Premium: memoria ampliada, memes automáticos, 4.000 GIFs y automatizaciones avanzadas.">
 <meta name="theme-color" content="#13c4d8">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=a6f90a96">
+<link rel="stylesheet" href="/style.css?v=0c0ea46f">
 </head>
 <body>
 
@@ -35,8 +35,98 @@
     </a>
 
     <div class="nav-links">
-      <a class="nav-link" href="/es/documentacion">Documentación</a>
-      <a class="nav-link" href="/es/premium">Premium</a>
+      <!-- Item 1: Recursos (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-recursos">
+          <span>Recursos</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-recursos" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Recursos &amp; Guías</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/documentacion">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Documentación</span>
+                  <span class="nav-drop-desc">Guías, arquitectura, comandos y API</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/estado">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Estado del servicio</span>
+                  <span class="nav-drop-desc">Disponibilidad en vivo, shards y latencia</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 2: Premium (Direct Link) -->
+      <a class="nav-link nav-link--highlight" href="/es/premium">
+        <span>Premium</span>
+        <span class="nav-badge-spark" aria-hidden="true">✨</span>
+      </a>
+
+      <!-- Item 3: Comunidad (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-comunidad">
+          <span>Comunidad</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-comunidad" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Comunidad &amp; Enlaces</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--blurple">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Servidor de Discord</span>
+                  <span class="nav-drop-desc">Soporte, sugerencias y charla</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--topgg">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+                    <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+                    <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Votar en Top.gg</span>
+                  <span class="nav-drop-desc">Apoya a Purgito con tu voto</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Código fuente y desarrollo</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -58,6 +148,78 @@
       <!-- Slot de sesión: arranca vacío y se rellena ya resuelto (sin parpadeo).
            El acceso al dashboard vive dentro de este dropdown, no suelto en el nav. -->
       <div id="auth-slot" class="auth-slot"></div>
+
+      <!-- Botón de menú móvil -->
+      <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-expanded="false" aria-label="Abrir menú de navegación" aria-controls="nav-mobile-panel">
+        <span class="nav-hamburger" aria-hidden="true">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel móvil desplegable -->
+  <div class="nav-mobile-panel" id="nav-mobile-panel" hidden>
+    <div class="nav-mobile-content">
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Recursos</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/documentacion">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <div>
+              <div class="title">Documentación</div>
+              <div class="desc">Guías, arquitectura y comandos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/estado">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <div>
+              <div class="title">Estado del servicio</div>
+              <div class="desc">Disponibilidad en vivo y shards</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <a class="nav-mobile-item nav-mobile-item--highlight" href="/es/premium">
+        <span>Purgito Premium</span>
+        <span class="badge badge-premium">7 días gratis</span>
+      </a>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Comunidad</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+            <div>
+              <div class="title">Servidor de Discord</div>
+              <div class="desc">Soporte y comunidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path><path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path><path fill="#ffd23f" d="M15 10h7v4h-7z"></path></svg>
+            <div>
+              <div class="title">Votar en Top.gg</div>
+              <div class="desc">Vota por Purgito</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <div>
+              <div class="title">GitHub</div>
+              <div class="desc">Código abierto</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -65,94 +227,370 @@
 <!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
      landing/build_docs.py — no los agregues acá.
      Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
-<main id="contenido" class="wrap premium">
+<main id="contenido" class="prem-page">
 
-  <header class="premium-head">
-    <h1 class="premium-title">Purgito Premium</h1>
-    <p class="premium-sub">Apoya a Purgito y obtén beneficios exclusivos</p>
-  </header>
+  <!-- ── 1. HERO: IDENTIDAD & EXPERIENCIA ────────────────── -->
+  <section class="prem-hero">
+    <div class="wrap prem-hero-inner">
+      <div class="prem-hero-copy">
+        <div class="prem-pill">
+          <svg class="prem-pill-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <span>PURGITO PREMIUM</span>
+        </div>
 
-  <div class="plans">
+        <h1 class="prem-hero-title">
+          Lleva tu servidor al<br>
+          <span class="grad-premium">siguiente nivel</span>
+        </h1>
 
-    <article class="box plan">
-      <h2 class="plan-name">Purgito</h2>
-      <p class="plan-price">
-        <span class="plan-amount">$0</span><span class="plan-per">/por siempre</span>
-      </p>
+        <p class="prem-hero-desc">
+          Memoria extendida, generación de memes automáticos, miles de GIFs y automatizaciones avanzadas para que Purgito capture como nadie la esencia de tu comunidad.
+        </p>
 
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>No disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>15.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>2.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>1.500</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>75</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>20</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>3</dd></div>
-      </dl>
+        <div class="prem-hero-actions">
+          <!-- El checkout real necesita el guild_id del panel: el botón enruta
+               al selector de servidores. El href estático es el fallback sin JS. -->
+          <a class="btn btn-accent btn-lg prem-cta-main js-subscribe" href="/auth/login?from=landing&amp;locale=es">
+            Comenzar 7 días gratis
+          </a>
+          <a class="btn btn-lg prem-cta-sec" href="#planes">
+            Ver planes y precios
+          </a>
+        </div>
 
-      <div class="plan-foot">
-        <a class="btn btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
-          <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
-        </a>
-      </div>
-    </article>
-
-    <article class="box plan plan-premium">
-      <h2 class="plan-name">Purgito Premium</h2>
-      <p class="plan-price">
-        <span class="plan-amount" id="plan-amount">$4.99</span><span class="plan-per" id="plan-per">/mensual</span>
-      </p>
-
-      <dl class="perks">
-        <div class="perk"><dt>Memes automáticos</dt><dd>Disponible</dd></div>
-        <div class="perk"><dt>Mensajes en memoria</dt><dd>50.000</dd></div>
-        <div class="perk"><dt>Mensajes de usuario</dt><dd>8.000</dd></div>
-        <div class="perk"><dt>GIFs guardados</dt><dd>4.000</dd></div>
-        <div class="perk"><dt>Imágenes para memes</dt><dd>200</dd></div>
-        <div class="perk"><dt>Plantillas de embeds</dt><dd>50</dd></div>
-        <div class="perk"><dt>Anuncios programados</dt><dd>10</dd></div>
-      </dl>
-
-      <div class="plan-foot">
-        <p class="plan-trial" id="plan-trial">7 días gratis</p>
-
-        <!-- El checkout real necesita un guild_id que esta página no tiene: el
-             botón solo enruta al panel (login → selector de servidores), donde
-             vive la activación. El href estático es el fallback sin JS. -->
-        <a class="btn btn-accent btn-lg plan-cta js-subscribe"
-           href="/auth/login?from=landing&amp;locale=es">Subscribirse</a>
-
-        <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
-          <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
-          <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual</button>
+        <div class="prem-trust-strip">
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>7 días de prueba</span>
+          </div>
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+            <span>Cancela cuando quieras</span>
+          </div>
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>Activación instantánea</span>
+          </div>
         </div>
       </div>
-    </article>
 
-  </div>
+      <div class="prem-hero-visual" aria-hidden="true">
+        <div class="prem-visual-backdrop"></div>
+        <div class="prem-mascot-card">
+          <img class="prem-mascot-img" src="/assets/mascota.webp" alt="Mascota Purgito" width="340" height="340">
+          
+          <div class="prem-float-chip prem-chip-top">
+            <span class="prem-chip-icon">⚡</span>
+            <div class="prem-chip-text">
+              <strong>500.000 msgs</strong>
+              <small>Memoria total</small>
+            </div>
+          </div>
 
-  <p class="plans-legal">
-    Al continuar aceptas los <a href="/es/terminos">Términos</a>,
-    <a href="/es/reembolsos">Políticas de Reembolso</a> y la
-    <a href="/es/privacidad">Política de Privacidad</a>.
-  </p>
+          <div class="prem-float-chip prem-chip-mid">
+            <span class="prem-chip-icon">🎭</span>
+            <div class="prem-chip-text">
+              <strong>Memes automáticos</strong>
+              <small>Exclusivo Premium</small>
+            </div>
+          </div>
 
-  <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
-    <div class="donate-copy">
-      <h2 class="donate-title">Dona la cantidad que desees</h2>
-      <p class="donate-sub">También puedes apoyarme donando en mi Ko-Fi</p>
-      <p class="donate-fine">Donar es completamente voluntario. No se recibirá nada dentro del bot.</p>
+          <div class="prem-float-chip prem-chip-bot">
+            <span class="prem-chip-icon">🎬</span>
+            <div class="prem-chip-text">
+              <strong>4.000 GIFs</strong>
+              <small>Banco de respuestas</small>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <!-- Mismo path que el ícono de Ko-fi del footer. width/height van en el
-         SVG además del CSS: si style.css no carga, queda a 40px en vez de
-         estirarse al tamaño por defecto de un SVG sin dimensionar. -->
-    <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
-  </a>
+  </section>
 
-  <p class="donate-legal">
-    Al donar o suscribirte, tú aceptas los términos y políticas.
-    Contacta a <a href="mailto:billing@purgito.app">billing@purgito.app</a> para más detalles.
-  </p>
+  <!-- ── 2. BENEFICIOS / SUPERPODERES ────────────────────── -->
+  <section class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">Superpoderes para tu comunidad</h2>
+      <p class="prem-section-sub">Todo lo que hace único a Purgito, potenciado al máximo para servidores exigentes.</p>
+    </div>
+
+    <div class="prem-features-grid">
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2a8 8 0 0 0-8 8c0 3.36 2.07 6.24 5 7.42V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.58c2.93-1.18 5-4.06 5-7.42a8 8 0 0 0-8-8z"/>
+            <line x1="9" y1="22" x2="15" y2="22"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">Memoria expandida</h3>
+        <p class="prem-feat-desc">Hasta <strong>50.000 mensajes por canal</strong> y <strong>500.000 en total</strong>. Purgito aprende con mayor profundidad y reproduce el estilo y los modismos de tu servidor con alta fidelidad.</p>
+        <div class="prem-feat-badge">3.3x más capacidad</div>
+      </article>
+
+      <article class="box prem-feat-card prem-feat-card--hero">
+        <div class="prem-feat-icon-wrap prem-feat-icon-wrap--purple">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">Generación de memes en chat</h3>
+        <p class="prem-feat-desc">Desbloquea la creación automática de memes. Sube hasta <strong>200 imágenes</strong> a tu banco de memes y deja que Purgito genere respuestas gráficas basadas en la conversación.</p>
+        <div class="prem-feat-badge prem-feat-badge--exclusive">Exclusivo Premium</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">4.000 GIFs guardados</h3>
+        <p class="prem-feat-desc">Almacena hasta <strong>4.000 GIFs</strong> para respuestas y menciones automáticas. Un repertorio visual enorme para mantener el chat activo sin descartes prematuros.</p>
+        <div class="prem-feat-badge">2.6x más GIFs</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">10 Anuncios programados</h3>
+        <p class="prem-feat-desc">Configura hasta <strong>10 anuncios automatizados</strong> por intervalos o a una hora fija. Perfecto para recordatorios, eventos comunitarios, dinámicas y avisos.</p>
+        <div class="prem-feat-badge">3.3x más anuncios</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">50 Plantillas de Embeds</h3>
+        <p class="prem-feat-desc">Guarda hasta <strong>50 plantillas interactivas</strong> en el editor visual. Diseña reglas, paneles informativos y comunicados con botones y selectores.</p>
+        <div class="prem-feat-badge">2.5x más plantillas</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">Packs de frases y triggers</h3>
+        <p class="prem-feat-desc">Hasta <strong>200 frases especiales</strong> repartidas en <strong>20 packs</strong> asignables por canal, más <strong>30 triggers</strong> para responder al instante a palabras clave.</p>
+        <div class="prem-feat-badge">4x más personalización</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── 3. SECCIÓN VISUAL DEL PRODUCTO / SHOWCASE ───────── -->
+  <section class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">Capacidad pensada para servidores activos</h2>
+      <p class="prem-section-sub">Compara las cifras reales entre el plan gratuito y Purgito Premium.</p>
+    </div>
+
+    <div class="prem-showcase-bento">
+      <div class="box prem-stat-matrix">
+        <h3 class="prem-stat-matrix-title">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Comparativa de límites técnicos
+        </h3>
+        <div class="prem-stat-rows">
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">Mensajes por canal</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>15.000</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>50.000</span> <small>Premium (3.3x)</small></div>
+            </div>
+          </div>
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">Memoria total del servidor</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>150.000</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>500.000</span> <small>Premium (3.3x)</small></div>
+            </div>
+          </div>
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">Mensajes por usuario</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>2.000</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>8.000</span> <small>Premium (4.0x)</small></div>
+            </div>
+          </div>
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">GIFs guardados</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>1.500</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>4.000</span> <small>Premium (2.6x)</small></div>
+            </div>
+          </div>
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">Imágenes para memes</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>75</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>200</span> <small>Premium (2.6x)</small></div>
+            </div>
+          </div>
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">Plantillas de embeds</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>20</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>50</span> <small>Premium (2.5x)</small></div>
+            </div>
+          </div>
+          <div class="prem-stat-row">
+            <span class="prem-stat-name">Anuncios programados</span>
+            <div class="prem-stat-bars">
+              <div class="prem-stat-val prem-stat-val--free"><span>3</span> <small>Free</small></div>
+              <div class="prem-stat-val prem-stat-val--prem"><span>10</span> <small>Premium (3.3x)</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box prem-mockup-card">
+        <div class="prem-mockup-head">
+          <span class="prem-mockup-dot"></span>
+          <span class="prem-mockup-title">Simulación en vivo · Discord</span>
+        </div>
+        <div class="prem-mockup-body">
+          <div class="prem-discord-msg">
+            <img class="prem-msg-avatar" src="/assets/icon.png" alt="Purgito">
+            <div class="prem-msg-content">
+              <div class="prem-msg-header">
+                <span class="prem-msg-author">Purgito</span>
+                <span class="dm-badge">BOT</span>
+                <span class="badge badge-premium">PREMIUM</span>
+                <span class="prem-msg-time">Hoy a las 18:42</span>
+              </div>
+              <p class="prem-msg-text">No me miren con esa cara, yo solo vine por los memes del canal de general 🎭</p>
+              <div class="prem-mock-meme">
+                <div class="prem-mock-meme-banner">
+                  <span class="prem-mock-badge">MEME GENERADO</span>
+                  <span class="prem-mock-ctx">#general · 50.000 msgs</span>
+                </div>
+                <div class="prem-mock-meme-body">
+                  <span class="prem-mock-meme-txt">CUANDO EL SERVER ACTIVA PURGITO PREMIUM</span>
+                  <img class="prem-mock-thumb" src="/assets/galeria-gifs.png" alt="Vista previa de meme">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. PLANES & PRECIOS ─────────────────────────────── -->
+  <section id="planes" class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">Elige el plan para tu servidor</h2>
+      <p class="prem-section-sub">Sin contratos ni permanencia. Cancela en cualquier momento desde tu panel de control.</p>
+
+      <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Ciclo de facturación">
+        <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Mensual</button>
+        <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Anual <span class="prem-discount-tag">Ahorra 33%</span></button>
+      </div>
+    </div>
+
+    <div class="prem-plans-grid">
+      <!-- Plan Free -->
+      <article class="box prem-plan-card">
+        <div class="prem-plan-header">
+          <h3 class="prem-plan-title">Purgito Free</h3>
+          <p class="prem-plan-desc">Lo esencial para servidores pequeños o en crecimiento.</p>
+          <div class="prem-plan-price-wrap">
+            <span class="prem-plan-price">$0</span>
+            <span class="prem-plan-per">/por siempre</span>
+          </div>
+        </div>
+
+        <ul class="prem-perks-list">
+          <li><span class="prem-perk-check">✓</span> 15.000 mensajes de memoria por canal</li>
+          <li><span class="prem-perk-check">✓</span> 150.000 mensajes totales por servidor</li>
+          <li><span class="prem-perk-check">✓</span> 1.500 GIFs guardados</li>
+          <li><span class="prem-perk-check">✓</span> 75 imágenes en banco de memes</li>
+          <li><span class="prem-perk-check">✓</span> 20 plantillas de embeds</li>
+          <li><span class="prem-perk-check">✓</span> 3 anuncios programados</li>
+          <li><span class="prem-perk-check">✓</span> 50 frases especiales y 5 packs</li>
+          <li><span class="prem-perk-check">✓</span> 10 triggers de respuesta</li>
+          <li class="prem-perk-disabled"><span class="prem-perk-cross">✕</span> Memes automáticos en chat</li>
+        </ul>
+
+        <div class="prem-plan-action">
+          <a class="btn btn-secondary btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
+            <img class="btn-avatar" src="/assets/icon.png" alt="" onerror="this.remove()">Invitar a Purgito
+          </a>
+        </div>
+      </article>
+
+      <!-- Plan Premium -->
+      <article class="box prem-plan-card prem-plan-card--featured">
+        <div class="prem-featured-ribbon">MÁS POPULAR</div>
+        <div class="prem-plan-header">
+          <h3 class="prem-plan-title">Purgito Premium</h3>
+          <p class="prem-plan-desc">Capacidad máxima, memes automáticos y herramientas completas.</p>
+          <div class="prem-plan-price-wrap">
+            <span class="prem-plan-price" id="plan-amount">$4.99</span>
+            <span class="prem-plan-per" id="plan-per">/mensual</span>
+          </div>
+          <p class="plan-trial prem-plan-trial-badge" id="plan-trial">✨ 7 días de prueba gratis</p>
+        </div>
+
+        <ul class="prem-perks-list">
+          <li class="prem-perk-highlight"><span class="prem-perk-check">★</span> <strong>Memes automáticos en chat</strong></li>
+          <li><span class="prem-perk-check">✓</span> <strong>50.000</strong> mensajes por canal (500.000 total)</li>
+          <li><span class="prem-perk-check">✓</span> <strong>4.000</strong> GIFs guardados</li>
+          <li><span class="prem-perk-check">✓</span> <strong>200</strong> imágenes en banco de memes</li>
+          <li><span class="prem-perk-check">✓</span> <strong>50</strong> plantillas de embeds</li>
+          <li><span class="prem-perk-check">✓</span> <strong>10</strong> anuncios programados</li>
+          <li><span class="prem-perk-check">✓</span> <strong>200</strong> frases especiales y <strong>20</strong> packs</li>
+          <li><span class="prem-perk-check">✓</span> <strong>30</strong> triggers de respuesta</li>
+          <li><span class="prem-perk-check">✓</span> Soporte prioritario y badge en dashboard</li>
+        </ul>
+
+        <div class="prem-plan-action">
+          <a class="btn btn-accent btn-lg plan-cta js-subscribe" href="/auth/login?from=landing&amp;locale=es">
+            Comenzar prueba gratis
+          </a>
+        </div>
+      </article>
+    </div>
+
+    <!-- Notas de suscripción y pasarelas de pago -->
+    <div class="prem-sub-details">
+      <p class="prem-sub-notes">
+        La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo.
+      </p>
+      
+      <div class="prem-cards-strip" aria-label="Métodos de pago aceptados">
+        <img class="prem-card-logo" src="/assets/visa.svg" alt="Visa" width="38" height="24">
+        <img class="prem-card-logo" src="/assets/mastercard.svg" alt="Mastercard" width="38" height="24">
+        <img class="prem-card-logo" src="/assets/americanexpress.svg" alt="American Express" width="38" height="24">
+        <img class="prem-card-logo" src="/assets/discover.svg" alt="Discover" width="38" height="24">
+      </div>
+
+      <p class="plans-legal">
+        Al suscribirte aceptas los <a href="/es/terminos">Términos del Servicio</a>, las <a href="/es/reembolsos">Políticas de Reembolso</a> y la <a href="/es/privacidad">Política de Privacidad</a>. Contacto: <a href="mailto:billing@purgito.app">billing@purgito.app</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── 5. DONACIÓN (SECUNDARIA) ────────────────────────── -->
+  <section class="wrap prem-donate-wrap">
+    <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Donar en Ko-fi">
+      <div class="donate-copy">
+        <h2 class="donate-title">¿Solo quieres apoyar el proyecto?</h2>
+        <p class="donate-sub">También puedes realizar una donación voluntaria en Ko-fi para apoyar el mantenimiento de los servidores.</p>
+        <p class="donate-fine">Donar es voluntario y no otorga beneficios ni suscripciones dentro del bot.</p>
+      </div>
+      <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+    </a>
+  </section>
 
 </main>
 
@@ -230,6 +668,6 @@
   </div>
 </footer>
 
-<script src="/script.js?v=04456dee"></script>
+<script src="/script.js?v=ab935111"></script>
 </body>
 </html>

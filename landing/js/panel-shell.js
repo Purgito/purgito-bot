@@ -15,9 +15,11 @@ import {
 } from '/js/core/config.js';
 
 // Cacheados por la vida de la página (viven en core/config.js para que
-// core/markdown.js pueda leerlos sin importar de acá).
-export async function getChannels() {
-  if (!channelCache) setChannelCache((await apiFetch(`/api/server/${GUILD_ID}/channels`)).channels);
+// core/markdown.js pueda leerlos sin importar de acá). Acepta { force: true }
+// o booleano directo para invalidar y re-consultar al entrar a INICIO o CHAT.
+export async function getChannels(opts = {}) {
+  const force = typeof opts === 'boolean' ? opts : Boolean(opts && opts.force);
+  if (!channelCache || force) setChannelCache((await apiFetch(`/api/server/${GUILD_ID}/channels`)).channels);
   return channelCache;
 }
 
