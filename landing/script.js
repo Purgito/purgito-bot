@@ -223,30 +223,26 @@ function svgIcon(paths) {
     var wrap = document.createElement('div');
     wrap.className = 'auth-wrap';
 
-    /* El bloque avatar+nombre es un LINK directo al perfil, y el chevron de al
-       lado es el único que abre el menú. */
-    var profile = document.createElement('a');
-    profile.className = 'auth-btn';
-    profile.href = '/' + LOC + '/perfil';
+    /* Selector de cuenta unificado: avatar + nombre + chevron actúan como un
+       único botón accesible que despliega el menú de cuenta. */
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'auth-btn';
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Menú de cuenta de ' + (data.name || 'usuario'));
 
     if (data.avatar_url) {
       var img = document.createElement('img');
       img.className = 'auth-avatar';
       img.src = data.avatar_url;
       img.alt = '';
-      profile.appendChild(img);
+      btn.appendChild(img);
     }
     var name = document.createElement('span');
     name.className = 'auth-name';
     name.textContent = data.name || 'Usuario';
-    profile.appendChild(name);
-
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'auth-chev';
-    btn.setAttribute('aria-haspopup', 'true');
-    btn.setAttribute('aria-expanded', 'false');
-    btn.setAttribute('aria-label', 'Abrir menú de cuenta');
+    btn.appendChild(name);
 
     var chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     chev.setAttribute('class', 'chev');
@@ -323,7 +319,6 @@ function svgIcon(paths) {
       menu.appendChild(a);
     });
 
-    wrap.appendChild(profile);
     wrap.appendChild(btn);
     wrap.appendChild(menu);
     slot.appendChild(wrap);
@@ -332,7 +327,7 @@ function svgIcon(paths) {
 
     var isProfileActive = /^\/(?:[a-z]{2}\/)?perfil(?:\/.*)?$/.test(location.pathname);
 
-    // Enlace independiente 'Perfil' en la navbar desktop para usuarios autenticados
+    // Enlace independiente 'Perfil' en la navbar desktop para usuarios autenticados (a la derecha de Premium)
     var navLinks = document.querySelector('.nav-links');
     if (navLinks && !navLinks.querySelector('.nav-link-perfil')) {
       var navPerfil = document.createElement('a');
@@ -342,10 +337,15 @@ function svgIcon(paths) {
       if (isProfileActive) {
         navPerfil.setAttribute('aria-current', 'page');
       }
-      navLinks.appendChild(navPerfil);
+      var premLink = navLinks.querySelector('a[href*="/premium"]');
+      if (premLink && premLink.nextSibling) {
+        navLinks.insertBefore(navPerfil, premLink.nextSibling);
+      } else {
+        navLinks.appendChild(navPerfil);
+      }
     }
 
-    // Enlace independiente 'Perfil' en el panel móvil para usuarios autenticados
+    // Enlace independiente 'Perfil' en el panel móvil para usuarios autenticados (a la derecha/debajo de Premium)
     var mobContent = document.querySelector('.nav-mobile-content');
     if (mobContent && !mobContent.querySelector('.nav-mobile-item-perfil')) {
       var mobPerfil = document.createElement('a');
@@ -362,7 +362,12 @@ function svgIcon(paths) {
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
         document.body.classList.remove('no-scroll');
       });
-      mobContent.appendChild(mobPerfil);
+      var mobPrem = mobContent.querySelector('a[href*="/premium"]');
+      if (mobPrem && mobPrem.nextSibling) {
+        mobContent.insertBefore(mobPerfil, mobPrem.nextSibling);
+      } else {
+        mobContent.appendChild(mobPerfil);
+      }
     }
   }
 

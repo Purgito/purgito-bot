@@ -295,15 +295,17 @@ def test_importmap_cubre_todos_los_modulos():
 
 
 def test_el_navbar_no_tiene_ningun_dashboard_suelto():
-    """El acceso al perfil es el bloque avatar+nombre, y solo ese."""
+    """El bloque de usuario es un trigger de menú y no un link suelto a dashboard."""
     script = (LANDING / "script.js").read_text("utf-8")
     index = (LANDING / "index.html").read_text("utf-8")
     # Ni ítem en el dropdown…
     assert "label: 'Dashboard'" not in script
     # …ni botón suelto en el nav.
     assert not re.search(r'class="nav-link[^"]*"[^>]*>\s*Dashboard', index)
-    # El bloque avatar+nombre navega al perfil.
-    assert "profile.href = '/' + LOC + '/perfil'" in script
+    # El bloque de usuario es un botón con aria-haspopup/aria-expanded que abre el menú
+    assert "btn.className = 'auth-btn'" in script
+    assert "btn.setAttribute('aria-haspopup', 'true')" in script
+    assert "'/' + LOC + '/perfil'" in script
 
 
 # ── Frescura de datos en Header y Dashboard ──────────────────────────────────
