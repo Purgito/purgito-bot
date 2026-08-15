@@ -720,26 +720,16 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert 'id="dashTabs" class="dash-sidebar"' in dash_html
     assert 'id="catContent" class="dash-content"' in dash_html
 
-    # JS lógica de renderizado contextual, modo foco y toggle móvil
+    # JS lógica de renderizado, persistencia del sidebar (rail) y toggle móvil
     assert "renderSidebar" in dash_js
-    assert "navigateChatSubtab" in dash_js
-    assert "FOCUS_TABS" in dash_js
-    assert "'embeds'" in dash_js
     assert "toggleSidebarCollapse" in dash_js
+    assert "SIDEBAR_COLLAPSED_KEY" in dash_js
     assert "dash-sidebar-collapse-btn" in dash_js
     assert "Mostrar navegación" in dash_js
     assert "Ocultar navegación" in dash_js
     assert "dash-sidebar-inner" in dash_js
-    assert "dash-subtabs-list" in dash_js
-    assert "dash-subtab-try" in dash_js
-    assert "Probar configuración" in dash_js
     assert "dash-mobile-nav-toggle" in dash_js
     assert "dash-mobile-nav-current" in dash_js
-
-    # Encapsulación de panels y activateSubtab
-    assert "const panels = {};" in dash_js
-    assert "window.panels" not in dash_js
-    assert "globalThis.panels" not in dash_js
 
     # Iconos coherentes en todas las 8 secciones principales
     dom_js = (LANDING / "js" / "core" / "dom.js").read_text("utf-8")

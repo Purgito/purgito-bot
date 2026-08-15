@@ -45,6 +45,8 @@ class FakeElement extends Node {
   }
   focus() {}
   blur() {}
+  addEventListener() {}
+  removeEventListener() {}
   click() { if (typeof this.onclick === 'function') this.onclick(); }
   get innerHTML() { return this._html; }
   set innerHTML(v) { this._html = v; if (v === '') this.children = []; }
@@ -178,7 +180,7 @@ function setupDOM() {
 console.log('--- Iniciando tests de dash.js ---');
 
 // Import del módulo
-const { initDash, fetchUserGuilds, selectGuild, activate, MODULES, CATEGORIES } = await import('./js/dash.js');
+const { initDash, fetchUserGuilds, selectGuild, activate, toggleSidebarCollapse, MODULES, CATEGORIES } = await import('./js/dash.js');
 const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
 // ── Test 1: Estructura de módulos y categorías ─────────────────────────────────
@@ -241,7 +243,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   // Verificamos que la barra superior y sidebar estén presentes
   const topText = elementsById.dashHead.text();
-  assert.match(topText, /Volver a servidores/);
+  assert.match(topText, /Servidores/);
   assert.equal(elementsById.dashTabs.hidden, false, 'dashTabs no debe estar oculto');
 
   console.log('✓ Test 2: Carga exitosa y render completo con servidor configurado');
@@ -605,6 +607,121 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(contentText, /Prueba la generación de texto/);
 
   console.log('✓ Test 12: Simulador de Chat renombrado y funcional');
+}
+
+// ── Test 13: Eliminación de redundancias en navegación ────────────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  // Verificar que cada módulo tiene una única categoría asignada
+  const keyCounts = {};
+  for (const m of MODULES) {
+    keyCounts[m.key] = (keyCounts[m.key] || 0) + 1;
+  }
+  for (const [key, count] of Object.entries(keyCounts)) {
+    assert.equal(count, 1, `El módulo ${key} solo debe existir una vez en MODULES`);
+  }
+
+  // Reacciones automáticas y Frases y Packs deben estar en Automatización
+  const reaccionesMod = MODULES.find(m => m.key === 'reacciones');
+  assert.equal(reaccionesMod.cat, 'automatizacion', 'Reacciones debe estar en Automatización');
+
+  const frasesMod = MODULES.find(m => m.key === 'frases');
+  assert.equal(frasesMod.cat, 'automatizacion', 'Frases debe estar en Automatización');
+
+  const triggersMod = MODULES.find(m => m.key === 'triggers');
+  assert.equal(triggersMod.cat, 'automatizacion', 'Triggers debe estar en Automatización');
+
+  const chatMod = MODULES.find(m => m.key === 'chat');
+  assert.equal(chatMod.cat, 'principal', 'Chat debe estar en Principal');
+
+  console.log('✓ Test 13: Estructura de módulos limpia y sin redundancias');
+}
+
+// ── Test 14: Persistencia del estado del sidebar al navegar ──────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/me/guilds')) return jsonResp({ configured: [{ id: '123456789', name: 'Server' }], available: [] });
+      return jsonResp({});
+    },
+  ];
+
+  await fetchUserGuilds(true);
+
+  // 1. Colapsar sidebar
+  toggleSidebarCollapse();
+  assert.equal(localStorage.getItem('purgito_dash_sidebar_collapsed'), 'true', 'Debe persistir true en localStorage');
+  const layout = document.querySelector('.dash-layout');
+  assert.ok(layout.hasClass('sidebar-collapsed'), 'Layout debe tener clase sidebar-collapsed');
+
+  // 2. Navegar a Chat con sidebar colapsado -> debe seguir colapsado
+  activate('chat', false);
+  assert.ok(layout.hasClass('sidebar-collapsed'), 'Sidebar debe seguir colapsado al navegar a Chat');
+
+  // 3. Navegar a Embeds con sidebar colapsado -> debe seguir colapsado
+  activate('embeds', false);
+  assert.ok(layout.hasClass('sidebar-collapsed'), 'Sidebar debe seguir colapsado al navegar a Embeds');
+
+  // 4. Navegar a Inicio con sidebar colapsado -> debe seguir colapsado
+  activate('inicio', false);
+  assert.ok(layout.hasClass('sidebar-collapsed'), 'Sidebar debe seguir colapsado al navegar a Inicio');
+
+  // 5. Expandir sidebar
+  toggleSidebarCollapse();
+  assert.equal(localStorage.getItem('purgito_dash_sidebar_collapsed'), 'false', 'Debe persistir false en localStorage');
+  assert.ok(!layout.hasClass('sidebar-collapsed'), 'Layout no debe tener clase sidebar-collapsed');
+
+  // 6. Navegar a Chat con sidebar expandido -> debe seguir expandido
+  activate('chat', false);
+  assert.ok(!layout.hasClass('sidebar-collapsed'), 'Sidebar debe seguir expandido al navegar a Chat');
+
+  console.log('✓ Test 14: Persistencia bidireccional del sidebar en navegación');
+}
+
+// ── Test 15: Eliminación de auto-collapse en Embeds ───────────────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+  localStorage.setItem('purgito_dash_sidebar_collapsed', 'false');
+
+  const layout = document.querySelector('.dash-layout');
+
+  // Con sidebar expandido, entrar a embeds NO debe colapsar
+  activate('embeds', false);
+  assert.ok(!layout.hasClass('sidebar-collapsed'), 'Embeds no debe forzar el colapso del sidebar');
+
+  // Con sidebar colapsado, entrar a embeds debe respetar el colapso
+  toggleSidebarCollapse();
+  assert.ok(layout.hasClass('sidebar-collapsed'), 'Sidebar está colapsado');
+  activate('embeds', false);
+  assert.ok(layout.hasClass('sidebar-collapsed'), 'Embeds respeta el estado colapsado si el usuario lo eligió');
+
+  console.log('✓ Test 15: Embeds no altera arbitrariamente el estado del sidebar');
+}
+
+// ── Test 16: Compatibilidad con redirecciones legacy en Chat ──────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  global.location.hash = '#reacciones';
+  let activatedKey = null;
+  const modChat = MODULES.find(m => m.key === 'chat');
+
+  // Ejecutamos loadChatTab con hash #reacciones
+  await modChat.load();
+  assert.equal(global.location.pathname, '/es/dashboard/123456789/reacciones', 'Hash #reacciones debe activar el módulo dedicado de reacciones');
+
+  global.location.hash = '#contenido';
+  await modChat.load();
+  assert.equal(global.location.pathname, '/es/dashboard/123456789/frases', 'Hash #contenido debe activar el módulo de frases');
+
+  console.log('✓ Test 16: Enlaces legacy con hash redirigen limpiamente al módulo canónico');
 }
 
 console.log('\n========================================');

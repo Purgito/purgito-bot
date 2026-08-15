@@ -215,15 +215,26 @@ export const TABS = [
   { key: 'historial', label: 'HISTORIAL', icon: 'history', load: loadHistorial },
 ];
 
-const FOCUS_TABS = ['embeds'];
-let _sidebarCollapsed = false;
+const SIDEBAR_COLLAPSED_KEY = 'purgito_dash_sidebar_collapsed';
+
+function getStoredSidebarCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+function setStoredSidebarCollapsed(collapsed) {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  } catch (e) { /* ignore */ }
+}
+
+let _sidebarCollapsed = getStoredSidebarCollapsed();
 let _loadEpoch = 0;
 let _activeGuild = null;
 let _serverPickerOpen = false;
-
-function isFocusTab(key) {
-  return FOCUS_TABS.includes(key);
-}
 
 function updateSidebarLayoutState() {
   const layout = document.querySelector('.dash-layout');
@@ -232,41 +243,11 @@ function updateSidebarLayoutState() {
   if (nav) nav.classList.toggle('collapsed', _sidebarCollapsed);
 }
 
-function toggleSidebarCollapse() {
+export function toggleSidebarCollapse() {
   _sidebarCollapsed = !_sidebarCollapsed;
+  setStoredSidebarCollapsed(_sidebarCollapsed);
   updateSidebarLayoutState();
-  const currentKey = currentTab();
-  const currentSub = currentKey === 'chat' ? currentChatSubtab() : null;
-  renderSidebar(currentKey, currentSub);
-}
-
-const CHAT_SUBTABS = [
-  { key: 'comportamiento', label: 'Comportamiento' },
-  { key: 'canales', label: 'Canales' },
-  { key: 'contenido', label: 'Contenido' },
-  { key: 'reacciones', label: 'Reacciones' },
-  { key: 'limites', label: 'Límites' },
-  { key: 'datos', label: 'Datos' },
-  { key: 'playground', label: 'Playground' },
-];
-
-function currentChatSubtab() {
-  const key = location.hash.slice(1);
-  return CHAT_SUBTABS.some(t => t.key === key) ? key : 'comportamiento';
-}
-
-let _activeChatSubtabSetter = null;
-let _chatHashHandler = null;
-
-function navigateChatSubtab(key) {
-  if (_activeChatSubtabSetter) {
-    _activeChatSubtabSetter(key);
-  } else {
-    location.hash = `#${key}`;
-    if (currentTab() !== 'chat') {
-      activate('chat', true);
-    }
-  }
+  renderSidebar(currentTab());
 }
 
 function currentTab() {
@@ -298,7 +279,7 @@ function toggleCategoryCollapse(catKey) {
   if (set.has(catKey)) set.delete(catKey);
   else set.add(catKey);
   saveCollapsedCategories(set);
-  renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+  renderSidebar(currentTab());
 }
 
 // ---------------- SELECTOR DE SERVIDOR PERSISTENTE ----------------
@@ -341,7 +322,7 @@ function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
     onclick: (e) => {
       e.stopPropagation();
       _serverPickerOpen = !_serverPickerOpen;
-      renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+      renderSidebar(currentTab());
     },
   },
     activeGuild ? guildIcon(activeGuild) : el('div', { class: 'guild-icon guild-initial' }, '?'),
@@ -394,7 +375,7 @@ function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
             onclick: () => {
               _serverPickerOpen = false;
               if (!isCurrent) onSelectGuild(g.id);
-              else renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+              else renderSidebar(currentTab());
             },
           },
             guildIcon(g),
@@ -612,13 +593,13 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('click', (e) => {
   if (_serverPickerOpen && !e.target.closest('.server-picker')) {
     _serverPickerOpen = false;
-    renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+    renderSidebar(currentTab());
   }
 });
 
 // ---------------- RENDERIZADO DE SIDEBAR ----------------
 
-function renderSidebar(activeTab, activeSubtab) {
+function renderSidebar(activeTab) {
   const nav = document.getElementById('dashTabs');
   if (!nav) return;
   nav.className = 'dash-sidebar' + (_sidebarCollapsed ? ' collapsed' : '');
@@ -626,9 +607,6 @@ function renderSidebar(activeTab, activeSubtab) {
   updateSidebarLayoutState();
 
   const activeModuleObj = MODULES.find(m => m.key === activeTab) || MODULES[0];
-  const activeSubtabObj = activeTab === 'chat'
-    ? (CHAT_SUBTABS.find(s => s.key === activeSubtab) || CHAT_SUBTABS[0])
-    : null;
 
   // Botón colapsar / expandir en desktop (rail mode)
   const collapseBtn = el('button', {
@@ -644,10 +622,7 @@ function renderSidebar(activeTab, activeSubtab) {
 
   // Selector móvil
   const currentLabelWrap = el('span', { class: 'dash-mobile-nav-current' },
-    el('span', { class: 'dash-mobile-tab-name' }, activeModuleObj.label),
-    activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-sep' }, '·') : null,
-    activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-name' },
-      activeSubtabObj.key === 'playground' ? 'Probar' : activeSubtabObj.label) : null
+    el('span', { class: 'dash-mobile-tab-name' }, activeModuleObj.label)
   );
 
   const toggleBtn = el('button', {
@@ -729,7 +704,7 @@ function renderSidebar(activeTab, activeSubtab) {
     for (const m of catModules) {
       const isTabActive = m.key === activeTab;
       const item = el('li', {
-        class: 'dash-sidebar-item' + (isTabActive ? ' active' : '') + (m.key === 'chat' && isTabActive ? ' has-subtabs' : ''),
+        class: 'dash-sidebar-item' + (isTabActive ? ' active' : ''),
       });
 
       const tabLink = el('a', {
@@ -750,47 +725,6 @@ function renderSidebar(activeTab, activeSubtab) {
       );
 
       item.append(tabLink);
-
-      // Sub-pestañas para CHAT cuando está activo
-      if (m.key === 'chat' && isTabActive && !_sidebarCollapsed) {
-        const subList = el('ul', { class: 'dash-subtabs-list' });
-        for (const st of CHAT_SUBTABS) {
-          const isSubActive = st.key === (activeSubtab || 'comportamiento');
-          if (st.key === 'playground') {
-            subList.append(
-              el('li', { class: 'dash-subtab-try-item' },
-                el('a', {
-                  class: 'dash-subtab dash-subtab-try' + (isSubActive ? ' active' : ''),
-                  'data-key': 'playground',
-                  href: '#playground',
-                  onclick: (ev) => {
-                    ev.preventDefault();
-                    closeMobileNav();
-                    navigateChatSubtab('playground');
-                  },
-                },
-                  el('span', { class: 'try-sparkle', 'aria-hidden': 'true' }, '✦'),
-                  'Probar configuración'))
-            );
-          } else {
-            subList.append(
-              el('li', {},
-                el('a', {
-                  class: 'dash-subtab' + (isSubActive ? ' active' : ''),
-                  'data-key': st.key,
-                  href: `#${st.key}`,
-                  onclick: (ev) => {
-                    ev.preventDefault();
-                    closeMobileNav();
-                    navigateChatSubtab(st.key);
-                  },
-                }, st.label))
-            );
-          }
-        }
-        item.append(subList);
-      }
-
       list.append(item);
     }
 
@@ -808,27 +742,37 @@ export function renderTopBar(guild) {
   if (!head) return;
   head.innerHTML = '';
 
-  const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
-    el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver a servidores');
+  const loc = currentLocale();
+  const name = guild ? guild.name : 'Servidor';
+  const iconUrl = guild ? guild.icon_url : null;
+  const isPremium = guild && guild.plan;
 
-  const topBar = el('div', { class: 'dash-topbar' },
-    back,
+  const titleNode = el('div', { class: 'dash-topbar' },
+    el('a', { class: 'dash-back-link', href: `/${loc}/perfil/servidores` },
+      icon('arrowLeft'),
+      el('span', {}, 'Servidores')
+    ),
+    el('div', { class: 'dash-topbar-guild' },
+      iconUrl
+        ? el('img', { class: 'dash-topbar-icon', src: iconUrl, alt: '' })
+        : el('div', { class: 'dash-topbar-icon dash-topbar-icon--fallback' }, name[0] || '?'),
+      el('h1', { class: 'dash-topbar-name' }, name),
+      isPremium ? el('span', { class: 'badge badge-premium badge-sm' }, 'PREMIUM') : null
+    ),
     el('div', { class: 'dash-topbar-actions' },
       el('button', {
         type: 'button',
-        class: 'dash-quick-search-btn',
-        title: 'Buscar módulo (Ctrl + K)',
+        class: 'btn btn-secondary btn-sm',
+        title: 'Buscar módulo o comando (Ctrl + K)',
         onclick: () => openCommandPalette(),
       },
         icon('search'),
-        el('span', { class: 'dash-quick-search-label' }, 'Buscar módulo…'),
-        el('kbd', {}, '⌘K')
-      ),
-      guild && guild.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null
+        el('span', { class: 'hide-mobile' }, 'Buscar')
+      )
     )
   );
 
-  head.append(topBar);
+  head.append(titleNode);
 }
 
 export async function loadHead() {
@@ -875,20 +819,10 @@ export async function selectGuild(newGuildId) {
 // ---------------- ACTIVACIÓN DE MÓDULO ----------------
 
 export function activate(key, push) {
-  _sidebarCollapsed = isFocusTab(key);
-  const currentSub = key === 'chat' ? currentChatSubtab() : null;
-  renderSidebar(key, currentSub);
+  renderSidebar(key);
 
   if (push) {
     history.pushState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${key}`);
-  }
-
-  if (key !== 'chat') {
-    _activeChatSubtabSetter = null;
-    if (_chatHashHandler) {
-      window.removeEventListener('hashchange', _chatHashHandler);
-      _chatHashHandler = null;
-    }
   }
 
   if (key === 'inicio') {
@@ -2306,22 +2240,24 @@ function channelMatrix({ channels, cols, openOverrides }) {
 }
 
 async function loadChatTab() {
+  // Manejo de compatibilidad con hashes antiguos (#reacciones, #contenido, etc.)
+  const hash = location.hash.slice(1);
+  if (hash === 'reacciones') { activate('reacciones', true); return; }
+  if (hash === 'contenido' || hash === 'frases') { activate('frases', true); return; }
+  if (hash === 'triggers') { activate('triggers', true); return; }
+  if (hash === 'canales') { activate('canales', true); return; }
+  if (hash === 'datos' || hash === 'corpus') { activate('corpus', true); return; }
+  if (hash === 'amnesia') { activate('amnesia', true); return; }
+  if (hash === 'playground') { activate('playground', true); return; }
+
   const box = content();
   box.append(spinner());
   const epoch = _loadEpoch;
 
   try {
-    const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, triggers, exempt, exemptChans, channels, roles] =
+    const [chat, exempt, exemptChans, channels, roles] =
       await Promise.all([
         apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`),
-        apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
-        apiFetch(`/api/server/${GUILD_ID}/settings/triggers`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`),
         getChannels({ force: true }),
@@ -2348,120 +2284,10 @@ async function loadChatTab() {
       el('label', { class: 'toggle' }, check, 'Chat activado'),
       helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch.')));
 
-    function buildCanales() {
-      const spontaneousSelected = new Set(((spontaneousChans && spontaneousChans.channels) || []).map(c => c.id));
-      const mentionSelected = new Set(((mentionChans && mentionChans.channels) || []).map(c => c.id));
-      const corpusSelected = new Set(((corpus && corpus.channels) || []).map(c => c.id));
-      const ignoredSet = new Set((corpus && corpus.ignored) || []);
-
-      const cols = [
-        {
-          short: 'Habla', onLabel: 'habla por su cuenta acá', offLabel: 'ya no habla solo acá',
-          help: 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
-          isSelected: id => spontaneousSelected.has(id),
-          add: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
-              method: 'POST', body: { channel_id: ch.id },
-            });
-            spontaneousSelected.add(ch.id);
-          },
-          remove: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels/${ch.id}`, { method: 'DELETE' });
-            spontaneousSelected.delete(ch.id);
-          },
-        },
-        {
-          short: 'Responde', onLabel: 'responde menciones acá', offLabel: 'ya no responde menciones acá',
-          help: 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
-          isSelected: id => mentionSelected.has(id),
-          add: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
-              method: 'POST', body: { channel_id: ch.id },
-            });
-            mentionSelected.add(ch.id);
-          },
-          remove: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels/${ch.id}`, { method: 'DELETE' });
-            mentionSelected.delete(ch.id);
-          },
-        },
-        {
-          short: 'Aprende', onLabel: 'aprende de acá', offLabel: 'ya no aprende de acá',
-          help: 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
-          isSelected: id => corpusSelected.has(id),
-          add: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
-              method: 'POST', body: { channel_id: ch.id },
-            });
-            corpusSelected.add(ch.id);
-          },
-          remove: async ch => {
-            await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, { method: 'DELETE' });
-            corpusSelected.delete(ch.id);
-          },
-        },
-      ];
-
-      async function openOverrides(ch, panel) {
-        const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${ch.id}/settings`);
-        const eff = (data && data.effective) || {}, ov = (data && data.overrides) || {}, lim2 = (data && data.limits) || {};
-        const rng = (k, d) => lim2[k] || d;
-        panel.innerHTML = '';
-        panel.append(
-          el('div', { class: 'ovr-grid' },
-            channelOverrideRow(ch.id, {
-              key: 'auto_generate_every', label: 'Cada cuántos mensajes', kind: 'number',
-              effective: eff.auto_generate_every, override: ov.auto_generate_every,
-              min: rng('auto_generate_every', [1])[0], max: rng('auto_generate_every', [null, 1000])[1],
-              suffix: 'mensajes',
-            }),
-            channelOverrideRow(ch.id, {
-              key: 'auto_generate_probability', label: 'Probabilidad de hablar', kind: 'percent',
-              effective: eff.auto_generate_probability, override: ov.auto_generate_probability, suffix: '%',
-            }),
-            channelOverrideRow(ch.id, {
-              key: 'gif_response_probability', label: 'Responde con GIF', kind: 'percent',
-              effective: eff.gif_response_probability, override: ov.gif_response_probability, suffix: '%',
-            }),
-            channelOverrideRow(ch.id, {
-              key: 'frase_probability', label: 'Usa una frase especial', kind: 'percent',
-              effective: eff.frase_probability, override: ov.frase_probability, suffix: '%',
-            }),
-            channelOverrideRow(ch.id, {
-              key: 'reaction_probability', label: 'Reacciona con emoji', kind: 'percent',
-              effective: eff.reaction_probability, override: ov.reaction_probability, suffix: '%',
-            }),
-            channelOverrideRow(ch.id, {
-              key: 'mention_rate_limit', label: 'Menciones por hora', kind: 'number',
-              effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
-              min: rng('mention_rate_limit', [0])[0], max: rng('mention_rate_limit', [null, 1000])[1],
-              suffix: 'por usuario',
-            })));
-      }
-
-      return el('div', {},
-        ignoredSet.size
-          ? el('p', { class: 'dim' }, ignoredSet.size === 1
-            ? 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.'
-            : `Hay ${ignoredSet.size} canales silenciados desde /settings: quedan fuera aunque los marques acá.`)
-          : null,
-        channelMatrix({ channels: channels || [], cols, openOverrides }));
-    }
-
-    function buildDatos() {
-      return el('div', {},
-        formGroup('Importar corpus desde un archivo',
-          el('p', { class: 'dim' },
-            'Sube un .txt: cada línea no vacía entra al corpus del canal elegido como si fuera un mensaje real, con la misma limpieza y los mismos límites de siempre.'),
-          corpusImportForm(channels || [])),
-        formGroup('Amnesia',
-          el('p', { class: 'dim' },
-            'Borra el corpus (mensajes y estilo por usuario) de las últimas 24 horas de todo el servidor. Es irreversible.'),
-          amnesiaButton()));
-    }
-
-    function buildComportamiento() {
-      return el('div', { class: 'chain' },
+    // Cadena de comportamiento
+    const comportamientoSection = formGroup('Comportamiento y probabilidades',
+      el('p', { class: 'dim' }, 'Define cómo y cuándo participa Purgito en las conversaciones de este servidor.'),
+      el('div', { class: 'chain' },
         el('div', { class: 'chain-step' },
           el('div', { class: 'chain-step-head' },
             el('span', { class: 'chain-num' }, '1'),
@@ -2483,7 +2309,7 @@ async function loadChatTab() {
           el('div', { class: 'chain-step-head' },
             el('span', { class: 'chain-num' }, '2'),
             el('h3', {}, '¿Manda un GIF o escribe?'),
-            helpIcon('Los GIFs salen de la galería del tab GIFS.')),
+            helpIcon('Los GIFs salen de la galería del tab GIFs.')),
           el('div', { class: 'chain-fields' },
             probabilityField('Manda un GIF', null, {
               key: 'gif_response_probability',
@@ -2493,203 +2319,86 @@ async function loadChatTab() {
           el('div', { class: 'chain-step-head' },
             el('span', { class: 'chain-num' }, '3'),
             el('h3', {}, 'Si escribe, ¿frase tuya o inventada?'),
-            helpIcon('Las frases se cargan en Contenido. El resto de las veces arma el mensaje solo, con lo que aprendió del servidor.')),
+            helpIcon('Las frases se configuran en Frases y Packs. El resto de las veces arma el mensaje solo, con lo que aprendió del servidor.')),
           el('div', { class: 'chain-fields' },
             probabilityField('Usa una frase tuya', null, {
               key: 'frase_probability',
               value: chat ? chat.frase_probability : 0,
-            }))));
-    }
+            }))),
+        el('div', { class: 'chain-step' },
+          el('div', { class: 'chain-step-head' },
+            el('span', { class: 'chain-num' }, '4'),
+            el('h3', {}, '¿Reacciona con un emoji?'),
+            helpIcon('Se evalúa en cada mensaje que lee.')),
+          el('div', { class: 'chain-fields' },
+            probabilityField('Reacciona con un emoji', null, {
+              key: 'reaction_probability',
+              value: chat ? chat.reaction_probability : 0,
+            })))));
 
-    function buildReacciones() {
-      const reaccionesBox = el('div', {});
-      const reactionsList = (reactions && reactions.reactions) || (Array.isArray(reactions) ? reactions : []);
-      renderReacciones(reaccionesBox, reactionsList);
-      return el('div', {},
-        probabilityField('Reacciona con un emoji', null, {
-          key: 'reaction_probability',
-          value: chat ? chat.reaction_probability : 0,
-        }),
-        el('div', { class: 'field' },
-          el('label', {}, 'Emojis que puede usar', helpIcon(
-            'Se evalúa en cada mensaje que lee, sin relación con si decide responder.')),
-          reaccionesBox));
-    }
-
-    function buildLimites() {
-      const exemptSelected = new Set(((exempt && exempt.roles) || []).map(r => r.id));
-      const exemptChannelsSelected = new Set(((exemptChans && exemptChans.channels) || []).map(c => c.id));
-      return formGroup(el('span', {}, 'Límite de actividad', helpIcon('0 = sin límite.')),
-        numberField('Menciones por hora', null, {
-          key: 'mention_rate_limit',
-          value: chat ? chat.mention_rate_limit : 0,
-          min: (lim.mention_rate_limit || [0])[0],
-          max: (lim.mention_rate_limit || [null, 1000])[1],
-          suffix: 'por usuario',
-        }),
-        el('div', { class: 'field' },
-          el('label', {}, 'Roles exentos del límite'),
-          roleToggleList({
-            roles: roles || [],
-            selected: exemptSelected,
-            add: async role => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
-                method: 'POST', body: { role_id: role.id },
-              });
-              exemptSelected.add(role.id);
-            },
-            remove: async role => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles/${role.id}`, {
-                method: 'DELETE',
-              });
-              exemptSelected.delete(role.id);
-            },
-            listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
-          })),
-        el('div', { class: 'field' },
-          el('label', {}, 'Canales exentos del límite'),
-          channelToggleList({
-            channels: channels || [],
-            isSelected: id => exemptChannelsSelected.has(id),
-            add: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`, {
-                method: 'POST', body: { channel_id: ch.id },
-              });
-              exemptChannelsSelected.add(ch.id);
-            },
-            remove: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels/${ch.id}`, {
-                method: 'DELETE',
-              });
-              exemptChannelsSelected.delete(ch.id);
-            },
-            listBelow: 'Ningún canal exento — el límite aplica en todos.',
-          })));
-    }
-
-    function buildContenido() {
-      const frasesBox = el('div', {});
-      const frasesList = (frases && frases.frases) || (Array.isArray(frases) ? frases : []);
-      const packsList = (frasePacks && frasePacks.packs) || [];
-      renderFrases(frasesBox, frasesList, packsList, frases ? frases.limit : null);
-
-      const packsBox = el('div', {});
-      renderFrasePacks(packsBox, packsList, channels || [], frasesBox, frasePacks ? frasePacks.limit : null);
-
-      const fraseChannelsSelected = new Set(((fraseChannels && fraseChannels.channels) || []).map(c => c.id));
-      const triggersBox = el('div', {});
-      renderTriggers(triggersBox, triggers, channels || [], packsList);
-
-      const TAGS = ['{{user.mention}}', '{{user.name}}', '{{channel.name}}',
-        '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
-
-      return el('div', {},
-        formGroup(el('span', {}, 'Frases', helpIcon('Con qué frecuencia las usa se ajusta en Comportamiento, paso 3.')),
-          frasesBox,
-          accordionGroup('Tags que puedes usar en una frase', false,
-            el('div', { class: 'tag-list' },
-              TAGS.map(t => el('code', { class: 'cmd' }, t))))),
-        formGroup(el('span', {}, 'Packs', helpIcon('Un pack agrupa frases y se asigna a canales: ahí solo salen esas.')),
-          packsBox),
-        formGroup(el('span', {}, 'Triggers', helpIcon('Si el mensaje matchea el patrón, Purgito responde sin esperar mención.')),
-          triggersBox),
-        accordionGroup('Dónde pueden salir las frases especiales', false,
-          channelToggleList({
-            channels,
-            isSelected: id => fraseChannelsSelected.has(id),
-            add: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`, {
-                method: 'POST', body: { channel_id: ch.id },
-              });
-              fraseChannelsSelected.add(ch.id);
-            },
-            remove: async ch => {
-              await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels/${ch.id}`, {
-                method: 'DELETE',
-              });
-              fraseChannelsSelected.delete(ch.id);
-            },
-            listBelow: 'Sin canales elegidos — puede salir en cualquiera.',
-          })));
-    }
-
-    function buildPlayground() {
-      const sel = channelSelect(channels, null, 'Elige un canal…');
-      const input = el('textarea', {
-        rows: '3', placeholder: 'Mensaje de prueba…', style: 'width:100%',
-      });
-      const resultBox = el('div', {});
-      const btn = el('button', {
-        class: 'btn btn-primary',
-        onclick: async () => {
-          const message = input.value.trim();
-          if (!sel.value || !message) {
-            toast('Elige un canal y escribe un mensaje de prueba', 'warn');
-            return;
-          }
-          resultBox.innerHTML = '';
-          resultBox.append(spinner());
-          try {
-            const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
-              method: 'POST', body: { channel_id: sel.value, message },
+    // Límites de actividad
+    const exemptSelected = new Set(((exempt && exempt.roles) || []).map(r => r.id));
+    const exemptChannelsSelected = new Set(((exemptChans && exemptChans.channels) || []).map(c => c.id));
+    const limitesSection = formGroup(el('span', {}, 'Límite de actividad', helpIcon('0 = sin límite.')),
+      numberField('Menciones por hora', null, {
+        key: 'mention_rate_limit',
+        value: chat ? chat.mention_rate_limit : 0,
+        min: (lim.mention_rate_limit || [0])[0],
+        max: (lim.mention_rate_limit || [null, 1000])[1],
+        suffix: 'por usuario',
+      }),
+      el('div', { class: 'field' },
+        el('label', {}, 'Roles exentos del límite'),
+        roleToggleList({
+          roles: roles || [],
+          selected: exemptSelected,
+          add: async role => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
+              method: 'POST', body: { role_id: role.id },
             });
-            renderPlaygroundResult(resultBox, data);
-          } catch (e) { renderError(resultBox, e); }
-        },
-      }, 'Simular');
+            exemptSelected.add(role.id);
+          },
+          remove: async role => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles/${role.id}`, {
+              method: 'DELETE',
+            });
+            exemptSelected.delete(role.id);
+          },
+          listBelow: 'Ningún rol exento — el límite aplica a todos por igual.',
+        })),
+      el('div', { class: 'field' },
+        el('label', {}, 'Canales exentos del límite'),
+        channelToggleList({
+          channels: channels || [],
+          isSelected: id => exemptChannelsSelected.has(id),
+          add: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`, {
+              method: 'POST', body: { channel_id: ch.id },
+            });
+            exemptChannelsSelected.add(ch.id);
+          },
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels/${ch.id}`, {
+              method: 'DELETE',
+            });
+            exemptChannelsSelected.delete(ch.id);
+          },
+          listBelow: 'Ningún canal exento — el límite aplica en todos.',
+        })));
 
-      return el('div', {},
-        el('div', { class: 'field' },
-          el('label', {}, 'Canal', helpIcon('Simula con la configuración efectiva del canal.')),
-          sel),
-        el('div', { class: 'field' }, el('label', {}, 'Mensaje de prueba'), input),
-        btn,
-        resultBox);
-    }
+    // Accesos directos a módulos relacionados
+    const toolsSection = formGroup('Herramientas y automatizaciones del chat',
+      el('p', { class: 'dim' }, 'Configura las reglas de automatización y los canales de aprendizaje de Purgito.'),
+      el('div', { class: 'quick-actions-grid' },
+        quickActionCard('zap', 'Triggers de canal', 'Respuestas automáticas ante palabras o regex', () => activate('triggers', true)),
+        quickActionCard('smile', 'Reacciones automáticas', 'Colección de emojis para reaccionar', () => activate('reacciones', true)),
+        quickActionCard('sparkle', 'Frases y Packs', 'Frases personalizadas agrupadas por canal', () => activate('frases', true)),
+        quickActionCard('sliders', 'Canales y Permisos', 'Matriz de lectura, respuesta y overrides', () => activate('canales', true)),
+        quickActionCard('play', 'Simulador de Chat', 'Prueba y simula respuestas en vivo', () => activate('playground', true))
+      )
+    );
 
-    const BUILDERS = {
-      comportamiento: buildComportamiento,
-      canales: buildCanales,
-      contenido: buildContenido,
-      reacciones: buildReacciones,
-      limites: buildLimites,
-      datos: buildDatos,
-      playground: buildPlayground,
-    };
-
-    const panels = {};
-    for (const st of CHAT_SUBTABS) {
-      panels[st.key] = BUILDERS[st.key]();
-      panels[st.key].hidden = true;
-    }
-    const panelsWrap = el('div', { class: 'chat-panels-wrap' }, CHAT_SUBTABS.map(st => panels[st.key]));
-    box.append(panelsWrap);
-
-    function activateSubtab(key) {
-      document.querySelectorAll('.dash-subtab').forEach(n =>
-        n.classList.toggle('active', n.dataset.key === key));
-      const mobileSubName = document.querySelector('.dash-mobile-subtab-name');
-      if (mobileSubName) {
-        const found = CHAT_SUBTABS.find(s => s.key === key);
-        mobileSubName.textContent = found ? (found.key === 'playground' ? 'Probar' : found.label) : '';
-      }
-      for (const st of CHAT_SUBTABS) {
-        const active = st.key === key;
-        if (panels[st.key]) {
-          panels[st.key].hidden = !active;
-          if (!active) {
-            panels[st.key].querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
-          }
-        }
-      }
-      history.replaceState(null, '', `${location.pathname}${location.search}#${key}`);
-    }
-
-    activateSubtab(currentChatSubtab());
-
-    if (_chatHashHandler) window.removeEventListener('hashchange', _chatHashHandler);
-    _chatHashHandler = () => activateSubtab(currentChatSubtab());
-    window.addEventListener('hashchange', _chatHashHandler);
+    box.append(comportamientoSection, limitesSection, toolsSection);
   } catch (e) { renderError(box, e); }
 }
 
