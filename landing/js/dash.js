@@ -1451,6 +1451,7 @@ async function loadChatTab() {
       panels[st.key].hidden = true;
     }
     const panelsWrap = el('div', { class: 'chat-panels-wrap' }, CHAT_SUBTABS.map(st => panels[st.key]));
+    box.append(panelsWrap);
 
     // Todo se autoguarda al toque (sin botón "Guardar" ni estado sin
     // confirmar), así que cambiar de sub-pestaña nunca pierde nada: no hay
