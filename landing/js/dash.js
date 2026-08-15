@@ -1835,13 +1835,6 @@ async function openAddEmojiModal(box, pool) {
   renderTabContent();
 }
 
-async function reloadReacciones(box) {
-  try {
-    const data = await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`);
-    renderReacciones(box, data.reactions);
-  } catch (e) { /* se queda como estaba */ }
-}
-
 // `packs` decide si se muestra el selector de pack por frase: sin packs
 // creados todavía no tiene sentido mostrar un <select> con una sola opción.
 /* "12 de 50 usadas" arriba de una lista con cupo. Antes el límite solo se
