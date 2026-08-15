@@ -241,12 +241,14 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(contentText, /Acciones rápidas/, 'Debe renderizar la sección de acciones rápidas');
   assert.match(contentText, /Actividad histórica/, 'Debe renderizar contadores históricos');
 
-  // Verificamos que la barra superior y sidebar estén presentes
+  // Verificamos que la barra superior sea limpia (sin duplicar el avatar/nombre del servidor)
   const topText = elementsById.dashHead.text();
   assert.match(topText, /Servidores/);
+  assert.match(topText, /Buscar/);
+  assert.doesNotMatch(topText, /Mi Servidor Pro/, 'La barra superior no debe duplicar el nombre del servidor');
   assert.equal(elementsById.dashTabs.hidden, false, 'dashTabs no debe estar oculto');
 
-  console.log('✓ Test 2: Carga exitosa y render completo con servidor configurado');
+  console.log('✓ Test 2: Carga exitosa y render completo con servidor configurado (sin encabezado duplicado)');
 }
 
 // ── Test 3: Servidor donde el bot no está instalado (disponible pero sin bot) ───

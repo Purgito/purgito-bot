@@ -60,21 +60,19 @@ Reemplaza un párrafo único arriba de la grilla explicando la regla en
 abstracto — la cifra concreta por campo es más rápida de leer y no obliga a
 recordar una regla mientras se mira el input.
 
-## Navegación lateral contextual y sticky (Dashboard)
+## Navegación lateral persistente y sticky (Dashboard)
 
 `.dash-sidebar` (dash.css): barra lateral sticky (`top: 5.5rem`) que contiene las
-secciones principales del Dashboard (`INICIO`, `CHAT`, `GIFS`, `MEMES`, `EMBEDS`,
-`PREMIUM`, `YOUTUBE`, `HISTORIAL`). Cuando una sección con sub-pestañas (`CHAT`)
-está activa, despliega sus subsecciones (`.dash-subtabs-list`) con un ítem final
-destacado (`.dash-subtab-try`) para "Probar configuración".
+secciones del Dashboard organizadas por categorías conceptuales (Principal, Alertas,
+Anuncios, Automatización, Entretenimiento, Utilidades, Premium). Cada módulo cuenta
+con una única ubicación coherente y canónica.
 
-- **Modo foco / Rail lateral (`FOCUS_TABS`)**: Pestañas de edición ancha como
-  `EMBEDS` entran automáticamente en modo compacto/rail (`.dash-sidebar.collapsed`,
-  48px de ancho) maximizando el espacio horizontal para el formulario y el preview de
-  Discord. Un botón en la cabecera del sidebar (`.dash-sidebar-collapse-btn`) permite
-  expandir o colapsar manualmente la navegación en cualquier momento sin recargar.
-- **Móviles (`<= 860px`)**: Se colapsa en un selector compacto (`.dash-mobile-nav-toggle`),
-  sin rail lateral invasivo.
+- **Modo Rail lateral colapsable persistente**: El usuario puede colapsar o expandir el sidebar
+  en cualquier momento mediante el botón en la cabecera (`.dash-sidebar-collapse-btn`, 48px de ancho).
+  El estado colapsado o expandido se persiste en `localStorage` (`purgito_dash_sidebar_collapsed`)
+  y se mantiene inalterado al navegar entre módulos.
+- **Móviles (`<= 860px`)**: Se presenta mediante un selector desplegable accesible (`.dash-mobile-nav-toggle`),
+  optimizando el espacio en pantallas pequeñas.
 
 ## Regla de uso de ⓘ (`helpIcon`)
 

@@ -1881,7 +1881,8 @@ h1 {
   gap: 12px;
 }
 
-.dash-back {
+.dash-back,
+.dash-back-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1892,8 +1893,12 @@ h1 {
   transition: color var(--transition);
 }
 
-.dash-back:hover { color: var(--text); }
+.dash-back:hover,
+.dash-back-link:hover { color: var(--text); }
 .dash-back:hover .dash-back-arrow { transform: translateX(-3px); }
+.dash-back .nav-icon,
+.dash-back-link .nav-icon { width: 15px; height: 15px; transition: transform var(--transition); }
+.dash-back-link:hover .nav-icon { transform: translateX(-3px); color: var(--text); }
 .dash-back-arrow { transition: transform var(--transition); }
 
 .dash-quick-search-btn {

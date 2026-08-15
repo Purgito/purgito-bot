@@ -743,21 +743,11 @@ export function renderTopBar(guild) {
   head.innerHTML = '';
 
   const loc = currentLocale();
-  const name = guild ? guild.name : 'Servidor';
-  const iconUrl = guild ? guild.icon_url : null;
-  const isPremium = guild && guild.plan;
 
   const titleNode = el('div', { class: 'dash-topbar' },
     el('a', { class: 'dash-back-link', href: `/${loc}/perfil/servidores` },
       icon('arrowLeft'),
       el('span', {}, 'Servidores')
-    ),
-    el('div', { class: 'dash-topbar-guild' },
-      iconUrl
-        ? el('img', { class: 'dash-topbar-icon', src: iconUrl, alt: '' })
-        : el('div', { class: 'dash-topbar-icon dash-topbar-icon--fallback' }, name[0] || '?'),
-      el('h1', { class: 'dash-topbar-name' }, name),
-      isPremium ? el('span', { class: 'badge badge-premium badge-sm' }, 'PREMIUM') : null
     ),
     el('div', { class: 'dash-topbar-actions' },
       el('button', {
