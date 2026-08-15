@@ -321,6 +321,9 @@ def note_message_for_auto_generate(
 def reset_guild_caches(guild_id: int) -> None:
     """Limpia todos los caches en memoria de un guild (tras corpus_wipe)."""
     _markov_cache.pop(guild_id, None)
+    _special_phrase_cooldowns.pop(guild_id, None)
+    _empty_frase_cooldowns.pop(guild_id, None)
+    _empty_reply_cooldowns.pop(guild_id, None)
     for cache in (
         _corpus_insert_counter,
         _message_counter,
@@ -558,7 +561,7 @@ async def generate_response(
 
         now = time.monotonic()
         cooldown_ok = (
-            now - _special_phrase_cooldowns.get(guild_id, 0.0)
+            now - _special_phrase_cooldowns.get(guild_id, -float("inf"))
             >= config.SPECIAL_PHRASE_COOLDOWN
         )
         if not cooldown_ok:
@@ -569,7 +572,7 @@ async def generate_response(
 
     now = time.monotonic()
     cooldown_ok = (
-        now - _special_phrase_cooldowns.get(guild_id, 0.0)
+        now - _special_phrase_cooldowns.get(guild_id, -float("inf"))
         >= config.SPECIAL_PHRASE_COOLDOWN
     )
     if (

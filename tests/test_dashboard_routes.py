@@ -931,7 +931,10 @@ def test_server_card_dashboard_canonical_href_and_routing():
 
     # 2. initDash normaliza cualquier acceso raíz a la sub-pestaña activa (por defecto /inicio)
     assert "!location.pathname.split('/')[4]" in dash_js
-    assert "history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);" in dash_js
+    assert (
+        "history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);"
+        in dash_js
+    )
 
     # 3. DEPLOY.md documenta la regex que captura tanto /dashboard como /dashboard/*
     assert "location ~ ^/(es|en|ru|ja|de)/dashboard(/.*)?$ {" in deploy_md
@@ -994,7 +997,15 @@ def test_dashboard_category_grouped_collapsible_navigation():
     # 1. Definición de categorías conceptuales reales (sin anime ni placeholders inventados)
     assert "export const CATEGORIES" in dash_js
     assert "export const MODULES" in dash_js
-    for cat in ["principal", "alertas", "anuncios", "automatizacion", "entretenimiento", "utilidades", "premium"]:
+    for cat in [
+        "principal",
+        "alertas",
+        "anuncios",
+        "automatizacion",
+        "entretenimiento",
+        "utilidades",
+        "premium",
+    ]:
         assert f"key: '{cat}'" in dash_js
 
     assert "anime" not in dash_js.lower()
@@ -1055,6 +1066,38 @@ def test_dashboard_availability_and_resilience_architecture():
     # 4. Manejo seguro de listas vacías y null-safety en panel-shell
     assert "Array.isArray(channels)" in panel_shell_js
     assert "Array.isArray(roles)" in panel_shell_js
-    assert "setChannelCache((data && Array.isArray(data.channels)) ? data.channels : []);" in panel_shell_js
+    assert (
+        "setChannelCache((data && Array.isArray(data.channels)) ? data.channels : []);"
+        in panel_shell_js
+    )
 
 
+def test_dashboard_frontend_node_suite():
+    """Ejecuta los tests del frontend con Node.js verificando que dash.js y sus módulos
+    se importen, evalúen y rendericen correctamente sin SyntaxError ni fallas de estado."""
+    import shutil
+    import subprocess
+
+    node_bin = shutil.which("node")
+    if not node_bin:
+        pytest.skip("Node.js no está instalado en el entorno")
+
+    res_dash = subprocess.run(
+        [node_bin, str(LANDING / "test_dash.mjs")],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    assert res_dash.returncode == 0, (
+        f"test_dash.mjs falló:\nSTDOUT:\n{res_dash.stdout}\nSTDERR:\n{res_dash.stderr}"
+    )
+
+    res_hist = subprocess.run(
+        [node_bin, str(LANDING / "test_historial.mjs")],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    assert res_hist.returncode == 0, (
+        f"test_historial.mjs falló:\nSTDOUT:\n{res_hist.stdout}\nSTDERR:\n{res_hist.stderr}"
+    )

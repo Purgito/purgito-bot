@@ -218,7 +218,6 @@ export const TABS = [
 const FOCUS_TABS = ['embeds'];
 let _sidebarCollapsed = false;
 let _loadEpoch = 0;
-let _cachedGuilds = null;
 let _activeGuild = null;
 let _serverPickerOpen = false;
 
@@ -1070,6 +1069,17 @@ function quickActionCard(iconName, title, desc, onClick) {
   return el('button', {
     type: 'button',
     class: 'quick-action-card',
+    onclick: onClick,
+  },
+    el('div', { class: 'quick-action-icon-wrap' }, icon(iconName)),
+    el('div', { class: 'quick-action-info' },
+      el('div', { class: 'quick-action-title' }, title),
+      el('div', { class: 'quick-action-desc dim' }, desc)
+    ),
+    el('span', { class: 'quick-action-arrow dim' }, '→')
+  );
+}
+
 async function loadInicio() {
   const box = content();
   if (box) {

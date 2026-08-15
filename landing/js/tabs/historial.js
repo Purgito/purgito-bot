@@ -101,7 +101,7 @@ export async function loadHistorial() {
     datePreset: 'all',
     dateFrom: '',
     dateTo: '',
-    limit: 10,
+    limit: PAGE_SIZE,
     cursor: null,
     hasMore: false,
     users: [],
