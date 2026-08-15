@@ -275,3 +275,136 @@ def test_api_channels_marca_elegibilidad_de_simulador(fake_guild, monkeypatch):
     sim_channels = data_sim["channels"]
     assert len(sim_channels) == 1
     assert sim_channels[0]["id"] == "1"
+
+
+def test_canal_sin_historial_devuelve_403(fake_guild):
+    no_history_channel = SimpleNamespace(
+        id=23,
+        name="sin-historial",
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=True, read_message_history=False
+        ),
+    )
+    fake_guild._channels[23] = no_history_channel
+    fake_guild.me = SimpleNamespace(id=111)
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "23"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "leer el historial" in data["error"]
+
+
+def test_hilo_sin_permiso_enviar_hilos_devuelve_403(fake_guild):
+    thread_channel = SimpleNamespace(
+        id=24,
+        name="hilo-solo-lectura",
+        parent=SimpleNamespace(id=10),
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True,
+            send_messages_in_threads=False,
+        ),
+    )
+    fake_guild._channels[24] = thread_channel
+    fake_guild.me = SimpleNamespace(id=111)
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "24"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "enviar mensajes en este hilo" in data["error"]
+
+
+def test_hilo_bloqueado_devuelve_403(fake_guild):
+    locked_thread = SimpleNamespace(
+        id=25,
+        name="hilo-bloqueado",
+        parent=SimpleNamespace(id=10),
+        locked=True,
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True,
+            send_messages_in_threads=True,
+        ),
+    )
+    fake_guild._channels[25] = locked_thread
+    fake_guild.me = SimpleNamespace(id=111)
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "25"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "bloqueado" in data["error"]
+
+
+def test_bot_sin_miembro_en_guild_devuelve_403(fake_guild):
+    channel = SimpleNamespace(
+        id=26,
+        name="canal-cualquiera",
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=True, read_message_history=True
+        ),
+    )
+    fake_guild._channels[26] = channel
+    fake_guild.me = None
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "26"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "no se pudo verificar los permisos" in data["error"]
+
+
+def test_revocacion_dinamica_de_permisos(fake_guild, monkeypatch):
+    """Si el canal era válido al listar pero se revocan permisos antes de simular,
+    el endpoint POST /chat/playground debe rechazar con 403."""
+    class DynamicChannel:
+        def __init__(self, id, name):
+            self.id = id
+            self.name = name
+            self.can_send = True
+
+        def permissions_for(self, me):
+            return SimpleNamespace(
+                view_channel=True,
+                send_messages=self.can_send,
+                read_message_history=True,
+            )
+
+    dyn_channel = DynamicChannel(30, "dinamico")
+    fake_guild._channels[30] = dyn_channel
+    fake_guild.text_channels = [dyn_channel]
+    fake_guild.me = SimpleNamespace(id=111)
+
+    async def fake_empty_ignored(guild_id):
+        return []
+
+    monkeypatch.setattr(webapi, "list_ignored_channels", fake_empty_ignored)
+
+    # 1. Al cargar la lista con ?for=simulator, el canal aparece
+    req = FakeRequest()
+    req.query = {"for": "simulator"}
+    resp = asyncio.run(webapi._api_channels(req))
+    data = _json(resp)
+    assert len(data["channels"]) == 1
+    assert data["channels"][0]["id"] == "30"
+
+    # 2. Se revocan los permisos de enviar mensajes en Discord
+    dyn_channel.can_send = False
+
+    # 3. La simulación POST sobre ese canal debe fallar con 403 inmediatamente
+    resp_post = _run(FakeRequest(body={"message": "hola", "channel_id": "30"}))
+    assert resp_post.status == 403
+    assert "enviar mensajes" in _json(resp_post)["error"]
+
+    # 4. Al volver a consultar canales, ya no aparece
+    resp_reloaded = asyncio.run(webapi._api_channels(req))
+    data_reloaded = _json(resp_reloaded)
+    assert len(data_reloaded["channels"]) == 0
+
+    # 5. Se restauran permisos en Discord
+    dyn_channel.can_send = True
+    resp_restored = asyncio.run(webapi._api_channels(req))
+    data_restored = _json(resp_restored)
+    assert len(data_restored["channels"]) == 1
+    assert data_restored["channels"][0]["id"] == "30"
+
