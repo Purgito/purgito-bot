@@ -2,6 +2,7 @@ import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, toast } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
+import { watchTasks } from '/js/core/tasks.js';
 
 const GIFS_PAGE = 30;
 let _gifPool = [];
@@ -280,6 +281,10 @@ export async function loadGifs() {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs`);
     box.innerHTML = '';
 
+    const taskBanner = el('div', { class: 'task-banner-wrap' });
+    box.append(taskBanner);
+    watchTasks(taskBanner);
+
     _gifPool = data.gifs;
     _gifLimit = data.limit || 0;
     _gifStatsEl = el('div', { class: 'dim gif-stats' });
@@ -303,7 +308,8 @@ export async function loadGifs() {
           const msg = resp.checking < resp.total
             ? `Verificando los ${resp.checking} más antiguos de ${resp.total} GIFs — el resto se cubre en próximos ciclos`
             : `Verificación de ${resp.total} GIFs iniciada en segundo plano`;
-          toast(`${msg} — recarga esta sección en unos minutos`, 'ok');
+          toast(msg, 'ok');
+          watchTasks(taskBanner);
         } catch (e) {
           toast(e.status === 429 ? 'Ya hay una verificación reciente — espera antes de disparar otra' : e.message, e.status === 429 ? 'warn' : 'err');
         } finally {

@@ -19,6 +19,7 @@ from types import SimpleNamespace
 import pytest
 
 import cogs.chat as chat_mod
+import tasks
 from cogs.chat import Chat
 
 _EMPTY_RESULT = {
@@ -137,15 +138,17 @@ def test_el_guard_se_libera_incluso_si_la_corrida_real_tira_una_excepcion(
     asyncio.run(run())
 
 
-# ─── Sección 5, ronda 2: /refeed_channels vs _refeed_running (guard hermano) ─
+# ─── Sección 5, ronda 2: /refeed_channels vs _refeed_task_running (guard hermano) ─
 #
-# El chequeo de _refeed_running DENTRO del comando (antes de mandar "Empezando…")
-# no tiene un await entre la lectura y el registro real (eso pasa adentro de
-# start_refeed_channels, que sí es atómico) -- así que dos invocaciones casi
-# simultáneas pueden pasar LAS DOS ese primer chequeo. La corrida real sigue
-# protegida (start_refeed_channels es atómico), pero antes del fix la
-# perdedora se quedaba con su mensaje "Empezando…" como si su propia corrida
-# hubiera arrancado, cuando en realidad no hizo nada.
+# El chequeo de _refeed_task_running DENTRO del comando (antes de mandar
+# "Empezando…") no tiene un await entre la lectura y el registro real (eso
+# pasa adentro de start_refeed_channels, que sí es atómico: task_manager.create
+# es sync, igual que el dict.__setitem__ de antes de la Fase 3 de TaskManager)
+# -- así que dos invocaciones casi simultáneas pueden pasar LAS DOS ese
+# primer chequeo. La corrida real sigue protegida (start_refeed_channels es
+# atómico), pero antes del fix la perdedora se quedaba con su mensaje
+# "Empezando…" como si su propia corrida hubiera arrancado, cuando en
+# realidad no hizo nada.
 
 
 class _FakeResponse:
@@ -192,10 +195,12 @@ class _FakeInteraction:
 
 
 @pytest.fixture(autouse=True)
-def _clean_refeed_running():
-    chat_mod._refeed_running.clear()
+def _clean_task_manager():
+    tm = tasks.get_task_manager()
+    tm._tasks.clear()
+    tm._locks.clear()
+    tm._expires_at.clear()
     yield
-    chat_mod._refeed_running.clear()
 
 
 def test_refeed_channels_dos_invocaciones_casi_simultaneas_la_perdedora_no_miente(
@@ -212,7 +217,7 @@ def test_refeed_channels_dos_invocaciones_casi_simultaneas_la_perdedora_no_mient
     release = asyncio.Event()
     calls = 0
 
-    async def fake_refeed_guild(guild, progress_msg, report_channel):
+    async def fake_refeed_guild(guild, progress_msg, report_channel, task_id=None):
         nonlocal calls
         calls += 1
         await release.wait()

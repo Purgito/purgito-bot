@@ -1,21 +1,17 @@
-// Dashboard por servidor (/es/dashboard/:id): header con datos del guild, tabs
-// INICIO/CHAT/GIFS/MEMES/EMBEDS/PREMIUM/YOUTUBE/HISTORIAL y el contenido de
-// INICIO y CHAT, que guardan solo al click (sin botón de guardar) y
-// confirman con un toast. GIFS, EMBEDS y PREMIUM reutilizan los loaders del
-// panel sin tocarles la lógica; YOUTUBE e HISTORIAL son paridad nueva de la
-// categoría YouTube de /settings y de audit_log/db.py respectivamente.
+// Dashboard por servidor (/es/dashboard/:id): selector de servidor persistente,
+// navegación por categorías de Purgito, buscador global (Ctrl + K),
+// Inicio como resumen ejecutivo y módulos de configuración.
 //
-// El navbar y el footer NO se arman acá: vienen en el HTML de la página, que
-// build_docs.py recorta de index.html. script.js es quien resuelve la sesión
-// en el navbar; este módulo solo pinta lo que va debajo.
+// Reutiliza los loaders de GIFS, EMBEDS, PREMIUM, YOUTUBE e HISTORIAL sin
+// tocar su lógica.
 
 import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
   confirmDelBtn, helpIcon, accordionGroup,
 } from '/js/core/dom.js';
-import { GUILD_ID, currentLocale } from '/js/core/config.js';
-import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
+import { GUILD_ID, setGuildId, clearGuildCaches, currentLocale } from '/js/core/config.js';
+import { getChannels, getRoles, channelSelect, roleSelect, content } from '/js/panel-shell.js';
 import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import { loadYoutube } from '/js/tabs/youtube.js';
@@ -24,7 +20,287 @@ import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
 } from '/js/embeds/shared-ui.js';
 
-const TABS = [
+// ---------------- ESTRUCTURA DE MÓDULOS Y CATEGORÍAS ----------------
+
+export const CATEGORIES = [
+  { key: 'principal', label: 'Principal', icon: 'home' },
+  { key: 'sociales', label: 'Alertas sociales', icon: 'bell' },
+  { key: 'anime', label: 'Alertas de Anime', icon: 'film' },
+  { key: 'anuncios', label: 'Anuncios', icon: 'layout' },
+  { key: 'automatizacion', label: 'Automatización', icon: 'zap' },
+  { key: 'entretenimiento', label: 'Entretenimiento', icon: 'image' },
+  { key: 'tienda', label: 'Tienda de servidor', icon: 'shoppingBag' },
+  { key: 'utilidades', label: 'Utilidades', icon: 'sliders' },
+  { key: 'premium', label: 'Purgito Premium', icon: 'star' },
+];
+
+export const MODULES = [
+  // Principal
+  {
+    key: 'inicio',
+    cat: 'principal',
+    label: 'Inicio',
+    icon: 'home',
+    desc: 'Resumen del servidor, estado de Purgito y accesos rápidos',
+    keywords: ['dashboard', 'resumen', 'estado', 'general', 'servidor', 'inicio'],
+    load: loadInicio,
+  },
+  {
+    key: 'chat',
+    cat: 'principal',
+    label: 'Ajustes de Chat',
+    icon: 'chat',
+    desc: 'Comportamiento, probabilidades, canales y límites del chat',
+    keywords: ['chat', 'ajustes', 'markov', 'probabilidad', 'menciones', 'espontaneo', 'comportamiento'],
+    load: loadChatTab,
+  },
+  {
+    key: 'estilo',
+    cat: 'principal',
+    label: 'Personalización',
+    icon: 'palette',
+    desc: 'Apariencia de Purgito en este servidor: nick, avatar y banner',
+    keywords: ['estilo', 'personalizacion', 'nick', 'apodo', 'avatar', 'banner', 'foto', 'apariencia'],
+    load: loadEstiloModule,
+  },
+  {
+    key: 'playground',
+    cat: 'principal',
+    label: 'Chatbot IA',
+    icon: 'play',
+    desc: 'Simula y prueba la generación de Markov en vivo',
+    keywords: ['ia', 'chatbot', 'playground', 'probar', 'simular', 'markov', 'generacion'],
+    load: loadPlaygroundModule,
+  },
+  {
+    key: 'historial',
+    cat: 'principal',
+    label: 'Auditoría',
+    icon: 'history',
+    desc: 'Registro de cambios y auditoría de acciones realizadas',
+    keywords: ['auditoria', 'historial', 'logs', 'registro', 'cambios', 'seguridad'],
+    load: loadHistorial,
+  },
+
+  // Alertas sociales
+  {
+    key: 'youtube',
+    cat: 'sociales',
+    label: 'YouTube',
+    icon: 'youtube',
+    desc: 'Avisos automáticos de nuevos videos en canales de YouTube',
+    keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
+    load: loadYoutube,
+  },
+  {
+    key: 'bluesky',
+    cat: 'sociales',
+    label: 'Bluesky',
+    icon: 'bell',
+    badge: 'Próximamente',
+    desc: 'Avisos automáticos de publicaciones en Bluesky',
+    keywords: ['bluesky', 'redes', 'social', 'posts', 'alertas'],
+    load: () => showSoonModule('Bluesky', 'Alertas automáticas de publicaciones de Bluesky para tu comunidad.'),
+  },
+  {
+    key: 'instagram',
+    cat: 'sociales',
+    label: 'Instagram',
+    icon: 'bell',
+    badge: 'Próximamente',
+    desc: 'Avisos de publicaciones, reels e historias de Instagram',
+    keywords: ['instagram', 'fotos', 'reels', 'historias', 'alertas'],
+    load: () => showSoonModule('Instagram', 'Alertas de publicaciones e historias de Instagram.'),
+  },
+  {
+    key: 'kick',
+    cat: 'sociales',
+    label: 'Kick',
+    icon: 'bell',
+    badge: 'Próximamente',
+    desc: 'Notificaciones de transmisiones en vivo en Kick',
+    keywords: ['kick', 'streams', 'directos', 'en vivo', 'alertas'],
+    load: () => showSoonModule('Kick', 'Notificaciones de streams en directo en Kick.'),
+  },
+  {
+    key: 'reddit',
+    cat: 'sociales',
+    label: 'Reddit',
+    icon: 'bell',
+    badge: 'Próximamente',
+    desc: 'Avisos automáticos de nuevos posts en subreddits',
+    keywords: ['reddit', 'subreddits', 'posts', 'comunidad', 'alertas'],
+    load: () => showSoonModule('Reddit', 'Notificaciones automáticas de nuevos posts en Reddit.'),
+  },
+  {
+    key: 'tiktok',
+    cat: 'sociales',
+    label: 'TikTok',
+    icon: 'bell',
+    badge: 'Próximamente',
+    desc: 'Avisos automáticos de nuevos videos de TikTok',
+    keywords: ['tiktok', 'videos', 'creadores', 'alertas'],
+    load: () => showSoonModule('TikTok', 'Avisos automáticos de nuevos videos de TikTok.'),
+  },
+  {
+    key: 'twitch',
+    cat: 'sociales',
+    label: 'Twitch',
+    icon: 'bell',
+    badge: 'Próximamente',
+    desc: 'Notificaciones de transmisiones en directo en Twitch',
+    keywords: ['twitch', 'streamers', 'directos', 'en vivo', 'alertas'],
+    load: () => showSoonModule('Twitch', 'Notificaciones de directos en Twitch.'),
+  },
+
+  // Alertas de Anime
+  {
+    key: 'anime_ep',
+    cat: 'anime',
+    label: 'Episodios',
+    icon: 'film',
+    badge: 'Próximamente',
+    desc: 'Avisos de nuevos episodios de anime en emisión',
+    keywords: ['anime', 'episodios', 'capitulos', 'estrenos', 'emision'],
+    load: () => showSoonModule('Episodios de Anime', 'Notificaciones automáticas de nuevos episodios de anime en emisión.'),
+  },
+  {
+    key: 'anime_news',
+    cat: 'anime',
+    label: 'Noticias',
+    icon: 'newspaper',
+    badge: 'Próximamente',
+    desc: 'Noticias y estrenos de la industria del anime',
+    keywords: ['anime', 'noticias', 'manga', 'estrenos', 'titulares'],
+    load: () => showSoonModule('Noticias de Anime', 'Titulares y novedades del mundo del anime.'),
+  },
+
+  // Anuncios
+  {
+    key: 'embeds',
+    cat: 'anuncios',
+    label: 'Diseñador de Mensajes',
+    icon: 'layout',
+    desc: 'Editor visual de embeds clásicos y bloques interactivos Layout V2',
+    keywords: ['embeds', 'anuncios', 'mensajes', 'diseñador', 'plantillas', 'layout', 'botones'],
+    load: loadEmbeds,
+  },
+  {
+    key: 'updates',
+    cat: 'anuncios',
+    label: 'Canal de Novedades',
+    icon: 'bell',
+    desc: 'Canal donde Purgito publica sus anuncios y actualizaciones',
+    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal'],
+    load: loadUpdatesModule,
+  },
+
+  // Automatización
+  {
+    key: 'triggers',
+    cat: 'automatizacion',
+    label: 'Triggers de canal',
+    icon: 'zap',
+    desc: 'Respuestas automáticas por coincidencia de texto o regex',
+    keywords: ['triggers', 'automatizacion', 'regex', 'patrones', 'coincidencias', 'respuestas'],
+    load: loadTriggersModule,
+  },
+  {
+    key: 'reacciones',
+    cat: 'automatizacion',
+    label: 'Reacciones automáticas',
+    icon: 'smile',
+    desc: 'Reacciona automáticamente con emojis configurados en mensajes',
+    keywords: ['reacciones', 'emojis', 'automatizacion', 'reaccionar', 'caritas'],
+    load: loadReaccionesModule,
+  },
+  {
+    key: 'frases',
+    cat: 'automatizacion',
+    label: 'Frases y Packs',
+    icon: 'sparkle',
+    desc: 'Frases personalizadas y paquetes temáticos organizados por canal',
+    keywords: ['frases', 'packs', 'especiales', 'personalizadas', 'mensajes'],
+    load: loadFrasesModule,
+  },
+
+  // Entretenimiento
+  {
+    key: 'gifs',
+    cat: 'entretenimiento',
+    label: 'GIFs',
+    icon: 'film',
+    desc: 'Galería de GIFs del servidor para respuestas y comandos',
+    keywords: ['gifs', 'galeria', 'animaciones', 'tenor', 'giphy', 'entretenimiento'],
+    load: loadGifs,
+  },
+  {
+    key: 'memes',
+    cat: 'entretenimiento',
+    label: 'Memes',
+    icon: 'image',
+    desc: 'Generación automática de memes y plantillas',
+    keywords: ['memes', 'imagenes', 'generador', 'plantillas', 'entretenimiento'],
+    load: loadMemes,
+  },
+
+  // Tienda de servidor
+  {
+    key: 'tienda',
+    cat: 'tienda',
+    label: 'Tienda',
+    icon: 'shoppingBag',
+    badge: 'Próximamente',
+    desc: 'Recompensas e ítems personalizados para los miembros del servidor',
+    keywords: ['tienda', 'economia', 'items', 'compras', 'recompensas'],
+    load: () => showSoonModule('Tienda de servidor', 'Tienda e ítems personalizados para tu comunidad.'),
+  },
+
+  // Utilidades
+  {
+    key: 'canales',
+    cat: 'utilidades',
+    label: 'Canales y Permisos',
+    icon: 'sliders',
+    desc: 'Matriz de lectura/respuesta y canales o roles ignorados',
+    keywords: ['canales', 'permisos', 'matriz', 'exentos', 'ignorados', 'silenciados', 'aprender'],
+    load: loadCanalesModule,
+  },
+  {
+    key: 'corpus',
+    cat: 'utilidades',
+    label: 'Importar Mensajes',
+    icon: 'corpus',
+    desc: 'Sube un archivo .txt para entrenar el estilo de chat de Purgito',
+    keywords: ['corpus', 'importar', 'txt', 'mensajes', 'entrenar', 'aprendizaje'],
+    load: loadCorpusModule,
+  },
+  {
+    key: 'amnesia',
+    cat: 'utilidades',
+    label: 'Amnesia / Limpieza',
+    icon: 'trash',
+    desc: 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
+    keywords: ['amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset'],
+    load: loadAmnesiaModule,
+  },
+
+  // Purgito Premium
+  {
+    key: 'premium',
+    cat: 'premium',
+    label: 'Purgito Premium',
+    icon: 'star',
+    badge: 'PREMIUM',
+    badgeType: 'premium',
+    desc: 'Memoria ampliada a 50.000 mensajes, 4.000 GIFs y soporte prioritario',
+    keywords: ['premium', 'suscripcion', 'polar', 'planes', 'limites', 'cupo', '50000'],
+    load: loadPremium,
+  },
+];
+
+// Compatibilidad con TABS existentes
+export const TABS = [
   { key: 'inicio', label: 'INICIO', icon: 'home', load: loadInicio },
   { key: 'chat', label: 'CHAT', icon: 'chat', load: loadChatTab },
   { key: 'gifs', label: 'GIFS', icon: 'film', load: loadGifs },
@@ -37,6 +313,10 @@ const TABS = [
 
 const FOCUS_TABS = ['embeds'];
 let _sidebarCollapsed = false;
+let _loadEpoch = 0;
+let _cachedGuilds = null;
+let _activeGuild = null;
+let _serverPickerOpen = false;
 
 function isFocusTab(key) {
   return FOCUS_TABS.includes(key);
@@ -72,7 +352,6 @@ function currentChatSubtab() {
   return CHAT_SUBTABS.some(t => t.key === key) ? key : 'comportamiento';
 }
 
-// Setter de sub-pestaña de CHAT registrado cuando el tab CHAT está montado
 let _activeChatSubtabSetter = null;
 let _chatHashHandler = null;
 
@@ -88,9 +367,336 @@ function navigateChatSubtab(key) {
 }
 
 function currentTab() {
-  const key = location.pathname.split('/')[4] || 'inicio';
-  return TABS.some(t => t.key === key) ? key : 'inicio';
+  const seg = location.pathname.split('/')[4] || 'inicio';
+  return MODULES.some(m => m.key === seg) ? seg : 'inicio';
 }
+
+// ---------------- PERSISTENCIA DE CATEGORÍAS EN SIDEBAR ----------------
+
+const CAT_STORAGE_KEY = 'purgito_dash_collapsed_cats';
+
+function getCollapsedCategories() {
+  try {
+    const raw = localStorage.getItem(CAT_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveCollapsedCategories(set) {
+  try {
+    localStorage.setItem(CAT_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch (e) { /* ignore */ }
+}
+
+function toggleCategoryCollapse(catKey) {
+  const set = getCollapsedCategories();
+  if (set.has(catKey)) set.delete(catKey);
+  else set.add(catKey);
+  saveCollapsedCategories(set);
+  renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+}
+
+// ---------------- SELECTOR DE SERVIDOR PERSISTENTE ----------------
+
+async function fetchUserGuilds(force = false) {
+  if (!_cachedGuilds || force) {
+    _cachedGuilds = await apiFetch('/api/me/guilds' + (force ? '?refresh=1' : ''));
+  }
+  return _cachedGuilds;
+}
+
+function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
+  const picker = el('div', { class: 'server-picker' });
+  const configured = (guildsData && guildsData.configured) || [];
+  const available = (guildsData && guildsData.available) || [];
+
+  const trigger = el('button', {
+    type: 'button',
+    class: 'server-picker-btn' + (_serverPickerOpen ? ' active' : ''),
+    'aria-haspopup': 'true',
+    'aria-expanded': String(_serverPickerOpen),
+    title: activeGuild ? activeGuild.name : 'Seleccionar servidor',
+    onclick: (e) => {
+      e.stopPropagation();
+      _serverPickerOpen = !_serverPickerOpen;
+      renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+    },
+  },
+    activeGuild ? guildIcon(activeGuild) : el('div', { class: 'guild-icon guild-initial' }, '?'),
+    el('div', { class: 'server-picker-info' },
+      el('div', { class: 'server-picker-name' }, activeGuild ? activeGuild.name : 'Servidor'),
+      el('div', { class: 'server-picker-sub dim' },
+        activeGuild && activeGuild.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null,
+        activeGuild && activeGuild.member_count != null ? `${Number(activeGuild.member_count).toLocaleString('es')} miembros` : 'Cambiar servidor'
+      )
+    ),
+    el('span', { class: 'server-picker-caret' }, icon('chevronDown'))
+  );
+
+  picker.append(trigger);
+
+  if (_serverPickerOpen) {
+    const searchInput = el('input', {
+      type: 'search',
+      class: 'server-dropdown-search',
+      placeholder: 'Buscar servidor…',
+      autocomplete: 'off',
+    });
+
+    const listContainer = el('div', { class: 'server-dropdown-list' });
+
+    function renderList() {
+      const q = searchInput.value.trim().toLowerCase();
+      listContainer.innerHTML = '';
+
+      const filteredConfigured = configured.filter(g =>
+        !q || (g.name || '').toLowerCase().includes(q) || (g.id || '').includes(q)
+      );
+
+      const filteredAvailable = available.filter(g =>
+        !q || (g.name || '').toLowerCase().includes(q) || (g.id || '').includes(q)
+      );
+
+      if (!filteredConfigured.length && !filteredAvailable.length) {
+        listContainer.append(el('div', { class: 'server-dropdown-empty dim' }, 'No se encontraron servidores.'));
+        return;
+      }
+
+      if (filteredConfigured.length) {
+        listContainer.append(el('div', { class: 'server-dropdown-header' }, 'Tus servidores con Purgito'));
+        for (const g of filteredConfigured) {
+          const isCurrent = g.id === GUILD_ID;
+          const row = el('button', {
+            type: 'button',
+            class: 'server-dropdown-item' + (isCurrent ? ' active' : ''),
+            onclick: () => {
+              _serverPickerOpen = false;
+              if (!isCurrent) onSelectGuild(g.id);
+              else renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+            },
+          },
+            guildIcon(g),
+            el('div', { class: 'server-dropdown-item-info' },
+              el('div', { class: 'server-dropdown-item-name' },
+                g.name,
+                g.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null
+              ),
+              el('div', { class: 'server-dropdown-item-sub dim' },
+                isCurrent ? 'Servidor activo' : (g.member_count != null ? `${Number(g.member_count).toLocaleString('es')} miembros` : '')
+              )
+            ),
+            isCurrent ? el('span', { class: 'server-dropdown-check' }, icon('check')) : null
+          );
+          listContainer.append(row);
+        }
+      }
+
+      if (filteredAvailable.length) {
+        listContainer.append(el('div', { class: 'server-dropdown-header' }, 'Otros servidores que administras'));
+        for (const g of filteredAvailable) {
+          const row = el('a', {
+            class: 'server-dropdown-item server-dropdown-item--invite',
+            href: g.invite_url || `https://discord.com/oauth2/authorize?client_id=1471724794411089920&guild_id=${g.id}&scope=bot%20applications.commands&permissions=8`,
+            target: '_blank',
+            rel: 'noopener',
+          },
+            guildIcon(g),
+            el('div', { class: 'server-dropdown-item-info' },
+              el('div', { class: 'server-dropdown-item-name' }, g.name),
+              el('div', { class: 'server-dropdown-item-sub dim' }, 'Invitar a Purgito')
+            ),
+            el('span', { class: 'server-dropdown-ext' }, icon('externalLink'))
+          );
+          listContainer.append(row);
+        }
+      }
+    }
+
+    searchInput.oninput = renderList;
+
+    const dropdown = el('div', { class: 'server-dropdown-menu' },
+      el('div', { class: 'server-dropdown-search-wrap' },
+        icon('search'),
+        searchInput
+      ),
+      listContainer,
+      el('div', { class: 'server-dropdown-footer' },
+        el('a', { class: 'server-dropdown-manage-link', href: `/${currentLocale()}/perfil/servidores` },
+          'Administrar todos los servidores →'
+        )
+      )
+    );
+
+    picker.append(dropdown);
+    setTimeout(() => searchInput.focus(), 50);
+  }
+
+  return picker;
+}
+
+// ---------------- BUSCADOR GLOBAL DE MÓDULOS (Ctrl + K) ----------------
+
+let _commandPaletteOpen = false;
+
+function openCommandPalette() {
+  if (_commandPaletteOpen) return;
+  _commandPaletteOpen = true;
+
+  let selectedIndex = 0;
+  let matches = [];
+
+  const backdrop = el('div', { class: 'cmd-palette-backdrop' });
+  const modal = el('div', { class: 'cmd-palette-modal' });
+
+  const input = el('input', {
+    type: 'search',
+    class: 'cmd-palette-input',
+    placeholder: 'Buscar módulo, ajuste o comando…',
+    autocomplete: 'off',
+  });
+
+  const resultsList = el('div', { class: 'cmd-palette-results' });
+
+  function close() {
+    _commandPaletteOpen = false;
+    backdrop.remove();
+  }
+
+  function getCategoryLabel(catKey) {
+    const cat = CATEGORIES.find(c => c.key === catKey);
+    return cat ? cat.label : catKey;
+  }
+
+  function renderResults() {
+    const q = input.value.trim().toLowerCase();
+    resultsList.innerHTML = '';
+
+    matches = MODULES.filter(m => {
+      if (!q) return true;
+      if (m.label.toLowerCase().includes(q)) return true;
+      if (m.desc.toLowerCase().includes(q)) return true;
+      if (m.cat.toLowerCase().includes(q)) return true;
+      if (getCategoryLabel(m.cat).toLowerCase().includes(q)) return true;
+      if (m.keywords && m.keywords.some(k => k.toLowerCase().includes(q))) return true;
+      return false;
+    });
+
+    if (!matches.length) {
+      resultsList.append(el('div', { class: 'cmd-palette-empty dim' }, `No se encontraron módulos para "${input.value}".`));
+      return;
+    }
+
+    if (selectedIndex >= matches.length) selectedIndex = matches.length - 1;
+    if (selectedIndex < 0) selectedIndex = 0;
+
+    let currentCat = null;
+    matches.forEach((m, idx) => {
+      if (!q && m.cat !== currentCat) {
+        currentCat = m.cat;
+        resultsList.append(el('div', { class: 'cmd-palette-group-title' }, getCategoryLabel(m.cat)));
+      }
+
+      const isSelected = idx === selectedIndex;
+      const itemNode = el('div', {
+        class: 'cmd-palette-item' + (isSelected ? ' active' : ''),
+        onclick: () => {
+          close();
+          activate(m.key, true);
+        },
+      },
+        el('div', { class: 'cmd-palette-item-icon' }, icon(m.icon)),
+        el('div', { class: 'cmd-palette-item-info' },
+          el('div', { class: 'cmd-palette-item-title' },
+            m.label,
+            m.badge ? el('span', { class: `badge badge-${m.badgeType || 'soon'} badge-xs` }, m.badge) : null
+          ),
+          el('div', { class: 'cmd-palette-item-desc dim' }, m.desc)
+        ),
+        el('span', { class: 'cmd-palette-item-cat' }, getCategoryLabel(m.cat))
+      );
+
+      if (isSelected) {
+        setTimeout(() => itemNode.scrollIntoView({ block: 'nearest' }), 0);
+      }
+
+      resultsList.append(itemNode);
+    });
+  }
+
+  input.oninput = () => {
+    selectedIndex = 0;
+    renderResults();
+  };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (matches.length) {
+        selectedIndex = (selectedIndex + 1) % matches.length;
+        renderResults();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (matches.length) {
+        selectedIndex = (selectedIndex - 1 + matches.length) % matches.length;
+        renderResults();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (matches.length && matches[selectedIndex]) {
+        const chosen = matches[selectedIndex];
+        close();
+        activate(chosen.key, true);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+  };
+
+  backdrop.onclick = (e) => {
+    if (e.target === backdrop) close();
+  };
+
+  const header = el('div', { class: 'cmd-palette-header' },
+    icon('search'),
+    input,
+    el('kbd', { class: 'cmd-palette-kbd' }, 'ESC')
+  );
+
+  const footer = el('div', { class: 'cmd-palette-footer' },
+    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, '↑↓'), ' para navegar'),
+    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, '↵'), ' para abrir'),
+    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, 'ESC'), ' para cerrar')
+  );
+
+  modal.append(header, resultsList, footer);
+  backdrop.append(modal);
+  document.body.append(backdrop);
+
+  renderResults();
+  setTimeout(() => input.focus(), 50);
+}
+
+// Atajo global Ctrl + K / Cmd + K
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openCommandPalette();
+  }
+});
+
+// Cerrar selector de servidor al hacer click fuera
+document.addEventListener('click', (e) => {
+  if (_serverPickerOpen && !e.target.closest('.server-picker')) {
+    _serverPickerOpen = false;
+    renderSidebar(currentTab(), currentTab() === 'chat' ? currentChatSubtab() : null);
+  }
+});
+
+// ---------------- RENDERIZADO DE SIDEBAR ----------------
 
 function renderSidebar(activeTab, activeSubtab) {
   const nav = document.getElementById('dashTabs');
@@ -99,28 +705,26 @@ function renderSidebar(activeTab, activeSubtab) {
   nav.innerHTML = '';
   updateSidebarLayoutState();
 
-  const activeTabObj = TABS.find(t => t.key === activeTab) || TABS[0];
+  const activeModuleObj = MODULES.find(m => m.key === activeTab) || MODULES[0];
   const activeSubtabObj = activeTab === 'chat'
     ? (CHAT_SUBTABS.find(s => s.key === activeSubtab) || CHAT_SUBTABS[0])
     : null;
 
-  // Botón colapsar / expandir en desktop
+  // Botón colapsar / expandir en desktop (rail mode)
   const collapseBtn = el('button', {
     type: 'button',
     class: 'dash-sidebar-collapse-btn',
     title: _sidebarCollapsed ? 'Mostrar navegación' : 'Ocultar navegación',
     'aria-label': _sidebarCollapsed ? 'Mostrar navegación' : 'Ocultar navegación',
     'aria-expanded': String(!_sidebarCollapsed),
-    onclick: () => {
-      toggleSidebarCollapse();
-    },
+    onclick: () => toggleSidebarCollapse(),
   }, icon(_sidebarCollapsed ? 'panelOpen' : 'panelClose'));
 
   const header = el('div', { class: 'dash-sidebar-header' }, collapseBtn);
 
-  // Toggle para móvil
+  // Selector móvil
   const currentLabelWrap = el('span', { class: 'dash-mobile-nav-current' },
-    el('span', { class: 'dash-mobile-tab-name' }, activeTabObj.label),
+    el('span', { class: 'dash-mobile-tab-name' }, activeModuleObj.label),
     activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-sep' }, '·') : null,
     activeSubtabObj ? el('span', { class: 'dash-mobile-subtab-name' },
       activeSubtabObj.key === 'playground' ? 'Probar' : activeSubtabObj.label) : null
@@ -147,85 +751,164 @@ function renderSidebar(activeTab, activeSubtab) {
   }
 
   const inner = el('div', { class: 'dash-sidebar-inner' });
-  const list = el('ul', { class: 'dash-sidebar-list' });
 
-  for (const t of TABS) {
-    const isTabActive = t.key === activeTab;
-    const item = el('li', {
-      class: 'dash-sidebar-item' + (isTabActive ? ' active' : '') + (t.key === 'chat' && isTabActive ? ' has-subtabs' : ''),
+  // 1. Selector de servidor persistente
+  if (!_sidebarCollapsed) {
+    const serverPickerNode = buildServerPicker(_activeGuild, _cachedGuilds, (newGuildId) => {
+      closeMobileNav();
+      selectGuild(newGuildId);
     });
+    inner.append(serverPickerNode);
 
-    const tabLink = el('a', {
-      class: 'dash-tab' + (isTabActive ? ' active' : ''),
-      'data-key': t.key,
-      href: `/${currentLocale()}/dashboard/${GUILD_ID}/${t.key}`,
-      'aria-current': isTabActive ? 'page' : null,
-      title: t.label,
-      onclick: (ev) => {
-        ev.preventDefault();
+    // 2. Buscador rápido de módulos (Ctrl + K)
+    const cmdSearchBtn = el('button', {
+      type: 'button',
+      class: 'dash-cmd-search-btn',
+      title: 'Buscar módulo (Ctrl + K)',
+      onclick: () => {
         closeMobileNav();
-        activate(t.key, true);
+        openCommandPalette();
       },
     },
-      icon(t.icon),
-      el('span', { class: 'dash-tab-label' }, t.label)
+      icon('search'),
+      el('span', { class: 'dash-cmd-search-text' }, 'Buscar módulo…'),
+      el('kbd', { class: 'dash-cmd-search-badge' }, '⌘K')
     );
-
-    item.append(tabLink);
-
-    if (t.key === 'chat' && isTabActive && !_sidebarCollapsed) {
-      const subList = el('ul', { class: 'dash-subtabs-list' });
-      for (const st of CHAT_SUBTABS) {
-        const isSubActive = st.key === (activeSubtab || 'comportamiento');
-        if (st.key === 'playground') {
-          subList.append(
-            el('li', { class: 'dash-subtab-try-item' },
-              el('a', {
-                class: 'dash-subtab dash-subtab-try' + (isSubActive ? ' active' : ''),
-                'data-key': 'playground',
-                href: '#playground',
-                onclick: (ev) => {
-                  ev.preventDefault();
-                  closeMobileNav();
-                  navigateChatSubtab('playground');
-                },
-              },
-                el('span', { class: 'try-sparkle', 'aria-hidden': 'true' }, '✦'),
-                'Probar configuración'))
-          );
-        } else {
-          subList.append(
-            el('li', {},
-              el('a', {
-                class: 'dash-subtab' + (isSubActive ? ' active' : ''),
-                'data-key': st.key,
-                href: `#${st.key}`,
-                onclick: (ev) => {
-                  ev.preventDefault();
-                  closeMobileNav();
-                  navigateChatSubtab(st.key);
-                },
-              }, st.label))
-          );
-        }
-      }
-      item.append(subList);
-    }
-
-    list.append(item);
+    inner.append(cmdSearchBtn);
   }
 
-  inner.append(list);
+  // 3. Categorías y módulos
+  const collapsedCats = getCollapsedCategories();
+
+  for (const cat of CATEGORIES) {
+    const catModules = MODULES.filter(m => m.cat === cat.key);
+    if (!catModules.length) continue;
+
+    const hasActiveModule = catModules.some(m => m.key === activeTab);
+    const isCollapsed = !_sidebarCollapsed && collapsedCats.has(cat.key) && !hasActiveModule;
+
+    const catGroup = el('div', {
+      class: 'dash-sidebar-cat-group' + (isCollapsed ? ' is-collapsed' : ''),
+    });
+
+    if (!_sidebarCollapsed) {
+      const catHeader = el('button', {
+        type: 'button',
+        class: 'dash-sidebar-cat-header',
+        'aria-expanded': String(!isCollapsed),
+        onclick: () => toggleCategoryCollapse(cat.key),
+      },
+        el('span', { class: 'dash-sidebar-cat-title' }, cat.label),
+        el('span', { class: 'dash-sidebar-cat-chev' }, icon('chevronDown'))
+      );
+      catGroup.append(catHeader);
+    }
+
+    const list = el('ul', { class: 'dash-sidebar-list' });
+
+    for (const m of catModules) {
+      const isTabActive = m.key === activeTab;
+      const item = el('li', {
+        class: 'dash-sidebar-item' + (isTabActive ? ' active' : '') + (m.key === 'chat' && isTabActive ? ' has-subtabs' : ''),
+      });
+
+      const tabLink = el('a', {
+        class: 'dash-tab' + (isTabActive ? ' active' : ''),
+        'data-key': m.key,
+        href: `/${currentLocale()}/dashboard/${GUILD_ID}/${m.key}`,
+        'aria-current': isTabActive ? 'page' : null,
+        title: m.label,
+        onclick: (ev) => {
+          ev.preventDefault();
+          closeMobileNav();
+          activate(m.key, true);
+        },
+      },
+        icon(m.icon),
+        el('span', { class: 'dash-tab-label' }, m.label),
+        m.badge ? el('span', { class: `badge badge-${m.badgeType || 'soon'} badge-xs` }, m.badge) : null
+      );
+
+      item.append(tabLink);
+
+      // Sub-pestañas para CHAT cuando está activo
+      if (m.key === 'chat' && isTabActive && !_sidebarCollapsed) {
+        const subList = el('ul', { class: 'dash-subtabs-list' });
+        for (const st of CHAT_SUBTABS) {
+          const isSubActive = st.key === (activeSubtab || 'comportamiento');
+          if (st.key === 'playground') {
+            subList.append(
+              el('li', { class: 'dash-subtab-try-item' },
+                el('a', {
+                  class: 'dash-subtab dash-subtab-try' + (isSubActive ? ' active' : ''),
+                  'data-key': 'playground',
+                  href: '#playground',
+                  onclick: (ev) => {
+                    ev.preventDefault();
+                    closeMobileNav();
+                    navigateChatSubtab('playground');
+                  },
+                },
+                  el('span', { class: 'try-sparkle', 'aria-hidden': 'true' }, '✦'),
+                  'Probar configuración'))
+            );
+          } else {
+            subList.append(
+              el('li', {},
+                el('a', {
+                  class: 'dash-subtab' + (isSubActive ? ' active' : ''),
+                  'data-key': st.key,
+                  href: `#${st.key}`,
+                  onclick: (ev) => {
+                    ev.preventDefault();
+                    closeMobileNav();
+                    navigateChatSubtab(st.key);
+                  },
+                }, st.label))
+            );
+          }
+        }
+        item.append(subList);
+      }
+
+      list.append(item);
+    }
+
+    catGroup.append(list);
+    inner.append(catGroup);
+  }
+
   nav.append(header, toggleBtn, inner);
 }
 
-function activate(key, push) {
+// ---------------- CAMBIO REACTIVO DE SERVIDOR ----------------
+
+export async function selectGuild(newGuildId) {
+  if (!newGuildId || newGuildId === GUILD_ID) return;
+
+  setGuildId(newGuildId);
+  clearGuildCaches();
+  _loadEpoch++;
+
+  const curTab = currentTab();
+  history.pushState({}, '', `/${currentLocale()}/dashboard/${newGuildId}/${curTab}`);
+
+  await loadHead();
+  activate(curTab, false);
+  toast('Cambiando al servidor…', 'ok');
+}
+
+// ---------------- ACTIVACIÓN DE MÓDULO ----------------
+
+export function activate(key, push) {
   _sidebarCollapsed = isFocusTab(key);
   const currentSub = key === 'chat' ? currentChatSubtab() : null;
   renderSidebar(key, currentSub);
+
   if (push) {
     history.pushState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${key}`);
   }
+
   if (key !== 'chat') {
     _activeChatSubtabSetter = null;
     if (_chatHashHandler) {
@@ -233,42 +916,66 @@ function activate(key, push) {
       _chatHashHandler = null;
     }
   }
+
   if (key === 'inicio') {
     loadHead();
   }
-  TABS.find(t => t.key === key).load();
+
+  const mod = MODULES.find(m => m.key === key) || MODULES[0];
+  mod.load();
 }
+
+// ---------------- CABECERA (TOP BAR / BREADCRUMB) ----------------
 
 async function loadHead() {
   const head = document.getElementById('dashHead');
+  if (!head) return;
+
   const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
-    el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver atrás');
+    el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver a servidores');
+
   try {
-    const data = await apiFetch('/api/me/guilds');
+    const data = await fetchUserGuilds();
     const g = data.configured.find(x => x.id === GUILD_ID);
+    _activeGuild = g;
+
     if (!g) {
       head.innerHTML = '';
       head.append(back);
       content().append(emptyState('No encontramos ese servidor entre los que administras.'));
-      document.getElementById('dashTabs').hidden = true;
+      const tabs = document.getElementById('dashTabs');
+      if (tabs) tabs.hidden = true;
       return;
     }
+
     document.title = `${g.name} · Purgito`;
     head.innerHTML = '';
-    head.append(back,
-      el('div', { class: 'dash-guild' },
-        guildIcon(g),
-        el('div', { class: 'dash-guild-info' },
-          el('h1', { class: 'dash-guild-name' }, g.name,
-            g.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null),
-          el('div', { class: 'dash-guild-members dim' },
-            icon('members'),
-            g.member_count != null ? `${Number(g.member_count).toLocaleString('es')} miembros` : 'Servidor'))));
+
+    const topBar = el('div', { class: 'dash-topbar' },
+      back,
+      el('div', { class: 'dash-topbar-actions' },
+        el('button', {
+          type: 'button',
+          class: 'dash-quick-search-btn',
+          title: 'Buscar módulo (Ctrl + K)',
+          onclick: () => openCommandPalette(),
+        },
+          icon('search'),
+          el('span', { class: 'dash-quick-search-label' }, 'Buscar módulo…'),
+          el('kbd', {}, '⌘K')
+        ),
+        g.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null
+      )
+    );
+
+    head.append(topBar);
   } catch (e) {
     head.innerHTML = '';
     head.append(back);
   }
 }
+
+// ---------------- INICIALIZACIÓN ----------------
 
 export function initDash() {
   loadHead();
@@ -282,10 +989,18 @@ export function initDash() {
       history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);
     }
   }
-  window.onpopstate = () => activate(currentTab(), false);
+  window.onpopstate = () => {
+    const rawGuild = location.pathname.split('/')[3] || '';
+    if (rawGuild && rawGuild !== GUILD_ID) {
+      setGuildId(rawGuild);
+      clearGuildCaches();
+      loadHead();
+    }
+    activate(currentTab(), false);
+  };
 }
 
-// Cerrar menú móvil al presionar Escape o hacer click afuera
+// Cerrar menú móvil con Escape
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') {
     const nav = document.getElementById('dashTabs');
@@ -297,6 +1012,7 @@ document.addEventListener('keydown', (ev) => {
   }
 });
 
+// Cerrar menú móvil al clickear fuera
 document.addEventListener('click', (ev) => {
   const nav = document.getElementById('dashTabs');
   if (nav && nav.classList.contains('open') && !nav.contains(ev.target)) {
@@ -307,14 +1023,39 @@ document.addEventListener('click', (ev) => {
 });
 
 if (GUILD_ID) initDash();
-else document.getElementById('dashHead').append(
-  emptyState('Falta el id del servidor en la dirección.'));
+else {
+  const head = document.getElementById('dashHead');
+  if (head) head.append(emptyState('Falta el id del servidor en la dirección.'));
+}
 
-// ---------------- INICIO ----------------
+// ---------------- MÓDULO: PRÓXIMAMENTE ----------------
 
-/* "14.982 / 15.000" cuando hay cupo conocido, el número solo si no. El
-   denominador es lo que le da contexto a estas tarjetas: sin él, nada le dice al
-   admin que al tocar el techo el bot empieza a descartar lo más viejo. */
+function showSoonModule(title, description) {
+  const box = content();
+  box.append(
+    el('div', { class: 'module-soon-card' },
+      el('div', { class: 'module-soon-icon' }, icon('sparkle')),
+      el('h2', { class: 'module-soon-title' }, title),
+      el('p', { class: 'module-soon-desc dim' }, description),
+      el('span', { class: 'badge badge-soon' }, 'Próximamente en Purgito'),
+      el('div', { class: 'module-soon-actions' },
+        el('button', {
+          class: 'btn btn-secondary',
+          onclick: () => activate('inicio', true),
+        }, '← Volver a Inicio'),
+        el('a', {
+          class: 'btn btn-primary',
+          href: 'https://discord.gg/5U7HKyxnBv',
+          target: '_blank',
+          rel: 'noopener',
+        }, 'Sugerir en Discord')
+      )
+    )
+  );
+}
+
+// ---------------- REDISEÑO DE INICIO (DASHBOARD EJECUTIVO) ----------------
+
 function withCap(used, cap) {
   if (used == null) return null;
   const n = Number(used).toLocaleString('es');
@@ -324,7 +1065,7 @@ function withCap(used, cap) {
     el('span', { class: 'stat-num-cap dim' }, ` / ${Number(cap).toLocaleString('es')}`));
 }
 
-function statTile(iconName, value, label) {
+function statTile(iconName, value, label, subtext) {
   const valEl = el('div', { class: 'stat-value' });
   if (value instanceof Node) {
     valEl.append(value);
@@ -335,12 +1076,31 @@ function statTile(iconName, value, label) {
     el('div', { class: 'stat-icon-wrap' }, icon(iconName)),
     el('div', { class: 'stat-content' },
       el('div', { class: 'stat-label dim' }, label),
-      valEl));
+      valEl,
+      subtext ? el('div', { class: 'stat-sub dim' }, subtext) : null
+    ));
+}
+
+function quickActionCard(iconName, title, desc, onClick) {
+  return el('button', {
+    type: 'button',
+    class: 'quick-action-card',
+    onclick: onClick,
+  },
+    el('div', { class: 'quick-action-icon-wrap' }, icon(iconName)),
+    el('div', { class: 'quick-action-info' },
+      el('div', { class: 'quick-action-title' }, title),
+      el('div', { class: 'quick-action-desc dim' }, desc)
+    ),
+    el('span', { class: 'quick-action-arrow' }, '→')
+  );
 }
 
 async function loadInicio() {
   const box = content();
   box.append(spinner());
+  const epoch = _loadEpoch;
+
   try {
     const [style, updates, stats, channels] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/style`),
@@ -348,49 +1108,45 @@ async function loadInicio() {
       apiFetch(`/api/server/${GUILD_ID}/stats`),
       getChannels({ force: true }),
     ]);
+
+    if (epoch !== _loadEpoch) return; // Rechaza respuestas desfasadas
     box.innerHTML = '';
 
-    // Tarjeta "Cambiar estilo"
-    const avatar = style.avatar_url || style.current_avatar_url;
-    const nick = style.nick || style.current_nick || 'Purgito';
-    box.append(formGroup('Cambiar estilo',
-      el('div', { class: 'style-card' },
-        el('div', { class: 'style-preview' },
-          avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
-          el('div', {},
-            el('div', { class: 'style-nick' }, nick,
-              el('span', { class: 'dm-badge' }, 'BOT')),
-            el('div', { class: 'dim' }, 'Así se ve Purgito en este servidor'))),
-        el('button', {
-          class: 'btn btn-secondary',
-          onclick: () => openStyleModal(style),
-        }, 'Editar estilo'))));
+    const g = _activeGuild;
 
-    // Canal de actualizaciones del bot (diseño compacto en fila)
-    const sel = channelSelect(channels, updates.channel_id, 'Sin canal — no publicar');
-    sel.onchange = async () => {
-      try {
-        await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
-          method: 'PUT', body: { channel_id: sel.value || null },
-        });
-        toast(sel.value ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
-      } catch (e) { toast('No se pudo guardar el canal, intenta de nuevo', 'err'); }
-    };
-    box.append(formGroup('Actualizaciones del Bot',
-      el('div', { class: 'updates-row' },
-        el('div', { class: 'updates-info' },
-          el('p', { class: 'dim' }, 'Canal donde Purgito publica anuncios y novedades de actualizaciones.')),
-        el('div', { class: 'updates-control' }, sel))));
+    // 1. Resumen / Hero del Servidor
+    const memberText = g && g.member_count != null
+      ? `${Number(g.member_count).toLocaleString('es')} miembros`
+      : 'Servidor de Discord';
 
-    // Estados: lo que el bot tiene guardado y de dónde lee ahora mismo.
+    const serverHero = el('div', { class: 'dash-server-hero' },
+      g ? guildIcon(g) : null,
+      el('div', { class: 'dash-server-hero-info' },
+        el('div', { class: 'dash-server-hero-title-row' },
+          el('h1', { class: 'dash-server-hero-name' }, (g && g.name) || 'Servidor'),
+          g && g.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null
+        ),
+        el('div', { class: 'dash-server-hero-meta dim' },
+          el('span', {}, memberText),
+          el('span', { class: 'meta-sep' }, '·'),
+          el('span', {}, `${stats.text_channels || channels.length} canales`),
+          el('span', { class: 'meta-sep' }, '·'),
+          el('span', { class: 'server-id-mono' }, `ID: ${GUILD_ID}`)
+        )
+      )
+    );
+    box.append(serverHero);
+
+    // 2. Estado y Métricas de Purgito
     const lims = stats.limits || {};
     const tiles = el('div', { class: 'stat-grid' },
-      statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), 'Mensajes guardados'),
-      statTile('film', withCap(stats.gifs, lims.gifs), 'GIFs guardados'),
-      statTile('chat', `${stats.reading_channels} / ${stats.text_channels}`, 'Canales que lee'),
-      statTile('layout', `${stats.reply_channels} / ${stats.text_channels}`, 'Canales donde responde'),
-      statTile('smile', stats.reactions, 'Emojis de reacción'),
-      statTile('sparkle', withCap(stats.frases, lims.frases), 'Frases especiales'));
+      statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), 'Mensajes en memoria', 'Corpus de aprendizaje'),
+      statTile('film', withCap(stats.gifs, lims.gifs), 'GIFs en catálogo', 'Para respuestas y comandos'),
+      statTile('sparkle', withCap(stats.frases, lims.frases), 'Frases especiales', 'Respuestas configuradas'),
+      statTile('chat', `${stats.reading_channels} / ${stats.text_channels || channels.length}`, 'Canales que lee', 'Para armar estilo'),
+      statTile('layout', `${stats.reply_channels} / ${stats.text_channels || channels.length}`, 'Canales que responde', 'Menciones y espontáneos'),
+      statTile('smile', stats.reactions, 'Emojis de reacción', 'Pool activo')
+    );
 
     const alcanzados = [
       [stats.corpus_total, lims.corpus_total, 'mensajes guardados'],
@@ -406,46 +1162,86 @@ async function loadInicio() {
 
     let quotaNotice = null;
     if (alcanzados.length) {
-      quotaNotice = el('p', { class: 'stat-quota-msg dim' },
-        `Has alcanzado el límite de ${alcanzados.map(c => c[2]).join(' y ')}. ` +
-        'Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.');
+      quotaNotice = el('div', { class: 'stat-quota-box stat-quota-box--full' },
+        el('span', { class: 'stat-quota-icon' }, '⚠️'),
+        el('div', { class: 'stat-quota-text' },
+          `Has alcanzado el límite de ${alcanzados.map(c => c[2]).join(' y ')}. ` +
+          'Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.'
+        )
+      );
     } else if (cerca.length) {
-      quotaNotice = el('p', { class: 'stat-quota-msg dim' },
-        `Estás cerca del cupo de ${cerca.map(c => c[2]).join(' y ')}: al alcanzarlo, ` +
-        'Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.');
+      quotaNotice = el('div', { class: 'stat-quota-box stat-quota-box--near' },
+        el('span', { class: 'stat-quota-icon' }, 'ℹ️'),
+        el('div', { class: 'stat-quota-text' },
+          `Estás cerca del cupo de ${cerca.map(c => c[2]).join(' y ')}: al alcanzarlo, ` +
+          'Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.'
+        )
+      );
     }
 
-    const capCanal = lims.corpus_per_channel || 0;
-    const byChannel = el('div', { class: 'stat-channels' },
-      stats.corpus_by_channel.map(c => {
-        const isFull = capCanal && c.count >= capCanal;
-        const isNear = capCanal && c.count >= capCanal * 0.9 && !isFull;
-        const chanLabel = c.name
-          ? el('span', { class: 'stat-chan-name' }, '#' + c.name)
-          : el('span', { class: 'stat-chan-unavailable' },
-              el('span', { class: 'stat-chan-unavail-title' }, 'Canal no disponible'),
-              el('span', { class: 'stat-chan-id dim' }, `ID: ${c.channel_id}`));
-        const countText = capCanal
-          ? `${c.count.toLocaleString('es')} de ${capCanal.toLocaleString('es')} mensajes`
-          : `${c.count.toLocaleString('es')} mensajes`;
-        return el('div', { class: 'stat-channel-row' },
-          chanLabel,
-          el('span', { class: isFull ? 'stat-chan-full' : (isNear ? 'stat-chan-warn' : 'dim') },
-            countText));
-      }));
+    box.append(formGroup('Estado de Purgito en este servidor', tiles, quotaNotice));
 
-    box.append(formGroup('Estado del bot en este servidor',
-      tiles,
-      quotaNotice,
-      stats.corpus_by_channel.length
-        ? el('div', { class: 'stat-by-channel' },
-            el('p', { class: 'dim' }, 'Mensajes guardados por canal:'),
-            byChannel)
-        : null));
+    // 3. Acciones rápidas (Quick Actions)
+    const quickActionsGrid = el('div', { class: 'quick-actions-grid' },
+      quickActionCard('chat', 'Ajustes de Chat', 'Comportamiento, probabilidades y límites de conversación', () => activate('chat', true)),
+      quickActionCard('palette', 'Personalización', 'Personaliza el nombre, avatar y banner de Purgito', () => activate('estilo', true)),
+      quickActionCard('layout', 'Diseñador de Mensajes', 'Crea y programa anuncios con embeds o Layout V2', () => activate('embeds', true)),
+      quickActionCard('film', 'Galería de GIFs', 'Gestiona y verifica la colección de GIFs del servidor', () => activate('gifs', true)),
+      quickActionCard('zap', 'Triggers y Automatización', 'Configura respuestas automáticas y frases clave', () => activate('triggers', true)),
+      quickActionCard('history', 'Auditoría', 'Revisa el historial de cambios y acciones realizadas', () => activate('historial', true))
+    );
 
-    // Logs: acumulado histórico de lo que el bot mandó (guild_counters).
+    box.append(formGroup('Acciones rápidas', quickActionsGrid));
+
+    // 4. Configuración Rápida / Estilo y Actualizaciones
+    const avatar = style.avatar_url || style.current_avatar_url;
+    const nick = style.nick || style.current_nick || 'Purgito';
+
+    const stylePreviewNode = formGroup('Personalización rápida',
+      el('div', { class: 'style-card' },
+        el('div', { class: 'style-preview' },
+          avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
+          el('div', {},
+            el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
+            el('div', { class: 'dim' }, 'Así se ve Purgito en este servidor')
+          )
+        ),
+        el('div', { class: 'style-card-actions' },
+          el('button', {
+            class: 'btn btn-secondary',
+            onclick: () => openStyleModal(style),
+          }, 'Editar estilo'),
+          el('button', {
+            class: 'btn btn-secondary',
+            onclick: () => activate('estilo', true),
+          }, 'Ver opciones →')
+        )
+      )
+    );
+
+    // Canal de actualizaciones
+    const sel = channelSelect(channels, updates.channel_id, 'Sin canal — no publicar');
+    sel.onchange = async () => {
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
+          method: 'PUT', body: { channel_id: sel.value || null },
+        });
+        toast(sel.value ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
+      } catch (e) { toast('No se pudo guardar el canal, intenta de nuevo', 'err'); }
+    };
+
+    const updatesRow = formGroup('Actualizaciones del Bot',
+      el('div', { class: 'updates-row' },
+        el('div', { class: 'updates-info' },
+          el('p', { class: 'dim' }, 'Canal donde Purgito publica anuncios y novedades de actualizaciones.')
+        ),
+        el('div', { class: 'updates-control' }, sel)
+      )
+    );
+
+    // Actividad histórica acumulada
     const counters = stats.counters || {};
-    box.append(formGroup('Actividad',
+    const activityRow = formGroup('Actividad histórica',
       el('p', { class: 'dim' }, 'Actividad acumulada en este servidor desde que se unió Purgito.'),
       el('div', { class: 'activity-grid' },
         el('div', { class: 'activity-card' },
@@ -453,19 +1249,29 @@ async function loadInicio() {
           el('div', { class: 'activity-content' },
             el('div', { class: 'activity-value' }, Number(counters.gifs_enviados || 0).toLocaleString('es')),
             el('div', { class: 'activity-label' }, 'GIFs enviados'),
-            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado'))),
+            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado')
+          )
+        ),
         el('div', { class: 'activity-card' },
           el('div', { class: 'activity-icon-wrap' }, icon('chat')),
           el('div', { class: 'activity-content' },
             el('div', { class: 'activity-value' }, Number(counters.mensajes_enviados || 0).toLocaleString('es')),
             el('div', { class: 'activity-label' }, 'Mensajes enviados'),
-            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado'))))));
-  } catch (e) { renderError(box, e); }
+            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado')
+          )
+        )
+      )
+    );
+
+    box.append(stylePreviewNode, updatesRow, activityRow);
+  } catch (e) {
+    renderError(box, e);
+  }
 }
 
-// Modal "Editar estilo": preview en vivo + subida a R2 (mismo uploader que embeds).
+// ---------------- MODAL DE ESTILO (AVATAR / NICK / BANNER) ----------------
+
 function openStyleModal(style) {
-  // undefined = no tocar; null = remover; string = URL nueva en R2.
   const state = {
     nick: style.nick || '',
     avatar: undefined,
@@ -494,12 +1300,11 @@ function openStyleModal(style) {
         el('div', { class: 'style-nick' },
           nickInput.value.trim() || style.current_nick || 'Purgito',
           el('span', { class: 'dm-badge' }, 'BOT')),
-        el('div', { class: 'dim' }, 'Hoy a las 21:46 — hola, soy yo con el estilo nuevo'))),
+        el('div', { class: 'dim' }, 'Hola, soy Purgito con el estilo de este servidor'))),
       bn ? el('img', { class: 'style-banner', src: bn, alt: '' }) : null);
   }
   nickInput.oninput = renderPreview;
 
-  // Sección de imagen (avatar/banner): checkbox que despliega subir + remover.
   function imageSection(label, key) {
     const body = el('div', { class: 'style-img-body' });
     const check = el('input', { type: 'checkbox' });
@@ -513,8 +1318,7 @@ function openStyleModal(style) {
       } catch (e) { toast(e.message, 'err'); }
     };
     body.append(file,
-      el('button', { class: 'btn btn-secondary btn-sm', onclick: () => file.click() },
-        `Subir ${label}`),
+      el('button', { class: 'btn btn-secondary btn-sm', onclick: () => file.click() }, `Subir ${label}`),
       el('button', {
         class: 'btn btn-danger btn-sm',
         onclick: () => { state[key] = null; renderPreview(); },
@@ -528,7 +1332,7 @@ function openStyleModal(style) {
       el('label', { class: 'toggle' }, check, `Editar ${label}`), body);
   }
 
-  const overlay = panelModal('Editar estilo', el('div', { class: 'style-modal' },
+  const overlay = panelModal('Editar estilo de Purgito', el('div', { class: 'style-modal' },
     el('div', { class: 'field' },
       el('label', {}, 'Nombre de usuario ', counter), nickInput),
     imageSection('Avatar', 'avatar'),
@@ -549,7 +1353,8 @@ function openStyleModal(style) {
             overlay.remove();
             if (r.warning) toast(r.warning, 'warn');
             else toast('Estilo actualizado', 'ok');
-            loadInicio();
+            if (currentTab() === 'inicio') loadInicio();
+            else if (currentTab() === 'estilo') loadEstiloModule();
           } catch (e) {
             btn.disabled = false;
             toast(e.message, 'err');
@@ -559,11 +1364,437 @@ function openStyleModal(style) {
   renderPreview();
 }
 
-// ---------------- CHAT ----------------
+// ---------------- MÓDULOS ESPECÍFICOS DIRECTOS ----------------
 
-// Multi-select con toggle: dropdown con todos los canales, click agrega/quita
-// al toque (autosave); los agregados se listan debajo, con aviso si el bot no
-// tiene permisos de lectura/escritura en el canal.
+async function loadEstiloModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const style = await apiFetch(`/api/server/${GUILD_ID}/style`);
+    box.innerHTML = '';
+
+    const avatar = style.avatar_url || style.current_avatar_url;
+    const nick = style.nick || style.current_nick || 'Purgito';
+
+    box.append(
+      formGroup('Personalización de Purgito',
+        el('p', { class: 'dim' }, 'Modifica cómo se presenta Purgito exclusivamente en este servidor (apodo, avatar y banner de perfil).'),
+        el('div', { class: 'style-card' },
+          el('div', { class: 'style-preview' },
+            avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
+            el('div', {},
+              el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
+              el('div', { class: 'dim' }, 'Vista previa del bot en este servidor')
+            )
+          ),
+          el('button', {
+            class: 'btn btn-primary',
+            onclick: () => openStyleModal(style),
+          }, 'Editar apariencia')
+        )
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadPlaygroundModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const channels = await getChannels();
+    box.innerHTML = '';
+
+    const sel = channelSelect(channels, null, 'Elige un canal…');
+    const input = el('textarea', {
+      rows: '3', placeholder: 'Mensaje de prueba para que Purgito responda…', style: 'width:100%',
+    });
+    const resultBox = el('div', {});
+    const btn = el('button', {
+      class: 'btn btn-primary',
+      onclick: async () => {
+        const message = input.value.trim();
+        if (!sel.value || !message) {
+          toast('Elige un canal y escribe un mensaje de prueba', 'warn');
+          return;
+        }
+        resultBox.innerHTML = '';
+        resultBox.append(spinner());
+        try {
+          const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
+            method: 'POST', body: { channel_id: sel.value, message },
+          });
+          renderPlaygroundResult(resultBox, data);
+        } catch (e) { renderError(resultBox, e); }
+      },
+    }, 'Simular respuesta');
+
+    box.append(
+      formGroup('Chatbot IA — Playground de simulación',
+        el('p', { class: 'dim' },
+          'Prueba la generación de texto con la configuración real y el corpus de cualquier canal, sin enviar mensajes a Discord.'
+        ),
+        el('div', { class: 'field' },
+          el('label', {}, 'Canal de contexto', helpIcon('Simula aplicando overrides y frases asignadas a ese canal.')),
+          sel
+        ),
+        el('div', { class: 'field' },
+          el('label', {}, 'Mensaje de entrada'),
+          input
+        ),
+        btn,
+        resultBox
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadUpdatesModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const [updates, channels] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
+      getChannels({ force: true }),
+    ]);
+    box.innerHTML = '';
+
+    const sel = channelSelect(channels, updates.channel_id, 'Sin canal — no publicar');
+    sel.onchange = async () => {
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
+          method: 'PUT', body: { channel_id: sel.value || null },
+        });
+        toast(sel.value ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
+      } catch (e) { toast('No se pudo guardar el canal, intenta de nuevo', 'err'); }
+    };
+
+    box.append(
+      formGroup('Canal de Novedades y Actualizaciones',
+        el('p', { class: 'dim' }, 'Elige el canal donde Purgito publicará avisos de novedades, notas de versiones y anuncios importantes.'),
+        el('div', { class: 'updates-row' },
+          el('div', { class: 'updates-info' },
+            el('p', { class: 'dim' }, 'Canal configurado actualmente en este servidor:')
+          ),
+          el('div', { class: 'updates-control' }, sel)
+        )
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadTriggersModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const [triggers, channels, frasePacks] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/triggers`),
+      getChannels(),
+      apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
+    ]);
+    box.innerHTML = '';
+
+    const triggersBox = el('div', {});
+    renderTriggers(triggersBox, triggers, channels, frasePacks.packs);
+
+    box.append(
+      formGroup('Triggers de canal',
+        el('p', { class: 'dim' },
+          'Si un mensaje recibido coincide con el patrón configurado, Purgito responderá automáticamente sin esperar una mención.'
+        ),
+        triggersBox
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadReaccionesModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const [chat, reactions] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
+      apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
+    ]);
+    box.innerHTML = '';
+
+    const reaccionesBox = el('div', {});
+    renderReacciones(reaccionesBox, reactions.reactions);
+
+    box.append(
+      formGroup('Reacciones automáticas',
+        el('p', { class: 'dim' }, 'Configura la probabilidad y la colección de emojis con los que Purgito puede reaccionar a los mensajes del chat.'),
+        probabilityField('Probabilidad de reaccionar con un emoji', null, {
+          key: 'reaction_probability',
+          value: chat.reaction_probability,
+        }),
+        el('div', { class: 'field' },
+          el('label', {}, 'Colección de emojis'),
+          reaccionesBox
+        )
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadFrasesModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const [frases, frasePacks, channels, fraseChannels] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
+      apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
+      getChannels(),
+      apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`),
+    ]);
+    box.innerHTML = '';
+
+    const frasesBox = el('div', {});
+    renderFrases(frasesBox, frases.frases, frasePacks.packs, frases.limit);
+
+    const packsBox = el('div', {});
+    renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox, frasePacks.limit);
+
+    const fraseChannelsSelected = new Set(fraseChannels.channels.map(c => c.id));
+    const TAGS = ['{{user.mention}}', '{{user.name}}', '{{channel.name}}',
+      '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
+
+    box.append(
+      formGroup('Frases especiales',
+        el('p', { class: 'dim' }, 'Frases predefinidas que Purgito puede intercalar en sus respuestas o mediante triggers.'),
+        frasesBox,
+        accordionGroup('Variables dinámicas disponibles en frases', false,
+          el('div', { class: 'tag-list' },
+            TAGS.map(t => el('code', { class: 'cmd' }, t))
+          )
+        )
+      ),
+      formGroup('Paquetes de frases (Packs)',
+        el('p', { class: 'dim' }, 'Agrupa frases temáticas para asignarlas a canales específicos o dispararlas mediante triggers.'),
+        packsBox
+      ),
+      accordionGroup('Canales donde pueden salir frases especiales generales', false,
+        channelToggleList({
+          channels,
+          isSelected: id => fraseChannelsSelected.has(id),
+          add: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`, {
+              method: 'POST', body: { channel_id: ch.id },
+            });
+            fraseChannelsSelected.add(ch.id);
+          },
+          remove: async ch => {
+            await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels/${ch.id}`, {
+              method: 'DELETE',
+            });
+            fraseChannelsSelected.delete(ch.id);
+          },
+          listBelow: 'Sin canales específicos seleccionados: pueden salir en cualquiera.',
+        })
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadCanalesModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const [spontaneousChans, mentionChans, corpus, exempt, exemptChans, channels, roles] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
+      apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`),
+      apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
+      apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
+      apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`),
+      getChannels({ force: true }),
+      getRoles(),
+    ]);
+    box.innerHTML = '';
+
+    const spontaneousSelected = new Set(spontaneousChans.channels.map(c => c.id));
+    const mentionSelected = new Set(mentionChans.channels.map(c => c.id));
+    const corpusSelected = new Set(corpus.channels.map(c => c.id));
+    const ignoredSet = new Set(corpus.ignored || []);
+
+    const cols = [
+      {
+        short: 'Habla', onLabel: 'habla por su cuenta acá', offLabel: 'ya no habla solo acá',
+        help: 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
+        isSelected: id => spontaneousSelected.has(id),
+        add: async ch => {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
+            method: 'POST', body: { channel_id: ch.id },
+          });
+          spontaneousSelected.add(ch.id);
+        },
+        remove: async ch => {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels/${ch.id}`, { method: 'DELETE' });
+          spontaneousSelected.delete(ch.id);
+        },
+      },
+      {
+        short: 'Responde', onLabel: 'responde menciones acá', offLabel: 'ya no responde menciones acá',
+        help: 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
+        isSelected: id => mentionSelected.has(id),
+        add: async ch => {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
+            method: 'POST', body: { channel_id: ch.id },
+          });
+          mentionSelected.add(ch.id);
+        },
+        remove: async ch => {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels/${ch.id}`, { method: 'DELETE' });
+          mentionSelected.delete(ch.id);
+        },
+      },
+      {
+        short: 'Aprende', onLabel: 'aprende de acá', offLabel: 'ya no aprende de acá',
+        help: 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
+        isSelected: id => corpusSelected.has(id),
+        add: async ch => {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
+            method: 'POST', body: { channel_id: ch.id },
+          });
+          corpusSelected.add(ch.id);
+        },
+        remove: async ch => {
+          await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/${ch.id}`, { method: 'DELETE' });
+          corpusSelected.delete(ch.id);
+        },
+      },
+    ];
+
+    async function openOverrides(ch, panel) {
+      const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${ch.id}/settings`);
+      const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
+      const rng = (k, d) => lim2[k] || d;
+      panel.innerHTML = '';
+      panel.append(
+        el('div', { class: 'ovr-grid' },
+          channelOverrideRow(ch.id, {
+            key: 'auto_generate_every', label: 'Cada cuántos mensajes', kind: 'number',
+            effective: eff.auto_generate_every, override: ov.auto_generate_every,
+            min: rng('auto_generate_every', [1])[0], max: rng('auto_generate_every', [null, 1000])[1],
+            suffix: 'mensajes',
+          }),
+          channelOverrideRow(ch.id, {
+            key: 'auto_generate_probability', label: 'Probabilidad de hablar', kind: 'percent',
+            effective: eff.auto_generate_probability, override: ov.auto_generate_probability, suffix: '%',
+          }),
+          channelOverrideRow(ch.id, {
+            key: 'gif_response_probability', label: 'Responde con GIF', kind: 'percent',
+            effective: eff.gif_response_probability, override: ov.gif_response_probability, suffix: '%',
+          }),
+          channelOverrideRow(ch.id, {
+            key: 'frase_probability', label: 'Usa una frase especial', kind: 'percent',
+            effective: eff.frase_probability, override: ov.frase_probability, suffix: '%',
+          }),
+          channelOverrideRow(ch.id, {
+            key: 'reaction_probability', label: 'Reacciona con emoji', kind: 'percent',
+            effective: eff.reaction_probability, override: ov.reaction_probability, suffix: '%',
+          }),
+          channelOverrideRow(ch.id, {
+            key: 'mention_rate_limit', label: 'Menciones por hora', kind: 'number',
+            effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
+            min: rng('mention_rate_limit', [0])[0], max: rng('mention_rate_limit', [null, 1000])[1],
+            suffix: 'por usuario',
+          })
+        )
+      );
+    }
+
+    const matrixNode = channelMatrix({ channels, cols, openOverrides });
+
+    const exemptSelected = new Set(exempt.roles.map(r => r.id));
+    const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
+
+    box.append(
+      formGroup('Matriz de canales',
+        ignoredSet.size
+          ? el('p', { class: 'dim' }, ignoredSet.size === 1
+            ? 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.'
+            : `Hay ${ignoredSet.size} canales silenciados desde /settings: quedan fuera aunque los marques acá.`)
+          : null,
+        matrixNode
+      ),
+      formGroup('Exenciones de límites',
+        el('div', { class: 'field' },
+          el('label', {}, 'Roles exentos de límites de menciones'),
+          roleToggleList({
+            roles,
+            selected: exemptSelected,
+            add: async role => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
+                method: 'POST', body: { role_id: role.id },
+              });
+              exemptSelected.add(role.id);
+            },
+            remove: async role => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles/${role.id}`, {
+                method: 'DELETE',
+              });
+              exemptSelected.delete(role.id);
+            },
+            listBelow: 'Ningún rol exento: el límite aplica a todos por igual.',
+          })
+        ),
+        el('div', { class: 'field' },
+          el('label', {}, 'Canales exentos de límites de menciones'),
+          channelToggleList({
+            channels,
+            isSelected: id => exemptChannelsSelected.has(id),
+            add: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`, {
+                method: 'POST', body: { channel_id: ch.id },
+              });
+              exemptChannelsSelected.add(ch.id);
+            },
+            remove: async ch => {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels/${ch.id}`, {
+                method: 'DELETE',
+              });
+              exemptChannelsSelected.delete(ch.id);
+            },
+            listBelow: 'Ningún canal exento: el límite aplica en todos.',
+          })
+        )
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadCorpusModule() {
+  const box = content();
+  box.append(spinner());
+  try {
+    const channels = await getChannels();
+    box.innerHTML = '';
+
+    box.append(
+      formGroup('Importar corpus desde un archivo',
+        el('p', { class: 'dim' },
+          'Sube un archivo .txt con mensajes de texto plano. Cada línea no vacía entra al corpus del canal elegido como si fuera un mensaje real.'
+        ),
+        corpusImportForm(channels)
+      )
+    );
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadAmnesiaModule() {
+  const box = content();
+  box.innerHTML = '';
+  box.append(
+    formGroup('Amnesia / Limpieza de memoria reciente',
+      el('p', { class: 'dim' },
+        'Borra el corpus (mensajes aprendidos y estilo por usuario) de las últimas 24 horas de todo el servidor. Esta acción es irreversible.'
+      ),
+      amnesiaButton()
+    )
+  );
+}
+
+// ---------------- CONFIGURACIÓN DEL CHAT (SUBTABS) ----------------
+
 function channelToggleList({ channels, selected, isSelected, add, remove, listBelow }) {
   const wrap = el('div', { class: 'chan-picker' });
   const panel = el('div', { class: 'dd-panel chan-panel' });
@@ -571,9 +1802,6 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
     'Seleccionar canales…', el('span', { class: 'dd-caret' }, '▾'));
   const dd = el('div', { class: 'dd' }, btn, panel);
   btn.onclick = (e) => { e.stopPropagation(); dd.classList.toggle('open'); };
-  // Chips compactos que wrappean en vez de filas de alto completo (revisión
-  // UX de CHAT): con 15-20 canales seleccionados, una fila por canal se
-  // volvía un scroll largo e incómodo.
   const list = el('div', { class: 'chan-chips' });
 
   let busy = false;
@@ -631,9 +1859,6 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
   return wrap;
 }
 
-/* Import de corpus desde un .txt (Fase 8): sube el archivo tal cual en el
-   body del request (mismo patrón que uploadImageBlob en embeds/shared-ui.js
-   para las imágenes), no un multipart -- el channel_id va en la URL. */
 function corpusImportForm(channels) {
   const chanSel = channelSelect(channels, null, 'Elige un canal…');
   const fileInput = el('input', { type: 'file', accept: '.txt,text/plain' });
@@ -652,8 +1877,6 @@ function corpusImportForm(channels) {
       try {
         r = await fetch(`/api/server/${GUILD_ID}/settings/corpus/import/${chanSel.value}`, {
           method: 'POST', credentials: 'include',
-          // No text/plain: es uno de los tres Content-Type que un <form> ajeno
-          // puede mandar sin preflight de CORS (ver _api_corpus_import_post).
           headers: { 'Content-Type': 'application/octet-stream' },
           body: file,
         });
@@ -678,9 +1901,6 @@ function corpusImportForm(channels) {
     resultBox);
 }
 
-/* Confirmación en dos pasos (mismo patrón que subDeleteActions de
-   tabs/youtube.js): botón -> "¿Seguro? ✓ ✗" -> ejecuta o cancela. Es
-   destructivo e irreversible, no puede dispararse con un solo click. */
 function amnesiaButton() {
   const wrap = el('div', {});
 
@@ -718,14 +1938,6 @@ function amnesiaButton() {
   return wrap;
 }
 
-/* Guarda un ajuste numérico del chat. El backend recorta al rango y devuelve
-   lo que quedó, así que el input se corrige solo si te pasaste. */
-/* Un <input type="number"> dispara `change` en cada paso del stepper nativo
-   (flechita o ↑/↓ con foco), no solo al salir del campo -- confirmado a mano,
-   no es la lectura habitual de "change = onBlur". Bajar 3 puntos de una
-   tocaba 3 PUT y 3 filas de Historial para el mismo campo. Debounce por
-   campo (cada llamada a numberField/probabilityField/channelOverrideRow crea
-   su propio temporizador) junta esos pasos en un solo guardado. */
 function debounce(fn, delayMs) {
   let timer;
   return (...args) => {
@@ -748,9 +1960,6 @@ async function saveTunable(key, value, label, onSaved) {
   }
 }
 
-/* Campo numérico con autoguardado al salir del input (change, no input: no
-   tiene sentido pegarle a la API en cada tecla) -- debounced, ver nota en
-   debounce() arriba. */
 function numberField(label, help, { key, value, min, max, step, suffix, save = saveTunable }) {
   const input = el('input', {
     type: 'number', value: String(value), min: String(min),
@@ -767,11 +1976,6 @@ function numberField(label, help, { key, value, min, max, step, suffix, save = s
     help ? el('p', { class: 'dim' }, help) : null);
 }
 
-/* Probabilidad 0–1 editada como porcentaje entero: input numérico como
-   control primario (se puede escribir el número exacto) + barra de progreso
-   de solo lectura debajo como feedback visual -- reemplaza el slider, que
-   como único control obligaba a arrastrar con el mouse para acertar un
-   número (revisión UX de CHAT). Autoguarda en `change`, igual que antes. */
 function probabilityField(label, help, { key, value, save = saveTunable }) {
   const pct = Math.round(value * 100);
   const input = el('input', {
@@ -793,13 +1997,6 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
     help ? el('p', { class: 'dim' }, help) : null);
 }
 
-/* Ajuste de un canal puntual: una sola fila por tunable, sin checkbox de
-   "override" ni frase de estado repetida campo por campo. El input siempre
-   muestra el valor que rige acá; atenuado mientras lo hereda del servidor,
-   normal (y con botón de volver a heredar) cuando el canal tiene el suyo.
-   Editar el input ES activar el override, y ↺ es sacarlo: dos gestos en vez
-   de tres controles, y el estado lo carga el propio campo en vez de una
-   oración que antes se repetía seis veces por canal. */
 function channelOverrideRow(channelId, spec) {
   const { key, label, help, kind, effective, min, max, suffix } = spec;
   let override = spec.override;
@@ -867,17 +2064,12 @@ function channelOverrideRow(channelId, spec) {
   return row;
 }
 
-/* Multi-select de roles con toggle, gemelo de channelToggleList. Los roles no
-   tienen el problema de permisos de los canales, así que es más simple. */
 function roleToggleList({ roles, selected, add, remove, listBelow }) {
   const panel = el('div', { class: 'dd-panel chan-panel' });
   const btn = el('button', { class: 'dd-trigger' },
     'Seleccionar roles…', el('span', { class: 'dd-caret' }, '▾'));
   const dd = el('div', { class: 'dd' }, btn, panel);
   btn.onclick = (e) => { e.stopPropagation(); dd.classList.toggle('open'); };
-  // Mismos chips que los canales: en Límites conviven las dos listas y una
-  // como filas altas junto a la otra como chips se veía como dos componentes
-  // distintos sin motivo.
   const list = el('div', { class: 'chan-chips' });
 
   let busy = false;
@@ -927,63 +2119,6 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
   return el('div', { class: 'chan-picker' }, dd, list);
 }
 
-// Sub-pestañas del tab CHAT (no confundir con TABS, que son las principales
-// del dashboard). Viven en el hash de la URL —#canales, #personalidad…— en
-// vez de un segmento de path, porque el path ya está tomado por el tab
-// principal ('chat') y por el GUILD_ID.
-//
-// Cada sub-pestaña es una intención del admin ("qué hace", "dónde", "cuánto
-// aguanta", "qué dice"), no el nombre del campo en la DB. El orden es la
-// jerarquía: no hay captions de grupo intercalados entre los links —
-// competían por el mismo espacio que los tabs clickeables.
-//
-// 'Por canal' ya no existe como pestaña: vive dentro de Canales, que es el
-// contexto donde se piensa ("en #general quiero que hable más"). Frases y
-// Triggers se unificaron en Contenido: las dos son lo que Purgito dice, y
-// un trigger referencia un pack de frases.
-
-// El listener de hashchange (soporta el botón atrás/adelante y links directos
-// a #frases, etc.) vive en `_chatHashHandler`, declarado arriba junto a
-// activate() — ver el comentario ahí sobre por qué no puede declararse acá.
-
-// Banner "Primeros pasos" (revisión UX de CHAT): sin canales de aprendizaje
-// nada del resto de la config tiene efecto práctico, así que esa es la única
-// señal que chequeamos -- preferible a un AND de varias condiciones (tunables
-// en default + sin frases + sin triggers...), que además de más frágil
-// parpadearía en estados de config parcial. Dismissible, no modal: no hay
-// wizard que interrumpa. El dismiss se guarda en localStorage por guild (no
-// en la DB, sin aprobación para eso todavía): si el admin administra más de
-// un servidor, cerrarlo en uno no debe ocultarlo en los demás. Trade-off
-// conocido: un admin que ya configuró todo y después queda con la lista de
-// canales vacía (a propósito o por error) va a volver a ver el banner aunque
-// no sea su primera vez -- no hay un estado real de "primera vez" sin tocar
-// el backend, y no hace falta resolverlo en esta pasada.
-function chatOnboardingDismissedKey() {
-  return `purgito_chat_onboarding_dismissed_${GUILD_ID}`;
-}
-
-function buildOnboardingBanner(corpus, activateSubtab) {
-  if (corpus.channels.length > 0) return null;
-  if (localStorage.getItem(chatOnboardingDismissedKey())) return null;
-
-  const banner = el('div', { class: 'onboarding-banner' },
-    el('span', {}, 'Purgito no aprende de ningún canal todavía.'),
-    el('a', {
-      href: '#canales', onclick: (ev) => { ev.preventDefault(); activateSubtab('canales'); },
-    }, 'Elegir canales'),
-    el('button', {
-      class: 'onboarding-dismiss', 'aria-label': 'Cerrar',
-      onclick: () => { localStorage.setItem(chatOnboardingDismissedKey(), '1'); banner.remove(); },
-    }, '✕'));
-  return banner;
-}
-
-/* Matriz de canales: una fila por canal con sus tres pertenencias (habla /
-   responde / aprende) y, plegado, sus ajustes propios. Reemplaza tres
-   dropdowns con tres listas de chips MÁS la sub-pestaña "Por canal": la
-   pregunta real del admin es "¿qué hace Purgito en #general?", y antes había
-   que cruzar cuatro pantallas para contestarla. El filtro de arriba es lo que
-   mantiene esto usable en un server con muchos canales. */
 function channelMatrix({ channels, cols, openOverrides }) {
   const wrap = el('div', { class: 'chan-matrix' });
   const filter = el('input', {
@@ -1052,6 +2187,8 @@ function channelMatrix({ channels, cols, openOverrides }) {
 async function loadChatTab() {
   const box = content();
   box.append(spinner());
+  const epoch = _loadEpoch;
+
   try {
     const [chat, spontaneousChans, mentionChans, corpus, reactions, frases, fraseChannels, frasePacks, triggers, exempt, exemptChans, channels, roles] =
       await Promise.all([
@@ -1069,13 +2206,11 @@ async function loadChatTab() {
         getChannels({ force: true }),
         getRoles(),
       ]);
+
+    if (epoch !== _loadEpoch) return;
     box.innerHTML = '';
     const lim = chat.limits || {};
 
-    // --- Switch maestro: una línea, fuera de las sub-pestañas ---
-    // Antes era un formGroup entero con título y párrafo, ~100px que se comían
-    // en TODAS las sub-pestañas; el detalle de qué apaga exactamente ahora va
-    // en el ⓘ.
     const check = el('input', { type: 'checkbox', checked: chat.enabled });
     check.onchange = async () => {
       try {
@@ -1090,10 +2225,8 @@ async function loadChatTab() {
     };
     box.append(el('div', { class: 'chat-master' },
       el('label', { class: 'toggle' }, check, 'Chat activado'),
-      helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, '
-        + 'las reacciones y los triggers no dependen de este switch.')));
+      helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch.')));
 
-    // --- Sub-pestaña: Canales ---
     function buildCanales() {
       const spontaneousSelected = new Set(spontaneousChans.channels.map(c => c.id));
       const mentionSelected = new Set(mentionChans.channels.map(c => c.id));
@@ -1103,8 +2236,7 @@ async function loadChatTab() {
       const cols = [
         {
           short: 'Habla', onLabel: 'habla por su cuenta acá', offLabel: 'ya no habla solo acá',
-          help: 'Purgito puede arrancar una charla por su cuenta en este canal. '
-            + 'Sin ningún canal marcado, puede hacerlo en todos.',
+          help: 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
           isSelected: id => spontaneousSelected.has(id),
           add: async ch => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
@@ -1119,8 +2251,7 @@ async function loadChatTab() {
         },
         {
           short: 'Responde', onLabel: 'responde menciones acá', offLabel: 'ya no responde menciones acá',
-          help: 'Purgito contesta cuando lo mencionan en este canal. Sin ningún '
-            + 'canal marcado, responde en todos.',
+          help: 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
           isSelected: id => mentionSelected.has(id),
           add: async ch => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
@@ -1135,8 +2266,7 @@ async function loadChatTab() {
         },
         {
           short: 'Aprende', onLabel: 'aprende de acá', offLabel: 'ya no aprende de acá',
-          help: 'Purgito guarda los mensajes de este canal para armar su estilo. '
-            + 'Sin ningún canal marcado, no aprende de nada.',
+          help: 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
           isSelected: id => corpusSelected.has(id),
           add: async ch => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
@@ -1151,8 +2281,6 @@ async function loadChatTab() {
         },
       ];
 
-      // Ajustes propios del canal, plegados dentro de su fila: es el viejo tab
-      // "Por canal" pero sin salir del contexto donde se piensa la pregunta.
       async function openOverrides(ch, panel) {
         const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${ch.id}/settings`);
         const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
@@ -1199,44 +2327,25 @@ async function loadChatTab() {
         channelMatrix({ channels, cols, openOverrides }));
     }
 
-    // --- Sub-pestaña: Datos ---
-    // Importar corpus y Amnesia vivían en Canales solo porque "también son de
-    // CHAT" -- sin relación real con elegir canales de aprendizaje/menciones,
-    // y Amnesia además es destructiva. Canales ya tiene 3 selectores de
-    // canales; meter acciones acá competiría por atención en la misma
-    // pantalla, así que quedan en su propia sub-pestaña (revisión UX de
-    // CHAT).
     function buildDatos() {
       return el('div', {},
         formGroup('Importar corpus desde un archivo',
           el('p', { class: 'dim' },
-            'Sube un .txt: cada línea no vacía entra al corpus del canal '
-            + 'elegido como si fuera un mensaje real, con la misma limpieza y '
-            + 'los mismos límites de siempre.'),
+            'Sube un .txt: cada línea no vacía entra al corpus del canal elegido como si fuera un mensaje real, con la misma limpieza y los mismos límites de siempre.'),
           corpusImportForm(channels)),
         formGroup('Amnesia',
           el('p', { class: 'dim' },
-            'Borra el corpus (mensajes y estilo por usuario) de las últimas '
-            + '24 horas de todo el servidor. Es irreversible.'),
+            'Borra el corpus (mensajes y estilo por usuario) de las últimas 24 horas de todo el servidor. Es irreversible.'),
           amnesiaButton()));
     }
 
-    // --- Sub-pestaña: Comportamiento ---
-    //
-    // Una sola cadena, no dos bloques: los pasos 2 y 3 corren tanto cuando
-    // Purgito arranca solo como cuando contesta una mención (cogs/chat.py:
-    // ~730/736 el camino espontáneo, ~805/812 el de mención, mismos dos
-    // rolls). Solo el paso 1 es exclusivo del camino espontáneo, y eso lo
-    // dice el ⓘ del paso, no un párrafo permanente.
     function buildComportamiento() {
       return el('div', { class: 'chain' },
         el('div', { class: 'chain-step' },
           el('div', { class: 'chain-step-head' },
             el('span', { class: 'chain-num' }, '1'),
             el('h3', {}, '¿Arranca una charla solo?'),
-            helpIcon('Solo para cuando habla por su cuenta (con un piso de silencio de '
-              + '45 s en el canal para no spamear). Si lo mencionan responde directo, '
-              + 'sin pasar por este paso.')),
+            helpIcon('Solo para cuando habla por su cuenta (con un piso de silencio de 45 s en el canal para no spamear). Si lo mencionan responde directo, sin pasar por este paso.')),
           el('div', { class: 'chain-fields' },
             numberField('Cada cuántos mensajes nuevos', null, {
               key: 'auto_generate_every',
@@ -1263,8 +2372,7 @@ async function loadChatTab() {
           el('div', { class: 'chain-step-head' },
             el('span', { class: 'chain-num' }, '3'),
             el('h3', {}, 'Si escribe, ¿frase tuya o inventada?'),
-            helpIcon('Las frases se cargan en Contenido. El resto de las veces '
-              + 'arma el mensaje solo, con lo que aprendió del servidor.')),
+            helpIcon('Las frases se cargan en Contenido. El resto de las veces arma el mensaje solo, con lo que aprendió del servidor.')),
           el('div', { class: 'chain-fields' },
             probabilityField('Usa una frase tuya', null, {
               key: 'frase_probability',
@@ -1272,10 +2380,6 @@ async function loadChatTab() {
             }))));
     }
 
-    // --- Sub-pestaña: Reacciones ---
-    // Aparte de la cadena a propósito: el roll de reaction_probability corre
-    // en cada mensaje que lee, decida hablar o no (cogs/chat.py ~683, antes y
-    // por fuera de auto_generate).
     function buildReacciones() {
       const reaccionesBox = el('div', {});
       renderReacciones(reaccionesBox, reactions.reactions);
@@ -1290,12 +2394,10 @@ async function loadChatTab() {
           reaccionesBox));
     }
 
-    // --- Sub-pestaña: Límites ---
     function buildLimites() {
       const exemptSelected = new Set(exempt.roles.map(r => r.id));
       const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
-      return formGroup(el('span', {}, 'Límite de actividad',
-        helpIcon('0 = sin límite.')),
+      return formGroup(el('span', {}, 'Límite de actividad', helpIcon('0 = sin límite.')),
         numberField('Menciones por hora', null, {
           key: 'mention_rate_limit',
           value: chat.mention_rate_limit,
@@ -1343,11 +2445,6 @@ async function loadChatTab() {
           })));
     }
 
-    // --- Sub-pestaña: Contenido (frases + packs + triggers) ---
-    // Frases y triggers eran dos pestañas separadas pese a ser lo mismo desde
-    // la intención del admin ("qué dice Purgito"), y un trigger encima elige
-    // un pack de frases: separarlas obligaba a saltar de pestaña para armar
-    // una sola cosa. Packs y canales van plegados: son el ajuste fino.
     function buildContenido() {
       const frasesBox = el('div', {});
       renderFrases(frasesBox, frases.frases, frasePacks.packs, frases.limit);
@@ -1363,20 +2460,14 @@ async function loadChatTab() {
         '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
 
       return el('div', {},
-        formGroup(el('span', {}, 'Frases',
-          helpIcon('Con qué frecuencia las usa se ajusta en Comportamiento, paso 3.')),
+        formGroup(el('span', {}, 'Frases', helpIcon('Con qué frecuencia las usa se ajusta en Comportamiento, paso 3.')),
           frasesBox,
           accordionGroup('Tags que puedes usar en una frase', false,
             el('div', { class: 'tag-list' },
               TAGS.map(t => el('code', { class: 'cmd' }, t))))),
-        formGroup(el('span', {}, 'Packs',
-          helpIcon('Un pack agrupa frases y se asigna a canales: ahí solo salen '
-            + 'esas. Una frase sin pack queda en el pool general del servidor.')),
+        formGroup(el('span', {}, 'Packs', helpIcon('Un pack agrupa frases y se asigna a canales: ahí solo salen esas.')),
           packsBox),
-        formGroup(el('span', {}, 'Triggers',
-          helpIcon('Si el mensaje matchea el patrón, Purgito responde sin esperar '
-            + 'mención ni el roll de frecuencia. Con varios en el mismo canal gana '
-            + 'el primero que matchea.')),
+        formGroup(el('span', {}, 'Triggers', helpIcon('Si el mensaje matchea el patrón, Purgito responde sin esperar mención.')),
           triggersBox),
         accordionGroup('Dónde pueden salir las frases especiales', false,
           channelToggleList({
@@ -1398,7 +2489,6 @@ async function loadChatTab() {
           })));
     }
 
-    // --- Sub-pestaña: Playground ---
     function buildPlayground() {
       const sel = channelSelect(channels, null, 'Elige un canal…');
       const input = el('textarea', {
@@ -1426,9 +2516,7 @@ async function loadChatTab() {
 
       return el('div', {},
         el('div', { class: 'field' },
-          el('label', {}, 'Canal', helpIcon(
-            'Simula con la configuración efectiva del canal: overrides, packs y '
-            + 'triggers incluidos. No manda nada de verdad ni gasta cooldowns.')),
+          el('label', {}, 'Canal', helpIcon('Simula con la configuración efectiva del canal.')),
           sel),
         el('div', { class: 'field' }, el('label', {}, 'Mensaje de prueba'), input),
         btn,
@@ -1453,9 +2541,6 @@ async function loadChatTab() {
     const panelsWrap = el('div', { class: 'chat-panels-wrap' }, CHAT_SUBTABS.map(st => panels[st.key]));
     box.append(panelsWrap);
 
-    // Todo se autoguarda al toque (sin botón "Guardar" ni estado sin
-    // confirmar), así que cambiar de sub-pestaña nunca pierde nada: no hay
-    // que preservar más que qué pestaña estaba activa.
     function activateSubtab(key) {
       document.querySelectorAll('.dash-subtab').forEach(n =>
         n.classList.toggle('active', n.dataset.key === key));
@@ -1600,7 +2685,7 @@ async function reloadReacciones(box) {
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`);
     renderReacciones(box, data.reactions);
-  } catch (e) { /* se queda como estaba */ }
+  } catch (e) { /* ignore */ }
 }
 
 async function openAddEmojiModal(box, pool) {
@@ -1642,7 +2727,6 @@ async function openAddEmojiModal(box, pool) {
     tabContent.innerHTML = '';
 
     if (activeTab === 'unicode') {
-      // 1. Input directo
       const input = el('input', {
         type: 'text',
         placeholder: 'Escribe o pega un emoji (ej. 😭)',
@@ -1670,7 +2754,6 @@ async function openAddEmojiModal(box, pool) {
         }, 'Agregar')
       );
 
-      // 2. Recientes (si hay guardados)
       const recents = getRecentEmojis();
       let recentsSection = null;
       if (recents.length > 0) {
@@ -1690,7 +2773,6 @@ async function openAddEmojiModal(box, pool) {
         );
       }
 
-      // 3. Frecuentes
       const freqGrid = el('div', { class: 'emoji-frequent-grid' });
       for (const ch of COMMON_EMOJIS) {
         freqGrid.append(el('button', {
@@ -1713,7 +2795,6 @@ async function openAddEmojiModal(box, pool) {
 
       setTimeout(() => input.focus(), 50);
     } else {
-      // Pestaña: Del servidor
       const searchInput = el('input', {
         type: 'search',
         placeholder: 'Buscar emoji personalizado…',
@@ -1731,7 +2812,6 @@ async function openAddEmojiModal(box, pool) {
 
       setTimeout(() => searchInput.focus(), 50);
 
-      // Cargar emojis del servidor si no están cacheados
       if (!cachedServerEmojis) {
         resultsContainer.append(spinner());
         try {
@@ -1793,7 +2873,6 @@ async function openAddEmojiModal(box, pool) {
 
         resultsContainer.append(grid);
 
-        // Paginación si hay más de 1 página
         if (totalPages > 1) {
           const prevBtn = el('button', {
             type: 'button',
@@ -1836,14 +2915,6 @@ async function openAddEmojiModal(box, pool) {
   renderTabContent();
 }
 
-// `packs` decide si se muestra el selector de pack por frase: sin packs
-// creados todavía no tiene sentido mostrar un <select> con una sola opción.
-/* "12 de 50 usadas" arriba de una lista con cupo. Antes el límite solo se
-   descubría al chocarlo (un 409 al agregar): nada mostraba cuánto quedaba. */
-/* `singular`/`plural` traen ya el participio concordado ('pack usado',
-   'frases usadas'): el género lo pone quien llama, porque acá se usa tanto
-   para frases (femenino) como para packs y triggers (masculino) -- estaba
-   fijo en "usadas" y salía "3 de 10 triggers usadas". */
 function cupoLine(used, limit, singular, plural, lleno_msg) {
   if (!limit) return null;
   const lleno = used >= limit;
@@ -2164,13 +3235,9 @@ async function reloadFrases(box, packs) {
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/frases`);
     renderFrases(box, data.frases, packs, data.limit);
-  } catch (e) { /* se queda como estaba */ }
+  } catch (e) { /* ignore */ }
 }
 
-// Un <details> por pack (colapsado): adentro, sus canales asignados con el
-// mismo channelToggleList de arriba. La lista de canales del pack se pide
-// recién al abrirlo (no en el fetch inicial del tab) porque son N pedidos
-// más, uno por pack, que la mayoría de las veces nadie va a mirar.
 function renderFrasePacks(box, packs, channels, frasesBox, limit) {
   box.innerHTML = '';
   const cupo = cupoLine(packs.length, limit, 'pack usado', 'packs usados',
@@ -2188,16 +3255,12 @@ function renderFrasePacks(box, packs, channels, frasesBox, limit) {
       el('div', { class: 'embed-group-body' },
         channelsBox,
         confirmDelBtn(
-          '¿Eliminar este pack? Sus frases no se borran: vuelven al pool '
-          + 'default del servidor, así que los canales que tenían este pack '
-          + 'asignado van a empezar a usar ese pool.',
+          '¿Eliminar este pack? Sus frases no se borran: vuelven al pool default del servidor.',
           async () => {
             try {
               await apiFetch(`/api/server/${GUILD_ID}/frases/packs/${pack.id}`, { method: 'DELETE' });
               toast('Pack eliminado', 'ok');
             } catch (e) { toast('No se pudo eliminar el pack, intenta de nuevo', 'err'); }
-            // Las frases que tenía el pack volvieron al pool default en la DB
-            // (delete_frase_pack en db.py): refresca también sus selects.
             refreshFrasesAndPacks(frasesBox, box, channels);
           },
           { label: 'Eliminar pack' })));
@@ -2249,9 +3312,6 @@ function renderFrasePacks(box, packs, channels, frasesBox, limit) {
     el('button', { class: 'btn btn-primary', onclick: addPack }, 'Crear pack')));
 }
 
-// Un pack nuevo o eliminado cambia qué opciones tiene el <select> de pack de
-// CADA frase (renderFrases) -- refrescar solo la lista de packs dejaría esos
-// selects desactualizados hasta que se recargue el tab entero.
 async function refreshFrasesAndPacks(frasesBox, packsBox, channels) {
   try {
     const [frasesData, packsData] = await Promise.all([
@@ -2260,14 +3320,12 @@ async function refreshFrasesAndPacks(frasesBox, packsBox, channels) {
     ]);
     renderFrases(frasesBox, frasesData.frases, packsData.packs, frasesData.limit);
     renderFrasePacks(packsBox, packsData.packs, channels, frasesBox, packsData.limit);
-  } catch (e) { /* se queda como estaba */ }
+  } catch (e) { /* ignore */ }
 }
 
 const TRIGGER_MATCH_TYPE_LABELS = {
   exact: 'Texto exacto', starts_with: 'Empieza con', regex: 'Regex',
 };
-/* Los de arriba son rótulos de <option>; en la vista previa van dentro de una
-   oración y en minúscula quedaban como "si el mensaje texto exacto...". */
 const TRIGGER_MATCH_PHRASES = {
   exact: p => `es exactamente "${p}"`,
   starts_with: p => `empieza con "${p}"`,
@@ -2277,11 +3335,6 @@ const TRIGGER_ACTION_LABELS = {
   frase_de_pack: 'Frase de un pack', markov: 'Markov (generado)', mezcla: 'Mezcla (frase o Markov)',
 };
 
-/* Arma la oración legible de un trigger ("#general — Texto exacto "gg" →
-   Frase de un pack (Victorias)"), compartida entre la lista de triggers ya
-   creados y el preview en vivo del formulario de alta -- así ninguno de los
-   dos textos puede quedar desincronizado del otro. `trig` puede ser un
-   trigger real (con id) o el estado actual del formulario (sin id todavía). */
 function describeTrigger(trig, channels, packs) {
   const chan = channels.find(c => c.id === trig.channel_id);
   const pack = trig.pack_id != null && trig.pack_id !== ''
@@ -2402,7 +3455,7 @@ async function reloadTriggers(box, channels, packs) {
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/triggers`);
     renderTriggers(box, data, channels, packs);
-  } catch (e) { /* se queda como estaba */ }
+  } catch (e) { /* ignore */ }
 }
 
 const PLAYGROUND_NO_RESPONSE_LABELS = {
@@ -2416,29 +3469,17 @@ const PLAYGROUND_REASON_LABELS = {
   markov: 'Texto generado (Markov)',
 };
 
-/* Frenos que actúan ANTES del motor de generación. Cada texto dice a qué vía
-   de entrega aplica (mención o hablar solo): el playground no pregunta por
-   cuál llegaría el mensaje, así que un "no respondería" a secas mentiría en
-   la mitad de los casos. Es la respuesta a "¿por qué no me contesta?" que
-   antes el Playground no daba. */
 const PLAYGROUND_AVISO_LABELS = {
   chat_desactivado:
-    'El chat está desactivado: no responde a menciones. Los mensajes '
-    + 'espontáneos, las reacciones y los triggers no dependen de este switch y '
-    + 'siguen saliendo.',
+    'El chat está desactivado: no responde a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch y siguen saliendo.',
   canal_sin_menciones:
-    'Este canal no está en la lista de canales donde responde a menciones: '
-    + 'si lo mencionan acá, avisa que solo contesta en los canales elegidos.',
+    'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan acá, avisa que solo contesta en los canales elegidos.',
   canal_sin_espontaneo:
-    'Este canal no está en la lista de canales donde habla por su cuenta: '
-    + 'acá nunca va a arrancar una charla solo.',
+    'Este canal no está en la lista de canales donde habla por su cuenta: acá nunca va a arrancar una charla solo.',
   cupo_horario_agotado:
-    'Ya agotaste tu cupo de menciones de esta hora: a vos no te contestaría '
-    + 'ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
+    'Ya agotaste tu cupo de menciones de esta hora: a vos no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
   cooldown_espontaneo:
-    'Acabó de hablar solo en este canal: por el piso de silencio entre '
-    + 'mensajes espontáneos no volvería a hacerlo todavía. No afecta a las '
-    + 'menciones.',
+    'Acabó de hablar solo en este canal: por el piso de silencio entre mensajes espontáneos no volvería a hacerlo todavía. No afecta a las menciones.',
 };
 
 function playgroundAvisos(avisos) {
@@ -2469,9 +3510,9 @@ function renderPlaygroundResult(box, data) {
   if (avisos) box.append(avisos);
 }
 
-// ---------------- MEMES (stub) ----------------
+// ---------------- MEMES ----------------
 
 function loadMemes() {
   const box = content();
-  box.append(emptyState('En proceso'));
+  box.append(emptyState('Generación de memes en proceso.'));
 }

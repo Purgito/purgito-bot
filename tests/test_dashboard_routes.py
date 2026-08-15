@@ -937,3 +937,101 @@ def test_server_card_dashboard_canonical_href_and_routing():
 
     # 3. DEPLOY.md documenta la regex que captura tanto /dashboard como /dashboard/*
     assert "location ~ ^/(es|en|ru|ja|de)/dashboard(/.*)?$ {" in deploy_md
+
+
+def test_dashboard_persistent_server_picker_and_global_context():
+    """Verifica el selector persistente de servidor en el sidebar con cambio reactivo sin recarga total."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+    config_js = (LANDING / "js" / "core" / "config.js").read_text("utf-8")
+
+    # 1. Configuración global reactiva
+    assert "export let GUILD_ID" in config_js
+    assert "export function setGuildId" in config_js
+    assert "export function clearGuildCaches" in config_js
+
+    # 2. Selector de servidor en JS
+    assert "buildServerPicker" in dash_js
+    assert "selectGuild" in dash_js
+    assert "fetchUserGuilds" in dash_js
+    assert "server-dropdown-menu" in dash_js
+    assert "server-dropdown-search" in dash_js
+    assert "Tus servidores con Purgito" in dash_js
+    assert "Otros servidores que administras" in dash_js
+
+    # 3. CSS del selector de servidor
+    assert ".server-picker" in dash_css
+    assert ".server-picker-btn" in dash_css
+    assert ".server-dropdown-menu" in dash_css
+    assert ".server-dropdown-item" in dash_css
+    assert ".server-dropdown-search" in dash_css
+
+
+def test_dashboard_command_search_palette_ctrl_k():
+    """Verifica la paleta de comandos global (Ctrl + K / Cmd + K) con búsqueda y navegación por teclado."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+
+    # 1. Paleta de comandos en JS
+    assert "openCommandPalette" in dash_js
+    assert "cmd-palette-modal" in dash_js
+    assert "cmd-palette-input" in dash_js
+    assert "cmd-palette-results" in dash_js
+    assert "e.key.toLowerCase() === 'k'" in dash_js
+
+    # 2. CSS de la paleta
+    assert ".cmd-palette-backdrop" in dash_css
+    assert ".cmd-palette-modal" in dash_css
+    assert ".cmd-palette-input" in dash_css
+    assert ".cmd-palette-item" in dash_css
+    assert ".cmd-palette-footer" in dash_css
+    assert "backdrop-filter: blur(6px)" in dash_css
+
+
+def test_dashboard_category_grouped_collapsible_navigation():
+    """Verifica que la barra lateral organice los módulos por categorías de Purgito con acordeones colapsables y badges."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+
+    # 1. Definición de categorías conceptuales
+    assert "export const CATEGORIES" in dash_js
+    assert "export const MODULES" in dash_js
+    for cat in ["principal", "sociales", "anime", "anuncios", "automatizacion", "entretenimiento", "tienda", "utilidades", "premium"]:
+        assert f"key: '{cat}'" in dash_js
+
+    # 2. Persistencia en localStorage
+    assert "purgito_dash_collapsed_cats" in dash_js
+    assert "toggleCategoryCollapse" in dash_js
+    assert "dash-sidebar-cat-group" in dash_js
+    assert "dash-sidebar-cat-header" in dash_js
+
+    # 3. Badges de módulos
+    assert "badge-soon" in dash_css
+    assert "badge-premium" in dash_css
+    assert "badge-new" in dash_css
+
+
+def test_dashboard_executive_inicio_redesign():
+    """Verifica el rediseño de Inicio como dashboard ejecutivo con resumen del servidor, límites, acciones rápidas y widgets."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+
+    # 1. Hero resumen del servidor
+    assert "dash-server-hero" in dash_js
+    assert "dash-server-hero" in dash_css
+
+    # 2. Métricas y avisos de cupo
+    assert "withCap" in dash_js
+    assert "stat-quota-box" in dash_js
+    assert "stat-quota-box" in dash_css
+
+    # 3. Acciones rápidas (Quick Actions)
+    assert "quickActionCard" in dash_js
+    assert "quick-actions-grid" in dash_js
+    assert "quick-action-card" in dash_css
+
+    # 4. Personalización y Actualizaciones
+    assert "openStyleModal" in dash_js
+    assert "/api/server/${GUILD_ID}/style" in dash_js
+    assert "/api/server/${GUILD_ID}/settings/updates" in dash_js
+

@@ -39,7 +39,12 @@ export function formatDateTime(date) {
 // Solo dígitos: un id inventado a mano en la barra de direcciones muere acá y
 // no llega a armar URLs de API.
 const rawGuild = location.pathname.split('/')[3] || '';
-export const GUILD_ID = /^\d{1,25}$/.test(rawGuild) ? rawGuild : '';
+export let GUILD_ID = /^\d{1,25}$/.test(rawGuild) ? rawGuild : '';
+
+/** Actualiza el ID del servidor activo (binding vivo para los módulos importadores). */
+export function setGuildId(v) {
+  GUILD_ID = /^\d{1,25}$/.test(String(v)) ? String(v) : '';
+}
 
 export let channelCache = null;
 export let roleCache = null;
@@ -49,3 +54,12 @@ export function setChannelCache(v) { channelCache = v; }
 export function setRoleCache(v) { roleCache = v; }
 export function setEmojiCache(v) { emojiCache = v; }
 export function setUploadedImagesCache(v) { uploadedImagesCache = v; }
+
+/** Limpia todos los cachés asociados a un servidor al cambiar de contexto. */
+export function clearGuildCaches() {
+  channelCache = null;
+  roleCache = null;
+  emojiCache = null;
+  uploadedImagesCache = null;
+}
+

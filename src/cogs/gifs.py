@@ -24,6 +24,7 @@ from db import (
     update_gif_media_url,
 )
 from i18n import guild_locale, t
+from tasks import get_task_manager
 from utils import has_admin_permission
 
 log = logging.getLogger(__name__)
@@ -258,21 +259,39 @@ async def get_live_gif(
 HEALTH_CHECK_DELAY = 1.5
 HEALTH_CHECK_BATCH = 500
 
+# Cada cuántos GIFs se reporta avance a la Task (Fase 2 de TaskManager): no
+# vale la pena un update_progress por cada GIF individual si son cientos.
+_HEALTH_CHECK_PROGRESS_INTERVAL = 20
+
 
 async def run_gif_health_check(
-    guild_id: int | None = None, limit: int = HEALTH_CHECK_BATCH
+    guild_id: int | None = None,
+    limit: int = HEALTH_CHECK_BATCH,
+    task_id: str | None = None,
 ) -> int:
     """Revisa hasta `limit` GIFs (de un guild puntual, o de todos si es
     None -- usado por el ciclo diario) contra el propio host y guarda el
     resultado. Usado tanto por el loop periódico como por el botón manual
-    "Verificar GIFs" del panel."""
+    "Verificar GIFs" del panel.
+
+    task_id es opcional: el ciclo diario (guild_id=None) lo llama sin task_id
+    y no reporta progreso a ningún lado, igual que antes de la Fase 2 de
+    TaskManager. El endpoint manual del panel sí pasa un task_id."""
     gifs = await get_gifs_for_health_check(guild_id, limit=limit)
-    for gif in gifs:
+    total = len(gifs)
+    task_manager = get_task_manager() if task_id else None
+    for i, gif in enumerate(gifs, start=1):
         url = gif["media_url"] or gif["url"]
         status = await asyncio.to_thread(r2.check_gif_url_health, url)
         await record_gif_health_check(gif["id"], status)
+        if task_manager is not None and (
+            i % _HEALTH_CHECK_PROGRESS_INTERVAL == 0 or i == total
+        ):
+            await task_manager.update_progress(
+                task_id, current=i, total=total, message="Verificando GIFs..."
+            )
         await asyncio.sleep(HEALTH_CHECK_DELAY)
-    return len(gifs)
+    return total
 
 
 # Un objeto recién subido cuya fila todavía no se guardó (o cuyo guardado

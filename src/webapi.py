@@ -70,6 +70,7 @@ from cogs.chat import simulate_message
 from cogs.gifs import HEALTH_CHECK_BATCH, resolve_tenor_gif_url, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.youtube import resolve_youtube_channel
+from tasks import get_task_manager
 from db import (
     CHAT_TUNABLES,
     MAX_TRIGGER_PATTERN,
@@ -2088,6 +2089,19 @@ async def _api_server_gifs_unblock(request: web.Request, guild_id: int) -> web.R
     return web.json_response({"unblocked": deleted})
 
 
+async def _run_gif_health_check_task(guild_id: int, task_id: str) -> None:
+    task_manager = get_task_manager()
+    try:
+        await run_gif_health_check(guild_id, task_id=task_id)
+    except Exception:
+        log.exception(
+            "Fallo en la verificación de GIFs en background (guild=%s)", guild_id
+        )
+        await task_manager.fail(task_id, error="unknown_error")
+    else:
+        await task_manager.complete(task_id)
+
+
 @guild_api
 async def _api_server_gifs_verify(request: web.Request, guild_id: int) -> web.Response:
     # Dispara el chequeo en background: con cientos/miles de GIFs y el
@@ -2097,10 +2111,41 @@ async def _api_server_gifs_verify(request: web.Request, guild_id: int) -> web.Re
     if not _rate_ok(_rate_gif_verify, ip, 1, window=300.0):
         return web.json_response({"error": "rate limit"}, status=429)
     total = await count_gif_urls(guild_id)
-    asyncio.create_task(run_gif_health_check(guild_id))
+    task_manager = get_task_manager()
+    task = task_manager.create(guild_id=guild_id, type="gif_health_check")
+    await task_manager.start(task.id)
+    asyncio.create_task(_run_gif_health_check_task(guild_id, task.id))
     return web.json_response(
         {"started": True, "total": total, "checking": min(total, HEALTH_CHECK_BATCH)}
     )
+
+
+# ---------------- API: Tasks (TaskManager, Fase 4) ----------------
+#
+# Solo lectura: el Dashboard hace polling condicional de esto mientras haya
+# alguna Task running para el guild (ver landing/js/tabs/gifs.js). error ya
+# viene sanitizado por TaskManager.fail() (Fase 1) -- nunca es un traceback,
+# así que exponerlo tal cual es seguro.
+
+
+def _task_json(task) -> dict:
+    return {
+        "id": task.id,
+        "type": task.type,
+        "status": task.status,
+        "started_at": task.started_at.isoformat() if task.started_at else None,
+        "finished_at": task.finished_at.isoformat() if task.finished_at else None,
+        "progress_current": task.progress_current,
+        "progress_total": task.progress_total,
+        "message": task.message,
+        "error": task.error,
+    }
+
+
+@guild_api
+async def _api_server_tasks_get(request: web.Request, guild_id: int) -> web.Response:
+    tasks = get_task_manager().list_for_guild(guild_id)
+    return web.json_response({"tasks": [_task_json(t) for t in tasks]})
 
 
 # ---------------- API: YouTube (suscripciones, tab del dashboard) ----------------
@@ -3691,6 +3736,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get(f"{base}/roles", _api_roles)
         app.router.add_get(f"{base}/emojis", _api_emojis)
         app.router.add_get(f"{base}/stats", _api_stats)
+        app.router.add_get(f"{base}/tasks", _api_server_tasks_get)
         app.router.add_get(f"{base}/style", _api_style_get)
         app.router.add_put(f"{base}/style", _api_style_put)
         app.router.add_get(f"{base}/settings/chat", _api_chat_get)

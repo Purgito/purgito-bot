@@ -16,6 +16,7 @@ import i18n
 from cogs.gifs import get_live_gif, save_gif_candidates
 from cogs.memes import is_meme_trigger
 from config import REFEED_ALL_MAX_MESSAGES, REFEED_MAX_MESSAGES, get_dashboard_url
+from tasks import get_task_manager
 from db import (
     bump_counter,
     count_corpus_messages,
@@ -45,8 +46,21 @@ from utils import LRUDict, chunk_message, has_admin_permission
 
 log = logging.getLogger(__name__)
 
-# guild_id -> task de /refeed_channels en curso (evita dos corridas en paralelo)
-_refeed_running: dict[int, asyncio.Task] = {}
+
+# Evita dos corridas de /refeed_channels en paralelo para el mismo guild.
+# Antes (Fase 3 de TaskManager) era un dict[guild_id, asyncio.Task] en RAM
+# aparte; ahora es una consulta a TaskManager -- Task ya modela "hay una
+# ejecución de refeed_channels en curso para este guild" (pending o running),
+# así que mantener el dict viejo en paralelo sería una segunda fuente de
+# verdad para lo mismo. El chequeo sigue siendo atómico donde importa (dentro
+# de start_refeed_channels, sin ningún await entre el chequeo y task_manager.create):
+# create() es sync, igual que el registro viejo en el dict.
+def _refeed_task_running(guild_id: int) -> bool:
+    return any(
+        t.type == "refeed_channels" and t.status in ("pending", "running")
+        for t in get_task_manager().list_for_guild(guild_id)
+    )
+
 
 # (guild_id, channel_id) con un _refeed_channel en curso -- _refeed_channel
 # tiene tres entradas independientes (/refeed, /refeed_channels vía
@@ -1412,13 +1426,22 @@ class Chat(commands.Cog):
         }
 
     async def _refeed_guild(
-        self, guild: discord.Guild, progress_msg, report_channel
+        self,
+        guild: discord.Guild,
+        progress_msg,
+        report_channel,
+        task_id: str | None = None,
     ) -> dict:
         """Recorre los canales que están en la allowlist del corpus (los que el
         admin eligió, no todos los canales de texto del guild) editando
         progress_msg con el avance, y manda el resumen final con
         report_channel.send() (no depende de ningún interaction).
-        Retorna el dict totals para que el caller decida el mensaje de cierre."""
+        Retorna el dict totals para que el caller decida el mensaje de cierre.
+
+        task_id es opcional: si viene, reporta a la Task (TaskManager, Fase 3)
+        cuántos canales de la allowlist ya se procesaron -- información
+        distinta y complementaria al cursor persistente por canal en
+        channel_refeed_status, que esta función no toca."""
         totals = {
             "saved": 0,
             "gifs_saved": 0,
@@ -1472,7 +1495,10 @@ class Chat(commands.Cog):
                     exc_info=True,
                 )
 
-        for channel_id in allowed_channel_ids:
+        task_manager = get_task_manager() if task_id else None
+        total_channels = len(allowed_channel_ids)
+
+        for index, channel_id in enumerate(allowed_channel_ids, start=1):
             channel = guild.get_channel(channel_id)
             if not isinstance(channel, discord.TextChannel):
                 continue
@@ -1481,6 +1507,14 @@ class Chat(commands.Cog):
                 continue
             if await is_channel_ignored(guild.id, channel.id):
                 continue
+
+            if task_manager is not None:
+                await task_manager.update_progress(
+                    task_id,
+                    current=index,
+                    total=total_channels,
+                    message=f"Procesando #{channel.name}",
+                )
 
             await update(f"🔄 {channel.mention} — leyendo historial…")
             try:
@@ -1562,21 +1596,26 @@ class Chat(commands.Cog):
     ) -> bool:
         """Lanza el refeed de todo el guild en background. False si ya hay uno corriendo.
         on_done recibe el dict totals del refeed."""
-        existing = _refeed_running.get(guild.id)
-        if existing and not existing.done():
+        task_manager = get_task_manager()
+        if _refeed_task_running(guild.id):
             return False
+        task = task_manager.create(guild_id=guild.id, type="refeed_channels")
 
         async def runner():
+            await task_manager.start(task.id)
             try:
-                totals = await self._refeed_guild(guild, progress_msg, report_channel)
+                totals = await self._refeed_guild(
+                    guild, progress_msg, report_channel, task_id=task.id
+                )
                 if on_done is not None:
                     await on_done(totals)
             except Exception:
                 log.exception("refeed_channels: fallo procesando guild %s", guild.id)
-            finally:
-                _refeed_running.pop(guild.id, None)
+                await task_manager.fail(task.id, error="unknown_error")
+            else:
+                await task_manager.complete(task.id)
 
-        _refeed_running[guild.id] = asyncio.create_task(runner())
+        asyncio.create_task(runner())
         return True
 
     @app_commands.command(
@@ -1676,8 +1715,7 @@ class Chat(commands.Cog):
             )
             return
 
-        existing = _refeed_running.get(interaction.guild.id)
-        if existing and not existing.done():
+        if _refeed_task_running(interaction.guild.id):
             await interaction.response.send_message(
                 i18n.t("chat.refeed_channels.already_running", locale),
                 ephemeral=True,
@@ -1702,13 +1740,14 @@ class Chat(commands.Cog):
             interaction.guild, progress_msg, interaction.channel
         )
         if not started:
-            # El chequeo de _refeed_running de arriba no tiene await entre
-            # medio y una escritura, así que no es atómico con el registro
-            # real (adentro de start_refeed_channels): dos invocaciones casi
-            # simultáneas pueden pasar las DOS el chequeo de arriba y llegar
-            # hasta acá, pero solo una gana el registro atómico -- la otra
-            # no debe dejar el mensaje "Empezando..." como si su propia
-            # corrida hubiera arrancado, cuando en realidad no hizo nada.
+            # El chequeo de _refeed_task_running de arriba no tiene await
+            # entre medio y una escritura, así que no es atómico con el
+            # registro real (adentro de start_refeed_channels, vía
+            # task_manager.create): dos invocaciones casi simultáneas pueden
+            # pasar las DOS el chequeo de arriba y llegar hasta acá, pero
+            # solo una gana el registro atómico -- la otra no debe dejar el
+            # mensaje "Empezando..." como si su propia corrida hubiera
+            # arrancado, cuando en realidad no hizo nada.
             try:
                 await progress_msg.edit(
                     content=i18n.t("chat.refeed_channels.race_lost", locale)
