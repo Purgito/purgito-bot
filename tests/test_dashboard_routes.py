@@ -268,11 +268,14 @@ def test_paginas_del_dashboard_existen_con_sus_huecos():
     dash = (LANDING / "es" / "dashboard" / "index.html").read_text("utf-8")
 
     for page in (perfil, dash):
-        # El navbar y el footer salen recortados de index.html, no duplicados.
+        # El navbar y estilos compartidos
         assert 'class="nav" id="top"' in page
-        assert 'class="footer"' in page
         assert 'id="toast"' in page
         assert '<link rel="stylesheet" href="/dash.css?v=' in page
+
+    # El footer está presente en perfil pero se omite en el dashboard de servidor
+    assert 'class="footer"' in perfil
+    assert 'class="footer"' not in dash
 
     assert 'id="contenido"' in perfil
     assert "/js/perfil.js?v=" in perfil

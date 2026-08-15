@@ -147,6 +147,7 @@ HTML_PAGES = [
         "meta": "Configura Purgito en tu servidor: chat, corpus, reacciones, "
         "frases, GIFs, embeds y premium.",
         "app": "dash.js",
+        "no_footer": True,
     },
     {
         "slug": "estado",
@@ -686,7 +687,7 @@ def build_html_page(page, nav, footer):
         twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
         nav=nav,
         body=raw_body,
-        footer=footer,
+        footer="" if page.get("no_footer") else footer,
         head=head,
         scripts=APP_SCRIPT.format(src=entry, v=js_files()[0]) if entry else "",
     )
