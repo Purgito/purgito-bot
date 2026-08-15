@@ -1,5 +1,5 @@
 import { apiFetch } from '/js/core/api.js';
-import { el, spinner, emptyState, renderError, formGroup, toast } from '/js/core/dom.js';
+import { el, icon, spinner, emptyState, renderError, formGroup, toast } from '/js/core/dom.js';
 import { GUILD_ID, formatDateTime } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 

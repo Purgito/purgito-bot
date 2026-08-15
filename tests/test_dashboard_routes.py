@@ -774,3 +774,18 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert ".dash-mobile-nav-toggle" in dash_css
     assert "@media (max-width: 860px)" in dash_css
 
+
+def test_all_js_modules_import_icon_helper_when_used():
+    """Verifica que ningún archivo JS use icon(...) sin importar la función desde dom.js."""
+    import re
+    js_dir = LANDING / "js"
+    for js_file in js_dir.rglob("*.js"):
+        if js_file.name == "dom.js":
+            continue
+        content = js_file.read_text("utf-8")
+        if "icon(" in content:
+            dom_imports = re.findall(r"import\s*\{([^}]+)\}\s*from\s*['\"][^'\"]*dom\.js['\"]", content)
+            assert dom_imports, f"{js_file} usa icon(...) pero no importa desde dom.js"
+            imported_names = [name.strip() for names in dom_imports for name in names.split(",")]
+            assert "icon" in imported_names, f"{js_file} usa icon(...) pero no importa icon desde dom.js"
+
