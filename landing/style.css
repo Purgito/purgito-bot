@@ -97,11 +97,12 @@
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; }
 
-html { background: var(--bg); scroll-behavior: smooth; }
+html { background: var(--bg); scroll-behavior: smooth; overflow-x: clip; }
 
 body {
   min-height: 100vh;
   min-height: 100svh;
+  overflow-x: clip;
   font-family: var(--font-body);
   font-size: var(--t-md);
   line-height: var(--leading);
@@ -700,6 +701,9 @@ body.no-scroll {
   .nav-sep, .nav-topgg { display: none; }
   .btn-login { padding-inline: 0.7rem; font-size: 0; gap: 0; }
   .btn-login .i { width: 1.35rem; height: 1.35rem; }
+  .lang-menu { min-width: 11.5rem; max-width: calc(100vw - 1.5rem); right: -2.5rem; }
+  .auth-menu { min-width: 14rem; max-width: calc(100vw - 1.5rem); right: 0; }
+  input, select, textarea { font-size: 16px; }
 }
 
 /* ── selector de idioma ── */
@@ -2970,7 +2974,8 @@ body:has(.estado) .estado { flex: 1; }
   }
 }
 
-.docs-card {
+.docs-card,
+.docs-content a.docs-card {
   display: flex;
   flex-direction: column;
   padding: 1.25rem;
@@ -2979,10 +2984,13 @@ body:has(.estado) .estado { flex: 1; }
   color: inherit;
   transition: transform var(--dur), border-color var(--dur), box-shadow var(--dur), background-color var(--dur);
 }
-.docs-card:hover {
+.docs-card:hover,
+.docs-content a.docs-card:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border-card));
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  text-decoration: none;
+  color: inherit;
 }
 .docs-card-top {
   display: flex;
@@ -3021,19 +3029,23 @@ body:has(.estado) .estado { flex: 1; }
   transform: translateX(3px);
 }
 
-.docs-card h3 {
+.docs-card h3,
+.docs-card:hover h3 {
   font-family: var(--font-head);
   font-size: var(--t-md);
   font-weight: 700;
   color: var(--text);
   margin: 0 0 0.35rem 0;
   line-height: 1.3;
+  text-decoration: none;
 }
-.docs-card p {
+.docs-card p,
+.docs-card:hover p {
   color: var(--text-dim);
   font-size: var(--t-xs);
   line-height: 1.5;
   margin: 0;
+  text-decoration: none;
 }
 
 /* ══════════════════ GUÍA DE PURGITO (/es/guia) ══════════════════ */
@@ -3045,6 +3057,7 @@ body:has(.estado) .estado { flex: 1; }
   position: sticky;
   top: 6rem;
   max-height: calc(100vh - 7rem);
+  max-height: calc(100dvh - 7rem);
   overflow-y: auto;
   scrollbar-width: thin;
 }

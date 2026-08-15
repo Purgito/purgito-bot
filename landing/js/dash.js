@@ -1471,10 +1471,6 @@ async function loadChatTab() {
       history.replaceState(null, '', `${location.pathname}${location.search}#${key}`);
     }
 
-    _activeChatSubtabSetter = activateSubtab;
-    const onboarding = buildOnboardingBanner(corpus, activateSubtab);
-    if (onboarding) box.append(onboarding);
-    box.append(panelsWrap);
     activateSubtab(currentChatSubtab());
 
     if (_chatHashHandler) window.removeEventListener('hashchange', _chatHashHandler);
@@ -1483,80 +1479,356 @@ async function loadChatTab() {
   } catch (e) { renderError(box, e); }
 }
 
-async function renderReacciones(box, pool) {
-  box.innerHTML = '';
-  const inPool = new Set(pool.map(r => r.emoji_text));
-  // Chips, no filas de alto completo: un emoji ocupa dos caracteres y una fila
-  // entera con un botón "Quitar" rojo por cada uno era la misma incomodidad
-  // que la lista de canales.
-  const list = el('div', { class: 'chan-chips' });
-  if (!pool.length) list.append(el('span', { class: 'dim' }, 'Todavía no hay emojis en la colección.'));
-  for (const r of pool) {
-    list.append(el('span', { class: 'chan-chip' },
-      el('span', {}, r.emoji_text),
-      el('button', {
-        class: 'chan-chip-x', 'aria-label': `Quitar ${r.emoji_text}`,
-        onclick: () => removeReaction(box, r.id),
-      }, '✕')));
-  }
+const RECENT_EMOJIS_KEY = 'purgito_recent_emojis';
 
-  async function addEmoji(emojiText) {
-    try {
-      await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`, {
-        method: 'POST', body: { emoji: emojiText },
-      });
-      toast('Emoji agregado', 'ok');
-      reloadReacciones(box);
-    } catch (e) { toast('No se pudo agregar el emoji, intenta de nuevo', 'err'); }
-  }
-
-  // autocomplete="off": sin esto, Chrome con una cuenta sincronizada trata
-  // este input suelto como un campo de nombre/dirección y ofrece autocompletar
-  // con datos de perfil — aparece como un chip con el avatar de la cuenta
-  // pegado al input, encima de lo que sea que haya debajo (acá, "Agregar").
-  // No es un emoji renderizado por nuestro código, es una sugerencia del
-  // navegador que no tiene nada que ver con la lista.
-  const input = el('input', {
-    type: 'text', placeholder: 'Emoji (😀)', maxlength: '64', autocomplete: 'off',
-  });
-  const addRow = el('div', { class: 'add-row' }, input,
-    el('button', {
-      class: 'btn btn-primary',
-      onclick: () => { if (input.value.trim()) addEmoji(input.value.trim()); },
-    }, 'Agregar'));
-
-  // Emojis del servidor: click agrega, click sobre uno ya agregado lo quita.
-  const grid = el('div', { class: 'emoji-grid' });
+function getRecentEmojis() {
   try {
-    const emojis = await getEmojis();
-    for (const e of emojis) {
-      const text = `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`;
-      const selected = inPool.has(text);
-      grid.append(el('button', {
-        class: 'emoji-cell' + (selected ? ' active' : ''),
-        title: ':' + e.name + ':',
-        onclick: () => {
-          if (selected) {
-            const row = pool.find(r => r.emoji_text === text);
-            if (row) removeReaction(box, row.id);
-          } else addEmoji(text);
-        },
-      }, el('img', { src: e.url, alt: e.name, loading: 'lazy' })));
-    }
-  } catch (e) { /* sin emojis custom no pasa nada, queda el input */ }
-
-  // append() es el nativo, no el(): un null acá se agrega como el texto
-  // "null" (se veía en cualquier servidor sin emojis propios).
-  box.append(list, addRow);
-  if (grid.children.length) box.append(grid);
+    const raw = localStorage.getItem(RECENT_EMOJIS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
 }
 
-async function removeReaction(box, id) {
+function saveRecentEmoji(char) {
+  try {
+    let list = getRecentEmojis().filter(x => x !== char);
+    list.unshift(char);
+    if (list.length > 12) list = list.slice(0, 12);
+    localStorage.setItem(RECENT_EMOJIS_KEY, JSON.stringify(list));
+  } catch (e) { /* sin localStorage no pasa nada */ }
+}
+
+function parseEmojiText(text) {
+  const match = /^<(a)?:([a-zA-Z0-9_~]+):([0-9]+)>$/.exec(text);
+  if (match) {
+    const animated = Boolean(match[1]);
+    const name = match[2];
+    const id = match[3];
+    const ext = animated ? 'gif' : 'webp';
+    const url = `https://cdn.discordapp.com/emojis/${id}.${ext}?size=48&quality=lossless`;
+    return { isCustom: true, name, id, animated, url, raw: text };
+  }
+  return { isCustom: false, name: text, url: null, raw: text };
+}
+
+const COMMON_EMOJIS = [
+  '😂', '😭', '💀', '❤️', '🔥', '👀', '🤡', '🙏', '😡', '✨',
+  '👍', '🎉', '🤔', '😎', '🥳', '🥺', '💯', '💔', '🤣', '😍',
+  '😴', '🤯', '👏', '🙌', '🤮', '🤤', '🤫', '💩',
+];
+
+async function renderReacciones(box, pool) {
+  box.innerHTML = '';
+  const poolWrap = el('div', { class: 'emoji-pool-wrap' });
+  const poolList = el('div', { class: 'emoji-pool' });
+
+  if (!pool.length) {
+    poolList.append(el('span', { class: 'dim emoji-pool-empty' }, 'Todavía no hay emojis en la colección.'));
+  } else {
+    for (const r of pool) {
+      const parsed = parseEmojiText(r.emoji_text);
+      if (parsed.isCustom) {
+        poolList.append(el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
+          el('img', { src: parsed.url, alt: parsed.name, class: 'emoji-chip-img', loading: 'lazy' }),
+          el('span', { class: 'emoji-chip-name' }, parsed.name),
+          el('button', {
+            type: 'button',
+            class: 'emoji-chip-x',
+            'aria-label': `Quitar :${parsed.name}:`,
+            onclick: () => removeReaction(box, r.id),
+          }, '✕')
+        ));
+      } else {
+        poolList.append(el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
+          el('span', { class: 'emoji-chip-char' }, r.emoji_text),
+          el('button', {
+            type: 'button',
+            class: 'emoji-chip-x',
+            'aria-label': `Quitar ${r.emoji_text}`,
+            onclick: () => removeReaction(box, r.id),
+          }, '✕')
+        ));
+      }
+    }
+  }
+
+  const addBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-secondary',
+    onclick: () => openAddEmojiModal(box, pool),
+  }, '+ Añadir emoji');
+
+  poolWrap.append(poolList, el('div', {}, addBtn));
+  box.append(poolWrap);
+}
+
+async function addEmojiToPool(box, emojiText, modalOverlay = null) {
+  try {
+    await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`, {
+      method: 'POST', body: { emoji: emojiText },
+    });
+    const parsed = parseEmojiText(emojiText);
+    if (!parsed.isCustom) {
+      saveRecentEmoji(emojiText);
+    }
+    toast('Emoji agregado', 'ok');
+    if (modalOverlay) modalOverlay.remove();
+    reloadReacciones(box);
+  } catch (e) {
+    toast(e.message || 'No se pudo agregar el emoji, intenta de nuevo', 'err');
+  }
+}
+
+async function removeReaction(box, id, modalOverlay = null) {
   try {
     await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones/${id}`, { method: 'DELETE' });
     toast('Emoji quitado', 'ok');
-  } catch (e) { toast('No se pudo quitar el emoji, intenta de nuevo', 'err'); }
-  reloadReacciones(box);
+    if (modalOverlay) modalOverlay.remove();
+    reloadReacciones(box);
+  } catch (e) {
+    toast('No se pudo quitar el emoji, intenta de nuevo', 'err');
+  }
+}
+
+async function reloadReacciones(box) {
+  try {
+    const data = await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`);
+    renderReacciones(box, data.reactions);
+  } catch (e) { /* se queda como estaba */ }
+}
+
+async function openAddEmojiModal(box, pool) {
+  const inPool = new Map(pool.map(r => [r.emoji_text, r.id]));
+  const modalBody = el('div', { class: 'emoji-modal-box' });
+
+  let activeTab = 'unicode';
+  let customSearchQuery = '';
+  let customPage = 1;
+  const CUSTOM_PAGE_SIZE = 16;
+  let cachedServerEmojis = null;
+
+  const tabBtnUnicode = el('button', {
+    type: 'button',
+    class: 'emoji-modal-tab active',
+    onclick: () => switchTab('unicode'),
+  }, 'Unicode');
+
+  const tabBtnServer = el('button', {
+    type: 'button',
+    class: 'emoji-modal-tab',
+    onclick: () => switchTab('server'),
+  }, 'Del servidor');
+
+  const tabsHeader = el('div', { class: 'emoji-modal-tabs' }, tabBtnUnicode, tabBtnServer);
+  const tabContent = el('div', { class: 'emoji-modal-body' });
+
+  modalBody.append(tabsHeader, tabContent);
+  const overlay = panelModal('Añadir emoji', modalBody);
+
+  function switchTab(tab) {
+    activeTab = tab;
+    tabBtnUnicode.classList.toggle('active', tab === 'unicode');
+    tabBtnServer.classList.toggle('active', tab === 'server');
+    renderTabContent();
+  }
+
+  async function renderTabContent() {
+    tabContent.innerHTML = '';
+
+    if (activeTab === 'unicode') {
+      // 1. Input directo
+      const input = el('input', {
+        type: 'text',
+        placeholder: 'Escribe o pega un emoji (ej. 😭)',
+        maxlength: '64',
+        autocomplete: 'off',
+        class: 'emoji-direct-input',
+        onkeydown: (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = input.value.trim();
+            if (val) addEmojiToPool(box, val, overlay);
+          }
+        },
+      });
+
+      const addRow = el('div', { class: 'add-row' },
+        input,
+        el('button', {
+          type: 'button',
+          class: 'btn btn-primary',
+          onclick: () => {
+            const val = input.value.trim();
+            if (val) addEmojiToPool(box, val, overlay);
+          },
+        }, 'Agregar')
+      );
+
+      // 2. Recientes (si hay guardados)
+      const recents = getRecentEmojis();
+      let recentsSection = null;
+      if (recents.length > 0) {
+        const recentGrid = el('div', { class: 'emoji-frequent-grid' });
+        for (const ch of recents) {
+          recentGrid.append(el('button', {
+            type: 'button',
+            class: 'emoji-frequent-btn',
+            title: ch,
+            'aria-label': ch,
+            onclick: () => addEmojiToPool(box, ch, overlay),
+          }, ch));
+        }
+        recentsSection = el('div', {},
+          el('label', { class: 'dim', style: 'display:block;margin-bottom:6px;font-size:12px;font-weight:600;' }, 'Recientes'),
+          recentGrid
+        );
+      }
+
+      // 3. Frecuentes
+      const freqGrid = el('div', { class: 'emoji-frequent-grid' });
+      for (const ch of COMMON_EMOJIS) {
+        freqGrid.append(el('button', {
+          type: 'button',
+          class: 'emoji-frequent-btn',
+          title: ch,
+          'aria-label': ch,
+          onclick: () => addEmojiToPool(box, ch, overlay),
+        }, ch));
+      }
+
+      const freqSection = el('div', {},
+        el('label', { class: 'dim', style: 'display:block;margin-bottom:6px;font-size:12px;font-weight:600;' }, 'Frecuentes'),
+        freqGrid
+      );
+
+      tabContent.append(addRow);
+      if (recentsSection) tabContent.append(recentsSection);
+      tabContent.append(freqSection);
+
+      setTimeout(() => input.focus(), 50);
+    } else {
+      // Pestaña: Del servidor
+      const searchInput = el('input', {
+        type: 'search',
+        placeholder: 'Buscar emoji personalizado…',
+        value: customSearchQuery,
+        class: 'emoji-search-input',
+        oninput: () => {
+          customSearchQuery = searchInput.value.trim().toLowerCase();
+          customPage = 1;
+          renderServerEmojiResults();
+        },
+      });
+
+      const resultsContainer = el('div', { class: 'emoji-server-results' });
+      tabContent.append(searchInput, resultsContainer);
+
+      setTimeout(() => searchInput.focus(), 50);
+
+      // Cargar emojis del servidor si no están cacheados
+      if (!cachedServerEmojis) {
+        resultsContainer.append(spinner());
+        try {
+          cachedServerEmojis = await getEmojis();
+        } catch (e) {
+          cachedServerEmojis = [];
+        }
+        resultsContainer.innerHTML = '';
+      }
+
+      function renderServerEmojiResults() {
+        resultsContainer.innerHTML = '';
+        if (!cachedServerEmojis || !cachedServerEmojis.length) {
+          resultsContainer.append(el('p', { class: 'dim', style: 'font-size:13px;padding:12px 0;' }, 'Este servidor no tiene emojis personalizados.'));
+          return;
+        }
+
+        const filtered = customSearchQuery
+          ? cachedServerEmojis.filter(e => e.name.toLowerCase().includes(customSearchQuery))
+          : cachedServerEmojis;
+
+        if (!filtered.length) {
+          resultsContainer.append(el('p', { class: 'dim', style: 'font-size:13px;padding:12px 0;' }, `No se encontraron emojis que coincidan con "${customSearchQuery}".`));
+          return;
+        }
+
+        const totalPages = Math.ceil(filtered.length / CUSTOM_PAGE_SIZE);
+        if (customPage > totalPages) customPage = totalPages;
+        if (customPage < 1) customPage = 1;
+
+        const startIndex = (customPage - 1) * CUSTOM_PAGE_SIZE;
+        const pageItems = filtered.slice(startIndex, startIndex + CUSTOM_PAGE_SIZE);
+
+        const grid = el('div', { class: 'emoji-server-grid' });
+        for (const e of pageItems) {
+          const text = `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`;
+          const selected = inPool.has(text);
+
+          const itemBtn = el('button', {
+            type: 'button',
+            class: 'emoji-server-item' + (selected ? ' active' : ''),
+            title: `:${e.name}:` + (selected ? ' (en el pool - click para quitar)' : ''),
+            'aria-label': `:${e.name}:` + (selected ? ' (en el pool)' : ''),
+            onclick: () => {
+              if (selected) {
+                const reactionId = inPool.get(text);
+                if (reactionId) removeReaction(box, reactionId, overlay);
+              } else {
+                addEmojiToPool(box, text, overlay);
+              }
+            },
+          },
+            el('img', { src: e.url, alt: e.name, class: 'emoji-server-img', loading: 'lazy' }),
+            el('span', { class: 'emoji-server-name' }, e.name)
+          );
+
+          grid.append(itemBtn);
+        }
+
+        resultsContainer.append(grid);
+
+        // Paginación si hay más de 1 página
+        if (totalPages > 1) {
+          const prevBtn = el('button', {
+            type: 'button',
+            class: 'btn btn-secondary btn-sm',
+            disabled: customPage <= 1,
+            onclick: () => {
+              if (customPage > 1) {
+                customPage--;
+                renderServerEmojiResults();
+              }
+            },
+          }, '← Anterior');
+
+          const nextBtn = el('button', {
+            type: 'button',
+            class: 'btn btn-secondary btn-sm',
+            disabled: customPage >= totalPages,
+            onclick: () => {
+              if (customPage < totalPages) {
+                customPage++;
+                renderServerEmojiResults();
+              }
+            },
+          }, 'Siguiente →');
+
+          const pager = el('div', { class: 'emoji-pager' },
+            prevBtn,
+            el('span', {}, `${customPage} / ${totalPages} (${filtered.length} emojis)`),
+            nextBtn
+          );
+
+          resultsContainer.append(pager);
+        }
+      }
+
+      renderServerEmojiResults();
+    }
+  }
+
+  renderTabContent();
 }
 
 async function reloadReacciones(box) {

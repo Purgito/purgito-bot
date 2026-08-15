@@ -327,14 +327,18 @@ def test_update_frase_especial_texto_y_pack(temp_db):
         f2 = await db.get_frase_especial(1, frase_id)
 
         # 3. Editar texto y pack juntos
-        ok3 = await db.update_frase_especial(1, frase_id, frase="frase final", pack_id=None, update_pack=True)
+        ok3 = await db.update_frase_especial(
+            1, frase_id, frase="frase final", pack_id=None, update_pack=True
+        )
         f3 = await db.get_frase_especial(1, frase_id)
 
         # 4. Rechazar texto vacío
         ok_empty = await db.update_frase_especial(1, frase_id, frase="   ")
 
         # 5. Rechazar pack de otro guild
-        ok_idor = await db.update_frase_especial(1, frase_id, pack_id=999, update_pack=True)
+        ok_idor = await db.update_frase_especial(
+            1, frase_id, pack_id=999, update_pack=True
+        )
 
         # 6. Rechazar frase inexistente
         ok_missing = await db.update_frase_especial(1, 9999, frase="hola")

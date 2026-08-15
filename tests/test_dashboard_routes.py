@@ -620,7 +620,6 @@ def test_popover_positioning_and_viewport_resilience():
 def test_dashboard_en_navbar_y_menu_de_usuario_para_autenticados():
     """Verifica que Dashboard aparece en navbar desktop y drawer móvil para autenticados apuntando a /perfil/servidores, y Perfil en el menú de usuario."""
     script = (LANDING / "script.js").read_text("utf-8")
-    style = (LANDING / "style.css").read_text("utf-8")
 
     # Ícono y opción 'Perfil' en el menú de usuario apuntando a /perfil
     assert "user:" in script
@@ -629,7 +628,9 @@ def test_dashboard_en_navbar_y_menu_de_usuario_para_autenticados():
     assert "'/' + LOC + '/perfil'" in script
 
     # Regex de estado activo del Dashboard en la navbar: solo activo en /perfil/servidores y /dashboard
-    pattern = re.search(r'isDashboardActive = (/.*?/)\.test', script).group(1).strip('/')
+    pattern = (
+        re.search(r"isDashboardActive = (/.*?/)\.test", script).group(1).strip("/")
+    )
     active_re = re.compile(pattern)
     assert active_re.search("/es/perfil/servidores")
     assert active_re.search("/es/perfil/servidores/")
@@ -743,14 +744,14 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     # Iconos coherentes en todas las 8 secciones principales
     dom_js = (LANDING / "js" / "core" / "dom.js").read_text("utf-8")
     for key, icon_name in [
-        ('inicio', 'home'),
-        ('chat', 'chat'),
-        ('gifs', 'film'),
-        ('memes', 'image'),
-        ('embeds', 'layout'),
-        ('premium', 'star'),
-        ('youtube', 'youtube'),
-        ('historial', 'history'),
+        ("inicio", "home"),
+        ("chat", "chat"),
+        ("gifs", "film"),
+        ("memes", "image"),
+        ("embeds", "layout"),
+        ("premium", "star"),
+        ("youtube", "youtube"),
+        ("historial", "history"),
     ]:
         assert f"key: '{key}', label:" in dash_js
         assert f"icon: '{icon_name}'" in dash_js
@@ -779,16 +780,23 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
 def test_all_js_modules_import_icon_helper_when_used():
     """Verifica que ningún archivo JS use icon(...) sin importar la función desde dom.js."""
     import re
+
     js_dir = LANDING / "js"
     for js_file in js_dir.rglob("*.js"):
         if js_file.name == "dom.js":
             continue
         content = js_file.read_text("utf-8")
         if "icon(" in content:
-            dom_imports = re.findall(r"import\s*\{([^}]+)\}\s*from\s*['\"][^'\"]*dom\.js['\"]", content)
+            dom_imports = re.findall(
+                r"import\s*\{([^}]+)\}\s*from\s*['\"][^'\"]*dom\.js['\"]", content
+            )
             assert dom_imports, f"{js_file} usa icon(...) pero no importa desde dom.js"
-            imported_names = [name.strip() for names in dom_imports for name in names.split(",")]
-            assert "icon" in imported_names, f"{js_file} usa icon(...) pero no importa icon desde dom.js"
+            imported_names = [
+                name.strip() for names in dom_imports for name in names.split(",")
+            ]
+            assert "icon" in imported_names, (
+                f"{js_file} usa icon(...) pero no importa icon desde dom.js"
+            )
 
 
 def test_guia_purgito_page_structure_and_integration():
@@ -802,7 +810,9 @@ def test_guia_purgito_page_structure_and_integration():
     style_css = (LANDING / "style.css").read_text("utf-8")
 
     # Metadata & SEO
-    assert "<title>Guía de Purgito — Cómo funciona el bot — Purgito</title>" in guia_html
+    assert (
+        "<title>Guía de Purgito — Cómo funciona el bot — Purgito</title>" in guia_html
+    )
     assert 'content="https://purgito.app/es/guia"' in guia_html
     assert 'property="og:type" content="article"' in guia_html
     assert 'name="description"' in guia_html
@@ -836,7 +846,9 @@ def test_guia_purgito_page_structure_and_integration():
     ]
     for sec in expected_sections:
         assert f'href="#{sec}"' in guia_html, f"El sidebar debe enlazar a #{sec}"
-        assert f'id="{sec}"' in guia_html, f"La sección id='{sec}' debe existir en el HTML"
+        assert f'id="{sec}"' in guia_html, (
+            f"La sección id='{sec}' debe existir en el HTML"
+        )
 
     # Enlaces cruzados a documentación técnica, dashboard y soporte real
     assert 'href="/es/documentacion"' in guia_html
@@ -848,7 +860,9 @@ def test_guia_purgito_page_structure_and_integration():
 
     # Cero placeholders o enlaces rotos
     assert "PLACEHOLDER" not in guia_html
-    assert "discord.gg/PLACEHOLDER" not in (DOCS / "guia" / "index.md").read_text("utf-8")
+    assert "discord.gg/PLACEHOLDER" not in (DOCS / "guia" / "index.md").read_text(
+        "utf-8"
+    )
 
     # Soporte en CSS y JS
     assert ".guia-sidebar" in style_css
@@ -856,3 +870,48 @@ def test_guia_purgito_page_structure_and_integration():
     assert "guiaSidebar" in script_js
 
 
+def test_chat_reacciones_pool_and_on_demand_modal():
+    """Verifica que la sub-pestaña Reacciones use el patrón de pool limpio + selector modal bajo demanda."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    dash_css = (LANDING / "dash.css").read_text("utf-8")
+
+    # 1. Pool visual: chips para custom y unicode, botón + Añadir emoji
+    assert "emoji-pool-wrap" in dash_css
+    assert "emoji-pool-chip" in dash_css
+    assert "emoji-chip-img" in dash_css
+    assert "+ Añadir emoji" in dash_js
+    assert "parseEmojiText" in dash_js
+
+    # 2. No hay galería permanente de 500 emojis en la página principal
+    assert "openAddEmojiModal" in dash_js
+
+    # 3. Modal bajo demanda con pestañas Unicode y Del servidor
+    assert "emoji-modal-box" in dash_css
+    assert "emoji-modal-tabs" in dash_css
+    assert "Del servidor" in dash_js
+    assert "Unicode" in dash_js
+    assert "Frecuentes" in dash_js
+    assert "Recientes" in dash_js
+
+    # 4. Búsqueda y paginación para custom emojis del servidor
+    assert "emoji-search-input" in dash_js
+    assert "emoji-pager" in dash_css
+    assert "CUSTOM_PAGE_SIZE" in dash_js
+
+
+def test_docs_card_no_underline():
+    """Verifica que las cards de 'Explora la documentación' nunca tengan subrayado en títulos o cuerpo (ni en estado normal ni en :hover)."""
+    style_css = (LANDING / "style.css").read_text("utf-8")
+
+    # .docs-content a sigue teniendo subrayado para enlaces normales de texto
+    assert (
+        ".docs-content a { color: var(--accent-soft); text-decoration: underline;"
+        in style_css
+    )
+
+    # Pero las cards de documentación (.docs-card) anulan el subrayado en normal y hover
+    assert ".docs-content a.docs-card" in style_css
+    assert (
+        ".docs-card h3,\n.docs-card:hover h3 {\n  font-family: var(--font-head);\n  font-size: var(--t-md);\n  font-weight: 700;\n  color: var(--text);\n  margin: 0 0 0.35rem 0;\n  line-height: 1.3;\n  text-decoration: none;\n}"
+        in style_css
+    )

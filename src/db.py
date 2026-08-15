@@ -579,6 +579,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_audit_log_guild ON audit_log(guild_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(guild_id, user_id, id DESC);
 
 -- sid de sesiones del dashboard invalidadas por logout. EncryptedCookieStorage
 -- guarda la sesión entera cifrada en la cookie -- no hay session store del
@@ -3724,7 +3725,7 @@ async def list_audit_log_page(
     before_id: int | None = None,
     limit: int = 5,
     q: str | None = None,
-    user_id: int | None = None,
+    user_id: int | str | None = None,
     action: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -3744,9 +3745,9 @@ async def list_audit_log_page(
         conditions.append("id < ?")
         params.append(before_id)
 
-    if user_id is not None:
+    if user_id is not None and str(user_id).strip():
         conditions.append("user_id = ?")
-        params.append(user_id)
+        params.append(int(user_id))
 
     if action:
         act = action.strip()
@@ -3763,7 +3764,9 @@ async def list_audit_log_page(
             elif cat == "multimedia":
                 conditions.append("action LIKE 'gifs%'")
             elif cat == "embeds":
-                conditions.append("(action LIKE 'embed_template%' OR action LIKE 'embeds%')")
+                conditions.append(
+                    "(action LIKE 'embed_template%' OR action LIKE 'embeds%')"
+                )
             elif cat == "integraciones":
                 conditions.append("action LIKE 'youtube%'")
             elif cat == "otros":

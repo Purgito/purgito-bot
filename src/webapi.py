@@ -159,7 +159,6 @@ from db import (
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
-    set_frase_pack,
     set_updates_channel,
     set_youtube_mention_role_by_id,
     unassign_pack_from_channel,
@@ -1491,11 +1490,17 @@ async def _api_audit_log_get(request: web.Request, guild_id: int) -> web.Respons
         date_to=date_to,
     )
     users = await get_audit_log_users(guild_id) if before_id is None else []
-    return web.json_response({
-        "entries": entries,
-        "has_more": has_more,
-        "users": users,
-    })
+    json_entries = [{**e, "user_id": str(e["user_id"])} for e in entries]
+    json_users = [
+        {"user_id": str(u["user_id"]), "user_name": u["user_name"]} for u in users
+    ]
+    return web.json_response(
+        {
+            "entries": json_entries,
+            "has_more": has_more,
+            "users": json_users,
+        }
+    )
 
 
 _STYLE_MIME = {

@@ -186,12 +186,16 @@ def test_patch_no_puede_asignar_un_pack_de_otro_guild(memory_db):
 
 def test_patch_edita_texto_de_una_frase_y_preserva_pack(memory_db):
     pack_id = asyncio.run(db.add_frase_pack(_GUILD, "Navidad"))
-    asyncio.run(db.add_frase_especial(_GUILD, 1, "u", "texto original", pack_id=pack_id))
+    asyncio.run(
+        db.add_frase_especial(_GUILD, 1, "u", "texto original", pack_id=pack_id)
+    )
     frase_id = asyncio.run(db.list_frases_especiales(_GUILD))[0]["id"]
 
     resp = _run(
         webapi._api_frases_patch,
-        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": "texto editado"}),
+        FakeRequest(
+            match_info={"frase_id": str(frase_id)}, body={"frase": "texto editado"}
+        ),
     )
 
     assert _json(resp)["updated"] is True
@@ -200,7 +204,9 @@ def test_patch_edita_texto_de_una_frase_y_preserva_pack(memory_db):
     assert frase["pack_id"] == pack_id  # pack preservado
 
     entries = asyncio.run(db.list_audit_log(_GUILD))
-    assert any(e["action"] == "frases.edit" and "texto editado" in e["detail"] for e in entries)
+    assert any(
+        e["action"] == "frases.edit" and "texto editado" in e["detail"] for e in entries
+    )
 
 
 def test_patch_edita_texto_y_pack_simultaneamente(memory_db):
@@ -211,7 +217,10 @@ def test_patch_edita_texto_y_pack_simultaneamente(memory_db):
 
     resp = _run(
         webapi._api_frases_patch,
-        FakeRequest(match_info={"frase_id": str(frase_id)}, body={"frase": "nueva", "pack_id": p2}),
+        FakeRequest(
+            match_info={"frase_id": str(frase_id)},
+            body={"frase": "nueva", "pack_id": p2},
+        ),
     )
 
     assert _json(resp)["updated"] is True
