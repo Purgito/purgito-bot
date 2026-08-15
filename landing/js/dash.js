@@ -29,7 +29,6 @@ export const CATEGORIES = [
   { key: 'automatizacion', label: 'Automatización', icon: 'zap' },
   { key: 'entretenimiento', label: 'Entretenimiento', icon: 'image' },
   { key: 'utilidades', label: 'Utilidades', icon: 'sliders' },
-  { key: 'premium', label: 'Purgito Premium', icon: 'star' },
 ];
 
 export const MODULES = [
@@ -78,6 +77,17 @@ export const MODULES = [
     desc: 'Registro de cambios y auditoría de acciones realizadas',
     keywords: ['auditoria', 'historial', 'logs', 'registro', 'cambios', 'seguridad'],
     load: loadHistorial,
+  },
+  {
+    key: 'premium',
+    cat: 'principal',
+    label: 'Purgito Premium',
+    icon: 'star',
+    badge: 'PREMIUM',
+    badgeType: 'premium',
+    desc: 'Memoria ampliada a 50.000 mensajes, 4.000 GIFs y soporte prioritario',
+    keywords: ['premium', 'suscripcion', 'polar', 'planes', 'limites', 'cupo', '50000'],
+    load: loadPremium,
   },
 
   // Alertas
@@ -182,24 +192,11 @@ export const MODULES = [
   {
     key: 'amnesia',
     cat: 'utilidades',
-    label: 'Amnesia / Limpieza',
+    label: 'Limpieza',
     icon: 'trash',
     desc: 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
     keywords: ['amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset'],
     load: loadAmnesiaModule,
-  },
-
-  // Purgito Premium
-  {
-    key: 'premium',
-    cat: 'premium',
-    label: 'Purgito Premium',
-    icon: 'star',
-    badge: 'PREMIUM',
-    badgeType: 'premium',
-    desc: 'Memoria ampliada a 50.000 mensajes, 4.000 GIFs y soporte prioritario',
-    keywords: ['premium', 'suscripcion', 'polar', 'planes', 'limites', 'cupo', '50000'],
-    load: loadPremium,
   },
 ];
 
@@ -1829,7 +1826,7 @@ async function loadAmnesiaModule() {
   const box = content();
   box.innerHTML = '';
   box.append(
-    formGroup('Amnesia / Limpieza de memoria reciente',
+    formGroup('Limpieza de memoria reciente',
       el('p', { class: 'dim' },
         'Borra el corpus (mensajes aprendidos y estilo por usuario) de las últimas 24 horas de todo el servidor. Esta acción es irreversible.'
       ),

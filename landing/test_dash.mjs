@@ -185,7 +185,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
 // ── Test 1: Estructura de módulos y categorías ─────────────────────────────────
 {
-  assert.ok(CATEGORIES.length >= 7, 'Debe haber al menos 7 categorías');
+  assert.ok(CATEGORIES.length >= 6, 'Debe haber al menos 6 categorías');
   assert.ok(MODULES.length >= 10, 'Debe haber módulos de configuración registrados');
   const inicioMod = MODULES.find(m => m.key === 'inicio');
   assert.ok(inicioMod, 'El módulo inicio debe existir');
@@ -637,6 +637,9 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   const chatMod = MODULES.find(m => m.key === 'chat');
   assert.equal(chatMod.cat, 'principal', 'Chat debe estar en Principal');
+
+  const premiumMod = MODULES.find(m => m.key === 'premium');
+  assert.equal(premiumMod.cat, 'principal', 'Purgito Premium debe estar al final de Principal');
 
   console.log('✓ Test 13: Estructura de módulos limpia y sin redundancias');
 }

@@ -994,7 +994,6 @@ def test_dashboard_category_grouped_collapsible_navigation():
         "automatizacion",
         "entretenimiento",
         "utilidades",
-        "premium",
     ]:
         assert f"key: '{cat}'" in dash_js
 
