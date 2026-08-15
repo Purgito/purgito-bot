@@ -455,7 +455,7 @@ server {
     # esto estaba fijo a /es/dashboard/ y cualquier otro idioma caía en el
     # try_files genérico de abajo, que sirve la homepage en vez del dashboard
     # porque el id tampoco existe como carpeta ahí.
-    location ~ ^/(es|en|ru|ja|de)/dashboard/ {
+    location ~ ^/(es|en|ru|ja|de)/dashboard(/.*)?$ {
         try_files $uri $uri/ /$1/dashboard/index.html;
     }
 

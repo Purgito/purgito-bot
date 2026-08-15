@@ -145,7 +145,7 @@ asumir que el código está mal.
 
 **Pendiente en el droplet:** `/<lang>/dashboard/:id` es la única ruta del
 sitio con un segmento dinámico y necesita un `location` por regex
-(`^/(es|en|ru|ja|de)/dashboard/`) con `try_files … /$1/dashboard/index.html`
+(`^/(es|en|ru|ja|de)/dashboard(/.*)?$`) con `try_files … /$1/dashboard/index.html`
 (está en DEPLOY.md, generalizado a los 5 idiomas el 2026-08-09 para que un
 idioma nuevo con dashboard propio no rompa en silencio). Sin agregarlo, esa
 URL sirve la homepage. `/es/perfil*` no lo necesita: son carpetas reales.

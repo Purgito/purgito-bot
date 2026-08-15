@@ -138,7 +138,7 @@ function selectedPremiumPlan() {
 }
 
 function serverCard(g, configured, locale, plan) {
-  const dashboardHref = `/${locale}/dashboard/${g.id}${plan ? `/premium?plan=${plan}` : ''}`;
+  const dashboardHref = `/${locale}/dashboard/${g.id}${plan ? `/premium?plan=${plan}` : '/inicio'}`;
   return el('div', { class: 'card' },
     guildIcon(g),
     el('div', { class: 'card-info' },

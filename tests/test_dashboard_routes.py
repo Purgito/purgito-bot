@@ -915,3 +915,25 @@ def test_docs_card_no_underline():
         ".docs-card h3,\n.docs-card:hover h3 {\n  font-family: var(--font-head);\n  font-size: var(--t-md);\n  font-weight: 700;\n  color: var(--text);\n  margin: 0 0 0.35rem 0;\n  line-height: 1.3;\n  text-decoration: none;\n}"
         in style_css
     )
+
+
+def test_server_card_dashboard_canonical_href_and_routing():
+    """Verifica que el botón Dashboard en la lista de servidores genere la ruta canónica con /inicio y que el dashboard normalice la URL."""
+    perfil_js = (LANDING / "js" / "perfil.js").read_text("utf-8")
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    deploy_md = (ROOT / "DEPLOY.md").read_text("utf-8")
+
+    # 1. serverCard genera /${locale}/dashboard/${g.id}/inicio como destino canónico
+    assert (
+        "const dashboardHref = `/${locale}/dashboard/${g.id}${plan ? `/premium?plan=${plan}` : '/inicio'}`;"
+        in perfil_js
+    )
+
+    # 2. initDash normaliza cualquier acceso raíz a la sub-pestaña activa (por defecto /inicio)
+    assert (
+        "if (!location.pathname.split('/')[4]) {\n      history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);\n    }"
+        in dash_js
+    )
+
+    # 3. DEPLOY.md documenta la regex que captura tanto /dashboard como /dashboard/*
+    assert "location ~ ^/(es|en|ru|ja|de)/dashboard(/.*)?$ {" in deploy_md

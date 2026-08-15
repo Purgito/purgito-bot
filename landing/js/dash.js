@@ -276,7 +276,11 @@ export function initDash() {
   if (shareId) {
     loadSharedEmbed(shareId).finally(() => activate('embeds', true));
   } else {
-    activate(currentTab(), false);
+    const tab = currentTab();
+    activate(tab, false);
+    if (!location.pathname.split('/')[4]) {
+      history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);
+    }
   }
   window.onpopstate = () => activate(currentTab(), false);
 }
