@@ -304,11 +304,28 @@ function toggleCategoryCollapse(catKey) {
 
 // ---------------- SELECTOR DE SERVIDOR PERSISTENTE ----------------
 
-async function fetchUserGuilds(force = false) {
-  if (!_cachedGuilds || force) {
-    _cachedGuilds = await apiFetch('/api/me/guilds' + (force ? '?refresh=1' : ''));
+let _cachedGuilds = null;
+let _fetchingGuildsPromise = null;
+
+export async function fetchUserGuilds(force = false) {
+  if (force) {
+    _cachedGuilds = null;
+    _fetchingGuildsPromise = null;
   }
-  return _cachedGuilds;
+  if (_cachedGuilds) return _cachedGuilds;
+  if (_fetchingGuildsPromise) return _fetchingGuildsPromise;
+
+  _fetchingGuildsPromise = (async () => {
+    try {
+      const data = await apiFetch('/api/me/guilds' + (force ? '?refresh=1' : ''));
+      _cachedGuilds = data || { configured: [], available: [] };
+      return _cachedGuilds;
+    } finally {
+      _fetchingGuildsPromise = null;
+    }
+  })();
+
+  return _fetchingGuildsPromise;
 }
 
 function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
@@ -785,6 +802,53 @@ function renderSidebar(activeTab, activeSubtab) {
   nav.append(header, toggleBtn, inner);
 }
 
+// ---------------- CABECERA Y TOPBAR ----------------
+
+export function renderTopBar(guild) {
+  const head = document.getElementById('dashHead');
+  if (!head) return;
+  head.innerHTML = '';
+
+  const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
+    el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver a servidores');
+
+  const topBar = el('div', { class: 'dash-topbar' },
+    back,
+    el('div', { class: 'dash-topbar-actions' },
+      el('button', {
+        type: 'button',
+        class: 'dash-quick-search-btn',
+        title: 'Buscar módulo (Ctrl + K)',
+        onclick: () => openCommandPalette(),
+      },
+        icon('search'),
+        el('span', { class: 'dash-quick-search-label' }, 'Buscar módulo…'),
+        el('kbd', {}, '⌘K')
+      ),
+      guild && guild.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null
+    )
+  );
+
+  head.append(topBar);
+}
+
+export async function loadHead() {
+  const head = document.getElementById('dashHead');
+  if (!head) return;
+  try {
+    const data = await fetchUserGuilds();
+    const configured = (data && data.configured) || [];
+    const g = configured.find(x => x.id === GUILD_ID);
+    if (g) {
+      _activeGuild = g;
+      document.title = `${g.name} · Purgito`;
+    }
+    renderTopBar(_activeGuild);
+  } catch (e) {
+    renderTopBar(_activeGuild);
+  }
+}
+
 // ---------------- CAMBIO REACTIVO DE SERVIDOR ----------------
 
 export async function selectGuild(newGuildId) {
@@ -797,7 +861,14 @@ export async function selectGuild(newGuildId) {
   const curTab = currentTab();
   history.pushState({}, '', `/${currentLocale()}/dashboard/${newGuildId}/${curTab}`);
 
-  await loadHead();
+  const data = await fetchUserGuilds();
+  const configured = (data && data.configured) || [];
+  _activeGuild = configured.find(x => x.id === newGuildId) || null;
+  if (_activeGuild) {
+    document.title = `${_activeGuild.name} · Purgito`;
+  }
+  renderTopBar(_activeGuild);
+
   activate(curTab, false);
   toast('Cambiando al servidor…', 'ok');
 }
@@ -829,80 +900,119 @@ export function activate(key, push) {
   mod.load();
 }
 
-// ---------------- CABECERA (TOP BAR / BREADCRUMB) ----------------
+// ---------------- INICIALIZACIÓN DETERMINISTA Y ROBUSTA ----------------
 
-async function loadHead() {
+export async function initDash() {
   const head = document.getElementById('dashHead');
-  if (!head) return;
+  const tabs = document.getElementById('dashTabs');
+  const box = content();
 
-  const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
-    el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver a servidores');
+  // 1. Si no hay GUILD_ID en la URL (ej. /es/dashboard o /dashboard)
+  if (!GUILD_ID) {
+    if (head) head.innerHTML = '';
+    if (tabs) tabs.hidden = true;
+    if (box) {
+      box.innerHTML = '';
+      box.append(spinner());
+    }
+
+    try {
+      const data = await fetchUserGuilds();
+      const configured = (data && data.configured) || [];
+      if (configured.length > 0) {
+        location.replace(`/${currentLocale()}/dashboard/${configured[0].id}/inicio`);
+        return;
+      }
+      location.replace(`/${currentLocale()}/perfil/servidores`);
+      return;
+    } catch (e) {
+      if (box) {
+        box.innerHTML = '';
+        renderError(box, e);
+      }
+      return;
+    }
+  }
+
+  // 2. Con GUILD_ID presente: cargamos primero la lista de servidores del usuario
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
 
   try {
     const data = await fetchUserGuilds();
-    const g = data.configured.find(x => x.id === GUILD_ID);
-    _activeGuild = g;
+    const configured = (data && data.configured) || [];
+    const available = (data && data.available) || [];
+    const g = configured.find(x => x.id === GUILD_ID);
 
     if (!g) {
-      head.innerHTML = '';
-      head.append(back);
-      content().append(emptyState('No encontramos ese servidor entre los que administras.'));
-      const tabs = document.getElementById('dashTabs');
+      const avail = available.find(x => x.id === GUILD_ID);
+      const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
+        el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver a servidores');
+      if (head) {
+        head.innerHTML = '';
+        head.append(back);
+      }
       if (tabs) tabs.hidden = true;
+      if (box) {
+        box.innerHTML = '';
+        if (avail) {
+          box.append(el('div', { class: 'dash-server-hero', style: 'max-width: 640px; margin: 30px auto; flex-direction: column; text-align: center; gap: 16px; padding: 28px;' },
+            guildIcon(avail),
+            el('div', { class: 'dash-server-hero-info', style: 'align-items: center;' },
+              el('h2', { class: 'dash-server-hero-name', style: 'font-size: 20px;' }, avail.name),
+              el('p', { class: 'dim', style: 'margin: 6px 0 16px; font-size: 14px;' }, 'Purgito todavía no está instalado en este servidor.'),
+              el('div', { style: 'display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;' },
+                el('a', { class: 'btn btn-primary', href: avail.invite_url || `https://discord.com/oauth2/authorize?client_id=1471724794411089920&guild_id=${avail.id}&scope=bot%20applications.commands&permissions=8`, target: '_blank', rel: 'noopener' }, 'Invitar a Purgito'),
+                el('a', { class: 'btn btn-secondary', href: `/${currentLocale()}/perfil/servidores` }, 'Ver mis servidores')
+              )
+            )
+          ));
+        } else {
+          box.append(emptyState('No encontramos ese servidor entre los que administras.'));
+        }
+      }
       return;
     }
 
+    _activeGuild = g;
     document.title = `${g.name} · Purgito`;
-    head.innerHTML = '';
 
-    const topBar = el('div', { class: 'dash-topbar' },
-      back,
-      el('div', { class: 'dash-topbar-actions' },
-        el('button', {
-          type: 'button',
-          class: 'dash-quick-search-btn',
-          title: 'Buscar módulo (Ctrl + K)',
-          onclick: () => openCommandPalette(),
-        },
-          icon('search'),
-          el('span', { class: 'dash-quick-search-label' }, 'Buscar módulo…'),
-          el('kbd', {}, '⌘K')
-        ),
-        g.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null
-      )
-    );
+    if (tabs) tabs.hidden = false;
+    renderTopBar(g);
 
-    head.append(topBar);
+    const shareId = new URLSearchParams(location.search).get('share');
+    if (shareId) {
+      loadSharedEmbed(shareId).finally(() => activate('embeds', true));
+    } else {
+      const tab = currentTab();
+      activate(tab, false);
+      if (!location.pathname.split('/')[4]) {
+        history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);
+      }
+    }
   } catch (e) {
-    head.innerHTML = '';
-    head.append(back);
+    if (box) {
+      box.innerHTML = '';
+      renderError(box, e);
+    }
   }
 }
 
-// ---------------- INICIALIZACIÓN ----------------
-
-export function initDash() {
-  loadHead();
-  const shareId = new URLSearchParams(location.search).get('share');
-  if (shareId) {
-    loadSharedEmbed(shareId).finally(() => activate('embeds', true));
-  } else {
-    const tab = currentTab();
-    activate(tab, false);
-    if (!location.pathname.split('/')[4]) {
-      history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);
-    }
+window.onpopstate = async () => {
+  const rawGuild = location.pathname.split('/')[3] || '';
+  if (rawGuild && rawGuild !== GUILD_ID) {
+    setGuildId(rawGuild);
+    clearGuildCaches();
+    _loadEpoch++;
+    const data = await fetchUserGuilds();
+    const configured = (data && data.configured) || [];
+    _activeGuild = configured.find(x => x.id === GUILD_ID) || null;
+    renderTopBar(_activeGuild);
   }
-  window.onpopstate = () => {
-    const rawGuild = location.pathname.split('/')[3] || '';
-    if (rawGuild && rawGuild !== GUILD_ID) {
-      setGuildId(rawGuild);
-      clearGuildCaches();
-      loadHead();
-    }
-    activate(currentTab(), false);
-  };
-}
+  activate(currentTab(), false);
+};
 
 // Cerrar menú móvil con Escape
 document.addEventListener('keydown', (ev) => {
@@ -926,11 +1036,7 @@ document.addEventListener('click', (ev) => {
   }
 });
 
-if (GUILD_ID) initDash();
-else {
-  const head = document.getElementById('dashHead');
-  if (head) head.append(emptyState('Falta el id del servidor en la dirección.'));
-}
+initDash();
 
 
 // ---------------- REDISEÑO DE INICIO (DASHBOARD EJECUTIVO) ----------------
@@ -964,24 +1070,16 @@ function quickActionCard(iconName, title, desc, onClick) {
   return el('button', {
     type: 'button',
     class: 'quick-action-card',
-    onclick: onClick,
-  },
-    el('div', { class: 'quick-action-icon-wrap' }, icon(iconName)),
-    el('div', { class: 'quick-action-info' },
-      el('div', { class: 'quick-action-title' }, title),
-      el('div', { class: 'quick-action-desc dim' }, desc)
-    ),
-    el('span', { class: 'quick-action-arrow' }, '→')
-  );
-}
-
 async function loadInicio() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   const epoch = _loadEpoch;
 
   try {
-    const [style, updates, stats, channels] = await Promise.all([
+    const [styleRes, updatesRes, statsRes, channelsRes] = await Promise.allSettled([
       apiFetch(`/api/server/${GUILD_ID}/style`),
       apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
       apiFetch(`/api/server/${GUILD_ID}/stats`),
@@ -989,7 +1087,19 @@ async function loadInicio() {
     ]);
 
     if (epoch !== _loadEpoch) return; // Rechaza respuestas desfasadas
+    if (!box) return;
     box.innerHTML = '';
+
+    const style = styleRes.status === 'fulfilled' ? (styleRes.value || {}) : {};
+    const updates = updatesRes.status === 'fulfilled' ? (updatesRes.value || {}) : {};
+    const stats = statsRes.status === 'fulfilled' ? (statsRes.value || {}) : {};
+    const channels = channelsRes.status === 'fulfilled' ? (channelsRes.value || []) : [];
+
+    // Si todas las llamadas de datos fallaron por auth o error fatal:
+    if (styleRes.status === 'rejected' && statsRes.status === 'rejected' && channelsRes.status === 'rejected') {
+      renderError(box, styleRes.reason || statsRes.reason);
+      return;
+    }
 
     const g = _activeGuild;
 
@@ -1008,7 +1118,7 @@ async function loadInicio() {
         el('div', { class: 'dash-server-hero-meta dim' },
           el('span', {}, memberText),
           el('span', { class: 'meta-sep' }, '·'),
-          el('span', {}, `${stats.text_channels || channels.length} canales`),
+          el('span', {}, `${stats.text_channels || channels.length || 0} canales`),
           el('span', { class: 'meta-sep' }, '·'),
           el('span', { class: 'server-id-mono' }, `ID: ${GUILD_ID}`)
         )
@@ -1022,9 +1132,9 @@ async function loadInicio() {
       statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), 'Mensajes en memoria', 'Corpus de aprendizaje'),
       statTile('film', withCap(stats.gifs, lims.gifs), 'GIFs en catálogo', 'Para respuestas y comandos'),
       statTile('sparkle', withCap(stats.frases, lims.frases), 'Frases especiales', 'Respuestas configuradas'),
-      statTile('chat', `${stats.reading_channels} / ${stats.text_channels || channels.length}`, 'Canales que lee', 'Para armar estilo'),
-      statTile('layout', `${stats.reply_channels} / ${stats.text_channels || channels.length}`, 'Canales que responde', 'Menciones y espontáneos'),
-      statTile('smile', stats.reactions, 'Emojis de reacción', 'Pool activo')
+      statTile('chat', `${stats.reading_channels || 0} / ${stats.text_channels || channels.length || 0}`, 'Canales que lee', 'Para armar estilo'),
+      statTile('layout', `${stats.reply_channels || 0} / ${stats.text_channels || channels.length || 0}`, 'Canales que responde', 'Menciones y espontáneos'),
+      statTile('smile', stats.reactions || 0, 'Emojis de reacción', 'Pool activo')
     );
 
     const alcanzados = [
@@ -1144,116 +1254,25 @@ async function loadInicio() {
 
     box.append(stylePreviewNode, updatesRow, activityRow);
   } catch (e) {
-    renderError(box, e);
+    if (box) renderError(box, e);
   }
-}
-
-// ---------------- MODAL DE ESTILO (AVATAR / NICK / BANNER) ----------------
-
-function openStyleModal(style) {
-  const state = {
-    nick: style.nick || '',
-    avatar: undefined,
-    banner: undefined,
-  };
-  const previewAvatarUrl = () => state.avatar === undefined
-    ? (style.avatar_url || style.current_avatar_url)
-    : state.avatar;
-  const previewBannerUrl = () => state.banner === undefined ? style.banner_url : state.banner;
-
-  const counter = el('span', { class: 'dim style-counter' });
-  const nickInput = el('input', {
-    type: 'text', maxlength: '20', value: state.nick,
-    placeholder: style.current_nick || 'Purgito',
-  });
-
-  const preview = el('div', { class: 'style-modal-preview' });
-  function renderPreview() {
-    counter.textContent = `${nickInput.value.length}/20`;
-    preview.innerHTML = '';
-    const av = previewAvatarUrl();
-    const bn = previewBannerUrl();
-    preview.append(el('div', { class: 'style-preview' },
-      av ? el('img', { class: 'style-avatar', src: av, alt: '' }) : null,
-      el('div', {},
-        el('div', { class: 'style-nick' },
-          nickInput.value.trim() || style.current_nick || 'Purgito',
-          el('span', { class: 'dm-badge' }, 'BOT')),
-        el('div', { class: 'dim' }, 'Hola, soy Purgito con el estilo de este servidor'))),
-      bn ? el('img', { class: 'style-banner', src: bn, alt: '' }) : null);
-  }
-  nickInput.oninput = renderPreview;
-
-  function imageSection(label, key) {
-    const body = el('div', { class: 'style-img-body' });
-    const check = el('input', { type: 'checkbox' });
-    const file = el('input', { type: 'file', accept: 'image/*', hidden: '' });
-    file.onchange = async () => {
-      if (!file.files.length) return;
-      try {
-        const url = await uploadImageBlob(file.files[0], file.files[0].name);
-        state[key] = url;
-        renderPreview();
-      } catch (e) { toast(e.message, 'err'); }
-    };
-    body.append(file,
-      el('button', { class: 'btn btn-secondary btn-sm', onclick: () => file.click() }, `Subir ${label}`),
-      el('button', {
-        class: 'btn btn-danger btn-sm',
-        onclick: () => { state[key] = null; renderPreview(); },
-      }, `Remover ${label}`));
-    body.style.display = 'none';
-    check.onchange = () => {
-      body.style.display = check.checked ? '' : 'none';
-      if (!check.checked) { state[key] = undefined; renderPreview(); }
-    };
-    return el('div', { class: 'field' },
-      el('label', { class: 'toggle' }, check, `Editar ${label}`), body);
-  }
-
-  const overlay = panelModal('Editar estilo de Purgito', el('div', { class: 'style-modal' },
-    el('div', { class: 'field' },
-      el('label', {}, 'Nombre de usuario ', counter), nickInput),
-    imageSection('Avatar', 'avatar'),
-    imageSection('Banner', 'banner'),
-    el('div', { class: 'field' }, el('label', {}, 'Previa'), preview),
-    el('div', { class: 'style-modal-actions' },
-      el('button', { class: 'btn btn-secondary', onclick: () => overlay.remove() }, 'Cancelar'),
-      el('button', {
-        class: 'btn btn-primary',
-        onclick: async (ev) => {
-          const btn = ev.currentTarget;
-          btn.disabled = true;
-          const body = { nick: nickInput.value.trim() };
-          if (state.avatar !== undefined) body.avatar_url = state.avatar;
-          if (state.banner !== undefined) body.banner_url = state.banner;
-          try {
-            const r = await apiFetch(`/api/server/${GUILD_ID}/style`, { method: 'PUT', body });
-            overlay.remove();
-            if (r.warning) toast(r.warning, 'warn');
-            else toast('Estilo actualizado', 'ok');
-            if (currentTab() === 'inicio') loadInicio();
-            else if (currentTab() === 'estilo') loadEstiloModule();
-          } catch (e) {
-            btn.disabled = false;
-            toast(e.message, 'err');
-          }
-        },
-      }, 'Actualizar'))));
-  renderPreview();
 }
 
 // ---------------- MÓDULOS ESPECÍFICOS DIRECTOS ----------------
 
 async function loadEstiloModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const style = await apiFetch(`/api/server/${GUILD_ID}/style`);
+    if (!box) return;
     box.innerHTML = '';
 
-    const avatar = style.avatar_url || style.current_avatar_url;
-    const nick = style.nick || style.current_nick || 'Purgito';
+    const avatar = (style && (style.avatar_url || style.current_avatar_url)) || null;
+    const nick = (style && (style.nick || style.current_nick)) || 'Purgito';
 
     box.append(
       formGroup('Personalización de Purgito',
@@ -1268,19 +1287,23 @@ async function loadEstiloModule() {
           ),
           el('button', {
             class: 'btn btn-primary',
-            onclick: () => openStyleModal(style),
+            onclick: () => openStyleModal(style || {}),
           }, 'Editar apariencia')
         )
       )
     );
-  } catch (e) { renderError(box, e); }
+  } catch (e) { if (box) renderError(box, e); }
 }
 
 async function loadPlaygroundModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const channels = await getChannels();
+    if (!box) return;
     box.innerHTML = '';
 
     const sel = channelSelect(channels, null, 'Elige un canal…');
@@ -1324,20 +1347,24 @@ async function loadPlaygroundModule() {
         resultBox
       )
     );
-  } catch (e) { renderError(box, e); }
+  } catch (e) { if (box) renderError(box, e); }
 }
 
 async function loadUpdatesModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const [updates, channels] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
       getChannels({ force: true }),
     ]);
+    if (!box) return;
     box.innerHTML = '';
 
-    const sel = channelSelect(channels, updates.channel_id, 'Sin canal — no publicar');
+    const sel = channelSelect(channels, updates ? updates.channel_id : null, 'Sin canal — no publicar');
     sel.onchange = async () => {
       try {
         await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
@@ -1358,22 +1385,28 @@ async function loadUpdatesModule() {
         )
       )
     );
-  } catch (e) { renderError(box, e); }
+  } catch (e) { if (box) renderError(box, e); }
 }
 
 async function loadTriggersModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const [triggers, channels, frasePacks] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/settings/triggers`),
       getChannels(),
       apiFetch(`/api/server/${GUILD_ID}/frases/packs`),
     ]);
+    if (!box) return;
     box.innerHTML = '';
 
     const triggersBox = el('div', {});
-    renderTriggers(triggersBox, triggers, channels, frasePacks.packs);
+    const triggersList = (triggers && triggers.triggers) || (Array.isArray(triggers) ? triggers : []);
+    const packsList = (frasePacks && frasePacks.packs) || [];
+    renderTriggers(triggersBox, triggersList, channels || [], packsList);
 
     box.append(
       formGroup('Triggers de canal',
@@ -1383,28 +1416,33 @@ async function loadTriggersModule() {
         triggersBox
       )
     );
-  } catch (e) { renderError(box, e); }
+  } catch (e) { if (box) renderError(box, e); }
 }
 
 async function loadReaccionesModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const [chat, reactions] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
       apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`),
     ]);
+    if (!box) return;
     box.innerHTML = '';
 
     const reaccionesBox = el('div', {});
-    renderReacciones(reaccionesBox, reactions.reactions);
+    const reactionsList = (reactions && reactions.reactions) || (Array.isArray(reactions) ? reactions : []);
+    renderReacciones(reaccionesBox, reactionsList);
 
     box.append(
       formGroup('Reacciones automáticas',
         el('p', { class: 'dim' }, 'Configura la probabilidad y la colección de emojis con los que Purgito puede reaccionar a los mensajes del chat.'),
         probabilityField('Probabilidad de reaccionar con un emoji', null, {
           key: 'reaction_probability',
-          value: chat.reaction_probability,
+          value: chat ? chat.reaction_probability : 0,
         }),
         el('div', { class: 'field' },
           el('label', {}, 'Colección de emojis'),
@@ -1412,12 +1450,15 @@ async function loadReaccionesModule() {
         )
       )
     );
-  } catch (e) { renderError(box, e); }
+  } catch (e) { if (box) renderError(box, e); }
 }
 
 async function loadFrasesModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const [frases, frasePacks, channels, fraseChannels] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/settings/frases`),
@@ -1425,15 +1466,18 @@ async function loadFrasesModule() {
       getChannels(),
       apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`),
     ]);
+    if (!box) return;
     box.innerHTML = '';
 
+    const frasesList = (frases && frases.frases) || (Array.isArray(frases) ? frases : []);
+    const packsList = (frasePacks && frasePacks.packs) || [];
     const frasesBox = el('div', {});
-    renderFrases(frasesBox, frases.frases, frasePacks.packs, frases.limit);
+    renderFrases(frasesBox, frasesList, packsList, frases ? frases.limit : null);
 
     const packsBox = el('div', {});
-    renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox, frasePacks.limit);
+    renderFrasePacks(packsBox, packsList, channels || [], frasesBox, frasePacks ? frasePacks.limit : null);
 
-    const fraseChannelsSelected = new Set(fraseChannels.channels.map(c => c.id));
+    const fraseChannelsSelected = new Set(((fraseChannels && fraseChannels.channels) || []).map(c => c.id));
     const TAGS = ['{{user.mention}}', '{{user.name}}', '{{channel.name}}',
       '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
 
@@ -1453,7 +1497,7 @@ async function loadFrasesModule() {
       ),
       accordionGroup('Canales donde pueden salir frases especiales generales', false,
         channelToggleList({
-          channels,
+          channels: channels || [],
           isSelected: id => fraseChannelsSelected.has(id),
           add: async ch => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/frases/channels`, {
@@ -1471,12 +1515,15 @@ async function loadFrasesModule() {
         })
       )
     );
-  } catch (e) { renderError(box, e); }
+  } catch (e) { if (box) renderError(box, e); }
 }
 
 async function loadCanalesModule() {
   const box = content();
-  box.append(spinner());
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
   try {
     const [spontaneousChans, mentionChans, corpus, exempt, exemptChans, channels, roles] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`),
@@ -1487,12 +1534,13 @@ async function loadCanalesModule() {
       getChannels({ force: true }),
       getRoles(),
     ]);
+    if (!box) return;
     box.innerHTML = '';
 
-    const spontaneousSelected = new Set(spontaneousChans.channels.map(c => c.id));
-    const mentionSelected = new Set(mentionChans.channels.map(c => c.id));
-    const corpusSelected = new Set(corpus.channels.map(c => c.id));
-    const ignoredSet = new Set(corpus.ignored || []);
+    const spontaneousSelected = new Set(((spontaneousChans && spontaneousChans.channels) || []).map(c => c.id));
+    const mentionSelected = new Set(((mentionChans && mentionChans.channels) || []).map(c => c.id));
+    const corpusSelected = new Set(((corpus && corpus.channels) || []).map(c => c.id));
+    const ignoredSet = new Set((corpus && corpus.ignored) || []);
 
     const cols = [
       {
@@ -1544,7 +1592,7 @@ async function loadCanalesModule() {
 
     async function openOverrides(ch, panel) {
       const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${ch.id}/settings`);
-      const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
+      const eff = (data && data.effective) || {}, ov = (data && data.overrides) || {}, lim2 = (data && data.limits) || {};
       const rng = (k, d) => lim2[k] || d;
       panel.innerHTML = '';
       panel.append(
@@ -1581,10 +1629,10 @@ async function loadCanalesModule() {
       );
     }
 
-    const matrixNode = channelMatrix({ channels, cols, openOverrides });
+    const matrixNode = channelMatrix({ channels: channels || [], cols, openOverrides });
 
-    const exemptSelected = new Set(exempt.roles.map(r => r.id));
-    const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
+    const exemptSelected = new Set(((exempt && exempt.roles) || []).map(r => r.id));
+    const exemptChannelsSelected = new Set(((exemptChans && exemptChans.channels) || []).map(c => c.id));
 
     box.append(
       formGroup('Matriz de canales',
@@ -2107,10 +2155,10 @@ async function loadChatTab() {
       helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch.')));
 
     function buildCanales() {
-      const spontaneousSelected = new Set(spontaneousChans.channels.map(c => c.id));
-      const mentionSelected = new Set(mentionChans.channels.map(c => c.id));
-      const corpusSelected = new Set(corpus.channels.map(c => c.id));
-      const ignoredSet = new Set(corpus.ignored || []);
+      const spontaneousSelected = new Set(((spontaneousChans && spontaneousChans.channels) || []).map(c => c.id));
+      const mentionSelected = new Set(((mentionChans && mentionChans.channels) || []).map(c => c.id));
+      const corpusSelected = new Set(((corpus && corpus.channels) || []).map(c => c.id));
+      const ignoredSet = new Set((corpus && corpus.ignored) || []);
 
       const cols = [
         {
@@ -2162,7 +2210,7 @@ async function loadChatTab() {
 
       async function openOverrides(ch, panel) {
         const data = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${ch.id}/settings`);
-        const eff = data.effective, ov = data.overrides, lim2 = data.limits || {};
+        const eff = (data && data.effective) || {}, ov = (data && data.overrides) || {}, lim2 = (data && data.limits) || {};
         const rng = (k, d) => lim2[k] || d;
         panel.innerHTML = '';
         panel.append(
@@ -2203,7 +2251,7 @@ async function loadChatTab() {
             ? 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.'
             : `Hay ${ignoredSet.size} canales silenciados desde /settings: quedan fuera aunque los marques acá.`)
           : null,
-        channelMatrix({ channels, cols, openOverrides }));
+        channelMatrix({ channels: channels || [], cols, openOverrides }));
     }
 
     function buildDatos() {
@@ -2211,7 +2259,7 @@ async function loadChatTab() {
         formGroup('Importar corpus desde un archivo',
           el('p', { class: 'dim' },
             'Sube un .txt: cada línea no vacía entra al corpus del canal elegido como si fuera un mensaje real, con la misma limpieza y los mismos límites de siempre.'),
-          corpusImportForm(channels)),
+          corpusImportForm(channels || [])),
         formGroup('Amnesia',
           el('p', { class: 'dim' },
             'Borra el corpus (mensajes y estilo por usuario) de las últimas 24 horas de todo el servidor. Es irreversible.'),
@@ -2228,14 +2276,14 @@ async function loadChatTab() {
           el('div', { class: 'chain-fields' },
             numberField('Cada cuántos mensajes nuevos', null, {
               key: 'auto_generate_every',
-              value: chat.auto_generate_every,
+              value: chat ? chat.auto_generate_every : 20,
               min: (lim.auto_generate_every || [1])[0],
               max: (lim.auto_generate_every || [null, 1000])[1],
               suffix: 'mensajes',
             }),
             probabilityField('Y ahí, cuántas veces habla', null, {
               key: 'auto_generate_probability',
-              value: chat.auto_generate_probability,
+              value: chat ? chat.auto_generate_probability : 30,
             }))),
         el('div', { class: 'chain-step' },
           el('div', { class: 'chain-step-head' },
@@ -2245,7 +2293,7 @@ async function loadChatTab() {
           el('div', { class: 'chain-fields' },
             probabilityField('Manda un GIF', null, {
               key: 'gif_response_probability',
-              value: chat.gif_response_probability,
+              value: chat ? chat.gif_response_probability : 0,
             }))),
         el('div', { class: 'chain-step' },
           el('div', { class: 'chain-step-head' },
@@ -2255,17 +2303,18 @@ async function loadChatTab() {
           el('div', { class: 'chain-fields' },
             probabilityField('Usa una frase tuya', null, {
               key: 'frase_probability',
-              value: chat.frase_probability,
+              value: chat ? chat.frase_probability : 0,
             }))));
     }
 
     function buildReacciones() {
       const reaccionesBox = el('div', {});
-      renderReacciones(reaccionesBox, reactions.reactions);
+      const reactionsList = (reactions && reactions.reactions) || (Array.isArray(reactions) ? reactions : []);
+      renderReacciones(reaccionesBox, reactionsList);
       return el('div', {},
         probabilityField('Reacciona con un emoji', null, {
           key: 'reaction_probability',
-          value: chat.reaction_probability,
+          value: chat ? chat.reaction_probability : 0,
         }),
         el('div', { class: 'field' },
           el('label', {}, 'Emojis que puede usar', helpIcon(
@@ -2274,12 +2323,12 @@ async function loadChatTab() {
     }
 
     function buildLimites() {
-      const exemptSelected = new Set(exempt.roles.map(r => r.id));
-      const exemptChannelsSelected = new Set(exemptChans.channels.map(c => c.id));
+      const exemptSelected = new Set(((exempt && exempt.roles) || []).map(r => r.id));
+      const exemptChannelsSelected = new Set(((exemptChans && exemptChans.channels) || []).map(c => c.id));
       return formGroup(el('span', {}, 'Límite de actividad', helpIcon('0 = sin límite.')),
         numberField('Menciones por hora', null, {
           key: 'mention_rate_limit',
-          value: chat.mention_rate_limit,
+          value: chat ? chat.mention_rate_limit : 0,
           min: (lim.mention_rate_limit || [0])[0],
           max: (lim.mention_rate_limit || [null, 1000])[1],
           suffix: 'por usuario',
@@ -2287,7 +2336,7 @@ async function loadChatTab() {
         el('div', { class: 'field' },
           el('label', {}, 'Roles exentos del límite'),
           roleToggleList({
-            roles,
+            roles: roles || [],
             selected: exemptSelected,
             add: async role => {
               await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`, {
@@ -2306,7 +2355,7 @@ async function loadChatTab() {
         el('div', { class: 'field' },
           el('label', {}, 'Canales exentos del límite'),
           channelToggleList({
-            channels,
+            channels: channels || [],
             isSelected: id => exemptChannelsSelected.has(id),
             add: async ch => {
               await apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`, {
@@ -2326,14 +2375,17 @@ async function loadChatTab() {
 
     function buildContenido() {
       const frasesBox = el('div', {});
-      renderFrases(frasesBox, frases.frases, frasePacks.packs, frases.limit);
+      const frasesList = (frases && frases.frases) || (Array.isArray(frases) ? frases : []);
+      const packsList = (frasePacks && frasePacks.packs) || [];
+      renderFrases(frasesBox, frasesList, packsList, frases ? frases.limit : null);
 
       const packsBox = el('div', {});
-      renderFrasePacks(packsBox, frasePacks.packs, channels, frasesBox, frasePacks.limit);
+      renderFrasePacks(packsBox, packsList, channels || [], frasesBox, frasePacks ? frasePacks.limit : null);
 
-      const fraseChannelsSelected = new Set(fraseChannels.channels.map(c => c.id));
+      const fraseChannelsSelected = new Set(((fraseChannels && fraseChannels.channels) || []).map(c => c.id));
       const triggersBox = el('div', {});
-      renderTriggers(triggersBox, triggers, channels, frasePacks.packs);
+      const triggersList = (triggers && triggers.triggers) || (Array.isArray(triggers) ? triggers : []);
+      renderTriggers(triggersBox, triggersList, channels || [], packsList);
 
       const TAGS = ['{{user.mention}}', '{{user.name}}', '{{channel.name}}',
         '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];

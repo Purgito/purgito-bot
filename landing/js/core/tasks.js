@@ -55,13 +55,25 @@ function renderJustFinished(container, task) {
 /** Monta el indicador en `container` (un elemento vacío que el caller ya
  * agregó al DOM) y hace la consulta inicial a GET /tasks. Si container se
  * desmonta (cambio de tab, recarga de la sección), el próximo tick lo nota
- * y para el polling solo -- no hace falta un stop() explícito. */
+ * y para el polling solo -- no hace falta un stop() explícito.
+ *
+ * Llamar de nuevo sobre el mismo container (ej. gifs.js lo hace tras iniciar
+ * una verificación) para el watcher anterior en vez de sumar un segundo
+ * setInterval sobre el mismo container -- si no, cada llamada mientras la
+ * anterior sigue activa duplica los GET /tasks de fondo. */
 export async function watchTasks(container) {
+  if (container._watchTasksStop) container._watchTasksStop();
+
   let timer = null;
+  let stopped = false;
+  container._watchTasksStop = () => {
+    stopped = true;
+    if (timer) clearInterval(timer);
+  };
   let running = new Map();
 
   async function tick() {
-    if (!container.isConnected) {
+    if (stopped || !container.isConnected) {
       if (timer) clearInterval(timer);
       return;
     }
@@ -71,7 +83,7 @@ export async function watchTasks(container) {
     } catch {
       return; // poll de fondo: un error puntual no merece interrumpir la UI
     }
-    if (!container.isConnected) {
+    if (stopped || !container.isConnected) {
       if (timer) clearInterval(timer);
       return;
     }

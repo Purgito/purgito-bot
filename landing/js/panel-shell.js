@@ -19,20 +19,38 @@ import {
 // o booleano directo para invalidar y re-consultar al entrar a INICIO o CHAT.
 export async function getChannels(opts = {}) {
   const force = typeof opts === 'boolean' ? opts : Boolean(opts && opts.force);
-  if (!channelCache || force) setChannelCache((await apiFetch(`/api/server/${GUILD_ID}/channels`)).channels);
-  return channelCache;
+  if (!channelCache || force) {
+    try {
+      const data = await apiFetch(`/api/server/${GUILD_ID}/channels`);
+      setChannelCache((data && Array.isArray(data.channels)) ? data.channels : []);
+    } catch (e) {
+      if (!channelCache) setChannelCache([]);
+      throw e;
+    }
+  }
+  return channelCache || [];
 }
 
 export async function getRoles() {
-  if (!roleCache) setRoleCache((await apiFetch(`/api/server/${GUILD_ID}/roles`)).roles);
-  return roleCache;
+  if (!roleCache) {
+    try {
+      const data = await apiFetch(`/api/server/${GUILD_ID}/roles`);
+      setRoleCache((data && Array.isArray(data.roles)) ? data.roles : []);
+    } catch (e) {
+      if (!roleCache) setRoleCache([]);
+      throw e;
+    }
+  }
+  return roleCache || [];
 }
 
 export function channelSelect(channels, selectedId, noneLabel) {
   const sel = el('select', {});
   if (noneLabel !== undefined) sel.append(el('option', { value: '' }, noneLabel));
   let hasSelected = false;
-  for (const ch of channels) {
+  const list = Array.isArray(channels) ? channels : [];
+  for (const ch of list) {
+    if (!ch) continue;
     if (String(ch.id) === String(selectedId)) hasSelected = true;
     sel.append(el('option', { value: ch.id }, '#' + (ch.name || ch.id)));
   }
@@ -45,14 +63,18 @@ export function channelSelect(channels, selectedId, noneLabel) {
 
 export function roleSelect(roles, selectedId, noneLabel) {
   const sel = el('select', {});
-  sel.append(el('option', { value: '' }, noneLabel));
-  for (const r of roles) sel.append(el('option', { value: r.id }, '@' + r.name));
+  if (noneLabel !== undefined) sel.append(el('option', { value: '' }, noneLabel));
+  const list = Array.isArray(roles) ? roles : [];
+  for (const r of list) {
+    if (!r) continue;
+    sel.append(el('option', { value: r.id }, '@' + (r.name || r.id)));
+  }
   sel.value = selectedId || '';
   return sel;
 }
 
 export function content() {
   const box = document.getElementById('catContent');
-  box.innerHTML = '';
+  if (box) box.innerHTML = '';
   return box;
 }

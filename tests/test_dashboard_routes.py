@@ -930,10 +930,8 @@ def test_server_card_dashboard_canonical_href_and_routing():
     )
 
     # 2. initDash normaliza cualquier acceso raíz a la sub-pestaña activa (por defecto /inicio)
-    assert (
-        "if (!location.pathname.split('/')[4]) {\n      history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);\n    }"
-        in dash_js
-    )
+    assert "!location.pathname.split('/')[4]" in dash_js
+    assert "history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);" in dash_js
 
     # 3. DEPLOY.md documenta la regex que captura tanto /dashboard como /dashboard/*
     assert "location ~ ^/(es|en|ru|ja|de)/dashboard(/.*)?$ {" in deploy_md
@@ -1036,4 +1034,27 @@ def test_dashboard_executive_inicio_redesign():
     assert "openStyleModal" in dash_js
     assert "/api/server/${GUILD_ID}/style" in dash_js
     assert "/api/server/${GUILD_ID}/settings/updates" in dash_js
+
+
+def test_dashboard_availability_and_resilience_architecture():
+    """Verifica que el dashboard maneje disponibilidad global de forma robusta para todo tipo de usuario."""
+    dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
+    panel_shell_js = (LANDING / "js" / "panel-shell.js").read_text("utf-8")
+
+    # 1. initDash es determinista y no sufre race conditions entre loadHead y activate
+    assert "export async function initDash()" in dash_js
+    assert "export function renderTopBar(guild)" in dash_js
+    assert "fetchUserGuilds" in dash_js
+
+    # 2. Carga resiliente de Inicio con Promise.allSettled
+    assert "Promise.allSettled" in dash_js
+
+    # 3. Deduplicación de llamadas concurrentes a /api/me/guilds
+    assert "_fetchingGuildsPromise" in dash_js
+
+    # 4. Manejo seguro de listas vacías y null-safety en panel-shell
+    assert "Array.isArray(channels)" in panel_shell_js
+    assert "Array.isArray(roles)" in panel_shell_js
+    assert "setChannelCache((data && Array.isArray(data.channels)) ? data.channels : []);" in panel_shell_js
+
 
