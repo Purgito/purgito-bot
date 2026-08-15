@@ -3861,150 +3861,32 @@ h1 {
   color: var(--text-dim);
 }
 
-/* Result Section */
-.sim-result-card {
-  background: #181b22;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-lg);
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
-  margin-top: 6px;
+/* Contextual Feedback Callout */
+.sim-feedback {
+  margin-top: 14px;
 }
 
-.sim-result-header {
+.sim-feedback-response {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding-bottom: 12px;
-}
-
-.sim-result-title-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.sim-result-title {
-  margin: 0;
-  font-size: 15.5px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.sim-discord-preview {
-  display: flex;
-  gap: 14px;
   align-items: flex-start;
-  padding: 14px 16px;
-  background: #1e222b;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-md);
-}
-
-.sim-bot-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex: none;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
   background: var(--surface-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  animation: fadeInDown 0.15s ease-out;
 }
 
-.sim-message-content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-
-.sim-message-author-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.sim-bot-name {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.sim-bot-tag {
-  font-size: 10px;
-  font-weight: 700;
-  background: #5865f2;
-  color: #fff;
-  padding: 1px 5px;
-  border-radius: 3px;
-  text-transform: uppercase;
-}
-
-.sim-message-timestamp {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.sim-message-text {
+.sim-feedback-text {
   font-size: 14.5px;
-  line-height: 1.5;
-  color: #dbdee1;
+  line-height: 1.55;
+  color: var(--text);
   word-break: break-word;
   white-space: pre-wrap;
-}
-
-.sim-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.sim-meta-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-}
-
-.sim-meta-tag--trigger {
-  background: color-mix(in srgb, #f59e0b 16%, transparent);
-  color: #fbbf24;
-  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
-}
-
-.sim-meta-tag--frase {
-  background: color-mix(in srgb, #a855f7 16%, transparent);
-  color: #c084fc;
-  border: 1px solid color-mix(in srgb, #a855f7 35%, transparent);
-}
-
-.sim-meta-tag--markov {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-.sim-no-response-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: var(--radius-md);
-  color: #fca5a5;
-  font-size: 14px;
+  flex: 1;
 }
 
 .sim-empty-state {
@@ -4013,16 +3895,16 @@ h1 {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 36px 20px;
+  padding: 32px 20px;
   background: var(--surface-card);
   border: 1px dashed rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg);
-  gap: 12px;
+  gap: 10px;
 }
 
 .sim-empty-state-icon {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   color: var(--text-dim);
   display: flex;
   align-items: center;
@@ -4031,15 +3913,15 @@ h1 {
 
 .sim-empty-state-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
 }
 
 .sim-empty-state-desc {
   margin: 0;
-  max-width: 460px;
-  font-size: 13.5px;
+  max-width: 440px;
+  font-size: 13px;
   color: var(--text-muted);
   line-height: 1.5;
 }

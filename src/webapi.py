@@ -31,6 +31,7 @@ import secrets
 import time
 from datetime import datetime
 from types import SimpleNamespace
+from typing import Any
 from urllib.parse import urlencode, urlparse
 
 import aiohttp
@@ -122,6 +123,7 @@ from db import (
     get_updates_channel,
     gifs_limit,
     import_corpus_messages,
+    is_channel_ignored,
     is_session_revoked,
     list_audit_log_page,
     list_blocked_gifs,
@@ -800,6 +802,53 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
 # ---------------- API: canales y roles ----------------
 
 
+async def is_channel_eligible_for_chat_simulation(
+    guild_id: int, channel: Any, guild: Any
+) -> tuple[bool, str | None]:
+    """Determina de forma centralizada si un canal es completamente elegible y
+    utilizable por Purgito para el simulador de chat.
+
+    Comprueba:
+    1. Existencia del canal.
+    2. Permisos efectivos reales de Discord para el bot en ese canal (view_channel, send_messages, read_message_history),
+       respetando roles, categorías y overwrites.
+    3. Que el canal no esté ignorado/silenciado en la configuración interna de Purgito.
+    """
+    if channel is None:
+        return False, "el canal no existe en este servidor"
+
+    # Permisos efectivos de Discord para el bot en este canal concreto
+    if hasattr(channel, "permissions_for") and hasattr(guild, "me"):
+        bot_member = guild.me
+        if bot_member is not None:
+            perms = channel.permissions_for(bot_member)
+            if not getattr(perms, "view_channel", True):
+                return False, "Purgito no tiene permiso para ver este canal en Discord"
+            if not getattr(perms, "send_messages", True):
+                return (
+                    False,
+                    "Purgito no tiene permiso para enviar mensajes en este canal en Discord",
+                )
+            if not getattr(perms, "read_message_history", True):
+                return (
+                    False,
+                    "Purgito no tiene permiso para leer el historial en este canal en Discord",
+                )
+
+    # Configuración interna: canal ignorado / silenciado en Purgito
+    if hasattr(channel, "id"):
+        try:
+            if await is_channel_ignored(guild_id, int(channel.id)):
+                return (
+                    False,
+                    "el canal está silenciado (ignorado) en la configuración de Purgito",
+                )
+        except Exception:
+            pass
+
+    return True, None
+
+
 @guild_api
 async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
     # guild_api ya garantiza que el bot está en el guild.
@@ -817,6 +866,8 @@ async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
         )
     except Exception:
         pass
+
+    ignored_set = set(await list_ignored_channels(guild_id))
 
     for c in raw_channels:
         perms = (
@@ -836,7 +887,10 @@ async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
         can_read_history = (
             bool(getattr(perms, "read_message_history", True)) if perms else True
         )
-        can_use_simulator = can_view and can_send
+        is_ignored = int(c.id) in ignored_set
+        can_use_simulator = (
+            can_view and can_send and can_read_history and not is_ignored
+        )
         category_name = c.category.name if getattr(c, "category", None) else None
         channels.append(
             {
@@ -848,11 +902,16 @@ async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
                 "can_send": can_send,
                 "can_read_history": can_read_history,
                 "can_use_simulator": can_use_simulator,
-                "can_manage_webhooks": bool(getattr(perms, "manage_webhooks", False))
-                if perms
-                else False,
+                "is_ignored": is_ignored,
+                "can_manage_webhooks": (
+                    bool(getattr(perms, "manage_webhooks", False)) if perms else False
+                ),
             }
         )
+
+    if request.query.get("for") == "simulator":
+        channels = [c for c in channels if c["can_use_simulator"]]
+
     return web.json_response({"channels": channels})
 
 
@@ -1013,18 +1072,15 @@ async def _api_chat_playground_post(
             {"error": "el canal no existe en este servidor"}, status=400
         )
 
-    # Validar permisos en tiempo real: el bot debe poder ver y enviar mensajes en el canal
-    if hasattr(channel, "permissions_for") and hasattr(guild, "me"):
-        perms = channel.permissions_for(guild.me)
-        can_view = bool(getattr(perms, "view_channel", True))
-        can_send = bool(getattr(perms, "send_messages", True))
-        if not (can_view and can_send):
-            return web.json_response(
-                {
-                    "error": "Purgito no puede utilizar este canal con los permisos actuales. Se requiere permiso para ver el canal y enviar mensajes."
-                },
-                status=403,
-            )
+    # Validar permisos y elegibilidad en tiempo real mediante la regla centralizada
+    is_eligible, ineligible_reason = await is_channel_eligible_for_chat_simulation(
+        guild_id, channel, guild
+    )
+    if not is_eligible:
+        return web.json_response(
+            {"error": f"Purgito no puede utilizar este canal: {ineligible_reason}."},
+            status=403,
+        )
 
     # El admin que prueba el playground hace de "autor" para {{user.*}}: se
     # busca su Member real (para que {{user.mention}} sea el suyo) y si no

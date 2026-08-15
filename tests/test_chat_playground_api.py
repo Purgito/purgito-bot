@@ -165,12 +165,12 @@ def test_usa_un_placeholder_si_no_hay_member_en_cache(fake_guild, monkeypatch):
 
 
 def test_canal_sin_permisos_devuelve_403(fake_guild):
-    # Canal con permisos_for simulado donde send_messages es False
+    # Canal con permissions_for simulado donde send_messages es False
     no_perms_channel = SimpleNamespace(
         id=20,
         name="solo-lectura",
         permissions_for=lambda me: SimpleNamespace(
-            view_channel=True, send_messages=False
+            view_channel=True, send_messages=False, read_message_history=True
         ),
     )
     fake_guild._channels[20] = no_perms_channel
@@ -179,4 +179,99 @@ def test_canal_sin_permisos_devuelve_403(fake_guild):
     resp = _run(FakeRequest(body={"message": "hola", "channel_id": "20"}))
     assert resp.status == 403
     data = _json(resp)
-    assert "permisos" in data["error"]
+    assert "enviar mensajes" in data["error"]
+
+
+def test_canal_sin_permiso_ver_canal_devuelve_403(fake_guild):
+    no_view_channel = SimpleNamespace(
+        id=21,
+        name="privado",
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=False, send_messages=True, read_message_history=True
+        ),
+    )
+    fake_guild._channels[21] = no_view_channel
+    fake_guild.me = SimpleNamespace(id=111)
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "21"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "ver este canal" in data["error"]
+
+
+def test_canal_ignorado_en_purgito_devuelve_403(fake_guild, monkeypatch):
+    ignored_channel = SimpleNamespace(
+        id=22,
+        name="canal-silenciado",
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=True, read_message_history=True
+        ),
+    )
+    fake_guild._channels[22] = ignored_channel
+    fake_guild.me = SimpleNamespace(id=111)
+
+    async def fake_is_ignored(guild_id, channel_id):
+        return channel_id == 22
+
+    monkeypatch.setattr(webapi, "is_channel_ignored", fake_is_ignored)
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "22"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "silenciado (ignorado)" in data["error"]
+
+
+def test_api_channels_marca_elegibilidad_de_simulador(fake_guild, monkeypatch):
+    c1 = SimpleNamespace(
+        id=1,
+        name="valido",
+        category=None,
+        position=1,
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=True, read_message_history=True
+        ),
+    )
+    c2 = SimpleNamespace(
+        id=2,
+        name="sin-envio",
+        category=None,
+        position=2,
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=False, read_message_history=True
+        ),
+    )
+    c3 = SimpleNamespace(
+        id=3,
+        name="ignorado",
+        category=None,
+        position=3,
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=True, read_message_history=True
+        ),
+    )
+    fake_guild.text_channels = [c1, c2, c3]
+    fake_guild.me = SimpleNamespace(id=111)
+
+    async def fake_list_ignored(guild_id):
+        return [3]
+
+    monkeypatch.setattr(webapi, "list_ignored_channels", fake_list_ignored)
+
+    req = FakeRequest()
+    req.query = {}
+    resp = asyncio.run(webapi._api_channels(req))
+    assert resp.status == 200
+    data = _json(resp)
+    channels = data["channels"]
+    assert len(channels) == 3
+    assert channels[0]["id"] == "1" and channels[0]["can_use_simulator"] is True
+    assert channels[1]["id"] == "2" and channels[1]["can_use_simulator"] is False
+    assert channels[2]["id"] == "3" and channels[2]["can_use_simulator"] is False
+
+    # Con ?for=simulator
+    req.query = {"for": "simulator"}
+    resp_sim = asyncio.run(webapi._api_channels(req))
+    data_sim = _json(resp_sim)
+    sim_channels = data_sim["channels"]
+    assert len(sim_channels) == 1
+    assert sim_channels[0]["id"] == "1"

@@ -1418,21 +1418,16 @@ async function loadPlaygroundModule() {
     box.append(spinner());
   }
   try {
-    const [channelsRes, styleRes] = await Promise.allSettled([
-      getChannels({ force: true }),
-      apiFetch(`/api/server/${GUILD_ID}/style`),
-    ]);
-
+    const channelsRes = await getChannels({ force: true });
     if (!box) return;
     box.innerHTML = '';
 
-    const allChannels = channelsRes.status === 'fulfilled' && Array.isArray(channelsRes.value) ? channelsRes.value : [];
-    const style = styleRes.status === 'fulfilled' ? (styleRes.value || {}) : {};
+    const allChannels = Array.isArray(channelsRes) ? channelsRes : [];
 
     // Filtrar únicamente canales donde Purgito puede operar en el simulador
-    const usableChannels = allChannels.filter(c => c && c.can_use_simulator !== false && c.can_send !== false && c.can_view !== false);
+    const usableChannels = allChannels.filter(c => c && c.can_use_simulator);
 
-    // Estado vacío si no hay canales con permisos suficientes
+    // Estado vacío si no hay canales utilizables
     if (!usableChannels.length) {
       box.append(
         formGroup('Simulador de Chat',
@@ -1441,9 +1436,9 @@ async function loadPlaygroundModule() {
           ),
           el('div', { class: 'sim-empty-state' },
             el('div', { class: 'sim-empty-state-icon' }, icon('lock')),
-            el('h3', { class: 'sim-empty-state-title' }, 'No hay canales disponibles para usar el simulador'),
+            el('h3', { class: 'sim-empty-state-title' }, 'No hay canales disponibles para simular.'),
             el('p', { class: 'sim-empty-state-desc' },
-              'Purgito necesita permisos de "Ver canal" y "Enviar mensajes" en Discord para poder evaluar el contexto y simular respuestas. Configura los roles del bot en los canales de texto de tu servidor para comenzar.'
+              'Purgito necesita permisos suficientes para acceder y responder en un canal.'
             )
           )
         )
@@ -1466,7 +1461,7 @@ async function loadPlaygroundModule() {
         el('div', { class: 'sim-step-badge' }, '1'),
         el('div', { class: 'sim-step-title-group' },
           el('h3', { class: 'sim-step-title' }, 'Canal de contexto'),
-          el('p', { class: 'sim-step-desc' }, 'Selecciona un canal donde Purgito tenga permisos de lectura y respuesta.')
+          el('p', { class: 'sim-step-desc' }, 'Selecciona un canal donde Purgito pueda leer y responder.')
         )
       ),
       channelPicker
@@ -1491,8 +1486,8 @@ async function loadPlaygroundModule() {
       textarea
     );
 
-    // Result container
-    const resultBox = el('div', { class: 'sim-result-section' });
+    // Contextual feedback box
+    const feedbackBox = el('div', { class: 'sim-feedback', style: 'display: none;' });
 
     // Action button
     const submitBtn = el('button', {
@@ -1502,7 +1497,7 @@ async function loadPlaygroundModule() {
         if (isSubmitting) return;
         const msg = textarea.value.trim();
         if (!selectedChannelId) {
-          toast('Por favor selecciona un canal válido', 'warn');
+          toast('Selecciona un canal válido', 'warn');
           return;
         }
         if (!msg) {
@@ -1515,34 +1510,47 @@ async function loadPlaygroundModule() {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '';
         submitBtn.append(spinner(), el('span', {}, 'Generando respuesta…'));
-
-        resultBox.innerHTML = '';
-        resultBox.append(spinner());
+        feedbackBox.style.display = 'none';
+        feedbackBox.innerHTML = '';
 
         try {
           const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
             method: 'POST',
             body: { channel_id: selectedChannelId, message: msg },
           });
-          const targetChan = usableChannels.find(c => String(c.id) === String(selectedChannelId)) || { name: 'canal' };
-          renderPlaygroundResult(resultBox, data, targetChan, style);
+
+          if (data && data.would_respond) {
+            feedbackBox.style.display = 'block';
+            feedbackBox.innerHTML = '';
+            feedbackBox.append(
+              el('div', { class: 'sim-feedback-response' },
+                el('div', { class: 'sim-feedback-text' }, data.text || ''),
+                el('button', {
+                  type: 'button',
+                  class: 'btn btn-secondary btn-sm',
+                  title: 'Copiar respuesta',
+                  onclick: () => {
+                    navigator.clipboard?.writeText(data.text || '');
+                    toast('Copiado al portapapeles', 'ok');
+                  },
+                }, icon('clipboard'), 'Copiar')
+              )
+            );
+            toast('Respuesta simulada con éxito', 'ok');
+          } else {
+            const reasonText = (data && PLAYGROUND_NO_RESPONSE_LABELS[data.reason]) || 'El bot no respondería a este mensaje según las reglas configuradas.';
+            toast(reasonText, 'warn');
+          }
         } catch (err) {
-          resultBox.innerHTML = '';
           let errText = 'No fue posible simular la respuesta.';
           if (err && err.status === 403) {
-            errText = 'Purgito ya no tiene acceso a este canal o carece de permisos para ver y enviar mensajes.';
+            errText = (err.data && err.data.error) || 'Purgito ya no tiene acceso a este canal o carece de permisos para ver y enviar mensajes.';
           } else if (err && err.status === 400) {
             errText = (err.data && err.data.error) || 'El canal o mensaje de prueba no son válidos.';
           } else if (err && err.status === 429) {
             errText = 'Has realizado demasiadas simulaciones consecutivas. Espera unos momentos antes de intentar nuevamente.';
           }
-          resultBox.append(el('div', { class: 'sim-no-response-box' },
-            icon('alertTriangle'),
-            el('div', {},
-              el('strong', {}, 'Error al simular: '),
-              el('span', {}, errText)
-            )
-          ));
+          toast(errText, 'err');
         } finally {
           isSubmitting = false;
           submitBtn.disabled = false;
@@ -1557,7 +1565,7 @@ async function loadPlaygroundModule() {
       el('span', { class: 'sim-hint' }, 'El mensaje se evaluará contra las reglas del canal sin enviarse a Discord.')
     );
 
-    container.append(step1Card, step2Card, actionRow, resultBox);
+    container.append(step1Card, step2Card, actionRow, feedbackBox);
 
     box.append(
       formGroup('Simulador de Chat',
@@ -3573,90 +3581,7 @@ function buildPlaygroundChannelPicker(channels, selectedId, onSelect) {
   return wrap;
 }
 
-function renderPlaygroundResult(box, data, channel, style) {
-  box.innerHTML = '';
-  if (!data) return;
 
-  const card = el('div', { class: 'sim-result-card' });
-
-  const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const chanName = channel ? channel.name : 'canal';
-
-  const resultHeader = el('div', { class: 'sim-result-header' },
-    el('div', { class: 'sim-result-title-group' },
-      icon('sparkle'),
-      el('h4', { class: 'sim-result-title' }, 'Respuesta simulada'),
-      el('span', { class: 'badge badge-sm' }, 'Simulación en vivo')
-    ),
-    el('span', { class: 'sim-meta-tag' },
-      icon('chat'),
-      `#${chanName}`
-    )
-  );
-  card.append(resultHeader);
-
-  if (!data.would_respond) {
-    const reasonText = PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'El bot no respondería a este mensaje según las reglas configuradas.';
-    card.append(
-      el('div', { class: 'sim-no-response-box' },
-        icon('alertTriangle'),
-        el('div', {},
-          el('strong', {}, 'Sin respuesta: '),
-          el('span', {}, reasonText)
-        )
-      )
-    );
-  } else {
-    const botNick = (style && style.current_nick) || 'Purgito';
-    const botAvatar = (style && (style.avatar_url || style.current_avatar_url)) || '/img/icon.webp';
-
-    const discordPreview = el('div', { class: 'sim-discord-preview' },
-      el('img', { class: 'sim-bot-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.src = '/img/icon.webp'; } }),
-      el('div', { class: 'sim-message-content' },
-        el('div', { class: 'sim-message-author-row' },
-          el('span', { class: 'sim-bot-name' }, botNick),
-          el('span', { class: 'sim-bot-tag' }, 'BOT'),
-          el('span', { class: 'sim-message-timestamp' }, `Hoy a las ${timeStr} (Simulación)`)
-        ),
-        el('div', { class: 'sim-message-text' }, data.text || '')
-      )
-    );
-    card.append(discordPreview);
-
-    const metaRow = el('div', { class: 'sim-meta-row' });
-    if (data.reason === 'trigger') {
-      metaRow.append(
-        el('span', { class: 'sim-meta-tag sim-meta-tag--trigger' },
-          icon('zap'),
-          `Disparado por Trigger ${data.trigger_id ? `(#${data.trigger_id})` : ''}`
-        )
-      );
-    } else if (data.reason === 'frase_especial') {
-      metaRow.append(
-        el('span', { class: 'sim-meta-tag sim-meta-tag--frase' },
-          icon('sparkle'),
-          'Frase especial de canal'
-        )
-      );
-    } else if (data.reason === 'markov') {
-      metaRow.append(
-        el('span', { class: 'sim-meta-tag sim-meta-tag--markov' },
-          icon('play'),
-          'Generado con Modelo Markov'
-        )
-      );
-    }
-    card.append(metaRow);
-  }
-
-  const avisosNode = playgroundAvisos(data.avisos);
-  if (avisosNode) {
-    card.append(avisosNode);
-  }
-
-  box.append(card);
-}
 
 // ---------------- MEMES ----------------
 

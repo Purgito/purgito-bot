@@ -617,8 +617,27 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(contentText, /Canal de contexto/);
   assert.match(contentText, /Mensaje de entrada/);
   assert.match(contentText, /Simular respuesta/);
+  assert.ok(!contentText.includes('Respuesta simulada'), 'No debe existir un panel permanente de Respuesta simulada');
 
-  console.log('✓ Test 12: Simulador de Chat estructurado, con filtrado de permisos y funcional');
+  // Test vacío cuando no hay canales utilizables
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/channels')) {
+        return jsonResp({
+          channels: [
+            { id: '99', name: 'solo-lectura', can_use_simulator: false },
+          ],
+        });
+      }
+      return jsonResp({});
+    },
+  ];
+  await playgroundMod.load();
+  await new Promise(r => setTimeout(r, 50));
+  const emptyContent = elementsById.catContent.text();
+  assert.match(emptyContent, /No hay canales disponibles para simular/);
+
+  console.log('✓ Test 12: Simulador de Chat estructurado, con filtrado de permisos y sin panel permanente');
 }
 
 // ── Test 13: Eliminación de redundancias en navegación ────────────────────────
