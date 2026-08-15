@@ -3708,31 +3708,107 @@ async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> lis
     ]
 
 
+async def get_audit_log_users(guild_id: int) -> list[dict]:
+    """Lista de usuarios distintos que figuran en el audit log del guild."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT DISTINCT user_id, user_name FROM audit_log WHERE guild_id=? ORDER BY user_name COLLATE NOCASE ASC",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"user_id": r[0], "user_name": r[1]} for r in rows]
+
+
 async def list_audit_log_page(
-    guild_id: int, before_id: int | None = None, limit: int = 5
+    guild_id: int,
+    before_id: int | None = None,
+    limit: int = 5,
+    q: str | None = None,
+    user_id: int | None = None,
+    action: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> tuple[list[dict], bool]:
     """Paginación por cursor (id descendente) para el tab HISTORIAL del
-    dashboard -- a diferencia de list_audit_log (limit/offset, que el resto
-    del código usa como "traeme todo"), audit_log crece todo el tiempo, así
-    que OFFSET puede duplicar o saltear filas si se inserta una nueva
-    mientras el admin sigue paginando.
+    dashboard con soporte de búsqueda, filtros por usuario, acción y rango
+    de fechas.
 
     Pide limit+1 y descarta la última fila como señal de si hay más
     páginas, en vez de un COUNT(*) aparte.
     """
     db = await get_db()
-    if before_id is None:
-        query = (
-            "SELECT id, user_id, user_name, action, detail, created_at "
-            "FROM audit_log WHERE guild_id=? ORDER BY id DESC LIMIT ?"
-        )
-        params = (guild_id, limit + 1)
-    else:
-        query = (
-            "SELECT id, user_id, user_name, action, detail, created_at "
-            "FROM audit_log WHERE guild_id=? AND id<? ORDER BY id DESC LIMIT ?"
-        )
-        params = (guild_id, before_id, limit + 1)
+    conditions = ["guild_id = ?"]
+    params: list[object] = [guild_id]
+
+    if before_id is not None:
+        conditions.append("id < ?")
+        params.append(before_id)
+
+    if user_id is not None:
+        conditions.append("user_id = ?")
+        params.append(user_id)
+
+    if action:
+        act = action.strip()
+        if act.startswith("cat:"):
+            cat = act[4:]
+            if cat == "contenido":
+                conditions.append(
+                    "(action LIKE 'frases%' OR action LIKE 'frase_%' OR action LIKE 'triggers%' OR action LIKE 'reactions%')"
+                )
+            elif cat == "chat":
+                conditions.append(
+                    "(action LIKE 'chat.%' OR action LIKE 'channel_settings%' OR action LIKE 'mention_channels%' OR action LIKE 'exempt_%' OR action LIKE 'spontaneous_%' OR action LIKE 'updates_channel%' OR action LIKE 'corpus%')"
+                )
+            elif cat == "multimedia":
+                conditions.append("action LIKE 'gifs%'")
+            elif cat == "embeds":
+                conditions.append("(action LIKE 'embed_template%' OR action LIKE 'embeds%')")
+            elif cat == "integraciones":
+                conditions.append("action LIKE 'youtube%'")
+            elif cat == "otros":
+                conditions.append("action LIKE 'style%'")
+            else:
+                conditions.append("action LIKE ?")
+                params.append(f"{cat}%")
+        elif act.endswith(".") or act.endswith("_"):
+            conditions.append("action LIKE ?")
+            params.append(f"{act}%")
+        elif "." in act:
+            conditions.append("action = ?")
+            params.append(act)
+        else:
+            conditions.append("action LIKE ?")
+            params.append(f"{act}%")
+
+    if date_from:
+        df = date_from.strip()
+        if len(df) == 10:
+            df += " 00:00:00"
+        conditions.append("created_at >= ?")
+        params.append(df)
+
+    if date_to:
+        dt = date_to.strip()
+        if len(dt) == 10:
+            dt += " 23:59:59"
+        conditions.append("created_at <= ?")
+        params.append(dt)
+
+    if q:
+        q_clean = q.strip()
+        if q_clean:
+            conditions.append("(detail LIKE ? OR user_name LIKE ? OR action LIKE ?)")
+            q_param = f"%{q_clean}%"
+            params.extend([q_param, q_param, q_param])
+
+    where_clause = " AND ".join(conditions)
+    query = (
+        f"SELECT id, user_id, user_name, action, detail, created_at "
+        f"FROM audit_log WHERE {where_clause} ORDER BY id DESC LIMIT ?"
+    )
+    params.append(limit + 1)
+
     async with db.execute(query, params) as cursor:
         rows = await cursor.fetchall()
     has_more = len(rows) > limit

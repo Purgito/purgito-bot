@@ -739,6 +739,22 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert "window.panels" not in dash_js
     assert "globalThis.panels" not in dash_js
 
+    # Iconos coherentes en todas las 8 secciones principales
+    dom_js = (LANDING / "js" / "core" / "dom.js").read_text("utf-8")
+    for key, icon_name in [
+        ('inicio', 'home'),
+        ('chat', 'chat'),
+        ('gifs', 'film'),
+        ('memes', 'image'),
+        ('embeds', 'layout'),
+        ('premium', 'star'),
+        ('youtube', 'youtube'),
+        ('historial', 'history'),
+    ]:
+        assert f"key: '{key}', label:" in dash_js
+        assert f"icon: '{icon_name}'" in dash_js
+        assert f"{icon_name}:" in dom_js
+
     # CSS Sticky, layout fluido progresivo, modo foco / rail colapsable y responsive
     assert ".shell-main:has(.dash-layout)" in dash_css
     assert "min(94vw, 1720px)" in dash_css
@@ -749,6 +765,8 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert ".dash-sidebar" in dash_css
     assert ".dash-sidebar.collapsed" in dash_css
     assert ".dash-sidebar-collapse-btn" in dash_css
+    assert ".dash-tab .nav-icon" in dash_css
+    assert ".dash-tab.active .nav-icon" in dash_css
     assert "position: sticky" in dash_css
     assert ".dash-subtabs-list" in dash_css
     assert ".dash-subtab" in dash_css

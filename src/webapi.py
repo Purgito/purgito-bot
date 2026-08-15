@@ -112,6 +112,7 @@ from db import (
     get_bot_style,
     get_channel_tunables,
     get_chat_settings,
+    get_audit_log_users,
     get_counters,
     get_effective_chat_settings,
     get_gif_by_id,
@@ -1455,16 +1456,46 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
 
 @guild_api
 async def _api_audit_log_get(request: web.Request, guild_id: int) -> web.Response:
-    """Últimas mutaciones de config del guild, paginado por cursor (id
-    descendente) para el tab HISTORIAL del dashboard -- ver
-    list_audit_log_page sobre por qué cursor y no offset."""
-    limit = _to_int(request.query.get("limit")) or 5
+    """Últimas mutaciones de config del guild, con soporte de búsqueda,
+    filtros por usuario, acción y fechas, paginado por cursor (id descendente)
+    para el tab HISTORIAL del dashboard."""
+    limit = _to_int(request.query.get("limit")) or 10
     limit = max(1, min(limit, 50))
     before_id = _to_int(request.query.get("before_id"))
+    user_id = _to_int(request.query.get("user_id"))
+
+    q = request.query.get("q")
+    if q is not None:
+        q = q.strip()[:100] or None
+
+    action = request.query.get("action")
+    if action is not None:
+        action = action.strip()[:64] or None
+
+    date_from = request.query.get("date_from") or request.query.get("from")
+    if date_from is not None:
+        date_from = date_from.strip()[:32] or None
+
+    date_to = request.query.get("date_to") or request.query.get("to")
+    if date_to is not None:
+        date_to = date_to.strip()[:32] or None
+
     entries, has_more = await list_audit_log_page(
-        guild_id, before_id=before_id, limit=limit
+        guild_id,
+        before_id=before_id,
+        limit=limit,
+        q=q,
+        user_id=user_id,
+        action=action,
+        date_from=date_from,
+        date_to=date_to,
     )
-    return web.json_response({"entries": entries, "has_more": has_more})
+    users = await get_audit_log_users(guild_id) if before_id is None else []
+    return web.json_response({
+        "entries": entries,
+        "has_more": has_more,
+        "users": users,
+    })
 
 
 _STYLE_MIME = {
