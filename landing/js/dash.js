@@ -24,12 +24,10 @@ import {
 
 export const CATEGORIES = [
   { key: 'principal', label: 'Principal', icon: 'home' },
-  { key: 'sociales', label: 'Alertas sociales', icon: 'bell' },
-  { key: 'anime', label: 'Alertas de Anime', icon: 'film' },
+  { key: 'alertas', label: 'Alertas', icon: 'bell' },
   { key: 'anuncios', label: 'Anuncios', icon: 'layout' },
   { key: 'automatizacion', label: 'Automatización', icon: 'zap' },
   { key: 'entretenimiento', label: 'Entretenimiento', icon: 'image' },
-  { key: 'tienda', label: 'Tienda de servidor', icon: 'shoppingBag' },
   { key: 'utilidades', label: 'Utilidades', icon: 'sliders' },
   { key: 'premium', label: 'Purgito Premium', icon: 'star' },
 ];
@@ -82,97 +80,15 @@ export const MODULES = [
     load: loadHistorial,
   },
 
-  // Alertas sociales
+  // Alertas
   {
     key: 'youtube',
-    cat: 'sociales',
+    cat: 'alertas',
     label: 'YouTube',
     icon: 'youtube',
     desc: 'Avisos automáticos de nuevos videos en canales de YouTube',
     keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
     load: loadYoutube,
-  },
-  {
-    key: 'bluesky',
-    cat: 'sociales',
-    label: 'Bluesky',
-    icon: 'bell',
-    badge: 'Próximamente',
-    desc: 'Avisos automáticos de publicaciones en Bluesky',
-    keywords: ['bluesky', 'redes', 'social', 'posts', 'alertas'],
-    load: () => showSoonModule('Bluesky', 'Alertas automáticas de publicaciones de Bluesky para tu comunidad.'),
-  },
-  {
-    key: 'instagram',
-    cat: 'sociales',
-    label: 'Instagram',
-    icon: 'bell',
-    badge: 'Próximamente',
-    desc: 'Avisos de publicaciones, reels e historias de Instagram',
-    keywords: ['instagram', 'fotos', 'reels', 'historias', 'alertas'],
-    load: () => showSoonModule('Instagram', 'Alertas de publicaciones e historias de Instagram.'),
-  },
-  {
-    key: 'kick',
-    cat: 'sociales',
-    label: 'Kick',
-    icon: 'bell',
-    badge: 'Próximamente',
-    desc: 'Notificaciones de transmisiones en vivo en Kick',
-    keywords: ['kick', 'streams', 'directos', 'en vivo', 'alertas'],
-    load: () => showSoonModule('Kick', 'Notificaciones de streams en directo en Kick.'),
-  },
-  {
-    key: 'reddit',
-    cat: 'sociales',
-    label: 'Reddit',
-    icon: 'bell',
-    badge: 'Próximamente',
-    desc: 'Avisos automáticos de nuevos posts en subreddits',
-    keywords: ['reddit', 'subreddits', 'posts', 'comunidad', 'alertas'],
-    load: () => showSoonModule('Reddit', 'Notificaciones automáticas de nuevos posts en Reddit.'),
-  },
-  {
-    key: 'tiktok',
-    cat: 'sociales',
-    label: 'TikTok',
-    icon: 'bell',
-    badge: 'Próximamente',
-    desc: 'Avisos automáticos de nuevos videos de TikTok',
-    keywords: ['tiktok', 'videos', 'creadores', 'alertas'],
-    load: () => showSoonModule('TikTok', 'Avisos automáticos de nuevos videos de TikTok.'),
-  },
-  {
-    key: 'twitch',
-    cat: 'sociales',
-    label: 'Twitch',
-    icon: 'bell',
-    badge: 'Próximamente',
-    desc: 'Notificaciones de transmisiones en directo en Twitch',
-    keywords: ['twitch', 'streamers', 'directos', 'en vivo', 'alertas'],
-    load: () => showSoonModule('Twitch', 'Notificaciones de directos en Twitch.'),
-  },
-
-  // Alertas de Anime
-  {
-    key: 'anime_ep',
-    cat: 'anime',
-    label: 'Episodios',
-    icon: 'film',
-    badge: 'Próximamente',
-    desc: 'Avisos de nuevos episodios de anime en emisión',
-    keywords: ['anime', 'episodios', 'capitulos', 'estrenos', 'emision'],
-    load: () => showSoonModule('Episodios de Anime', 'Notificaciones automáticas de nuevos episodios de anime en emisión.'),
-  },
-  {
-    key: 'anime_news',
-    cat: 'anime',
-    label: 'Noticias',
-    icon: 'newspaper',
-    badge: 'Próximamente',
-    desc: 'Noticias y estrenos de la industria del anime',
-    keywords: ['anime', 'noticias', 'manga', 'estrenos', 'titulares'],
-    load: () => showSoonModule('Noticias de Anime', 'Titulares y novedades del mundo del anime.'),
   },
 
   // Anuncios
@@ -242,18 +158,6 @@ export const MODULES = [
     desc: 'Generación automática de memes y plantillas',
     keywords: ['memes', 'imagenes', 'generador', 'plantillas', 'entretenimiento'],
     load: loadMemes,
-  },
-
-  // Tienda de servidor
-  {
-    key: 'tienda',
-    cat: 'tienda',
-    label: 'Tienda',
-    icon: 'shoppingBag',
-    badge: 'Próximamente',
-    desc: 'Recompensas e ítems personalizados para los miembros del servidor',
-    keywords: ['tienda', 'economia', 'items', 'compras', 'recompensas'],
-    load: () => showSoonModule('Tienda de servidor', 'Tienda e ítems personalizados para tu comunidad.'),
   },
 
   // Utilidades
@@ -1028,31 +932,6 @@ else {
   if (head) head.append(emptyState('Falta el id del servidor en la dirección.'));
 }
 
-// ---------------- MÓDULO: PRÓXIMAMENTE ----------------
-
-function showSoonModule(title, description) {
-  const box = content();
-  box.append(
-    el('div', { class: 'module-soon-card' },
-      el('div', { class: 'module-soon-icon' }, icon('sparkle')),
-      el('h2', { class: 'module-soon-title' }, title),
-      el('p', { class: 'module-soon-desc dim' }, description),
-      el('span', { class: 'badge badge-soon' }, 'Próximamente en Purgito'),
-      el('div', { class: 'module-soon-actions' },
-        el('button', {
-          class: 'btn btn-secondary',
-          onclick: () => activate('inicio', true),
-        }, '← Volver a Inicio'),
-        el('a', {
-          class: 'btn btn-primary',
-          href: 'https://discord.gg/5U7HKyxnBv',
-          target: '_blank',
-          rel: 'noopener',
-        }, 'Sugerir en Discord')
-      )
-    )
-  );
-}
 
 // ---------------- REDISEÑO DE INICIO (DASHBOARD EJECUTIVO) ----------------
 

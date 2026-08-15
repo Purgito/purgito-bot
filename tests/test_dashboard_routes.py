@@ -985,19 +985,21 @@ def test_dashboard_command_search_palette_ctrl_k():
     assert ".cmd-palette-input" in dash_css
     assert ".cmd-palette-item" in dash_css
     assert ".cmd-palette-footer" in dash_css
-    assert "backdrop-filter: blur(6px)" in dash_css
+    assert "backdrop-filter: blur(8px)" in dash_css
 
 
 def test_dashboard_category_grouped_collapsible_navigation():
-    """Verifica que la barra lateral organice los módulos por categorías de Purgito con acordeones colapsables y badges."""
+    """Verifica que la barra lateral organice los módulos por categorías reales de Purgito con acordeones colapsables y badges."""
     dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
     dash_css = (LANDING / "dash.css").read_text("utf-8")
 
-    # 1. Definición de categorías conceptuales
+    # 1. Definición de categorías conceptuales reales (sin anime ni placeholders inventados)
     assert "export const CATEGORIES" in dash_js
     assert "export const MODULES" in dash_js
-    for cat in ["principal", "sociales", "anime", "anuncios", "automatizacion", "entretenimiento", "tienda", "utilidades", "premium"]:
+    for cat in ["principal", "alertas", "anuncios", "automatizacion", "entretenimiento", "utilidades", "premium"]:
         assert f"key: '{cat}'" in dash_js
+
+    assert "anime" not in dash_js.lower()
 
     # 2. Persistencia en localStorage
     assert "purgito_dash_collapsed_cats" in dash_js
@@ -1006,9 +1008,9 @@ def test_dashboard_category_grouped_collapsible_navigation():
     assert "dash-sidebar-cat-header" in dash_js
 
     # 3. Badges de módulos
-    assert "badge-soon" in dash_css
     assert "badge-premium" in dash_css
     assert "badge-new" in dash_css
+    assert "scrollbar-width: thin" in dash_css
 
 
 def test_dashboard_executive_inicio_redesign():
