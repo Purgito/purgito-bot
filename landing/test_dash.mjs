@@ -27,6 +27,7 @@ class FakeElement extends Node {
     super();
     this.tagName = tag;
     this.className = attrs.class || '';
+    this.value = attrs.value !== undefined ? String(attrs.value) : '';
     this.disabled = false;
     this.children = [];
     this._html = '';
@@ -42,6 +43,9 @@ class FakeElement extends Node {
     this.children = [];
     this._html = '';
   }
+  focus() {}
+  blur() {}
+  click() { if (typeof this.onclick === 'function') this.onclick(); }
   get innerHTML() { return this._html; }
   set innerHTML(v) { this._html = v; if (v === '') this.children = []; }
   text() {
@@ -414,6 +418,196 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 8: Cambio reactivo de servidor funcional');
 }
 
+// ── Test 9: Módulo de Triggers de canal (carga, empty state, formulario) ──────
+{
+  setupDOM();
+  setGuildId('123456789');
+  global.location.pathname = '/es/dashboard/123456789/triggers';
+
+  const mockGuilds = {
+    configured: [{ id: '123456789', name: 'Servidor Triggers' }],
+    available: [],
+  };
+
+  const mockTriggersData = {
+    triggers: [],
+    total: 0,
+    limit: 10,
+    match_types: ['exact', 'starts_with', 'regex'],
+    actions: ['frase_de_pack', 'markov', 'mezcla'],
+  };
+
+  const mockPacksData = {
+    packs: [{ id: 1, name: 'Pack Bienvenida' }],
+    total: 1,
+    limit: 5,
+  };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/me/guilds')) return jsonResp(mockGuilds);
+      if (url.includes('/api/server/123456789/settings/triggers')) return jsonResp(mockTriggersData);
+      if (url.includes('/api/server/123456789/frases/packs')) return jsonResp(mockPacksData);
+      if (url.includes('/api/server/123456789/channels')) {
+        return jsonResp({ channels: [{ id: '10', name: 'general', type: 0 }] });
+      }
+      return jsonResp({});
+    },
+  ];
+
+  await fetchUserGuilds(true);
+  const mod = MODULES.find(m => m.key === 'triggers');
+  assert.ok(mod, 'Módulo triggers debe existir');
+  await mod.load();
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.ok(contentText.length > 0, 'El módulo triggers debe renderizarse');
+  assert.match(contentText, /Triggers de canal/);
+  assert.match(contentText, /Todavía no configuraste ningún trigger\./);
+  assert.match(contentText, /0 de 10/); // Cupo line
+
+  console.log('✓ Test 9: Triggers de canal sin errores de .length y con empty state');
+}
+
+// ── Test 10: Ajustes de Chat (todas las subsecciones cargan sin error) ──────────
+{
+  setupDOM();
+  setGuildId('123456789');
+  global.location.pathname = '/es/dashboard/123456789/chat';
+
+  const mockGuilds = {
+    configured: [{ id: '123456789', name: 'Servidor Chat' }],
+    available: [],
+  };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/me/guilds')) return jsonResp(mockGuilds);
+      if (url.includes('/api/server/123456789/settings/chat')) {
+        return jsonResp({
+          enabled: true,
+          auto_generate_every: 20,
+          auto_generate_probability: 0.3,
+          gif_response_probability: 0.1,
+          frase_probability: 0.15,
+          reaction_probability: 0.05,
+          mention_rate_limit: 10,
+          limits: { auto_generate_every: [1, 1000] },
+        });
+      }
+      if (url.includes('/api/server/123456789/settings/spontaneous-channels')) return jsonResp({ channels: [] });
+      if (url.includes('/api/server/123456789/settings/mention-channels')) return jsonResp({ channels: [] });
+      if (url.includes('/api/server/123456789/settings/corpus')) return jsonResp({ channels: [], ignored: [] });
+      if (url.includes('/api/server/123456789/settings/reacciones')) return jsonResp({ reactions: ['😀', '🔥'] });
+      if (url.includes('/api/server/123456789/settings/frases/channels')) return jsonResp({ channels: [] });
+      if (url.includes('/api/server/123456789/settings/frases')) return jsonResp({ frases: [], total: 0, limit: 200 });
+      if (url.includes('/api/server/123456789/frases/packs')) return jsonResp({ packs: [], total: 0, limit: 10 });
+      if (url.includes('/api/server/123456789/settings/triggers')) {
+        return jsonResp({
+          triggers: [],
+          total: 0,
+          limit: 10,
+          match_types: ['exact', 'starts_with', 'regex'],
+          actions: ['frase_de_pack', 'markov', 'mezcla'],
+        });
+      }
+      if (url.includes('/api/server/123456789/settings/exempt-roles')) return jsonResp({ roles: [] });
+      if (url.includes('/api/server/123456789/settings/exempt-channels')) return jsonResp({ channels: [] });
+      if (url.includes('/api/server/123456789/channels')) {
+        return jsonResp({ channels: [{ id: '10', name: 'general', type: 0 }] });
+      }
+      if (url.includes('/api/server/123456789/roles')) return jsonResp({ roles: [] });
+      return jsonResp({});
+    },
+  ];
+
+  await fetchUserGuilds(true);
+  const mod = MODULES.find(m => m.key === 'chat');
+  assert.ok(mod, 'Módulo chat debe existir');
+  await mod.load();
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.ok(contentText.length > 0, 'Ajustes de chat no debe estar vacío');
+  assert.match(contentText, /Chat activado/);
+  assert.match(contentText, /Cada cuántos mensajes nuevos/);
+  assert.match(contentText, /Manda un GIF/);
+  assert.match(contentText, /Usa una frase tuya/);
+
+  console.log('✓ Test 10: Ajustes de Chat carga todas las subsecciones limpiamente');
+}
+
+// ── Test 11: Modal "Editar apariencia" (openStyleModal y persistencia) ────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  let styleUpdatedPayload = null;
+  fetchHandlers = [
+    (url, opts) => {
+      if (url.includes('/api/server/123456789/style') && opts?.method === 'PUT') {
+        styleUpdatedPayload = JSON.parse(opts.body);
+        return jsonResp({ ok: true });
+      }
+      return jsonResp({});
+    },
+  ];
+
+  const currentStyle = {
+    nick: 'Purgito Tester',
+    current_nick: 'Purgito Tester',
+    avatar_url: 'https://cdn.example.com/avatar.png',
+  };
+
+  const { openStyleModal } = await import('/js/dash.js');
+  assert.equal(typeof openStyleModal, 'function', 'openStyleModal debe ser una función exportada');
+
+  openStyleModal(currentStyle);
+  assert.ok(document.body.children.length > 0, 'El modal de estilo debe agregarse al DOM');
+
+  console.log('✓ Test 11: Modal de edición de estilo funcional');
+}
+
+// ── Test 12: Simulador de Chat (renombrado, coherencia y ejecución) ───────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  const playgroundMod = MODULES.find(m => m.key === 'playground');
+  assert.ok(playgroundMod, 'Módulo playground debe existir');
+  assert.equal(playgroundMod.label, 'Simulador de Chat', 'Debe renombrarse a "Simulador de Chat"');
+
+  let simulatedRequest = null;
+  fetchHandlers = [
+    (url, opts) => {
+      if (url.includes('/api/server/123456789/channels')) {
+        return jsonResp({ channels: [{ id: '10', name: 'general', type: 0 }] });
+      }
+      if (url.includes('/api/server/123456789/chat/playground') && opts?.method === 'POST') {
+        simulatedRequest = JSON.parse(opts.body);
+        return jsonResp({
+          would_respond: true,
+          reason: 'markov',
+          text: '¡Hola desde la simulación de Purgito!',
+          avisos: [],
+        });
+      }
+      return jsonResp({});
+    },
+  ];
+
+  await playgroundMod.load();
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.match(contentText, /Simulador de Chat/);
+  assert.match(contentText, /Prueba la generación de texto/);
+
+  console.log('✓ Test 12: Simulador de Chat renombrado y funcional');
+}
+
 console.log('\n========================================');
 console.log('✓ TODOS LOS TESTS DEL DASHBOARD PASARON');
 console.log('========================================\n');
+

@@ -64,10 +64,10 @@ export const MODULES = [
   {
     key: 'playground',
     cat: 'principal',
-    label: 'Chatbot IA',
+    label: 'Simulador de Chat',
     icon: 'play',
-    desc: 'Simula y prueba la generación de Markov en vivo',
-    keywords: ['ia', 'chatbot', 'playground', 'probar', 'simular', 'markov', 'generacion'],
+    desc: 'Simula y prueba cómo respondería Purgito en vivo según las reglas y corpus del canal',
+    keywords: ['simulador', 'probar', 'simular', 'markov', 'generacion', 'chat', 'playground', 'respuestas'],
     load: loadPlaygroundModule,
   },
   {
@@ -1270,6 +1270,191 @@ async function loadInicio() {
 
 // ---------------- MÓDULOS ESPECÍFICOS DIRECTOS ----------------
 
+export function openStyleModal(style = {}) {
+  const currentNick = style.nick || style.current_nick || '';
+  const currentAvatar = style.avatar_url || style.current_avatar_url || '';
+  const currentBanner = style.banner_url || '';
+
+  const nickInput = el('input', {
+    type: 'text',
+    placeholder: 'Purgito',
+    maxlength: '32',
+    value: currentNick,
+    class: 'input-text',
+    style: 'width: 100%;',
+  });
+
+  const nickCounter = el('span', { class: 'dim style-counter' }, `${currentNick.length}/32`);
+  nickInput.oninput = () => {
+    nickCounter.textContent = `${nickInput.value.length}/32`;
+  };
+
+  let editAvatar = false;
+  let avatarUrl = style.avatar_url;
+  let editBanner = false;
+  let bannerUrl = style.banner_url;
+
+  // Avatar
+  const avatarCheck = el('input', { type: 'checkbox' });
+  const avatarPreview = el('img', {
+    class: 'style-avatar',
+    src: currentAvatar || '/assets/icon.png',
+    alt: '',
+    style: 'width: 48px; height: 48px; border-radius: 50%; object-fit: cover;',
+  });
+  const avatarFile = el('input', {
+    type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', style: 'display:none',
+  });
+  const avatarUploadBtn = el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => avatarFile.click(),
+  }, 'Subir imagen');
+  const avatarRemoveBtn = el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => {
+      avatarUrl = null;
+      avatarPreview.src = '/assets/icon.png';
+      avatarCheck.checked = true;
+      editAvatar = true;
+    },
+  }, 'Quitar');
+
+  const avatarControls = el('div', { class: 'style-img-body' },
+    avatarPreview,
+    el('div', { style: 'display:flex;flex-direction:column;gap:6px;' },
+      el('div', { style: 'display:flex;gap:6px;' }, avatarUploadBtn, avatarRemoveBtn),
+      el('span', { class: 'dim', style: 'font-size:12px;' }, 'PNG, JPG, GIF o WEBP. Máx 10 MB.')
+    ),
+    avatarFile
+  );
+
+  avatarFile.onchange = async () => {
+    const file = avatarFile.files[0];
+    if (!file) return;
+    avatarUploadBtn.disabled = true;
+    avatarUploadBtn.textContent = 'Subiendo…';
+    try {
+      const url = await uploadImageBlob(file);
+      avatarUrl = url;
+      avatarPreview.src = url;
+      avatarCheck.checked = true;
+      editAvatar = true;
+      toast('Avatar subido', 'ok');
+    } catch (e) {
+      toast(e.message || 'No se pudo subir la imagen', 'err');
+    } finally {
+      avatarUploadBtn.disabled = false;
+      avatarUploadBtn.textContent = 'Subir imagen';
+    }
+  };
+
+  avatarCheck.onchange = () => { editAvatar = avatarCheck.checked; };
+
+  // Banner
+  const bannerCheck = el('input', { type: 'checkbox' });
+  const bannerPreview = el('img', {
+    class: 'style-banner',
+    src: currentBanner || '',
+    alt: '',
+    style: currentBanner ? 'width: 100%; max-height: 90px; object-fit: cover; border-radius: var(--radius-sm);' : 'display:none;',
+  });
+  const bannerFile = el('input', {
+    type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', style: 'display:none',
+  });
+  const bannerUploadBtn = el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => bannerFile.click(),
+  }, 'Subir imagen');
+  const bannerRemoveBtn = el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => {
+      bannerUrl = null;
+      bannerPreview.style.display = 'none';
+      bannerCheck.checked = true;
+      editBanner = true;
+    },
+  }, 'Quitar');
+
+  const bannerControls = el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
+    bannerPreview,
+    el('div', { style: 'display:flex;gap:6px;align-items:center;' }, bannerUploadBtn, bannerRemoveBtn),
+    bannerFile
+  );
+
+  bannerFile.onchange = async () => {
+    const file = bannerFile.files[0];
+    if (!file) return;
+    bannerUploadBtn.disabled = true;
+    bannerUploadBtn.textContent = 'Subiendo…';
+    try {
+      const url = await uploadImageBlob(file);
+      bannerUrl = url;
+      bannerPreview.src = url;
+      bannerPreview.style.display = 'block';
+      bannerCheck.checked = true;
+      editBanner = true;
+      toast('Banner subido', 'ok');
+    } catch (e) {
+      toast(e.message || 'No se pudo subir la imagen', 'err');
+    } finally {
+      bannerUploadBtn.disabled = false;
+      bannerUploadBtn.textContent = 'Subir imagen';
+    }
+  };
+
+  bannerCheck.onchange = () => { editBanner = bannerCheck.checked; };
+
+  let modal = null;
+  const saveBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-primary',
+    onclick: async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Guardando…';
+      try {
+        const body = { nick: nickInput.value.trim() };
+        if (editAvatar) body.avatar_url = avatarUrl;
+        if (editBanner) body.banner_url = bannerUrl;
+
+        const res = await apiFetch(`/api/server/${GUILD_ID}/style`, {
+          method: 'PUT',
+          body,
+        });
+        toast('Apariencia de Purgito actualizada', 'ok');
+        if (res && res.warning) toast(res.warning, 'warn');
+        if (modal) modal.remove();
+        if (currentTab() === 'inicio') loadInicio();
+        else if (currentTab() === 'estilo') loadEstiloModule();
+      } catch (e) {
+        toast(e.message || 'No se pudo guardar la apariencia', 'err');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Guardar';
+      }
+    },
+  }, 'Guardar');
+
+  const cancelBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-secondary',
+    onclick: () => { if (modal) modal.remove(); },
+  }, 'Cancelar');
+
+  const modalBody = el('div', { class: 'style-modal' },
+    formGroup(el('span', {}, 'Apodo en este servidor', nickCounter),
+      el('p', { class: 'dim' }, 'Nombre con el que aparece Purgito en este servidor.'),
+      nickInput
+    ),
+    formGroup(el('label', { class: 'toggle' }, avatarCheck, 'Modificar avatar'),
+      el('p', { class: 'dim' }, 'Avatar exclusivo para este servidor.'),
+      avatarControls
+    ),
+    formGroup(el('label', { class: 'toggle' }, bannerCheck, 'Modificar banner'),
+      el('p', { class: 'dim' }, 'Banner del perfil de Purgito en este servidor.'),
+      bannerControls
+    ),
+    el('div', { class: 'style-modal-actions' }, cancelBtn, saveBtn)
+  );
+
+  modal = panelModal('Editar apariencia en este servidor', modalBody);
+}
+
 async function loadEstiloModule() {
   const box = content();
   if (box) {
@@ -1341,7 +1526,7 @@ async function loadPlaygroundModule() {
     }, 'Simular respuesta');
 
     box.append(
-      formGroup('Chatbot IA — Playground de simulación',
+      formGroup('Simulador de Chat',
         el('p', { class: 'dim' },
           'Prueba la generación de texto con la configuración real y el corpus de cualquier canal, sin enviar mensajes a Discord.'
         ),
@@ -1414,9 +1599,8 @@ async function loadTriggersModule() {
     box.innerHTML = '';
 
     const triggersBox = el('div', {});
-    const triggersList = (triggers && triggers.triggers) || (Array.isArray(triggers) ? triggers : []);
     const packsList = (frasePacks && frasePacks.packs) || [];
-    renderTriggers(triggersBox, triggersList, channels || [], packsList);
+    renderTriggers(triggersBox, triggers, channels || [], packsList);
 
     box.append(
       formGroup('Triggers de canal',
@@ -2394,8 +2578,7 @@ async function loadChatTab() {
 
       const fraseChannelsSelected = new Set(((fraseChannels && fraseChannels.channels) || []).map(c => c.id));
       const triggersBox = el('div', {});
-      const triggersList = (triggers && triggers.triggers) || (Array.isArray(triggers) ? triggers : []);
-      renderTriggers(triggersBox, triggersList, channels || [], packsList);
+      renderTriggers(triggersBox, triggers, channels || [], packsList);
 
       const TAGS = ['{{user.mention}}', '{{user.name}}', '{{channel.name}}',
         '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
@@ -2551,16 +2734,19 @@ const COMMON_EMOJIS = [
 
 async function renderReacciones(box, pool) {
   box.innerHTML = '';
+  const poolList = (pool && Array.isArray(pool.reactions))
+    ? pool.reactions
+    : (Array.isArray(pool) ? pool : []);
   const poolWrap = el('div', { class: 'emoji-pool-wrap' });
-  const poolList = el('div', { class: 'emoji-pool' });
+  const poolContainer = el('div', { class: 'emoji-pool' });
 
-  if (!pool.length) {
-    poolList.append(el('span', { class: 'dim emoji-pool-empty' }, 'Todavía no hay emojis en la colección.'));
+  if (!poolList.length) {
+    poolContainer.append(el('span', { class: 'dim emoji-pool-empty' }, 'Todavía no hay emojis en la colección.'));
   } else {
-    for (const r of pool) {
+    for (const r of poolList) {
       const parsed = parseEmojiText(r.emoji_text);
       if (parsed.isCustom) {
-        poolList.append(el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
+        poolContainer.append(el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
           el('img', { src: parsed.url, alt: parsed.name, class: 'emoji-chip-img', loading: 'lazy' }),
           el('span', { class: 'emoji-chip-name' }, parsed.name),
           el('button', {
@@ -2571,7 +2757,7 @@ async function renderReacciones(box, pool) {
           }, '✕')
         ));
       } else {
-        poolList.append(el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
+        poolContainer.append(el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
           el('span', { class: 'emoji-chip-char' }, r.emoji_text),
           el('button', {
             type: 'button',
@@ -2587,10 +2773,10 @@ async function renderReacciones(box, pool) {
   const addBtn = el('button', {
     type: 'button',
     class: 'btn btn-secondary',
-    onclick: () => openAddEmojiModal(box, pool),
+    onclick: () => openAddEmojiModal(box, poolList),
   }, '+ Añadir emoji');
 
-  poolWrap.append(poolList, el('div', {}, addBtn));
+  poolWrap.append(poolContainer, el('div', {}, addBtn));
   box.append(poolWrap);
 }
 
@@ -2630,7 +2816,10 @@ async function reloadReacciones(box) {
 }
 
 async function openAddEmojiModal(box, pool) {
-  const inPool = new Map(pool.map(r => [r.emoji_text, r.id]));
+  const poolList = (pool && Array.isArray(pool.reactions))
+    ? pool.reactions
+    : (Array.isArray(pool) ? pool : []);
+  const inPool = new Map(poolList.map(r => [r.emoji_text, r.id]));
   const modalBody = el('div', { class: 'emoji-modal-box' });
 
   let activeTab = 'unicode';
@@ -3181,14 +3370,17 @@ async function reloadFrases(box, packs) {
 
 function renderFrasePacks(box, packs, channels, frasesBox, limit) {
   box.innerHTML = '';
-  const cupo = cupoLine(packs.length, limit, 'pack usado', 'packs usados',
+  const packsList = (packs && Array.isArray(packs.packs))
+    ? packs.packs
+    : (Array.isArray(packs) ? packs : []);
+  const cupo = cupoLine(packsList.length, limit, 'pack usado', 'packs usados',
     'elimina uno para agregar otro.');
   if (cupo) box.append(cupo);
-  if (!packs.length) {
+  if (!packsList.length) {
     box.append(el('p', { class: 'dim' },
       'Sin packs todavía — todas las frases están en el pool default del servidor.'));
   }
-  for (const pack of packs) {
+  for (const pack of packsList) {
     const channelsBox = el('div', {}, el('p', { class: 'dim' }, 'Abre para ver los canales asignados…'));
     let loaded = false;
     const details = el('details', { class: 'embed-group' },
@@ -3291,13 +3483,26 @@ function describeTrigger(trig, channels, packs) {
 
 function renderTriggers(box, data, channels, packs) {
   box.innerHTML = '';
+  const triggersList = (data && Array.isArray(data.triggers))
+    ? data.triggers
+    : (Array.isArray(data) ? data : []);
+  const limit = (data && data.limit) || null;
+  const matchTypes = (data && Array.isArray(data.match_types) && data.match_types.length)
+    ? data.match_types
+    : Object.keys(TRIGGER_MATCH_TYPE_LABELS);
+  const actions = (data && Array.isArray(data.actions) && data.actions.length)
+    ? data.actions
+    : Object.keys(TRIGGER_ACTION_LABELS);
+  const safeData = { triggers: triggersList, limit, match_types: matchTypes, actions };
+  const safePacks = (packs && Array.isArray(packs.packs)) ? packs.packs : (Array.isArray(packs) ? packs : []);
+
   const list = el('ul', { class: 'item-list' });
-  const cupo = cupoLine(data.triggers.length, data.limit, 'trigger usado', 'triggers usados',
+  const cupo = cupoLine(triggersList.length, limit, 'trigger usado', 'triggers usados',
     'elimina uno para agregar otro.');
   if (cupo) box.append(cupo);
-  if (!data.triggers.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
-  for (const trig of data.triggers) {
-    const d = describeTrigger(trig, channels, packs);
+  if (!triggersList.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
+  for (const trig of triggersList) {
+    const d = describeTrigger(trig, channels, safePacks);
     list.append(el('li', { class: 'trigger-card' },
       el('div', { class: 'trigger-card-main' },
         el('span', { class: 'badge trigger-chan-badge' }, d.channelLabel),
@@ -3309,22 +3514,29 @@ function renderTriggers(box, data, channels, packs) {
           await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
           toast('Trigger eliminado', 'ok');
         } catch (e) { toast('No se pudo eliminar el trigger, intenta de nuevo', 'err'); }
-        reloadTriggers(box, channels, packs);
+        reloadTriggers(box, channels, safePacks);
       })));
   }
-  box.append(list, triggerForm(box, channels, packs, data));
+  box.append(list, triggerForm(box, channels, safePacks, safeData));
 }
 
 function triggerForm(box, channels, packs, data) {
+  const safePacks = Array.isArray(packs) ? packs : ((packs && packs.packs) || []);
   const chanSel = channelSelect(channels);
   const matchSel = el('select', {});
-  for (const mt of data.match_types) matchSel.append(el('option', { value: mt }, TRIGGER_MATCH_TYPE_LABELS[mt] || mt));
+  const matchTypes = (data && Array.isArray(data.match_types) && data.match_types.length)
+    ? data.match_types
+    : Object.keys(TRIGGER_MATCH_TYPE_LABELS);
+  for (const mt of matchTypes) matchSel.append(el('option', { value: mt }, TRIGGER_MATCH_TYPE_LABELS[mt] || mt));
   const patternInput = el('input', { type: 'text', placeholder: 'gg, !ban, ^hola.*' });
   const actionSel = el('select', {});
-  for (const ac of data.actions) actionSel.append(el('option', { value: ac }, TRIGGER_ACTION_LABELS[ac] || ac));
+  const actions = (data && Array.isArray(data.actions) && data.actions.length)
+    ? data.actions
+    : Object.keys(TRIGGER_ACTION_LABELS);
+  for (const ac of actions) actionSel.append(el('option', { value: ac }, TRIGGER_ACTION_LABELS[ac] || ac));
   const packSel = el('select', {});
   packSel.append(el('option', { value: '' }, 'Sin pack (default)'));
-  for (const p of packs) packSel.append(el('option', { value: String(p.id) }, p.name));
+  for (const p of safePacks) packSel.append(el('option', { value: String(p.id) }, p.name));
 
   const packField = el('div', { class: 'field' }, el('label', {}, 'Pack'), packSel);
   const previewLine = el('p', { class: 'dim trigger-preview' });
@@ -3332,7 +3544,7 @@ function triggerForm(box, channels, packs, data) {
   function syncPackVisibility() { packField.style.display = actionSel.value === 'markov' ? 'none' : ''; }
 
   function updatePreview() {
-    const pattern = patternInput.value.trim();
+    const pattern = (patternInput.value || '').trim();
     if (!chanSel.value || !pattern) {
       previewLine.textContent = 'Elige un canal y escribe un patrón para ver la vista previa.';
       return;
@@ -3340,7 +3552,7 @@ function triggerForm(box, channels, packs, data) {
     const d = describeTrigger({
       channel_id: chanSel.value, match_type: matchSel.value, pattern,
       action: actionSel.value, pack_id: actionSel.value !== 'markov' ? packSel.value : null,
-    }, channels, packs);
+    }, channels, safePacks);
     const phrase = (TRIGGER_MATCH_PHRASES[matchSel.value] || (p => `matchea "${p}"`))(d.pattern);
     previewLine.textContent =
       `Vista previa: en ${d.channelLabel}, si el mensaje ${phrase}, responde con `
@@ -3358,7 +3570,7 @@ function triggerForm(box, channels, packs, data) {
   const addBtn = el('button', {
     class: 'btn btn-primary',
     onclick: async () => {
-      const pattern = patternInput.value.trim();
+      const pattern = (patternInput.value || '').trim();
       if (!chanSel.value || !pattern) {
         toast('Elige un canal y completa el patrón', 'warn');
         return;
@@ -3374,7 +3586,7 @@ function triggerForm(box, channels, packs, data) {
         });
         toast('Trigger agregado', 'ok');
         patternInput.value = '';
-        reloadTriggers(box, channels, packs);
+        reloadTriggers(box, channels, safePacks);
       } catch (e) {
         toast(e.status === 409 ? e.message : 'No se pudo agregar el trigger, intenta de nuevo', e.status === 409 ? 'warn' : 'err');
       }
@@ -3387,7 +3599,7 @@ function triggerForm(box, channels, packs, data) {
       el('div', { class: 'field' }, el('label', {}, 'Tipo de match'), matchSel),
       el('div', { class: 'field', style: 'flex:1;min-width:180px' }, el('label', {}, 'Patrón'), patternInput),
       el('div', { class: 'field' }, el('label', {}, 'Acción'), actionSel),
-      packs.length ? packField : null,
+      safePacks.length ? packField : null,
       addBtn),
     previewLine);
 }
