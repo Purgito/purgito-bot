@@ -1418,49 +1418,153 @@ async function loadPlaygroundModule() {
     box.append(spinner());
   }
   try {
-    const channels = await getChannels();
+    const [channelsRes, styleRes] = await Promise.allSettled([
+      getChannels({ force: true }),
+      apiFetch(`/api/server/${GUILD_ID}/style`),
+    ]);
+
     if (!box) return;
     box.innerHTML = '';
 
-    const sel = channelSelect(channels, null, 'Elige un canal…');
-    const input = el('textarea', {
-      rows: '3', placeholder: 'Mensaje de prueba para que Purgito responda…', style: 'width:100%',
+    const allChannels = channelsRes.status === 'fulfilled' && Array.isArray(channelsRes.value) ? channelsRes.value : [];
+    const style = styleRes.status === 'fulfilled' ? (styleRes.value || {}) : {};
+
+    // Filtrar únicamente canales donde Purgito puede operar en el simulador
+    const usableChannels = allChannels.filter(c => c && c.can_use_simulator !== false && c.can_send !== false && c.can_view !== false);
+
+    // Estado vacío si no hay canales con permisos suficientes
+    if (!usableChannels.length) {
+      box.append(
+        formGroup('Simulador de Chat',
+          el('p', { class: 'dim' },
+            'Prueba la generación de respuestas en tiempo real con las reglas, triggers y corpus del canal seleccionado. Esta simulación es segura: no envía ningún mensaje a Discord ni consume cupos.'
+          ),
+          el('div', { class: 'sim-empty-state' },
+            el('div', { class: 'sim-empty-state-icon' }, icon('lock')),
+            el('h3', { class: 'sim-empty-state-title' }, 'No hay canales disponibles para usar el simulador'),
+            el('p', { class: 'sim-empty-state-desc' },
+              'Purgito necesita permisos de "Ver canal" y "Enviar mensajes" en Discord para poder evaluar el contexto y simular respuestas. Configura los roles del bot en los canales de texto de tu servidor para comenzar.'
+            )
+          )
+        )
+      );
+      return;
+    }
+
+    let selectedChannelId = usableChannels[0].id;
+    let isSubmitting = false;
+
+    const container = el('div', { class: 'sim-container' });
+
+    // Step 1: Canal de contexto
+    const channelPicker = buildPlaygroundChannelPicker(usableChannels, selectedChannelId, (newId) => {
+      selectedChannelId = newId;
     });
-    const resultBox = el('div', {});
-    const btn = el('button', {
-      class: 'btn btn-primary',
+
+    const step1Card = el('div', { class: 'sim-step-card' },
+      el('div', { class: 'sim-step-header' },
+        el('div', { class: 'sim-step-badge' }, '1'),
+        el('div', { class: 'sim-step-title-group' },
+          el('h3', { class: 'sim-step-title' }, 'Canal de contexto'),
+          el('p', { class: 'sim-step-desc' }, 'Selecciona un canal donde Purgito tenga permisos de lectura y respuesta.')
+        )
+      ),
+      channelPicker
+    );
+
+    // Step 2: Mensaje de entrada
+    const textarea = el('textarea', {
+      class: 'sim-textarea',
+      rows: '3',
+      placeholder: 'Escribe un mensaje de prueba para Purgito (ej.: Hola bot, ¿qué opinas de este servidor?)',
+      maxlength: '4000',
+    });
+
+    const step2Card = el('div', { class: 'sim-step-card' },
+      el('div', { class: 'sim-step-header' },
+        el('div', { class: 'sim-step-badge' }, '2'),
+        el('div', { class: 'sim-step-title-group' },
+          el('h3', { class: 'sim-step-title' }, 'Mensaje de entrada'),
+          el('p', { class: 'sim-step-desc' }, 'Escribe el mensaje que simulará haber enviado un usuario en el canal seleccionado.')
+        )
+      ),
+      textarea
+    );
+
+    // Result container
+    const resultBox = el('div', { class: 'sim-result-section' });
+
+    // Action button
+    const submitBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-primary sim-submit-btn',
       onclick: async () => {
-        const message = input.value.trim();
-        if (!sel.value || !message) {
-          toast('Elige un canal y escribe un mensaje de prueba', 'warn');
+        if (isSubmitting) return;
+        const msg = textarea.value.trim();
+        if (!selectedChannelId) {
+          toast('Por favor selecciona un canal válido', 'warn');
           return;
         }
+        if (!msg) {
+          toast('Escribe un mensaje de prueba antes de simular', 'warn');
+          textarea.focus();
+          return;
+        }
+
+        isSubmitting = true;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '';
+        submitBtn.append(spinner(), el('span', {}, 'Generando respuesta…'));
+
         resultBox.innerHTML = '';
         resultBox.append(spinner());
+
         try {
           const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
-            method: 'POST', body: { channel_id: sel.value, message },
+            method: 'POST',
+            body: { channel_id: selectedChannelId, message: msg },
           });
-          renderPlaygroundResult(resultBox, data);
-        } catch (e) { renderError(resultBox, e); }
+          const targetChan = usableChannels.find(c => String(c.id) === String(selectedChannelId)) || { name: 'canal' };
+          renderPlaygroundResult(resultBox, data, targetChan, style);
+        } catch (err) {
+          resultBox.innerHTML = '';
+          let errText = 'No fue posible simular la respuesta.';
+          if (err && err.status === 403) {
+            errText = 'Purgito ya no tiene acceso a este canal o carece de permisos para ver y enviar mensajes.';
+          } else if (err && err.status === 400) {
+            errText = (err.data && err.data.error) || 'El canal o mensaje de prueba no son válidos.';
+          } else if (err && err.status === 429) {
+            errText = 'Has realizado demasiadas simulaciones consecutivas. Espera unos momentos antes de intentar nuevamente.';
+          }
+          resultBox.append(el('div', { class: 'sim-no-response-box' },
+            icon('alertTriangle'),
+            el('div', {},
+              el('strong', {}, 'Error al simular: '),
+              el('span', {}, errText)
+            )
+          ));
+        } finally {
+          isSubmitting = false;
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '';
+          submitBtn.append(icon('play'), el('span', {}, 'Simular respuesta'));
+        }
       },
-    }, 'Simular respuesta');
+    }, icon('play'), el('span', {}, 'Simular respuesta'));
+
+    const actionRow = el('div', { class: 'sim-action-row' },
+      submitBtn,
+      el('span', { class: 'sim-hint' }, 'El mensaje se evaluará contra las reglas del canal sin enviarse a Discord.')
+    );
+
+    container.append(step1Card, step2Card, actionRow, resultBox);
 
     box.append(
       formGroup('Simulador de Chat',
         el('p', { class: 'dim' },
-          'Prueba la generación de texto con la configuración real y el corpus de cualquier canal, sin enviar mensajes a Discord.'
+          'Prueba la generación de respuestas en tiempo real con las reglas, triggers y corpus del canal seleccionado. Esta simulación es segura: no envía ningún mensaje a Discord ni consume cupos.'
         ),
-        el('div', { class: 'field' },
-          el('label', {}, 'Canal de contexto', helpIcon('Simula aplicando overrides y frases asignadas a ese canal.')),
-          sel
-        ),
-        el('div', { class: 'field' },
-          el('label', {}, 'Mensaje de entrada'),
-          input
-        ),
-        btn,
-        resultBox
+        container
       )
     );
   } catch (e) { if (box) renderError(box, e); }
@@ -3341,22 +3445,217 @@ function playgroundAvisos(avisos) {
       el('li', {}, el('span', {}, PLAYGROUND_AVISO_LABELS[code] || code)))));
 }
 
-function renderPlaygroundResult(box, data) {
-  box.innerHTML = '';
-  const avisos = playgroundAvisos(data.avisos);
-  if (!data.would_respond) {
-    box.append(el('p', { class: 'dim' },
-      PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'No respondería.'));
-    if (avisos) box.append(avisos);
-    return;
+function buildPlaygroundChannelPicker(channels, selectedId, onSelect) {
+  const wrap = el('div', { class: 'sim-channel-picker' });
+  let currentId = selectedId || (channels[0] ? channels[0].id : '');
+
+  const getChannel = (id) => channels.find(c => String(c.id) === String(id));
+
+  const trigger = el('button', {
+    type: 'button',
+    class: 'sim-channel-trigger',
+    'aria-haspopup': 'listbox',
+    'aria-expanded': 'false',
+  });
+
+  function updateTriggerText() {
+    trigger.innerHTML = '';
+    const ch = getChannel(currentId);
+    const left = el('div', { class: 'sim-channel-trigger-left' },
+      el('span', { class: 'sim-chan-hash' }, '#'),
+      el('span', { class: 'sim-chan-name' }, ch ? ch.name : 'Elige un canal…'),
+      ch && ch.category ? el('span', { class: 'sim-chan-cat' }, ch.category) : null
+    );
+    const caret = el('span', { class: 'dd-caret' }, '▾');
+    trigger.append(left, caret);
   }
-  box.append(
-    el('p', { class: 'dim' }, PLAYGROUND_REASON_LABELS[data.reason] || data.reason),
-    el('div', {
-      style: 'border:1px solid var(--border);border-radius:var(--radius-sm);'
-        + 'padding:12px;background:var(--surface-card)',
-    }, data.text));
-  if (avisos) box.append(avisos);
+  updateTriggerText();
+
+  const dropdown = el('div', { class: 'sim-channel-dropdown', style: 'display: none;' });
+
+  const searchInput = el('input', {
+    type: 'text',
+    class: 'sim-channel-search-input',
+    placeholder: 'Buscar canal…',
+    autocomplete: 'off',
+  });
+  const searchWrap = el('div', { class: 'sim-channel-search-wrap' },
+    icon('search'),
+    searchInput
+  );
+
+  const listWrap = el('div', { class: 'sim-channel-list', role: 'listbox' });
+
+  function renderList(filter = '') {
+    listWrap.innerHTML = '';
+    const q = filter.trim().toLowerCase();
+    const filtered = channels.filter(c => {
+      const matchName = c.name && c.name.toLowerCase().includes(q);
+      const matchCat = c.category && c.category.toLowerCase().includes(q);
+      return matchName || matchCat;
+    });
+
+    if (!filtered.length) {
+      listWrap.append(el('div', { style: 'padding: 12px 14px; color: var(--text-dim); font-size: 13px; text-align: center;' }, 'No se encontraron canales'));
+      return;
+    }
+
+    const categoriesMap = new Map();
+    for (const c of filtered) {
+      const catKey = c.category || 'Canales de texto';
+      if (!categoriesMap.has(catKey)) categoriesMap.set(catKey, []);
+      categoriesMap.get(catKey).push(c);
+    }
+
+    for (const [catName, catChannels] of categoriesMap.entries()) {
+      listWrap.append(el('div', { class: 'sim-channel-cat-header' }, catName));
+      for (const ch of catChannels) {
+        const isSelected = String(ch.id) === String(currentId);
+        const item = el('div', {
+          class: `sim-channel-item${isSelected ? ' selected' : ''}`,
+          role: 'option',
+          'aria-selected': isSelected ? 'true' : 'false',
+          onclick: (e) => {
+            e.stopPropagation();
+            currentId = ch.id;
+            updateTriggerText();
+            closeDropdown();
+            onSelect(ch.id);
+          },
+        },
+          el('div', { style: 'display: flex; align-items: center; gap: 8px; min-width: 0;' },
+            el('span', { class: 'sim-chan-hash' }, '#'),
+            el('span', { class: 'sim-chan-name' }, ch.name)
+          ),
+          isSelected ? icon('check') : null
+        );
+        listWrap.append(item);
+      }
+    }
+  }
+
+  renderList();
+
+  searchInput.oninput = () => {
+    renderList(searchInput.value);
+  };
+
+  function openDropdown() {
+    dropdown.style.display = 'flex';
+    trigger.setAttribute('aria-expanded', 'true');
+    searchInput.value = '';
+    renderList();
+    setTimeout(() => searchInput.focus(), 30);
+  }
+
+  function closeDropdown() {
+    dropdown.style.display = 'none';
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  trigger.onclick = (e) => {
+    e.stopPropagation();
+    if (dropdown.style.display === 'none') {
+      openDropdown();
+    } else {
+      closeDropdown();
+    }
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) {
+      closeDropdown();
+    }
+  });
+
+  dropdown.append(searchWrap, listWrap);
+  wrap.append(trigger, dropdown);
+  return wrap;
+}
+
+function renderPlaygroundResult(box, data, channel, style) {
+  box.innerHTML = '';
+  if (!data) return;
+
+  const card = el('div', { class: 'sim-result-card' });
+
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const chanName = channel ? channel.name : 'canal';
+
+  const resultHeader = el('div', { class: 'sim-result-header' },
+    el('div', { class: 'sim-result-title-group' },
+      icon('sparkle'),
+      el('h4', { class: 'sim-result-title' }, 'Respuesta simulada'),
+      el('span', { class: 'badge badge-sm' }, 'Simulación en vivo')
+    ),
+    el('span', { class: 'sim-meta-tag' },
+      icon('chat'),
+      `#${chanName}`
+    )
+  );
+  card.append(resultHeader);
+
+  if (!data.would_respond) {
+    const reasonText = PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'El bot no respondería a este mensaje según las reglas configuradas.';
+    card.append(
+      el('div', { class: 'sim-no-response-box' },
+        icon('alertTriangle'),
+        el('div', {},
+          el('strong', {}, 'Sin respuesta: '),
+          el('span', {}, reasonText)
+        )
+      )
+    );
+  } else {
+    const botNick = (style && style.current_nick) || 'Purgito';
+    const botAvatar = (style && (style.avatar_url || style.current_avatar_url)) || '/img/icon.webp';
+
+    const discordPreview = el('div', { class: 'sim-discord-preview' },
+      el('img', { class: 'sim-bot-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.src = '/img/icon.webp'; } }),
+      el('div', { class: 'sim-message-content' },
+        el('div', { class: 'sim-message-author-row' },
+          el('span', { class: 'sim-bot-name' }, botNick),
+          el('span', { class: 'sim-bot-tag' }, 'BOT'),
+          el('span', { class: 'sim-message-timestamp' }, `Hoy a las ${timeStr} (Simulación)`)
+        ),
+        el('div', { class: 'sim-message-text' }, data.text || '')
+      )
+    );
+    card.append(discordPreview);
+
+    const metaRow = el('div', { class: 'sim-meta-row' });
+    if (data.reason === 'trigger') {
+      metaRow.append(
+        el('span', { class: 'sim-meta-tag sim-meta-tag--trigger' },
+          icon('zap'),
+          `Disparado por Trigger ${data.trigger_id ? `(#${data.trigger_id})` : ''}`
+        )
+      );
+    } else if (data.reason === 'frase_especial') {
+      metaRow.append(
+        el('span', { class: 'sim-meta-tag sim-meta-tag--frase' },
+          icon('sparkle'),
+          'Frase especial de canal'
+        )
+      );
+    } else if (data.reason === 'markov') {
+      metaRow.append(
+        el('span', { class: 'sim-meta-tag sim-meta-tag--markov' },
+          icon('play'),
+          'Generado con Modelo Markov'
+        )
+      );
+    }
+    card.append(metaRow);
+  }
+
+  const avisosNode = playgroundAvisos(data.avisos);
+  if (avisosNode) {
+    card.append(avisosNode);
+  }
+
+  box.append(card);
 }
 
 // ---------------- MEMES ----------------

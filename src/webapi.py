@@ -805,19 +805,52 @@ async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
     # guild_api ya garantiza que el bot está en el guild.
     guild = _bot_guild(request, guild_id)
     channels = []
-    for c in guild.text_channels:
-        perms = c.permissions_for(guild.me)
+    raw_channels = list(guild.text_channels)
+    try:
+        raw_channels.sort(
+            key=lambda c: (
+                getattr(c.category, "position", -1)
+                if getattr(c, "category", None)
+                else -1,
+                getattr(c, "position", 0),
+            )
+        )
+    except Exception:
+        pass
+
+    for c in raw_channels:
+        perms = (
+            c.permissions_for(guild.me)
+            if hasattr(c, "permissions_for") and hasattr(guild, "me")
+            else None
+        )
+        can_view = bool(getattr(perms, "view_channel", True)) if perms else True
+        can_send = (
+            bool(
+                getattr(perms, "view_channel", True)
+                and getattr(perms, "send_messages", True)
+            )
+            if perms
+            else True
+        )
+        can_read_history = (
+            bool(getattr(perms, "read_message_history", True)) if perms else True
+        )
+        can_use_simulator = can_view and can_send
+        category_name = c.category.name if getattr(c, "category", None) else None
         channels.append(
             {
                 "id": str(c.id),
                 "name": c.name,
-                # Para marcar "canal sin permisos" en los selectores del dashboard.
-                "can_send": perms.view_channel and perms.send_messages,
-                # Idem para el aviso de identidad personalizada (Fase 4) -- un
-                # override a nivel canal puede sacarle este permiso al bot
-                # aunque lo tenga a nivel servidor, así que hay que chequearlo
-                # por canal, no alcanza con el permiso del bot en general.
-                "can_manage_webhooks": perms.manage_webhooks,
+                "category": category_name,
+                "position": getattr(c, "position", 0),
+                "can_view": can_view,
+                "can_send": can_send,
+                "can_read_history": can_read_history,
+                "can_use_simulator": can_use_simulator,
+                "can_manage_webhooks": bool(getattr(perms, "manage_webhooks", False))
+                if perms
+                else False,
             }
         )
     return web.json_response({"channels": channels})
@@ -979,6 +1012,19 @@ async def _api_chat_playground_post(
         return web.json_response(
             {"error": "el canal no existe en este servidor"}, status=400
         )
+
+    # Validar permisos en tiempo real: el bot debe poder ver y enviar mensajes en el canal
+    if hasattr(channel, "permissions_for") and hasattr(guild, "me"):
+        perms = channel.permissions_for(guild.me)
+        can_view = bool(getattr(perms, "view_channel", True))
+        can_send = bool(getattr(perms, "send_messages", True))
+        if not (can_view and can_send):
+            return web.json_response(
+                {
+                    "error": "Purgito no puede utilizar este canal con los permisos actuales. Se requiere permiso para ver el canal y enviar mensajes."
+                },
+                status=403,
+            )
 
     # El admin que prueba el playground hace de "autor" para {{user.*}}: se
     # busca su Member real (para que {{user.mention}} sea el suyo) y si no

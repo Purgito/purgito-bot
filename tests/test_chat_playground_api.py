@@ -162,3 +162,21 @@ def test_usa_un_placeholder_si_no_hay_member_en_cache(fake_guild, monkeypatch):
     author = captured["author"]
     assert author.mention == f"<@{_USER_ID}>"
     assert author.display_name == _USERNAME
+
+
+def test_canal_sin_permisos_devuelve_403(fake_guild):
+    # Canal con permisos_for simulado donde send_messages es False
+    no_perms_channel = SimpleNamespace(
+        id=20,
+        name="solo-lectura",
+        permissions_for=lambda me: SimpleNamespace(
+            view_channel=True, send_messages=False
+        ),
+    )
+    fake_guild._channels[20] = no_perms_channel
+    fake_guild.me = SimpleNamespace(id=111)
+
+    resp = _run(FakeRequest(body={"message": "hola", "channel_id": "20"}))
+    assert resp.status == 403
+    data = _json(resp)
+    assert "permisos" in data["error"]

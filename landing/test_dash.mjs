@@ -586,7 +586,15 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   fetchHandlers = [
     (url, opts) => {
       if (url.includes('/api/server/123456789/channels')) {
-        return jsonResp({ channels: [{ id: '10', name: 'general', type: 0 }] });
+        return jsonResp({
+          channels: [
+            { id: '10', name: 'general', can_use_simulator: true, can_send: true, can_view: true },
+            { id: '99', name: 'solo-lectura-no-usable', can_use_simulator: false, can_send: false, can_view: true },
+          ],
+        });
+      }
+      if (url.includes('/api/server/123456789/style')) {
+        return jsonResp({ current_nick: 'Purgito Bot', current_avatar_url: 'https://example.com/purgito.png' });
       }
       if (url.includes('/api/server/123456789/chat/playground') && opts?.method === 'POST') {
         simulatedRequest = JSON.parse(opts.body);
@@ -606,9 +614,11 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   const contentText = elementsById.catContent.text();
   assert.match(contentText, /Simulador de Chat/);
-  assert.match(contentText, /Prueba la generación de texto/);
+  assert.match(contentText, /Canal de contexto/);
+  assert.match(contentText, /Mensaje de entrada/);
+  assert.match(contentText, /Simular respuesta/);
 
-  console.log('✓ Test 12: Simulador de Chat renombrado y funcional');
+  console.log('✓ Test 12: Simulador de Chat estructurado, con filtrado de permisos y funcional');
 }
 
 // ── Test 13: Eliminación de redundancias en navegación ────────────────────────
