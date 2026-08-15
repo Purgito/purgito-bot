@@ -657,3 +657,49 @@ function svgIcon(paths) {
   updateNavScroll();
 })();
 
+/* ── Navegación activa y comportamiento móvil de la Guía (/es/guia) ── */
+(function () {
+  var guiaSidebar = document.querySelector('.guia-sidebar');
+  if (!guiaSidebar) return;
+
+  var links = Array.prototype.slice.call(guiaSidebar.querySelectorAll('a[href^="#"]'));
+  if (!links.length) return;
+
+  // En móvil (<860px), click en un enlace cierra el acordeón <details>
+  links.forEach(function (a) {
+    a.addEventListener('click', function () {
+      if (window.innerWidth <= 860) {
+        guiaSidebar.removeAttribute('open');
+      }
+    });
+  });
+
+  // Scrollspy con IntersectionObserver para marcar activa la sección actual
+  if (!('IntersectionObserver' in window)) return;
+
+  var sections = [];
+  links.forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if (el) sections.push({ id: id, el: el, a: a });
+  });
+
+  if (!sections.length) return;
+
+  var observer = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          links.forEach(function (l) { l.classList.remove('active'); });
+          var match = sections.find(function (s) { return s.el === entry.target; });
+          if (match) match.a.classList.add('active');
+        }
+      });
+    },
+    { rootMargin: '-70px 0px -70% 0px', threshold: 0 }
+  );
+
+  sections.forEach(function (s) { observer.observe(s.el); });
+})();
+
+

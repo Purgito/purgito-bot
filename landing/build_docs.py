@@ -157,6 +157,14 @@ HTML_PAGES = [
         "module": "estado.js",
     },
     {
+        "slug": "guia",
+        "src": "guia.html",
+        "title": "Guía de Purgito — Cómo funciona el bot",
+        "meta": "Aprende cómo funciona Purgito, desde el sistema de aprendizaje y Chat "
+        "hasta GIFs, memes, embeds, YouTube y Premium.",
+        "guia": True,
+    },
+    {
         "slug": "documentacion",
         "src": "documentacion/index.html",
         "title": "Documentación técnica",
@@ -352,6 +360,43 @@ def doc_sidebar(current_slug):
     return (
         '<details class="docs-sidebar" open aria-label="Documentación técnica">\n'
         "  <summary>Categorías</summary>\n"
+        "  <ul>\n%s\n  </ul>\n</details>" % "\n".join(items)
+    )
+
+
+# Estructura de /es/guia: navegación por anclas para la página única de la Guía.
+GUIA_SECTIONS = [
+    ("introduccion", "Introducción"),
+    ("primeros-pasos", "Primeros pasos"),
+    ("como-aprende", "Cómo aprende Purgito"),
+    ("chat", "Chat"),
+    ("corpus", "Corpus"),
+    ("gifs", "GIFs"),
+    ("memes", "Memes"),
+    ("reacciones", "Reacciones"),
+    ("frases-y-packs", "Frases y packs"),
+    ("triggers", "Triggers"),
+    ("embeds", "Embeds"),
+    ("youtube", "YouTube"),
+    ("anuncios", "Anuncios programados"),
+    ("premium", "Premium"),
+    ("dashboard", "Dashboard"),
+    ("historial", "Historial"),
+]
+
+
+def guia_sidebar():
+    """Sidebar de /es/guia: navegación por anclas a las secciones de la página.
+
+    Funciona con anchors directos (#id) en una sola página. En móvil se pliega
+    en un <details> accesible con summary 'Guía ▾'.
+    """
+    items = []
+    for anchor, label in GUIA_SECTIONS:
+        items.append('    <li><a href="#%s">%s</a></li>' % (anchor, html.escape(label)))
+    return (
+        '<details class="docs-sidebar guia-sidebar" open aria-label="Guía de Purgito">\n'
+        "  <summary>Guía ▾</summary>\n"
         "  <ul>\n%s\n  </ul>\n</details>" % "\n".join(items)
     )
 
@@ -618,10 +663,16 @@ def build_html_page(page, nav, footer):
             '  <main id="contenido" class="docs-content">\n%s\n  </main>\n</div>'
             % (doc_sidebar(page["slug"]), raw_body)
         )
+    elif page.get("guia"):
+        raw_body = (
+            '<div class="docs-shell wrap">\n%s\n'
+            '  <main id="contenido" class="docs-content guia-content">\n%s\n  </main>\n</div>'
+            % (guia_sidebar(), raw_body)
+        )
     full_title = f"{html.escape(page['title'])} — Purgito"
     canonical_url = f"{BASE_URL}/es/{page['slug']}"
     og_image = page.get("og_image", DEFAULT_OG_IMAGE)
-    og_type = "article" if page.get("doc") else "website"
+    og_type = "article" if (page.get("doc") or page.get("guia")) else "website"
     return SHELL.format(
         full_title=full_title,
         meta=html.escape(page["meta"]),

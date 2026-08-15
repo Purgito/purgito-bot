@@ -41,6 +41,6 @@ refleje el 100% de cómo se comporta la función ahora mismo.
 
 ## ¿No encontraste lo que buscabas?
 
-Revisa las [preguntas frecuentes](/es/documentacion/faq), o pregunta directo en el
-[servidor de soporte](https://discord.gg/PLACEHOLDER) — ahí respondemos más rápido que
+Revisa la [Guía web](/es/guia) y la [Documentación técnica](/es/documentacion), o pregunta directo en el
+[servidor de soporte](https://discord.gg/5U7HKyxnBv) — ahí respondemos más rápido que
 por cualquier otro medio.

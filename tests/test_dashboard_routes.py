@@ -17,6 +17,7 @@ import webapi
 
 ROOT = Path(__file__).resolve().parents[1]
 LANDING = ROOT / "landing"
+DOCS = ROOT / "docs"
 
 
 # ── La API registra exactamente lo que el frontend pide ──────────────────────
@@ -788,4 +789,70 @@ def test_all_js_modules_import_icon_helper_when_used():
             assert dom_imports, f"{js_file} usa icon(...) pero no importa desde dom.js"
             imported_names = [name.strip() for names in dom_imports for name in names.split(",")]
             assert "icon" in imported_names, f"{js_file} usa icon(...) pero no importa icon desde dom.js"
+
+
+def test_guia_purgito_page_structure_and_integration():
+    """Verifica que /es/guia está generada, tiene metadata SEO correcta, sidebar dedicado, todas las secciones requeridas y sin placeholders."""
+    guia_file = LANDING / "es" / "guia" / "index.html"
+    assert guia_file.exists(), "landing/es/guia/index.html debe existir"
+
+    guia_html = guia_file.read_text("utf-8")
+    index_html = (LANDING / "index.html").read_text("utf-8")
+    script_js = (LANDING / "script.js").read_text("utf-8")
+    style_css = (LANDING / "style.css").read_text("utf-8")
+
+    # Metadata & SEO
+    assert "<title>Guía de Purgito — Cómo funciona el bot — Purgito</title>" in guia_html
+    assert 'content="https://purgito.app/es/guia"' in guia_html
+    assert 'property="og:type" content="article"' in guia_html
+    assert 'name="description"' in guia_html
+    assert "Aprende cómo funciona Purgito" in guia_html
+
+    # Integración en Navbar y Footer
+    assert 'href="/es/guia"' in index_html
+    assert 'href="/es/guia"' in guia_html
+    assert "Guía de Purgito" in index_html
+    assert 'class="nav-mobile-link" href="/es/guia"' in index_html
+
+    # Sidebar dedicado con anclas
+    assert 'class="docs-sidebar guia-sidebar"' in guia_html
+    expected_sections = [
+        "introduccion",
+        "primeros-pasos",
+        "como-aprende",
+        "chat",
+        "corpus",
+        "gifs",
+        "memes",
+        "reacciones",
+        "frases-y-packs",
+        "triggers",
+        "embeds",
+        "youtube",
+        "anuncios",
+        "premium",
+        "dashboard",
+        "historial",
+    ]
+    for sec in expected_sections:
+        assert f'href="#{sec}"' in guia_html, f"El sidebar debe enlazar a #{sec}"
+        assert f'id="{sec}"' in guia_html, f"La sección id='{sec}' debe existir en el HTML"
+
+    # Enlaces cruzados a documentación técnica, dashboard y soporte real
+    assert 'href="/es/documentacion"' in guia_html
+    assert 'href="/es/documentacion/generacion"' in guia_html
+    assert 'href="/es/documentacion/discord"' in guia_html
+    assert 'href="/es/perfil/servidores"' in guia_html
+    assert 'href="/es/premium"' in guia_html
+    assert "https://discord.gg/5U7HKyxnBv" in guia_html
+
+    # Cero placeholders o enlaces rotos
+    assert "PLACEHOLDER" not in guia_html
+    assert "discord.gg/PLACEHOLDER" not in (DOCS / "guia" / "index.md").read_text("utf-8")
+
+    # Soporte en CSS y JS
+    assert ".guia-sidebar" in style_css
+    assert ".guia-content" in style_css
+    assert "guiaSidebar" in script_js
+
 
