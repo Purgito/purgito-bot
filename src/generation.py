@@ -46,7 +46,7 @@ _CONECTORES_FINALES = [
     " como",
 ]
 
-_markov_cache: LRUDict = LRUDict(64)
+_markov_cache: LRUDict = LRUDict(128)
 _message_counter: LRUDict = LRUDict(256)
 # "Termostato" de actividad reciente por canal (Fase 6): (score, last_update)
 # en vez de una lista de timestamps -- un float que decae con el tiempo en
@@ -68,7 +68,7 @@ _guild_total_insert_counter: LRUDict = LRUDict(256)
 # — se dispara con menos frecuencia porque es una red de seguridad, no el
 # mecanismo principal (ese es trim_corpus_if_needed, por canal).
 _GUILD_TOTAL_TRIM_EVERY = 500
-_user_markov_cache: LRUDict = LRUDict(64)
+_user_markov_cache: LRUDict = LRUDict(128)
 _user_corpus_insert_counter: LRUDict = LRUDict(256)
 _special_phrase_cooldowns: LRUDict = LRUDict(256)
 
