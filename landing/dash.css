@@ -3633,7 +3633,7 @@ h1 {
 .sim-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   max-width: 100%;
 }
 
@@ -3713,7 +3713,7 @@ h1 {
 .sim-results-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .sim-loading-state {
@@ -3731,13 +3731,41 @@ h1 {
 .sim-main-layout {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+}
+
+/* Sections */
+.sim-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sim-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sim-section-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sim-section-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
 }
 
 /* Config Grid */
 .sim-config-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 14px;
 }
 
@@ -3749,6 +3777,11 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: border-color var(--transition);
+}
+
+.sim-config-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .sim-config-header {
@@ -3771,6 +3804,7 @@ h1 {
   color: var(--accent);
   width: 16px;
   height: 16px;
+  flex: none;
 }
 
 .sim-config-body {
@@ -3819,17 +3853,36 @@ h1 {
   align-self: center;
 }
 
-/* Two Column Layout */
-.sim-two-col {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 20px;
+/* Hero Result Card */
+.sim-hero-result-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  padding: 24px 26px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
 }
 
-@media (max-width: 900px) {
-  .sim-two-col {
-    grid-template-columns: 1fr;
-  }
+.sim-result-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sim-single-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sim-result-lead-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Pill Badges */
@@ -3876,49 +3929,21 @@ h1 {
   width: fit-content;
 }
 
-/* Subblocks */
-.sim-subblock {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.sim-subblock:first-of-type {
-  border-top: none;
-  padding-top: 0;
-}
-
-.sim-subblock-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.sim-subblock-disabled {
-  font-size: 13px;
-  color: var(--text-dim);
-  font-style: italic;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: var(--radius-sm);
-}
-
 /* Discord Mock Message */
 .sim-discord-message {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   background: #1e1f22;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .sim-discord-avatar {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   object-fit: cover;
   flex: none;
@@ -3942,7 +3967,7 @@ h1 {
 
 .sim-discord-author {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 14.5px;
   color: #f2f3f5;
 }
 
@@ -3957,7 +3982,7 @@ h1 {
 }
 
 .sim-discord-timestamp {
-  font-size: 11px;
+  font-size: 11.5px;
   color: #949ba4;
 }
 
@@ -3968,11 +3993,12 @@ h1 {
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   padding: 1px 6px;
   border-radius: 4px;
+  font-weight: 500;
 }
 
 .sim-discord-text {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 14.5px;
+  line-height: 1.55;
   color: #dbdee1;
   white-space: pre-wrap;
   word-break: break-word;
@@ -3982,14 +4008,14 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .sim-no-response-box {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   background: rgba(245, 158, 11, 0.08);
   border: 1px solid rgba(245, 158, 11, 0.25);
   border-radius: var(--radius-md);
@@ -4003,104 +4029,76 @@ h1 {
   height: 18px;
 }
 
-/* GIF Preview */
-.sim-gif-preview-box {
+/* GIF Hero Preview */
+.sim-gif-hero-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 320px;
+  gap: 10px;
+  max-width: 440px;
 }
 
-.sim-gif-image {
+.sim-gif-hero-image {
   width: 100%;
-  max-height: 220px;
+  max-height: 320px;
   object-fit: cover;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
-.sim-gif-meta {
+.sim-gif-hero-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-/* Reaction Preview */
-.sim-reaction-preview-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sim-discord-reaction-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: #2b2d31;
-  border: 1px solid #35373c;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #dbdee1;
-}
-
-.sim-reaction-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: #949ba4;
-}
-
-/* Rules Checklist */
-.sim-rules-list {
+/* Ready / Empty State Card */
+.sim-empty-ready-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 56px 24px;
+  gap: 16px;
 }
 
-.sim-rule-item {
+.sim-empty-ready-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  align-items: center;
+  justify-content: center;
 }
 
-.sim-rule-item.passed .sim-rule-icon {
-  color: #34d399;
+.sim-empty-ready-icon .nav-icon {
+  width: 24px;
+  height: 24px;
+  margin-left: 2px;
 }
 
-.sim-rule-item.failed .sim-rule-icon {
-  color: #f87171;
-}
-
-.sim-rule-icon {
-  flex: none;
-  margin-top: 2px;
-  width: 16px;
-  height: 16px;
-}
-
-.sim-rule-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.sim-rule-label {
-  font-size: 13px;
-  font-weight: 600;
+.sim-empty-ready-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text);
 }
 
-.sim-rule-detail {
-  font-size: 12px;
+.sim-empty-ready-desc {
+  margin: 0;
+  font-size: 14px;
   color: var(--text-muted);
-  line-height: 1.4;
+  max-width: 440px;
+  line-height: 1.5;
+}
+
+.sim-empty-action-btn {
+  margin-top: 4px;
 }
 
 /* Error Card */

@@ -573,14 +573,14 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 11: Modal de edición de estilo funcional');
 }
 
-// ── Test 12: Simulador de Chat (renombrado, coherencia y ejecución) ───────────
+// ── Test 12: Simulador de Chat (generación espontánea y estados) ─────────────
 {
   setupDOM();
   setGuildId('123456789');
 
   const playgroundMod = MODULES.find(m => m.key === 'playground');
   assert.ok(playgroundMod, 'Módulo playground debe existir');
-  assert.equal(playgroundMod.label, 'Simulador de Chat', 'Debe renombrarse a "Simulador de Chat"');
+  assert.equal(playgroundMod.label, 'Simulador de Chat', 'Debe nombrarse "Simulador de Chat"');
 
   let simulatedRequest = null;
   fetchHandlers = [
@@ -599,9 +599,25 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
       if (url.includes('/api/server/123456789/chat/playground') && opts?.method === 'POST') {
         simulatedRequest = JSON.parse(opts.body);
         return jsonResp({
+          result_type: 'message',
           would_respond: true,
           reason: 'markov',
           text: '¡Hola desde la simulación de Purgito!',
+          channel_info: {
+            id: '10',
+            name: 'general',
+            is_ignored: false,
+            is_corpus_allowed: true,
+            channel_corpus_count: 150,
+            guild_corpus_count: 1200,
+          },
+          settings: {
+            auto_generate_every: 15,
+            auto_generate_probability: 0.6,
+            frase_probability: 0.0,
+            gif_response_probability: 0.2,
+            reaction_probability: 0.05,
+          },
           avisos: [],
         });
       }
@@ -612,16 +628,61 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   await playgroundMod.load();
   await new Promise(r => setTimeout(r, 50));
 
-  const contentText = elementsById.catContent.text();
-  assert.match(contentText, /Simulador de Chat/);
-  assert.match(contentText, /Canal de prueba/);
-  assert.match(contentText, /Resultado simulado/);
-  assert.match(contentText, /Generación Markov/);
-  assert.match(contentText, /Reglas evaluadas/);
-  assert.ok(!contentText.includes('Mensaje de entrada'), 'No debe existir el campo Mensaje de entrada');
-  assert.ok(!contentText.includes('Paso 1'), 'No debe existir estructura por pasos (Paso 1)');
-  assert.ok(!contentText.includes('Paso 2'), 'No debe existir estructura por pasos (Paso 2)');
-  assert.ok(simulatedRequest && simulatedRequest.channel_id === '10', 'Debe simular el canal automáticamente');
+  const initialContent = elementsById.catContent.text();
+  assert.match(initialContent, /Simulador de Chat/);
+  assert.match(initialContent, /Canal de prueba/);
+  assert.match(initialContent, /Listo para simular/, 'Debe mostrar el estado inicial "Listo para simular"');
+  assert.match(initialContent, /Ejecuta una simulación para ver cómo respondería Purgito usando la generación espontánea/);
+  assert.equal(simulatedRequest, null, 'No debe ejecutar la simulación antes de que el usuario pulse el botón');
+
+  // Simular al pulsar el botón
+  const simBtn = elementsById.catContent.querySelector('.sim-submit-btn') || elementsById.catContent.querySelector('.sim-empty-action-btn');
+  assert.ok(simBtn && typeof simBtn.onclick === 'function', 'Debe existir el botón de Simular interacción');
+  await simBtn.onclick();
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.ok(simulatedRequest && simulatedRequest.channel_id === '10', 'Debe enviar la petición de simulación para el canal seleccionado');
+  const simulatedContent = elementsById.catContent.text();
+  assert.match(simulatedContent, /Configuración disponible/);
+  assert.match(simulatedContent, /Generación Markov/);
+  assert.match(simulatedContent, /Packs de mensajes/);
+  assert.match(simulatedContent, /GIFs/);
+  assert.match(simulatedContent, /Reacciones automáticas/);
+  assert.match(simulatedContent, /Resultado de la simulación/);
+  assert.match(simulatedContent, /Purgito podría responder:/);
+  assert.match(simulatedContent, /¡Hola desde la simulación de Purgito!/);
+  assert.ok(!simulatedContent.includes('Mensaje de entrada'), 'No debe existir el campo Mensaje de entrada');
+  assert.ok(!simulatedContent.includes('Paso 1'), 'No debe existir estructura por pasos');
+
+  // Test resultado GIF exclusivamente
+  fetchHandlers = [
+    (url, opts) => {
+      if (url.includes('/api/server/123456789/channels')) {
+        return jsonResp({
+          channels: [{ id: '10', name: 'general', can_use_simulator: true }],
+        });
+      }
+      if (url.includes('/api/server/123456789/chat/playground') && opts?.method === 'POST') {
+        return jsonResp({
+          result_type: 'gif',
+          would_respond: true,
+          reason: 'gif',
+          gif_url: 'https://media.giphy.com/media/test.gif',
+          channel_info: { id: '10', name: 'general' },
+          settings: { gif_response_probability: 0.8 },
+        });
+      }
+      return jsonResp({});
+    },
+  ];
+  await playgroundMod.load();
+  await new Promise(r => setTimeout(r, 50));
+  const simBtnGif = elementsById.catContent.querySelector('.sim-submit-btn') || elementsById.catContent.querySelector('.sim-empty-action-btn');
+  await simBtnGif.onclick();
+  await new Promise(r => setTimeout(r, 50));
+  const gifContent = elementsById.catContent.text();
+  assert.match(gifContent, /GIF espontáneo/);
+  assert.ok(!gifContent.includes('Purgito podría responder:'), 'No debe renderizar mensaje cuando el resultado es un GIF');
 
   // Test vacío cuando no hay canales utilizables
   fetchHandlers = [
@@ -641,7 +702,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const emptyContent = elementsById.catContent.text();
   assert.match(emptyContent, /No hay canales disponibles para simular/);
 
-  console.log('✓ Test 12: Simulador de Chat rediseñado como preview/sandbox, sin pasos ni inputs de mensaje');
+  console.log('✓ Test 12: Simulador de Chat con generación espontánea y estados correctos');
 }
 
 // ── Test 13: Eliminación de redundancias en navegación ────────────────────────

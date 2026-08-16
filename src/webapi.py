@@ -27,6 +27,7 @@ import io
 import json
 import logging
 import math
+import random
 import secrets
 import time
 from datetime import datetime
@@ -1119,10 +1120,6 @@ async def _api_chat_playground_post(
         display_name=str(session.get("username") or "tú"),
     )
 
-    result = await simulate_message(
-        guild_id, channel_id, message_text, author=author, channel=channel, guild=guild
-    )
-
     # Configuraciones y estado del servidor evaluados en modo sandbox
     settings = await get_effective_chat_settings(guild_id, channel_id)
     is_ignored = await is_channel_ignored(guild_id, channel_id)
@@ -1134,7 +1131,7 @@ async def _api_chat_playground_post(
     effective_pack_id = await get_effective_frase_pool(guild_id, channel_id)
     reaction_pool = await list_reaction_pool(guild_id)
     gif_total = await count_gif_urls(guild_id)
-    gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
+    gif_prob = float(settings.get("gif_response_probability", 0.0) or 0.0)
     mention_channels = await list_mention_channels(guild_id)
     spontaneous_channels = await list_spontaneous_channels(guild_id)
 
@@ -1145,13 +1142,36 @@ async def _api_chat_playground_post(
                 effective_pack_name = p["name"]
                 break
 
+    # Simulación de generación espontánea según la lógica real de Purgito:
+    # 1. Roll para GIF espontáneo
+    is_gif_result = False
     simulated_gif = None
-    if gif_candidates and settings.get("gif_response_probability", 0) > 0:
-        simulated_gif = gif_candidates[0].get("media_url") or gif_candidates[0].get("url")
+    if gif_total > 0 and gif_prob > 0 and random.random() < gif_prob:
+        gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
+        if gif_candidates:
+            simulated_gif = gif_candidates[0].get("media_url") or gif_candidates[0].get("url")
+            if simulated_gif:
+                is_gif_result = True
 
-    simulated_reaction = None
-    if reaction_pool and settings.get("reaction_probability", 0) > 0:
-        simulated_reaction = secrets.choice(reaction_pool)["emoji_text"]
+    if is_gif_result:
+        sim_result = {
+            "result_type": "gif",
+            "gif_url": simulated_gif,
+            "reason": "gif",
+            "text": None,
+            "would_respond": True,
+            "avisos": [],
+        }
+    else:
+        # 2. Generación Markov / Pack de frases obligatoria
+        result = await simulate_message(
+            guild_id, channel_id, message_text, author=author, channel=channel, guild=guild
+        )
+        sim_result = {
+            "result_type": "message",
+            "gif_url": None,
+            **result,
+        }
 
     rules_evaluated = [
         {
@@ -1211,7 +1231,7 @@ async def _api_chat_playground_post(
     ]
 
     response_payload = {
-        **result,
+        **sim_result,
         "channel_info": {
             "id": str(channel_id),
             "name": getattr(channel, "name", f"canal-{channel_id}"),
@@ -1243,13 +1263,11 @@ async def _api_chat_playground_post(
         ],
         "gifs": {
             "total_count": gif_total,
-            "probability": settings.get("gif_response_probability", 0),
-            "simulated_gif_url": simulated_gif,
+            "probability": gif_prob,
         },
         "reactions": {
             "total_count": len(reaction_pool),
             "probability": settings.get("reaction_probability", 0),
-            "simulated_emoji": simulated_reaction,
         },
         "rules_evaluated": rules_evaluated,
     }

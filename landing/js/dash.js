@@ -1462,28 +1462,28 @@ async function loadPlaygroundModule() {
           el('span', {}, 'Sandbox seguro — Sin envíos a Discord')
         ),
         el('p', { class: 'sim-header-desc' },
-          'Simula una interacción en este canal usando la configuración actual de Purgito. Nada se enviará a Discord.'
+          'Simula una interacción espontánea en este canal usando la configuración real de Purgito. Nada se enviará a Discord.'
         )
       )
     );
 
     // Channel selection and action card
-    const channelPicker = buildPlaygroundChannelPicker(usableChannels, selectedChannelId, (newId) => {
-      selectedChannelId = newId;
-      runSimulation();
-    });
-
     const refreshBtn = el('button', {
       type: 'button',
       class: 'btn btn-primary sim-submit-btn',
       onclick: () => runSimulation(),
     }, icon('play'), el('span', {}, 'Simular interacción'));
 
+    const channelPicker = buildPlaygroundChannelPicker(usableChannels, selectedChannelId, (newId) => {
+      selectedChannelId = newId;
+      renderInitialEmptyState();
+    });
+
     const channelCard = el('div', { class: 'sim-card sim-channel-card' },
       el('div', { class: 'sim-card-header' },
         el('h3', { class: 'sim-card-title' }, 'Canal de prueba'),
         el('p', { class: 'sim-card-desc' },
-          'Selecciona un canal para previsualizar cómo respondería Purgito usando su configuración actual.'
+          'Selecciona un canal para previsualizar cómo respondería Purgito usando su generación espontánea.'
         )
       ),
       el('div', { class: 'sim-channel-action-row' },
@@ -1494,6 +1494,24 @@ async function loadPlaygroundModule() {
 
     // Dynamic results container
     const resultsContainer = el('div', { class: 'sim-results-container' });
+
+    function renderInitialEmptyState() {
+      resultsContainer.innerHTML = '';
+      resultsContainer.append(
+        el('div', { class: 'sim-card sim-empty-ready-card' },
+          el('div', { class: 'sim-empty-ready-icon' }, icon('play')),
+          el('h3', { class: 'sim-empty-ready-title' }, 'Listo para simular'),
+          el('p', { class: 'sim-empty-ready-desc' },
+            'Ejecuta una simulación para ver cómo respondería Purgito usando la generación espontánea de este canal.'
+          ),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-primary sim-empty-action-btn',
+            onclick: () => runSimulation(),
+          }, icon('play'), el('span', {}, 'Simular interacción'))
+        )
+      );
+    }
 
     async function runSimulation() {
       if (isSubmitting) return;
@@ -1511,7 +1529,7 @@ async function loadPlaygroundModule() {
       resultsContainer.append(
         el('div', { class: 'sim-loading-state' },
           spinner(),
-          el('p', { class: 'dim' }, 'Evaluando reglas y configuración activa…')
+          el('p', { class: 'dim' }, 'Ejecutando simulación de generación espontánea…')
         )
       );
 
@@ -1559,8 +1577,8 @@ async function loadPlaygroundModule() {
       )
     );
 
-    // Ejecución inicial automática al entrar
-    runSimulation();
+    // Estado inicial: mostrar estado vacío "Listo para simular"
+    renderInitialEmptyState();
   } catch (e) { if (box) renderError(box, e); }
 }
 
@@ -1570,12 +1588,13 @@ function renderSimulationResults(container, data, styleRes) {
   const botNick = (styleRes && styleRes.current_nick) || 'Purgito';
   const botAvatar = (styleRes && styleRes.current_avatar_url) || '/img/logo.png';
 
-  // 1. Grid superior: Configuración detectada
+  // 1. Grid superior: Configuración disponible
   const settings = data.settings || {};
-  const corpusAllowed = data.channel_info ? data.channel_info.is_corpus_allowed : true;
-  const channelMsgs = data.channel_info ? data.channel_info.channel_corpus_count : 0;
-  const guildMsgs = data.channel_info ? data.channel_info.guild_corpus_count : 0;
-  const effectivePack = data.channel_info ? data.channel_info.effective_pack_name : null;
+  const channelInfo = data.channel_info || {};
+  const corpusAllowed = channelInfo.is_corpus_allowed !== false;
+  const channelMsgs = channelInfo.channel_corpus_count || 0;
+  const guildMsgs = channelInfo.guild_corpus_count || 0;
+  const effectivePack = channelInfo.effective_pack_name || null;
   const fraseProb = Math.round((settings.frase_probability || 0) * 100);
   const gifTotal = data.gifs ? data.gifs.total_count : 0;
   const gifProb = Math.round((data.gifs ? data.gifs.probability : (settings.gif_response_probability || 0)) * 100);
@@ -1583,238 +1602,204 @@ function renderSimulationResults(container, data, styleRes) {
   const reactionProb = Math.round((data.reactions ? data.reactions.probability : (settings.reaction_probability || 0)) * 100);
   const triggersList = data.triggers || [];
 
-  const configCards = el('div', { class: 'sim-config-grid' },
-    // Markov
-    el('div', { class: 'sim-config-card' },
-      el('div', { class: 'sim-config-header' },
-        el('div', { class: 'sim-config-title-group' },
-          icon('corpus'),
-          el('span', { class: 'sim-config-title' }, 'Generación Markov')
-        ),
-        el('span', { class: `sim-pill-badge ${corpusAllowed ? 'ok' : 'off'}` },
-          corpusAllowed ? 'Corpus activo' : 'Corpus inactivo'
-        )
-      ),
-      el('div', { class: 'sim-config-body' },
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Mensajes aprendidos:'),
-          el('span', { class: 'sim-stat-value' }, `${channelMsgs.toLocaleString()} en canal / ${guildMsgs.toLocaleString()} total`)
-        ),
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Cadencia espontánea:'),
-          el('span', { class: 'sim-stat-value' }, `Cada ${settings.auto_generate_every || 15} msgs (${Math.round((settings.auto_generate_probability || 0) * 100)}%)`)
-        )
-      )
+  const configSection = el('div', { class: 'sim-section sim-config-section' },
+    el('div', { class: 'sim-section-header' },
+      el('h4', { class: 'sim-section-title' }, 'Configuración disponible'),
+      el('p', { class: 'sim-section-desc' }, 'Parámetros y recursos activos para la generación espontánea en este canal:')
     ),
-
-    // Packs de mensajes
-    el('div', { class: 'sim-config-card' },
-      el('div', { class: 'sim-config-header' },
-        el('div', { class: 'sim-config-title-group' },
-          icon('layout'),
-          el('span', { class: 'sim-config-title' }, 'Packs de mensajes')
+    el('div', { class: 'sim-config-grid' },
+      // Markov
+      el('div', { class: 'sim-config-card' },
+        el('div', { class: 'sim-config-header' },
+          el('div', { class: 'sim-config-title-group' },
+            icon('corpus'),
+            el('span', { class: 'sim-config-title' }, 'Generación Markov')
+          ),
+          el('span', { class: `sim-pill-badge ${corpusAllowed ? 'ok' : 'off'}` },
+            corpusAllowed ? 'Corpus activo' : 'Corpus inactivo'
+          )
         ),
-        el('span', { class: `sim-pill-badge ${fraseProb > 0 ? 'ok' : 'off'}` },
-          fraseProb > 0 ? (effectivePack ? `Pack: ${effectivePack}` : 'Pool por defecto') : 'Desactivado'
+        el('div', { class: 'sim-config-body' },
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'Mensajes aprendidos:'),
+            el('span', { class: 'sim-stat-value' }, `${channelMsgs.toLocaleString()} en canal / ${guildMsgs.toLocaleString()} total`)
+          ),
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'Cadencia espontánea:'),
+            el('span', { class: 'sim-stat-value' }, `Cada ${settings.auto_generate_every || 15} msgs (${Math.round((settings.auto_generate_probability || 0) * 100)}%)`)
+          )
         )
       ),
-      el('div', { class: 'sim-config-body' },
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Probabilidad de frases:'),
-          el('span', { class: 'sim-stat-value' }, `${fraseProb}%`)
-        ),
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Packs en el servidor:'),
-          el('span', { class: 'sim-stat-value' }, `${(data.packs || []).length} configurados`)
-        )
-      )
-    ),
 
-    // GIFs
-    el('div', { class: 'sim-config-card' },
-      el('div', { class: 'sim-config-header' },
-        el('div', { class: 'sim-config-title-group' },
-          icon('film'),
-          el('span', { class: 'sim-config-title' }, 'GIFs')
+      // Packs de mensajes
+      el('div', { class: 'sim-config-card' },
+        el('div', { class: 'sim-config-header' },
+          el('div', { class: 'sim-config-title-group' },
+            icon('layout'),
+            el('span', { class: 'sim-config-title' }, 'Packs de mensajes')
+          ),
+          el('span', { class: `sim-pill-badge ${fraseProb > 0 ? 'ok' : 'off'}` },
+            fraseProb > 0 ? (effectivePack ? `Pack: ${effectivePack}` : 'Pool por defecto') : 'Desactivado'
+          )
         ),
-        el('span', { class: `sim-pill-badge ${(gifTotal > 0 && gifProb > 0) ? 'ok' : 'off'}` },
-          (gifTotal > 0 && gifProb > 0) ? 'Habilitados' : 'Desactivados'
-        )
-      ),
-      el('div', { class: 'sim-config-body' },
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'GIFs en catálogo:'),
-          el('span', { class: 'sim-stat-value' }, `${gifTotal.toLocaleString()} guardados`)
-        ),
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Probabilidad de GIF:'),
-          el('span', { class: 'sim-stat-value' }, `${gifProb}%`)
-        )
-      )
-    ),
-
-    // Triggers
-    el('div', { class: 'sim-config-card' },
-      el('div', { class: 'sim-config-header' },
-        el('div', { class: 'sim-config-title-group' },
-          icon('zap'),
-          el('span', { class: 'sim-config-title' }, 'Triggers')
-        ),
-        el('span', { class: `sim-pill-badge ${triggersList.length > 0 ? 'ok' : 'off'}` },
-          `${triggersList.length} en este canal`
+        el('div', { class: 'sim-config-body' },
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'Probabilidad de frases:'),
+            el('span', { class: 'sim-stat-value' }, `${fraseProb}%`)
+          ),
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'Packs en el servidor:'),
+            el('span', { class: 'sim-stat-value' }, `${(data.packs || []).length} configurados`)
+          )
         )
       ),
-      el('div', { class: 'sim-config-body' },
-        triggersList.length > 0
-          ? el('div', { class: 'sim-trigger-chips' },
-              triggersList.slice(0, 3).map(t => el('span', { class: 'sim-trigger-chip', title: `Acción: ${t.action}` }, `"${t.pattern}"`)),
-              triggersList.length > 3 ? el('span', { class: 'sim-trigger-chip-more' }, `+${triggersList.length - 3}`) : null
-            )
-          : el('div', { class: 'sim-config-stat' },
-              el('span', { class: 'sim-stat-label dim' }, 'Sin triggers en este canal')
-            )
-      )
-    ),
 
-    // Reacciones automáticas
-    el('div', { class: 'sim-config-card' },
-      el('div', { class: 'sim-config-header' },
-        el('div', { class: 'sim-config-title-group' },
-          icon('smile'),
-          el('span', { class: 'sim-config-title' }, 'Reacciones automáticas')
+      // GIFs
+      el('div', { class: 'sim-config-card' },
+        el('div', { class: 'sim-config-header' },
+          el('div', { class: 'sim-config-title-group' },
+            icon('film'),
+            el('span', { class: 'sim-config-title' }, 'GIFs')
+          ),
+          el('span', { class: `sim-pill-badge ${(gifTotal > 0 && gifProb > 0) ? 'ok' : 'off'}` },
+            (gifTotal > 0 && gifProb > 0) ? 'Habilitados' : 'Desactivados'
+          )
         ),
-        el('span', { class: `sim-pill-badge ${(reactionTotal > 0 && reactionProb > 0) ? 'ok' : 'off'}` },
-          (reactionTotal > 0 && reactionProb > 0) ? 'Habilitadas' : 'Desactivadas'
+        el('div', { class: 'sim-config-body' },
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'GIFs en catálogo:'),
+            el('span', { class: 'sim-stat-value' }, `${gifTotal.toLocaleString()} guardados`)
+          ),
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'Probabilidad de GIF:'),
+            el('span', { class: 'sim-stat-value' }, `${gifProb}%`)
+          )
         )
       ),
-      el('div', { class: 'sim-config-body' },
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Emojis en pool:'),
-          el('span', { class: 'sim-stat-value' }, `${reactionTotal} emojis`)
+
+      // Triggers
+      el('div', { class: 'sim-config-card' },
+        el('div', { class: 'sim-config-header' },
+          el('div', { class: 'sim-config-title-group' },
+            icon('zap'),
+            el('span', { class: 'sim-config-title' }, 'Triggers')
+          ),
+          el('span', { class: `sim-pill-badge ${triggersList.length > 0 ? 'ok' : 'off'}` },
+            `${triggersList.length} en este canal`
+          )
         ),
-        el('div', { class: 'sim-config-stat' },
-          el('span', { class: 'sim-stat-label' }, 'Probabilidad:'),
-          el('span', { class: 'sim-stat-value' }, `${reactionProb}%`)
-        )
-      )
-    )
-  );
-
-  // 2. Sección: Resultado simulado
-  let reasonTag = 'Markov';
-  if (data.reason === 'frase_especial') reasonTag = effectivePack ? `Pack: ${effectivePack}` : 'Frase especial';
-  else if (data.reason === 'trigger') reasonTag = 'Trigger';
-
-  const previewCard = el('div', { class: 'sim-card sim-preview-card' },
-    el('div', { class: 'sim-card-header' },
-      el('div', { style: 'display: flex; align-items: center; justify-content: space-between; gap: 12px;' },
-        el('h3', { class: 'sim-card-title' }, 'Resultado simulado'),
-        el('span', { class: 'sim-pill-badge sim-pill-badge-cyan' }, 'Previsualización en vivo')
-      ),
-      el('p', { class: 'sim-card-desc' },
-        'Comportamiento simulado para una interacción en este canal:'
-      )
-    ),
-
-    // Subsección: Texto de respuesta
-    el('div', { class: 'sim-subblock' },
-      el('div', { class: 'sim-subblock-title' }, '💬 Purgito podría responder:'),
-      data.would_respond && data.text
-        ? el('div', { class: 'sim-discord-message' },
-            el('img', { class: 'sim-discord-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.style.display = 'none'; } }),
-            el('div', { class: 'sim-discord-content' },
-              el('div', { class: 'sim-discord-author-row' },
-                el('span', { class: 'sim-discord-author' }, botNick),
-                el('span', { class: 'sim-discord-bot-badge' }, 'BOT'),
-                el('span', { class: 'sim-discord-timestamp' }, 'Hoy'),
-                el('span', { class: 'sim-origin-badge' }, reasonTag)
-              ),
-              el('div', { class: 'sim-discord-text' }, data.text),
-              el('div', { class: 'sim-discord-actions' },
-                el('button', {
-                  type: 'button',
-                  class: 'btn btn-secondary btn-sm',
-                  onclick: () => {
-                    navigator.clipboard?.writeText(data.text || '');
-                    toast('Texto copiado al portapapeles', 'ok');
-                  },
-                }, icon('clipboard'), 'Copiar')
+        el('div', { class: 'sim-config-body' },
+          triggersList.length > 0
+            ? el('div', { class: 'sim-trigger-chips' },
+                triggersList.slice(0, 3).map(t => el('span', { class: 'sim-trigger-chip', title: `Acción: ${t.action}` }, `"${t.pattern}"`)),
+                triggersList.length > 3 ? el('span', { class: 'sim-trigger-chip-more' }, `+${triggersList.length - 3}`) : null
               )
-            )
-          )
-        : el('div', { class: 'sim-no-response-box' },
-            icon('info'),
-            el('div', {},
-              el('strong', {}, 'Sin respuesta generada: '),
-              PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || 'El bot no respondería en este canal según las reglas configuradas.'
-            )
-          )
-    ),
+            : el('div', { class: 'sim-config-stat' },
+                el('span', { class: 'sim-stat-label dim' }, 'Sin triggers en este canal')
+              )
+        )
+      ),
 
-    // Subsección: GIF simulado
-    el('div', { class: 'sim-subblock' },
-      el('div', { class: 'sim-subblock-title' }, '🎞️ GIF:'),
-      (data.gifs && data.gifs.simulated_gif_url)
-        ? el('div', { class: 'sim-gif-preview-box' },
-            el('img', { class: 'sim-gif-image', src: data.gifs.simulated_gif_url, alt: 'GIF simulado' }),
-            el('div', { class: 'sim-gif-meta' },
-              el('span', { class: 'sim-pill-badge ok' }, `Probabilidad activa: ${gifProb}%`),
-              el('span', { class: 'dim', style: 'font-size: 12px;' }, 'GIF seleccionado del catálogo.')
-            )
+      // Reacciones automáticas
+      el('div', { class: 'sim-config-card' },
+        el('div', { class: 'sim-config-header' },
+          el('div', { class: 'sim-config-title-group' },
+            icon('smile'),
+            el('span', { class: 'sim-config-title' }, 'Reacciones automáticas')
+          ),
+          el('span', { class: `sim-pill-badge ${(reactionTotal > 0 && reactionProb > 0) ? 'ok' : 'off'}` },
+            (reactionTotal > 0 && reactionProb > 0) ? 'Habilitadas' : 'Desactivadas'
           )
-        : el('div', { class: 'sim-subblock-disabled' },
-            gifTotal === 0
-              ? 'No hay GIFs en el catálogo del servidor.'
-              : `GIFs no activos en esta interacción (probabilidad configurada: ${gifProb}%).`
+        ),
+        el('div', { class: 'sim-config-body' },
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label' }, 'Emojis en pool:'),
+            el('span', { class: 'sim-stat-value' }, `${reactionTotal} emojis (${reactionProb}%)`)
+          ),
+          el('div', { class: 'sim-config-stat' },
+            el('span', { class: 'sim-stat-label dim', style: 'font-size: 11px;' }, 'Aplican a mensajes de miembros')
           )
-    ),
-
-    // Subsección: Reacción simulada
-    el('div', { class: 'sim-subblock' },
-      el('div', { class: 'sim-subblock-title' }, '😂 Reacción:'),
-      (data.reactions && data.reactions.simulated_emoji)
-        ? el('div', { class: 'sim-reaction-preview-box' },
-            el('div', { class: 'sim-discord-reaction-chip' },
-              el('span', { class: 'sim-reaction-emoji' }, data.reactions.simulated_emoji),
-              el('span', { class: 'sim-reaction-count' }, '1')
-            ),
-            el('span', { class: 'sim-pill-badge ok' }, `Probabilidad activa: ${reactionProb}%`)
-          )
-        : el('div', { class: 'sim-subblock-disabled' },
-            reactionTotal === 0
-              ? 'No hay emojis en el pool de reacciones automáticas.'
-              : `Sin reacción en esta interacción (probabilidad configurada: ${reactionProb}%).`
-          )
+        )
+      )
     )
   );
 
-  // 3. Sección: Reglas evaluadas
-  const rulesList = Array.isArray(data.rules_evaluated) ? data.rules_evaluated : [];
-  const rulesCard = el('div', { class: 'sim-card sim-rules-card' },
+  // 2. Sección Principal: Resultado de la simulación
+  const isGif = data.result_type === 'gif' || (data.reason === 'gif' && data.gif_url);
+
+  let resultSectionBody;
+  if (isGif) {
+    resultSectionBody = el('div', { class: 'sim-single-result' },
+      el('div', { class: 'sim-result-lead-label' }, '🎞️ GIF espontáneo:'),
+      el('div', { class: 'sim-gif-hero-container' },
+        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: 'GIF espontáneo simulado' }),
+        el('div', { class: 'sim-gif-hero-meta' },
+          el('span', { class: 'sim-pill-badge ok' }, `Probabilidad activa: ${gifProb}%`),
+          el('span', { class: 'dim', style: 'font-size: 13px;' }, 'GIF seleccionado aleatoriamente del catálogo del servidor.')
+        )
+      )
+    );
+  } else if (data.text) {
+    let reasonTag = 'Markov';
+    if (data.reason === 'frase_especial') reasonTag = effectivePack ? `Pack: ${effectivePack}` : 'Frase especial';
+    else if (data.reason === 'trigger') reasonTag = 'Trigger';
+
+    resultSectionBody = el('div', { class: 'sim-single-result' },
+      el('div', { class: 'sim-result-lead-label' }, '💬 Purgito podría responder:'),
+      el('div', { class: 'sim-discord-message' },
+        el('img', { class: 'sim-discord-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.style.display = 'none'; } }),
+        el('div', { class: 'sim-discord-content' },
+          el('div', { class: 'sim-discord-author-row' },
+            el('span', { class: 'sim-discord-author' }, botNick),
+            el('span', { class: 'sim-discord-bot-badge' }, 'BOT'),
+            el('span', { class: 'sim-discord-timestamp' }, 'Hoy'),
+            el('span', { class: 'sim-origin-badge' }, reasonTag)
+          ),
+          el('div', { class: 'sim-discord-text' }, data.text),
+          el('div', { class: 'sim-discord-actions' },
+            el('button', {
+              type: 'button',
+              class: 'btn btn-secondary btn-sm',
+              onclick: () => {
+                navigator.clipboard?.writeText(data.text || '');
+                toast('Texto copiado al portapapeles', 'ok');
+              },
+            }, icon('clipboard'), 'Copiar')
+          )
+        )
+      )
+    );
+  } else {
+    resultSectionBody = el('div', { class: 'sim-single-result' },
+      el('div', { class: 'sim-no-response-box' },
+        icon('info'),
+        el('div', {},
+          el('strong', {}, 'Corpus insuficiente: '),
+          'No hay suficientes mensajes guardados en el corpus para generar una respuesta Markov en este canal.'
+        )
+      )
+    );
+  }
+
+  const previewCard = el('div', { class: 'sim-card sim-preview-card sim-hero-result-card' },
     el('div', { class: 'sim-card-header' },
-      el('h3', { class: 'sim-card-title' }, 'Reglas evaluadas'),
+      el('div', { class: 'sim-result-header-row' },
+        el('h3', { class: 'sim-card-title' }, 'Resultado de la simulación'),
+        el('span', { class: 'sim-pill-badge sim-pill-badge-cyan' },
+          isGif ? 'GIF espontáneo' : 'Mensaje espontáneo'
+        )
+      ),
       el('p', { class: 'sim-card-desc' },
-        'Evaluación de políticas de canal, restricciones y estado de Purgito:'
+        `Interacción espontánea generada para #${(channelInfo && channelInfo.name) || 'este canal'}:`
       )
     ),
-    el('div', { class: 'sim-rules-list' },
-      rulesList.map(rule => el('div', { class: `sim-rule-item ${rule.passed ? 'passed' : 'failed'}` },
-        el('div', { class: 'sim-rule-icon' }, icon(rule.passed ? 'check' : 'x')),
-        el('div', { class: 'sim-rule-content' },
-          el('div', { class: 'sim-rule-label' }, rule.label),
-          el('div', { class: 'sim-rule-detail' }, rule.detail)
-        )
-      ))
-    ),
+    resultSectionBody,
     data.avisos && data.avisos.length ? playgroundAvisos(data.avisos) : null
   );
 
   const mainLayout = el('div', { class: 'sim-main-layout' },
-    configCards,
-    el('div', { class: 'sim-two-col' },
-      previewCard,
-      rulesCard
-    )
+    configSection,
+    previewCard
   );
 
   container.append(mainLayout);
