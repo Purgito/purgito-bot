@@ -1,10 +1,10 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 15 de agosto de 2026
+**Última actualización:** 16 de agosto de 2026
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.
 
-Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores: los datos que recopilamos y cómo los tratamos son los mismos que para cualquier otro servidor.
+Purgito es un bot público de Discord, usado por múltiples servidores. Los datos que recopilamos y cómo los tratamos son los mismos para todos los servidores donde el bot está presente.
 
 ---
 
@@ -33,6 +33,8 @@ Estos mensajes pueden utilizarse para:
 - Imitar el estilo de escritura de los usuarios.
 - Servir como muestra acotada de vocabulario en la generación de memes (localmente con Markov o mediante la integración opcional con Groq si está configurada).
 
+Los canales marcados como **NSFW** en Discord quedan siempre fuera de este aprendizaje: Purgito nunca guarda mensajes de un canal NSFW, sin excepción ni forma de habilitarlo manualmente para el corpus. Si un canal que ya estaba habilitado para el corpus se marca como NSFW más adelante, el historial que ya se había guardado de ese canal se purga de inmediato.
+
 ---
 
 ## Multimedia
@@ -56,6 +58,14 @@ El nombre visible (Display Name) del usuario puede almacenarse junto con determi
 ## Inicio de sesión en el panel web
 
 Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) `identify`, `email` y `guilds`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras (el scope `guilds` es lo que permite saber en qué servidores tienes permisos de administración, para mostrarte solo esos en tu panel). Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
+
+---
+
+## Registro de auditoría del panel
+
+Cuando un administrador realiza un cambio de configuración desde el panel web (comando `/settings`), Purgito guarda un registro de auditoría propio de ese servidor: el ID de Discord y el nombre visible de quien hizo el cambio, qué tipo de acción fue (por ejemplo, agregar una frase especial, añadir un GIF o vaciar el corpus de un canal) y, en algunos casos, un detalle en texto libre que puede incluir contenido escrito literalmente por quien hizo el cambio.
+
+Este registro es visible únicamente para los administradores de ese mismo servidor, en la pestaña Historial del panel, y existe para que la comunidad pueda ver qué cambios se hicieron y quién los hizo. Se conserva un máximo de 90 días y luego se elimina automáticamente (ver "Retención de datos").
 
 ---
 
@@ -130,17 +140,38 @@ Purgito utiliza servicios externos para determinadas funciones. Cada proveedor p
 
 Los datos recopilados se conservan únicamente mientras sean necesarios para el funcionamiento del bot.
 
-Los administradores del servidor pueden eliminar el contenido recopilado usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
+El historial de mensajes no se guarda de forma indefinida ni siquiera mientras el servidor está activo: cada servidor tiene una cuota máxima de mensajes guardados (mayor en servidores con Premium). Al alcanzarse esa cuota, los mensajes más antiguos se descartan automáticamente a medida que se guardan mensajes nuevos, sin que un administrador tenga que hacerlo manualmente.
 
-Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse por completo. Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin tener que empezar de cero. Durante ese período, mientras el bot no esté en el servidor, no hay forma de acceder al panel de administración para gestionar esos datos. Hoy no existe una vía de autoservicio para acelerar el borrado antes de que se cumplan los 30 días; si eres administrador de un servidor y quieres que tus datos se eliminen antes de ese plazo, puedes pedirlo contactando al desarrollador (ver "Contacto" más abajo).
+Los administradores del servidor pueden además eliminar el contenido recopilado en cualquier momento usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
+
+El registro de auditoría del panel (ver sección 1) se conserva un máximo de 90 días desde cada entrada y luego se purga automáticamente, sin intervención manual.
+
+Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse por completo. Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin tener que empezar de cero. Durante ese período, mientras el bot no esté en el servidor, no hay forma de acceder al panel de administración para gestionar esos datos. Hoy no existe una vía de autoservicio para acelerar este borrado a nivel de servidor antes de que se cumplan los 30 días; si eres administrador de un servidor y quieres que sus datos se eliminen antes de ese plazo, puedes pedirlo contactando al desarrollador (ver "Contacto" más abajo).
+
+---
+
+## Borrado de tus propios datos (derecho al olvido individual)
+
+Independientemente de lo anterior, cualquier usuario puede pedir en cualquier momento que se elimine su propia información, sin depender de ser administrador de ningún servidor ni de esperar los 30 días del punto anterior.
+
+El comando `/borrar_mis_datos`, disponible para cualquier persona en cualquier servidor donde esté Purgito, borra de forma permanente e inmediata, en **todos** los servidores donde hayas escrito:
+
+- Tu estilo de escritura guardado para la función de imitación (`/imitar`).
+- Los mensajes que Purgito aprendió de ti para generar texto.
+
+Tus mensajes originales de Discord no se ven afectados: esto borra únicamente la copia que Purgito guardó para aprender de tu forma de escribir. Por tratarse de una acción irreversible, el comando pide una confirmación explícita antes de ejecutar el borrado.
+
+Este borrado está pensado específicamente para los datos de aprendizaje de mensajes descritos arriba, y no cubre automáticamente otras categorías que puedas haber generado en un servidor — por ejemplo, GIFs o imágenes que hayas aportado al pool del servidor, o tu propia aparición en el registro de auditoría del panel si eres administrador — ya que esas quedan asociadas al servidor donde se generaron, no solo a tu cuenta. Si quieres pedir la eliminación de alguna de ellas, puedes contactar al desarrollador (ver "Contacto").
 
 ---
 
 # 5. Derechos de los usuarios
 
-Los administradores del servidor disponen de herramientas para controlar la recopilación de datos.
+Cualquier usuario puede eliminar su propia información en cualquier momento usando el comando `/borrar_mis_datos` (ver sección 4), sin necesidad de ser administrador de ningún servidor.
 
-Si consideras que existe información que debería eliminarse o tienes dudas sobre el tratamiento de los datos, puedes contactar al desarrollador.
+Los administradores del servidor además disponen de herramientas propias para controlar la recopilación de datos de su comunidad (ver sección 4), incluyendo la posibilidad de excluir a usuarios específicos: de forma independiente, pueden marcar que Purgito no interactúe con ese usuario (no le responda, reaccione ni dispare triggers) y/o que no aprenda de sus mensajes (no los use para el corpus ni para la función de imitación).
+
+Si consideras que existe información que debería eliminarse y no está cubierta por estas herramientas de autoservicio, o tienes dudas sobre el tratamiento de los datos, puedes contactar al desarrollador.
 
 Cuando sea técnicamente posible, se atenderán las solicitudes razonables de eliminación de información.
 
@@ -168,11 +199,13 @@ Esta Política podrá actualizarse para reflejar nuevas funcionalidades, mejoras
 
 La fecha de "Última actualización" indicará siempre la versión vigente.
 
+El código de Purgito vive en GitHub, donde se mantiene un control de versiones público.
+
 ---
 
 # 9. Contacto
 
 Si tienes preguntas sobre esta Política o deseas solicitar la eliminación de información relacionada con el bot, puedes contactar al desarrollador mediante:
 
-- GitHub Issues del repositorio oficial.
+- Correo: contacto@purgito.app.
 - Servidor oficial de Discord del proyecto (cuando corresponda).
