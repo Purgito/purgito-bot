@@ -406,7 +406,7 @@ server {
     # CF-Connecting-IP, y este server block lo deja pasar sin tocarlo. Sin
     # AOP, cualquiera que le hable directo a nginx manda el
     # CF-Connecting-IP que quiera y se salta CADA rate limit de la app (login,
-    # embeds/send, corpus/import, triggers, checkout de premium, todos) --
+    # embeds/send, triggers, checkout de premium, todos) --
     # X-Forwarded-For no sirve de red de respaldo acá: con
     # $remote_addr en vez de $proxy_add_x_forwarded_for (ver más abajo), lo
     # único que llega en X-Forwarded-For para tráfico legítimo es la IP de

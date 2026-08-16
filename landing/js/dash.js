@@ -181,15 +181,6 @@ export const MODULES = [
     load: loadCanalesModule,
   },
   {
-    key: 'corpus',
-    cat: 'utilidades',
-    label: 'Importar Mensajes',
-    icon: 'corpus',
-    desc: 'Sube un archivo .txt para entrenar el estilo de chat de Purgito',
-    keywords: ['corpus', 'importar', 'txt', 'mensajes', 'entrenar', 'aprendizaje'],
-    load: loadCorpusModule,
-  },
-  {
     key: 'amnesia',
     cat: 'utilidades',
     label: 'Limpieza',
@@ -2212,24 +2203,6 @@ async function loadCanalesModule() {
   } catch (e) { renderError(box, e); }
 }
 
-async function loadCorpusModule() {
-  const box = content();
-  box.append(spinner());
-  try {
-    const channels = await getChannels();
-    box.innerHTML = '';
-
-    box.append(
-      formGroup('Importar corpus desde un archivo',
-        el('p', { class: 'dim' },
-          'Sube un archivo .txt con mensajes de texto plano. Cada línea no vacía entra al corpus del canal elegido como si fuera un mensaje real.'
-        ),
-        corpusImportForm(channels)
-      )
-    );
-  } catch (e) { renderError(box, e); }
-}
-
 async function loadAmnesiaModule() {
   const box = content();
   box.innerHTML = '';
@@ -2307,48 +2280,6 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
   render();
   wrap.append(dd, list);
   return wrap;
-}
-
-function corpusImportForm(channels) {
-  const chanSel = channelSelect(channels, null, 'Elige un canal…');
-  const fileInput = el('input', { type: 'file', accept: '.txt,text/plain' });
-  const resultBox = el('div', {});
-  const btn = el('button', {
-    class: 'btn btn-primary',
-    onclick: async () => {
-      const file = fileInput.files[0];
-      if (!chanSel.value || !file) {
-        toast('Elige un canal y un archivo .txt', 'warn');
-        return;
-      }
-      resultBox.innerHTML = '';
-      resultBox.append(spinner());
-      let r, data;
-      try {
-        r = await fetch(`/api/server/${GUILD_ID}/settings/corpus/import/${chanSel.value}`, {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: file,
-        });
-        data = await r.json().catch(() => ({}));
-      } catch (e) {
-        resultBox.innerHTML = '';
-        toast('No se pudo conectar con el servidor', 'err');
-        return;
-      }
-      resultBox.innerHTML = '';
-      if (!r.ok) {
-        toast(data.error || humanError(r.status), r.status === 429 ? 'warn' : 'err');
-        return;
-      }
-      toast(`${data.imported} mensajes importados`, 'ok');
-      fileInput.value = '';
-    },
-  }, 'Importar');
-
-  return el('div', {},
-    el('div', { class: 'add-row' }, chanSel, fileInput, btn),
-    resultBox);
 }
 
 function amnesiaButton() {
@@ -2641,7 +2572,7 @@ async function loadChatTab() {
   if (hash === 'contenido' || hash === 'frases') { activate('frases', true); return; }
   if (hash === 'triggers') { activate('triggers', true); return; }
   if (hash === 'canales') { activate('canales', true); return; }
-  if (hash === 'datos' || hash === 'corpus') { activate('corpus', true); return; }
+  if (hash === 'datos' || hash === 'corpus') { activate('canales', true); return; }
   if (hash === 'amnesia') { activate('amnesia', true); return; }
   if (hash === 'playground') { activate('playground', true); return; }
 

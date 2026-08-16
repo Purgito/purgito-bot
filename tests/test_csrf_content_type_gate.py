@@ -19,10 +19,8 @@ la única defensa quedaba en SameSite=Lax -- que no cubre TODOS los clientes
 (navegadores que ignoran el atributo, o la ventana de gracia que algunos dan
 a una cookie Lax recién seteada en un POST de navegación top-level).
 
-El fix (`_is_simple_request_content_type`) rechaza esos tres Content-Type
-en `_json_body`, y el mismo chequeo se repite a mano en
-`_api_corpus_import_post` (el único endpoint de mutación que NO pasa por
-`_json_body` y que legítimamente aceptaba texto/plano).
+The fix (`_is_simple_request_content_type`) rechaza esos tres Content-Type
+en `_json_body`.
 """
 
 import inspect
@@ -101,31 +99,6 @@ def test_sin_headers_no_rompe():
     request = FakeRequest({"pattern": "x"}, headers=False)
     request.headers = None
     assert asyncio.run(webapi._json_body(request)) == {"pattern": "x"}
-
-
-def test_corpus_import_usa_el_mismo_gate():
-    """_api_corpus_import_post no pasa por _json_body (lee bytes crudos), así
-    que necesita su propio chequeo -- es el único endpoint de mutación que
-    legítimamente aceptaba un Content-Type CORS-safelisted."""
-    src = inspect.getsource(webapi)
-    inicio = src.index("async def _api_corpus_import_post(")
-    fin = src.index("\n@", inicio)
-    handler_src = src[inicio:fin]
-    assert "_is_simple_request_content_type(request)" in handler_src
-
-
-def test_frontend_de_corpus_import_no_manda_content_type_safelisted():
-    """El fix del server no sirve de nada si el cliente legítimo sigue
-    mandando text/plain -- eso rompería el import real."""
-    import pathlib
-
-    js = (
-        pathlib.Path(__file__).resolve().parent.parent / "landing/js/dash.js"
-    ).read_text(encoding="utf-8")
-    idx = js.index("settings/corpus/import")
-    fragmento = js[idx : idx + 400]
-    assert "'Content-Type': 'text/plain'" not in fragmento
-    assert "application/octet-stream" in fragmento
 
 
 # ── No hay mutación disparable con una navegación GET top-level ─────────────

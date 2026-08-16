@@ -1124,40 +1124,6 @@ async def save_corpus_and_user_message(
     return corpus_inserted, user_inserted
 
 
-async def import_corpus_messages(
-    guild_id: int, channel_id: int, lines: list[str]
-) -> int:
-    """Inserta líneas ya limpias (ver generation.clean_for_corpus, lo aplica
-    el llamador) directo a corpus_messages, como si fueran mensajes reales
-    de ese canal -- message_id NULL porque no vienen de Discord. NO toca
-    user_corpus: un import no tiene un autor real al que atribuirle estilo
-    personal.
-
-    Un solo executemany (una sola vuelta de _db_lock) en vez de un INSERT
-    por línea -- un archivo de texto puede traer miles de líneas, y el bot
-    tiene un único _db_lock global sirviendo también a los mensajes reales
-    que sigan llegando mientras tanto.
-
-    Respeta los mismos límites que el corpus real: corre
-    trim_corpus_if_needed/trim_guild_total_if_needed después del insert,
-    igual que cuando llega un mensaje real (ver note_corpus_insert en
-    generation.py). Devuelve cuántas líneas se insertaron.
-    """
-    if not lines:
-        return 0
-    db = await get_db()
-    async with _db_lock:
-        await db.executemany(
-            "INSERT INTO corpus_messages (guild_id, channel_id, message_id, content) "
-            "VALUES (?, ?, NULL, ?)",
-            [(guild_id, channel_id, line) for line in lines],
-        )
-        await db.commit()
-    await trim_corpus_if_needed(guild_id, channel_id)
-    await trim_guild_total_if_needed(guild_id)
-    return len(lines)
-
-
 async def delete_message_from_corpus(guild_id: int, message_id: int) -> dict:
     """Borra un mensaje específico de corpus_messages y user_corpus al ser
     eliminado en Discord (on_raw_message_delete)."""

@@ -16,7 +16,6 @@ const ACTION_LABELS = {
   'corpus.add': 'Agregó un canal de aprendizaje',
   'corpus.remove': 'Quitó un canal de aprendizaje',
   'corpus.amnesia': 'Borró el corpus de las últimas 24 horas (amnesia)',
-  'corpus.import': 'Importó corpus desde un archivo',
   'embed_template.create': 'Creó una plantilla de embed',
   'embed_template.update': 'Editó una plantilla de embed',
   'embed_template.delete': 'Eliminó una plantilla de embed',

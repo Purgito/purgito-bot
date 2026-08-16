@@ -1,5 +1,4 @@
-"""Tests de la Fase 8 en db.py: import_corpus_messages (subida de .txt) y
-delete_recent_corpus ("amnesia" de 24h).
+"""Tests de db.py: delete_recent_corpus ("amnesia" de 24h).
 
 DB SQLite en memoria vía executescript(db.SCHEMA) -- corpus_messages y
 user_corpus están completas en el CREATE TABLE base (sin columnas de ALTER
@@ -31,67 +30,6 @@ async def _open_memory_db() -> aiosqlite.Connection:
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn
-
-
-# ─── import_corpus_messages ───────────────────────────────────────────────────
-
-
-def test_importa_las_lineas_a_corpus_messages(memory_db):
-    inserted = asyncio.run(
-        db.import_corpus_messages(_GUILD, _CHANNEL, ["hola", "mundo", "chau"])
-    )
-    assert inserted == 3
-    rows = asyncio.run(db.get_corpus_messages(_GUILD))
-    assert sorted(rows) == ["chau", "hola", "mundo"]
-
-
-def test_no_toca_user_corpus(memory_db):
-    """Un import no tiene un autor real: no debe contaminar el estilo por
-    usuario, solo el corpus general del guild/canal."""
-    asyncio.run(db.import_corpus_messages(_GUILD, _CHANNEL, ["hola", "mundo"]))
-
-    async def run():
-        async with (await db.get_db()).execute(
-            "SELECT COUNT(*) FROM user_corpus"
-        ) as cur:
-            return (await cur.fetchone())[0]
-
-    assert asyncio.run(run()) == 0
-
-
-def test_lista_vacia_no_hace_nada(memory_db):
-    assert asyncio.run(db.import_corpus_messages(_GUILD, _CHANNEL, [])) == 0
-
-
-def test_scopeado_al_canal_correcto(memory_db):
-    asyncio.run(db.import_corpus_messages(_GUILD, _CHANNEL, ["a"]))
-    asyncio.run(db.import_corpus_messages(_GUILD, 20, ["b"]))
-    assert asyncio.run(db.count_corpus_messages(_GUILD, _CHANNEL)) == 1
-    assert asyncio.run(db.count_corpus_messages(_GUILD, 20)) == 1
-
-
-def test_respeta_el_limite_por_canal_que_ya_existe(memory_db, monkeypatch):
-    monkeypatch.setenv("MAX_CORPUS_MESSAGES_PER_GUILD_FREE", "3")
-
-    inserted = asyncio.run(
-        db.import_corpus_messages(_GUILD, _CHANNEL, [f"linea{i}" for i in range(10)])
-    )
-    # Las 10 se insertan (el import en sí no rechaza nada), pero el trim
-    # posterior recorta al límite -- igual que un mensaje real de más.
-    assert inserted == 10
-    assert asyncio.run(db.count_corpus_messages(_GUILD, _CHANNEL)) == 3
-
-
-def test_import_no_pisa_el_corpus_de_otro_canal_al_recortar(memory_db, monkeypatch):
-    monkeypatch.setenv("MAX_CORPUS_MESSAGES_PER_GUILD_FREE", "3")
-
-    asyncio.run(db.import_corpus_messages(_GUILD, 20, ["x", "y", "z"]))
-    asyncio.run(
-        db.import_corpus_messages(_GUILD, _CHANNEL, [f"linea{i}" for i in range(10)])
-    )
-
-    assert asyncio.run(db.count_corpus_messages(_GUILD, 20)) == 3
-    assert asyncio.run(db.count_corpus_messages(_GUILD, _CHANNEL)) == 3
 
 
 # ─── delete_recent_corpus ("amnesia") ────────────────────────────────────────

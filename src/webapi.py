@@ -127,7 +127,6 @@ from db import (
     get_shared_embed,
     get_updates_channel,
     gifs_limit,
-    import_corpus_messages,
     is_channel_ignored,
     is_corpus_allowed,
     is_session_revoked,
@@ -203,7 +202,6 @@ _rate_post: LRUDict = LRUDict(512)
 _rate_delete: LRUDict = LRUDict(512)
 _rate_gif_verify: LRUDict = LRUDict(512)
 _rate_status_search: LRUDict = LRUDict(512)
-_rate_corpus_import: LRUDict = LRUDict(512)
 # Sin esto, /auth/callback no tenía ningún límite: cada hit con un `state`
 # válido (basta con pedir /auth/login primero, gratis) dispara un POST real a
 # discord.com/oauth2/token con nuestro client_id/client_secret. Discord
@@ -1407,74 +1405,6 @@ async def _api_corpus_delete(request: web.Request, guild_id: int) -> web.Respons
             request, guild_id, "corpus.remove", detail=f"channel_id={channel_id}"
         )
     return web.json_response({"removed": removed})
-
-
-@guild_api
-async def _api_corpus_import_post(request: web.Request, guild_id: int) -> web.Response:
-    """Sube un .txt (body crudo, mismo patrón que _api_embeds_upload) y lo
-    trocea en "mensajes" -- una línea no vacía es un mensaje -- que entran a
-    corpus_messages del canal como si fueran reales: mismo pipeline de
-    limpieza (generation.clean_for_corpus) y sujetos a los mismos límites
-    MAX_CORPUS_MESSAGES_PER_GUILD_* de siempre (ver import_corpus_messages).
-    """
-    channel_id = _to_int(request.match_info.get("channel_id"))
-    if channel_id is None:
-        return web.json_response({"error": "channel_id inválido"}, status=400)
-    # Único endpoint de mutación fuera de _json_body que legítimamente acepta
-    # un Content-Type CORS-safelisted (el panel manda text/plain) -- por eso
-    # el mismo gate de _json_body no lo cubre, y por eso lo repite acá: un
-    # <form> ajeno con enctype="text/plain" podía entregar cualquier body sin
-    # preflight de CORS, dejando el import de corpus (contenido que el bot
-    # después puede repetir) apoyado solo en SameSite=Lax. El panel real manda
-    # application/octet-stream (landing/js/dash.js), que si o si dispara
-    # preflight.
-    if _is_simple_request_content_type(request):
-        return web.json_response({"error": "Content-Type inválido"}, status=400)
-    ip = _client_ip(request)
-    if not _rate_ok(_rate_corpus_import, ip, 3):
-        return web.json_response({"error": "rate limit"}, status=429)
-    max_bytes = env_int("MAX_CORPUS_IMPORT_BYTES", 2 * 1024 * 1024)
-    if request.content_length and request.content_length > max_bytes:
-        return web.json_response(
-            {
-                "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
-            },
-            status=413,
-        )
-    data = await request.read()
-    if len(data) > max_bytes:
-        return web.json_response(
-            {
-                "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
-            },
-            status=413,
-        )
-    if not data:
-        return web.json_response({"error": "archivo vacío"}, status=400)
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return web.json_response(
-            {"error": "el archivo no es texto UTF-8 válido"}, status=400
-        )
-    lines = []
-    for raw_line in text.splitlines():
-        cleaned = generation.clean_for_corpus(raw_line)
-        if cleaned is not None:
-            lines.append(cleaned)
-    if not lines:
-        return web.json_response(
-            {"error": "no se encontró texto aprovechable en el archivo"}, status=400
-        )
-    inserted = await import_corpus_messages(guild_id, channel_id, lines)
-    generation.reset_guild_caches(guild_id)
-    await _log_audit(
-        request,
-        guild_id,
-        "corpus.import",
-        detail=f"channel_id={channel_id} lines={inserted}",
-    )
-    return web.json_response({"imported": inserted, "lines_found": len(lines)})
 
 
 @guild_api
@@ -4271,9 +4201,6 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/settings/corpus", _api_corpus_post)
         app.router.add_delete(
             f"{base}/settings/corpus/{{channel_id}}", _api_corpus_delete
-        )
-        app.router.add_post(
-            f"{base}/settings/corpus/import/{{channel_id}}", _api_corpus_import_post
         )
         app.router.add_post(f"{base}/settings/corpus/amnesia", _api_corpus_amnesia_post)
         app.router.add_get(f"{base}/settings/reacciones", _api_reacciones_get)
