@@ -48,6 +48,13 @@ class FakeElement extends Node {
   addEventListener() {}
   removeEventListener() {}
   click() { if (typeof this.onclick === 'function') this.onclick(); }
+  closest(sel) {
+    if (sel.startsWith('.')) {
+      const cls = sel.slice(1);
+      if (this.hasClass(cls)) return this;
+    }
+    return null;
+  }
   get innerHTML() { return this._html; }
   set innerHTML(v) { this._html = v; if (v === '') this.children = []; }
   text() {
@@ -148,26 +155,26 @@ global.location = {
   replace: (url) => { global.location.pathname = url.split('?')[0]; },
 };
 
-let fetchHandlers = [];
-global.fetch = async (url, opts = {}) => {
-  for (const h of fetchHandlers) {
-    const res = await h(url, opts);
-    if (res !== undefined) return res;
-  }
-  return {
-    status: 200,
-    ok: true,
-    json: async () => ({}),
-  };
-};
-
 function jsonResp(data, status = 200) {
   return {
-    status,
     ok: status >= 200 && status < 300,
+    status,
+    statusText: status === 200 ? 'OK' : 'Error',
     json: async () => data,
+    text: async () => JSON.stringify(data),
+    headers: new Map(),
   };
 }
+
+let fetchHandlers = [];
+
+global.fetch = async (url, opts) => {
+  for (const handler of fetchHandlers) {
+    const res = await handler(url, opts);
+    if (res) return res;
+  }
+  return jsonResp({});
+};
 
 function setupDOM() {
   elementsById.dashHead = new FakeElement('div');
@@ -180,7 +187,11 @@ function setupDOM() {
 console.log('--- Iniciando tests de dash.js ---');
 
 // Import del módulo
-const { initDash, fetchUserGuilds, selectGuild, activate, toggleSidebarCollapse, MODULES, CATEGORIES } = await import('./js/dash.js');
+const {
+  initDash, fetchUserGuilds, clearGuildsCache, selectGuild, activate, toggleSidebarCollapse,
+  buildServerPicker, setServerPickerOpen, getServerPickerOpen, renderSidebar,
+  MODULES, CATEGORIES
+} = await import('./js/dash.js');
 const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
 // ── Test 1: Estructura de módulos y categorías ─────────────────────────────────
@@ -939,6 +950,186 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(pager.text(), /8 \/ 9 \(129 emojis\)/);
 
   console.log('✓ Test 18: Paginación y estados disabled/enabled en modal de emojis');
+}
+
+// ── Test 19: Carga inicial inmediata de servidores en el selector (búsqueda vacía) ──
+{
+  setupDOM();
+  setGuildId('111111111');
+  const mockGuilds = {
+    configured: [
+      { id: '111111111', name: 'Mi Server Activo', is_premium: true, member_count: 350 },
+      { id: '222222222', name: 'Server Secundario', is_premium: false, member_count: 80 },
+    ],
+    available: [
+      { id: '333333333', name: 'Server Sin Purgito', invite_url: 'https://discord.com/oauth2/fake' },
+    ],
+  };
+
+  setServerPickerOpen(true);
+  const picker = buildServerPicker(mockGuilds.configured[0], mockGuilds, () => {});
+
+  const list = picker.querySelector('.server-dropdown-list');
+  assert.ok(list, 'La lista del dropdown debe existir');
+
+  // Comprobamos que renderiza INMEDIATAMENTE sin necesidad de escribir en el buscador
+  const listText = list.text();
+  assert.match(listText, /Tus servidores con Purgito/, 'Debe mostrar encabezado de servidores configurados');
+  assert.match(listText, /Mi Server Activo/, 'Debe listar el servidor activo');
+  assert.match(listText, /Servidor activo/, 'Debe identificar el servidor activo');
+  assert.match(listText, /PREMIUM/, 'Debe mostrar badge premium en el activo');
+  assert.match(listText, /Server Secundario/, 'Debe listar el servidor secundario');
+  assert.match(listText, /80 miembros/, 'Debe mostrar miembros del servidor secundario');
+  assert.match(listText, /Otros servidores que administras/, 'Debe mostrar encabezado de servidores disponibles');
+  assert.match(listText, /Server Sin Purgito/, 'Debe listar el servidor disponible');
+  assert.match(listText, /Invitar a Purgito/, 'Debe incluir texto para invitar');
+
+  // Comprobamos footer de administración
+  const footer = picker.querySelector('.server-dropdown-footer');
+  assert.ok(footer, 'Footer debe existir');
+  assert.match(footer.text(), /Administrar todos los servidores →/);
+
+  setServerPickerOpen(false);
+  console.log('✓ Test 19: Carga inicial inmediata de servidores en el selector (búsqueda vacía)');
+}
+
+// ── Test 20: Filtro en tiempo real y restauración de la lista en el selector ────────
+{
+  setupDOM();
+  setGuildId('111111111');
+  const mockGuilds = {
+    configured: [
+      { id: '111111111', name: 'Mi Server Activo' },
+      { id: '222222222', name: 'Comunidad Gaming' },
+    ],
+    available: [
+      { id: '333333333', name: 'Amigos Discord' },
+    ],
+  };
+
+  setServerPickerOpen(true);
+  const picker = buildServerPicker(mockGuilds.configured[0], mockGuilds, () => {});
+  const searchInput = picker.querySelector('.server-dropdown-search');
+  const list = picker.querySelector('.server-dropdown-list');
+
+  // 1. Filtrar por 'Gaming'
+  searchInput.value = 'Gaming';
+  searchInput.oninput();
+  assert.match(list.text(), /Comunidad Gaming/);
+  assert.doesNotMatch(list.text(), /Mi Server Activo/);
+  assert.doesNotMatch(list.text(), /Amigos Discord/);
+
+  // 2. Búsqueda sin resultados
+  searchInput.value = 'Inexistente 12345';
+  searchInput.oninput();
+  assert.match(list.text(), /No se encontraron servidores\./);
+  // Footer se mantiene
+  const footer = picker.querySelector('.server-dropdown-footer');
+  assert.match(footer.text(), /Administrar todos los servidores →/);
+
+  // 3. Borrar búsqueda -> restauración completa inmediata
+  searchInput.value = '';
+  searchInput.oninput();
+  assert.match(list.text(), /Mi Server Activo/);
+  assert.match(list.text(), /Comunidad Gaming/);
+  assert.match(list.text(), /Amigos Discord/);
+
+  setServerPickerOpen(false);
+  console.log('✓ Test 20: Filtro en tiempo real y restauración de la lista en el selector');
+}
+
+// ── Test 21: Selección de servidor y ciclo de apertura/cierre del selector ─────────
+{
+  setupDOM();
+  setGuildId('111111111');
+  const mockGuilds = {
+    configured: [
+      { id: '111111111', name: 'Mi Server Activo' },
+      { id: '222222222', name: 'Nuevo Destino' },
+    ],
+    available: [],
+  };
+
+  let selectedGuildId = null;
+  setServerPickerOpen(true);
+  const picker = buildServerPicker(mockGuilds.configured[0], mockGuilds, (id) => {
+    selectedGuildId = id;
+  });
+
+  const items = picker.querySelectorAll('.server-dropdown-item');
+  assert.equal(items.length, 2, 'Debe haber 2 items');
+
+  // Click en el segundo servidor
+  items[1].click();
+  assert.equal(selectedGuildId, '222222222', 'Debe seleccionar 222222222');
+  assert.equal(getServerPickerOpen(), false, 'Debe cerrar el dropdown al seleccionar');
+
+  console.log('✓ Test 21: Selección de servidor y ciclo de apertura/cierre del selector');
+}
+
+// ── Test 22: Carga diferida / fallback cuando se abre el selector sin caché previo ─
+{
+  setupDOM();
+  setGuildId('444444444');
+  clearGuildsCache();
+
+  const mockGuilds = {
+    configured: [
+      { id: '444444444', name: 'Servidor Asíncrono', is_premium: false },
+    ],
+    available: [],
+  };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/me/guilds')) return jsonResp(mockGuilds);
+      return jsonResp({});
+    },
+  ];
+
+  setServerPickerOpen(true);
+  // Llamamos a buildServerPicker sin guildsData y con caché vacío
+  const picker = buildServerPicker(null, null, () => {});
+  const list = picker.querySelector('.server-dropdown-list');
+
+  // Debe esperar a la promesa de fetchUserGuilds
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.match(list.text(), /Servidor Asíncrono/, 'Debe resolver y renderizar los servidores tras la carga');
+  assert.match(list.text(), /Servidor activo/);
+
+  setServerPickerOpen(false);
+  console.log('✓ Test 22: Carga diferida / fallback cuando se abre el selector sin caché previo');
+}
+
+// ── Test 23: Error al obtener servidores con selector abierto ────────────────────
+{
+  setupDOM();
+  setGuildId('555555555');
+  clearGuildsCache();
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/me/guilds')) return jsonResp({ error: 'Network error' }, 500);
+      return jsonResp({});
+    },
+  ];
+
+  setServerPickerOpen(true);
+  const picker = buildServerPicker(null, null, () => {});
+  const list = picker.querySelector('.server-dropdown-list');
+
+  await new Promise(r => setTimeout(r, 50));
+
+  assert.match(list.text(), /No se pudieron cargar los servidores\./, 'Debe mostrar mensaje de error amigable');
+
+  // El footer con el enlace a administración debe seguir existiendo
+  const footer = picker.querySelector('.server-dropdown-footer');
+  assert.ok(footer, 'Footer debe seguir presente ante error');
+  assert.match(footer.text(), /Administrar todos los servidores →/);
+
+  setServerPickerOpen(false);
+  console.log('✓ Test 23: Error al obtener servidores con selector abierto');
 }
 
 console.log('\n========================================');

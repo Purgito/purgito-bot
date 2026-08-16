@@ -231,7 +231,15 @@ function setStoredSidebarCollapsed(collapsed) {
 let _sidebarCollapsed = getStoredSidebarCollapsed();
 let _loadEpoch = 0;
 let _activeGuild = null;
-let _serverPickerOpen = false;
+export let _serverPickerOpen = false;
+
+export function setServerPickerOpen(isOpen) {
+  _serverPickerOpen = Boolean(isOpen);
+}
+
+export function getServerPickerOpen() {
+  return _serverPickerOpen;
+}
 
 function updateSidebarLayoutState() {
   const layout = document.querySelector('.dash-layout');
@@ -284,6 +292,11 @@ function toggleCategoryCollapse(catKey) {
 let _cachedGuilds = null;
 let _fetchingGuildsPromise = null;
 
+export function clearGuildsCache() {
+  _cachedGuilds = null;
+  _fetchingGuildsPromise = null;
+}
+
 export async function fetchUserGuilds(force = false) {
   if (force) {
     _cachedGuilds = null;
@@ -305,29 +318,32 @@ export async function fetchUserGuilds(force = false) {
   return _fetchingGuildsPromise;
 }
 
-function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
+export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
   const picker = el('div', { class: 'server-picker' });
-  const configured = (guildsData && guildsData.configured) || [];
-  const available = (guildsData && guildsData.available) || [];
+  const currentGuildsData = guildsData || _cachedGuilds;
+  let configured = (currentGuildsData && currentGuildsData.configured) || [];
+  let available = (currentGuildsData && currentGuildsData.available) || [];
+
+  const active = activeGuild || (configured.find(g => g.id === GUILD_ID)) || null;
 
   const trigger = el('button', {
     type: 'button',
     class: 'server-picker-btn' + (_serverPickerOpen ? ' active' : ''),
     'aria-haspopup': 'true',
     'aria-expanded': String(_serverPickerOpen),
-    title: activeGuild ? activeGuild.name : 'Seleccionar servidor',
+    title: active ? active.name : 'Seleccionar servidor',
     onclick: (e) => {
       e.stopPropagation();
       _serverPickerOpen = !_serverPickerOpen;
       renderSidebar(currentTab());
     },
   },
-    activeGuild ? guildIcon(activeGuild) : el('div', { class: 'guild-icon guild-initial' }, '?'),
+    active ? guildIcon(active) : el('div', { class: 'guild-icon guild-initial' }, '?'),
     el('div', { class: 'server-picker-info' },
-      el('div', { class: 'server-picker-name' }, activeGuild ? activeGuild.name : 'Servidor'),
+      el('div', { class: 'server-picker-name' }, active ? active.name : 'Servidor'),
       el('div', { class: 'server-picker-sub dim' },
-        activeGuild && activeGuild.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null,
-        activeGuild && activeGuild.member_count != null ? `${Number(activeGuild.member_count).toLocaleString('es')} miembros` : 'Cambiar servidor'
+        active && active.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null,
+        active && active.member_count != null ? `${Number(active.member_count).toLocaleString('es')} miembros` : 'Cambiar servidor'
       )
     ),
     el('span', { class: 'server-picker-caret' }, icon('chevronDown'))
@@ -342,6 +358,14 @@ function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       placeholder: 'Buscar servidor…',
       autocomplete: 'off',
     });
+
+    searchInput.onkeydown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        _serverPickerOpen = false;
+        renderSidebar(currentTab());
+      }
+    };
 
     const listContainer = el('div', { class: 'server-dropdown-list' });
 
@@ -413,6 +437,22 @@ function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
     }
 
     searchInput.oninput = renderList;
+
+    if (!currentGuildsData) {
+      listContainer.append(spinner());
+      fetchUserGuilds().then(data => {
+        if (!_serverPickerOpen) return;
+        configured = (data && data.configured) || [];
+        available = (data && data.available) || [];
+        renderList();
+      }).catch(() => {
+        if (!_serverPickerOpen) return;
+        listContainer.innerHTML = '';
+        listContainer.append(el('div', { class: 'server-dropdown-empty dim text-danger' }, 'No se pudieron cargar los servidores.'));
+      });
+    } else {
+      renderList();
+    }
 
     const dropdown = el('div', { class: 'server-dropdown-menu' },
       el('div', { class: 'server-dropdown-search-wrap' },
@@ -596,7 +636,7 @@ document.addEventListener('click', (e) => {
 
 // ---------------- RENDERIZADO DE SIDEBAR ----------------
 
-function renderSidebar(activeTab) {
+export function renderSidebar(activeTab) {
   const nav = document.getElementById('dashTabs');
   if (!nav) return;
   nav.className = 'dash-sidebar' + (_sidebarCollapsed ? ' collapsed' : '');
