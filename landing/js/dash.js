@@ -1502,7 +1502,7 @@ async function loadPlaygroundModule() {
           el('div', { class: 'sim-empty-ready-icon' }, icon('play')),
           el('h3', { class: 'sim-empty-ready-title' }, 'Listo para simular'),
           el('p', { class: 'sim-empty-ready-desc' },
-            'Ejecuta una simulación para ver cómo respondería Purgito usando la generación espontánea de este canal.'
+            'Ejecuta una simulación para previsualizar una interacción espontánea de Purgito en este canal.'
           ),
           el('button', {
             type: 'button',
@@ -1605,7 +1605,7 @@ function renderSimulationResults(container, data, styleRes) {
   const configSection = el('div', { class: 'sim-section sim-config-section' },
     el('div', { class: 'sim-section-header' },
       el('h4', { class: 'sim-section-title' }, 'Configuración disponible'),
-      el('p', { class: 'sim-section-desc' }, 'Parámetros y recursos activos para la generación espontánea en este canal:')
+      el('p', { class: 'sim-section-desc' }, 'Parámetros y recursos configurados en este servidor:')
     ),
     el('div', { class: 'sim-config-grid' },
       // Markov
@@ -1724,19 +1724,15 @@ function renderSimulationResults(container, data, styleRes) {
     )
   );
 
-  // 2. Sección Principal: Resultado de la simulación
-  const isGif = data.result_type === 'gif' || (data.reason === 'gif' && data.gif_url);
+  // 2. Sección Principal: Resultado simulado
+  const isGif = data.result_type === 'gif' || (data.reason === 'gif' && Boolean(data.gif_url));
 
   let resultSectionBody;
   if (isGif) {
     resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-result-lead-label' }, '🎞️ GIF espontáneo:'),
+      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría enviar un GIF:'),
       el('div', { class: 'sim-gif-hero-container' },
-        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: 'GIF espontáneo simulado' }),
-        el('div', { class: 'sim-gif-hero-meta' },
-          el('span', { class: 'sim-pill-badge ok' }, `Probabilidad activa: ${gifProb}%`),
-          el('span', { class: 'dim', style: 'font-size: 13px;' }, 'GIF seleccionado aleatoriamente del catálogo del servidor.')
-        )
+        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: 'GIF espontáneo' })
       )
     );
   } else if (data.text) {
@@ -1745,7 +1741,7 @@ function renderSimulationResults(container, data, styleRes) {
     else if (data.reason === 'trigger') reasonTag = 'Trigger';
 
     resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-result-lead-label' }, '💬 Purgito podría responder:'),
+      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría responder:'),
       el('div', { class: 'sim-discord-message' },
         el('img', { class: 'sim-discord-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.style.display = 'none'; } }),
         el('div', { class: 'sim-discord-content' },
@@ -1771,11 +1767,11 @@ function renderSimulationResults(container, data, styleRes) {
     );
   } else {
     resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-no-response-box' },
-        icon('info'),
-        el('div', {},
-          el('strong', {}, 'Corpus insuficiente: '),
-          'No hay suficientes mensajes guardados en el corpus para generar una respuesta Markov en este canal.'
+      el('div', { class: 'sim-error-card' },
+        el('div', { class: 'sim-error-icon' }, icon('x')),
+        el('div', { class: 'sim-error-content' },
+          el('h4', {}, 'No se pudo generar contenido'),
+          el('p', {}, 'El servidor no cuenta con mensajes suficientes en el corpus para generar texto con Markov ni tiene frases disponibles.')
         )
       )
     );
@@ -1784,22 +1780,43 @@ function renderSimulationResults(container, data, styleRes) {
   const previewCard = el('div', { class: 'sim-card sim-preview-card sim-hero-result-card' },
     el('div', { class: 'sim-card-header' },
       el('div', { class: 'sim-result-header-row' },
-        el('h3', { class: 'sim-card-title' }, 'Resultado de la simulación'),
+        el('h3', { class: 'sim-card-title' }, 'Resultado simulado'),
         el('span', { class: 'sim-pill-badge sim-pill-badge-cyan' },
           isGif ? 'GIF espontáneo' : 'Mensaje espontáneo'
         )
       ),
       el('p', { class: 'sim-card-desc' },
-        `Interacción espontánea generada para #${(channelInfo && channelInfo.name) || 'este canal'}:`
+        `Interacción generada para #${(channelInfo && channelInfo.name) || 'este canal'}:`
       )
     ),
-    resultSectionBody,
+    resultSectionBody
+  );
+
+  // 3. Sección: Reglas evaluadas
+  const rulesList = Array.isArray(data.rules_evaluated) ? data.rules_evaluated : [];
+  const rulesCard = el('div', { class: 'sim-card sim-rules-card' },
+    el('div', { class: 'sim-card-header' },
+      el('h3', { class: 'sim-card-title' }, 'Reglas evaluadas'),
+      el('p', { class: 'sim-card-desc' },
+        'Condiciones y políticas verificadas para la generación espontánea:'
+      )
+    ),
+    el('div', { class: 'sim-rules-list' },
+      rulesList.map(rule => el('div', { class: `sim-rule-item ${rule.passed ? 'passed' : 'failed'}` },
+        el('div', { class: 'sim-rule-icon' }, icon(rule.passed ? 'check' : 'x')),
+        el('div', { class: 'sim-rule-content' },
+          el('div', { class: 'sim-rule-label' }, rule.label),
+          el('div', { class: 'sim-rule-detail' }, rule.detail)
+        )
+      ))
+    ),
     data.avisos && data.avisos.length ? playgroundAvisos(data.avisos) : null
   );
 
   const mainLayout = el('div', { class: 'sim-main-layout' },
     configSection,
-    previewCard
+    previewCard,
+    rulesCard
   );
 
   container.append(mainLayout);

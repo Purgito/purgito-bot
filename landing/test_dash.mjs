@@ -632,7 +632,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(initialContent, /Simulador de Chat/);
   assert.match(initialContent, /Canal de prueba/);
   assert.match(initialContent, /Listo para simular/, 'Debe mostrar el estado inicial "Listo para simular"');
-  assert.match(initialContent, /Ejecuta una simulación para ver cómo respondería Purgito usando la generación espontánea/);
+  assert.match(initialContent, /Ejecuta una simulación para previsualizar una interacción espontánea de Purgito en este canal/);
   assert.equal(simulatedRequest, null, 'No debe ejecutar la simulación antes de que el usuario pulse el botón');
 
   // Simular al pulsar el botón
@@ -648,9 +648,10 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(simulatedContent, /Packs de mensajes/);
   assert.match(simulatedContent, /GIFs/);
   assert.match(simulatedContent, /Reacciones automáticas/);
-  assert.match(simulatedContent, /Resultado de la simulación/);
+  assert.match(simulatedContent, /Resultado simulado/);
   assert.match(simulatedContent, /Purgito podría responder:/);
   assert.match(simulatedContent, /¡Hola desde la simulación de Purgito!/);
+  assert.match(simulatedContent, /Reglas evaluadas/);
   assert.ok(!simulatedContent.includes('Mensaje de entrada'), 'No debe existir el campo Mensaje de entrada');
   assert.ok(!simulatedContent.includes('Paso 1'), 'No debe existir estructura por pasos');
 

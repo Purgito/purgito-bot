@@ -4130,6 +4130,62 @@ h1 {
   color: var(--text-muted);
 }
 
+/* Rules Checklist */
+.sim-rules-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+}
+
+.sim-rules-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.sim-rule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.sim-rule-item.passed .sim-rule-icon {
+  color: #34d399;
+}
+
+.sim-rule-item.failed .sim-rule-icon {
+  color: #f87171;
+}
+
+.sim-rule-icon {
+  flex: none;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+}
+
+.sim-rule-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sim-rule-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sim-rule-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 /* Custom Channel Picker Dropdown */
 .sim-channel-picker {
   position: relative;

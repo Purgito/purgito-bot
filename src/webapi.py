@@ -1222,12 +1222,6 @@ async def _api_chat_playground_post(
             "passed": (settings.get("gif_response_probability", 0) > 0 and gif_total > 0),
             "detail": f"{gif_total} GIFs en catálogo ({int(settings.get('gif_response_probability', 0)*100)}% prob.)." if (settings.get("gif_response_probability", 0) > 0 and gif_total > 0) else (f"{gif_total} GIFs guardados con 0% de prob." if gif_total > 0 else "Sin GIFs guardados en el servidor."),
         },
-        {
-            "id": "reactions",
-            "label": "Reacciones automáticas",
-            "passed": (settings.get("reaction_probability", 0) > 0 and len(reaction_pool) > 0),
-            "detail": f"{len(reaction_pool)} emojis en pool ({int(settings.get('reaction_probability', 0)*100)}% prob.)." if (settings.get("reaction_probability", 0) > 0 and len(reaction_pool) > 0) else (f"{len(reaction_pool)} emojis con 0% de prob." if len(reaction_pool) > 0 else "Sin emojis en el pool de reacciones."),
-        },
     ]
 
     response_payload = {

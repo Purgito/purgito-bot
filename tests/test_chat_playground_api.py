@@ -445,46 +445,13 @@ def test_revocacion_dinamica_de_permisos(fake_guild, monkeypatch):
     assert data_restored["channels"][0]["id"] == "30"
 
 
-def test_simulacion_espontanea_resultado_gif(fake_guild, monkeypatch):
-    """Si el roll de GIF resulta positivo, el resultado es exclusivamente un GIF sin mensaje."""
+def test_simulacion_mensaje_excluye_gif_y_reaccion(fake_guild, monkeypatch):
+    """Test 1: Una simulación que genera mensaje devuelve mensaje ✓, GIF ✗ (None), reacción ✗ (no generada)."""
     async def fake_settings(guild_id, channel_id):
         return {
             "enabled": True,
-            "gif_response_probability": 0.5,
-            "reaction_probability": 0.5,
-            "frase_probability": 0.0,
-            "auto_generate_every": 15,
-            "auto_generate_probability": 0.5,
-        }
-
-    async def fake_gif_candidates(guild_id, limit=1):
-        return [{"media_url": "https://media.giphy.com/media/test/giphy.gif"}]
-
-    async def fake_count_gifs(guild_id):
-        return 5
-
-    monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
-    monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
-    monkeypatch.setattr(webapi, "get_random_gif_candidates", fake_gif_candidates)
-    monkeypatch.setattr(webapi.random, "random", lambda: 0.1)  # 0.1 < 0.5 -> GIF gana
-
-    resp = _run(FakeRequest(body={"channel_id": "10"}))
-    assert resp.status == 200
-    data = _json(resp)
-    assert data["result_type"] == "gif"
-    assert data["gif_url"] == "https://media.giphy.com/media/test/giphy.gif"
-    assert data["text"] is None
-    assert data["reason"] == "gif"
-    assert "simulated_emoji" not in data.get("reactions", {})
-
-
-def test_simulacion_espontanea_resultado_mensaje(fake_guild, monkeypatch):
-    """Si no resulta en GIF, la simulación produce un mensaje (Markov o frase de pack)."""
-    async def fake_settings(guild_id, channel_id):
-        return {
-            "enabled": True,
-            "gif_response_probability": 0.5,
-            "reaction_probability": 0.5,
+            "gif_response_probability": 0.3,
+            "reaction_probability": 0.8,
             "frase_probability": 0.0,
             "auto_generate_every": 15,
             "auto_generate_probability": 0.5,
@@ -494,20 +461,163 @@ def test_simulacion_espontanea_resultado_mensaje(fake_guild, monkeypatch):
         return 5
 
     async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
-        return {"would_respond": True, "reason": "markov", "text": "Mensaje markov espontáneo"}
+        return {"would_respond": True, "reason": "markov", "text": "¡Texto Markov generado!"}
 
     monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
-    monkeypatch.setattr(webapi.random, "random", lambda: 0.9)  # 0.9 >= 0.5 -> No sale GIF
+    monkeypatch.setattr(webapi.random, "random", lambda: 0.9)  # 0.9 >= 0.3 -> No sale GIF
     monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
 
     resp = _run(FakeRequest(body={"channel_id": "10"}))
     assert resp.status == 200
     data = _json(resp)
     assert data["result_type"] == "message"
-    assert data["text"] == "Mensaje markov espontáneo"
+    assert data["text"] == "¡Texto Markov generado!"
     assert data["gif_url"] is None
     assert data["reason"] == "markov"
     assert "simulated_emoji" not in data.get("reactions", {})
+
+
+def test_simulacion_gif_excluye_mensaje_y_reaccion(fake_guild, monkeypatch):
+    """Test 2: Una simulación que genera GIF devuelve mensaje ✗ (None), GIF ✓, reacción ✗ (no generada)."""
+    async def fake_settings(guild_id, channel_id):
+        return {
+            "enabled": True,
+            "gif_response_probability": 0.6,
+            "reaction_probability": 0.8,
+            "frase_probability": 0.0,
+            "auto_generate_every": 15,
+            "auto_generate_probability": 0.5,
+        }
+
+    async def fake_gif_candidates(guild_id, limit=1):
+        return [{"media_url": "https://media.giphy.com/media/test/cat.gif"}]
+
+    async def fake_count_gifs(guild_id):
+        return 3
+
+    monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
+    monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
+    monkeypatch.setattr(webapi, "get_random_gif_candidates", fake_gif_candidates)
+    monkeypatch.setattr(webapi.random, "random", lambda: 0.1)  # 0.1 < 0.6 -> Sale GIF
+
+    resp = _run(FakeRequest(body={"channel_id": "10"}))
+    assert resp.status == 200
+    data = _json(resp)
+    assert data["result_type"] == "gif"
+    assert data["gif_url"] == "https://media.giphy.com/media/test/cat.gif"
+    assert data["text"] is None
+    assert data["reason"] == "gif"
+    assert "simulated_emoji" not in data.get("reactions", {})
+
+
+def test_reacciones_habilitadas_no_alteran_resultado_simulador(fake_guild, monkeypatch):
+    """Test 3: Las reacciones automáticas al 100% no se incluyen en el resultado de simulación espontánea."""
+    async def fake_settings(guild_id, channel_id):
+        return {
+            "enabled": True,
+            "gif_response_probability": 0.0,
+            "reaction_probability": 1.0,  # 100% de reacción
+            "frase_probability": 0.0,
+            "auto_generate_every": 15,
+            "auto_generate_probability": 0.5,
+        }
+
+    async def fake_reaction_pool(guild_id):
+        return [{"emoji": "🔥", "count": 10}]
+
+    async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+        return {"would_respond": True, "reason": "markov", "text": "Mensaje sin emoji simulado"}
+
+    monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
+    monkeypatch.setattr(webapi, "list_reaction_pool", fake_reaction_pool)
+    monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
+
+    resp = _run(FakeRequest(body={"channel_id": "10"}))
+    assert resp.status == 200
+    data = _json(resp)
+    # Debe ser exclusivamente mensaje y no contener simulated_emoji
+    assert data["result_type"] == "message"
+    assert data["text"] == "Mensaje sin emoji simulado"
+    assert "simulated_emoji" not in data.get("reactions", {})
+    assert "emoji" not in data
+
+
+def test_simular_siempre_ejecuta_markov_o_pack(fake_guild, monkeypatch):
+    """Test 4: Pulsar Simular interacción siempre intenta ejecutar generación Markov / Pack y devuelve su resultado."""
+    executed_markov = False
+
+    async def fake_settings(guild_id, channel_id):
+        return {
+            "enabled": False,  # Chat general deshabilitado para menciones, pero simulador prueba espontaneidad directa
+            "gif_response_probability": 0.0,
+            "reaction_probability": 0.0,
+            "frase_probability": 0.0,
+        }
+
+    async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+        nonlocal executed_markov
+        executed_markov = True
+        return {"would_respond": True, "reason": "markov", "text": "Markov espontáneo siempre ejecutado"}
+
+    monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
+    monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
+
+    resp = _run(FakeRequest(body={"channel_id": "10"}))
+    assert resp.status == 200
+    data = _json(resp)
+    assert executed_markov is True
+    assert data["result_type"] == "message"
+    assert data["text"] == "Markov espontáneo siempre ejecutado"
+
+
+def test_simulaciones_consecutivas_son_independientes(fake_guild, monkeypatch):
+    """Test 5: Dos ejecuciones consecutivas realizan rolls independientes y utilizan la lógica real de espontaneidad."""
+    rolls = [0.05, 0.95]  # Primer roll genera GIF, segundo roll genera Mensaje
+    roll_idx = 0
+
+    def next_roll():
+        nonlocal roll_idx
+        val = rolls[roll_idx]
+        roll_idx += 1
+        return val
+
+    async def fake_settings(guild_id, channel_id):
+        return {
+            "enabled": True,
+            "gif_response_probability": 0.5,
+            "reaction_probability": 0.5,
+            "frase_probability": 0.0,
+        }
+
+    async def fake_gif_candidates(guild_id, limit=1):
+        return [{"media_url": "https://media.giphy.com/media/test/first.gif"}]
+
+    async def fake_count_gifs(guild_id):
+        return 5
+
+    async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+        return {"would_respond": True, "reason": "markov", "text": "Segundo intento es mensaje"}
+
+    monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
+    monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
+    monkeypatch.setattr(webapi, "get_random_gif_candidates", fake_gif_candidates)
+    monkeypatch.setattr(webapi.random, "random", next_roll)
+    monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
+
+    # 1era simulación -> GIF
+    resp1 = _run(FakeRequest(body={"channel_id": "10"}))
+    data1 = _json(resp1)
+    assert data1["result_type"] == "gif"
+    assert data1["gif_url"] == "https://media.giphy.com/media/test/first.gif"
+    assert data1["text"] is None
+
+    # 2da simulación -> Mensaje
+    resp2 = _run(FakeRequest(body={"channel_id": "10"}))
+    data2 = _json(resp2)
+    assert data2["result_type"] == "message"
+    assert data2["text"] == "Segundo intento es mensaje"
+    assert data2["gif_url"] is None
+
 
 
