@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import db
 import webapi
 
 _GUILD = 123
@@ -45,6 +46,16 @@ class FakeRequest:
         return self._body
 
 
+@pytest.fixture(autouse=True)
+def memory_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setattr(db, "_db", None)
+    asyncio.run(db.init_db())
+    yield
+    asyncio.run(db.close_db())
+
+
 @pytest.fixture
 def fake_guild(monkeypatch):
     guild = FakeGuild(channels={10: SimpleNamespace(id=10, name="general")})
@@ -75,9 +86,28 @@ def test_body_invalido_devuelve_400(fake_guild):
     assert resp.status == 400
 
 
-def test_mensaje_vacio_devuelve_400(fake_guild):
-    resp = _run(FakeRequest(body={"message": "   ", "channel_id": "10"}))
-    assert resp.status == 400
+def test_mensaje_opcional_funciona_sin_texto(fake_guild, monkeypatch):
+    captured = {}
+
+    async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+        captured.update(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            content=content,
+            author=author,
+            channel=channel,
+            guild=guild,
+        )
+        return {"would_respond": True, "reason": "markov", "text": "hola"}
+
+    monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
+
+    resp = _run(FakeRequest(body={"channel_id": "10"}))
+    assert resp.status == 200
+    data = _json(resp)
+    assert data["would_respond"] is True
+    assert data["text"] == "hola"
+    assert captured["content"] == ""
 
 
 def test_channel_id_invalido_devuelve_400(fake_guild):
@@ -109,7 +139,13 @@ def test_devuelve_el_resultado_de_simulate_message_tal_cual(fake_guild, monkeypa
     resp = _run(FakeRequest(body={"message": "hola bot", "channel_id": "10"}))
 
     assert resp.status == 200
-    assert _json(resp) == {"would_respond": True, "reason": "markov", "text": "hola"}
+    data = _json(resp)
+    assert data["would_respond"] is True
+    assert data["reason"] == "markov"
+    assert data["text"] == "hola"
+    assert "channel_info" in data
+    assert "settings" in data
+    assert "rules_evaluated" in data
     assert captured["guild_id"] == _GUILD
     assert captured["channel_id"] == 10
     assert captured["content"] == "hola bot"

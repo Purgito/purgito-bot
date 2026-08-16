@@ -99,6 +99,7 @@ from db import (
     corpus_total_limit,
     count_audit_action,
     count_corpus_by_channel,
+    count_corpus_messages,
     count_gif_urls,
     count_guild_corpus_messages,
     delete_channel_trigger,
@@ -117,16 +118,20 @@ from db import (
     get_audit_log_users,
     get_counters,
     get_effective_chat_settings,
+    get_effective_frase_pool,
     get_gif_by_id,
     get_gif_by_url,
+    get_random_gif_candidates,
     get_shared_embed,
     get_updates_channel,
     gifs_limit,
     import_corpus_messages,
     is_channel_ignored,
+    is_corpus_allowed,
     is_session_revoked,
     list_audit_log_page,
     list_blocked_gifs,
+    list_channel_triggers,
     list_corpus_channels,
     list_embed_templates,
     list_exempt_channels,
@@ -1066,11 +1071,11 @@ async def _api_chat_playground_post(
     request: web.Request, guild_id: int
 ) -> web.Response:
     """Simula qué habría generado el motor de chat (triggers y la decisión
-    frase-vs-Markov) para un mensaje de prueba en un canal puntual, con la
-    config efectiva de ese canal -- overrides de channel_settings (Fase 2),
-    pack/allowlist de frases (Fase 3) y triggers (Fase 4) incluidos. Nunca
-    manda nada a Discord ni toca corpus/contadores/cooldowns reales, ver
-    simulate_message en cogs/chat.py.
+    frase-vs-Markov) y evalúa las configuraciones reales activas para un
+    canal puntual -- overrides de channel_settings, packs de frases, triggers,
+    GIFs, reacciones y reglas de entrega incluidos. Nunca manda nada a Discord
+    ni toca corpus/contadores/cooldowns reales, ver simulate_message en
+    cogs/chat.py.
     """
     ip = _client_ip(request)
     if not _rate_ok(_rate_playground, ip, 20):
@@ -1078,16 +1083,8 @@ async def _api_chat_playground_post(
     data = await _json_body(request)
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
-    # Recortado al máximo real de un mensaje de Discord: simular algo más
-    # largo no tiene sentido, y sin tope el texto entraba entero al matcheo de
-    # cada trigger 'regex' del canal (hasta _TRIGGER_REGEX_TIMEOUT segundos de
-    # thread pool cada uno, el mismo pool compartido con la generación de
-    # Markov de todos los servidores).
+    # Recortado al máximo real de un mensaje de Discord si se envía texto opcional
     message_text = (data.get("message") or "").strip()[:4000]
-    if not message_text:
-        return web.json_response(
-            {"error": "el mensaje de prueba está vacío"}, status=400
-        )
     channel_id = _to_int(data.get("channel_id"))
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
@@ -1125,7 +1122,139 @@ async def _api_chat_playground_post(
     result = await simulate_message(
         guild_id, channel_id, message_text, author=author, channel=channel, guild=guild
     )
-    return web.json_response(result)
+
+    # Configuraciones y estado del servidor evaluados en modo sandbox
+    settings = await get_effective_chat_settings(guild_id, channel_id)
+    is_ignored = await is_channel_ignored(guild_id, channel_id)
+    corpus_allowed = await is_corpus_allowed(guild_id, channel_id)
+    channel_corpus_count = await count_corpus_messages(guild_id, channel_id)
+    guild_corpus_count = await count_guild_corpus_messages(guild_id)
+    triggers = await list_channel_triggers(guild_id, channel_id)
+    all_packs = await list_frase_packs(guild_id)
+    effective_pack_id = await get_effective_frase_pool(guild_id, channel_id)
+    reaction_pool = await list_reaction_pool(guild_id)
+    gif_total = await count_gif_urls(guild_id)
+    gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
+    mention_channels = await list_mention_channels(guild_id)
+    spontaneous_channels = await list_spontaneous_channels(guild_id)
+
+    effective_pack_name = None
+    if effective_pack_id:
+        for p in all_packs:
+            if p["id"] == effective_pack_id:
+                effective_pack_name = p["name"]
+                break
+
+    simulated_gif = None
+    if gif_candidates and settings.get("gif_response_probability", 0) > 0:
+        simulated_gif = gif_candidates[0].get("media_url") or gif_candidates[0].get("url")
+
+    simulated_reaction = None
+    if reaction_pool and settings.get("reaction_probability", 0) > 0:
+        simulated_reaction = secrets.choice(reaction_pool)["emoji_text"]
+
+    rules_evaluated = [
+        {
+            "id": "permissions",
+            "label": "Permisos en Discord",
+            "passed": True,
+            "detail": "Lectura, envío de mensajes e historial verificados.",
+        },
+        {
+            "id": "ignored_channel",
+            "label": "Estado del canal",
+            "passed": not is_ignored,
+            "detail": "Canal activo (no silenciado)." if not is_ignored else "Canal silenciado en la configuración.",
+        },
+        {
+            "id": "chat_enabled",
+            "label": "Módulo de Chat",
+            "passed": bool(settings.get("enabled")),
+            "detail": "Chat habilitado para responder a menciones." if settings.get("enabled") else "Chat general desactivado.",
+        },
+        {
+            "id": "mention_allowlist",
+            "label": "Canal de menciones",
+            "passed": (not mention_channels) or (channel_id in mention_channels),
+            "detail": "Habilitado en todos los canales." if not mention_channels else ("Permitido en este canal." if channel_id in mention_channels else "Restringido a canales específicos."),
+        },
+        {
+            "id": "spontaneous_allowlist",
+            "label": "Mensajes espontáneos",
+            "passed": (not spontaneous_channels) or (channel_id in spontaneous_channels),
+            "detail": f"Probabilidad {int(settings.get('auto_generate_probability', 0)*100)}% cada {settings.get('auto_generate_every', 0)} msgs." if ((not spontaneous_channels) or (channel_id in spontaneous_channels)) else "Restringido a canales específicos.",
+        },
+        {
+            "id": "corpus_learning",
+            "label": "Corpus de aprendizaje",
+            "passed": corpus_allowed,
+            "detail": f"Aprendizaje activo ({channel_corpus_count:,} msgs en este canal, {guild_corpus_count:,} en total)." if corpus_allowed else f"Aprendizaje desactivado ({channel_corpus_count:,} msgs guardados).",
+        },
+        {
+            "id": "phrase_packs",
+            "label": "Packs de mensajes",
+            "passed": settings.get("frase_probability", 0) > 0,
+            "detail": f"Pack activo: {effective_pack_name or 'Pool por defecto'} ({int(settings.get('frase_probability', 0)*100)}% prob.)." if settings.get("frase_probability", 0) > 0 else "Frases de pack desactivadas (0% prob.).",
+        },
+        {
+            "id": "gifs",
+            "label": "Respuestas con GIF",
+            "passed": (settings.get("gif_response_probability", 0) > 0 and gif_total > 0),
+            "detail": f"{gif_total} GIFs en catálogo ({int(settings.get('gif_response_probability', 0)*100)}% prob.)." if (settings.get("gif_response_probability", 0) > 0 and gif_total > 0) else (f"{gif_total} GIFs guardados con 0% de prob." if gif_total > 0 else "Sin GIFs guardados en el servidor."),
+        },
+        {
+            "id": "reactions",
+            "label": "Reacciones automáticas",
+            "passed": (settings.get("reaction_probability", 0) > 0 and len(reaction_pool) > 0),
+            "detail": f"{len(reaction_pool)} emojis en pool ({int(settings.get('reaction_probability', 0)*100)}% prob.)." if (settings.get("reaction_probability", 0) > 0 and len(reaction_pool) > 0) else (f"{len(reaction_pool)} emojis con 0% de prob." if len(reaction_pool) > 0 else "Sin emojis en el pool de reacciones."),
+        },
+    ]
+
+    response_payload = {
+        **result,
+        "channel_info": {
+            "id": str(channel_id),
+            "name": getattr(channel, "name", f"canal-{channel_id}"),
+            "is_ignored": is_ignored,
+            "is_corpus_allowed": corpus_allowed,
+            "channel_corpus_count": channel_corpus_count,
+            "guild_corpus_count": guild_corpus_count,
+            "effective_pack_id": effective_pack_id,
+            "effective_pack_name": effective_pack_name,
+        },
+        "settings": settings,
+        "packs": [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "is_active_for_channel": (p["id"] == effective_pack_id),
+            }
+            for p in all_packs
+        ],
+        "triggers": [
+            {
+                "id": t["id"],
+                "pattern": t["pattern"],
+                "match_type": t["match_type"],
+                "action": t["action"],
+                "pack_id": t.get("pack_id"),
+            }
+            for t in triggers
+        ],
+        "gifs": {
+            "total_count": gif_total,
+            "probability": settings.get("gif_response_probability", 0),
+            "simulated_gif_url": simulated_gif,
+        },
+        "reactions": {
+            "total_count": len(reaction_pool),
+            "probability": settings.get("reaction_probability", 0),
+            "simulated_emoji": simulated_reaction,
+        },
+        "rules_evaluated": rules_evaluated,
+    }
+
+    return web.json_response(response_payload)
 
 
 @guild_api

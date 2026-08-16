@@ -614,10 +614,14 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   const contentText = elementsById.catContent.text();
   assert.match(contentText, /Simulador de Chat/);
-  assert.match(contentText, /Canal de contexto/);
-  assert.match(contentText, /Mensaje de entrada/);
-  assert.match(contentText, /Simular respuesta/);
-  assert.ok(!contentText.includes('Respuesta simulada'), 'No debe existir un panel permanente de Respuesta simulada');
+  assert.match(contentText, /Canal de prueba/);
+  assert.match(contentText, /Resultado simulado/);
+  assert.match(contentText, /Generación Markov/);
+  assert.match(contentText, /Reglas evaluadas/);
+  assert.ok(!contentText.includes('Mensaje de entrada'), 'No debe existir el campo Mensaje de entrada');
+  assert.ok(!contentText.includes('Paso 1'), 'No debe existir estructura por pasos (Paso 1)');
+  assert.ok(!contentText.includes('Paso 2'), 'No debe existir estructura por pasos (Paso 2)');
+  assert.ok(simulatedRequest && simulatedRequest.channel_id === '10', 'Debe simular el canal automáticamente');
 
   // Test vacío cuando no hay canales utilizables
   fetchHandlers = [
@@ -637,7 +641,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const emptyContent = elementsById.catContent.text();
   assert.match(emptyContent, /No hay canales disponibles para simular/);
 
-  console.log('✓ Test 12: Simulador de Chat estructurado, con filtrado de permisos y sin panel permanente');
+  console.log('✓ Test 12: Simulador de Chat rediseñado como preview/sandbox, sin pasos ni inputs de mensaje');
 }
 
 // ── Test 13: Eliminación de redundancias en navegación ────────────────────────
