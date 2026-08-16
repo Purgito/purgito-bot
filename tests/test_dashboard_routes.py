@@ -85,6 +85,8 @@ def test_rutas_clave_del_dashboard_estan_montadas():
     for path in (
         "/api/me",
         "/api/me/guilds",
+        "/api/me/billing",
+        "/api/me/billing/portal",
         "/api/server/{guild_id}/stats",
         "/api/server/{guild_id}/style",
         "/api/server/{guild_id}/settings/spontaneous-channels",

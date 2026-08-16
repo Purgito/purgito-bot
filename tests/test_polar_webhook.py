@@ -81,8 +81,12 @@ def _run(
         calls["unset"].append(guild_id)
         return True
 
+    async def fake_upsert_subscription(guild_id, **fields):
+        calls.setdefault("upsert_subscription", []).append(guild_id)
+
     monkeypatch.setattr(webapi, "set_premium", fake_set)
     monkeypatch.setattr(webapi, "unset_premium", fake_unset)
+    monkeypatch.setattr(webapi, "upsert_premium_subscription", fake_upsert_subscription)
     monkeypatch.setattr(webapi, "POLAR_WEBHOOK_SECRET", SECRET)
     monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_MONTHLY", MONTHLY)
     monkeypatch.setattr(webapi, "POLAR_PRODUCT_ID_ANNUAL", ANNUAL)
@@ -113,6 +117,56 @@ def test_active_annual_note(monkeypatch):
     event = _fake_event("subscription.active", {"guild_id": "123"}, ANNUAL)
     resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
     assert calls["set"] == [(123, "Polar — anual")]
+
+
+# ── premium_subscriptions: metadatos de facturación, independientes del
+# acceso -- ver upsert_premium_subscription en db.py y su llamada en
+# _webhook_polar. subscription.updated/canceled en particular NO están en
+# _POLAR_ACTIVATE ni _POLAR_DEACTIVATE (nunca deben tocar premium_guilds),
+# pero antes de este cambio el filtro de "ignorado" los descartaba del todo.
+
+
+def test_active_tambien_guarda_metadata_de_suscripcion(monkeypatch):
+    event = _fake_event("subscription.active", {"guild_id": "123"}, MONTHLY)
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert calls["upsert_subscription"] == [123]
+
+
+def test_subscription_updated_captura_metadata_sin_tocar_acceso(monkeypatch):
+    """El caso central del cambio: subscription.updated no otorga ni quita
+    premium (no está en _POLAR_ACTIVATE ni _POLAR_DEACTIVATE), pero sí debe
+    guardar cancel_at_period_end/período -- antes se descartaba entero."""
+    event = _fake_event("subscription.updated", {"guild_id": "123"}, MONTHLY)
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["upsert_subscription"] == [123]
+    assert calls["set"] == [] and calls["unset"] == []
+
+
+def test_subscription_canceled_captura_metadata_sin_tocar_acceso(monkeypatch):
+    event = _fake_event("subscription.canceled", {"guild_id": "123"}, MONTHLY)
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls["upsert_subscription"] == [123]
+    assert calls["set"] == [] and calls["unset"] == []
+
+
+def test_subscription_updated_sin_guild_id_no_llama_upsert(monkeypatch):
+    event = _fake_event("subscription.updated", {}, MONTHLY)
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert resp.status == 200
+    assert calls.get("upsert_subscription", []) == []
+
+
+def test_refund_no_llama_upsert_de_suscripcion(monkeypatch):
+    """refund.* no es un evento de suscripción -- no debe tocar
+    premium_subscriptions, solo premium_guilds vía unset_premium."""
+    event = _fake_event(
+        "refund.created", {"guild_id": "123"}, status="succeeded", revoke_benefits=True
+    )
+    resp, calls = _run(monkeypatch, FakeRequest(b"{}"), fake_event=event)
+    assert calls.get("upsert_subscription", []) == []
+    assert calls["unset"] == [123]
 
 
 def test_created_trialing_sets_premium(monkeypatch):

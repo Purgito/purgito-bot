@@ -57,6 +57,7 @@ from config import (
     DISCORD_CLIENT_SECRET,
     LANDING_ORIGINS,
     LANDING_URL,
+    PERMANENT_PREMIUM_GUILD_IDS,
     POLAR_ACCESS_TOKEN,
     POLAR_PRODUCT_ID_ANNUAL,
     POLAR_PRODUCT_ID_MONTHLY,
@@ -145,7 +146,7 @@ from db import (
     list_ignored_channels,
     list_mention_channels,
     list_pack_channels,
-    list_premium_guilds,
+    list_premium_subscriptions_by_purchaser,
     list_reaction_pool,
     list_spontaneous_channels,
     list_uploaded_images,
@@ -175,6 +176,7 @@ from db import (
     update_embed_template,
     update_frase_especial,
     update_last_video_id,
+    upsert_premium_subscription,
 )
 from layout_v2 import (
     MAX_FILENAME_LEN,
@@ -747,8 +749,6 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
         )
     bot = request.app["bot"]
     bot_guild_ids = {g.id for g in bot.guilds}
-    # Nota del plan premium (ej. "Polar — mensual") para la tab Facturación.
-    premium_notes = {g["guild_id"]: g["note"] for g in await list_premium_guilds()}
     configured, available = [], []
     for g in manage:
         gid = int(g["id"])
@@ -783,8 +783,16 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
                     "name": name,
                     "icon_url": icon_url,
                     "member_count": getattr(bot_guild, "member_count", None),
+                    # Solo estado del servidor -- ver /api/me/billing para
+                    # los datos de facturación (plan, período, etc.), que
+                    # son privados de quien compró, no de todo admin del guild.
                     "is_premium": is_premium_guild(gid),
-                    "premium_note": premium_notes.get(gid),
+                    # is_permanent SÍ es seguro acá (a diferencia de plan/
+                    # fechas): es una categoría del servidor, no un dato de
+                    # facturación de nadie -- permite que /perfil/facturacion
+                    # distinga "premium otorgado por Purgito" de "premium por
+                    # una suscripción de OTRO usuario" sin exponer de quién es.
+                    "is_permanent": gid in PERMANENT_PREMIUM_GUILD_IDS,
                 }
             )
         else:
@@ -1150,7 +1158,9 @@ async def _api_chat_playground_post(
         gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
         if gif_candidates:
             media_url = gif_candidates[0].get("media_url")
-            if media_url and not media_url.lower().split("?")[0].endswith((".png", ".jpg", ".jpeg", ".webp")):
+            if media_url and not media_url.lower().split("?")[0].endswith(
+                (".png", ".jpg", ".jpeg", ".webp")
+            ):
                 simulated_gif = media_url
             else:
                 simulated_gif = gif_candidates[0].get("url")
@@ -1169,7 +1179,12 @@ async def _api_chat_playground_post(
     else:
         # 2. Generación Markov / Pack de frases obligatoria
         result = await simulate_message(
-            guild_id, channel_id, message_text, author=author, channel=channel, guild=guild
+            guild_id,
+            channel_id,
+            message_text,
+            author=author,
+            channel=channel,
+            guild=guild,
         )
         sim_result = {
             "result_type": "message",
@@ -1188,43 +1203,68 @@ async def _api_chat_playground_post(
             "id": "ignored_channel",
             "label": "Estado del canal",
             "passed": not is_ignored,
-            "detail": "Canal activo (no silenciado)." if not is_ignored else "Canal silenciado en la configuración.",
+            "detail": "Canal activo (no silenciado)."
+            if not is_ignored
+            else "Canal silenciado en la configuración.",
         },
         {
             "id": "chat_enabled",
             "label": "Módulo de Chat",
             "passed": bool(settings.get("enabled")),
-            "detail": "Chat habilitado para responder a menciones." if settings.get("enabled") else "Chat general desactivado.",
+            "detail": "Chat habilitado para responder a menciones."
+            if settings.get("enabled")
+            else "Chat general desactivado.",
         },
         {
             "id": "mention_allowlist",
             "label": "Canal de menciones",
             "passed": (not mention_channels) or (channel_id in mention_channels),
-            "detail": "Habilitado en todos los canales." if not mention_channels else ("Permitido en este canal." if channel_id in mention_channels else "Restringido a canales específicos."),
+            "detail": "Habilitado en todos los canales."
+            if not mention_channels
+            else (
+                "Permitido en este canal."
+                if channel_id in mention_channels
+                else "Restringido a canales específicos."
+            ),
         },
         {
             "id": "spontaneous_allowlist",
             "label": "Mensajes espontáneos",
-            "passed": (not spontaneous_channels) or (channel_id in spontaneous_channels),
-            "detail": f"Probabilidad {int(settings.get('auto_generate_probability', 0)*100)}% cada {settings.get('auto_generate_every', 0)} msgs." if ((not spontaneous_channels) or (channel_id in spontaneous_channels)) else "Restringido a canales específicos.",
+            "passed": (not spontaneous_channels)
+            or (channel_id in spontaneous_channels),
+            "detail": f"Probabilidad {int(settings.get('auto_generate_probability', 0) * 100)}% cada {settings.get('auto_generate_every', 0)} msgs."
+            if ((not spontaneous_channels) or (channel_id in spontaneous_channels))
+            else "Restringido a canales específicos.",
         },
         {
             "id": "corpus_learning",
             "label": "Corpus de aprendizaje",
             "passed": corpus_allowed,
-            "detail": f"Aprendizaje activo ({channel_corpus_count:,} msgs en este canal, {guild_corpus_count:,} en total)." if corpus_allowed else f"Aprendizaje desactivado ({channel_corpus_count:,} msgs guardados).",
+            "detail": f"Aprendizaje activo ({channel_corpus_count:,} msgs en este canal, {guild_corpus_count:,} en total)."
+            if corpus_allowed
+            else f"Aprendizaje desactivado ({channel_corpus_count:,} msgs guardados).",
         },
         {
             "id": "phrase_packs",
             "label": "Packs de mensajes",
             "passed": settings.get("frase_probability", 0) > 0,
-            "detail": f"Pack activo: {effective_pack_name or 'Pool por defecto'} ({int(settings.get('frase_probability', 0)*100)}% prob.)." if settings.get("frase_probability", 0) > 0 else "Frases de pack desactivadas (0% prob.).",
+            "detail": f"Pack activo: {effective_pack_name or 'Pool por defecto'} ({int(settings.get('frase_probability', 0) * 100)}% prob.)."
+            if settings.get("frase_probability", 0) > 0
+            else "Frases de pack desactivadas (0% prob.).",
         },
         {
             "id": "gifs",
             "label": "Respuestas con GIF",
-            "passed": (settings.get("gif_response_probability", 0) > 0 and gif_total > 0),
-            "detail": f"{gif_total} GIFs en catálogo ({int(settings.get('gif_response_probability', 0)*100)}% prob.)." if (settings.get("gif_response_probability", 0) > 0 and gif_total > 0) else (f"{gif_total} GIFs guardados con 0% de prob." if gif_total > 0 else "Sin GIFs guardados en el servidor."),
+            "passed": (
+                settings.get("gif_response_probability", 0) > 0 and gif_total > 0
+            ),
+            "detail": f"{gif_total} GIFs en catálogo ({int(settings.get('gif_response_probability', 0) * 100)}% prob.)."
+            if (settings.get("gif_response_probability", 0) > 0 and gif_total > 0)
+            else (
+                f"{gif_total} GIFs guardados con 0% de prob."
+                if gif_total > 0
+                else "Sin GIFs guardados en el servidor."
+            ),
         },
     ]
 
@@ -3689,14 +3729,24 @@ def _polar_plan_note(product_id) -> str:
     return "Polar"
 
 
+def _polar_plan_label(product_id) -> str | None:
+    """Nombre de plan para mostrarle al usuario en /perfil/facturacion --
+    distinto de _polar_plan_note (esa es la nota interna de premium_guilds)."""
+    if product_id == POLAR_PRODUCT_ID_ANNUAL:
+        return "Anual"
+    if product_id == POLAR_PRODUCT_ID_MONTHLY:
+        return "Mensual"
+    return None
+
+
 @guild_api
 async def _api_premium_get(request: web.Request, guild_id: int) -> web.Response:
-    """Estado premium del guild."""
-    note = next(
-        (g["note"] for g in await list_premium_guilds() if g["guild_id"] == guild_id),
-        None,
-    )
-    return web.json_response({"premium": is_premium_guild(guild_id), "note": note})
+    """Estado premium del guild -- visible para cualquier admin (MANAGE_GUILD).
+
+    A propósito no incluye plan/nota/fechas de facturación: eso es privado
+    de quien compró la suscripción, no de todo admin del servidor. Ver
+    /api/me/billing."""
+    return web.json_response({"premium": is_premium_guild(guild_id)})
 
 
 @guild_api
@@ -3722,11 +3772,18 @@ async def _api_premium_checkout(request: web.Request, guild_id: int) -> web.Resp
     product_id = (
         POLAR_PRODUCT_ID_MONTHLY if plan == "monthly" else POLAR_PRODUCT_ID_ANNUAL
     )
+    session = await get_session(request)
     try:
         checkout = await _polar.checkouts.create_async(
             request={
                 "products": [product_id],
                 "metadata": {"guild_id": str(guild_id)},
+                # Ata el customer de Polar a la cuenta de Purgito que hizo el
+                # checkout -- sin esto no hay forma fiable de saber quién
+                # compró (ver auditoría de facturación). Vuelve tal cual en
+                # cada evento de suscripción como event.data.customer.external_id,
+                # y es lo único que _webhook_polar usa como purchaser_user_id.
+                "external_customer_id": str(session["user_id"]),
                 # La página de éxito del panel ya no existe: se vuelve a la
                 # landing hasta que el sitio nuevo defina su propio destino.
                 # {CHECKOUT_ID} lo reemplaza Polar al redirigir; no interpolar acá.
@@ -3763,6 +3820,81 @@ async def _api_premium_checkout(request: web.Request, guild_id: int) -> web.Resp
     return web.json_response({"checkout_url": checkout.url})
 
 
+async def _api_me_billing(request: web.Request) -> web.Response:
+    """Suscripciones de Polar que pertenecen al usuario autenticado -- filtra
+    por purchaser_user_id, no por MANAGE_GUILD: administrar un servidor no es
+    ser el dueño de su facturación (ver auditoría de facturación).
+
+    Vista informativa a propósito: plan, estado, trial, período actual,
+    próxima renovación y si hay una cancelación programada. Cambiar de plan,
+    método de pago, cancelar o ver facturas queda en el Customer Portal de
+    Polar -- ver _api_me_billing_portal."""
+    session = await get_session(request)
+    if not await _session_logged_in(session):
+        return web.json_response({"error": "no autenticado"}, status=401)
+    rows = await list_premium_subscriptions_by_purchaser(str(session["user_id"]))
+    bot = request.app["bot"]
+    subscriptions = [
+        {
+            "guild_id": str(r["guild_id"]),
+            "guild_name": getattr(bot.get_guild(r["guild_id"]), "name", None),
+            "plan": _polar_plan_label(r["product_id"]),
+            "status": r["status"],
+            "is_trialing": r["status"] == _POLAR_TRIAL_STATUS,
+            "current_period_start": r["current_period_start"],
+            "current_period_end": r["current_period_end"],
+            "trial_end": r["trial_end"],
+            "cancel_at_period_end": bool(r["cancel_at_period_end"]),
+            "can_manage": bool(r["customer_id"]) and _polar is not None,
+        }
+        for r in rows
+    ]
+    return web.json_response(
+        {"subscriptions": subscriptions}, headers={"Cache-Control": "no-store"}
+    )
+
+
+async def _api_me_billing_portal(request: web.Request) -> web.Response:
+    """Link de acceso al Customer Portal de Polar para el botón "Gestionar
+    suscripción" de /perfil/facturacion -- generado server-side y atado al
+    customer_id real de la suscripción del usuario autenticado, en vez de un
+    link genérico. El customer_id nunca se manda al frontend."""
+    session = await get_session(request)
+    if not await _session_logged_in(session):
+        return web.json_response({"error": "no autenticado"}, status=401)
+    if _polar is None:
+        return web.json_response({"error": "pagos no disponibles"}, status=502)
+    data = await _json_body(request)
+    guild_id = _to_int((data or {}).get("guild_id"))
+    if guild_id is None:
+        return web.json_response({"error": "guild_id inválido"}, status=400)
+    rows = await list_premium_subscriptions_by_purchaser(str(session["user_id"]))
+    row = next((r for r in rows if r["guild_id"] == guild_id), None)
+    if row is None or not row["customer_id"]:
+        return web.json_response(
+            {"error": "no encontramos una suscripción tuya para ese servidor"},
+            status=404,
+        )
+    try:
+        customer_session = await _polar.customer_sessions.create_async(
+            request={"customer_id": row["customer_id"]}
+        )
+    except Exception:
+        log.exception(
+            "Fallo creando customer session de Polar (guild %s, customer %s)",
+            guild_id,
+            row["customer_id"],
+        )
+        return web.json_response(
+            {"error": "no se pudo generar el link, intenta de nuevo más tarde"},
+            status=502,
+        )
+    return web.json_response(
+        {"portal_url": customer_session.customer_portal_url},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 def _polar_event_timestamp(event, payload: dict | None) -> datetime | None:
     """El `timestamp` del sobre del webhook (cuándo Polar generó ESTE evento
     puntual, no cuándo llegó acá) -- lo usa _webhook_polar para no dejar que
@@ -3779,6 +3911,58 @@ def _polar_event_timestamp(event, payload: dict | None) -> datetime | None:
         return datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def _polar_subscription_fields(event, payload: dict | None) -> dict:
+    """Campos descriptivos (nunca de pago) de la suscripción para
+    premium_subscriptions -- mismo patrón dual event/payload que
+    _polar_event_timestamp, porque polar-sdk 0.31.7 no modela todos los
+    tipos de evento (ver WebhookUnknownTypeError más abajo).
+
+    `purchaser_user_id` sale de `customer.external_id`, que es justo lo que
+    vuelve cuando el checkout mandó `external_customer_id` (ver
+    _api_premium_checkout) -- None para suscripciones creadas antes de ese
+    cambio, o si el comprador nunca pasó por nuestro checkout."""
+
+    def _iso(value) -> str | None:
+        return value.isoformat() if isinstance(value, datetime) else None
+
+    if event is not None:
+        data = event.data
+        customer = getattr(data, "customer", None)
+        return {
+            "subscription_id": getattr(data, "id", None),
+            "customer_id": getattr(data, "customer_id", None),
+            "purchaser_user_id": getattr(customer, "external_id", None),
+            "product_id": getattr(data, "product_id", None),
+            "status": getattr(data, "status", None),
+            "current_period_start": _iso(getattr(data, "current_period_start", None)),
+            "current_period_end": _iso(getattr(data, "current_period_end", None)),
+            "trial_start": _iso(getattr(data, "trial_start", None)),
+            "trial_end": _iso(getattr(data, "trial_end", None)),
+            "cancel_at_period_end": getattr(data, "cancel_at_period_end", None),
+            "canceled_at": _iso(getattr(data, "canceled_at", None)),
+        }
+    # Fallback de payload crudo (mismo caso que WebhookUnknownTypeError): los
+    # timestamps de Polar en JSON ya vienen como ISO 8601, no hace falta
+    # parsearlos -- se guardan tal cual, igual que en todo el resto de la DB.
+    data = (payload or {}).get("data")
+    data = data if isinstance(data, dict) else {}
+    customer = data.get("customer")
+    customer = customer if isinstance(customer, dict) else {}
+    return {
+        "subscription_id": data.get("id"),
+        "customer_id": data.get("customer_id"),
+        "purchaser_user_id": customer.get("external_id"),
+        "product_id": data.get("product_id"),
+        "status": data.get("status"),
+        "current_period_start": data.get("current_period_start"),
+        "current_period_end": data.get("current_period_end"),
+        "trial_start": data.get("trial_start"),
+        "trial_end": data.get("trial_end"),
+        "cancel_at_period_end": data.get("cancel_at_period_end"),
+        "canceled_at": data.get("canceled_at"),
+    }
 
 
 async def _webhook_polar(request: web.Request) -> web.Response:
@@ -3865,6 +4049,25 @@ async def _webhook_polar(request: web.Request) -> web.Response:
         and status == _POLAR_REFUND_SUCCEEDED_STATUS
         and bool(revoke_benefits)
     )
+
+    # Metadatos de facturación (plan/estado/período/trial/cancelación
+    # programada) para /perfil/facturacion -- independiente de si ESTE
+    # evento puntual otorga o quita acceso. subscription.updated/canceled en
+    # particular nunca están en _POLAR_ACTIVATE ni _POLAR_DEACTIVATE (no
+    # deben tocar premium_guilds), pero son la única forma de enterarse de
+    # un cancel_at_period_end o una renovación de período -- sin este bloque
+    # el filtro de "ignorado" de abajo los descartaba sin guardar nada.
+    if isinstance(event_type, str) and event_type.startswith("subscription."):
+        sub_guild_id = _to_int(
+            metadata.get("guild_id") if isinstance(metadata, dict) else None
+        )
+        if sub_guild_id is not None:
+            sub_event_at = _polar_event_timestamp(event, payload)
+            await upsert_premium_subscription(
+                sub_guild_id,
+                event_at=sub_event_at.isoformat() if sub_event_at is not None else None,
+                **_polar_subscription_fields(event, payload),
+            )
 
     if (
         event_type not in _POLAR_ACTIVATE + _POLAR_DEACTIVATE
@@ -4005,6 +4208,8 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get("/auth/error", _auth_error)
         app.router.add_get("/api/me", _api_me)
         app.router.add_get("/api/me/guilds", _api_me_guilds)
+        app.router.add_get("/api/me/billing", _api_me_billing)
+        app.router.add_post("/api/me/billing/portal", _api_me_billing_portal)
         # Público (sin scope de guild): el editor de embeds lo pide antes de
         # saber en qué servidor va a pegar el contenido compartido.
         app.router.add_get("/api/embeds/share/{share_id}", _api_embeds_share_get)

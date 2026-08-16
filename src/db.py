@@ -518,6 +518,31 @@ CREATE TABLE IF NOT EXISTS premium_event_watermark (
     last_event_at TEXT NOT NULL
 );
 
+-- Metadatos descriptivos (NUNCA de pago) de la última suscripción de Polar
+-- conocida por guild -- separada de premium_guilds a propósito:
+-- premium_guilds sigue siendo la ÚNICA fuente de verdad de "¿tiene acceso?"
+-- (la tocan set_premium/unset_premium vía apply_premium_webhook_change).
+-- Esta tabla solo existe para poder mostrar plan/estado/período/trial en
+-- /perfil/facturacion y saber qué cuenta de Purgito (purchaser_user_id, el
+-- external_customer_id que mandamos al crear el checkout) compró qué --
+-- nunca otorga ni quita premium por sí sola.
+CREATE TABLE IF NOT EXISTS premium_subscriptions (
+    guild_id INTEGER PRIMARY KEY,
+    subscription_id TEXT,
+    customer_id TEXT,
+    purchaser_user_id TEXT,
+    product_id TEXT,
+    status TEXT,
+    current_period_start TEXT,
+    current_period_end TEXT,
+    trial_start TEXT,
+    trial_end TEXT,
+    cancel_at_period_end INTEGER,
+    canceled_at TEXT,
+    event_at TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS guild_departures (
     guild_id INTEGER PRIMARY KEY,
     left_at TEXT NOT NULL
@@ -4309,6 +4334,143 @@ async def apply_premium_webhook_change(
         return changed
 
 
+async def upsert_premium_subscription(
+    guild_id: int,
+    *,
+    subscription_id: str | None,
+    customer_id: str | None,
+    purchaser_user_id: str | None,
+    product_id: str | None,
+    status: str | None,
+    current_period_start: str | None,
+    current_period_end: str | None,
+    trial_start: str | None,
+    trial_end: str | None,
+    cancel_at_period_end: bool | None,
+    canceled_at: str | None,
+    event_at: str | None,
+) -> None:
+    """Guarda los metadatos descriptivos (nunca de pago) de la última
+    suscripción de Polar conocida para este guild -- ver el comentario de la
+    tabla en el schema. No otorga ni quita premium: eso lo sigue haciendo
+    exclusivamente apply_premium_webhook_change.
+
+    El WHERE del DO UPDATE descarta un evento más viejo (o igual) que el que
+    ya tenemos guardado -- mismo criterio que premium_event_watermark, para
+    que un reintento tardío de Polar no pise datos de un evento más nuevo.
+    event_at=None (p.ej. backfill manual) nunca pisa una fila que ya tiene
+    datos de un evento real -- ver backfill en scripts/reconcile_premium.py."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            """
+            INSERT INTO premium_subscriptions (
+                guild_id, subscription_id, customer_id, purchaser_user_id,
+                product_id, status, current_period_start, current_period_end,
+                trial_start, trial_end, cancel_at_period_end, canceled_at,
+                event_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(guild_id) DO UPDATE SET
+                subscription_id=excluded.subscription_id,
+                customer_id=excluded.customer_id,
+                purchaser_user_id=excluded.purchaser_user_id,
+                product_id=excluded.product_id,
+                status=excluded.status,
+                current_period_start=excluded.current_period_start,
+                current_period_end=excluded.current_period_end,
+                trial_start=excluded.trial_start,
+                trial_end=excluded.trial_end,
+                cancel_at_period_end=excluded.cancel_at_period_end,
+                canceled_at=excluded.canceled_at,
+                event_at=excluded.event_at,
+                updated_at=datetime('now')
+            WHERE premium_subscriptions.event_at IS NULL
+               OR (
+                   excluded.event_at IS NOT NULL
+                   AND excluded.event_at > premium_subscriptions.event_at
+               )
+            """,
+            (
+                guild_id,
+                subscription_id,
+                customer_id,
+                purchaser_user_id,
+                product_id,
+                status,
+                current_period_start,
+                current_period_end,
+                trial_start,
+                trial_end,
+                None if cancel_at_period_end is None else int(cancel_at_period_end),
+                canceled_at,
+                event_at,
+            ),
+        )
+        await db.commit()
+
+
+async def get_premium_subscription(guild_id: int) -> dict | None:
+    """Metadatos de facturación guardados para este guild, o None si nunca
+    llegó un evento de suscripción (guild sin premium, o premium permanente,
+    que nunca pasa por Polar)."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT guild_id, subscription_id, customer_id, purchaser_user_id, "
+        "product_id, status, current_period_start, current_period_end, "
+        "trial_start, trial_end, cancel_at_period_end, canceled_at "
+        "FROM premium_subscriptions WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    cols = (
+        "guild_id",
+        "subscription_id",
+        "customer_id",
+        "purchaser_user_id",
+        "product_id",
+        "status",
+        "current_period_start",
+        "current_period_end",
+        "trial_start",
+        "trial_end",
+        "cancel_at_period_end",
+        "canceled_at",
+    )
+    return dict(zip(cols, row))
+
+
+async def list_premium_subscriptions_by_purchaser(purchaser_user_id: str) -> list[dict]:
+    """Suscripciones de Polar cuyo comprador es este usuario de Purgito --
+    fuente de /api/me/billing. Filtra por purchaser_user_id, nunca por
+    permisos de administrador del guild: tener MANAGE_GUILD no es ser el
+    dueño de la facturación."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT guild_id, subscription_id, customer_id, product_id, status, "
+        "current_period_start, current_period_end, trial_start, trial_end, "
+        "cancel_at_period_end, canceled_at FROM premium_subscriptions "
+        "WHERE purchaser_user_id=?",
+        (purchaser_user_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    cols = (
+        "guild_id",
+        "subscription_id",
+        "customer_id",
+        "product_id",
+        "status",
+        "current_period_start",
+        "current_period_end",
+        "trial_start",
+        "trial_end",
+        "cancel_at_period_end",
+        "canceled_at",
+    )
+    return [dict(zip(cols, r)) for r in rows]
+
+
 # ─── Guild departures ────────────────────────────────────────────────────────
 
 
@@ -4442,6 +4604,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "reaction_pool",
         "premium_guilds",
         "premium_event_watermark",
+        "premium_subscriptions",
         "guild_departures",
         "channel_refeed_status",
         "guild_auto_refeed",

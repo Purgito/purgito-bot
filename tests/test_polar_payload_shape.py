@@ -103,7 +103,13 @@ def test_payload_bien_formado_de_tipo_no_modelado_sigue_funcionando(
         llamadas.append(guild_id)
         return True
 
+    async def _fake_upsert_subscription(guild_id, **fields):
+        pass
+
     monkeypatch.setattr(webapi, "unset_premium", _fake_unset)
+    monkeypatch.setattr(
+        webapi, "upsert_premium_subscription", _fake_upsert_subscription
+    )
 
     body = json.dumps(
         {

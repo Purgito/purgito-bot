@@ -213,31 +213,107 @@ function premiumUpsellCard(locale) {
         el('img', { src: `/assets/${b}.svg`, alt: b, loading: 'lazy' }))));
 }
 
+const BILLING_STATUS_LABELS = {
+  trialing: 'En prueba gratuita',
+  active: 'Activo',
+  past_due: 'Pago pendiente',
+  canceled: 'Cancelado',
+  unpaid: 'Pago fallido',
+  incomplete: 'Pago en proceso',
+  incomplete_expired: 'Pago no completado',
+};
+
+function billingStatusLabel(sub) {
+  if (sub.cancel_at_period_end && sub.status === 'active') return 'Cancelado al final del período';
+  return BILLING_STATUS_LABELS[sub.status] || 'Estado desconocido';
+}
+
+function billingDate(iso) {
+  if (!iso) return null;
+  return formatDate(new Date(iso), { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function manageSubscriptionBtn(sub) {
+  return el('button', {
+    class: 'btn btn-secondary btn-sm',
+    type: 'button',
+    onclick: async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      try {
+        const data = await apiFetch('/api/me/billing/portal', {
+          method: 'POST', body: { guild_id: sub.guild_id },
+        });
+        window.location.href = data.portal_url;
+      } catch (e) {
+        btn.disabled = false;
+        toast(e.message, 'err');
+      }
+    },
+  }, 'Gestionar suscripción en Polar →');
+}
+
+function subscriptionCard(sub) {
+  const periodEnd = billingDate(sub.current_period_end);
+  const trialEnd = billingDate(sub.trial_end);
+  const rows = [
+    ['Plan', sub.plan || 'Purgito Premium'],
+    ['Estado', billingStatusLabel(sub)],
+  ];
+  if (sub.is_trialing && trialEnd) rows.push(['Fin de la prueba gratuita', trialEnd]);
+  if (periodEnd) {
+    rows.push([sub.cancel_at_period_end ? 'Acceso hasta' : 'Próximo cobro', periodEnd]);
+  }
+  return el('div', { class: 'card pf-stat-card pf-stat-card--wide' },
+    el('div', { class: 'card-name' }, sub.guild_name || `Servidor ${sub.guild_id}`,
+      el('span', { class: 'badge badge-premium' }, 'PREMIUM')),
+    el('div', { class: 'pf-account-details' },
+      rows.map(([k, v]) => el('div', { class: 'pf-acc-item' },
+        el('span', { class: 'pf-acc-label' }, k), el('span', { class: 'pf-acc-val' }, v)))),
+    sub.cancel_at_period_end
+      ? el('p', { class: 'dim' }, 'Ya cancelaste esta suscripción: el servidor conserva Premium hasta la fecha de arriba.')
+      : null,
+    sub.can_manage ? manageSubscriptionBtn(sub) : null);
+}
+
+function permanentPremiumCard(g) {
+  return el('div', { class: 'card pf-stat-card pf-stat-card--wide' },
+    el('div', { class: 'card-name' }, g.name,
+      el('span', { class: 'badge badge-premium' }, 'PREMIUM')),
+    el('p', { class: 'dim' }, 'Premium permanente otorgado por Purgito. No requiere suscripción ni renovación.'));
+}
+
 async function tabFacturacion(box, locale) {
   box.append(spinner());
-  let guilds;
-  try { guilds = await apiFetch('/api/me/guilds'); }
-  catch (e) { return renderError(box, e); }
+  let guilds, billing;
+  try {
+    [guilds, billing] = await Promise.all([
+      apiFetch('/api/me/guilds'),
+      apiFetch('/api/me/billing'),
+    ]);
+  } catch (e) { box.innerHTML = ''; return renderError(box, e); }
   box.innerHTML = '';
-  const withPremium = guilds.configured.filter(g => g.is_premium);
-  if (!withPremium.length) {
+
+  const subscriptions = billing.subscriptions || [];
+  const permanentes = guilds.configured.filter(g => g.is_premium && g.is_permanent);
+
+  if (!subscriptions.length && !permanentes.length) {
     box.append(premiumUpsellCard(locale));
     return;
   }
-  box.append(el('div', { class: 'pf-billing' },
-    premiumUpsellCard(locale),
-    el('h2', {}, 'Tus servidores con Premium'),
-    withPremium.map(g => el('div', { class: 'card' },
-      guildIcon(g),
-      el('div', { class: 'card-info' },
-        el('div', { class: 'card-name' }, g.name,
-          el('span', { class: 'badge badge-premium' }, 'PREMIUM')),
-        el('div', { class: 'card-sub' }, g.premium_note ? `Plan: ${g.premium_note}` : 'Premium activo')),
-      el('a', { class: 'btn btn-secondary', href: `/${locale}/dashboard/${g.id}/premium` }, 'Ver detalle'))),
-    el('p', { class: 'dim pf-billing-note' },
-      'La suscripción se gestiona en Polar (nuestro procesador de pagos): en el correo de ',
-      'confirmación que te envió Polar hay un link a tu portal de cliente para cancelar, ',
-      'cambiar de plan o descargar recibos.')));
+
+  const sections = [premiumUpsellCard(locale)];
+  if (subscriptions.length) {
+    sections.push(
+      el('h2', {}, 'Tus suscripciones'),
+      subscriptions.map(subscriptionCard));
+  }
+  if (permanentes.length) {
+    sections.push(
+      el('h2', {}, 'Premium permanente'),
+      permanentes.map(permanentPremiumCard));
+  }
+  box.append(el('div', { class: 'pf-billing' }, ...sections));
 }
 
 export async function initPerfil() {

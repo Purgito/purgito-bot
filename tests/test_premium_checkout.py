@@ -137,6 +137,7 @@ def test_premium_checkout_usa_el_producto_del_plan_sin_forzar_trial(
         {
             "products": [product_id],
             "metadata": {"guild_id": "123"},
+            "external_customer_id": "42",
             "success_url": f"{webapi.LANDING_URL}?checkout_id={{CHECKOUT_ID}}",
         }
     ]
