@@ -4029,28 +4029,45 @@ h1 {
   height: 18px;
 }
 
-/* GIF Hero Preview */
+/* Local Result Loading Card */
+.sim-result-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 14px;
+  min-height: 180px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.sim-result-loading-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* GIF Hero Preview - Uncropped, Responsive Scaling */
 .sim-gif-hero-container {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-width: 440px;
+  max-width: 100%;
+  align-items: flex-start;
 }
 
 .sim-gif-hero-image {
-  width: 100%;
-  max-height: 320px;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 520px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-}
-
-.sim-gif-hero-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  background: #111214;
 }
 
 /* Ready / Empty State Card */

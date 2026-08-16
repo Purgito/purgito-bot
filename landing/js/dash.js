@@ -1492,12 +1492,20 @@ async function loadPlaygroundModule() {
       )
     );
 
-    // Dynamic results container
-    const resultsContainer = el('div', { class: 'sim-results-container' });
+    // Dedicated Slots for Partial In-Place Updates:
+    // Layout hierarchy:
+    // 1. Sandbox banner
+    // 2. Canal de prueba + botón Simular interacción
+    // 3. Resultado simulado (Hero card)
+    // 4. Configuración disponible (5 cards)
+    // 5. Reglas evaluadas
+    const resultSlot = el('div', { class: 'sim-result-slot' });
+    const configSlot = el('div', { class: 'sim-config-slot' });
+    const rulesSlot = el('div', { class: 'sim-rules-slot' });
 
     function renderInitialEmptyState() {
-      resultsContainer.innerHTML = '';
-      resultsContainer.append(
+      resultSlot.innerHTML = '';
+      resultSlot.append(
         el('div', { class: 'sim-card sim-empty-ready-card' },
           el('div', { class: 'sim-empty-ready-icon' }, icon('play')),
           el('h3', { class: 'sim-empty-ready-title' }, 'Listo para simular'),
@@ -1525,11 +1533,12 @@ async function loadPlaygroundModule() {
       refreshBtn.innerHTML = '';
       refreshBtn.append(spinner(), el('span', {}, 'Simulando…'));
 
-      resultsContainer.innerHTML = '';
-      resultsContainer.append(
-        el('div', { class: 'sim-loading-state' },
+      // Solo cambia el resultado: loading localizado sin provocar scroll jumps ni recrear la página
+      resultSlot.innerHTML = '';
+      resultSlot.append(
+        el('div', { class: 'sim-card sim-result-loading-card' },
           spinner(),
-          el('p', { class: 'dim' }, 'Ejecutando simulación de generación espontánea…')
+          el('div', { class: 'sim-result-loading-text' }, 'Simulando interacción espontánea…')
         )
       );
 
@@ -1539,10 +1548,18 @@ async function loadPlaygroundModule() {
           body: { channel_id: selectedChannelId },
         });
 
-        resultsContainer.innerHTML = '';
-        renderSimulationResults(resultsContainer, data, styleRes);
+        // Actualizar únicamente el slot del resultado
+        resultSlot.innerHTML = '';
+        resultSlot.append(buildSimulationResultCard(data, styleRes));
+
+        // Actualizar slots de configuración y reglas de forma limpia
+        configSlot.innerHTML = '';
+        configSlot.append(buildConfigSection(data));
+
+        rulesSlot.innerHTML = '';
+        rulesSlot.append(buildRulesSection(data));
       } catch (err) {
-        resultsContainer.innerHTML = '';
+        resultSlot.innerHTML = '';
         let errText = 'No fue posible simular la respuesta.';
         if (err && err.status === 403) {
           errText = (err.data && err.data.error) || 'Purgito ya no tiene acceso a este canal o carece de permisos para ver y enviar mensajes.';
@@ -1552,7 +1569,7 @@ async function loadPlaygroundModule() {
           errText = 'Has realizado demasiadas simulaciones consecutivas. Espera unos momentos antes de intentar nuevamente.';
         }
         toast(errText, 'err');
-        resultsContainer.append(
+        resultSlot.append(
           el('div', { class: 'sim-error-card' },
             el('div', { class: 'sim-error-icon' }, icon('x')),
             el('div', { class: 'sim-error-content' },
@@ -1569,7 +1586,7 @@ async function loadPlaygroundModule() {
       }
     }
 
-    container.append(headerBanner, channelCard, resultsContainer);
+    container.append(headerBanner, channelCard, resultSlot, configSlot, rulesSlot);
 
     box.append(
       formGroup('Simulador de Chat',
@@ -1582,13 +1599,83 @@ async function loadPlaygroundModule() {
   } catch (e) { if (box) renderError(box, e); }
 }
 
-function renderSimulationResults(container, data, styleRes) {
-  if (!data) return;
-
+function buildSimulationResultCard(data, styleRes) {
   const botNick = (styleRes && styleRes.current_nick) || 'Purgito';
   const botAvatar = (styleRes && styleRes.current_avatar_url) || '/img/logo.png';
+  const channelInfo = data.channel_info || {};
+  const isGif = data.result_type === 'gif' || (data.reason === 'gif' && Boolean(data.gif_url));
 
-  // 1. Grid superior: Configuración disponible
+  let resultSectionBody;
+  if (isGif) {
+    resultSectionBody = el('div', { class: 'sim-single-result' },
+      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría enviar un GIF:'),
+      el('div', { class: 'sim-gif-hero-container' },
+        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: 'GIF espontáneo' })
+      )
+    );
+  } else if (data.text) {
+    let reasonTag = 'Markov';
+    if (data.reason === 'frase_especial') {
+      const packName = channelInfo.effective_pack_name;
+      reasonTag = packName ? `Pack: ${packName}` : 'Frase especial';
+    } else if (data.reason === 'trigger') {
+      reasonTag = 'Trigger';
+    }
+
+    resultSectionBody = el('div', { class: 'sim-single-result' },
+      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría responder:'),
+      el('div', { class: 'sim-discord-message' },
+        el('img', { class: 'sim-discord-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.style.display = 'none'; } }),
+        el('div', { class: 'sim-discord-content' },
+          el('div', { class: 'sim-discord-author-row' },
+            el('span', { class: 'sim-discord-author' }, botNick),
+            el('span', { class: 'sim-discord-bot-badge' }, 'BOT'),
+            el('span', { class: 'sim-discord-timestamp' }, 'Hoy'),
+            el('span', { class: 'sim-origin-badge' }, reasonTag)
+          ),
+          el('div', { class: 'sim-discord-text' }, data.text),
+          el('div', { class: 'sim-discord-actions' },
+            el('button', {
+              type: 'button',
+              class: 'btn btn-secondary btn-sm',
+              onclick: () => {
+                navigator.clipboard?.writeText(data.text || '');
+                toast('Texto copiado al portapapeles', 'ok');
+              },
+            }, icon('clipboard'), 'Copiar')
+          )
+        )
+      )
+    );
+  } else {
+    resultSectionBody = el('div', { class: 'sim-single-result' },
+      el('div', { class: 'sim-error-card' },
+        el('div', { class: 'sim-error-icon' }, icon('x')),
+        el('div', { class: 'sim-error-content' },
+          el('h4', {}, 'No se pudo generar contenido'),
+          el('p', {}, 'El servidor no cuenta con mensajes suficientes en el corpus para generar texto con Markov ni tiene frases disponibles.')
+        )
+      )
+    );
+  }
+
+  return el('div', { class: 'sim-card sim-preview-card sim-hero-result-card' },
+    el('div', { class: 'sim-card-header' },
+      el('div', { class: 'sim-result-header-row' },
+        el('h3', { class: 'sim-card-title' }, 'Resultado simulado'),
+        el('span', { class: 'sim-pill-badge sim-pill-badge-cyan' },
+          isGif ? 'GIF espontáneo' : 'Mensaje espontáneo'
+        )
+      ),
+      el('p', { class: 'sim-card-desc' },
+        `Interacción generada para #${channelInfo.name || 'este canal'}:`
+      )
+    ),
+    resultSectionBody
+  );
+}
+
+function buildConfigSection(data) {
   const settings = data.settings || {};
   const channelInfo = data.channel_info || {};
   const corpusAllowed = channelInfo.is_corpus_allowed !== false;
@@ -1602,7 +1689,7 @@ function renderSimulationResults(container, data, styleRes) {
   const reactionProb = Math.round((data.reactions ? data.reactions.probability : (settings.reaction_probability || 0)) * 100);
   const triggersList = data.triggers || [];
 
-  const configSection = el('div', { class: 'sim-section sim-config-section' },
+  return el('div', { class: 'sim-section sim-config-section' },
     el('div', { class: 'sim-section-header' },
       el('h4', { class: 'sim-section-title' }, 'Configuración disponible'),
       el('p', { class: 'sim-section-desc' }, 'Parámetros y recursos configurados en este servidor:')
@@ -1723,78 +1810,11 @@ function renderSimulationResults(container, data, styleRes) {
       )
     )
   );
+}
 
-  // 2. Sección Principal: Resultado simulado
-  const isGif = data.result_type === 'gif' || (data.reason === 'gif' && Boolean(data.gif_url));
-
-  let resultSectionBody;
-  if (isGif) {
-    resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría enviar un GIF:'),
-      el('div', { class: 'sim-gif-hero-container' },
-        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: 'GIF espontáneo' })
-      )
-    );
-  } else if (data.text) {
-    let reasonTag = 'Markov';
-    if (data.reason === 'frase_especial') reasonTag = effectivePack ? `Pack: ${effectivePack}` : 'Frase especial';
-    else if (data.reason === 'trigger') reasonTag = 'Trigger';
-
-    resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría responder:'),
-      el('div', { class: 'sim-discord-message' },
-        el('img', { class: 'sim-discord-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.style.display = 'none'; } }),
-        el('div', { class: 'sim-discord-content' },
-          el('div', { class: 'sim-discord-author-row' },
-            el('span', { class: 'sim-discord-author' }, botNick),
-            el('span', { class: 'sim-discord-bot-badge' }, 'BOT'),
-            el('span', { class: 'sim-discord-timestamp' }, 'Hoy'),
-            el('span', { class: 'sim-origin-badge' }, reasonTag)
-          ),
-          el('div', { class: 'sim-discord-text' }, data.text),
-          el('div', { class: 'sim-discord-actions' },
-            el('button', {
-              type: 'button',
-              class: 'btn btn-secondary btn-sm',
-              onclick: () => {
-                navigator.clipboard?.writeText(data.text || '');
-                toast('Texto copiado al portapapeles', 'ok');
-              },
-            }, icon('clipboard'), 'Copiar')
-          )
-        )
-      )
-    );
-  } else {
-    resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-error-card' },
-        el('div', { class: 'sim-error-icon' }, icon('x')),
-        el('div', { class: 'sim-error-content' },
-          el('h4', {}, 'No se pudo generar contenido'),
-          el('p', {}, 'El servidor no cuenta con mensajes suficientes en el corpus para generar texto con Markov ni tiene frases disponibles.')
-        )
-      )
-    );
-  }
-
-  const previewCard = el('div', { class: 'sim-card sim-preview-card sim-hero-result-card' },
-    el('div', { class: 'sim-card-header' },
-      el('div', { class: 'sim-result-header-row' },
-        el('h3', { class: 'sim-card-title' }, 'Resultado simulado'),
-        el('span', { class: 'sim-pill-badge sim-pill-badge-cyan' },
-          isGif ? 'GIF espontáneo' : 'Mensaje espontáneo'
-        )
-      ),
-      el('p', { class: 'sim-card-desc' },
-        `Interacción generada para #${(channelInfo && channelInfo.name) || 'este canal'}:`
-      )
-    ),
-    resultSectionBody
-  );
-
-  // 3. Sección: Reglas evaluadas
+function buildRulesSection(data) {
   const rulesList = Array.isArray(data.rules_evaluated) ? data.rules_evaluated : [];
-  const rulesCard = el('div', { class: 'sim-card sim-rules-card' },
+  return el('div', { class: 'sim-card sim-rules-card' },
     el('div', { class: 'sim-card-header' },
       el('h3', { class: 'sim-card-title' }, 'Reglas evaluadas'),
       el('p', { class: 'sim-card-desc' },
@@ -1812,14 +1832,6 @@ function renderSimulationResults(container, data, styleRes) {
     ),
     data.avisos && data.avisos.length ? playgroundAvisos(data.avisos) : null
   );
-
-  const mainLayout = el('div', { class: 'sim-main-layout' },
-    configSection,
-    previewCard,
-    rulesCard
-  );
-
-  container.append(mainLayout);
 }
 
 async function loadUpdatesModule() {

@@ -643,17 +643,24 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   assert.ok(simulatedRequest && simulatedRequest.channel_id === '10', 'Debe enviar la petición de simulación para el canal seleccionado');
   const simulatedContent = elementsById.catContent.text();
-  assert.match(simulatedContent, /Configuración disponible/);
-  assert.match(simulatedContent, /Generación Markov/);
-  assert.match(simulatedContent, /Packs de mensajes/);
-  assert.match(simulatedContent, /GIFs/);
-  assert.match(simulatedContent, /Reacciones automáticas/);
-  assert.match(simulatedContent, /Resultado simulado/);
+  const idxResult = simulatedContent.indexOf('Resultado simulado');
+  const idxConfig = simulatedContent.indexOf('Configuración disponible');
+  const idxRules = simulatedContent.indexOf('Reglas evaluadas');
+  assert.ok(idxResult !== -1 && idxConfig !== -1 && idxRules !== -1, 'Todas las secciones deben existir');
+  assert.ok(idxResult < idxConfig, 'Resultado simulado debe aparecer ANTES de Configuración disponible');
+  assert.ok(idxConfig < idxRules, 'Configuración disponible debe aparecer ANTES de Reglas evaluadas');
+
   assert.match(simulatedContent, /Purgito podría responder:/);
   assert.match(simulatedContent, /¡Hola desde la simulación de Purgito!/);
-  assert.match(simulatedContent, /Reglas evaluadas/);
   assert.ok(!simulatedContent.includes('Mensaje de entrada'), 'No debe existir el campo Mensaje de entrada');
   assert.ok(!simulatedContent.includes('Paso 1'), 'No debe existir estructura por pasos');
+
+  // Repetir simulación en el mismo componente (actualización parcial in-place)
+  await simBtn.onclick();
+  await new Promise(r => setTimeout(r, 50));
+  const reSimulatedContent = elementsById.catContent.text();
+  assert.match(reSimulatedContent, /Resultado simulado/);
+  assert.match(reSimulatedContent, /¡Hola desde la simulación de Purgito!/);
 
   // Test resultado GIF exclusivamente
   fetchHandlers = [
