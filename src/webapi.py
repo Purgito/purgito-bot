@@ -72,6 +72,7 @@ from config import (
 from cogs.chat import simulate_message
 from cogs.gifs import HEALTH_CHECK_BATCH, resolve_tenor_gif_url, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
+from cogs.updates import check_updates_channel_permissions
 from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
 from db import (
@@ -1847,7 +1848,9 @@ async def _api_mention_channels_delete(
 @guild_api
 async def _api_updates_get(request: web.Request, guild_id: int) -> web.Response:
     channel_id = await get_updates_channel(guild_id)
-    return web.json_response({"channel_id": str(channel_id) if channel_id else None})
+    guild = _bot_guild(request, guild_id)
+    status_info = check_updates_channel_permissions(guild, channel_id)
+    return web.json_response(status_info)
 
 
 @guild_api
@@ -1855,23 +1858,61 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
     data = await _json_body(request)
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
-    channel_id = None
-    if data.get("channel_id") is not None:
-        channel_id = _to_int(data["channel_id"])
-        if channel_id is None:
-            return web.json_response({"error": "channel_id inválido"}, status=400)
-        guild = _bot_guild(request, guild_id)
-        if guild is not None:
-            channel = guild.get_channel(channel_id)
-            if channel is None or not hasattr(channel, "send"):
-                return web.json_response(
-                    {"error": "el canal no existe en este servidor"}, status=400
-                )
+
+    guild = _bot_guild(request, guild_id)
+    if guild is None:
+        return web.json_response({"error": "servidor no disponible"}, status=400)
+
+    raw_channel_id = data.get("channel_id")
+    if raw_channel_id is None or raw_channel_id == "":
+        await set_updates_channel(guild_id, None)
+        await _log_audit(
+            request, guild_id, "updates_channel.set", detail="channel_id=None (desvinculado)"
+        )
+        return web.json_response({"ok": True, "channel_id": None, "status": "no_channel"})
+
+    channel_id = _to_int(raw_channel_id)
+    if channel_id is None:
+        return web.json_response({"error": "channel_id inválido"}, status=400)
+
+    status_info = check_updates_channel_permissions(guild, channel_id)
+    if not status_info["can_publish"]:
+        if status_info["status"] == "missing_permissions":
+            labels = ", ".join(status_info["missing_permissions_labels"])
+            error_msg = (
+                f"Purgito no puede enviar mensajes en este canal. "
+                f"Concede los permisos requeridos ({labels}) en Discord e inténtalo nuevamente."
+            )
+        elif status_info["status"] == "not_found":
+            error_msg = f"El canal con ID {channel_id} no existe en este servidor."
+        elif status_info["status"] == "invalid_type":
+            error_msg = status_info["details"]
+        else:
+            error_msg = status_info["details"]
+        return web.json_response(
+            {
+                "error": error_msg,
+                "status": status_info["status"],
+                "missing_permissions": status_info.get("missing_permissions", []),
+                "missing_permissions_labels": status_info.get("missing_permissions_labels", []),
+            },
+            status=400,
+        )
+
     await set_updates_channel(guild_id, channel_id)
+    channel_name = status_info.get("channel_name")
     await _log_audit(
-        request, guild_id, "updates_channel.set", detail=f"channel_id={channel_id}"
+        request,
+        guild_id,
+        "updates_channel.set",
+        detail=f"channel_id={channel_id} channel_name={channel_name}",
     )
-    return web.json_response({"ok": True})
+    return web.json_response({
+        "ok": True,
+        "channel_id": str(channel_id),
+        "status": status_info["status"],
+        "channel_name": channel_name,
+    })
 
 
 @guild_api

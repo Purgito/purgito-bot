@@ -1132,7 +1132,96 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 23: Error al obtener servidores con selector abierto');
 }
 
+// ── Test 24: createUpdatesSection estados y reactividad ─────────────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+  const { createUpdatesSection } = await import('./js/dash.js');
+  const channels = [
+    { id: '10', name: 'anuncios', can_view: true, can_send: true },
+    { id: '20', name: 'general', can_view: true, can_send: false },
+  ];
+
+  // 1. Estado healthy (operativo)
+  const healthyNode = createUpdatesSection(
+    { channel_id: '10', status: 'healthy', channel_name: 'anuncios', can_publish: true },
+    channels
+  );
+  assert.match(healthyNode.text(), /Canal configurado y operativo/, 'Debe mostrar badge operativo');
+  assert.match(healthyNode.text(), /#anuncios/, 'Debe mostrar el nombre del canal');
+
+  // 2. Estado missing_permissions (permisos insuficientes)
+  const missingNode = createUpdatesSection(
+    {
+      channel_id: '20',
+      status: 'missing_permissions',
+      channel_name: 'general',
+      missing_permissions: ['send_messages'],
+      missing_permissions_labels: ['Enviar mensajes'],
+    },
+    channels
+  );
+  assert.match(missingNode.text(), /Permisos insuficientes/, 'Debe mostrar badge de permisos insuficientes');
+  assert.match(missingNode.text(), /Enviar mensajes/, 'Debe listar el permiso faltante');
+
+  // 3. Estado not_found (canal eliminado)
+  const notFoundNode = createUpdatesSection(
+    { channel_id: '999', status: 'not_found', can_publish: false },
+    channels
+  );
+  assert.match(notFoundNode.text(), /Canal eliminado o inaccesible/, 'Debe mostrar badge de canal eliminado');
+
+  // 4. Estado no_channel (sin canal)
+  const noChanNode = createUpdatesSection(
+    { channel_id: null, status: 'no_channel', can_publish: false },
+    channels
+  );
+  assert.match(noChanNode.text(), /Sin canal configurado/, 'Debe mostrar badge sin canal');
+
+  console.log('✓ Test 24: createUpdatesSection renderiza correctamente todos los estados (healthy, missing_permissions, not_found, no_channel)');
+}
+
+// ── Test 25: loadUpdatesModule carga y renderiza el módulo completo ────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/settings/updates')) {
+        return jsonResp({
+          channel_id: '10',
+          channel_name: 'anuncios',
+          status: 'healthy',
+          can_publish: true,
+          missing_permissions: [],
+          missing_permissions_labels: [],
+        });
+      }
+      if (url.includes('/api/server/123456789/channels')) {
+        return jsonResp({
+          channels: [
+            { id: '10', name: 'anuncios', can_view: true, can_send: true },
+            { id: '20', name: 'general', can_view: true, can_send: true },
+          ],
+        });
+      }
+      return jsonResp({});
+    },
+  ];
+
+  await activate('updates', false);
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.match(contentText, /Canal de Novedades y Actualizaciones/, 'Debe renderizar el título del módulo');
+  assert.match(contentText, /Canal configurado y operativo/, 'Debe mostrar el estado operativo');
+
+  console.log('✓ Test 25: loadUpdatesModule carga y renderiza el módulo de actualizaciones');
+}
+
 console.log('\n========================================');
 console.log('✓ TODOS LOS TESTS DEL DASHBOARD PASARON');
 console.log('========================================\n');
+
 

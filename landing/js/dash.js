@@ -1171,24 +1171,7 @@ async function loadInicio() {
     );
 
     // Canal de actualizaciones
-    const sel = channelSelect(channels, updates.channel_id, 'Sin canal — no publicar');
-    sel.onchange = async () => {
-      try {
-        await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
-          method: 'PUT', body: { channel_id: sel.value || null },
-        });
-        toast(sel.value ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
-      } catch (e) { toast('No se pudo guardar el canal, intenta de nuevo', 'err'); }
-    };
-
-    const updatesRow = formGroup('Actualizaciones del Bot',
-      el('div', { class: 'updates-row' },
-        el('div', { class: 'updates-info' },
-          el('p', { class: 'dim' }, 'Canal donde Purgito publica anuncios y novedades de actualizaciones.')
-        ),
-        el('div', { class: 'updates-control' }, sel)
-      )
-    );
+    const updatesRow = createUpdatesSection(updates, channels);
 
     // Actividad histórica acumulada
     const counters = stats.counters || {};
@@ -1865,6 +1848,118 @@ function buildRulesSection(data) {
   );
 }
 
+export function createUpdatesSection(initialUpdates, channels, {
+  title = 'Actualizaciones del Bot',
+  subtitle = 'Canal donde Purgito publica anuncios y novedades de actualizaciones.',
+} = {}) {
+  let currentUpdates = initialUpdates || {};
+  let currentChannelId = currentUpdates.channel_id || '';
+
+  const sel = channelSelect(channels, currentChannelId, 'Sin canal — no publicar');
+  const statusWrap = el('div', { class: 'updates-status-card' });
+
+  function renderStatus(info) {
+    statusWrap.innerHTML = '';
+    const status = info.status || (info.channel_id ? 'healthy' : 'no_channel');
+    const chName = info.channel_name || ((Array.isArray(channels) ? channels : []).find(c => c && String(c.id) === String(info.channel_id)) || {}).name || info.channel_id;
+
+    let pillClass = 'updates-status-pill--neutral';
+    let pillText = '⚪ Sin canal configurado';
+    let descText = 'Las novedades y anuncios oficiales del bot no se publicarán en este servidor.';
+    const extraNodes = [];
+
+    if (status === 'healthy') {
+      pillClass = 'updates-status-pill--healthy';
+      pillText = '🟢 Canal configurado y operativo';
+      descText = `Purgito tiene permisos suficientes para publicar novedades en #${chName || 'este canal'}.`;
+      if (Array.isArray(info.warnings) && info.warnings.length) {
+        extraNodes.push(
+          el('div', { class: 'updates-warnings-wrap dim' },
+            ...info.warnings.map(w => el('div', { class: 'updates-warning-item' }, `ℹ️ ${w}`))
+          )
+        );
+      }
+    } else if (status === 'missing_permissions') {
+      pillClass = 'updates-status-pill--warning';
+      pillText = '🟠 Permisos insuficientes';
+      descText = `Purgito no puede publicar en #${chName || 'este canal'} porque faltan permisos en Discord:`;
+      const missingLabels = Array.isArray(info.missing_permissions_labels) && info.missing_permissions_labels.length
+        ? info.missing_permissions_labels
+        : ['Ver canal', 'Enviar mensajes'];
+      extraNodes.push(
+        el('div', { class: 'updates-perms-list' },
+          ...missingLabels.map(lbl => el('span', { class: 'updates-perm-tag' }, lbl))
+        ),
+        el('p', { class: 'updates-help-text dim' },
+          'Concede estos permisos en los ajustes de canal o rol de Purgito en Discord para activar las actualizaciones.'
+        )
+      );
+    } else if (status === 'not_found') {
+      pillClass = 'updates-status-pill--error';
+      pillText = '🔴 Canal eliminado o inaccesible';
+      descText = `El canal configurado (ID: ${info.channel_id || currentChannelId}) ya no existe en el servidor o fue eliminado. Selecciona un canal válido.`;
+    } else if (status === 'invalid_type') {
+      pillClass = 'updates-status-pill--error';
+      pillText = '🔴 Tipo de canal no compatible';
+      descText = info.details || 'El canal seleccionado no admite mensajes de texto.';
+    }
+
+    const pill = el('span', { class: `updates-status-pill ${pillClass}` }, pillText);
+    const desc = el('p', { class: 'updates-status-desc' }, descText);
+
+    statusWrap.append(
+      el('div', { class: 'updates-status-header' }, pill),
+      desc,
+      ...extraNodes
+    );
+  }
+
+  renderStatus(currentUpdates);
+
+  sel.onchange = async () => {
+    const selectedId = sel.value || null;
+    try {
+      const res = await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
+        method: 'PUT',
+        body: { channel_id: selectedId },
+      });
+      currentChannelId = selectedId || '';
+      currentUpdates = {
+        ...currentUpdates,
+        channel_id: selectedId,
+        channel_name: res.channel_name,
+        status: res.status || (selectedId ? 'healthy' : 'no_channel'),
+        missing_permissions: res.missing_permissions || [],
+        missing_permissions_labels: res.missing_permissions_labels || [],
+        warnings: res.warnings || [],
+        details: res.details,
+      };
+      renderStatus(currentUpdates);
+      toast(selectedId ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
+    } catch (e) {
+      toast(e.message || 'No se pudo guardar el canal, intenta de nuevo', 'err');
+      sel.value = currentChannelId || '';
+      if (e.status === 400 && e.message) {
+        renderStatus({
+          channel_id: selectedId,
+          status: 'missing_permissions',
+          missing_permissions_labels: ['Ver canal / Enviar mensajes'],
+          details: e.message,
+        });
+      }
+    }
+  };
+
+  const row = el('div', { class: 'updates-row' },
+    el('div', { class: 'updates-info' },
+      el('p', { class: 'dim' }, subtitle)
+    ),
+    el('div', { class: 'updates-control' }, sel)
+  );
+
+  return formGroup(title, row, statusWrap);
+}
+
 async function loadUpdatesModule() {
   const box = content();
   if (box) {
@@ -1879,26 +1974,11 @@ async function loadUpdatesModule() {
     if (!box) return;
     box.innerHTML = '';
 
-    const sel = channelSelect(channels, updates ? updates.channel_id : null, 'Sin canal — no publicar');
-    sel.onchange = async () => {
-      try {
-        await apiFetch(`/api/server/${GUILD_ID}/settings/updates`, {
-          method: 'PUT', body: { channel_id: sel.value || null },
-        });
-        toast(sel.value ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
-      } catch (e) { toast('No se pudo guardar el canal, intenta de nuevo', 'err'); }
-    };
-
     box.append(
-      formGroup('Canal de Novedades y Actualizaciones',
-        el('p', { class: 'dim' }, 'Elige el canal donde Purgito publicará avisos de novedades, notas de versiones y anuncios importantes.'),
-        el('div', { class: 'updates-row' },
-          el('div', { class: 'updates-info' },
-            el('p', { class: 'dim' }, 'Canal configurado actualmente en este servidor:')
-          ),
-          el('div', { class: 'updates-control' }, sel)
-        )
-      )
+      createUpdatesSection(updates, channels, {
+        title: 'Canal de Novedades y Actualizaciones',
+        subtitle: 'Elige el canal donde Purgito publicará avisos de novedades, notas de versiones y anuncios importantes.',
+      })
     );
   } catch (e) { if (box) renderError(box, e); }
 }

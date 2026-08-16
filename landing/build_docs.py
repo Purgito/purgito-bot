@@ -33,7 +33,20 @@ LANDING = ROOT / "landing"
 DOCS = ROOT / "docs"
 
 BASE_URL = "https://purgito.app"
-DEFAULT_OG_IMAGE = f"{BASE_URL}/assets/og-purgito.png"
+
+
+def og_image_digest() -> str:
+    """Retorna los primeros 8 caracteres del hash SHA-256 de landing/assets/og-purgito.png."""
+    og_path = LANDING / "assets" / "og-purgito.png"
+    return hashlib.sha256(og_path.read_bytes()).hexdigest()[:8]
+
+
+def get_default_og_image() -> str:
+    """Retorna la URL canónica de og:image versionada con el hash SHA-256 del asset."""
+    return f"{BASE_URL}/assets/og-purgito.png?v={og_image_digest()}"
+
+
+DEFAULT_OG_IMAGE = get_default_og_image()
 DEFAULT_OG_IMAGE_WIDTH = "512"
 DEFAULT_OG_IMAGE_HEIGHT = "512"
 DEFAULT_OG_IMAGE_ALT = "Purgito"
@@ -620,7 +633,7 @@ def build_page(page, nav, footer):
     )
     full_title = f"{html.escape(page.get('title', title))} — Purgito"
     canonical_url = f"{BASE_URL}/es/{page['slug']}"
-    og_image = page.get("og_image", DEFAULT_OG_IMAGE)
+    og_image = page.get("og_image") or get_default_og_image()
     return SHELL.format(
         full_title=full_title,
         meta=html.escape(page["meta"]),
@@ -672,7 +685,7 @@ def build_html_page(page, nav, footer):
         )
     full_title = f"{html.escape(page['title'])} — Purgito"
     canonical_url = f"{BASE_URL}/es/{page['slug']}"
-    og_image = page.get("og_image", DEFAULT_OG_IMAGE)
+    og_image = page.get("og_image") or get_default_og_image()
     og_type = "article" if (page.get("doc") or page.get("guia")) else "website"
     return SHELL.format(
         full_title=full_title,
@@ -744,6 +757,9 @@ ASSETS = ("style.css", "script.js", "dash.css")
 def stamp(page_html):
     """`/style.css` → `/style.css?v=<hash8>`, con el hash del archivo real.
 
+    También resella la URL de og-purgito.png con su hash SHA-256 para que Discord
+    y otros scrapers de Open Graph no retengan versiones antiguas en su proxy.
+
     Idempotente: un `?v=` viejo se reemplaza en vez de acumularse. Hash del
     contenido y no mtime, que cambia en cada clone y ensuciaría el diff.
     """
@@ -754,6 +770,12 @@ def stamp(page_html):
             "/%s?v=%s" % (name, digest),
             page_html,
         )
+    og_digest = og_image_digest()
+    page_html = re.sub(
+        r'(https://purgito\.app/assets/og-purgito\.png)(?:\?v=[0-9a-f]+)?',
+        f"https://purgito.app/assets/og-purgito.png?v={og_digest}",
+        page_html,
+    )
     return page_html
 
 
@@ -821,9 +843,12 @@ def main():
     assert inline("a & <b>") == "a &amp; &lt;b&gt;", inline("a & <b>")
     # El sellado tiene que ser idempotente: sin esto, cada corrida encadenaría
     # otro ?v= y el HTML nunca convergería.
-    once = stamp('<link href="/style.css"><script src="/script.js"></script>')
+    once = stamp('<link href="/style.css"><script src="/script.js"></script><meta property="og:image" content="https://purgito.app/assets/og-purgito.png">')
     assert re.search(r'/style\.css\?v=[0-9a-f]{8}"', once), once
     assert re.search(r'/script\.js\?v=[0-9a-f]{8}"', once), once
+    assert re.search(
+        r'https://purgito\.app/assets/og-purgito\.png\?v=[0-9a-f]{8}"', once
+    ), once
     assert stamp(once) == once, once
     assert stamp("<p>style.css sin barra</p>") == "<p>style.css sin barra</p>"
     print("ok")
