@@ -797,7 +797,7 @@ def main():
     # que si cambia (o el convertidor se rompe) esto falla acá y no en prod.
     title, date, intro, sections = parse((DOCS / "TERMS.md").read_text("utf-8"))
     assert title == "Condiciones del Servicio (Terms of Service)", title
-    assert date == "12 de julio de 2026", date
+    assert date == "15 de agosto de 2026", date
     assert "<p>" in intro and "Última actualización" not in intro, intro
     assert len(sections) == 8, len(sections)
     assert sections[0][0] == "1. Uso Aceptable"

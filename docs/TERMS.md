@@ -1,6 +1,6 @@
 # Condiciones del Servicio (Terms of Service)
 
-**Última actualización:** 12 de julio de 2026
+**Última actualización:** 15 de agosto de 2026
 
 Al invitar **Purgito** a un servidor de Discord o interactuar con él, aceptas los presentes Términos del Servicio, así como los [Términos de Servicio](https://discord.com/terms) y la [Política de Privacidad](https://discord.com/privacy) de Discord.
 
@@ -10,7 +10,7 @@ Purgito es un bot público de Discord, usado por múltiples servidores. Purgator
 
 # 1. Uso Aceptable
 
-Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante inteligencia artificial (Cadenas de Markov y modelos de lenguaje externos).
+Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante generación de texto local (cadenas de Markov) e integraciones opcionales con modelos externos (Groq para captions de memes).
 
 Al utilizar el bot aceptas que **no debes**:
 
@@ -33,14 +33,14 @@ El software se proporciona **"tal cual"**, sin garantías de ningún tipo, expre
 
 Purgito puede generar texto utilizando:
 
-- Cadenas de Markov entrenadas con mensajes del servidor.
-- Modelos de lenguaje externos (Groq).
+- Cadenas de Markov locales entrenadas con mensajes del servidor (utilizadas para el chat, respuestas automáticas y como fallback de memes).
+- Modelos externos de IA (Groq), de forma opcional y exclusiva para la redacción de captions en la función de memes cuando `GROQ_API_KEY` está configurada.
 
 Debido a la naturaleza probabilística de estos sistemas:
 
-- El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado.
+- El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado o referenciado.
 - Las respuestas generadas representan contenido producido automáticamente y **no reflejan necesariamente la opinión o intención del desarrollador**.
-- El desarrollador no revisa manualmente cada respuesta generada por el bot.
+- El desarrollador no revisa manualmente cada respuesta o meme generado por el bot.
 
 Los administradores del servidor son responsables de moderar el uso del bot dentro de su comunidad.
 

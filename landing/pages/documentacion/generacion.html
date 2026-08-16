@@ -1,7 +1,7 @@
 <h1>Motor de generación</h1>
-<p>Purgito no usa un LLM: genera texto con una cadena de Markov de primer
+<p>Para la conversación y respuestas del chat, Purgito no usa un LLM: genera texto con una cadena de Markov de primer
 orden, propia y sin dependencias externas, entrenada con el corpus de
-mensajes reales de cada servidor.</p>
+mensajes reales de cada servidor (para la función de captions de memes, existe una integración visual opcional con Groq que hace fallback a Markov si no está disponible).</p>
 
 <h2 id="motor-markov">Motor de Markov</h2>
 <p>El modelo enlaza cada palabra con las que la siguieron en el corpus de

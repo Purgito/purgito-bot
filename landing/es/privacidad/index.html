@@ -261,7 +261,7 @@
 <main id="contenido" class="doc wrap">
   <header class="doc-head">
     <h1 class="doc-title">Política de Privacidad (Privacy Policy)</h1>
-    <p class="doc-date">Última actualización: 2 de agosto de 2026</p>
+    <p class="doc-date">Última actualización: 15 de agosto de 2026</p>
     <div class="doc-body doc-intro">
 <p>Esta Política describe cómo <strong>Purgito</strong> recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.</p>
 <p>Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores: los datos que recopilamos y cómo los tratamos son los mismos que para cualquier otro servidor.</p>
@@ -291,10 +291,10 @@
 <h3>Contenido de mensajes</h3>
 <p>Cuando las funciones de aprendizaje están habilitadas, el bot almacena el contenido de mensajes de texto enviados en canales permitidos.</p>
 <p>Estos mensajes pueden utilizarse para:</p>
-<ul><li>Entrenar cadenas de Markov.</li><li>Generar respuestas automáticas.</li><li>Imitar el estilo de escritura de los usuarios.</li><li>Mejorar funciones relacionadas con memes y generación de texto.</li></ul>
+<ul><li>Entrenar cadenas de Markov locales.</li><li>Generar respuestas automáticas en el chat.</li><li>Imitar el estilo de escritura de los usuarios.</li><li>Servir como muestra acotada de vocabulario en la generación de memes (localmente con Markov o mediante la integración opcional con Groq si está configurada).</li></ul>
 <h3>Multimedia</h3>
 <p>El bot puede almacenar:</p>
-<ul><li>URLs de imágenes.</li><li>URLs de GIFs.</li><li>Archivos multimedia necesarios para las funciones de la galería de GIFs.</li></ul>
+<ul><li>URLs de imágenes.</li><li>URLs de GIFs.</li><li>Archivos multimedia necesarios para las funciones de la galería de GIFs y la colección de memes.</li></ul>
 <p>Cuando corresponde, dichos archivos pueden almacenarse de forma persistente mediante Cloudflare R2.</p>
 <h3>Nombre visible</h3>
 <p>El nombre visible (Display Name) del usuario puede almacenarse junto con determinados mensajes para permitir funciones como la imitación de usuarios.</p>
@@ -316,17 +316,20 @@
     <h2 class="doc-sec-title">2. Uso de la información</h2>
     <div class="doc-body">
 <p>La información recopilada se utiliza exclusivamente para proporcionar las funciones del bot, incluyendo:</p>
-<ul><li>Generación de texto mediante cadenas de Markov.</li><li>Generación de memes.</li><li>Galería de GIFs.</li><li>Automatizaciones del servidor.</li><li>Configuración de comandos y preferencias.</li></ul>
-<p>Los datos <strong>no se venden</strong> ni se utilizan para publicidad.</p>
+<ul><li>Generación de texto mediante cadenas de Markov locales.</li><li>Generación de memes y captions (de forma local o mediante la integración opcional con Groq).</li><li>Galería de GIFs.</li><li>Automatizaciones del servidor.</li><li>Configuración de comandos y preferencias.</li></ul>
+<p>Los datos <strong>no se venden</strong> ni se utilizan por Purgito para publicidad.</p>
     </div>
   </section>
   <section class="box doc-sec" id="seccion-3">
     <h2 class="doc-sec-title">3. Servicios de terceros</h2>
     <div class="doc-body">
-<p>Purgito utiliza servicios externos para determinadas funciones.</p>
-<p>Actualmente pueden utilizarse:</p>
-<ul><li><strong>Discord</strong> para la comunicación.</li><li><strong>Cloudflare R2</strong> para almacenamiento multimedia.</li><li><strong>Groq API</strong> para generación de memes mediante IA.</li><li><strong>Polar.sh</strong> como procesador de pagos y Merchant of Record para las suscripciones premium. Ver su <a href="https://polar.sh/legal/privacy" target="_blank" rel="noopener">Política de Privacidad</a>.</li><li>Otros servicios estrictamente necesarios para el funcionamiento del bot.</li></ul>
-<p>Cada proveedor procesa únicamente la información necesaria para prestar su servicio.</p>
+<p>Purgito utiliza servicios externos para determinadas funciones. Cada proveedor procesa únicamente la información necesaria para prestar su servicio.</p>
+<h3>Discord y almacenamiento</h3>
+<ul><li><strong>Discord</strong>: Para la comunicación, recepción de eventos, autenticación y envío de mensajes en la plataforma.</li><li><strong>Cloudflare R2</strong>: Para el almacenamiento persistente de archivos multimedia (imágenes de memes del pool del servidor y GIFs subidos a la galería).</li></ul>
+<h3>Groq API (Captions de memes con IA)</h3>
+<ul><li><strong>Qué es y para qué se utiliza</strong>: Groq es un proveedor externo de inferencia de modelos de inteligencia artificial (visión y lenguaje) utilizado de forma opcional y exclusiva para analizar imágenes y redactar captions en la función de memes.</li><li><strong>Qué datos pueden enviarse</strong>: La imagen utilizada para el meme (codificada en base64) y una muestra limitada del corpus del servidor (hasta un máximo de 25 mensajes cortos y 15 mensajes largos, como referencia de vocabulario y tono).</li><li><strong>Cuándo interviene</strong>: Únicamente al solicitar o ejecutarse la generación de un meme (comando <code class="cmd">/momo</code>, respuesta con trigger a imagen o meme programado) y siempre que la clave <code class="cmd">GROQ_API_KEY</code> haya sido configurada por el operador del bot.</li><li><strong>Alcance acotado</strong>: Groq no procesa las conversaciones habituales del chat ni recibe el corpus completo de ningún servidor. La conversación general de Purgito funciona 100% de forma local.</li><li><strong>Fallback local</strong>: Si Groq no está configurado, no está disponible o falla, la generación del caption se realiza 100% de forma local mediante cadenas de Markov.</li><li><strong>Publicidad</strong>: Los datos transmitidos a Groq en esta función no son utilizados por Purgito con fines publicitarios ni de venta de datos.</li></ul>
+<h3>Pagos e infraestructura</h3>
+<ul><li><strong>Polar.sh</strong>: Procesador de pagos y Merchant of Record para las suscripciones premium. Ver su <a href="https://polar.sh/legal/privacy" target="_blank" rel="noopener">Política de Privacidad</a>.</li><li>Otros servicios de infraestructura estrictamente necesarios para el funcionamiento del bot.</li></ul>
     </div>
   </section>
   <section class="box doc-sec" id="seccion-4">

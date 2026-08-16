@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 2 de agosto de 2026
+**Última actualización:** 15 de agosto de 2026
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.
 
@@ -28,10 +28,10 @@ Cuando las funciones de aprendizaje están habilitadas, el bot almacena el conte
 
 Estos mensajes pueden utilizarse para:
 
-- Entrenar cadenas de Markov.
-- Generar respuestas automáticas.
+- Entrenar cadenas de Markov locales.
+- Generar respuestas automáticas en el chat.
 - Imitar el estilo de escritura de los usuarios.
-- Mejorar funciones relacionadas con memes y generación de texto.
+- Servir como muestra acotada de vocabulario en la generación de memes (localmente con Markov o mediante la integración opcional con Groq si está configurada).
 
 ---
 
@@ -41,7 +41,7 @@ El bot puede almacenar:
 
 - URLs de imágenes.
 - URLs de GIFs.
-- Archivos multimedia necesarios para las funciones de la galería de GIFs.
+- Archivos multimedia necesarios para las funciones de la galería de GIFs y la colección de memes.
 
 Cuando corresponde, dichos archivos pueden almacenarse de forma persistente mediante Cloudflare R2.
 
@@ -91,29 +91,38 @@ Purgito **no almacena** número de tarjeta, datos de facturación, email ni nomb
 
 La información recopilada se utiliza exclusivamente para proporcionar las funciones del bot, incluyendo:
 
-- Generación de texto mediante cadenas de Markov.
-- Generación de memes.
+- Generación de texto mediante cadenas de Markov locales.
+- Generación de memes y captions (de forma local o mediante la integración opcional con Groq).
 - Galería de GIFs.
 - Automatizaciones del servidor.
 - Configuración de comandos y preferencias.
 
-Los datos **no se venden** ni se utilizan para publicidad.
+Los datos **no se venden** ni se utilizan por Purgito para publicidad.
 
 ---
 
 # 3. Servicios de terceros
 
-Purgito utiliza servicios externos para determinadas funciones.
+Purgito utiliza servicios externos para determinadas funciones. Cada proveedor procesa únicamente la información necesaria para prestar su servicio.
 
-Actualmente pueden utilizarse:
+## Discord y almacenamiento
 
-- **Discord** para la comunicación.
-- **Cloudflare R2** para almacenamiento multimedia.
-- **Groq API** para generación de memes mediante IA.
-- **Polar.sh** como procesador de pagos y Merchant of Record para las suscripciones premium. Ver su [Política de Privacidad](https://polar.sh/legal/privacy).
-- Otros servicios estrictamente necesarios para el funcionamiento del bot.
+- **Discord**: Para la comunicación, recepción de eventos, autenticación y envío de mensajes en la plataforma.
+- **Cloudflare R2**: Para el almacenamiento persistente de archivos multimedia (imágenes de memes del pool del servidor y GIFs subidos a la galería).
 
-Cada proveedor procesa únicamente la información necesaria para prestar su servicio.
+## Groq API (Captions de memes con IA)
+
+- **Qué es y para qué se utiliza**: Groq es un proveedor externo de inferencia de modelos de inteligencia artificial (visión y lenguaje) utilizado de forma opcional y exclusiva para analizar imágenes y redactar captions en la función de memes.
+- **Qué datos pueden enviarse**: La imagen utilizada para el meme (codificada en base64) y una muestra limitada del corpus del servidor (hasta un máximo de 25 mensajes cortos y 15 mensajes largos, como referencia de vocabulario y tono).
+- **Cuándo interviene**: Únicamente al solicitar o ejecutarse la generación de un meme (comando `/momo`, respuesta con trigger a imagen o meme programado) y siempre que la clave `GROQ_API_KEY` haya sido configurada por el operador del bot.
+- **Alcance acotado**: Groq no procesa las conversaciones habituales del chat ni recibe el corpus completo de ningún servidor. La conversación general de Purgito funciona 100% de forma local.
+- **Fallback local**: Si Groq no está configurado, no está disponible o falla, la generación del caption se realiza 100% de forma local mediante cadenas de Markov.
+- **Publicidad**: Los datos transmitidos a Groq en esta función no son utilizados por Purgito con fines publicitarios ni de venta de datos.
+
+## Pagos e infraestructura
+
+- **Polar.sh**: Procesador de pagos y Merchant of Record para las suscripciones premium. Ver su [Política de Privacidad](https://polar.sh/legal/privacy).
+- Otros servicios de infraestructura estrictamente necesarios para el funcionamiento del bot.
 
 ---
 

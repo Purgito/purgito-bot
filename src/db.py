@@ -745,6 +745,15 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna pack_id ya existe en frases_especiales")
+    # Trazabilidad de canal para el corpus por autor (base para el eventual
+    # Right to be Forgotten individual: sin channel_id no se puede acotar un
+    # borrado a lo que un usuario escribió en un canal dado). Ver
+    # backfill_user_corpus_channel_id() para el retro-poblado.
+    try:
+        await _db.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna channel_id ya existe en user_corpus")
     await _db.commit()
     flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
     if not os.path.exists(flag_path):
@@ -781,6 +790,7 @@ async def init_db():
             (_home_gid,),
         )
         await _db.commit()
+    await backfill_user_corpus_channel_id()
 
 
 async def close_db():
@@ -1067,8 +1077,8 @@ async def save_corpus_and_user_message(
         )
         corpus_inserted = _was_inserted(cur1)
         cur2 = await db.execute(
-            "INSERT OR IGNORE INTO user_corpus (guild_id, author_id, author_name, message_id, content) VALUES (?, ?, ?, ?, ?)",
-            (guild_id, author_id, author_name, message_id, text),
+            "INSERT OR IGNORE INTO user_corpus (guild_id, author_id, author_name, channel_id, message_id, content) VALUES (?, ?, ?, ?, ?, ?)",
+            (guild_id, author_id, author_name, channel_id, message_id, text),
         )
         user_inserted = _was_inserted(cur2)
         await db.commit()
@@ -1978,6 +1988,69 @@ async def count_user_messages(guild_id: int, author_id: int) -> int:
     ) as cursor:
         row = await cursor.fetchone()
     return int(row[0] if row else 0)
+
+
+async def backfill_user_corpus_channel_id() -> dict:
+    """Retro-puebla user_corpus.channel_id cruzando por (guild_id, message_id)
+    contra corpus_messages -- UNIQUE(guild_id, message_id) en esa tabla
+    garantiza que el cruce nunca es ambiguo, así que nunca hace falta elegir
+    entre varias filas candidatas. Lo que no tiene match (o nunca tuvo
+    message_id) queda channel_id NULL: no se asume una relación que no está
+    probada.
+
+    Solo toca filas con channel_id IS NULL, así que correrla en cada arranque
+    es seguro (no reescribe lo ya poblado) e idempotente (correrla dos veces
+    seguidas dejando el mismo estado, la segunda vez no actualiza nada) --
+    no hace falta un flag de "ya corrió" como las migraciones one-shot de
+    arriba. También releva mensajes nuevos que hayan quedado sin
+    channel_id entre un arranque y el siguiente.
+    """
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE user_corpus SET channel_id = ("
+            "  SELECT cm.channel_id FROM corpus_messages cm"
+            "  WHERE cm.guild_id = user_corpus.guild_id"
+            "    AND cm.message_id = user_corpus.message_id"
+            ") WHERE channel_id IS NULL"
+            "  AND message_id IS NOT NULL"
+            "  AND EXISTS ("
+            "    SELECT 1 FROM corpus_messages cm"
+            "    WHERE cm.guild_id = user_corpus.guild_id"
+            "      AND cm.message_id = user_corpus.message_id"
+            "  )"
+        )
+        await db.commit()
+        async with db.execute("SELECT COUNT(*) FROM user_corpus") as cursor:
+            total = (await cursor.fetchone())[0]
+        async with db.execute(
+            "SELECT COUNT(*) FROM user_corpus WHERE channel_id IS NOT NULL"
+        ) as cursor:
+            traceable = (await cursor.fetchone())[0]
+        async with db.execute(
+            "SELECT COUNT(*) FROM user_corpus WHERE channel_id IS NULL AND message_id IS NULL"
+        ) as cursor:
+            no_message_id = (await cursor.fetchone())[0]
+    unknown = total - traceable
+    unmatched = unknown - no_message_id
+    report = {
+        "total": total,
+        "traceable": traceable,
+        "unknown": unknown,
+        "no_message_id": no_message_id,
+        "unmatched": unmatched,
+    }
+    log.info(
+        "user_corpus.channel_id backfill: %d filas totales, %d trazables, "
+        "%d UNKNOWN (%d sin message_id, %d con message_id sin match en "
+        "corpus_messages)",
+        total,
+        traceable,
+        unknown,
+        no_message_id,
+        unmatched,
+    )
+    return report
 
 
 async def add_ignored_channel(guild_id: int, channel_id: int) -> bool:

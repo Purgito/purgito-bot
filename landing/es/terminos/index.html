@@ -261,7 +261,7 @@
 <main id="contenido" class="doc wrap">
   <header class="doc-head">
     <h1 class="doc-title">Condiciones del Servicio (Terms of Service)</h1>
-    <p class="doc-date">Última actualización: 12 de julio de 2026</p>
+    <p class="doc-date">Última actualización: 15 de agosto de 2026</p>
     <div class="doc-body doc-intro">
 <p>Al invitar <strong>Purgito</strong> a un servidor de Discord o interactuar con él, aceptas los presentes Términos del Servicio, así como los <a href="https://discord.com/terms" target="_blank" rel="noopener">Términos de Servicio</a> y la <a href="https://discord.com/privacy" target="_blank" rel="noopener">Política de Privacidad</a> de Discord.</p>
 <p>Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores: estos Términos, las reglas de uso aceptable y la moderación se aplican igual ahí que en cualquier otro servidor.</p>
@@ -283,7 +283,7 @@
   <section class="box doc-sec" id="seccion-1">
     <h2 class="doc-sec-title">1. Uso Aceptable</h2>
     <div class="doc-body">
-<p>Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante inteligencia artificial (Cadenas de Markov y modelos de lenguaje externos).</p>
+<p>Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante generación de texto local (cadenas de Markov) e integraciones opcionales con modelos externos (Groq para captions de memes).</p>
 <p>Al utilizar el bot aceptas que <strong>no debes</strong>:</p>
 <ul><li>Utilizar el bot para generar, distribuir o promover contenido ilegal o que infrinja los Términos de Servicio de Discord.</li><li>Intentar abusar de las funciones del bot mediante spam, automatizaciones maliciosas o cualquier acción destinada a afectar su disponibilidad.</li><li>Intentar vulnerar la seguridad, infraestructura o funcionamiento del bot.</li><li>Utilizar el bot para actividades que infrinjan derechos de terceros.</li></ul>
     </div>
@@ -299,9 +299,9 @@
     <h2 class="doc-sec-title">3. Contenido Generado</h2>
     <div class="doc-body">
 <p>Purgito puede generar texto utilizando:</p>
-<ul><li>Cadenas de Markov entrenadas con mensajes del servidor.</li><li>Modelos de lenguaje externos (Groq).</li></ul>
+<ul><li>Cadenas de Markov locales entrenadas con mensajes del servidor (utilizadas para el chat, respuestas automáticas y como fallback de memes).</li><li>Modelos externos de IA (Groq), de forma opcional y exclusiva para la redacción de captions en la función de memes cuando <code class="cmd">GROQ_API_KEY</code> está configurada.</li></ul>
 <p>Debido a la naturaleza probabilística de estos sistemas:</p>
-<ul><li>El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado.</li><li>Las respuestas generadas representan contenido producido automáticamente y <strong>no reflejan necesariamente la opinión o intención del desarrollador</strong>.</li><li>El desarrollador no revisa manualmente cada respuesta generada por el bot.</li></ul>
+<ul><li>El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado o referenciado.</li><li>Las respuestas generadas representan contenido producido automáticamente y <strong>no reflejan necesariamente la opinión o intención del desarrollador</strong>.</li><li>El desarrollador no revisa manualmente cada respuesta o meme generado por el bot.</li></ul>
 <p>Los administradores del servidor son responsables de moderar el uso del bot dentro de su comunidad.</p>
     </div>
   </section>
