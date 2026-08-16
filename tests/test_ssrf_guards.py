@@ -122,7 +122,7 @@ def test_fetch_public_url_deja_pasar_un_host_publico(monkeypatch):
     assert resp.status_code == 200
 
 
-# ── resolve_media_url: lo que devuelve el oEmbed no es de fiar ───────────────
+# ── resolve_media_url: lo que devuelve el proveedor no es de fiar ───────────────
 
 
 def _fake_oembed(payload):
@@ -131,6 +131,11 @@ def _fake_oembed(payload):
             return payload
 
     return lambda url, **kwargs: _Resp()
+
+
+class _FakeHtmlResp:
+    def __init__(self, text):
+        self.text = text
 
 
 @pytest.mark.parametrize(
@@ -148,21 +153,18 @@ def _fake_oembed(payload):
 def test_media_url_fuera_de_los_hosts_de_gifs_se_descarta(monkeypatch, devuelto):
     import requests
 
-    monkeypatch.setattr(requests, "get", _fake_oembed({"thumbnail_url": devuelto}))
-    resultado = asyncio.run(gifs.resolve_media_url("https://tenor.com/view/algo-123"))
+    monkeypatch.setattr(requests, "get", _fake_oembed({"url": devuelto}))
+    resultado = asyncio.run(gifs.resolve_media_url("https://giphy.com/gifs/algo-123"))
     assert resultado is None
 
 
 def test_media_url_de_un_host_de_gifs_se_acepta(monkeypatch):
-    import requests
-
+    html = '<meta property="og:image" content="https://media.tenor.com/x.gif">'
     monkeypatch.setattr(
-        requests,
-        "get",
-        _fake_oembed({"thumbnail_url": "https://media.tenor.com/x.png"}),
+        r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp(html)
     )
     resultado = asyncio.run(gifs.resolve_media_url("https://tenor.com/view/algo-123"))
-    assert resultado == "https://media.tenor.com/x.png"
+    assert resultado == "https://media.tenor.com/x.gif"
 
 
 def test_giphy_usa_el_campo_url(monkeypatch):

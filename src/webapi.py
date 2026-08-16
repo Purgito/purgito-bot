@@ -1149,7 +1149,11 @@ async def _api_chat_playground_post(
     if gif_total > 0 and gif_prob > 0 and random.random() < gif_prob:
         gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
         if gif_candidates:
-            simulated_gif = gif_candidates[0].get("media_url") or gif_candidates[0].get("url")
+            media_url = gif_candidates[0].get("media_url")
+            if media_url and not media_url.lower().split("?")[0].endswith((".png", ".jpg", ".jpeg", ".webp")):
+                simulated_gif = media_url
+            else:
+                simulated_gif = gif_candidates[0].get("url")
             if simulated_gif:
                 is_gif_result = True
 

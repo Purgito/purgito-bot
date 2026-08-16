@@ -660,6 +660,18 @@ async def init_db():
     except Exception:
         log.debug("Columna phash ya existe en gif_objects")
     try:
+        # Limpieza retroactiva: si quedaron filas con media_url apuntando a miniaturas .png
+        # (antiguo comportamiento de oEmbed de Tenor), se resetean a NULL para que
+        # resolve_gifs_task las vuelva a resolver al .gif animado real.
+        await _db.execute(
+            "UPDATE corpus_gifs SET media_url=NULL "
+            "WHERE media_url LIKE '%.png' OR media_url LIKE '%.jpg' "
+            "OR media_url LIKE '%.jpeg' OR media_url LIKE '%.webp'"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("No se pudo limpiar media_url estáticos en corpus_gifs")
+    try:
         await _db.execute("ALTER TABLE settings ADD COLUMN locale TEXT")
         await _db.commit()
     except Exception:
@@ -1872,10 +1884,22 @@ async def get_unresolved_gifs(
 ) -> list[dict]:
     db = await get_db()
     if guild_id is None:
-        query = "SELECT id, url FROM corpus_gifs WHERE media_url IS NULL ORDER BY id LIMIT ?"
+        query = (
+            "SELECT id, url FROM corpus_gifs "
+            "WHERE media_url IS NULL OR media_url LIKE '%.png' "
+            "OR media_url LIKE '%.jpg' OR media_url LIKE '%.jpeg' "
+            "OR media_url LIKE '%.webp' "
+            "ORDER BY id LIMIT ?"
+        )
         params: tuple = (limit,)
     else:
-        query = "SELECT id, url FROM corpus_gifs WHERE guild_id=? AND media_url IS NULL ORDER BY id LIMIT ?"
+        query = (
+            "SELECT id, url FROM corpus_gifs WHERE guild_id=? "
+            "AND (media_url IS NULL OR media_url LIKE '%.png' "
+            "OR media_url LIKE '%.jpg' OR media_url LIKE '%.jpeg' "
+            "OR media_url LIKE '%.webp') "
+            "ORDER BY id LIMIT ?"
+        )
         params = (guild_id, limit)
     async with db.execute(query, params) as cursor:
         rows = await cursor.fetchall()

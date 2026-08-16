@@ -10,7 +10,9 @@ let _gifStatsEl = null;
 
 // Misma clasificación que la galería pública (gif_gallery.py).
 function classifyGif(gif) {
-  if (gif.media_url) return { type: 'img', src: gif.media_url };
+  if (gif.media_url && !gif.media_url.endsWith('.png') && !gif.media_url.endsWith('.jpg') && !gif.media_url.endsWith('.jpeg') && !gif.media_url.endsWith('.webp')) {
+    return { type: 'img', src: gif.media_url };
+  }
   const u = gif.url;
   if (u.includes('cdn.discordapp.com')) return { type: 'img', src: u };
   if (u.includes('giphy.com/gifs/')) {

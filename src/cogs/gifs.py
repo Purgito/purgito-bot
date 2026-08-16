@@ -122,91 +122,55 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
 
 
 def _valid_media_url(resolved) -> bool:
-    """Un media_url resuelto solo se acepta si vuelve a caer en un host de
-    GIFs conocido.
-
-    Lo que devuelve un oEmbed de terceros no es un dato confiable: se guarda
-    en corpus_gifs.media_url y de ahí sale a tres lados sin volver a validarse
-    -- el bot lo POSTEA en el canal, el servidor lo FETCHEA en el chequeo de
-    salud, y el dashboard lo carga como <img src>. Un oEmbed que devuelva otra
-    cosa (por un open redirect, un reflejo del parámetro `url`, o un cambio de
-    formato del proveedor) no debe poder decidir ninguno de los tres.
-    """
-    return (
+    """Un media_url resuelto solo se acepta si es un string válido,
+    pertenece a un host de GIFs conocido y no apunta a una extensión estática incompatible."""
+    if not (
         isinstance(resolved, str)
         and resolved.startswith(("http://", "https://"))
-        and _is_gif_site(_gif_host(resolved))
-    )
-
-
-async def resolve_media_url(url: str) -> str | None:
-    import requests
-
-    try:
-        # Host real, no substring: "https://evil.com/?x=tenor.com" contiene
-        # "tenor.com" pero no es tenor (mismo criterio que save_gif_candidates).
-        host = _gif_host(url)
-        if host == "cdn.discordapp.com" or (
-            r2.public_url() and url.startswith(r2.public_url())
-        ):
-            return url
-        if host == "tenor.com" or host.endswith(".tenor.com"):
-            resp = await asyncio.to_thread(
-                requests.get,
-                f"https://tenor.com/oembed?url={quote(url, safe='')}&format=json",
-                timeout=8,
-            )
-            # El oEmbed de tenor no trae un campo "url": el único media real
-            # que expone es "thumbnail_url" (un .png estático del gif). No es
-            # el gif animado, pero alcanza para el chequeo de salud -- que es
-            # el único consumidor de media_url.
-            resolved = resp.json()["thumbnail_url"]
-        elif host == "giphy.com" or host.endswith(".giphy.com"):
-            resp = await asyncio.to_thread(
-                requests.get,
-                f"https://giphy.com/services/oembed?url={quote(url, safe='')}&format=json",
-                timeout=8,
-            )
-            # A diferencia de tenor, el oEmbed de giphy sí trae el .gif real
-            # bajo "url" -- no tiene "thumbnail_url".
-            resolved = resp.json()["url"]
-        else:
-            return None
-    except Exception:
-        return None
-    if not _valid_media_url(resolved):
-        log.warning(
-            "oEmbed devolvió un media_url fuera de los hosts de GIFs: %r", resolved
-        )
-        return None
-    return resolved
+    ):
+        return False
+    host = _gif_host(resolved)
+    if not _is_gif_site(host):
+        return False
+    lower = resolved.lower().split("?")[0]
+    if lower.endswith((".png", ".jpg", ".jpeg", ".webp")):
+        return False
+    return True
 
 
 class _OgImageParser(HTMLParser):
-    """Busca el primer <meta property="og:image" content="..."> y se corta
-    ahí -- mismo mecanismo que usa Discord para armar el preview cuando
-    alguien pega un link de Tenor a secas en un canal (og:image ahí sí es la
-    URL directa del .gif animado, a diferencia del oEmbed -- ver el
-    comentario de resolve_media_url arriba)."""
+    """Busca el primer <meta property="og:image" content="..."> (o twitter:image / contentUrl)
+    y extrae la URL directa del .gif animado -- mismo mecanismo que usa Discord
+    para armar el preview cuando alguien pega un link de Tenor a secas en un canal."""
 
     def __init__(self):
         super().__init__()
         self.og_image: str | None = None
+        self._fallback_image: str | None = None
 
     def handle_starttag(self, tag, attrs):
         if self.og_image or tag != "meta":
             return
-        if dict(attrs).get("property") == "og:image":
-            self.og_image = dict(attrs).get("content")
+        attr_dict = dict(attrs)
+        prop = attr_dict.get("property")
+        name = attr_dict.get("name")
+        itemprop = attr_dict.get("itemprop")
+        content = attr_dict.get("content")
+
+        if not content:
+            return
+
+        if prop == "og:image":
+            self.og_image = content
+        elif (name == "twitter:image" or itemprop == "contentUrl") and not self._fallback_image:
+            self._fallback_image = content
+
+    def get_image(self) -> str | None:
+        return self.og_image or self._fallback_image
 
 
 async def resolve_tenor_gif_url(url: str) -> str | None:
-    """Resuelve una página tenor.com/view/... a la URL directa de su .gif
-    animado, para el editor de embeds del panel (Fase 4). Sin API key ni
-    servicio externo nuevo: mismo host al que ya le pega resolve_media_url,
-    solo que leyendo la página en vez del oEmbed -- el oEmbed de Tenor no
-    expone el gif real, solo un thumbnail .png estático (inútil acá, aunque
-    alcance para el chequeo de salud que sí lo usa)."""
+    """Resuelve una página tenor.com/view/... a la URL directa de su .gif animado."""
     import requests
 
     host = _gif_host(url)
@@ -224,8 +188,44 @@ async def resolve_tenor_gif_url(url: str) -> str | None:
         parser.feed(html_text)
     except Exception:
         return None
-    resolved = parser.og_image
-    if not resolved or not resolved.endswith(".gif") or not _valid_media_url(resolved):
+    resolved = parser.get_image()
+    if not resolved or not _valid_media_url(resolved) or not resolved.lower().split("?")[0].endswith(".gif"):
+        return None
+    return resolved
+
+
+async def resolve_media_url(url: str) -> str | None:
+    import requests
+
+    try:
+        host = _gif_host(url)
+        if host == "cdn.discordapp.com" or (
+            r2.public_url() and url.startswith(r2.public_url())
+        ):
+            return url
+        # Si la URL ya es directa a un GIF de un host válido, se devuelve directamente
+        if url.lower().split("?")[0].endswith(".gif") and _valid_media_url(url):
+            return url
+        if host == "tenor.com" or host.endswith(".tenor.com"):
+            # Tenor: resolver al .gif animado real leyendo og:image de la página
+            resolved = await resolve_tenor_gif_url(url)
+        elif host == "giphy.com" or host.endswith(".giphy.com"):
+            resp = await asyncio.to_thread(
+                requests.get,
+                f"https://giphy.com/services/oembed?url={quote(url, safe='')}&format=json",
+                timeout=8,
+            )
+            # A diferencia de tenor, el oEmbed de giphy sí trae el .gif real bajo "url"
+            resolved = resp.json()["url"]
+        else:
+            return None
+    except Exception:
+        return None
+    if not _valid_media_url(resolved):
+        if resolved:
+            log.warning(
+                "Media URL resuelta inválida o fuera de los hosts de GIFs: %r", resolved
+            )
         return None
     return resolved
 
@@ -240,13 +240,15 @@ async def get_live_gif(
     error de red puntual ("unreachable") no cuenta como confirmación de que
     el link esté roto, recién se borra a los 3 "dead" confirmados seguidos
     (404/410 o content-type inválido, ver _DEAD_STREAK_THRESHOLD en db.py).
-    Antes usaba is_url_alive, que
-    consideraba "muerto" cualquier fallo -- un solo bloqueo de rate-limit o
-    timeout del host ya sumaba, y a la 3ra vez borraba un GIF que en Discord
-    seguía funcionando perfecto.
     """
     for gif in await get_random_gif_candidates(guild_id, limit=attempts):
-        url = gif["media_url"] or gif["url"]
+        media_url = gif.get("media_url")
+        # Si media_url es una imagen estática residual (ej. .png antiguo de tenor),
+        # no usarla; usar la url original.
+        if media_url and not media_url.lower().split("?")[0].endswith((".png", ".jpg", ".jpeg", ".webp")):
+            url = media_url
+        else:
+            url = gif["url"]
         status = await asyncio.to_thread(r2.check_gif_url_health, url, timeout)
         await record_gif_health_check(gif["id"], status)
         if status == "ok":

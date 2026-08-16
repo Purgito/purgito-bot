@@ -492,7 +492,10 @@ def check_gif_url_health(url: str, timeout: float = 6.0) -> str:
     headers = {"User-Agent": "Mozilla/5.0 (compatible; bot)"}
     try:
         resp = fetch_public_url(requests.head, url, headers=headers, timeout=timeout)
-        if resp.status_code == 405 or not resp.headers.get("Content-Type"):
+        # Algunos CDNs (como Tenor para URLs directas /m/...gif) responden con 404/405 a peticiones HEAD,
+        # pero responden 200 OK con Content-Type image/gif a peticiones GET. Si HEAD no devuelve 200 o no
+        # trae Content-Type, intentamos un GET con stream=True antes de clasificar el recurso.
+        if resp.status_code != 200 or not resp.headers.get("Content-Type"):
             resp = fetch_public_url(
                 requests.get, url, headers=headers, timeout=timeout, stream=True
             )
