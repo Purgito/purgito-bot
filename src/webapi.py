@@ -1197,15 +1197,10 @@ async def _api_corpus_post(request: web.Request, guild_id: int) -> web.Response:
         return web.json_response(
             {"error": "el canal no existe en este servidor"}, status=400
         )
-    # corpus_allowed_channels es la única allowlist que hace que el bot LEA
-    # mensajes -- las demás (spontaneous/mention/frases/triggers) solo hacen
-    # que el bot ESCRIBA ahí. Leer es más invasivo (ver el comentario de la
-    # tabla en db.py), así que esta es la primera en cerrarse: sin esto, un
-    # canal privado que el admin no puede ver terminaba entrenando el Markov
-    # que sale después en cualquier canal público (ver
-    # _member_can_view_channel). Las demás allowlists de canal quedan para
-    # una ronda siguiente -- mismo hueco, impacto menor (el bot escribe, no
-    # filtra contenido ajeno).
+    if getattr(channel, "is_nsfw", lambda: False)():
+        return web.json_response(
+            {"error": "no se pueden agregar canales nsfw al corpus"}, status=400
+        )
     if not await _member_can_view_channel(request, guild, channel):
         return web.json_response({"error": "no tienes acceso a ese canal"}, status=403)
     added = await add_corpus_channel(guild_id, channel_id)

@@ -21,6 +21,8 @@ from db import (
     bump_counter,
     count_corpus_messages,
     count_user_messages,
+    delete_channel_corpus,
+    delete_message_from_corpus,
     get_channel_refeed_status,
     get_effective_chat_settings,
     get_effective_frase_pool,
@@ -576,7 +578,12 @@ async def ensure_corpus_migrated(guild: discord.Guild) -> int | None:
         ignored = set(await list_ignored_channels(guild.id))
         # Los canales de texto reales del guild, no solo los que ya tienen
         # mensajes guardados: un canal vacío igual debe quedar habilitado.
-        channel_ids = [c.id for c in guild.text_channels if c.id not in ignored]
+        # Canales NSFW quedan explícitamente fuera del corpus.
+        channel_ids = [
+            c.id
+            for c in guild.text_channels
+            if c.id not in ignored and not getattr(c, "is_nsfw", lambda: False)()
+        ]
         seeded = await seed_corpus_allowed_channels(guild.id, channel_ids)
         log.info(
             "Corpus: %s canales habilitados en %s (%s) por la migración",
@@ -672,16 +679,22 @@ class Chat(commands.Cog):
         try:
             await self._on_message_impl(message)
         except Exception:
-            # Si el handler no llegó a terminar (excepción a mitad de camino:
-            # una llamada a R2/Discord que falló, un error de DB), NO dejar
-            # este message.id marcado como "ya procesado" -- si el gateway
-            # reenvía este mismo mensaje (RESUME), merece un intento fresco,
-            # no quedar descartado en silencio por el guard de dedup de
-            # arriba. discord.py ya loguea la excepción (_run_event/on_error
-            # default) y sigue con el resto de los listeners -- acá solo se
-            # deshace la marca antes de dejarla propagar.
             _recent_message_ids.pop(message.id, None)
             raise
+
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
+        if payload.guild_id:
+            try:
+                res = await delete_message_from_corpus(payload.guild_id, payload.message_id)
+                if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
+                    generation.reset_guild_caches(payload.guild_id)
+            except Exception:
+                log.exception(
+                    "Error al eliminar mensaje del corpus (guild %s, msg %s)",
+                    payload.guild_id,
+                    payload.message_id,
+                )
 
     async def _on_message_impl(self, message: discord.Message) -> None:
         if is_meme_trigger(self.bot, message):
@@ -704,9 +717,12 @@ class Chat(commands.Cog):
             # no corta la función: una mención directa merece respuesta (abajo).
             ignored = await is_channel_ignored(message.guild.id, message.channel.id)
             if not ignored:
+                is_nsfw = getattr(message.channel, "is_nsfw", lambda: False)()
                 # Allowlist positiva del corpus: el canal tiene que estar
-                # habilitado explícitamente. Lista vacía = no aprende de nada.
-                if await is_corpus_allowed(message.guild.id, message.channel.id):
+                # habilitado explícitamente y no ser NSFW. Lista vacía = no aprende de nada.
+                if not is_nsfw and await is_corpus_allowed(
+                    message.guild.id, message.channel.id
+                ):
                     status = await self._save_message_to_corpus(
                         message.guild.id, message
                     )
@@ -1028,6 +1044,29 @@ class Chat(commands.Cog):
         eligió no se lee solo por volverse visible: la allowlist manda."""
         if not isinstance(after, discord.TextChannel):
             return
+
+        # Detección de transición SFW -> NSFW: purgar inmediatamente el corpus del canal
+        before_nsfw = getattr(before, "is_nsfw", lambda: False)()
+        after_nsfw = getattr(after, "is_nsfw", lambda: False)()
+        if not before_nsfw and after_nsfw:
+            log.info(
+                "Canal %s (%s) marcado como NSFW en guild %s — purgando histórico del corpus",
+                after.name,
+                after.id,
+                after.guild.id,
+            )
+            try:
+                res = await delete_channel_corpus(after.guild.id, after.id)
+                if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
+                    generation.reset_guild_caches(after.guild.id)
+            except Exception:
+                log.exception(
+                    "Error purgando histórico NSFW del canal %s (%s)",
+                    after.id,
+                    after.guild.id,
+                )
+            return
+
         me = after.guild.me
         if me is None:
             return
@@ -1078,7 +1117,7 @@ class Chat(commands.Cog):
 
     @app_commands.command(
         name="generar",
-        description="Genera un mensaje usando la memoria del canal.",
+        description="Genera un mensaje usando la memoria del servidor.",
     )
     async def generar(self, interaction: discord.Interaction):
         locale = await i18n.guild_locale(
@@ -1269,7 +1308,9 @@ class Chat(commands.Cog):
         fuera de la allowlist sale sin leer nada, en vez de pagar la
         paginación para descartar mensaje por mensaje.
         """
-        if not await is_corpus_allowed(guild_id, channel.id):
+        if getattr(channel, "is_nsfw", lambda: False)() or not await is_corpus_allowed(
+            guild_id, channel.id
+        ):
             return {
                 "saved": 0,
                 "gifs_saved": 0,

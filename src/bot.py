@@ -49,6 +49,7 @@ EXTENSIONS = [
     "cogs.general",
     "cogs.settings",
     "cogs.layout_buttons",
+    "cogs.privacy",
 ]
 
 intents = discord.Intents.default()

@@ -1119,6 +1119,40 @@ async def import_corpus_messages(
     return len(lines)
 
 
+async def delete_message_from_corpus(guild_id: int, message_id: int) -> dict:
+    """Borra un mensaje específico de corpus_messages y user_corpus al ser
+    eliminado en Discord (on_raw_message_delete)."""
+    db = await get_db()
+    async with _db_lock:
+        cur1 = await db.execute(
+            "DELETE FROM corpus_messages WHERE guild_id=? AND message_id=?",
+            (guild_id, message_id),
+        )
+        cur2 = await db.execute(
+            "DELETE FROM user_corpus WHERE guild_id=? AND message_id=?",
+            (guild_id, message_id),
+        )
+        await db.commit()
+    return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
+
+
+async def delete_channel_corpus(guild_id: int, channel_id: int) -> dict:
+    """Borra todos los mensajes de un canal específico en corpus_messages y user_corpus
+    (usado cuando un canal pasa a ser NSFW o se purga administrativamente)."""
+    db = await get_db()
+    async with _db_lock:
+        cur1 = await db.execute(
+            "DELETE FROM corpus_messages WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        cur2 = await db.execute(
+            "DELETE FROM user_corpus WHERE guild_id=? AND channel_id=?",
+            (guild_id, channel_id),
+        )
+        await db.commit()
+    return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
+
+
 async def delete_recent_corpus(guild_id: int, hours: int = 24) -> dict:
     """ "Amnesia": borra corpus_messages y user_corpus de las últimas
     `hours` horas de un guild -- filtra por created_at (columna propia,
@@ -1148,6 +1182,105 @@ async def delete_recent_corpus(guild_id: int, hours: int = 24) -> dict:
         )
         await db.commit()
     return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
+
+
+async def delete_user_data(author_id: int) -> dict:
+    """Núcleo del Right to be Forgotten individual: borra TODO el corpus de
+    estilo de `author_id` -- global, cruzando todos los guilds donde haya
+    escrito, no solo el guild desde el que se pida.
+
+    Identidad y alcance, sin heurísticas:
+    - `user_corpus` se localiza por `author_id` sola (columna que define de
+      quién es cada fila) -- nunca por nombre, nunca por contenido.
+    - Cada fila de `user_corpus` referencia como mucho una fila de
+      `corpus_messages` (la copia colectiva de ESE mensaje), y solo si el
+      cruce `(guild_id, message_id)` es exacto. Ese cruce nunca es ambiguo:
+      `UNIQUE(guild_id, message_id)` existe en AMBAS tablas, así que un
+      `(guild_id, message_id)` dado pertenece cómo mucho a un autor y cómo
+      mucho a una fila de corpus_messages.
+    - Filas UNKNOWN (`message_id` NULL, o con `message_id` que no aparece en
+      `corpus_messages` -- p.ej. porque ya se recortó por
+      trim_corpus_if_needed) igual pertenecen a este autor y se borran
+      igual: UNKNOWN describe si hay copia colectiva que borrar además, no
+      si el borrado del autor es válido. Nunca se intenta reconstruir ni
+      inferir un `channel_id` para decidir qué borrar -- eso violaría la
+      misma garantía de no-ambigüedad que sostiene todo lo demás.
+
+    Orden dentro de la transacción: primero corpus_messages (todavía necesita
+    leer user_corpus para saber qué (guild_id, message_id) le tocan a este
+    autor), después user_corpus. Las dos DELETE + el SELECT de guilds afectados
+    viven bajo una sola adquisición de `_db_lock` con un solo commit al final
+    -- si cualquier paso falla, `_RollbackOnErrorLock` deshace TODO antes de
+    soltar el lock (ver su docstring más arriba), así que nunca queda un
+    borrado a medias.
+
+    Idempotente: correrla dos veces seguidas dejando el mismo estado, la
+    segunda vez ambos DELETE afectan 0 filas.
+
+    Devuelve guild_ids (todos los guilds donde el autor tenía AL MENOS una
+    fila en user_corpus, trazable o no -- el llamador los necesita para
+    invalidar caches aunque todo lo borrado haya sido UNKNOWN) y estadísticas
+    para auditoría. El llamador (comando de Discord o endpoint del
+    dashboard/API, todavía no implementados) es responsable de invalidar
+    generation.reset_guild_caches(guild_id) por cada guild afectado -- este
+    módulo no importa generation (generation.py ya importa de acá, sería un
+    ciclo) y no toca ningún caché en memoria.
+
+    Seguridad: esta función confía en `author_id` tal cual se lo pasan.
+    Autorizar que un usuario solo pueda borrarse a sí mismo (nunca a otro)
+    es responsabilidad exclusiva del futuro llamador -- ahí debe venir de
+    `interaction.user.id` o el equivalente autenticado del dashboard, jamás
+    de un valor que el propio usuario pueda elegir. Esta función no acepta
+    ningún parámetro de guild ni de permisos de administrador a propósito:
+    el derecho es del usuario, no depende de quién administre el servidor.
+    """
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT DISTINCT guild_id FROM user_corpus WHERE author_id=?",
+            (author_id,),
+        ) as cursor:
+            guild_rows = await cursor.fetchall()
+        guild_ids = sorted(r[0] for r in guild_rows)
+
+        cur_cm = await db.execute(
+            "DELETE FROM corpus_messages WHERE EXISTS ("
+            "  SELECT 1 FROM user_corpus uc"
+            "  WHERE uc.author_id = ?"
+            "    AND uc.guild_id = corpus_messages.guild_id"
+            "    AND uc.message_id = corpus_messages.message_id"
+            ")",
+            (author_id,),
+        )
+        corpus_messages_deleted = cur_cm.rowcount
+
+        cur_uc = await db.execute(
+            "DELETE FROM user_corpus WHERE author_id=?", (author_id,)
+        )
+        user_corpus_deleted = cur_uc.rowcount
+
+        await db.commit()
+
+    unknown_deleted = user_corpus_deleted - corpus_messages_deleted
+    report = {
+        "author_id": author_id,
+        "user_corpus_deleted": user_corpus_deleted,
+        "corpus_messages_deleted": corpus_messages_deleted,
+        "traceable_deleted": corpus_messages_deleted,
+        "unknown_deleted": unknown_deleted,
+        "guild_ids": guild_ids,
+    }
+    log.info(
+        "delete_user_data: author_id=%s -> user_corpus=%d (trazables=%d, "
+        "UNKNOWN=%d) corpus_messages=%d guilds=%d",
+        author_id,
+        user_corpus_deleted,
+        corpus_messages_deleted,
+        unknown_deleted,
+        corpus_messages_deleted,
+        len(guild_ids),
+    )
+    return report
 
 
 async def count_guild_corpus_messages(guild_id: int) -> int:

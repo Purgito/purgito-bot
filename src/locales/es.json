@@ -143,6 +143,7 @@
   "commands.setup.description": "Guía de configuración inicial de Purgito.",
   "commands.momo.description": "Genera un meme del server.",
   "commands.meme.description": "Genera un meme del server.",
+  "commands.borrar_mis_datos.description": "Elimina permanentemente tus datos guardados por Purgito.",
 
   "premium.required_message": "⭐ Esta función solo está disponible en servidores premium. Puedes ver cómo conseguirlo en {url}",
 
@@ -317,5 +318,17 @@
   "help.cat.admin.cmd.ping": "verifica que el bot está online",
 
   "help.cat.panel.label": "Panel web",
-  "help.cat.panel.intro": "Estas funciones viven en el panel web ({url}), no son slash commands.\n\n🧩 **Editor de embeds** — arma embeds clásicos (hasta 10 por mensaje) o layouts con Components V2: contenedores, secciones, galerías de imágenes y separadores.\n🔘 **Botones interactivos** — agrega botones de enlace o botones que asignan/quitan un rol al hacer clic.\n🖼️ **Imágenes** — sube imágenes directo desde tu computador o pega una URL.\n💾 **Plantillas** — guarda tus embeds favoritos para reusarlos después."
+  "help.cat.panel.intro": "Estas funciones viven en el panel web ({url}), no son slash commands.\n\n🧩 **Editor de embeds** — arma embeds clásicos (hasta 10 por mensaje) o layouts con Components V2: contenedores, secciones, galerías de imágenes y separadores.\n🔘 **Botones interactivos** — agrega botones de enlace o botones que asignan/quitan un rol al hacer clic.\n🖼️ **Imágenes** — sube imágenes directo desde tu computador o pega una URL.\n💾 **Plantillas** — guarda tus embeds favoritos para reusarlos después.",
+
+  "privacy.delete.title": "🗑️ Eliminar mis datos",
+  "privacy.delete.body": "Esto borra, para siempre y en todos los servidores donde escribiste:\n• Tu estilo de escritura guardado para /imitar.\n• Los mensajes que Purgito aprendió de ti, incluidos los que ya perdieron el canal de origen.\n\nTus mensajes originales de Discord no se tocan: siguen ahí, tal cual. Es una acción irreversible.",
+  "privacy.delete.button_start": "Eliminar mis datos",
+  "privacy.delete.button_confirm": "Sí, borrar definitivamente",
+  "privacy.delete.button_cancel": "Cancelar",
+  "privacy.delete.confirm_again": "⚠️ Este paso no se puede deshacer. Presiona de nuevo para confirmar.",
+  "privacy.delete.cancelled": "Cancelado. No se borró nada.",
+  "privacy.delete.not_your_request": "Esta solicitud no es tuya.",
+  "privacy.delete.error": "No se pudo completar el borrado. No se modificó nada — intenta de nuevo más tarde.",
+  "privacy.delete.result_empty": "No encontramos datos tuyos almacenados por Purgito.",
+  "privacy.delete.result_success": "Listo. Se eliminaron {user_corpus_deleted} mensaje(s) de tu estilo guardado en {guilds} servidor(es) — Purgito ya no puede usarlos para /imitar. Tus mensajes originales de Discord no se tocaron."
 }

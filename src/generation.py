@@ -9,12 +9,14 @@ from contextlib import asynccontextmanager
 import logging
 import random
 import re
+import string
 import time
 
 import regex
 
 import config
 from db import (
+    delete_user_data,
     get_corpus_messages,
     get_effective_frase_pool,
     get_random_frase_especial,
@@ -155,6 +157,23 @@ def clean_for_corpus(text: str) -> str | None:
     if not t:
         return None
     return t
+
+
+_PUNCT_STRIP = string.punctuation + "¿¡«»“”‘’…"
+
+
+def tokenize_message(text: str) -> list[str]:
+    """Tokeniza un mensaje para el motor Markov separando signos de puntuación periféricos
+    y descartando puntuación flotante aislada o markdown residual."""
+    if not text:
+        return []
+    raw_tokens = text.split()
+    tokens: list[str] = []
+    for raw in raw_tokens:
+        tok = raw.strip(_PUNCT_STRIP).lower()
+        if tok:
+            tokens.append(tok)
+    return tokens
 
 
 def note_corpus_insert(guild_id: int, channel_id: int) -> None:
@@ -335,6 +354,30 @@ def reset_guild_caches(guild_id: int) -> None:
             cache.pop(key, None)
 
 
+async def forget_user(author_id: int) -> dict:
+    """Núcleo del Right to be Forgotten individual, ya con invalidación de
+    cachés -- el borrado de SQLite en sí vive en db.delete_user_data (db.py
+    no puede importar este módulo, generation.py ya importa de db, sería un
+    ciclo). Esta es la función pensada como punto único que un futuro
+    comando de Discord (/borrar_mis_datos) y un futuro endpoint del
+    dashboard/API deberían llamar -- ninguno de los dos existe todavía.
+
+    Invalida reset_guild_caches() para TODOS los guilds que devuelva
+    db.delete_user_data(), incluso si el autor solo tenía filas UNKNOWN: el
+    modelo Markov cacheado de ese guild se armó en algún momento con ese
+    corpus, borrado o no de forma trazable, así que sigue habiendo que
+    tirarlo.
+
+    No valida permisos ni identidad -- exactamente igual que
+    db.delete_user_data, confía en que el llamador ya resolvió que
+    `author_id` es la persona autenticada que pide su propio borrado.
+    """
+    report = await delete_user_data(author_id)
+    for guild_id in report["guild_ids"]:
+        reset_guild_caches(guild_id)
+    return report
+
+
 async def build_markov_model(guild_id: int) -> SimpleMarkov | None:
     cached = _markov_cache.get(guild_id)
     if cached is not None:
@@ -346,7 +389,10 @@ async def build_markov_model(guild_id: int) -> SimpleMarkov | None:
 
     def build() -> SimpleMarkov:
         m = SimpleMarkov()
-        m.add_many(corpus)
+        for msg in corpus:
+            tokens = tokenize_message(msg)
+            if tokens:
+                m.add(tokens)
         return m
 
     try:
@@ -422,7 +468,10 @@ async def generate_markov_for_user(
 
             def build() -> SimpleMarkov:
                 m = SimpleMarkov()
-                m.add_many(corpus)
+                for msg in corpus:
+                    tokens = tokenize_message(msg)
+                    if tokens:
+                        m.add(tokens)
                 return m
 
             try:

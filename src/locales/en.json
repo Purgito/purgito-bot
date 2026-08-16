@@ -143,6 +143,7 @@
   "commands.setup.description": "Guide for Purgito's initial setup.",
   "commands.momo.description": "Generates a meme from the server.",
   "commands.meme.description": "Generates a meme from the server.",
+  "commands.borrar_mis_datos.description": "Permanently deletes your data stored by Purgito.",
 
   "premium.required_message": "⭐ This feature is only available on premium servers. You can see how to get it at {url}",
 
@@ -317,5 +318,17 @@
   "help.cat.admin.cmd.ping": "checks that the bot is online",
 
   "help.cat.panel.label": "Web panel",
-  "help.cat.panel.intro": "These features live in the web panel ({url}), they're not slash commands.\n\n🧩 **Embed editor** — build classic embeds (up to 10 per message) or Components V2 layouts: containers, sections, image galleries and separators.\n🔘 **Interactive buttons** — add link buttons or buttons that assign/remove a role on click.\n🖼️ **Images** — upload images straight from your computer or paste a URL.\n💾 **Templates** — save your favorite embeds to reuse later."
+  "help.cat.panel.intro": "These features live in the web panel ({url}), they're not slash commands.\n\n🧩 **Embed editor** — build classic embeds (up to 10 per message) or Components V2 layouts: containers, sections, image galleries and separators.\n🔘 **Interactive buttons** — add link buttons or buttons that assign/remove a role on click.\n🖼️ **Images** — upload images straight from your computer or paste a URL.\n💾 **Templates** — save your favorite embeds to reuse later.",
+
+  "privacy.delete.title": "🗑️ Delete my data",
+  "privacy.delete.body": "This permanently deletes, across every server where you've written:\n• Your writing style saved for /imitar.\n• The messages Purgito learned from you, including ones that already lost their source channel.\n\nYour original Discord messages aren't touched — they stay exactly as they are. This action is irreversible.",
+  "privacy.delete.button_start": "Delete my data",
+  "privacy.delete.button_confirm": "Yes, delete permanently",
+  "privacy.delete.button_cancel": "Cancel",
+  "privacy.delete.confirm_again": "⚠️ This step can't be undone. Press again to confirm.",
+  "privacy.delete.cancelled": "Cancelled. Nothing was deleted.",
+  "privacy.delete.not_your_request": "This request isn't yours.",
+  "privacy.delete.error": "The deletion couldn't be completed. Nothing was changed — try again later.",
+  "privacy.delete.result_empty": "We couldn't find any data of yours stored by Purgito.",
+  "privacy.delete.result_success": "Done. {user_corpus_deleted} message(s) of your saved style were deleted across {guilds} server(s) — Purgito can no longer use them for /imitar. Your original Discord messages weren't touched."
 }
