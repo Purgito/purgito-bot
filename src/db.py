@@ -1711,11 +1711,14 @@ async def get_gif_by_url(guild_id: int, url: str) -> dict | None:
 async def get_random_gif_candidates(guild_id: int, limit: int = 3) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT id, url, media_url FROM corpus_gifs WHERE guild_id=? ORDER BY RANDOM() LIMIT ?",
+        "SELECT id, url, media_url, content_hash FROM corpus_gifs WHERE guild_id=? ORDER BY RANDOM() LIMIT ?",
         (guild_id, limit),
     ) as cursor:
         rows = await cursor.fetchall()
-    return [{"id": r[0], "url": r[1], "media_url": r[2]} for r in rows]
+    return [
+        {"id": r[0], "url": r[1], "media_url": r[2], "content_hash": r[3]}
+        for r in rows
+    ]
 
 
 async def count_gif_urls(guild_id: int) -> int:
@@ -1868,6 +1871,30 @@ async def update_gif_media_url(gif_id: int, media_url: str) -> None:
             "UPDATE corpus_gifs SET media_url=? WHERE id=?",
             (media_url, gif_id),
         )
+        await db.commit()
+
+
+async def update_gif_storage(
+    gif_id: int, media_url: str | None = None, content_hash: str | None = None
+) -> None:
+    """Actualiza media_url y/o content_hash de una fila en corpus_gifs."""
+    db = await get_db()
+    async with _db_lock:
+        if content_hash and media_url:
+            await db.execute(
+                "UPDATE corpus_gifs SET media_url=?, content_hash=? WHERE id=?",
+                (media_url, content_hash, gif_id),
+            )
+        elif content_hash:
+            await db.execute(
+                "UPDATE corpus_gifs SET content_hash=? WHERE id=?",
+                (content_hash, gif_id),
+            )
+        elif media_url:
+            await db.execute(
+                "UPDATE corpus_gifs SET media_url=? WHERE id=?",
+                (media_url, gif_id),
+            )
         await db.commit()
 
 

@@ -113,17 +113,20 @@ def get_client():
         key_id = os.getenv("R2_ACCESS_KEY_ID", "").strip()
         secret = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
         if endpoint and key_id and secret and _bucket():
-            import boto3
-            from botocore.config import Config
+            try:
+                import boto3
+                from botocore.config import Config
 
-            _client = boto3.client(
-                "s3",
-                endpoint_url=endpoint,
-                aws_access_key_id=key_id,
-                aws_secret_access_key=secret,
-                config=Config(signature_version="s3v4"),
-                region_name="auto",
-            )
+                _client = boto3.client(
+                    "s3",
+                    endpoint_url=endpoint,
+                    aws_access_key_id=key_id,
+                    aws_secret_access_key=secret,
+                    config=Config(signature_version="s3v4"),
+                    region_name="auto",
+                )
+            except Exception:
+                _client = None
     return _client
 
 
@@ -407,6 +410,23 @@ def upload_gif_sync(url: str) -> GifUpload | None:
             log.debug("GIF descartado (>%d bytes en el cuerpo): %s", max_bytes, url)
             return GifUpload(GIF_TOO_LARGE)
         data = b"".join(chunks)
+        return upload_gif_bytes_sync(data)
+    except Exception:
+        log.exception("Error subiendo GIF a R2: %s", url)
+        return None
+
+
+def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
+    """Optimiza bytes de GIF con gifsicle, calcula sha256 y phash,
+    y los sube a R2 si no existe ya un objeto con ese contenido o similar.
+    Retorna un GifUpload, GifUpload(GIF_TOO_LARGE) si supera el límite, o None en error."""
+    client = get_client()
+    if client is None:
+        return None
+    max_bytes = _env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
+    if len(data) > max_bytes:
+        return GifUpload(GIF_TOO_LARGE)
+    try:
         # Optimizar ANTES de hashear: el hash tiene que identificar los bytes
         # que efectivamente quedan en el bucket, no los que llegaron.
         data = optimize_gif_bytes(data)
@@ -441,7 +461,20 @@ def upload_gif_sync(url: str) -> GifUpload | None:
             f"{public_url().rstrip('/')}/{key}", content_hash, len(data), phash
         )
     except Exception:
-        log.exception("Error subiendo GIF a R2: %s", url)
+        log.exception("Error subiendo bytes de GIF a R2")
+        return None
+
+
+def get_object_bytes_sync(key: str) -> bytes | None:
+    """Lee los bytes de un objeto de R2 directamente vía el cliente S3."""
+    client = get_client()
+    if client is None:
+        return None
+    try:
+        resp = client.get_object(Bucket=_bucket(), Key=key)
+        return resp["Body"].read()
+    except Exception:
+        log.debug("No se pudo leer objeto de R2: %s", key, exc_info=True)
         return None
 
 

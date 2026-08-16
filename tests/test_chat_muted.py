@@ -9,9 +9,11 @@ simula con un fake mínimo, y el flujo async se ejecuta con asyncio.run.
 """
 
 import asyncio
+import io
 import itertools
 from types import SimpleNamespace
 
+import discord
 import pytest
 
 import i18n
@@ -39,6 +41,7 @@ class FakeMessage:
         )
         self.guild = SimpleNamespace(id=guild_id, name="Guild")
         self.channel_sent: list[str] = []
+        self.channel_files: list = []
         self.channel = SimpleNamespace(
             id=channel_id,
             send=self._channel_send,
@@ -49,16 +52,23 @@ class FakeMessage:
         self.raw_mentions = [BOT_ID] if mention else []
         self.reference = None
         self.replies: list[str] = []
+        self.reply_files: list = []
         self.reactions: list[str] = []
 
-    async def reply(self, text, **kwargs):
-        self.replies.append(text)
+    async def reply(self, text=None, *, file=None, **kwargs):
+        if text is not None:
+            self.replies.append(text)
+        if file is not None:
+            self.reply_files.append(file)
 
     async def add_reaction(self, emoji):
         self.reactions.append(emoji)
 
-    async def _channel_send(self, text, **kwargs):
-        self.channel_sent.append(text)
+    async def _channel_send(self, text=None, *, file=None, **kwargs):
+        if text is not None:
+            self.channel_sent.append(text)
+        if file is not None:
+            self.channel_files.append(file)
 
 
 @pytest.fixture
@@ -726,7 +736,7 @@ def test_la_probabilidad_de_gif_sale_de_los_settings(cog, monkeypatch):
     monkeypatch.setattr(chat_mod, "random", SimpleNamespace(random=lambda: 0.5))
 
     async def fake_gif(guild_id):
-        return "https://tenor.com/x.gif"
+        return discord.File(io.BytesIO(b"GIF89a-test"), filename="purgito.gif")
 
     monkeypatch.setattr(chat_mod, "get_live_gif", fake_gif)
     monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
@@ -735,11 +745,14 @@ def test_la_probabilidad_de_gif_sale_de_los_settings(cog, monkeypatch):
     texto = FakeMessage()
     asyncio.run(chat.on_message(texto))
     assert texto.replies == ["respuesta"]
+    assert texto.reply_files == []
 
     _patch_ctx(mp, gif_probability=0.9)
     gif = FakeMessage()
     asyncio.run(chat.on_message(gif))
-    assert gif.replies == ["https://tenor.com/x.gif"]
+    assert gif.replies == []  # No se manda URL como texto
+    assert len(gif.reply_files) == 1
+    assert gif.reply_files[0].filename == "purgito.gif"
 
 
 # ─── Templating de frases especiales (Fase 5) ────────────────────────────────
@@ -824,7 +837,7 @@ def test_override_de_canal_cambia_la_conducta_observable(cog, monkeypatch):
     monkeypatch.setattr(chat_mod, "bump_counter", _noop_counter)
 
     async def fake_gif(guild_id):
-        return "https://tenor.com/x.gif"
+        return discord.File(io.BytesIO(b"GIF89a-test"), filename="purgito.gif")
 
     monkeypatch.setattr(chat_mod, "get_live_gif", fake_gif)
 
@@ -850,8 +863,11 @@ def test_override_de_canal_cambia_la_conducta_observable(cog, monkeypatch):
 
     con_override = FakeMessage(channel_id=10)
     asyncio.run(chat.on_message(con_override))
-    assert con_override.replies == ["https://tenor.com/x.gif"]
+    assert con_override.replies == []
+    assert len(con_override.reply_files) == 1
+    assert con_override.reply_files[0].filename == "purgito.gif"
 
     sin_override = FakeMessage(channel_id=20)
     asyncio.run(chat.on_message(sin_override))
     assert sin_override.replies == ["respuesta"]
+    assert sin_override.reply_files == []

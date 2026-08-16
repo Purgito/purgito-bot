@@ -783,11 +783,19 @@ class Chat(commands.Cog):
                     return
                 try:
                     if random.random() < settings["gif_response_probability"]:
-                        gif_url = await get_live_gif(message.guild.id)
-                        if gif_url:
-                            await message.channel.send(gif_url)
-                            await bump_counter(message.guild.id, "gifs_enviados")
-                            return
+                        gif_file = await get_live_gif(message.guild.id)
+                        if gif_file:
+                            try:
+                                await message.channel.send(file=gif_file)
+                                await bump_counter(message.guild.id, "gifs_enviados")
+                                return
+                            except (discord.Forbidden, discord.HTTPException) as e:
+                                log.warning(
+                                    "No se pudo enviar GIF como attachment en canal %s (guild %s): %s",
+                                    message.channel.id,
+                                    message.guild.id,
+                                    e,
+                                )
                     text, is_special = await generation.generate_response(
                         message.guild.id,
                         message.channel.id,
@@ -859,11 +867,19 @@ class Chat(commands.Cog):
             return
 
         if random.random() < settings["gif_response_probability"]:
-            gif_url = await get_live_gif(message.guild.id)
-            if gif_url:
-                await message.reply(gif_url)
-                await bump_counter(message.guild.id, "gifs_enviados")
-                return
+            gif_file = await get_live_gif(message.guild.id)
+            if gif_file:
+                try:
+                    await message.reply(file=gif_file)
+                    await bump_counter(message.guild.id, "gifs_enviados")
+                    return
+                except (discord.Forbidden, discord.HTTPException) as e:
+                    log.warning(
+                        "No se pudo responder con GIF como attachment en canal %s (guild %s): %s",
+                        message.channel.id,
+                        message.guild.id,
+                        e,
+                    )
 
         res = await generation.generate_response(
             message.guild.id,

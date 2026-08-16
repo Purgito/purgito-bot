@@ -1,6 +1,7 @@
 """Captura y gestión de GIFs: detección en mensajes, subida a R2, galería web."""
 
 import asyncio
+import io
 import logging
 import re
 from datetime import datetime, timedelta, timezone
@@ -22,6 +23,7 @@ from db import (
     record_gif_health_check,
     save_gif_url,
     update_gif_media_url,
+    update_gif_storage,
 )
 from i18n import guild_locale, t
 from tasks import get_task_manager
@@ -32,6 +34,13 @@ log = logging.getLogger(__name__)
 GIF_RE = re.compile(
     r"https?://\S*(tenor\.com|giphy\.com|cdn\.discordapp\.com/attachments/\S*\.gif)\S*",
     re.IGNORECASE,
+)
+
+ALLOWED_GIF_HOSTS = (
+    "tenor.com",
+    "giphy.com",
+    "cdn.discordapp.com",
+    "media.discordapp.net",
 )
 
 
@@ -46,6 +55,52 @@ def _is_gif_site(host: str) -> bool:
     return host in ("tenor.com", "giphy.com") or host.endswith(
         (".tenor.com", ".giphy.com")
     )
+
+
+def _is_allowed_gif_host(host: str) -> bool:
+    if not host:
+        return False
+    h = host.lower().strip()
+    if h in ALLOWED_GIF_HOSTS or h.endswith(tuple(f".{x}" for x in ALLOWED_GIF_HOSTS)):
+        return True
+    pub = r2.public_url()
+    if pub:
+        pub_host = (urlparse(pub).hostname or "").lower()
+        if pub_host and (h == pub_host or h.endswith(f".{pub_host}")):
+            return True
+    return False
+
+
+def is_valid_gif_bytes(data: bytes) -> bool:
+    """Valida que los bytes comiencen con la firma de un GIF real (GIF87a o GIF89a)."""
+    return bool(data and len(data) >= 6 and data[:6] in (b"GIF87a", b"GIF89a"))
+
+
+class _LRUGifCache:
+    def __init__(self, capacity: int = 128):
+        self._capacity = capacity
+        self._cache: dict[str, bytes] = {}
+
+    def get(self, key: str) -> bytes | None:
+        if key in self._cache:
+            val = self._cache.pop(key)
+            self._cache[key] = val
+            return val
+        return None
+
+    def set(self, key: str, val: bytes) -> None:
+        if key in self._cache:
+            self._cache.pop(key)
+        elif len(self._cache) >= self._capacity:
+            first_key = next(iter(self._cache))
+            self._cache.pop(first_key)
+        self._cache[key] = val
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+
+_GIF_CACHE = _LRUGifCache(128)
 
 
 # r2.upload_gif_sync es caro (descarga hasta MAX_GIF_DOWNLOAD_BYTES, gifsicle,
@@ -230,29 +285,187 @@ async def resolve_media_url(url: str) -> str | None:
     return resolved
 
 
-async def get_live_gif(
-    guild_id: int, attempts: int = 3, timeout: float = 3.0
-) -> str | None:
-    """Elige un GIF random, valida que cargue, prueba otro si está muerto.
+async def fetch_gif_bytes(url: str, timeout: float = 8.0) -> bytes | None:
+    """Descarga bytes de un GIF desde una URL remota de forma segura contra SSRF.
 
-    Reusa el mismo chequeo tri-estado que el ciclo de salud diario
-    (r2.check_gif_url_health + db.record_gif_health_check): un timeout o
-    error de red puntual ("unreachable") no cuenta como confirmación de que
-    el link esté roto, recién se borra a los 3 "dead" confirmados seguidos
-    (404/410 o content-type inválido, ver _DEAD_STREAK_THRESHOLD en db.py).
+    - Valida el host contra los proveedores de GIFs autorizados.
+    - Si es una página (ej. tenor.com/view/...), la resuelve a la URL directa del .gif.
+    - Verifica el límite de tamaño MAX_GIF_DOWNLOAD_BYTES.
+    - Valida magic bytes GIF87a/GIF89a.
+    - Cachea en memoria los bytes descargados.
     """
-    for gif in await get_random_gif_candidates(guild_id, limit=attempts):
-        media_url = gif.get("media_url")
-        # Si media_url es una imagen estática residual (ej. .png antiguo de tenor),
-        # no usarla; usar la url original.
-        if media_url and not media_url.lower().split("?")[0].endswith((".png", ".jpg", ".jpeg", ".webp")):
-            url = media_url
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+
+    cached = _GIF_CACHE.get(url)
+    if cached:
+        return cached
+
+    host = _gif_host(url)
+    if not _is_allowed_gif_host(host):
+        log.warning("Descarga de GIF rechazada por host no permitido: %s", url)
+        return None
+
+    target_url = url
+    # Si es página de Tenor o Giphy sin .gif directo, resolver primero
+    if not target_url.lower().split("?")[0].endswith(".gif"):
+        resolved = await resolve_media_url(target_url)
+        if resolved:
+            target_url = resolved
+            cached = _GIF_CACHE.get(target_url)
+            if cached:
+                _GIF_CACHE.set(url, cached)
+                return cached
         else:
-            url = gif["url"]
-        status = await asyncio.to_thread(r2.check_gif_url_health, url, timeout)
-        await record_gif_health_check(gif["id"], status)
-        if status == "ok":
-            return url
+            log.debug("No se pudo resolver URL de página a .gif directo: %s", url)
+            return None
+
+    target_host = _gif_host(target_url)
+    if not _is_allowed_gif_host(target_host):
+        log.warning("URL de GIF resuelta rechazada por host no permitido: %s", target_url)
+        return None
+
+    max_bytes = r2._env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
+
+    def _download():
+        import requests
+
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; bot)"}
+        try:
+            resp = r2.fetch_public_url(
+                requests.get,
+                target_url,
+                headers=headers,
+                timeout=timeout,
+                stream=True,
+            )
+            if resp.status_code != 200:
+                log.debug("HTTP %s al descargar GIF: %s", resp.status_code, target_url)
+                resp.close()
+                return None
+            cl = resp.headers.get("Content-Length")
+            if cl and int(cl) > max_bytes:
+                resp.close()
+                return None
+            chunks = []
+            total = 0
+            for chunk in resp.iter_content(chunk_size=262144):
+                total += len(chunk)
+                if total > max_bytes:
+                    resp.close()
+                    return None
+                chunks.append(chunk)
+            resp.close()
+            data = b"".join(chunks)
+            if not is_valid_gif_bytes(data):
+                log.debug("Bytes descargados no corresponden a un GIF válido: %s", target_url)
+                return None
+            return data
+        except Exception:
+            log.debug("Fallo descargando GIF de %s", target_url, exc_info=True)
+            return None
+
+    data = await asyncio.to_thread(_download)
+    if data:
+        _GIF_CACHE.set(url, data)
+        if target_url != url:
+            _GIF_CACHE.set(target_url, data)
+    return data
+
+
+async def fetch_gif_from_storage(content_hash: str) -> bytes | None:
+    """Obtiene los bytes del GIF desde R2 / Cloudflare."""
+    if not content_hash or not r2.available():
+        return None
+    cached = _GIF_CACHE.get(content_hash)
+    if cached:
+        return cached
+    key = r2.gif_key(content_hash)
+    data = await asyncio.to_thread(r2.get_object_bytes_sync, key)
+    if data and is_valid_gif_bytes(data):
+        _GIF_CACHE.set(content_hash, data)
+        return data
+    pub = r2.public_url()
+    if pub:
+        url = f"{pub.rstrip('/')}/{key}"
+        data = await fetch_gif_bytes(url)
+        if data:
+            _GIF_CACHE.set(content_hash, data)
+            return data
+    return None
+
+
+async def _promote_gif_to_r2(gif_id: int, guild_id: int, data: bytes) -> None:
+    """Sube un GIF descargado a R2 en segundo plano y actualiza la fila en corpus_gifs."""
+    if not r2.available():
+        return
+    try:
+        up = await asyncio.to_thread(r2.upload_gif_bytes_sync, data)
+        if up and up.url and up.content_hash:
+            import db
+
+            await update_gif_storage(gif_id, up.url, up.content_hash)
+            db_conn = await db.get_db()
+            async with db._db_lock:
+                await db._retain_gif_object(
+                    db_conn,
+                    up.content_hash,
+                    r2.gif_key(up.content_hash),
+                    up.size_bytes,
+                    up.phash,
+                )
+                await db_conn.commit()
+    except Exception:
+        log.debug("Error promoviendo GIF id=%s a R2", gif_id, exc_info=True)
+
+
+async def get_live_gif(
+    guild_id: int, attempts: int = 3, timeout: float = 6.0
+) -> discord.File | None:
+    """Elige un GIF aleatorio del corpus del servidor, obtiene sus bytes reales
+    (desde R2, cache o descargando de proveedores autorizados), valida los magic
+    bytes GIF87a/GIF89a, y devuelve un discord.File listo para ser enviado como
+    attachment.
+
+    Si un candidato falla:
+    - 404/410 o contenido corrupto/no-GIF: suma al streak 'dead' (se auto-borra a los 3 seguidos).
+    - Timeout puntual o caída de red: registra 'unreachable' sin acumular strikes.
+    - Continúa con el siguiente candidato disponible hasta agotar `attempts`.
+    """
+    candidates = await get_random_gif_candidates(guild_id, limit=attempts)
+    for gif in candidates:
+        gif_id = gif["id"]
+        content_hash = gif.get("content_hash")
+        data: bytes | None = None
+
+        # 1. Preferir storage R2 / cache de contenido si ya tiene content_hash
+        if content_hash:
+            data = await fetch_gif_from_storage(content_hash)
+
+        # 2. Si no tiene hash o falló R2, descargar desde media_url o url
+        if not data:
+            media_url = gif.get("media_url")
+            if media_url and not media_url.lower().split("?")[0].endswith(
+                (".png", ".jpg", ".jpeg", ".webp")
+            ):
+                target_url = media_url
+            else:
+                target_url = gif["url"]
+
+            data = await fetch_gif_bytes(target_url, timeout=timeout)
+
+        if data and is_valid_gif_bytes(data):
+            await record_gif_health_check(gif_id, "ok")
+            if r2.available() and not content_hash:
+                asyncio.create_task(_promote_gif_to_r2(gif_id, guild_id, data))
+            return discord.File(io.BytesIO(data), filename="purgito.gif")
+
+        # Si no se obtuvieron bytes válidos, registrar el estado de salud tri-estado
+        check_url = gif.get("media_url") or gif["url"]
+        status = await asyncio.to_thread(r2.check_gif_url_health, check_url, timeout)
+        await record_gif_health_check(gif_id, status)
+
     return None
 
 

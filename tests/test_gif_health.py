@@ -19,6 +19,7 @@ Usa una DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db.
 import asyncio
 
 import aiosqlite
+import discord
 import pytest
 
 import cogs.gifs as gifs_mod
@@ -429,6 +430,11 @@ def test_get_live_gif_single_unreachable_does_not_delete(memory_db, monkeypatch)
         gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
         monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "unreachable")
 
+        async def _none_bytes(*a, **k):
+            return None
+
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", _none_bytes)
+
         result = await gifs_mod.get_live_gif(_GUILD, attempts=1)
         assert result is None
 
@@ -443,10 +449,16 @@ def test_get_live_gif_single_unreachable_does_not_delete(memory_db, monkeypatch)
 def test_get_live_gif_returns_ok_candidate(memory_db, monkeypatch):
     async def run():
         await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
-        monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "ok")
+
+        async def _fake_bytes(*a, **k):
+            return b"GIF89a-bytes-validos"
+
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", _fake_bytes)
 
         result = await gifs_mod.get_live_gif(_GUILD, attempts=1)
-        assert result == "https://example.com/a.gif"
+        assert isinstance(result, discord.File)
+        assert result.filename == "purgito.gif"
+        assert result.fp.read() == b"GIF89a-bytes-validos"
 
     asyncio.run(run())
 
@@ -455,6 +467,11 @@ def test_get_live_gif_deletes_only_after_three_confirmed_dead(memory_db, monkeyp
     async def run():
         gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
         monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "dead")
+
+        async def _none_bytes(*a, **k):
+            return None
+
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", _none_bytes)
 
         assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
         cur = await memory_db.execute(
@@ -584,17 +601,19 @@ def test_get_live_gif_ignores_png_media_url_and_uses_original_url(memory_db, mon
         )
         await memory_db.commit()
 
-        checked_urls = []
+        fetched_urls = []
 
-        def fake_check(url, timeout=3.0):
-            checked_urls.append(url)
-            return "ok"
+        async def fake_fetch(url, **kwargs):
+            fetched_urls.append(url)
+            return b"GIF89a-cat-anim"
 
-        monkeypatch.setattr(r2, "check_gif_url_health", fake_check)
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", fake_fetch)
 
         res = await gifs_mod.get_live_gif(_GUILD, attempts=1)
-        assert res == "https://tenor.com/view/funny-cat-123"
-        assert "https://media.tenor.com/x.png" not in checked_urls
+        assert isinstance(res, discord.File)
+        assert res.fp.read() == b"GIF89a-cat-anim"
+        assert "https://media.tenor.com/x.png" not in fetched_urls
+        assert "https://tenor.com/view/funny-cat-123" in fetched_urls
 
     asyncio.run(run())
 
