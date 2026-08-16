@@ -73,6 +73,11 @@ BOT_TRIGGER_NAME = os.getenv("BOT_TRIGGER_NAME", "artemis").strip().lower()
 BOT_OWNER_ID: int | None = _env_int_or_none("BOT_OWNER_ID")
 # ID fijo del servidor original PURG4TORY — siempre premium, sin pasar por la tabla.
 PURGATORY_GUILD_ID = 1434103563214393347
+# Conjunto de IDs de servidores con premium permanente incondicional (no facturados por Polar).
+PERMANENT_PREMIUM_GUILD_IDS: set[int] = {
+    PURGATORY_GUILD_ID,
+    1521362322331795487,
+}
 # Canal (tipo anuncio) donde Purgito avisa cuando arranca/se apaga.
 LIFECYCLE_ANNOUNCE_CHANNEL_ID = 1525941934043041822
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))

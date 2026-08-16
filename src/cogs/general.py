@@ -8,7 +8,7 @@ from discord.ext import commands, tasks
 
 import r2
 from cogs.premium import discard_premium_guild
-from config import PURGATORY_GUILD_ID, env_int
+from config import PERMANENT_PREMIUM_GUILD_IDS, PURGATORY_GUILD_ID, env_int
 from db import (
     clear_guild_departure,
     get_expired_departures,
@@ -144,7 +144,7 @@ class General(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        if guild.id == PURGATORY_GUILD_ID:
+        if guild.id in PERMANENT_PREMIUM_GUILD_IDS or guild.id == PURGATORY_GUILD_ID:
             return
         await mark_guild_departed(guild.id)
         log.info(

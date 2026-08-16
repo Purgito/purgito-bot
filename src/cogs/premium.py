@@ -4,7 +4,7 @@ import logging
 
 from discord.ext import commands
 
-from config import PANEL_URL, PURGATORY_GUILD_ID
+from config import PANEL_URL, PERMANENT_PREMIUM_GUILD_IDS, PURGATORY_GUILD_ID
 from db import apply_premium_webhook_change, list_premium_guilds
 from i18n import DEFAULT_LOCALE, t
 
@@ -17,7 +17,7 @@ _premium_guild_ids: set[int] = set()
 
 def is_premium_guild(guild_id: int | None) -> bool:
     """Retorna True si el guild tiene acceso a features premium (memes, pool de imágenes, etc.)."""
-    if guild_id == PURGATORY_GUILD_ID:
+    if guild_id in PERMANENT_PREMIUM_GUILD_IDS or guild_id == PURGATORY_GUILD_ID:
         return True
     if guild_id is None:
         return False

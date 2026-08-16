@@ -93,7 +93,8 @@ def reconcile(client, conn: sqlite3.Connection) -> dict:
     polar_only = {
         gid: sub_id for gid, sub_id in polar_active.items() if gid not in local_premium
     }
-    local_only = local_premium - set(polar_active) - {config.PURGATORY_GUILD_ID}
+    permanent_ids = getattr(config, "PERMANENT_PREMIUM_GUILD_IDS", {config.PURGATORY_GUILD_ID})
+    local_only = local_premium - set(polar_active) - permanent_ids - {config.PURGATORY_GUILD_ID}
 
     print(f"Polar: {len(polar_active)} suscripción(es) activa(s) con guild_id válido")
     print(f"Local: {len(local_premium)} guild(s) marcados premium en premium_guilds")

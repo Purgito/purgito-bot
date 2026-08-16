@@ -140,3 +140,19 @@ def test_filtra_por_los_product_id_configurados(monkeypatch):
 
     assert api.calls[0]["product_id"] == ["prod-monthly", "prod-annual"]
     assert api.calls[0]["active"] is True
+
+
+def test_is_premium_guild_permanent_guilds():
+    from cogs.premium import is_premium_guild
+    assert is_premium_guild(1434103563214393347) is True
+    assert is_premium_guild(1521362322331795487) is True
+    assert is_premium_guild(None) is False
+
+
+def test_permanent_premium_guild_ids_excluido_del_reporte(capsys):
+    response = _FakeResponse([])
+    client = SimpleNamespace(subscriptions=_FakeSubscriptionsAPI(response))
+    conn = _conn_with_premium({1521362322331795487})
+
+    result = rec.reconcile(client, conn)
+    assert result["local_only"] == set()
