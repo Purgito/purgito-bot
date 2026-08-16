@@ -1495,16 +1495,28 @@ class Chat(commands.Cog):
         locale = await i18n.guild_locale(guild.id)
         allowed_channel_ids = await list_corpus_channels(guild.id)
         if not allowed_channel_ids:
-            try:
-                await report_channel.send(
-                    i18n.t("setup.status_no_channels", locale)
-                    + " "
-                    + i18n.t("chat.empty_reply.full", locale)
-                )
-            except Exception:
-                log.warning(
-                    "refeed_guild: no se pudo avisar allowlist vacía en %s", guild.id
-                )
+            msg = (
+                i18n.t("setup.status_no_channels", locale)
+                + " "
+                + i18n.t("chat.empty_reply.full", locale)
+            )
+            edited = False
+            if progress_msg is not None:
+                try:
+                    await progress_msg.edit(content=msg)
+                    edited = True
+                except Exception:
+                    log.debug(
+                        "refeed_guild: no se pudo editar mensaje de allowlist vacía",
+                        exc_info=True,
+                    )
+            if not edited and report_channel is not None:
+                try:
+                    await report_channel.send(msg)
+                except Exception:
+                    log.warning(
+                        "refeed_guild: no se pudo avisar allowlist vacía en %s", guild.id
+                    )
             return totals
         me = guild.me
         if me is None and self.bot.user is not None:
@@ -1548,7 +1560,9 @@ class Chat(commands.Cog):
             perms = channel.permissions_for(me)
             if not (perms.read_messages and perms.read_message_history):
                 totals["forbidden"] += 1
-                problem = f"No pude leer #{channel.name} porque Purgito no tiene permisos para ver su historial."
+                problem = i18n.t(
+                    "refeed.problem_forbidden", locale, channel=channel.name
+                )
                 problem_lines.append(problem)
                 done_lines.append(f"#{channel.name}\n0 mensajes (sin permisos)")
                 continue
@@ -1573,7 +1587,9 @@ class Chat(commands.Cog):
                     "refeed_guild: error procesando canal %s (%s)", channel.id, guild.id
                 )
                 totals["errors"] += 1
-                problem = f"Ocurrió un error leyendo #{channel.name}."
+                problem = i18n.t(
+                    "refeed.problem_error", locale, channel=channel.name
+                )
                 problem_lines.append(problem)
                 done_lines.append(f"#{channel.name}\nerror inesperado")
                 continue
@@ -1582,7 +1598,9 @@ class Chat(commands.Cog):
             totals["gifs_saved"] += res["gifs_saved"]
             if res["forbidden"]:
                 totals["forbidden"] += 1
-                problem = f"No pude leer #{channel.name} porque Purgito no tiene permisos para ver su historial."
+                problem = i18n.t(
+                    "refeed.problem_forbidden", locale, channel=channel.name
+                )
                 problem_lines.append(problem)
                 done_lines.append(f"#{channel.name}\n0 mensajes (sin permisos)")
             elif res["was_incremental"]:
@@ -1595,28 +1613,90 @@ class Chat(commands.Cog):
                 totals["partial"] += 1
                 done_lines.append(f"#{channel.name}\n{res['saved']:,} mensajes")
 
-        if totals["forbidden"] == 0 and totals["errors"] == 0:
-            summary = i18n.t(
-                "refeed.done_success",
-                locale,
-                total=f"{totals['saved']:,}",
-                channels=totals["completed"] + totals["incremental"] + totals["partial"],
-            )
+        processed_channels = (
+            totals["completed"] + totals["incremental"] + totals["partial"]
+        )
+        has_problems = totals["forbidden"] > 0 or totals["errors"] > 0
+        is_partial = totals["partial"] > 0
+
+        if processed_channels == 1:
+            channels_str = i18n.t("refeed.channel_one", locale)
         else:
-            summary = i18n.t(
-                "refeed.done_with_problems",
-                locale,
-                total=f"{totals['saved']:,}",
-                problems="\n".join(problem_lines),
+            channels_str = i18n.t(
+                "refeed.channel_many", locale, count=processed_channels
             )
 
+        if totals["gifs_saved"] == 1:
+            gifs_str = i18n.t("refeed.gifs_one", locale)
+        elif totals["gifs_saved"] > 1:
+            gifs_str = i18n.t(
+                "refeed.gifs_many",
+                locale,
+                count=f"{totals['gifs_saved']:,}",
+            )
+        else:
+            gifs_str = ""
+
+        total_saved_str = f"{totals['saved']:,}"
+
+        parts: list[str] = []
+
+        if processed_channels > 0:
+            if is_partial:
+                parts.append(i18n.t("refeed.done_header_partial", locale))
+            else:
+                parts.append(i18n.t("refeed.done_header", locale))
+
+            parts.append(
+                i18n.t(
+                    "refeed.done_learned",
+                    locale,
+                    total=total_saved_str,
+                    channels=channels_str,
+                    gifs=gifs_str,
+                )
+            )
+
+            if problem_lines:
+                parts.append("\n".join(problem_lines))
+
+            if is_partial:
+                parts.append(i18n.t("refeed.done_footer_partial", locale))
+            else:
+                parts.append(i18n.t("refeed.done_footer_ready", locale))
+        else:
+            if has_problems:
+                parts.append(i18n.t("refeed.done_header_problems", locale))
+                if problem_lines:
+                    parts.append("\n".join(problem_lines))
+                parts.append(i18n.t("refeed.done_footer_problems", locale))
+            else:
+                parts.append(i18n.t("refeed.done_header", locale))
+                parts.append(
+                    i18n.t(
+                        "refeed.done_learned",
+                        locale,
+                        total=total_saved_str,
+                        channels=channels_str,
+                        gifs=gifs_str,
+                    )
+                )
+                parts.append(i18n.t("refeed.done_footer_ready", locale))
+
+        summary = "\n\n".join(parts)
+
+        edited = False
         if progress_msg is not None:
             try:
                 await progress_msg.edit(content=summary)
+                edited = True
             except Exception:
-                log.debug("refeed_guild: no se pudo editar mensaje de progreso final")
+                log.debug(
+                    "refeed_guild: no se pudo editar mensaje de progreso final",
+                    exc_info=True,
+                )
 
-        if report_channel is not None and getattr(report_channel, "id", None) != getattr(progress_msg, "id", None):
+        if not edited and report_channel is not None:
             try:
                 await report_channel.send(summary)
             except Exception:
@@ -1704,30 +1784,36 @@ class Chat(commands.Cog):
         if res["forbidden"] and res["saved"] == 0:
             await interaction.followup.send(i18n.t("chat.refeed.forbidden", locale))
             return
-        gifs_suffix = (
-            i18n.t("chat.refeed.gifs_suffix", locale, count=res["gifs_saved"])
-            if res["gifs_saved"]
-            else ""
-        )
+        if res["gifs_saved"] == 1:
+            gifs_suffix = i18n.t("chat.refeed.gifs_suffix_one", locale)
+        elif res["gifs_saved"] > 1:
+            gifs_suffix = i18n.t(
+                "chat.refeed.gifs_suffix_many",
+                locale,
+                count=f"{res['gifs_saved']:,}",
+            )
+        else:
+            gifs_suffix = ""
+
         if res["was_incremental"]:
             result = i18n.t(
                 "chat.refeed.result_incremental",
                 locale,
-                saved=res["saved"],
+                saved=f"{res['saved']:,}",
                 gifs=gifs_suffix,
             )
         elif res["backfill_complete"]:
             result = i18n.t(
                 "chat.refeed.result_complete",
                 locale,
-                saved=res["saved"],
+                saved=f"{res['saved']:,}",
                 gifs=gifs_suffix,
             )
         else:
             result = i18n.t(
                 "chat.refeed.result_partial",
                 locale,
-                saved=res["saved"],
+                saved=f"{res['saved']:,}",
                 gifs=gifs_suffix,
                 limit=f"{REFEED_MAX_MESSAGES:,}",
             )
