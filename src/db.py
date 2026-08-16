@@ -132,7 +132,8 @@ CREATE TABLE IF NOT EXISTS settings (
     chat_mode_enabled INTEGER NOT NULL DEFAULT 1,
     chat_channel_id INTEGER,
     mention_rate_limit INTEGER NOT NULL DEFAULT 10,
-    locale TEXT
+    locale TEXT,
+    updates_channel_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS corpus_messages (
@@ -2539,6 +2540,18 @@ async def set_updates_channel(guild_id: int, channel_id: int | None) -> None:
             (guild_id, channel_id),
         )
         await db.commit()
+
+
+async def list_all_updates_channels() -> list[dict]:
+    """Retorna [{'guild_id': int, 'channel_id': int}, ...] para todos los servidores
+    que tengan configurado un canal de actualizaciones del bot (no nulo)."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT guild_id, updates_channel_id FROM settings "
+        "WHERE updates_channel_id IS NOT NULL"
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"guild_id": row[0], "channel_id": row[1]} for row in rows]
 
 
 async def count_corpus_by_channel(guild_id: int) -> list[dict]:

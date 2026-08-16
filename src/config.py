@@ -80,6 +80,8 @@ PERMANENT_PREMIUM_GUILD_IDS: set[int] = {
 }
 # Canal (tipo anuncio) donde Purgito avisa cuando arranca/se apaga.
 LIFECYCLE_ANNOUNCE_CHANNEL_ID = 1525941934043041822
+# Canal oficial de Purgito donde se publican las actualizaciones del bot.
+OFFICIAL_UPDATES_CHANNEL_ID = 1522754564971958453
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
 
 REFEED_MAX_MESSAGES = env_int("REFEED_MAX_MESSAGES", 80_000)

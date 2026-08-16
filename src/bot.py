@@ -50,6 +50,7 @@ EXTENSIONS = [
     "cogs.settings",
     "cogs.layout_buttons",
     "cogs.privacy",
+    "cogs.updates",
 ]
 
 intents = discord.Intents.default()

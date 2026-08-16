@@ -1668,6 +1668,13 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
         channel_id = _to_int(data["channel_id"])
         if channel_id is None:
             return web.json_response({"error": "channel_id inválido"}, status=400)
+        guild = _bot_guild(request, guild_id)
+        if guild is not None:
+            channel = guild.get_channel(channel_id)
+            if channel is None or not hasattr(channel, "send"):
+                return web.json_response(
+                    {"error": "el canal no existe en este servidor"}, status=400
+                )
     await set_updates_channel(guild_id, channel_id)
     await _log_audit(
         request, guild_id, "updates_channel.set", detail=f"channel_id={channel_id}"
