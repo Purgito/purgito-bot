@@ -2565,6 +2565,369 @@ function channelMatrix({ channels, cols, openOverrides }) {
   return wrap;
 }
 
+function renderExcludedUsersList(container, users, onRefresh) {
+  container.innerHTML = '';
+  const list = el('div', { class: 'excluded-users-list' });
+
+  if (!users || !users.length) {
+    list.append(el('p', { class: 'dim empty-muted' }, 'Ningún usuario excluido en este servidor.'));
+  } else {
+    for (const u of users) {
+      let badgeText = '';
+      if (u.exclude_interaction && u.exclude_learning) {
+        badgeText = 'No responde ni aprende';
+      } else if (u.exclude_interaction) {
+        badgeText = 'No responde';
+      } else if (u.exclude_learning) {
+        badgeText = 'No aprende';
+      }
+
+      const row = el('div', { class: 'excluded-user-row' },
+        el('div', { class: 'excluded-user-info' },
+          u.avatar_url
+            ? el('img', { src: u.avatar_url, alt: u.user_name, class: 'excluded-user-avatar', loading: 'lazy' })
+            : el('span', { class: 'excluded-user-avatar excluded-user-avatar--fallback' }, icon('user')),
+          el('div', { class: 'excluded-user-names' },
+            el('strong', { class: 'excluded-user-name' }, u.user_name),
+            el('span', { class: 'dim excluded-user-id' }, u.user_id)
+          )
+        ),
+        el('div', { class: 'excluded-user-badge-wrap' },
+          el('span', { class: 'badge badge-dim' }, badgeText)
+        ),
+        el('div', { class: 'excluded-user-actions' },
+          el('button', {
+            type: 'button',
+            class: 'btn btn-secondary btn-sm',
+            onclick: () => openEditExcludedUserModal(u, onRefresh),
+          }, 'Editar'),
+          confirmDelBtn('¿Quitar la exclusión de este usuario?', async () => {
+            try {
+              await apiFetch(`/api/server/${GUILD_ID}/settings/excluded-users/${u.user_id}`, {
+                method: 'DELETE',
+              });
+              toast('Exclusión eliminada', 'ok');
+              await onRefresh();
+            } catch (err) {
+              toast(humanError(err) || 'No se pudo quitar la exclusión', 'err');
+            }
+          })
+        )
+      );
+      list.append(row);
+    }
+  }
+
+  const addBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-secondary',
+    onclick: () => openAddExcludedUserModal(onRefresh),
+  }, '+ Añadir usuario');
+
+  container.append(list, el('div', { class: 'excluded-users-add-wrap' }, addBtn));
+}
+
+function openAddExcludedUserModal(onRefresh) {
+  let selectedUser = null;
+  let searchTimeout = null;
+
+  const searchInput = el('input', {
+    type: 'text',
+    class: 'input',
+    placeholder: 'Escribe un ID de Discord o busca por nombre…',
+    autocomplete: 'off',
+  });
+
+  const resultsBox = el('div', { class: 'user-search-results' });
+  const selectedBox = el('div', { class: 'user-selected-preview' });
+
+  function setSelected(u) {
+    selectedUser = u;
+    resultsBox.innerHTML = '';
+    selectedBox.innerHTML = '';
+    if (u) {
+      selectedBox.append(
+        el('div', { class: 'user-selected-card' },
+          u.avatar_url
+            ? el('img', { src: u.avatar_url, alt: u.name || u.user_name, class: 'excluded-user-avatar', loading: 'lazy' })
+            : el('span', { class: 'excluded-user-avatar excluded-user-avatar--fallback' }, icon('user')),
+          el('div', { class: 'user-selected-text' },
+            el('strong', {}, u.name || u.user_name),
+            el('span', { class: 'dim' }, `ID: ${u.id || u.user_id}`)
+          ),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-secondary btn-sm',
+            onclick: () => setSelected(null),
+          }, 'Cambiar')
+        )
+      );
+      searchInput.value = '';
+      searchInput.style.display = 'none';
+    } else {
+      searchInput.style.display = '';
+      searchInput.focus();
+    }
+  }
+
+  searchInput.oninput = () => {
+    const q = searchInput.value.trim();
+    if (searchTimeout) clearTimeout(searchTimeout);
+    if (!q) {
+      resultsBox.innerHTML = '';
+      return;
+    }
+    searchTimeout = setTimeout(async () => {
+      try {
+        const searchPath = `/api/server/${GUILD_ID}/members/search`;
+        const res = await apiFetch(searchPath + `?q=${encodeURIComponent(q)}`);
+        resultsBox.innerHTML = '';
+        if (res.members && res.members.length) {
+          for (const m of res.members) {
+            const item = el('div', {
+              class: 'user-search-item',
+              onclick: () => setSelected(m),
+            },
+              m.avatar_url
+                ? el('img', { src: m.avatar_url, alt: m.name, class: 'excluded-user-avatar-sm', loading: 'lazy' })
+                : el('span', { class: 'excluded-user-avatar-sm' }, icon('user')),
+              el('span', { class: 'user-search-name' }, m.name),
+              el('span', { class: 'dim user-search-id' }, m.id)
+            );
+            resultsBox.append(item);
+          }
+        } else if (/^\d{17,20}$/.test(q)) {
+          const item = el('div', {
+            class: 'user-search-item',
+            onclick: () => setSelected({ id: q, name: `Usuario (${q})`, avatar_url: null }),
+          },
+            el('span', {}, icon('user')),
+            el('span', { class: 'user-search-name' }, `Usar ID: ${q}`)
+          );
+          resultsBox.append(item);
+        } else {
+          resultsBox.append(el('p', { class: 'dim user-search-empty' }, 'No se encontraron usuarios con ese nombre o ID.'));
+        }
+      } catch (err) {
+        resultsBox.innerHTML = '';
+      }
+    }, 250);
+  };
+
+  const modeRadios = [
+    {
+      id: 'exc_both',
+      value: 'both',
+      title: 'Bloquear ambas (No responder ni aprender)',
+      desc: 'Purgito no interactuará con este usuario ni aprenderá de sus mensajes.',
+      checked: true,
+    },
+    {
+      id: 'exc_inter',
+      value: 'interaction',
+      title: 'No responder a este usuario',
+      desc: 'El bot no responderá a sus menciones, no reaccionará ni activará triggers.',
+      checked: false,
+    },
+    {
+      id: 'exc_learn',
+      value: 'learning',
+      title: 'No aprender de este usuario',
+      desc: 'Sus mensajes nuevos no entrarán en el aprendizaje del servidor ni se usarán en Markov.',
+      checked: false,
+    },
+  ];
+
+  const radioGroup = el('div', { class: 'excluded-options-group' });
+  const radioInputs = {};
+
+  for (const opt of modeRadios) {
+    const radio = el('input', {
+      type: 'radio',
+      name: 'exclusion_type',
+      id: opt.id,
+      value: opt.value,
+      checked: opt.checked,
+    });
+    radioInputs[opt.value] = radio;
+    const label = el('label', { for: opt.id, class: 'excluded-option-card' },
+      radio,
+      el('div', { class: 'excluded-option-text' },
+        el('strong', {}, opt.title),
+        el('p', { class: 'dim' }, opt.desc)
+      )
+    );
+    radioGroup.append(label);
+  }
+
+  let modal = null;
+
+  const saveBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-primary',
+    onclick: async () => {
+      let uid = selectedUser ? (selectedUser.id || selectedUser.user_id) : searchInput.value.trim();
+      if (!uid) {
+        toast('Debes seleccionar o ingresar un ID de usuario', 'err');
+        return;
+      }
+      const mode = Object.keys(radioInputs).find(k => radioInputs[k].checked) || 'both';
+      const excludeInteraction = mode === 'both' || mode === 'interaction';
+      const excludeLearning = mode === 'both' || mode === 'learning';
+
+      saveBtn.disabled = true;
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/excluded-users`, {
+          method: 'POST',
+          body: {
+            user_id: uid,
+            exclude_interaction: excludeInteraction,
+            exclude_learning: excludeLearning,
+          },
+        });
+        toast('Usuario excluido correctamente', 'ok');
+        if (modal) modal.remove();
+        await onRefresh();
+      } catch (err) {
+        saveBtn.disabled = false;
+        toast(humanError(err) || 'No se pudo guardar la exclusión', 'err');
+      }
+    },
+  }, 'Guardar exclusión');
+
+  const modalBody = el('div', { class: 'excluded-user-modal-body' },
+    el('div', { class: 'field' },
+      el('label', {}, 'Usuario del servidor'),
+      searchInput,
+      resultsBox,
+      selectedBox
+    ),
+    el('div', { class: 'field' },
+      el('label', {}, 'Tipo de exclusión'),
+      radioGroup
+    ),
+    el('p', { class: 'dim note' }, 'ⓘ Esta configuración afecta únicamente a este servidor.'),
+    el('div', { class: 'modal-actions' },
+      saveBtn,
+      el('button', {
+        type: 'button',
+        class: 'btn btn-secondary',
+        onclick: () => { if (modal) modal.remove(); },
+      }, 'Cancelar')
+    )
+  );
+
+  modal = panelModal('Añadir exclusión de usuario', modalBody);
+}
+
+function openEditExcludedUserModal(user, onRefresh) {
+  let initialMode = 'both';
+  if (user.exclude_interaction && !user.exclude_learning) initialMode = 'interaction';
+  else if (!user.exclude_interaction && user.exclude_learning) initialMode = 'learning';
+
+  const modeRadios = [
+    {
+      id: 'edit_exc_both',
+      value: 'both',
+      title: 'Bloquear ambas (No responder ni aprender)',
+      desc: 'Purgito no interactuará con este usuario ni aprenderá de sus mensajes.',
+      checked: initialMode === 'both',
+    },
+    {
+      id: 'edit_exc_inter',
+      value: 'interaction',
+      title: 'No responder a este usuario',
+      desc: 'El bot no responderá a sus menciones, no reaccionará ni activará triggers.',
+      checked: initialMode === 'interaction',
+    },
+    {
+      id: 'edit_exc_learn',
+      value: 'learning',
+      title: 'No aprender de este usuario',
+      desc: 'Sus mensajes nuevos no entrarán en el aprendizaje del servidor ni se usarán en Markov.',
+      checked: initialMode === 'learning',
+    },
+  ];
+
+  const radioGroup = el('div', { class: 'excluded-options-group' });
+  const radioInputs = {};
+
+  for (const opt of modeRadios) {
+    const radio = el('input', {
+      type: 'radio',
+      name: 'edit_exclusion_type',
+      id: opt.id,
+      value: opt.value,
+      checked: opt.checked,
+    });
+    radioInputs[opt.value] = radio;
+    const label = el('label', { for: opt.id, class: 'excluded-option-card' },
+      radio,
+      el('div', { class: 'excluded-option-text' },
+        el('strong', {}, opt.title),
+        el('p', { class: 'dim' }, opt.desc)
+      )
+    );
+    radioGroup.append(label);
+  }
+
+  let modal = null;
+
+  const saveBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-primary',
+    onclick: async () => {
+      const mode = Object.keys(radioInputs).find(k => radioInputs[k].checked) || 'both';
+      const excludeInteraction = mode === 'both' || mode === 'interaction';
+      const excludeLearning = mode === 'both' || mode === 'learning';
+
+      saveBtn.disabled = true;
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/excluded-users/${user.user_id}`, {
+          method: 'PUT',
+          body: {
+            exclude_interaction: excludeInteraction,
+            exclude_learning: excludeLearning,
+          },
+        });
+        toast('Exclusión actualizada', 'ok');
+        if (modal) modal.remove();
+        await onRefresh();
+      } catch (err) {
+        saveBtn.disabled = false;
+        toast(humanError(err) || 'No se pudo actualizar la exclusión', 'err');
+      }
+    },
+  }, 'Guardar cambios');
+
+  const modalBody = el('div', { class: 'excluded-user-modal-body' },
+    el('div', { class: 'user-selected-card' },
+      user.avatar_url
+        ? el('img', { src: user.avatar_url, alt: user.user_name, class: 'excluded-user-avatar', loading: 'lazy' })
+        : el('span', { class: 'excluded-user-avatar excluded-user-avatar--fallback' }, icon('user')),
+      el('div', { class: 'user-selected-text' },
+        el('strong', {}, user.user_name),
+        el('span', { class: 'dim' }, `ID: ${user.user_id}`)
+      )
+    ),
+    el('div', { class: 'field' },
+      el('label', {}, 'Tipo de exclusión'),
+      radioGroup
+    ),
+    el('p', { class: 'dim note' }, 'ⓘ Esta configuración afecta únicamente a este servidor.'),
+    el('div', { class: 'modal-actions' },
+      saveBtn,
+      el('button', {
+        type: 'button',
+        class: 'btn btn-secondary',
+        onclick: () => { if (modal) modal.remove(); },
+      }, 'Cancelar')
+    )
+  );
+
+  modal = panelModal(`Editar exclusión: ${user.user_name}`, modalBody);
+}
+
 async function loadChatTab() {
   // Manejo de compatibilidad con hashes antiguos (#reacciones, #contenido, etc.)
   const hash = location.hash.slice(1);
@@ -2581,11 +2944,12 @@ async function loadChatTab() {
   const epoch = _loadEpoch;
 
   try {
-    const [chat, exempt, exemptChans, channels, roles] =
+    const [chat, exempt, exemptChans, excludedData, channels, roles] =
       await Promise.all([
         apiFetch(`/api/server/${GUILD_ID}/settings/chat`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-roles`),
         apiFetch(`/api/server/${GUILD_ID}/settings/exempt-channels`),
+        apiFetch(`/api/server/${GUILD_ID}/settings/excluded-users`),
         getChannels({ force: true }),
         getRoles(),
       ]);
@@ -2712,6 +3076,23 @@ async function loadChatTab() {
           listBelow: 'Ningún canal exento — el límite aplica en todos.',
         })));
 
+    // Exclusión de usuarios
+    const excludedUsersContainer = el('div', { class: 'excluded-users-container' });
+    const refreshExcluded = async () => {
+      try {
+        const res = await apiFetch(`/api/server/${GUILD_ID}/settings/excluded-users`);
+        renderExcludedUsersList(excludedUsersContainer, res.users || [], refreshExcluded);
+      } catch (err) {
+        toast('Error al recargar exclusiones', 'err');
+      }
+    };
+    renderExcludedUsersList(excludedUsersContainer, (excludedData && excludedData.users) || [], refreshExcluded);
+
+    const excludedSection = formGroup('Exclusión de usuarios',
+      el('p', { class: 'dim' }, 'Excluye a miembros concretos de las respuestas de Purgito, de su aprendizaje o de ambos. Esta configuración afecta únicamente a este servidor.'),
+      excludedUsersContainer
+    );
+
     // Accesos directos a módulos relacionados
     const toolsSection = formGroup('Herramientas y automatizaciones del chat',
       el('p', { class: 'dim' }, 'Configura las reglas de automatización y los canales de aprendizaje de Purgito.'),
@@ -2724,7 +3105,7 @@ async function loadChatTab() {
       )
     );
 
-    box.append(comportamientoSection, limitesSection, toolsSection);
+    box.append(comportamientoSection, limitesSection, excludedSection, toolsSection);
   } catch (e) { renderError(box, e); }
 }
 

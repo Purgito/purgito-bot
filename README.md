@@ -123,106 +123,54 @@ El servidor web de la galería arranca en el mismo proceso en `0.0.0.0:8080`.
 
 ## 📋 Comandos
 
-### 🤖 Markov y chat
+### 🤖 Markov, chat y moderación
 
 | Comando | Descripción | Permisos |
 |---|---|---|
 | `/generar` | Genera un mensaje con el modelo Markov del servidor | Todos |
 | `/imitar @usuario` | Genera un mensaje imitando el estilo del usuario (mín. 30 msgs) | Todos |
-| `/chatmode on [#canal]` | Activa auto-reply al ser mencionado o al responderle | Gestionar servidor |
-| `/chatmode off` | Desactiva el auto-reply | Gestionar servidor |
+| `/refeed_channels` | Importa historial de mensajes al corpus (por canal o servidor) | Gestionar servidor |
 | `/corpus_info` | Muestra cuántos mensajes tiene el corpus del canal actual | Todos |
-| `/refeed` | Importa los últimos mensajes del canal al corpus (máx. 80 000 por defecto) | Gestionar servidor |
-| `/refeed_all` | Importa mensajes de todos los canales del servidor (máx. 20 000 por canal por defecto) | Gestionar servidor |
-| `/corpus_wipe` | Borra todo el corpus y reinicia la caché Markov | Gestionar servidor |
-| `/corpus_ignorar add #canal` | Añade un canal a la lista de ignorados | Gestionar servidor |
-| `/corpus_ignorar quitar #canal` | Quita un canal de la lista de ignorados | Gestionar servidor |
-| `/corpus_ignorar lista` | Lista canales ignorados | Gestionar servidor |
-| `/añadir_frase <texto>` | Agrega una frase al pool del servidor | Todos |
-| `/ver_frases` | Lista todas las frases con su ID y autor | Todos |
-| `/borrar_frase <id>` | Borra una frase (propia o cualquiera si eres administrador) | Todos / Admin |
+| `/corpus_wipe` | Borra todo el corpus del servidor y reinicia la caché Markov | Gestionar servidor |
+| `/gif_add <url>` | Añade un GIF al pool del servidor (Tenor, Giphy o Discord CDN) | Gestionar servidor |
+| `/borrar_mis_datos` | Elimina permanentemente los mensajes y datos guardados del usuario | Todos |
 
-### 🎞️ GIFs
+### ⚙️ Configuración y gestión
 
 | Comando | Descripción | Permisos |
 |---|---|---|
-| `/gif_add <url>` | Añade un GIF manualmente (Tenor, Giphy o Discord CDN) | Gestionar servidor |
-
-### ⚙️ Configuración
-
-| Comando | Descripción | Permisos |
-|---|---|---|
-| `/settings` | Abre el panel de configuración del servidor | Gestionar servidor |
-| `/setup` | Abre la guía de configuración inicial | Gestionar servidor |
+| `/settings` | Abre el panel interactivo de configuración en Discord | Gestionar servidor |
+| `/setup` | Abre el asistente de configuración inicial paso a paso | Gestionar servidor |
+| `/help` | Muestra un embed de ayuda con comandos y enlaces al panel | Todos |
+| `/invitame` | Entrega el link de invitación oficial del bot | Todos |
 
 ### 😂 Memes ⭐ (premium)
 
-> Estas funciones solo están disponibles en servidores premium. El propietario del bot las habilita desde el panel de administración del dashboard.
+> Requiere suscripción Premium en el servidor.
 
 | Comando | Descripción | Permisos |
 |---|---|---|
-| `/momo` | Genera un meme usando una imagen del pool (cooldown 45s por usuario) | Todos |
+| `/momo` | Genera un meme usando una imagen del pool (cooldown 3s por usuario) | Todos |
 | `/meme` | Alias de `/momo` | Todos |
 
-**Trigger rápido (sin slash):** responde (reply) a un mensaje con imagen y escribe `artemis generar` o `@bot generar`.
-
-### ⏱️ Memes automáticos ⭐ (premium)
-
-| Comando | Descripción | Permisos |
-|---|---|---|
-| `/meme_auto activar #canal <horas>` | Activa memes automáticos cada 2–24h | Gestionar servidor |
-| `/meme_auto desactivar #canal` | Desactiva memes automáticos | Gestionar servidor |
-| `/meme_auto lista` | Lista configuración actual | Gestionar servidor |
-
-### 💬 Frases especiales
-
-Pool de frases fijas que el bot puede soltar con un 5% de probabilidad (cooldown de 40 minutos por servidor).
-
-| Comando | Descripción | Permisos |
-|---|---|---|
-| `/añadir_frase <texto>` | Agrega una frase al pool del servidor | Todos |
-| `/ver_frases` | Lista todas las frases con su ID y autor | Todos |
-| `/borrar_frase <id>` | Borra una frase (propia o cualquiera si eres admin) | Todos / Admin |
-
-### 😄 Pool de reacciones
-
-El bot reacciona automáticamente al 5% de los mensajes usando emojis del pool. Si el pool está vacío, no reacciona.
-
-| Comando | Descripción | Permisos |
-|---|---|---|
-| `/reacciones add <emoji>` | Añade un emoji al pool (Unicode o custom del servidor) | Gestionar servidor |
-| `/reacciones quitar <id>` | Quita un emoji del pool por su ID | Gestionar servidor |
-| `/reacciones lista` | Lista los emojis actuales con sus IDs | Gestionar servidor |
-
-### 📺 YouTube
-
-| Comando | Descripción | Permisos |
-|---|---|---|
-| `/youtube_add <channel_id> #canal [rol]` | Suscribe un canal de YouTube a un canal de Discord | Gestionar servidor |
-| `/youtube_remove <channel_id>` | Elimina una suscripción | Gestionar servidor |
-| `/youtube_list` | Lista todas las suscripciones activas del servidor | Gestionar servidor |
-| `/youtube_set_mention <channel_id> [rol]` | Configura (o quita) el rol a mencionar en notificaciones | Gestionar servidor |
-
-### 🔧 Utilidades
-
-| Comando | Descripción |
-|---|---|
-| `/help` | Muestra un embed con todos los comandos disponibles |
-| `!ping` | Responde `Pong!` para verificar que el bot está online |
+**Trigger por mención/reply:** responde (reply) a un mensaje con imagen escribiendo `artemis momo` o mencionando al bot.
 
 ---
 
-## 🌐 Web API
+## 🌐 Panel Web y Dashboard
 
-El bot sirve una galería y una API REST en el mismo proceso (puerto `WEB_PORT`, por defecto `8080`).
+Purgito incluye un panel de administración web completo (`/es/dashboard`), protegido mediante autenticación Discord OAuth2:
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| `GET` | `/` | Galería HTML pública de GIFs |
-| `GET` | `/api/gifs` | Lista todos los GIFs (`{gifs: [...], total: N}`) |
-| `POST` | `/api/gifs` | Añade un GIF (`{url: "..."}`) — rate limit 5/min por IP |
-| `DELETE` | `/api/gifs/{id}` | Elimina un GIF por ID — rate limit 3/min por IP |
-| `GET` | `/health` | Healthcheck (`{ok: true}`) |
+- **Chat y Aprendizaje**: Canales activos/ignorados, frecuencia y probabilidad de respuestas espontáneas, triggers de auto-respuesta y **Exclusión de usuarios** (bloqueo independiente de respuestas y aprendizaje).
+- **Frases Especiales y Packs**: Frases fijas, cooldowns y asignación de packs por canal.
+- **Reacciones**: Emojis personalizados para reacciones automáticas.
+- **Galería de GIFs**: Gestión, visualización, subida y verificación de estado de GIFs.
+- **Editor de Embeds**: Diseñador visual con plantillas, botones interactivos (Components V2) y asignación de roles.
+- **Anuncios Programados**: Mensajes automáticos por intervalo o a horas fijas con zona horaria configurable.
+- **YouTube**: Notificaciones automáticas de nuevos videos con mención de rol opcional.
+- **Historial de Auditoría**: Registro de cambios administrativos en el servidor.
+
+La documentación técnica completa de la API REST está disponible en `/es/documentacion/api`.
 
 ---
 
@@ -231,33 +179,35 @@ El bot sirve una galería y una API REST en el mismo proceso (puerto `WEB_PORT`,
 <details>
 <summary><b>🧠 Construcción del corpus</b></summary>
 
-Cada mensaje de usuario pasa por un filtro antes de guardarse: se eliminan URLs, menciones de Discord, secuencias ANSI típicas de logs y líneas sin letras. Se colapsan espacios y se descartan mensajes que queden vacíos. El corpus deduplica por `(servidor, message_id)`.
+Cada mensaje de usuario pasa por un filtro antes de guardarse: se eliminan URLs, menciones de Discord, secuencias ANSI típicas de logs y líneas sin letras. Se colapsan espacios y se descartan mensajes vacíos o de usuarios excluidos de aprendizaje. El corpus deduplica por `(servidor, message_id)`.
 
 El bot mantiene **dos corpus independientes**:
-- **Servidor** — para respuestas generales (`/generar`, auto-reply)
-- **Por usuario** — exclusivo para `/imitar`
+- **Servidor** (`corpus_messages`) — para respuestas generales (`/generar`, auto-reply)
+- **Por usuario** (`user_corpus`) — exclusivo para `/imitar`
 
 </details>
 
 <details>
 <summary><b>⚡ Generación automática</b></summary>
 
-Cada **15 mensajes nuevos** insertados en el corpus de un canal, el bot genera una respuesta. Con un **45% de probabilidad** envía un GIF aleatorio de la colección en lugar del texto.
+Cada **N mensajes nuevos** (configurable por servidor, default 15) en un canal habilitado, el bot evalúa la probabilidad (default 60%) de emitir una respuesta espontánea, respetando un cooldown de silencio de 45 segundos por canal.
 
-Con un **5% de probabilidad** (y cooldown de 40 minutos), el bot suelta una frase del pool de frases especiales en lugar de generar con Markov.
+Con un **5% de probabilidad** (y cooldown de 40 minutos), el bot puede soltar una frase del pool de frases especiales en lugar de generar con Markov.
 
-La caché del modelo Markov se invalida automáticamente cada **50 inserciones** para mantenerse actualizada.
+La caché del modelo Markov se invalida automáticamente tras nuevas inserciones o cambios en la exclusión de usuarios.
 
 </details>
 
 <details>
-<summary><b>💬 Auto-reply (chatmode)</b></summary>
+<summary><b>💬 Respuestas a menciones y replies</b></summary>
 
-Si el modo está activo, el bot responde cuando:
-- Lo mencionan con `@bot`
-- Alguien le hace reply a uno de sus mensajes
+En canales habilitados, el bot responde cuando:
+- Lo mencionan con `@Purgito`
+- Alguien le responde (reply) directamente a uno de sus mensajes
 
-Se puede restringir a un canal específico con `/chatmode on #canal`. Requiere el permiso **Gestionar servidor**.
+Los usuarios con exclusión de interacción son ignorados automáticamente sin disparar respuestas, reacciones ni triggers.
+
+</details>
 
 </details>
 

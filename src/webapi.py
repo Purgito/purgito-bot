@@ -135,6 +135,7 @@ from db import (
     list_channel_triggers,
     list_corpus_channels,
     list_embed_templates,
+    list_excluded_users,
     list_exempt_channels,
     list_exempt_roles,
     list_frase_channels,
@@ -160,6 +161,7 @@ from db import (
     remove_mention_channel,
     remove_reaction_from_pool,
     remove_spontaneous_channel,
+    remove_user_exclusion,
     remove_youtube_sub_by_id,
     revoke_session,
     save_gif_url,
@@ -169,6 +171,7 @@ from db import (
     set_chat_mode,
     set_chat_tunables,
     set_updates_channel,
+    set_user_exclusion,
     set_youtube_mention_role_by_id,
     unassign_pack_from_channel,
     unblock_gif,
@@ -1517,6 +1520,225 @@ async def _api_exempt_channels_delete(
             detail=f"channel_id={channel_id}",
         )
     return web.json_response({"removed": removed})
+
+
+# ---------------- API: usuarios excluidos ----------------
+
+
+@guild_api
+async def _api_excluded_users_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Lista todos los usuarios excluidos de interacción y/o aprendizaje en este servidor."""
+    guild = _bot_guild(request, guild_id)
+    exclusions = await list_excluded_users(guild_id)
+    users = []
+    for exc in exclusions:
+        uid = exc["user_id"]
+        member = guild.get_member(uid) if guild else None
+        user_name = None
+        avatar_url = None
+        if member:
+            user_name = member.display_name
+            avatar_url = str(member.display_avatar.url) if member.display_avatar else None
+        else:
+            user_obj = request.app["bot"].get_user(uid)
+            if user_obj:
+                user_name = user_obj.display_name
+                avatar_url = str(user_obj.display_avatar.url) if user_obj.display_avatar else None
+
+        users.append(
+            {
+                "user_id": str(uid),
+                "user_name": user_name or f"Usuario ({uid})",
+                "avatar_url": avatar_url,
+                "exclude_interaction": exc["exclude_interaction"],
+                "exclude_learning": exc["exclude_learning"],
+                "created_at": exc["created_at"],
+            }
+        )
+    return web.json_response({"users": users})
+
+
+@guild_api
+async def _api_excluded_users_post(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Añade o actualiza la exclusión de un usuario en este servidor."""
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+    user_id = _to_int(data.get("user_id"))
+    if user_id is None or user_id <= 0:
+        return web.json_response({"error": "user_id inválido"}, status=400)
+
+    guild = _bot_guild(request, guild_id)
+    if request.app["bot"].user and user_id == request.app["bot"].user.id:
+        return web.json_response(
+            {"error": "no se puede excluir al propio bot"}, status=400
+        )
+
+    # Validar que el usuario pertenece al servidor (o resolverlo)
+    member = guild.get_member(user_id) if guild else None
+    if member is None and guild:
+        try:
+            member = await guild.fetch_member(user_id)
+        except Exception:
+            member = None
+    if member is None:
+        return web.json_response(
+            {"error": "el usuario no pertenece a este servidor"}, status=400
+        )
+
+    exclude_interaction = bool(data.get("exclude_interaction", False))
+    exclude_learning = bool(data.get("exclude_learning", False))
+
+    if not exclude_interaction and not exclude_learning:
+        return web.json_response(
+            {"error": "debes seleccionar al menos un tipo de exclusión"}, status=400
+        )
+
+    saved = await set_user_exclusion(
+        guild_id, user_id, exclude_interaction, exclude_learning
+    )
+    generation.reset_guild_caches(guild_id)
+    await _log_audit(
+        request,
+        guild_id,
+        "excluded_users.add",
+        detail=f"user_id={user_id} interaction={exclude_interaction} learning={exclude_learning}",
+    )
+    return web.json_response(
+        {
+            "ok": True,
+            "saved": {
+                "user_id": str(user_id),
+                "user_name": member.display_name,
+                "avatar_url": str(member.display_avatar.url) if member.display_avatar else None,
+                "exclude_interaction": saved["exclude_interaction"],
+                "exclude_learning": saved["exclude_learning"],
+            },
+        }
+    )
+
+
+@guild_api
+async def _api_excluded_users_put(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Actualiza la exclusión de un usuario."""
+    user_id = _to_int(request.match_info.get("user_id"))
+    if user_id is None or user_id <= 0:
+        return web.json_response({"error": "user_id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+
+    exclude_interaction = bool(data.get("exclude_interaction", False))
+    exclude_learning = bool(data.get("exclude_learning", False))
+
+    saved = await set_user_exclusion(
+        guild_id, user_id, exclude_interaction, exclude_learning
+    )
+    generation.reset_guild_caches(guild_id)
+    await _log_audit(
+        request,
+        guild_id,
+        "excluded_users.update",
+        detail=f"user_id={user_id} interaction={exclude_interaction} learning={exclude_learning}",
+    )
+    return web.json_response(
+        {
+            "ok": True,
+            "saved": {
+                "user_id": str(user_id),
+                "exclude_interaction": saved["exclude_interaction"],
+                "exclude_learning": saved["exclude_learning"],
+            },
+        }
+    )
+
+
+@guild_api
+async def _api_excluded_users_delete(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Elimina la exclusión de un usuario en este servidor."""
+    user_id = _to_int(request.match_info.get("user_id"))
+    if user_id is None or user_id <= 0:
+        return web.json_response({"error": "user_id inválido"}, status=400)
+    removed = await remove_user_exclusion(guild_id, user_id)
+    if removed:
+        generation.reset_guild_caches(guild_id)
+        await _log_audit(
+            request,
+            guild_id,
+            "excluded_users.remove",
+            detail=f"user_id={user_id}",
+        )
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_members_search(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Busca miembros en el servidor por nombre o ID para el selector de exclusión."""
+    q = (request.query.get("q") or "").strip()
+    guild = _bot_guild(request, guild_id)
+    if not q:
+        return web.json_response({"members": []})
+
+    results = []
+    # Si es un ID numérico, buscar directo por ID
+    if q.isdigit():
+        uid = int(q)
+        member = guild.get_member(uid) if guild else None
+        if member is None and guild:
+            try:
+                member = await guild.fetch_member(uid)
+            except Exception:
+                member = None
+        if member and not member.bot:
+            results.append({
+                "id": str(member.id),
+                "name": member.display_name,
+                "avatar_url": str(member.display_avatar.url) if member.display_avatar else None,
+            })
+            return web.json_response({"members": results})
+
+    # Si es texto, buscar en miembros cacheados o query_members
+    if guild:
+        for m in guild.members:
+            if m.bot:
+                continue
+            if q.lower() in m.display_name.lower() or q.lower() in m.name.lower():
+                results.append({
+                    "id": str(m.id),
+                    "name": m.display_name,
+                    "avatar_url": str(m.display_avatar.url) if m.display_avatar else None,
+                })
+                if len(results) >= 10:
+                    break
+
+        if len(results) < 5 and hasattr(guild, "query_members"):
+            try:
+                queried = await guild.query_members(query=q, limit=10)
+                seen = {r["id"] for r in results}
+                for m in queried:
+                    if m.bot or str(m.id) in seen:
+                        continue
+                    results.append({
+                        "id": str(m.id),
+                        "name": m.display_name,
+                        "avatar_url": str(m.display_avatar.url) if m.display_avatar else None,
+                    })
+                    if len(results) >= 10:
+                        break
+            except Exception:
+                pass
+
+    return web.json_response({"members": results[:10]})
 
 
 # ---------------- API: dashboard nuevo (chat-channels, updates, stats, estilo) --
@@ -4203,6 +4425,20 @@ async def start_web_server(bot: commands.Bot) -> None:
             f"{base}/settings/corpus/{{channel_id}}", _api_corpus_delete
         )
         app.router.add_post(f"{base}/settings/corpus/amnesia", _api_corpus_amnesia_post)
+        app.router.add_get(
+            f"{base}/settings/excluded-users", _api_excluded_users_get
+        )
+        app.router.add_post(
+            f"{base}/settings/excluded-users", _api_excluded_users_post
+        )
+        app.router.add_put(
+            f"{base}/settings/excluded-users/{{user_id}}", _api_excluded_users_put
+        )
+        app.router.add_delete(
+            f"{base}/settings/excluded-users/{{user_id}}",
+            _api_excluded_users_delete,
+        )
+        app.router.add_get(f"{base}/members/search", _api_members_search)
         app.router.add_get(f"{base}/settings/reacciones", _api_reacciones_get)
         app.router.add_post(f"{base}/settings/reacciones", _api_reacciones_post)
         app.router.add_delete(

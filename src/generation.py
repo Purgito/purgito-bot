@@ -22,6 +22,7 @@ from db import (
     get_random_frase_especial,
     get_user_messages,
     is_frase_allowed,
+    is_user_excluded_from_learning,
     trim_corpus_if_needed,
     trim_guild_total_if_needed,
     trim_user_corpus_if_needed,
@@ -454,6 +455,8 @@ async def generate_markov_word(guild_id: int, *, wait: bool = True) -> str | Non
 async def generate_markov_for_user(
     guild_id: int, author_id: int, *, wait: bool = True
 ) -> str | None:
+    if await is_user_excluded_from_learning(guild_id, author_id):
+        return None
     async with markov_limiter.slot(wait=wait) as acquired:
         if not acquired:
             return None

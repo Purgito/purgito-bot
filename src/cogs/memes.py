@@ -20,6 +20,7 @@ from db import (
     get_corpus_messages_filtered,
     get_due_meme_schedules,
     get_random_image_url_excluding,
+    is_user_excluded_from_interaction,
     save_image_url,
     update_meme_last_posted,
 )
@@ -380,6 +381,10 @@ class Memes(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
+        if message.guild and await is_user_excluded_from_interaction(
+            message.guild.id, message.author.id
+        ):
+            return
         if is_meme_trigger(self.bot, message):
             await handle_meme_command(message)
 
@@ -402,6 +407,8 @@ class Memes(commands.Cog):
         if str(payload.emoji) != "🎯":
             return
         if payload.guild_id is None:
+            return
+        if await is_user_excluded_from_interaction(payload.guild_id, payload.user_id):
             return
         channel = self.bot.get_channel(payload.channel_id)
         if not isinstance(channel, discord.TextChannel):

@@ -470,6 +470,20 @@ CREATE TABLE IF NOT EXISTS mention_rate_limit_exempt_channels (
     PRIMARY KEY (guild_id, channel_id)
 );
 
+-- Usuarios excluidos de interacción y/o aprendizaje por servidor.
+-- exclude_interaction: 1 si el bot no debe responderle ni reaccionar ni triggerear.
+-- exclude_learning: 1 si sus mensajes no deben entrar al corpus ni usarse en Markov.
+CREATE TABLE IF NOT EXISTS excluded_users (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    exclude_interaction INTEGER NOT NULL DEFAULT 0,
+    exclude_learning INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_excluded_users_guild ON excluded_users(guild_id);
+
 -- Migraciones de datos que corren una vez POR SERVIDOR (no por base). Existen
 -- porque algunas necesitan la API de Discord —la lista real de canales— y no
 -- se pueden resolver con un ALTER en init_db.
@@ -1309,17 +1323,62 @@ async def count_corpus_messages(guild_id: int, channel_id: int) -> int:
 
 async def get_corpus_messages(guild_id: int, limit: int | None = None) -> list[str]:
     db = await get_db()
-    if limit is None:
-        query = "SELECT content FROM corpus_messages WHERE guild_id=? ORDER BY RANDOM()"
-        params = (guild_id,)
+    async with db.execute(
+        "SELECT 1 FROM excluded_users WHERE guild_id=? AND exclude_learning=1 LIMIT 1",
+        (guild_id,),
+    ) as cursor:
+        has_excluded = await cursor.fetchone() is not None
+
+    if not has_excluded:
+        if limit is None:
+            query = "SELECT content FROM corpus_messages WHERE guild_id=? ORDER BY RANDOM()"
+            params = (guild_id,)
+        else:
+            query = (
+                "SELECT content FROM corpus_messages "
+                "WHERE guild_id = ? AND id IN ("
+                "    SELECT id FROM corpus_messages WHERE guild_id = ? ORDER BY RANDOM() LIMIT ?"
+                ")"
+            )
+            params = (guild_id, guild_id, limit)
     else:
-        query = (
-            "SELECT content FROM corpus_messages "
-            "WHERE guild_id = ? AND id IN ("
-            "    SELECT id FROM corpus_messages WHERE guild_id = ? ORDER BY RANDOM() LIMIT ?"
-            ")"
-        )
-        params = (guild_id, guild_id, limit)
+        if limit is None:
+            query = (
+                "SELECT content FROM corpus_messages "
+                "WHERE guild_id = ? "
+                "AND NOT EXISTS ("
+                "    SELECT 1 FROM user_corpus uc "
+                "    JOIN excluded_users eu ON eu.guild_id = uc.guild_id AND eu.user_id = uc.author_id "
+                "    WHERE uc.guild_id = corpus_messages.guild_id "
+                "      AND uc.message_id = corpus_messages.message_id "
+                "      AND eu.exclude_learning = 1"
+                ") ORDER BY RANDOM()"
+            )
+            params = (guild_id,)
+        else:
+            query = (
+                "SELECT content FROM corpus_messages "
+                "WHERE guild_id = ? "
+                "AND NOT EXISTS ("
+                "    SELECT 1 FROM user_corpus uc "
+                "    JOIN excluded_users eu ON eu.guild_id = uc.guild_id AND eu.user_id = uc.author_id "
+                "    WHERE uc.guild_id = corpus_messages.guild_id "
+                "      AND uc.message_id = corpus_messages.message_id "
+                "      AND eu.exclude_learning = 1"
+                ") "
+                "AND id IN ("
+                "    SELECT id FROM corpus_messages WHERE guild_id = ? "
+                "    AND NOT EXISTS ("
+                "        SELECT 1 FROM user_corpus uc "
+                "        JOIN excluded_users eu ON eu.guild_id = uc.guild_id AND eu.user_id = uc.author_id "
+                "        WHERE uc.guild_id = corpus_messages.guild_id "
+                "          AND uc.message_id = corpus_messages.message_id "
+                "          AND eu.exclude_learning = 1"
+                "    ) ORDER BY RANDOM() LIMIT ?"
+                ")"
+            )
+            params = (guild_id, guild_id, limit)
+
     async with db.execute(query, params) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
@@ -1331,20 +1390,54 @@ async def get_corpus_messages_filtered(
     limit: int = 300,
 ) -> list[str]:
     db = await get_db()
-    query = (
-        "SELECT content FROM corpus_messages "
-        "WHERE guild_id = ? "
-        "AND (length(content) - length(replace(content, ' ', ''))) >= ? "
-        "AND id IN ("
-        "    SELECT id FROM corpus_messages "
-        "    WHERE guild_id = ? "
-        "    AND (length(content) - length(replace(content, ' ', ''))) >= ? "
-        "    ORDER BY RANDOM() LIMIT ?"
-        ")"
-    )
     async with db.execute(
-        query, (guild_id, min_words - 1, guild_id, min_words - 1, limit)
+        "SELECT 1 FROM excluded_users WHERE guild_id=? AND exclude_learning=1 LIMIT 1",
+        (guild_id,),
     ) as cursor:
+        has_excluded = await cursor.fetchone() is not None
+
+    if not has_excluded:
+        query = (
+            "SELECT content FROM corpus_messages "
+            "WHERE guild_id = ? "
+            "AND (length(content) - length(replace(content, ' ', ''))) >= ? "
+            "AND id IN ("
+            "    SELECT id FROM corpus_messages "
+            "    WHERE guild_id = ? "
+            "    AND (length(content) - length(replace(content, ' ', ''))) >= ? "
+            "    ORDER BY RANDOM() LIMIT ?"
+            ")"
+        )
+        params = (guild_id, min_words - 1, guild_id, min_words - 1, limit)
+    else:
+        query = (
+            "SELECT content FROM corpus_messages "
+            "WHERE guild_id = ? "
+            "AND (length(content) - length(replace(content, ' ', ''))) >= ? "
+            "AND NOT EXISTS ("
+            "    SELECT 1 FROM user_corpus uc "
+            "    JOIN excluded_users eu ON eu.guild_id = uc.guild_id AND eu.user_id = uc.author_id "
+            "    WHERE uc.guild_id = corpus_messages.guild_id "
+            "      AND uc.message_id = corpus_messages.message_id "
+            "      AND eu.exclude_learning = 1"
+            ") "
+            "AND id IN ("
+            "    SELECT id FROM corpus_messages "
+            "    WHERE guild_id = ? "
+            "    AND (length(content) - length(replace(content, ' ', ''))) >= ? "
+            "    AND NOT EXISTS ("
+            "        SELECT 1 FROM user_corpus uc "
+            "        JOIN excluded_users eu ON eu.guild_id = uc.guild_id AND eu.user_id = uc.author_id "
+            "        WHERE uc.guild_id = corpus_messages.guild_id "
+            "          AND uc.message_id = corpus_messages.message_id "
+            "          AND eu.exclude_learning = 1"
+            "    ) "
+            "    ORDER BY RANDOM() LIMIT ?"
+            ")"
+        )
+        params = (guild_id, min_words - 1, guild_id, min_words - 1, limit)
+
+    async with db.execute(query, params) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
 
@@ -2140,6 +2233,8 @@ async def save_user_message(
 async def get_user_messages(
     guild_id: int, author_id: int, limit: int | None = None
 ) -> list[str]:
+    if await is_user_excluded_from_learning(guild_id, author_id):
+        return []
     db = await get_db()
     if limit is None:
         query = "SELECT content FROM user_corpus WHERE guild_id=? AND author_id=? ORDER BY RANDOM()"
@@ -2158,6 +2253,8 @@ async def get_user_messages(
 
 
 async def count_user_messages(guild_id: int, author_id: int) -> int:
+    if await is_user_excluded_from_learning(guild_id, author_id):
+        return 0
     db = await get_db()
     async with db.execute(
         "SELECT COUNT(*) FROM user_corpus WHERE guild_id=? AND author_id=?",
@@ -2491,6 +2588,127 @@ async def list_exempt_channels(guild_id: int) -> list[int]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
+
+
+# ─── Usuarios excluidos (interacción y aprendizaje) ───────────────────────────
+
+
+async def is_user_excluded_from_interaction(guild_id: int, user_id: int) -> bool:
+    """True si el usuario está excluido de interacciones (respuestas, reacciones, triggers) en este guild."""
+    if _db is None or not isinstance(guild_id, int) or not isinstance(user_id, int):
+        return False
+    db = await get_db()
+    async with db.execute(
+        "SELECT 1 FROM excluded_users WHERE guild_id=? AND user_id=? AND exclude_interaction=1",
+        (guild_id, user_id),
+    ) as cursor:
+        return await cursor.fetchone() is not None
+
+
+async def is_user_excluded_from_learning(guild_id: int, user_id: int) -> bool:
+    """True si el usuario está excluido de aprendizaje (corpus, Markov, imitar) en este guild."""
+    if _db is None or not isinstance(guild_id, int) or not isinstance(user_id, int):
+        return False
+    db = await get_db()
+    async with db.execute(
+        "SELECT 1 FROM excluded_users WHERE guild_id=? AND user_id=? AND exclude_learning=1",
+        (guild_id, user_id),
+    ) as cursor:
+        return await cursor.fetchone() is not None
+
+
+async def get_user_exclusion(guild_id: int, user_id: int) -> dict | None:
+    """Devuelve la configuración de exclusión del usuario en el guild o None si no existe."""
+    if _db is None or not isinstance(guild_id, int) or not isinstance(user_id, int):
+        return None
+    db = await get_db()
+    async with db.execute(
+        "SELECT user_id, exclude_interaction, exclude_learning, created_at "
+        "FROM excluded_users WHERE guild_id=? AND user_id=?",
+        (guild_id, user_id),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "user_id": row[0],
+        "exclude_interaction": bool(row[1]),
+        "exclude_learning": bool(row[2]),
+        "created_at": row[3],
+    }
+
+
+async def list_excluded_users(guild_id: int) -> list[dict]:
+    """Lista todas las exclusiones de usuarios configuradas para un guild."""
+    if _db is None or not isinstance(guild_id, int):
+        return []
+    db = await get_db()
+    async with db.execute(
+        "SELECT user_id, exclude_interaction, exclude_learning, created_at "
+        "FROM excluded_users WHERE guild_id=? ORDER BY created_at DESC, user_id ASC",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "user_id": r[0],
+            "exclude_interaction": bool(r[1]),
+            "exclude_learning": bool(r[2]),
+            "created_at": r[3],
+        }
+        for r in rows
+    ]
+
+
+async def set_user_exclusion(
+    guild_id: int,
+    user_id: int,
+    exclude_interaction: bool,
+    exclude_learning: bool,
+) -> dict:
+    """Guarda o actualiza la exclusión de un usuario en un guild. Si ambos flags son False, borra la fila."""
+    db = await get_db()
+    inter_val = 1 if exclude_interaction else 0
+    learn_val = 1 if exclude_learning else 0
+    async with _db_lock:
+        if not inter_val and not learn_val:
+            await db.execute(
+                "DELETE FROM excluded_users WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            )
+            await db.commit()
+            return {
+                "user_id": user_id,
+                "exclude_interaction": False,
+                "exclude_learning": False,
+            }
+        await db.execute(
+            "INSERT INTO excluded_users (guild_id, user_id, exclude_interaction, exclude_learning) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
+            "exclude_interaction=excluded.exclude_interaction, "
+            "exclude_learning=excluded.exclude_learning",
+            (guild_id, user_id, inter_val, learn_val),
+        )
+        await db.commit()
+    return {
+        "user_id": user_id,
+        "exclude_interaction": bool(inter_val),
+        "exclude_learning": bool(learn_val),
+    }
+
+
+async def remove_user_exclusion(guild_id: int, user_id: int) -> bool:
+    """Elimina la exclusión de un usuario en un servidor."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM excluded_users WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
 
 
 # ─── Migraciones de datos por servidor ───────────────────────────────────────
@@ -4611,6 +4829,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "mention_rate_limit_exempt_channels",
         "applied_migrations",
         "audit_log",
+        "excluded_users",
     ]
     async with _db_lock:
         for table in tables:

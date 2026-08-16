@@ -20,6 +20,7 @@ from db import (
     get_random_gif_candidates,
     get_unresolved_gifs,
     is_channel_ignored,
+    is_user_excluded_from_learning,
     record_gif_health_check,
     save_gif_url,
     update_gif_media_url,
@@ -595,6 +596,8 @@ class Gifs(commands.Cog):
         if is_meme_trigger(self.bot, message):
             return
         if await is_channel_ignored(message.guild.id, message.channel.id):
+            return
+        if await is_user_excluded_from_learning(message.guild.id, message.author.id):
             return
         await save_gif_candidates(message.guild.id, message)
 

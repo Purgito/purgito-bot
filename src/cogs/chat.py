@@ -32,6 +32,8 @@ from db import (
     is_channel_ignored,
     is_corpus_allowed,
     is_frase_allowed,
+    is_user_excluded_from_interaction,
+    is_user_excluded_from_learning,
     list_channel_triggers,
     list_corpus_channels,
     list_exempt_channels,
@@ -463,6 +465,12 @@ async def _entrega_avisos(guild_id: int, channel_id: int, user_id: int, settings
     if last is not None and time.monotonic() - last < _SPONTANEOUS_COOLDOWN:
         avisos.append("cooldown_espontaneo")
 
+    if user_id and await is_user_excluded_from_interaction(guild_id, user_id):
+        avisos.append("usuario_excluido_interaccion")
+
+    if user_id and await is_user_excluded_from_learning(guild_id, user_id):
+        avisos.append("usuario_excluido_aprendizaje")
+
     return avisos
 
 
@@ -650,8 +658,10 @@ class Chat(commands.Cog):
         self, guild_id: int, message: discord.Message
     ) -> str:
         """Limpia y guarda un mensaje en corpus + user_corpus.
-        Retorna "saved", "discarded" (filtrado por clean_for_corpus) o
+        Retorna "saved", "discarded" (filtrado por clean_for_corpus o exclusión) o
         "duplicate" (ya estaba en el corpus, UNIQUE(guild_id, message_id))."""
+        if await is_user_excluded_from_learning(guild_id, message.author.id):
+            return "discarded"
         cleaned = generation.clean_for_corpus(message.content or "")
         if cleaned is None:
             return "discarded"
@@ -734,6 +744,14 @@ class Chat(commands.Cog):
                             probability=settings["auto_generate_probability"],
                         )
 
+            # Exclusión de interacciones: el bot no reacciona, no dispara triggers,
+            # no responde a menciones ni participa en mensajes de este usuario.
+            if await is_user_excluded_from_interaction(
+                message.guild.id, message.author.id
+            ):
+                return
+
+            if not ignored:
                 # Reacción aleatoria con emoji del pool configurable
                 if random.random() < settings["reaction_probability"]:
                     try:
@@ -1354,7 +1372,9 @@ class Chat(commands.Cog):
                         fetched += 1
                         if newest is None or msg.id > newest:
                             newest = msg.id
-                        if msg.author.bot:
+                        if msg.author.bot or await is_user_excluded_from_learning(
+                            guild_id, msg.author.id
+                        ):
                             continue
                         gifs_saved += await save_gif_candidates(guild_id, msg)
                         result = await self._save_message_to_corpus(guild_id, msg)
@@ -1444,7 +1464,9 @@ class Chat(commands.Cog):
                 newest_seen = batch[0].id
 
             for msg in batch:
-                if msg.author.bot:
+                if msg.author.bot or await is_user_excluded_from_learning(
+                    guild_id, msg.author.id
+                ):
                     continue
                 gifs_saved += await save_gif_candidates(guild_id, msg)
                 result = await self._save_message_to_corpus(guild_id, msg)
