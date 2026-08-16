@@ -2623,7 +2623,7 @@ async function reloadReacciones(box) {
   } catch (e) { /* ignore */ }
 }
 
-async function openAddEmojiModal(box, pool) {
+export async function openAddEmojiModal(box, pool) {
   const poolList = (pool && Array.isArray(pool.reactions))
     ? pool.reactions
     : (Array.isArray(pool) ? pool : []);
@@ -2851,6 +2851,7 @@ async function openAddEmojiModal(box, pool) {
   }
 
   renderTabContent();
+  return overlay;
 }
 
 function cupoLine(used, limit, singular, plural, lleno_msg) {
@@ -3107,6 +3108,7 @@ function renderFrases(box, frases, packs, limit) {
 
     if (totalPages > 1) {
       const prevBtn = el('button', {
+        type: 'button',
         class: 'btn btn-secondary btn-sm',
         disabled: state.page <= 1,
         onclick: () => {
@@ -3121,6 +3123,7 @@ function renderFrases(box, frases, packs, limit) {
       const infoText = `Página ${state.page} de ${totalPages} · Mostrando ${startIdx + 1}–${endIdx} de ${filtered.length}`;
 
       const nextBtn = el('button', {
+        type: 'button',
         class: 'btn btn-secondary btn-sm',
         disabled: state.page >= totalPages,
         onclick: () => {

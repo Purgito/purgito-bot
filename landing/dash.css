@@ -162,16 +162,28 @@ select[multiple]::-webkit-scrollbar-thumb:hover {
 /* Primario destacado: sombra propia + realce claramente mayor que el
    secundario al hover (refuerza la jerarquía del pase de diseño). */
 .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
-.btn-primary:hover { background: var(--accent-2); box-shadow: 0 3px 14px color-mix(in srgb, var(--accent) 45%, transparent); }
-.btn-primary:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
+.btn-primary:not(:disabled):hover { background: var(--accent-2); box-shadow: 0 3px 14px color-mix(in srgb, var(--accent) 45%, transparent); }
+.btn-primary:not(:disabled):active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
 .btn-secondary { background: var(--surface-raised); border: 1px solid var(--border); }
-.btn-secondary:hover { border-color: var(--accent); background: color-mix(in srgb, var(--surface-raised) 86%, var(--accent)); }
-.btn-secondary:active { transform: translateY(1px); }
+.btn-secondary:not(:disabled):hover { border-color: var(--accent); background: color-mix(in srgb, var(--surface-raised) 86%, var(--accent)); }
+.btn-secondary:not(:disabled):active { transform: translateY(1px); }
 .btn-danger { background: var(--danger); color: #fff; }
-.btn-danger:hover { background: color-mix(in srgb, var(--danger) 82%, #fff); }
-.btn-danger:active { transform: translateY(1px); }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn:disabled:hover { box-shadow: none; transform: none; }
+.btn-danger:not(:disabled):hover { background: color-mix(in srgb, var(--danger) 82%, #fff); }
+.btn-danger:not(:disabled):active { transform: translateY(1px); }
+.btn:disabled,
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.btn:disabled:hover,
+.btn[disabled]:hover,
+.btn[aria-disabled="true"]:hover {
+  box-shadow: none;
+  transform: none;
+}
 
 input, select, textarea {
   background: var(--surface-raised);

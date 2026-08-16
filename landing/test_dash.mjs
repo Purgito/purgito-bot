@@ -744,7 +744,6 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   setGuildId('123456789');
 
   global.location.hash = '#reacciones';
-  let activatedKey = null;
   const modChat = MODULES.find(m => m.key === 'chat');
 
   // Ejecutamos loadChatTab con hash #reacciones
@@ -756,6 +755,117 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.equal(global.location.pathname, '/es/dashboard/123456789/frases', 'Hash #contenido debe activar el módulo de frases');
 
   console.log('✓ Test 16: Enlaces legacy con hash redirigen limpiamente al módulo canónico');
+}
+
+// ── Test 17: Manejo universal de atributos booleanos en el() ───────────────────
+{
+  const { el } = await import('/js/core/dom.js');
+
+  const btnDisabled = el('button', { disabled: true }, 'Deshabilitado');
+  assert.equal(btnDisabled.disabled, true, 'Propiedad disabled debe ser true');
+  assert.equal(btnDisabled.getAttribute('disabled'), '', 'Atributo disabled debe existir');
+
+  const btnEnabled = el('button', { disabled: false }, 'Habilitado');
+  assert.equal(btnEnabled.disabled, false, 'Propiedad disabled debe ser false');
+  assert.equal(btnEnabled.getAttribute('disabled'), undefined, 'Atributo disabled NO debe existir (no disabled="false")');
+
+  const chkChecked = el('input', { type: 'checkbox', checked: true });
+  assert.equal(chkChecked.checked, true);
+  assert.equal(chkChecked.getAttribute('checked'), '');
+
+  const chkUnchecked = el('input', { type: 'checkbox', checked: false });
+  assert.equal(chkUnchecked.checked, false);
+  assert.equal(chkUnchecked.getAttribute('checked'), undefined);
+
+  console.log('✓ Test 17: Manejo universal de atributos booleanos en el()');
+}
+
+// ── Test 18: Paginación en modal de selección de emojis personalizados ─────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  const mockEmojis = Array.from({ length: 129 }, (_, i) => ({
+    id: `emoji_${i + 1}`,
+    name: `custom_emoji_${i + 1}`,
+    url: `https://cdn.example.com/emojis/${i + 1}.png`,
+    animated: false,
+  }));
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/emojis')) {
+        return jsonResp({ emojis: mockEmojis });
+      }
+      return jsonResp({});
+    },
+  ];
+
+  const { openAddEmojiModal } = await import('/js/dash.js');
+  const dummyBox = new FakeElement('div');
+  const overlay = await openAddEmojiModal(dummyBox, []);
+
+  // Cambiar a la pestaña de emojis del servidor
+  const tabButtons = overlay.findByClass('emoji-modal-tab');
+  const serverTab = tabButtons.find(b => b.text().includes('Del servidor'));
+  assert.ok(serverTab, 'Pestaña "Del servidor" debe existir');
+  serverTab.click();
+
+  // Esperar a que getEmojis() resuelva y renderice
+  await new Promise(r => setTimeout(r, 60));
+
+  // En página 1 (129 emojis = 9 páginas):
+  let pager = overlay.querySelector('.emoji-pager');
+  assert.ok(pager, 'El paginador de emojis debe existir');
+  assert.match(pager.text(), /1 \/ 9 \(129 emojis\)/);
+
+  const prevBtn = pager.children[0];
+  const nextBtn = pager.children[2];
+
+  assert.equal(prevBtn.disabled, true, 'Anterior debe estar deshabilitado en página 1');
+  assert.equal(prevBtn.getAttribute('disabled'), '', 'Anterior debe tener atributo disabled');
+
+  assert.equal(nextBtn.disabled, false, 'Siguiente debe estar habilitado en página 1');
+  assert.equal(nextBtn.getAttribute('disabled'), undefined, 'Siguiente NO debe tener atributo disabled');
+
+  // Click en Siguiente -> Avanza a página 2
+  nextBtn.click();
+  await new Promise(r => setTimeout(r, 20));
+
+  pager = overlay.querySelector('.emoji-pager');
+  assert.match(pager.text(), /2 \/ 9 \(129 emojis\)/);
+
+  const prevBtnP2 = pager.children[0];
+  const nextBtnP2 = pager.children[2];
+
+  assert.equal(prevBtnP2.disabled, false, 'Anterior debe estar habilitado en página 2');
+  assert.equal(prevBtnP2.getAttribute('disabled'), undefined);
+  assert.equal(nextBtnP2.disabled, false, 'Siguiente debe estar habilitado en página 2');
+  assert.equal(nextBtnP2.getAttribute('disabled'), undefined);
+
+  // Avanzar hasta página 9 (última página)
+  for (let p = 2; p < 9; p++) {
+    const currentNext = overlay.querySelector('.emoji-pager').children[2];
+    currentNext.click();
+  }
+
+  pager = overlay.querySelector('.emoji-pager');
+  assert.match(pager.text(), /9 \/ 9 \(129 emojis\)/);
+
+  const prevBtnP9 = pager.children[0];
+  const nextBtnP9 = pager.children[2];
+
+  assert.equal(prevBtnP9.disabled, false, 'Anterior debe estar habilitado en última página');
+  assert.equal(prevBtnP9.getAttribute('disabled'), undefined);
+  assert.equal(nextBtnP9.disabled, true, 'Siguiente debe estar deshabilitado en última página');
+  assert.equal(nextBtnP9.getAttribute('disabled'), '');
+
+  // Click en Anterior -> Vuelve a página 8
+  prevBtnP9.click();
+  pager = overlay.querySelector('.emoji-pager');
+  assert.match(pager.text(), /8 \/ 9 \(129 emojis\)/);
+
+  console.log('✓ Test 18: Paginación y estados disabled/enabled en modal de emojis');
 }
 
 console.log('\n========================================');

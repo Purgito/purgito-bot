@@ -10,9 +10,41 @@
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') node.className = v;
-    else if (k.startsWith('on')) node[k] = v;
-    else if (k === 'checked' || k === 'value') node[k] = v;
+    if (k === 'class') {
+      node.className = v;
+    } else if (k.startsWith('on')) {
+      node[k] = v;
+    } else if (k === 'checked') {
+      node.checked = Boolean(v);
+      if (v) node.setAttribute('checked', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('checked');
+    } else if (k === 'selected') {
+      node.selected = Boolean(v);
+      if (v) node.setAttribute('selected', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('selected');
+    } else if (k === 'disabled') {
+      node.disabled = Boolean(v);
+      if (v) node.setAttribute('disabled', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('disabled');
+    } else if (k === 'readonly' || k === 'readOnly') {
+      node.readOnly = Boolean(v);
+      if (v) node.setAttribute('readonly', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('readonly');
+    } else if (k === 'required') {
+      node.required = Boolean(v);
+      if (v) node.setAttribute('required', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('required');
+    } else if (k === 'hidden') {
+      node.hidden = Boolean(v);
+      if (v) node.setAttribute('hidden', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('hidden');
+    } else if (k === 'multiple') {
+      node.multiple = Boolean(v);
+      if (v) node.setAttribute('multiple', '');
+      else if (typeof node.removeAttribute === 'function') node.removeAttribute('multiple');
+    } else if (k === 'value') {
+      node.value = (v === null || v === undefined) ? '' : String(v);
+    }
     // style vía cssText, no setAttribute: la CSP del sitio (ver LANDING_CSP
     // en build_docs.py) no tiene 'unsafe-inline' en style-src, y CSP trata
     // el atributo style="..." (sea escrito en el HTML o puesto con
@@ -22,8 +54,11 @@ export function el(tag, attrs = {}, ...children) {
     // dinámico armado con el(..., { style }) — la barra de color de los
     // embeds, los puntos de color de roles, los toggles de display:none —
     // quedaba viniendo transparente/sin aplicar en producción.
-    else if (k === 'style') node.style.cssText = v;
-    else if (v !== null && v !== undefined) node.setAttribute(k, v);
+    else if (k === 'style') {
+      node.style.cssText = v;
+    } else if (v !== null && v !== undefined) {
+      node.setAttribute(k, v);
+    }
   }
   for (const c of children.flat()) {
     if (c === null || c === undefined || c === false) continue;
