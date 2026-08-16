@@ -140,7 +140,7 @@ def test_duplicate_image(setup):
     cog, message, user = setup([_att("foto.png")], duplicate=True)
     _run(cog)
     assert message.reactions == ["❌"]
-    assert "ya estaba en el pool" in user.sent[0]
+    assert "ya estaba" in user.sent[0]
 
 
 def test_fake_image_content_rejected(setup):

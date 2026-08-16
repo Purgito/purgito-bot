@@ -25,7 +25,7 @@ def test_traduce_descripcion_para_cliente_en_ingles():
             _ctx(app_commands.TranslationContextLocation.command_description),
         )
     )
-    assert translated == "Generates a message using the channel's memory."
+    assert translated == "Generates a message using what Purgito learned from the server."
 
 
 def test_no_traduce_el_nombre_del_comando():

@@ -131,7 +131,8 @@ CREATE TABLE IF NOT EXISTS settings (
     guild_id INTEGER PRIMARY KEY,
     chat_mode_enabled INTEGER NOT NULL DEFAULT 1,
     chat_channel_id INTEGER,
-    mention_rate_limit INTEGER NOT NULL DEFAULT 10
+    mention_rate_limit INTEGER NOT NULL DEFAULT 10,
+    locale TEXT
 );
 
 CREATE TABLE IF NOT EXISTS corpus_messages (

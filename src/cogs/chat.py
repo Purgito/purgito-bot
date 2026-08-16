@@ -1492,12 +1492,14 @@ class Chat(commands.Cog):
             "forbidden": 0,
             "errors": 0,
         }
+        locale = await i18n.guild_locale(guild.id)
         allowed_channel_ids = await list_corpus_channels(guild.id)
         if not allowed_channel_ids:
             try:
                 await report_channel.send(
-                    "⚠️ No hay canales elegidos todavía — anda al dashboard "
-                    "(tab CHAT > Canales) y elige de dónde quiero aprender."
+                    i18n.t("setup.status_no_channels", locale)
+                    + " "
+                    + i18n.t("chat.empty_reply.full", locale)
                 )
             except Exception:
                 log.warning(
@@ -1513,17 +1515,17 @@ class Chat(commands.Cog):
             )
             return totals
         done_lines: list[str] = []
+        problem_lines: list[str] = []
 
         def render(current: str | None) -> str:
-            # ponytail: colapsa el detalle viejo en un contador para no pasar los 2000 chars
             shown = done_lines[-8:]
-            lines = []
-            if len(done_lines) > len(shown):
-                lines.append(f"✅ {len(done_lines) - len(shown)} canales procesados")
-            lines += shown
+            lines = [i18n.t("refeed.progress_header", locale), ""]
+            lines.extend(shown)
             if current:
                 lines.append(current)
-            return "\n".join(lines)[:1990] or "🔄 Leyendo historial…"
+            lines.append("")
+            lines.append(i18n.t("refeed.progress_footer", locale))
+            return "\n".join(lines)[:1990]
 
         async def update(current: str | None) -> None:
             if progress_msg is None:
@@ -1545,6 +1547,10 @@ class Chat(commands.Cog):
                 continue
             perms = channel.permissions_for(me)
             if not (perms.read_messages and perms.read_message_history):
+                totals["forbidden"] += 1
+                problem = f"No pude leer #{channel.name} porque Purgito no tiene permisos para ver su historial."
+                problem_lines.append(problem)
+                done_lines.append(f"#{channel.name}\n0 mensajes (sin permisos)")
                 continue
             if await is_channel_ignored(guild.id, channel.id):
                 continue
@@ -1557,7 +1563,7 @@ class Chat(commands.Cog):
                     message=f"Procesando #{channel.name}",
                 )
 
-            await update(f"🔄 {channel.mention} — leyendo historial…")
+            await update(f"#{channel.name}\nleyendo historial…")
             try:
                 res = await self._refeed_channel(
                     guild.id, channel, REFEED_ALL_MAX_MESSAGES
@@ -1567,65 +1573,56 @@ class Chat(commands.Cog):
                     "refeed_guild: error procesando canal %s (%s)", channel.id, guild.id
                 )
                 totals["errors"] += 1
-                done_lines.append(f"❌ {channel.mention} — error inesperado")
+                problem = f"Ocurrió un error leyendo #{channel.name}."
+                problem_lines.append(problem)
+                done_lines.append(f"#{channel.name}\nerror inesperado")
                 continue
 
             totals["saved"] += res["saved"]
             totals["gifs_saved"] += res["gifs_saved"]
             if res["forbidden"]:
                 totals["forbidden"] += 1
-                done_lines.append(
-                    f"🚫 {channel.mention} — sin permisos para leer el historial"
-                )
+                problem = f"No pude leer #{channel.name} porque Purgito no tiene permisos para ver su historial."
+                problem_lines.append(problem)
+                done_lines.append(f"#{channel.name}\n0 mensajes (sin permisos)")
             elif res["was_incremental"]:
                 totals["incremental"] += 1
-                done_lines.append(
-                    f"⏭️ {channel.mention} — ya estaba al día ({res['saved']} mensajes nuevos)"
-                )
+                done_lines.append(f"#{channel.name}\n{res['saved']:,} mensajes")
             elif res["backfill_complete"]:
                 totals["completed"] += 1
-                done_lines.append(
-                    f"✅ {channel.mention} — {res['saved']:,} mensajes nuevos (historial completo)"
-                )
+                done_lines.append(f"#{channel.name}\n{res['saved']:,} mensajes")
             else:
                 totals["partial"] += 1
-                # Un canal parcial tiene >REFEED_ALL_MAX_MESSAGES mensajes: /refeed
-                # directo ahí tiene un límite por corrida mucho más alto.
-                done_lines.append(
-                    f"✅ {channel.mention} — {res['saved']:,} mensajes nuevos (historial incompleto por el límite; "
-                    f"tip: `/refeed` directo en ese canal lee hasta {REFEED_MAX_MESSAGES:,} por corrida)"
+                done_lines.append(f"#{channel.name}\n{res['saved']:,} mensajes")
+
+        if totals["forbidden"] == 0 and totals["errors"] == 0:
+            summary = i18n.t(
+                "refeed.done_success",
+                locale,
+                total=f"{totals['saved']:,}",
+                channels=totals["completed"] + totals["incremental"] + totals["partial"],
+            )
+        else:
+            summary = i18n.t(
+                "refeed.done_with_problems",
+                locale,
+                total=f"{totals['saved']:,}",
+                problems="\n".join(problem_lines),
+            )
+
+        if progress_msg is not None:
+            try:
+                await progress_msg.edit(content=summary)
+            except Exception:
+                log.debug("refeed_guild: no se pudo editar mensaje de progreso final")
+
+        if report_channel is not None and getattr(report_channel, "id", None) != getattr(progress_msg, "id", None):
+            try:
+                await report_channel.send(summary)
+            except Exception:
+                log.warning(
+                    "refeed_guild: no se pudo enviar el resumen final en %s", guild.id
                 )
-
-        await update(None)
-
-        gifs_suffix = (
-            f" y {totals['gifs_saved']:,} GIF(s) nuevo(s)"
-            if totals["gifs_saved"]
-            else ""
-        )
-        parts = [
-            f"🏁 Terminé de leer el historial. Total: {totals['saved']:,} mensajes nuevos guardados{gifs_suffix}."
-        ]
-        if totals["completed"]:
-            parts.append(
-                f"✅ {totals['completed']} canal(es) con historial completo por primera vez."
-            )
-        if totals["incremental"]:
-            parts.append(f"⏭️ {totals['incremental']} canal(es) que ya estaban al día.")
-        if totals["partial"]:
-            parts.append(
-                f"⚠️ {totals['partial']} canal(es) quedaron incompletos por el límite de {REFEED_ALL_MAX_MESSAGES:,} mensajes; ejecuta `/refeed_channels` de nuevo para continuar donde quedó."
-            )
-        if totals["forbidden"]:
-            parts.append(f"🚫 {totals['forbidden']} canal(es) sin permisos para leer.")
-        if totals["errors"]:
-            parts.append(f"❌ {totals['errors']} canal(es) con error.")
-        try:
-            await report_channel.send("\n".join(parts))
-        except Exception:
-            log.warning(
-                "refeed_guild: no se pudo enviar el resumen final en %s", guild.id
-            )
         return totals
 
     def start_refeed_channels(
@@ -1661,7 +1658,7 @@ class Chat(commands.Cog):
 
     @app_commands.command(
         name="refeed",
-        description="Importa los últimos mensajes del canal a la memoria del bot.",
+        description="Hace que Purgito aprenda del historial del canal actual.",
     )
     async def refeed(self, interaction: discord.Interaction):
         locale = await i18n.guild_locale(
@@ -1738,7 +1735,7 @@ class Chat(commands.Cog):
 
     @app_commands.command(
         name="refeed_channels",
-        description="Importa mensajes de los canales elegidos para el corpus a la memoria del bot.",
+        description="Hace que Purgito aprenda del historial de los canales configurados.",
     )
     async def refeed_channels(self, interaction: discord.Interaction):
         locale = await i18n.guild_locale(
@@ -1801,7 +1798,7 @@ class Chat(commands.Cog):
 
     @app_commands.command(
         name="corpus_info",
-        description="Muestra cuántos mensajes hay en el corpus del canal actual.",
+        description="Muestra cuántos mensajes ha aprendido Purgito en este canal.",
     )
     async def corpus_info(self, interaction: discord.Interaction):
         locale = await i18n.guild_locale(

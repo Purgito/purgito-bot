@@ -16,18 +16,29 @@ PURGITO_COLOR = 0x8B00FF  # color de marca usado en todo el proyecto
 # bajo "help.cat.<key>.*" -- ver build_category_embed/HelpView.
 CATEGORIES = {
     "chat": {
-        "emoji": "🤖",
+        "emoji": "💬",
         "row": 0,
         "commands": [
             ("/generar", "help.cat.chat.cmd.generar"),
             ("/imitar @usuario", "help.cat.chat.cmd.imitar"),
             ("/corpus_info", "help.cat.chat.cmd.corpus_info"),
-            ("/settings → Chat / Frases", "help.cat.chat.cmd.settings"),
+            ("/settings", "help.cat.chat.cmd.settings"),
+        ],
+    },
+    "admin": {
+        "emoji": "⚙️",
+        "row": 0,
+        "commands": [
+            ("/setup", "help.cat.admin.cmd.setup"),
+            ("/settings", "help.cat.admin.cmd.settings"),
+            ("/refeed", "help.cat.admin.cmd.refeed"),
+            ("/refeed_channels", "help.cat.admin.cmd.refeed_channels"),
+            ("!ping", "help.cat.admin.cmd.ping"),
         ],
     },
     "memes": {
         "emoji": "😏",
-        "row": 0,
+        "row": 1,
         "intro_key": "help.cat.memes.intro",
         "commands": [
             ("/momo · /meme", "help.cat.memes.cmd.momo"),
@@ -41,19 +52,6 @@ CATEGORIES = {
         "row": 1,
         "commands": [
             ("/settings → YouTube", "help.cat.youtube.cmd.settings"),
-        ],
-    },
-    "admin": {
-        "emoji": "⚙️",
-        "row": 1,
-        "commands": [
-            ("/settings", "help.cat.admin.cmd.settings"),
-            ("/setup", "help.cat.admin.cmd.setup"),
-            ("/refeed", "help.cat.admin.cmd.refeed"),
-            ("/refeed_channels", "help.cat.admin.cmd.refeed_channels"),
-            ("/settings → Corpus / Reacciones", "help.cat.admin.cmd.settings_corpus"),
-            ("/gif_add <url>", "help.cat.admin.cmd.gif_add"),
-            ("!ping", "help.cat.admin.cmd.ping"),
         ],
     },
     "panel": {

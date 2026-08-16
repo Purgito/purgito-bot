@@ -39,6 +39,6 @@ def test_corpus_info_respeta_el_idioma_configurado_del_servidor(monkeypatch):
     asyncio.run(cog.corpus_info.callback(cog, inter))
 
     assert inter.sent == [
-        "📊 This channel's corpus has 5 messages.\n"
-        "⚠️ Needs at least 50 messages to generate well."
+        "I have learned 5 messages in this channel.\n"
+        "Needs at least 50 messages to generate varied responses."
     ]

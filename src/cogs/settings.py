@@ -1,12 +1,6 @@
 """Panel unificado /settings + onboarding (/setup y bienvenida al unirse a un servidor).
 
 Todo el texto pasa por i18n (src/i18n.py + src/locales/*.json).
-
-Para agregar una categoría nueva:
-  1. Crear una clase que herede de SettingsCategory (key + build_embed + build_items).
-  2. Agregar sus strings a src/locales/*.json (settings.cat.<key>.label/desc/title).
-  3. Registrarla en CATEGORIES al final de este módulo.
-El sistema de navegación no necesita cambios.
 """
 
 import logging
@@ -24,16 +18,19 @@ from config import BOT_TRIGGER_NAME, PANEL_URL, get_dashboard_url
 from db import (
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
+    add_corpus_channel,
     add_meme_schedule,
     add_scheduled_announcement,
     add_youtube_sub,
     count_guild_corpus_messages,
     get_chat_settings,
+    list_corpus_channels,
     list_ignored_channels,
     list_meme_schedules,
     list_scheduled_announcements,
     list_youtube_subs,
     remember_welcome_channel,
+    remove_corpus_channel,
     remove_meme_schedule,
     remove_scheduled_announcement,
     remove_youtube_sub,
@@ -44,6 +41,7 @@ from db import (
     wipe_gifs,
 )
 from i18n import t
+from tasks import get_task_manager
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +50,13 @@ PURGITO_COLOR = 0x8B00FF
 _HOUR_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 
 MAX_DELETE_AFTER_SECONDS = 86400
+
+
+def _refeed_task_running(guild_id: int) -> bool:
+    return any(
+        t.type == "refeed_channels" and t.status in ("pending", "running")
+        for t in get_task_manager().list_for_guild(guild_id)
+    )
 
 
 def _parse_delete_after_seconds(raw: str) -> int | None:
@@ -65,7 +70,7 @@ def _parse_delete_after_seconds(raw: str) -> int | None:
     return int(raw)
 
 
-# ─── Infraestructura del panel ───────────────────────────────────────────────
+# ─── Infraestructura del panel /settings ────────────────────────────────────
 
 
 class SettingsCategory:
@@ -129,14 +134,13 @@ class SettingsPanel(discord.ui.View):
         self.guild = guild
         self.locale = locale
         self.invoker_id = invoker_id
-        # (título, cuerpo) mostrado cuando no hay categoría elegida (portada /settings o /setup)
         self.intro = intro or (
             t("settings.title", locale),
             t("settings.intro", locale, url=get_dashboard_url(guild.id, locale)),
         )
-        # Footer con el panel web solo en la portada de /settings; /setup ya lo menciona en el cuerpo.
         self.show_panel_footer = intro is None
         self.current_key: str | None = None
+        self.channels_feedback: str | None = None
 
     def _category(self) -> SettingsCategory | None:
         for cat in CATEGORIES:
@@ -201,7 +205,155 @@ def _premium_locked_embed(panel: SettingsPanel, cat: SettingsCategory) -> discor
     )
 
 
-# ─── Categorías ──────────────────────────────────────────────────────────────
+# ─── Categorías del panel /settings ─────────────────────────────────────────
+
+
+class CanalesCategory(SettingsCategory):
+    key = "canales"
+    emoji = "📚"
+
+    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
+        allowed = await list_corpus_channels(panel.guild.id)
+        corpus_count = await count_guild_corpus_messages(panel.guild.id)
+
+        body = t("settings.canales.body", panel.locale) + "\n\n"
+        if allowed:
+            body += t("settings.canales.selected_count", panel.locale, count=len(allowed)) + "\n"
+            body += ", ".join(f"<#{cid}>" for cid in allowed[:15])
+            if len(allowed) > 15:
+                body += f" (+{len(allowed) - 15})"
+        else:
+            body += t("setup.status_no_channels", panel.locale)
+
+        if getattr(panel, "channels_feedback", None):
+            body += "\n\n" + panel.channels_feedback
+            panel.channels_feedback = None
+
+        return discord.Embed(
+            title=self.title(panel.locale),
+            description=body,
+            color=PURGITO_COLOR,
+        )
+
+    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
+        allowed = await list_corpus_channels(panel.guild.id)
+        is_running = _refeed_task_running(panel.guild.id)
+        items: list[discord.ui.Item] = []
+
+        channel_select = discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            placeholder=t("settings.canales.placeholder", panel.locale),
+            min_values=0,
+            max_values=min(25, max(1, len(panel.guild.text_channels))),
+            default_values=[discord.Object(id=cid) for cid in allowed[:25]],
+            row=1,
+        )
+
+        async def on_channels_select(interaction: discord.Interaction):
+            selected_ids = set()
+            problems = []
+            me = panel.guild.me
+            for ch in channel_select.values:
+                real_ch = panel.guild.get_channel(ch.id)
+                if not real_ch or not isinstance(real_ch, discord.TextChannel):
+                    continue
+                if getattr(real_ch, "is_nsfw", lambda: False)():
+                    problems.append(t("setup.error_nsfw_channel", panel.locale, channel=real_ch.name))
+                    continue
+                perms = real_ch.permissions_for(me)
+                if not (perms.view_channel and perms.read_message_history):
+                    problems.append(t("setup.error_no_permission_channel", panel.locale, channel=real_ch.name))
+                    continue
+                selected_ids.add(real_ch.id)
+
+            current_set = set(await list_corpus_channels(panel.guild.id))
+            for cid in current_set - selected_ids:
+                await remove_corpus_channel(panel.guild.id, cid)
+            for cid in selected_ids - current_set:
+                await add_corpus_channel(panel.guild.id, cid)
+
+            if problems:
+                panel.channels_feedback = "\n".join(problems)
+
+            await panel.refresh(interaction)
+
+        channel_select.callback = on_channels_select
+        items.append(channel_select)
+
+        if allowed:
+            btn_refeed = discord.ui.Button(
+                label=t("settings.canales.btn_refeed", panel.locale),
+                style=discord.ButtonStyle.primary,
+                disabled=is_running,
+                row=2,
+            )
+
+            async def on_refeed(interaction: discord.Interaction):
+                if _refeed_task_running(panel.guild.id):
+                    await interaction.response.send_message(
+                        t("chat.refeed_channels.already_running", panel.locale),
+                        ephemeral=True,
+                    )
+                    return
+                chat_cog = interaction.client.get_cog("Chat")
+                if chat_cog is not None:
+                    await interaction.response.defer()
+                    progress_msg = await interaction.original_response()
+                    chat_cog.start_refeed_channels(panel.guild, progress_msg, interaction.channel)
+                else:
+                    await panel.refresh(interaction)
+
+            btn_refeed.callback = on_refeed
+            items.append(btn_refeed)
+
+        return items
+
+
+class ChatCategory(SettingsCategory):
+    key = "chat"
+    emoji = "💬"
+
+    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
+        settings = await get_chat_settings(panel.guild.id)
+        body = t(
+            "settings.chat.status_on"
+            if settings["enabled"]
+            else "settings.chat.status_off",
+            panel.locale,
+        )
+        return discord.Embed(
+            title=self.title(panel.locale), description=body, color=PURGITO_COLOR
+        )
+
+    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
+        settings = await get_chat_settings(panel.guild.id)
+
+        enable_btn = discord.ui.Button(
+            label=t("settings.chat.btn_enable", panel.locale),
+            style=discord.ButtonStyle.success,
+            disabled=settings["enabled"],
+            row=1,
+        )
+        disable_btn = discord.ui.Button(
+            label=t("settings.chat.btn_disable", panel.locale),
+            style=discord.ButtonStyle.danger,
+            disabled=not settings["enabled"],
+            row=1,
+        )
+
+        async def on_enable(interaction: discord.Interaction):
+            current = await get_chat_settings(panel.guild.id)
+            await set_chat_mode(panel.guild.id, True, current["channel_id"])
+            await panel.refresh(interaction)
+
+        async def on_disable(interaction: discord.Interaction):
+            current = await get_chat_settings(panel.guild.id)
+            await set_chat_mode(panel.guild.id, False, current["channel_id"])
+            await panel.refresh(interaction)
+
+        enable_btn.callback = on_enable
+        disable_btn.callback = on_disable
+        return [enable_btn, disable_btn]
 
 
 class IdiomaCategory(SettingsCategory):
@@ -252,66 +404,62 @@ class IdiomaCategory(SettingsCategory):
         return [select]
 
 
-class ChatCategory(SettingsCategory):
-    """Solo el interruptor de menciones. Canales, frecuencia y límite de
-    interacciones se administran desde el dashboard — ver settings.intro."""
-
-    key = "chat"
-    emoji = "💬"
+class AprendizajeCategory(SettingsCategory):
+    key = "aprendizaje"
+    emoji = "🔄"
 
     async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
-        settings = await get_chat_settings(panel.guild.id)
-        body = t(
-            "settings.chat.status_on"
-            if settings["enabled"]
-            else "settings.chat.status_off",
-            panel.locale,
-        )
+        allowed = await list_corpus_channels(panel.guild.id)
+        corpus_count = await count_guild_corpus_messages(panel.guild.id)
+        is_running = _refeed_task_running(panel.guild.id)
+
+        if is_running:
+            status = t("setup.status_refeeding", panel.locale)
+        elif not allowed:
+            status = t("setup.status_no_channels", panel.locale)
+        elif corpus_count == 0:
+            status = t("setup.status_channels_no_history", panel.locale, count=len(allowed))
+        else:
+            status = t("setup.status_ready", panel.locale, corpus=f"{corpus_count:,}", channels=len(allowed))
+
+        body = t("settings.aprendizaje.body", panel.locale) + "\n\n" + status
         return discord.Embed(
-            title=self.title(panel.locale), description=body, color=PURGITO_COLOR
+            title=self.title(panel.locale),
+            description=body,
+            color=PURGITO_COLOR,
         )
 
     async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
-        settings = await get_chat_settings(panel.guild.id)
+        allowed = await list_corpus_channels(panel.guild.id)
+        is_running = _refeed_task_running(panel.guild.id)
 
-        enable_btn = discord.ui.Button(
-            label=t("settings.chat.btn_enable", panel.locale),
-            style=discord.ButtonStyle.success,
-            disabled=settings["enabled"],
-            row=1,
-        )
-        disable_btn = discord.ui.Button(
-            label=t("settings.chat.btn_disable", panel.locale),
-            style=discord.ButtonStyle.danger,
-            disabled=not settings["enabled"],
+        btn = discord.ui.Button(
+            label=t("settings.aprendizaje.btn_start", panel.locale),
+            style=discord.ButtonStyle.primary,
+            disabled=len(allowed) == 0 or is_running,
             row=1,
         )
 
-        async def on_enable(interaction: discord.Interaction):
-            current = await get_chat_settings(panel.guild.id)
-            await set_chat_mode(panel.guild.id, True, current["channel_id"])
-            await panel.refresh(interaction)
+        async def on_start(interaction: discord.Interaction):
+            if _refeed_task_running(panel.guild.id):
+                await interaction.response.send_message(
+                    t("chat.refeed_channels.already_running", panel.locale),
+                    ephemeral=True,
+                )
+                return
+            chat_cog = interaction.client.get_cog("Chat")
+            if chat_cog is not None:
+                await interaction.response.defer()
+                progress_msg = await interaction.original_response()
+                chat_cog.start_refeed_channels(panel.guild, progress_msg, interaction.channel)
+            else:
+                await panel.refresh(interaction)
 
-        async def on_disable(interaction: discord.Interaction):
-            current = await get_chat_settings(panel.guild.id)
-            await set_chat_mode(panel.guild.id, False, current["channel_id"])
-            await panel.refresh(interaction)
-
-        enable_btn.callback = on_enable
-        disable_btn.callback = on_disable
-        return [enable_btn, disable_btn]
+        btn.callback = on_start
+        return [btn]
 
 
 class DatosCategory(SettingsCategory):
-    """Acciones destructivas sobre datos guardados del servidor.
-
-    Antes era "Corpus" (canales ignorados + wipe): la parte de canales
-    ignorados se retiró de acá porque su selector de canal duplicaba —y
-    contradecía, por el modelo positivo nuevo— el tab Corpus del dashboard.
-    Los botones de vaciar corpus/GIFs quedan igual que siempre, solo con
-    categoría y locale keys propios (settings.corpus.btn_wipe* etc. NO se
-    tocaron)."""
-
     key = "datos"
     emoji = "🗑️"
 
@@ -924,31 +1072,202 @@ class AnunciosCategory(SettingsCategory):
         return items
 
 
-# Registro de categorías: agregar aquí las nuevas (orden = orden en el menú).
 CATEGORIES: list[SettingsCategory] = [
-    IdiomaCategory(),
+    CanalesCategory(),
     ChatCategory(),
+    IdiomaCategory(),
+    AprendizajeCategory(),
     YouTubeCategory(),
     MemesCategory(),
     AnunciosCategory(),
-    # Al final a propósito: acciones destructivas, no configuración —
-    # separadas del resto para que no queden a un click de distancia mientras
-    # se navega el panel.
     DatosCategory(),
 ]
 
 
-# ─── Onboarding ──────────────────────────────────────────────────────────────
+# ─── Onboarding interactivo (/setup) ─────────────────────────────────────────
 
-# Umbrales del onboarding: puntos de partida, ajustar viendo cómo se siente en la práctica.
-VISIBILITY_LIMITED_RATIO = 0.4  # avisar si el bot ve menos de esta fracción de canales
-VISIBILITY_LIMITED_MAX_SEEN = 3  # ...o si ve esta cantidad de canales o menos
+
+class SetupView(discord.ui.View):
+    """Panel interactivo de onboarding y configuración de canales en Discord."""
+
+    def __init__(self, guild: discord.Guild, locale: str, invoker_id: int):
+        super().__init__(timeout=600)
+        self.guild = guild
+        self.locale = locale
+        self.invoker_id = invoker_id
+        self.feedback_msg: str | None = None
+
+    async def build_embed(self) -> discord.Embed:
+        allowed = await list_corpus_channels(self.guild.id)
+        corpus_count = await count_guild_corpus_messages(self.guild.id)
+        is_running = _refeed_task_running(self.guild.id)
+
+        if is_running:
+            status = t("setup.status_refeeding", self.locale)
+        elif not allowed:
+            status = t("setup.status_no_channels", self.locale)
+        elif corpus_count == 0:
+            status = t("setup.status_channels_no_history", self.locale, count=len(allowed))
+        else:
+            status = t(
+                "setup.status_ready",
+                self.locale,
+                corpus=f"{corpus_count:,}",
+                channels=len(allowed),
+            )
+
+        lines = [
+            t("setup.intro", self.locale),
+            "",
+            status,
+        ]
+
+        if allowed:
+            lines.append("")
+            lines.append(
+                f"**{t('setup.selected_channels_header', self.locale, count=len(allowed))}**"
+            )
+            chan_str = ", ".join(f"<#{cid}>" for cid in allowed[:12])
+            if len(allowed) > 12:
+                chan_str += f" (+{len(allowed) - 12})"
+            lines.append(chan_str)
+
+        if self.feedback_msg:
+            lines.append("")
+            lines.append(self.feedback_msg)
+            self.feedback_msg = None
+
+        embed = discord.Embed(
+            title=t("setup.title", self.locale),
+            description="\n".join(lines),
+            color=PURGITO_COLOR,
+        )
+        return embed
+
+    async def rebuild(self) -> None:
+        self.clear_items()
+        allowed = await list_corpus_channels(self.guild.id)
+        is_running = _refeed_task_running(self.guild.id)
+
+        channel_select = discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            placeholder=t("setup.select_channels_placeholder", self.locale),
+            min_values=0,
+            max_values=min(25, max(1, len(self.guild.text_channels))),
+            default_values=[discord.Object(id=cid) for cid in allowed[:25]],
+            row=0,
+        )
+
+        async def on_channels_select(interaction: discord.Interaction):
+            selected_ids = set()
+            problems = []
+            me = self.guild.me
+            for ch in channel_select.values:
+                real_ch = self.guild.get_channel(ch.id)
+                if not real_ch or not isinstance(real_ch, discord.TextChannel):
+                    continue
+                if getattr(real_ch, "is_nsfw", lambda: False)():
+                    problems.append(
+                        t("setup.error_nsfw_channel", self.locale, channel=real_ch.name)
+                    )
+                    continue
+                perms = real_ch.permissions_for(me)
+                if not (perms.view_channel and perms.read_message_history):
+                    problems.append(
+                        t(
+                            "setup.error_no_permission_channel",
+                            self.locale,
+                            channel=real_ch.name,
+                        )
+                    )
+                    continue
+                selected_ids.add(real_ch.id)
+
+            current_set = set(await list_corpus_channels(self.guild.id))
+            for cid in current_set - selected_ids:
+                await remove_corpus_channel(self.guild.id, cid)
+            for cid in selected_ids - current_set:
+                await add_corpus_channel(self.guild.id, cid)
+
+            if problems:
+                self.feedback_msg = "\n".join(problems)
+
+            await self.refresh(interaction)
+
+        channel_select.callback = on_channels_select
+        self.add_item(channel_select)
+
+        if allowed:
+            btn_refeed = discord.ui.Button(
+                label=t("setup.btn_learn_history", self.locale),
+                style=discord.ButtonStyle.primary,
+                disabled=is_running,
+                row=1,
+            )
+
+            async def on_learn_history(interaction: discord.Interaction):
+                if _refeed_task_running(self.guild.id):
+                    await interaction.response.send_message(
+                        t("chat.refeed_channels.already_running", self.locale),
+                        ephemeral=True,
+                    )
+                    return
+
+                chat_cog = interaction.client.get_cog("Chat")
+                if chat_cog is not None:
+                    await interaction.response.defer()
+                    progress_msg = await interaction.original_response()
+                    chat_cog.start_refeed_channels(
+                        self.guild, progress_msg, interaction.channel
+                    )
+                else:
+                    await self.refresh(interaction)
+
+            btn_refeed.callback = on_learn_history
+            self.add_item(btn_refeed)
+
+        self.add_item(
+            discord.ui.Button(
+                label=t("setup.btn_dashboard", self.locale),
+                style=discord.ButtonStyle.link,
+                url=get_dashboard_url(self.guild.id, self.locale, "chat#canales"),
+                row=1,
+            )
+        )
+
+    async def refresh(self, interaction: discord.Interaction) -> None:
+        await self.rebuild()
+        embed = await self.build_embed()
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.invoker_id:
+            await interaction.response.send_message(
+                t("settings.not_your_panel", self.locale), ephemeral=True
+            )
+            return False
+        if (
+            not isinstance(interaction.user, discord.Member)
+            or not interaction.user.guild_permissions.manage_guild
+        ):
+            await interaction.response.send_message(
+                t("settings.no_permission", self.locale), ephemeral=True
+            )
+            return False
+        return True
+
+
+# Umbrales del onboarding
+VISIBILITY_LIMITED_RATIO = 0.4
+VISIBILITY_LIMITED_MAX_SEEN = 3
 
 
 def _scan_channel_visibility(guild: discord.Guild) -> dict:
     """Compara los canales de texto totales del guild contra los que Purgito
-    puede ver y leer. Sirve para avisar al admin qué tan limitado está el
-    acceso del bot en este servidor puntual."""
+    puede ver y leer."""
     me = guild.me
     visible, hidden = [], []
     for ch in guild.text_channels:
@@ -961,8 +1280,6 @@ def _scan_channel_visibility(guild: discord.Guild) -> dict:
 
 
 def _visibility_is_limited(scan: dict) -> bool:
-    """True solo cuando vale la pena avisar. Un servidor con 1-2 canales
-    privados de staff es normal, no hay que decir nada ahí."""
     total, seen = scan["total"], len(scan["visible"])
     if total <= 3:
         return False
@@ -972,7 +1289,6 @@ def _visibility_is_limited(scan: dict) -> bool:
 
 
 def _format_channel_names(channels: list, max_shown: int = 5) -> str:
-    """Lista corta de #nombres; el sobrante se colapsa en un "(+N)" neutro entre idiomas."""
     text = ", ".join(f"#{ch.name}" for ch in channels[:max_shown])
     extra = len(channels) - max_shown
     if extra > 0:
@@ -981,7 +1297,6 @@ def _format_channel_names(channels: list, max_shown: int = 5) -> str:
 
 
 async def _find_inviter(guild: discord.Guild) -> discord.Member | None:
-    """Busca en el audit log quién agregó al bot. None si no hay permiso o no aparece."""
     me = guild.me
     if me is None or not me.guild_permissions.view_audit_log:
         return None
@@ -999,7 +1314,7 @@ async def _find_inviter(guild: discord.Guild) -> discord.Member | None:
 def build_dm_welcome_embed(
     guild: discord.Guild, locale: str, scan: dict | None
 ) -> discord.Embed:
-    """Quickstart privado para quien invitó al bot: más directo que el mensaje público."""
+    """Quickstart privado para quien invitó al bot."""
     body = t("dm.body", locale, url=get_dashboard_url(guild.id, locale, "chat#canales"))
     if scan is not None and _visibility_is_limited(scan):
         body += "\n\n" + t(
@@ -1016,44 +1331,25 @@ def build_dm_welcome_embed(
 
 
 def build_welcome_embed(guild: discord.Guild, locale: str) -> discord.Embed:
-    is_prem = is_premium_guild(guild.id)
-    parts = [
+    lines = [
         t("welcome.intro", locale),
         "",
         t("welcome.getting_started", locale),
+        "",
+        t("welcome.commands", locale),
+        "",
+        t("welcome.dashboard_hint", locale),
     ]
-    if is_prem:
-        parts.append(t("welcome.premium_target", locale))
-    parts += ["", t("welcome.commands_header", locale), t("welcome.commands", locale)]
-    if is_prem:
-        parts.append(t("welcome.premium_momo", locale))
-    parts.append(t("welcome.commands_tail", locale))
-    parts.append("")
-    parts.append(
-        t("welcome.dashboard_cta", locale, url=get_dashboard_url(guild.id, locale))
-    )
-    parts.append("")
-    if is_prem:
-        parts.append(t("welcome.trigger_hint", locale, trigger=BOT_TRIGGER_NAME))
-    else:
-        parts.append(t("welcome.free_note", locale))
     return discord.Embed(
         title=t("welcome.title", locale),
-        description="\n".join(parts),
+        description="\n".join(lines),
         color=PURGITO_COLOR,
     )
 
 
 class WelcomeView(discord.ui.View):
-    """Botón persistente de bienvenida (abre el panel de setup en modo efímero)
-    + link directo al dashboard del servidor.
-
-    El botón de link NO es persistente de verdad — Discord sirve los botones
-    de link directo desde los datos del mensaje, sin pasar por el bot, así que
-    no necesita (ni puede aprovechar) bot.add_view(). Por eso solo se agrega
-    cuando hay guild_id disponible (on_guild_join); el registro global en
-    cog_load, que existe únicamente para revivir el custom_id de
-    configure_btn tras un reinicio, no lo necesita."""
+    """Botón principal de bienvenida (abre el panel de setup)
+    + botón secundario de link directo al dashboard."""
 
     def __init__(self, locale: str = i18n.DEFAULT_LOCALE, guild_id: int | None = None):
         super().__init__(timeout=None)
@@ -1086,41 +1382,10 @@ class WelcomeView(discord.ui.View):
 
 
 async def _send_setup_panel(interaction: discord.Interaction, locale: str) -> None:
-    # Estado en vivo del servidor, antes de la guía estática de 2 pasos.
-    status = ""
-    try:
-        scan = _scan_channel_visibility(interaction.guild)
-        corpus_count = await count_guild_corpus_messages(interaction.guild.id)
-        ignored_count = len(await list_ignored_channels(interaction.guild.id))
-        status = t(
-            "setup.status_header",
-            locale,
-            seen=len(scan["visible"]),
-            total=scan["total"],
-            corpus=corpus_count,
-            ignored=ignored_count,
-        )
-    except Exception:
-        log.exception("setup: no se pudo calcular el estado del servidor")
-    panel = SettingsPanel(
-        interaction.guild,
-        locale,
-        interaction.user.id,
-        intro=(
-            t("setup.title", locale),
-            status
-            + t(
-                "setup.body",
-                locale,
-                url=get_dashboard_url(interaction.guild.id, locale),
-            )
-            + "\n\n"
-            + t("setup.panel_cta", locale, url=PANEL_URL),
-        ),
-    )
-    await panel.rebuild()
-    embed = await panel.build_embed()
-    await interaction.response.send_message(embed=embed, view=panel, ephemeral=True)
+    view = SetupView(interaction.guild, locale, interaction.user.id)
+    await view.rebuild()
+    embed = await view.build_embed()
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 # ─── Cog ─────────────────────────────────────────────────────────────────────
@@ -1131,7 +1396,6 @@ class Settings(commands.Cog):
         self.bot = bot
 
     async def cog_load(self) -> None:
-        # Vista persistente: el botón de bienvenida sigue funcionando tras reinicios.
         self.bot.add_view(WelcomeView())
 
     @commands.Cog.listener()
@@ -1154,7 +1418,6 @@ class Settings(commands.Cog):
                     )
                 break
 
-        # Escaneo de visibilidad: se reusa en el aviso público, el DM y el cierre del refeed.
         scan: dict | None = None
         try:
             scan = _scan_channel_visibility(guild)
@@ -1177,10 +1440,6 @@ class Settings(commands.Cog):
                         total=scan["total"],
                         names=_format_channel_names(scan["visible"]),
                     ),
-                    # names son nombres de canal en crudo: un canal llamado
-                    # "@everyone" hacía que este aviso pinguee al servidor
-                    # entero con los permisos del bot. Este mensaje no
-                    # necesita mencionar a nadie.
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
             except Exception:
@@ -1189,27 +1448,22 @@ class Settings(commands.Cog):
                     guild.id,
                 )
 
-        # DM al admin que invitó al bot. Nunca puede tirar abajo el resto del flujo.
         try:
             inviter = await _find_inviter(guild)
             if inviter is not None:
                 await inviter.send(embed=build_dm_welcome_embed(guild, locale, scan))
         except discord.Forbidden:
-            pass  # DMs cerrados — no rompe nada, no hace falta loguear como error
+            pass
         except Exception:
             log.warning(
                 "on_guild_join: falló el DM al invitador (%s)", guild.id, exc_info=True
             )
 
-        # No hay auto-refeed acá: un guild nuevo arranca con la allowlist del
-        # corpus vacía (Chat.on_guild_join), así que no hay nada que leer
-        # todavía — el primer paso real es que un admin elija canales desde
-        # el dashboard (ver build_welcome_embed / WelcomeView, más arriba).
         if welcome_channel is not None:
             await remember_welcome_channel(guild.id, welcome_channel.id)
 
     @app_commands.command(
-        name="settings", description="Abre el panel de configuración del servidor."
+        name="settings", description="Panel de configuración rápida del servidor."
     )
     async def settings(self, interaction: discord.Interaction):
         if not interaction.guild:
@@ -1232,7 +1486,7 @@ class Settings(commands.Cog):
         await interaction.response.send_message(embed=embed, view=panel, ephemeral=True)
 
     @app_commands.command(
-        name="setup", description="Guía de configuración inicial de Purgito."
+        name="setup", description="Configuración inicial de Purgito y selección de canales."
     )
     async def setup_cmd(self, interaction: discord.Interaction):
         if not interaction.guild:
