@@ -272,7 +272,9 @@ class _FakeOEmbedResp:
 
 def test_resolve_media_url_tenor_resolves_to_gif(monkeypatch):
     async def run():
-        html = '<meta property="og:image" content="https://media1.tenor.com/m/abc/x.gif">'
+        html = (
+            '<meta property="og:image" content="https://media1.tenor.com/m/abc/x.gif">'
+        )
         monkeypatch.setattr(
             r2, "fetch_public_url", lambda method, url, **k: _FakeHtmlResp(html)
         )
@@ -570,6 +572,7 @@ def test_count_audit_action_cuenta_los_auto_borrados(memory_db):
 def test_check_gif_url_health_head_404_fallback_get_200(monkeypatch):
     """Tenor CDN devuelve 404 a peticiones HEAD de /m/...gif pero 200 a GET.
     El chequeo de salud no debe clasificarlo como 'dead'."""
+
     class _Resp:
         def __init__(self, status_code, content_type):
             self.status_code = status_code
@@ -580,6 +583,7 @@ def test_check_gif_url_health_head_404_fallback_get_200(monkeypatch):
 
     def fake_fetch_public_url(method, url, **kwargs):
         import requests
+
         if method == requests.head:
             return _Resp(404, "text/html")
         elif method == requests.get:
@@ -590,8 +594,11 @@ def test_check_gif_url_health_head_404_fallback_get_200(monkeypatch):
     assert r2.check_gif_url_health("https://media1.tenor.com/m/abc/cat.gif") == "ok"
 
 
-def test_get_live_gif_ignores_png_media_url_and_uses_original_url(memory_db, monkeypatch):
+def test_get_live_gif_ignores_png_media_url_and_uses_original_url(
+    memory_db, monkeypatch
+):
     """Si una fila histórica tiene media_url='...png', get_live_gif NO debe enviar el .png."""
+
     async def run():
         # Insertar GIF con media_url apuntando a un PNG de miniatura
         await memory_db.execute(
@@ -620,6 +627,7 @@ def test_get_live_gif_ignores_png_media_url_and_uses_original_url(memory_db, mon
 
 def test_get_unresolved_gifs_includes_png_media_url(memory_db):
     """get_unresolved_gifs debe devolver filas con media_url=.png para re-resolverlas."""
+
     async def run():
         await memory_db.execute(
             "INSERT INTO corpus_gifs (guild_id, url, media_url) "
@@ -639,4 +647,3 @@ def test_get_unresolved_gifs_includes_png_media_url(memory_db):
         assert "https://tenor.com/view/cat-2" not in urls
 
     asyncio.run(run())
-

@@ -393,6 +393,7 @@ def test_bot_sin_miembro_en_guild_devuelve_403(fake_guild):
 def test_revocacion_dinamica_de_permisos(fake_guild, monkeypatch):
     """Si el canal era válido al listar pero se revocan permisos antes de simular,
     el endpoint POST /chat/playground debe rechazar con 403."""
+
     class DynamicChannel:
         def __init__(self, id, name):
             self.id = id
@@ -447,6 +448,7 @@ def test_revocacion_dinamica_de_permisos(fake_guild, monkeypatch):
 
 def test_simulacion_mensaje_excluye_gif_y_reaccion(fake_guild, monkeypatch):
     """Test 1: Una simulación que genera mensaje devuelve mensaje ✓, GIF ✗ (None), reacción ✗ (no generada)."""
+
     async def fake_settings(guild_id, channel_id):
         return {
             "enabled": True,
@@ -461,11 +463,17 @@ def test_simulacion_mensaje_excluye_gif_y_reaccion(fake_guild, monkeypatch):
         return 5
 
     async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
-        return {"would_respond": True, "reason": "markov", "text": "¡Texto Markov generado!"}
+        return {
+            "would_respond": True,
+            "reason": "markov",
+            "text": "¡Texto Markov generado!",
+        }
 
     monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
-    monkeypatch.setattr(webapi.random, "random", lambda: 0.9)  # 0.9 >= 0.3 -> No sale GIF
+    monkeypatch.setattr(
+        webapi.random, "random", lambda: 0.9
+    )  # 0.9 >= 0.3 -> No sale GIF
     monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
 
     resp = _run(FakeRequest(body={"channel_id": "10"}))
@@ -480,6 +488,7 @@ def test_simulacion_mensaje_excluye_gif_y_reaccion(fake_guild, monkeypatch):
 
 def test_simulacion_gif_excluye_mensaje_y_reaccion(fake_guild, monkeypatch):
     """Test 2: Una simulación que genera GIF devuelve mensaje ✗ (None), GIF ✓, reacción ✗ (no generada)."""
+
     async def fake_settings(guild_id, channel_id):
         return {
             "enabled": True,
@@ -513,6 +522,7 @@ def test_simulacion_gif_excluye_mensaje_y_reaccion(fake_guild, monkeypatch):
 
 def test_reacciones_habilitadas_no_alteran_resultado_simulador(fake_guild, monkeypatch):
     """Test 3: Las reacciones automáticas al 100% no se incluyen en el resultado de simulación espontánea."""
+
     async def fake_settings(guild_id, channel_id):
         return {
             "enabled": True,
@@ -527,7 +537,11 @@ def test_reacciones_habilitadas_no_alteran_resultado_simulador(fake_guild, monke
         return [{"emoji": "🔥", "count": 10}]
 
     async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
-        return {"would_respond": True, "reason": "markov", "text": "Mensaje sin emoji simulado"}
+        return {
+            "would_respond": True,
+            "reason": "markov",
+            "text": "Mensaje sin emoji simulado",
+        }
 
     monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(webapi, "list_reaction_pool", fake_reaction_pool)
@@ -558,7 +572,11 @@ def test_simular_siempre_ejecuta_markov_o_pack(fake_guild, monkeypatch):
     async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
         nonlocal executed_markov
         executed_markov = True
-        return {"would_respond": True, "reason": "markov", "text": "Markov espontáneo siempre ejecutado"}
+        return {
+            "would_respond": True,
+            "reason": "markov",
+            "text": "Markov espontáneo siempre ejecutado",
+        }
 
     monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
@@ -597,7 +615,11 @@ def test_simulaciones_consecutivas_son_independientes(fake_guild, monkeypatch):
         return 5
 
     async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
-        return {"would_respond": True, "reason": "markov", "text": "Segundo intento es mensaje"}
+        return {
+            "would_respond": True,
+            "reason": "markov",
+            "text": "Segundo intento es mensaje",
+        }
 
     monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
@@ -618,6 +640,3 @@ def test_simulaciones_consecutivas_son_independientes(fake_guild, monkeypatch):
     assert data2["result_type"] == "message"
     assert data2["text"] == "Segundo intento es mensaje"
     assert data2["gif_url"] is None
-
-
-

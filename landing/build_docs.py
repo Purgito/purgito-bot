@@ -34,6 +34,47 @@ DOCS = ROOT / "docs"
 
 BASE_URL = "https://purgito.app"
 
+# Los dos idiomas que build_docs.py genera de verdad (ru/ja/de solo existen
+# como ítems atenuados del selector — ver window.READY_LANGS en index.html).
+LANGS = ("es", "en")
+
+# Única fuente de verdad para qué slugs cambian de un idioma a otro. La
+# inmensa mayoría de las páginas conservan el mismo slug (guia, premium,
+# estado, dashboard, perfil/*) -- acá solo van las excepciones. El selector
+# de idioma en script.js mantiene una copia de este mismo mapeo (no puede
+# importar este módulo Python) y landing/test_lang.mjs verifica que ambos
+# lados coincidan con lo que existe en disco, así que un olvido acá se
+# detecta ahí, no en producción.
+SLUG_MAP_ES_EN = {
+    "terminos": "terms",
+    "privacidad": "privacy",
+    "reembolsos": "refunds",
+    "documentacion": "documentation",
+    "documentacion/arquitectura": "documentation/architecture",
+    "documentacion/discord": "documentation/discord",
+    "documentacion/api": "documentation/api",
+    "documentacion/generacion": "documentation/generation",
+    "documentacion/almacenamiento": "documentation/storage",
+    "documentacion/seguridad": "documentation/security",
+    "documentacion/infraestructura": "documentation/infrastructure",
+    "documentacion/desarrollo": "documentation/development",
+    "documentacion/referencia": "documentation/reference",
+}
+SLUG_MAP_EN_ES = {v: k for k, v in SLUG_MAP_ES_EN.items()}
+
+
+def en_slug(es_slug):
+    return SLUG_MAP_ES_EN.get(es_slug, es_slug)
+
+
+def es_slug(en_slug_):
+    return SLUG_MAP_EN_ES.get(en_slug_, en_slug_)
+
+
+def counterpart_slug(slug, lang):
+    """Slug de la misma página en el otro idioma."""
+    return en_slug(slug) if lang == "es" else es_slug(slug)
+
 
 def og_image_digest() -> str:
     """Retorna los primeros 8 caracteres del hash SHA-256 de landing/assets/og-purgito.png."""
@@ -50,7 +91,6 @@ DEFAULT_OG_IMAGE = get_default_og_image()
 DEFAULT_OG_IMAGE_WIDTH = "512"
 DEFAULT_OG_IMAGE_HEIGHT = "512"
 DEFAULT_OG_IMAGE_ALT = "Purgito"
-DEFAULT_OG_LOCALE = "es_ES"
 DEFAULT_TWITTER_CARD = "summary"
 
 # Las descripciones del índice no salen del markdown (no existen ahí): se
@@ -104,6 +144,61 @@ PAGES = [
             "Cuándo se puede revocar el acceso premium.",
             "Qué pasa con tu contenido guardado si el servidor pierde Premium.",
             "A quién queda asociado el premium: al servidor, no a la cuenta.",
+        ],
+    },
+]
+
+# Mismo formato que PAGES, en inglés. slug via en_slug() -- nunca a mano --
+# para que no pueda desincronizarse de SLUG_MAP_ES_EN.
+PAGES_EN = [
+    {
+        "slug": en_slug("terminos"),
+        "src": "TERMS.en.md",
+        "title": "Terms of Service",
+        "meta": "Purgito's terms of service: acceptable use, license, generated "
+        "content, subscriptions, and limits of liability.",
+        "toc": [
+            "What you can and can't do with the bot.",
+            "MIT license and no warranties on the software.",
+            "What it means that the text is machine-generated, and who moderates it.",
+            "Premium, pricing, free trial, cancellation, and refunds.",
+            "The service is offered without a guarantee of continuous availability.",
+            "What damages the developer isn't liable for.",
+            "How and when these Terms change.",
+            "Where to write with questions or to report a problem.",
+        ],
+    },
+    {
+        "slug": en_slug("privacidad"),
+        "src": "PRIVACY.en.md",
+        "title": "Privacy Policy",
+        "meta": "What data Purgito collects, what it's used for, which services "
+        "it's shared with, and how to delete it.",
+        "toc": [
+            "What data the bot stores: IDs, messages, media, session, and payments.",
+            "What that data is used for — never for advertising or sale.",
+            "External providers involved in certain features.",
+            "How long data is kept, and how to delete it.",
+            "What you can request about the information collected.",
+            "Minimum age and eligibility to purchase Premium.",
+            "Measures to protect stored information.",
+            "How updates to this Policy are announced.",
+            "Where to write with questions or a deletion request.",
+        ],
+    },
+    {
+        "slug": en_slug("reembolsos"),
+        "src": "REFUNDS.en.md",
+        "title": "Refund Policy",
+        "meta": "Purgito's refund policy for Premium subscriptions and the free "
+        "trial's conditions.",
+        "toc": [
+            "The 7-day free trial and its conditions.",
+            "How to cancel your subscription from the Polar portal.",
+            "Why refunds aren't offered for an already-paid period.",
+            "When Premium access can be revoked.",
+            "What happens to your saved content if the server loses Premium.",
+            "Who Premium is tied to: the server, not the account.",
         ],
     },
 ]
@@ -255,6 +350,146 @@ HTML_PAGES = [
     },
 ]
 
+# Mismo formato que HTML_PAGES, en inglés. slug via en_slug(); src apunta a
+# los cuerpos en landing/pages/en/ y landing/pages/documentacion/en/.
+HTML_PAGES_EN = [
+    {
+        "slug": en_slug("premium"),
+        "src": "en/premium.html",
+        "title": "Purgito Premium",
+        "meta": "Take your server to the next level with Purgito Premium: "
+        "50,000-message extended memory, automatic memes, 4,000 GIFs, and "
+        "priority support.",
+    },
+    {
+        "slug": en_slug("perfil"),
+        "src": "en/perfil.html",
+        "title": "Profile",
+        "meta": "Your Purgito account: Discord profile info, servers, and subscriptions.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": en_slug("perfil/servidores"),
+        "src": "en/perfil.html",
+        "title": "Servers",
+        "meta": "Your Discord servers with Purgito: open each one's dashboard "
+        "or invite it to the ones still missing it.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": en_slug("perfil/conexiones"),
+        "src": "en/perfil.html",
+        "title": "Connections",
+        "meta": "Your Purgito account's connections to Discord and linked services.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": en_slug("perfil/facturacion"),
+        "src": "en/perfil.html",
+        "title": "Billing",
+        "meta": "The status of your Purgito Premium subscriptions and billing management.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": en_slug("dashboard"),
+        "src": "en/dashboard.html",
+        "title": "Dashboard",
+        "meta": "Configure Purgito on your server: chat, corpus, reactions, "
+        "phrases, GIFs, embeds, and Premium.",
+        "app": "dash.js",
+        "no_footer": True,
+    },
+    {
+        "slug": en_slug("estado"),
+        "src": "en/estado.html",
+        "title": "Purgito Status",
+        "meta": "Purgito's live status: uptime, memory, latency to Discord, "
+        "and server count. Public, no login required.",
+        "module": "estado.js",
+    },
+    {
+        "slug": en_slug("guia"),
+        "src": "en/guia.html",
+        "title": "Purgito Guide — How the bot works",
+        "meta": "Learn how Purgito works, from the learning system and Chat "
+        "to GIFs, memes, embeds, YouTube, and Premium.",
+        "guia": True,
+    },
+    {
+        "slug": en_slug("documentacion"),
+        "src": "documentacion/en/index.html",
+        "title": "Technical Documentation",
+        "meta": "Guides, reference, and details on Purgito's architecture, "
+        "APIs, internal systems, and infrastructure.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/arquitectura"),
+        "src": "documentacion/en/arquitectura.html",
+        "title": "Architecture — Technical Documentation",
+        "meta": "How Purgito's Discord bot, generation engine, database, and "
+        "dashboard connect to each other.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/discord"),
+        "src": "documentacion/en/discord.html",
+        "title": "Discord — Technical Documentation",
+        "meta": "Cogs, events, permissions, and interactions of Purgito's bot.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/api"),
+        "src": "documentacion/en/api.html",
+        "title": "API — Technical Documentation",
+        "meta": "Authentication, sessions, endpoints, and webhooks of Purgito's API.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/generacion"),
+        "src": "documentacion/en/generacion.html",
+        "title": "Generation engine — Technical Documentation",
+        "meta": "How Purgito generates text: Markov chains, corpus, "
+        "concurrency, and limits.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/almacenamiento"),
+        "src": "documentacion/en/almacenamiento.html",
+        "title": "Storage — Technical Documentation",
+        "meta": "SQLite, Cloudflare R2, in-memory caches, and data retention in Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/seguridad"),
+        "src": "documentacion/en/seguridad.html",
+        "title": "Security — Technical Documentation",
+        "meta": "Purgito's security model: OAuth2, sessions, permissions, and rate limits.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/infraestructura"),
+        "src": "documentacion/en/infraestructura.html",
+        "title": "Infrastructure — Technical Documentation",
+        "meta": "Runtime, nginx, Cloudflare, and Purgito's production deployment.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/desarrollo"),
+        "src": "documentacion/en/desarrollo.html",
+        "title": "Development — Technical Documentation",
+        "meta": "Purgito's project structure, local environment, and tests.",
+        "doc": True,
+    },
+    {
+        "slug": en_slug("documentacion/referencia"),
+        "src": "documentacion/en/referencia.html",
+        "title": "Reference — Technical Documentation",
+        "meta": "Purgito's environment variables.",
+        "doc": True,
+    },
+]
+
 # Estructura de /es/documentacion: una entrada por página. Los "subs" son
 # anclas dentro de esa misma página (no páginas propias) — ver Task 1 del
 # plan de documentación técnica para el porqué de la granularidad agrupada.
@@ -350,31 +585,127 @@ DOC_SECTIONS = [
 ]
 
 
-def doc_sidebar(current_slug):
-    """Sidebar de /es/documentacion: categorías + anclas de la página activa.
+# Mismas categorías y anclas que DOC_SECTIONS, en inglés. slug via en_slug().
+DOC_SECTIONS_EN = [
+    {"slug": en_slug("documentacion"), "label": "Home", "subs": []},
+    {
+        "slug": en_slug("documentacion/arquitectura"),
+        "label": "Architecture",
+        "subs": [
+            ("overview", "Overview"),
+            ("components", "Components"),
+            ("request-flow", "Request flow"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/discord"),
+        "label": "Discord",
+        "subs": [
+            ("bot-and-cogs", "Bot and cogs"),
+            ("events", "Events"),
+            ("permissions", "Permissions"),
+            ("interactions", "Interactions"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/api"),
+        "label": "API",
+        "subs": [
+            ("overview", "Overview"),
+            ("authentication", "Authentication"),
+            ("sessions", "Sessions"),
+            ("endpoints", "Endpoints"),
+            ("webhooks", "Webhooks"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/generacion"),
+        "label": "Generation",
+        "subs": [
+            ("markov-engine", "Markov engine"),
+            ("corpus", "Corpus"),
+            ("pipeline", "Generation pipeline"),
+            ("concurrency-and-limits", "Concurrency and limits"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/almacenamiento"),
+        "label": "Storage",
+        "subs": [
+            ("sqlite", "SQLite"),
+            ("r2", "R2"),
+            ("cache", "Cache"),
+            ("retention", "Data retention"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/seguridad"),
+        "label": "Security",
+        "subs": [
+            ("oauth2", "OAuth2"),
+            ("permissions", "Permissions"),
+            ("rate-limits", "Rate limits"),
+            ("security-model", "Security model"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/infraestructura"),
+        "label": "Infrastructure",
+        "subs": [
+            ("runtime", "Runtime"),
+            ("nginx", "Nginx"),
+            ("cloudflare", "Cloudflare"),
+            ("deployment", "Deployment"),
+            ("health-checks", "Health checks"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/desarrollo"),
+        "label": "Development",
+        "subs": [
+            ("project-structure", "Project structure"),
+            ("local-environment", "Local environment"),
+            ("tests", "Tests"),
+        ],
+    },
+    {
+        "slug": en_slug("documentacion/referencia"),
+        "label": "Reference",
+        "subs": [
+            ("environment-variables", "Environment variables"),
+        ],
+    },
+]
+
+
+def doc_sidebar(current_slug, lang="es"):
+    """Sidebar de /{lang}/documentacion: categorías + anclas de la página activa.
 
     Sin JS: la categoría activa se resuelve en build time (cada página sabe
     su propio slug) y las anclas son <a href="#id"> normales.
     """
+    sections = DOC_SECTIONS if lang == "es" else DOC_SECTIONS_EN
+    label = "Categorías" if lang == "es" else "Categories"
+    aria = "Documentación técnica" if lang == "es" else "Technical documentation"
     items = []
-    for sec in DOC_SECTIONS:
+    for sec in sections:
         active = sec["slug"] == current_slug
         cls = ' class="active"' if active else ""
-        href = "/es/%s" % sec["slug"]
+        href = "/%s/%s" % (lang, sec["slug"])
         items.append(
             '    <li><a%s href="%s">%s</a>' % (cls, href, html.escape(sec["label"]))
         )
         if active and sec["subs"]:
             sub_items = "".join(
-                '<li><a href="#%s">%s</a></li>' % (anchor, html.escape(label))
-                for anchor, label in sec["subs"]
+                '<li><a href="#%s">%s</a></li>' % (anchor, html.escape(label_))
+                for anchor, label_ in sec["subs"]
             )
             items.append('      <ul class="docs-subnav">%s</ul>' % sub_items)
         items.append("    </li>")
     return (
-        '<details class="docs-sidebar" open aria-label="Documentación técnica">\n'
-        "  <summary>Categorías</summary>\n"
-        "  <ul>\n%s\n  </ul>\n</details>" % "\n".join(items)
+        '<details class="docs-sidebar" open aria-label="%s">\n'
+        "  <summary>%s</summary>\n"
+        "  <ul>\n%s\n  </ul>\n</details>" % (aria, label, "\n".join(items))
     )
 
 
@@ -399,19 +730,42 @@ GUIA_SECTIONS = [
 ]
 
 
-def guia_sidebar():
-    """Sidebar de /es/guia: navegación por anclas a las secciones de la página.
+GUIA_SECTIONS_EN = [
+    ("introduction", "Introduction"),
+    ("getting-started", "Getting started"),
+    ("how-purgito-learns", "How Purgito learns"),
+    ("chat", "Chat"),
+    ("corpus", "Corpus"),
+    ("gifs", "GIFs"),
+    ("memes", "Memes"),
+    ("reactions", "Reactions"),
+    ("phrases-and-packs", "Phrases and packs"),
+    ("triggers", "Triggers"),
+    ("embeds", "Embeds"),
+    ("youtube", "YouTube"),
+    ("scheduled-announcements", "Scheduled announcements"),
+    ("premium", "Premium"),
+    ("dashboard", "Dashboard"),
+    ("history", "History"),
+]
+
+
+def guia_sidebar(lang="es"):
+    """Sidebar de /{lang}/guia: navegación por anclas a las secciones de la página.
 
     Funciona con anchors directos (#id) en una sola página. En móvil se pliega
     en un <details> accesible con summary 'Guía ▾'.
     """
+    sections = GUIA_SECTIONS if lang == "es" else GUIA_SECTIONS_EN
+    summary = "Guía ▾" if lang == "es" else "Guide ▾"
+    aria = "Guía de Purgito" if lang == "es" else "Purgito Guide"
     items = []
-    for anchor, label in GUIA_SECTIONS:
+    for anchor, label in sections:
         items.append('    <li><a href="#%s">%s</a></li>' % (anchor, html.escape(label)))
     return (
-        '<details class="docs-sidebar guia-sidebar" open aria-label="Guía de Purgito">\n'
-        "  <summary>Guía ▾</summary>\n"
-        "  <ul>\n%s\n  </ul>\n</details>" % "\n".join(items)
+        '<details class="docs-sidebar guia-sidebar" open aria-label="%s">\n'
+        "  <summary>%s</summary>\n"
+        "  <ul>\n%s\n  </ul>\n</details>" % (aria, summary, "\n".join(items))
     )
 
 
@@ -478,8 +832,10 @@ def parse(md):
         head, *rest = re.split(r"^## ", head, flags=re.M)
 
     title, _, intro = head.partition("\n")
-    date = re.search(r"\*\*Última actualización:\*\*\s*(.+)", intro)
-    intro = re.sub(r"^\*\*Última actualización:\*\*.*$", "", intro, flags=re.M)
+    date = re.search(r"\*\*(?:Última actualización|Last updated):\*\*\s*(.+)", intro)
+    intro = re.sub(
+        r"^\*\*(?:Última actualización|Last updated):\*\*.*$", "", intro, flags=re.M
+    )
 
     sections = []
     for chunk in rest:
@@ -508,7 +864,7 @@ def parse(md):
 LANDING_CSP = (
     "default-src 'self'; "
     "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' "
-    "'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; "
+    "'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio='; "
     "style-src 'self' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' https: data:; "
@@ -521,7 +877,7 @@ LANDING_CSP = (
 
 SHELL = (
     """<!DOCTYPE html>
-<html lang="es">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="%s">
@@ -548,14 +904,14 @@ SHELL = (
 <meta name="twitter:image" content="{og_image}">
 
 <link rel="canonical" href="{canonical_url}">
-<link rel="icon" href="/assets/icon.png">
+{hreflang}<link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css">
 {head}</head>
 <body>
 
 <div id="bg" class="bg-short" aria-hidden="true"></div>
 
-<a class="skip" href="#contenido">Saltar al contenido</a>
+<a class="skip" href="#contenido">{skip}</a>
 
 {nav}
 
@@ -570,6 +926,25 @@ SHELL = (
     % LANDING_CSP
 )
 
+SKIP_LABEL = {"es": "Saltar al contenido", "en": "Skip to content"}
+
+
+def hreflang_links(slug, lang):
+    """Bloque de <link rel="alternate" hreflang> ES/EN + x-default.
+
+    x-default apunta siempre a la versión española: sigue siendo el idioma
+    por defecto del sitio (ver el fallback 'es' en el redirect de índex.html).
+    """
+    es = slug if lang == "es" else es_slug(slug)
+    en = en_slug(slug) if lang == "es" else slug
+    return (
+        '<link rel="alternate" hreflang="es" href="%s/es/%s">\n'
+        '<link rel="alternate" hreflang="en" href="%s/en/%s">\n'
+        '<link rel="alternate" hreflang="x-default" href="%s/es/%s">\n'
+        % (BASE_URL, es, BASE_URL, en, BASE_URL, es)
+    )
+
+
 # Páginas del dashboard: el CSS propio va después de style.css (lo extiende, no
 # lo reemplaza) y el módulo de entrada después de script.js, que es quien pinta
 # la sesión en el navbar.
@@ -582,7 +957,12 @@ APP_SCRIPT = '<script type="module" src="/js/{src}?v={v}"></script>\n'
 MODULE_HEAD = "{importmap}"
 
 
-def build_toc(sections, descs):
+OG_LOCALE = {"es": "es_ES", "en": "en_US"}
+TOC_LABEL = {"es": "Índice", "en": "Index"}
+UPDATED_LABEL = {"es": "Última actualización", "en": "Last updated"}
+
+
+def build_toc(sections, descs, lang="es"):
     if not sections:
         return ""
     rows = []
@@ -593,12 +973,12 @@ def build_toc(sections, descs):
         )
     return (
         '  <nav class="box doc-toc" aria-labelledby="indice">\n'
-        '    <h2 id="indice">Índice</h2>\n'
-        "    <ol>\n%s\n    </ol>\n  </nav>\n" % "\n".join(rows)
+        '    <h2 id="indice">%s</h2>\n'
+        "    <ol>\n%s\n    </ol>\n  </nav>\n" % (TOC_LABEL[lang], "\n".join(rows))
     )
 
 
-def build_page(page, nav, footer):
+def build_page(page, nav, footer, lang="es"):
     title, date, intro, sections = parse((DOCS / page["src"]).read_text("utf-8"))
     descs = page["toc"]
     if len(descs) != len(sections):
@@ -620,30 +1000,34 @@ def build_page(page, nav, footer):
         '<main id="contenido" class="doc wrap">\n'
         '  <header class="doc-head">\n'
         '    <h1 class="doc-title">%s</h1>\n'
-        '    <p class="doc-date">Última actualización: %s</p>\n'
+        '    <p class="doc-date">%s: %s</p>\n'
         '    <div class="doc-body doc-intro">\n%s\n    </div>\n'
         "  </header>\n%s%s\n</main>"
         % (
             html.escape(title),
+            UPDATED_LABEL[lang],
             html.escape(date),
             intro,
-            build_toc(sections, descs),
+            build_toc(sections, descs, lang),
             "\n".join(blocks),
         )
     )
     full_title = f"{html.escape(page.get('title', title))} — Purgito"
-    canonical_url = f"{BASE_URL}/es/{page['slug']}"
+    canonical_url = f"{BASE_URL}/{lang}/{page['slug']}"
     og_image = page.get("og_image") or get_default_og_image()
     return SHELL.format(
+        lang=lang,
+        skip=SKIP_LABEL[lang],
         full_title=full_title,
         meta=html.escape(page["meta"]),
         canonical_url=canonical_url,
+        hreflang=hreflang_links(page["slug"], lang),
         og_type="article",
         og_image=og_image,
         og_image_width=page.get("og_image_width", DEFAULT_OG_IMAGE_WIDTH),
         og_image_height=page.get("og_image_height", DEFAULT_OG_IMAGE_HEIGHT),
         og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
-        og_locale=DEFAULT_OG_LOCALE,
+        og_locale=OG_LOCALE[lang],
         twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
         nav=nav,
         body=body,
@@ -653,15 +1037,16 @@ def build_page(page, nav, footer):
     )
 
 
-def build_html_page(page, nav, footer):
-    """Página con cuerpo escrito a mano (landing/pages/*.html).
+def build_html_page(page, nav, footer, lang="es"):
+    """Página con cuerpo escrito a mano (landing/pages/*.html, landing/pages/en/*.html).
 
     Solo aporta el navbar, el footer y el <head> — el resto sale del archivo
-    tal cual. Existe para que esas piezas no se dupliquen fuera de index.html.
-    Las que traen "app" suman además dash.css y su módulo de entrada; las que
-    traen "module" suman el módulo pero NO dash.css (páginas públicas con su
-    propio JS, ej. /es/estado, que no son parte del dashboard). Las que traen
-    "doc" son de /es/documentacion: se envuelven en el sidebar de doc_sidebar().
+    tal cual. Existe para que esas piezas no se dupliquen fuera de index.html
+    (o index.en.html). Las que traen "app" suman además dash.css y su módulo
+    de entrada; las que traen "module" suman el módulo pero NO dash.css
+    (páginas públicas con su propio JS, ej. /es/estado, que no son parte del
+    dashboard). Las que traen "doc" son de /{lang}/documentacion: se envuelven
+    en el sidebar de doc_sidebar().
     """
     entry = page.get("app") or page.get("module")
     if page.get("app"):
@@ -675,28 +1060,31 @@ def build_html_page(page, nav, footer):
         raw_body = (
             '<div class="docs-shell wrap">\n%s\n'
             '  <main id="contenido" class="docs-content">\n%s\n  </main>\n</div>'
-            % (doc_sidebar(page["slug"]), raw_body)
+            % (doc_sidebar(page["slug"], lang), raw_body)
         )
     elif page.get("guia"):
         raw_body = (
             '<div class="docs-shell wrap">\n%s\n'
             '  <main id="contenido" class="docs-content guia-content">\n%s\n  </main>\n</div>'
-            % (guia_sidebar(), raw_body)
+            % (guia_sidebar(lang), raw_body)
         )
     full_title = f"{html.escape(page['title'])} — Purgito"
-    canonical_url = f"{BASE_URL}/es/{page['slug']}"
+    canonical_url = f"{BASE_URL}/{lang}/{page['slug']}"
     og_image = page.get("og_image") or get_default_og_image()
     og_type = "article" if (page.get("doc") or page.get("guia")) else "website"
     return SHELL.format(
+        lang=lang,
+        skip=SKIP_LABEL[lang],
         full_title=full_title,
         meta=html.escape(page["meta"]),
         canonical_url=canonical_url,
+        hreflang=hreflang_links(page["slug"], lang),
         og_type=og_type,
         og_image=og_image,
         og_image_width=page.get("og_image_width", DEFAULT_OG_IMAGE_WIDTH),
         og_image_height=page.get("og_image_height", DEFAULT_OG_IMAGE_HEIGHT),
         og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
-        og_locale=DEFAULT_OG_LOCALE,
+        og_locale=OG_LOCALE[lang],
         twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
         nav=nav,
         body=raw_body,
@@ -772,7 +1160,7 @@ def stamp(page_html):
         )
     og_digest = og_image_digest()
     page_html = re.sub(
-        r'(https://purgito\.app/assets/og-purgito\.png)(?:\?v=[0-9a-f]+)?',
+        r"(https://purgito\.app/assets/og-purgito\.png)(?:\?v=[0-9a-f]+)?",
         f"https://purgito.app/assets/og-purgito.png?v={og_digest}",
         page_html,
     )
@@ -786,34 +1174,72 @@ def chunk_of(src, pattern):
     return m.group(0)
 
 
+INDEX_FILE = {"es": "index.html", "en": "index.en.html"}
+PAGES_BY_LANG = {"es": PAGES, "en": PAGES_EN}
+HTML_PAGES_BY_LANG = {"es": HTML_PAGES, "en": HTML_PAGES_EN}
+
+
 def main():
-    index_path = LANDING / "index.html"
-    index = index_path.read_text("utf-8")
-    nav = chunk_of(index, r'<nav class="nav" id="top">.*?\n</nav>')
-    footer = chunk_of(index, r'<footer class="footer">.*?</footer>')
     check = "--check" in sys.argv
 
-    # index.html se escribe a mano: no se regenera, solo se le resella el ?v=.
-    stamped_index = stamp(index)
-    if stamped_index != index:
-        if check:
-            sys.exit(
-                "%s tiene el ?v= desactualizado — corre build_docs.py" % index_path
-            )
-        index_path.write_text(stamped_index, "utf-8")
-        print("→", index_path.relative_to(ROOT))
+    for lang in LANGS:
+        index_path = LANDING / INDEX_FILE[lang]
+        index = index_path.read_text("utf-8")
+        nav = chunk_of(index, r'<nav class="nav" id="top">.*?\n</nav>')
+        footer = chunk_of(index, r'<footer class="footer">.*?</footer>')
 
-    todo = [(p, build_page) for p in PAGES] + [(p, build_html_page) for p in HTML_PAGES]
-    for page, build in todo:
-        out = LANDING / "es" / page["slug"] / "index.html"
-        page_html = stamp(build(page, nav, footer))
-        if check:
-            if not out.exists() or out.read_text("utf-8") != page_html:
-                sys.exit("%s está desactualizado — corre build_docs.py" % out)
-        else:
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(page_html, "utf-8")
-            print("→", out.relative_to(ROOT))
+        # index.html / index.en.html se escriben a mano: no se regeneran,
+        # solo se les resella el ?v=.
+        stamped_index = stamp(index)
+        if stamped_index != index:
+            if check:
+                sys.exit(
+                    "%s tiene el ?v= desactualizado — corre build_docs.py" % index_path
+                )
+            index_path.write_text(stamped_index, "utf-8")
+            print("→", index_path.relative_to(ROOT))
+
+        # Para "es", nginx cae en la raíz /index.html tanto para "/" como para
+        # "/es/" (try_files sin match -> /index.html, ver DEPLOY.md), así que
+        # alcanza con el archivo de la raíz. Para cualquier otro idioma ese
+        # mismo fallback serviría la home en español -- hace falta un
+        # {lang}/index.html real para que try_files lo encuentre antes de
+        # caer al fallback español.
+        if lang != "es":
+            copy_out = LANDING / lang / "index.html"
+            if check:
+                if (
+                    not copy_out.exists()
+                    or copy_out.read_text("utf-8") != stamped_index
+                ):
+                    sys.exit("%s está desactualizado — corre build_docs.py" % copy_out)
+            else:
+                copy_out.parent.mkdir(parents=True, exist_ok=True)
+                copy_out.write_text(stamped_index, "utf-8")
+                print("→", copy_out.relative_to(ROOT))
+
+        todo = [(p, build_page) for p in PAGES_BY_LANG[lang]] + [
+            (p, build_html_page) for p in HTML_PAGES_BY_LANG[lang]
+        ]
+        for page, build in todo:
+            out = LANDING / lang / page["slug"] / "index.html"
+            page_html = stamp(build(page, nav, footer, lang))
+            if check:
+                if not out.exists() or out.read_text("utf-8") != page_html:
+                    sys.exit("%s está desactualizado — corre build_docs.py" % out)
+            else:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(page_html, "utf-8")
+                print("→", out.relative_to(ROOT))
+
+    # Cada página ES tiene su contraparte EN y viceversa -- si esto falla,
+    # alguien agregó una página a un lado sin el otro.
+    assert len(PAGES) == len(PAGES_EN), (len(PAGES), len(PAGES_EN))
+    assert len(HTML_PAGES) == len(HTML_PAGES_EN), (len(HTML_PAGES), len(HTML_PAGES_EN))
+    # SLUG_MAP_ES_EN tiene que ser reversible en ambos sentidos.
+    for es, en in SLUG_MAP_ES_EN.items():
+        assert es_slug(en) == es, (es, en)
+        assert en_slug(es) == en, (es, en)
 
     # Self-check del parser: el formato de docs/*.md es la única entrada, así
     # que si cambia (o el convertidor se rompe) esto falla acá y no en prod.
@@ -843,7 +1269,9 @@ def main():
     assert inline("a & <b>") == "a &amp; &lt;b&gt;", inline("a & <b>")
     # El sellado tiene que ser idempotente: sin esto, cada corrida encadenaría
     # otro ?v= y el HTML nunca convergería.
-    once = stamp('<link href="/style.css"><script src="/script.js"></script><meta property="og:image" content="https://purgito.app/assets/og-purgito.png">')
+    once = stamp(
+        '<link href="/style.css"><script src="/script.js"></script><meta property="og:image" content="https://purgito.app/assets/og-purgito.png">'
+    )
     assert re.search(r'/style\.css\?v=[0-9a-f]{8}"', once), once
     assert re.search(r'/script\.js\?v=[0-9a-f]{8}"', once), once
     assert re.search(

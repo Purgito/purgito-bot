@@ -1,0 +1,48 @@
+<h1>Discord</h1>
+<p>Purgito is a discord.py bot structured as a collection of cogs
+— each with one responsibility — loaded when the process starts.</p>
+
+<h2 id="bot-and-cogs">Bot and cogs</h2>
+<p>The entrypoint (<code>src/bot.py</code>) loads cogs in a deliberate
+order: <code>premium</code> first, because it exposes
+<code>is_premium_guild</code> to the rest.</p>
+<table>
+<tr><th>Cog</th><th>Responsibility</th></tr>
+<tr><td><code>premium</code></td><td>Per-server Premium status, managed from the dashboard.</td></tr>
+<tr><td><code>chat</code></td><td>Corpus, Markov chains, and automatic replies.</td></tr>
+<tr><td><code>gifs</code></td><td>GIF capture and management: detecting them in messages, uploading to R2, web gallery.</td></tr>
+<tr><td><code>memes</code></td><td>Memes: command, automatic generation, image capture via reaction.</td></tr>
+<tr><td><code>youtube</code></td><td>YouTube notifications via RSS.</td></tr>
+<tr><td><code>anuncios</code></td><td>Messages scheduled to a channel, on an interval or at a fixed time.</td></tr>
+<tr><td><code>general</code></td><td>Help command, ping, errors, and server lifecycle.</td></tr>
+<tr><td><code>settings</code></td><td>Unified settings panel and onboarding when joining a server.</td></tr>
+<tr><td><code>layout_buttons</code></td><td>Functional actions for the embed editor's buttons (Layout V2).</td></tr>
+</table>
+
+<h2 id="events">Events</h2>
+<p>Besides <code>on_ready</code> (startup, syncs slash commands and starts
+the web API), cogs listen for the events they need:
+<code>on_message</code> (chat, GIF capture, meme capture by
+reaction), <code>on_guild_join</code>/<code>on_guild_remove</code> (lifecycle
+— leaving a server schedules the deferred deletion of its data),
+<code>on_raw_reaction_add</code> (meme capture), and
+<code>on_guild_channel_update</code>. Slash command errors don't
+go through the same channel as prefix command errors, so they have
+their own handler (<code>on_app_command_error</code>), wired by hand
+instead of with the standard decorator.</p>
+
+<h2 id="permissions">Permissions</h2>
+<p>There's no role system of the bot's own: every permission check looks
+directly at Discord's native permissions. Admin actions
+(opening the settings panel, changing settings) verify that whoever
+invokes them has <code>Manage Server</code>. Before running an
+action that needs the bot's own permissions — like assigning a role from
+an embed button — the bot checks its own permissions and role
+hierarchy, not just those of whoever clicked.</p>
+
+<h2 id="interactions">Interactions</h2>
+<p>Practically every command is a slash command; <code>!ping</code>
+is the only prefix-command exception. Panels and menus are built with
+discord.py views (buttons, selects), and every view restricts who can
+use it to whoever opened it — a settings button meant for someone else
+doesn't respond if you click it.</p>

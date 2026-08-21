@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Purgito Guide — How the bot works — Purgito</title>
+<meta name="description" content="Learn how Purgito works, from the learning system and Chat to GIFs, memes, embeds, YouTube, and Premium.">
+<meta name="theme-color" content="#13c4d8">
+
+<!-- Open Graph / Link Previews (Discord, Twitter, Telegram, Slack, etc.) -->
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Purgito">
+<meta property="og:url" content="https://purgito.app/en/guia">
+<meta property="og:title" content="Purgito Guide — How the bot works — Purgito">
+<meta property="og:description" content="Learn how Purgito works, from the learning system and Chat to GIFs, memes, embeds, YouTube, and Premium.">
+<meta property="og:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Purgito">
+<meta property="og:locale" content="en_US">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Purgito Guide — How the bot works — Purgito">
+<meta name="twitter:description" content="Learn how Purgito works, from the learning system and Chat to GIFs, memes, embeds, YouTube, and Premium.">
+<meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
+
+<link rel="canonical" href="https://purgito.app/en/guia">
+<link rel="alternate" hreflang="es" href="https://purgito.app/es/guia">
+<link rel="alternate" hreflang="en" href="https://purgito.app/en/guia">
+<link rel="alternate" hreflang="x-default" href="https://purgito.app/es/guia">
+<link rel="icon" href="/assets/icon.png">
+<link rel="stylesheet" href="/style.css?v=635a0c7d">
+</head>
+<body>
+
+<div id="bg" class="bg-short" aria-hidden="true"></div>
+
+<a class="skip" href="#contenido">Skip to content</a>
+
+<nav class="nav" id="top">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/en/" aria-label="Purgito, go to homepage">
+      <img class="nav-logo" src="/assets/mascota.webp" alt="" onerror="this.remove()">
+      <span class="nav-brand-name">Purgito</span>
+    </a>
+
+    <span class="nav-sep" aria-hidden="true"></span>
+
+    <a class="nav-topgg" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener" aria-label="Purgito on top.gg">
+      <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+        <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+        <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+      </svg>
+      <span>.gg</span>
+    </a>
+
+    <div class="nav-links">
+      <!-- Item 1: Premium (Direct Link) -->
+      <a class="nav-link" href="/en/premium">Premium</a>
+
+      <!-- Item 2: Recursos (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-recursos">
+          <span>Resources</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-recursos" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Resources &amp; Guides</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/en/guia">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Purgito Guide</span>
+                  <span class="nav-drop-desc">How the bot works and what you can configure</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/documentation">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Documentation</span>
+                  <span class="nav-drop-desc">Guides, architecture, commands, and API</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/estado">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Service status</span>
+                  <span class="nav-drop-desc">Live availability, shards, and latency</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 3: Comunidad (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-comunidad">
+          <span>Community</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-comunidad" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Community &amp; Links</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--blurple">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Discord server</span>
+                  <span class="nav-drop-desc">Support, suggestions, and chat</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--topgg">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+                    <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+                    <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Vote on Top.gg</span>
+                  <span class="nav-drop-desc">Support Purgito with your vote</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Source code and development</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <!-- Selector de idioma: el prefijo del path cambia con la elección. -->
+      <div class="lang" data-lang-picker>
+        <button type="button" class="lang-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="lang-code" data-lang-code>EN</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="lang-menu" role="menu" hidden>
+          <a class="lang-item" role="menuitemradio" href="/es/" data-lang="es"><span class="radio" aria-hidden="true"></span>Español</a>
+          <a class="lang-item" role="menuitemradio" href="/en/" data-lang="en"><span class="radio" aria-hidden="true"></span>English</a>
+          <a class="lang-item" role="menuitemradio" href="/ru/" data-lang="ru"><span class="radio" aria-hidden="true"></span>Русский</a>
+          <a class="lang-item" role="menuitemradio" href="/ja/" data-lang="ja"><span class="radio" aria-hidden="true"></span>日本語</a>
+          <a class="lang-item" role="menuitemradio" href="/de/" data-lang="de"><span class="radio" aria-hidden="true"></span>Deutsch</a>
+        </div>
+      </div>
+
+      <!-- Slot de sesión: arranca vacío y se rellena ya resuelto (sin parpadeo).
+           El acceso al dashboard vive dentro de este dropdown, no suelto en el nav. -->
+      <div id="auth-slot" class="auth-slot"></div>
+
+      <!-- Botón de menú móvil -->
+      <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-expanded="false" aria-label="Open navigation menu" aria-controls="nav-mobile-panel">
+        <span class="nav-hamburger" aria-hidden="true">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel móvil desplegable -->
+  <div class="nav-mobile-panel" id="nav-mobile-panel" hidden>
+    <div class="nav-mobile-content">
+      <a class="nav-mobile-item nav-mobile-item--highlight" href="/en/premium">
+        <span>Purgito Premium</span>
+      </a>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Resources</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/en/guia">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            <div>
+              <div class="title">Purgito Guide</div>
+              <div class="desc">How the bot works and configuration</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/documentation">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <div>
+              <div class="title">Documentation</div>
+              <div class="desc">Guides, architecture, and commands</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/estado">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <div>
+              <div class="title">Service status</div>
+              <div class="desc">Live availability and shards</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Community</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+            <div>
+              <div class="title">Discord server</div>
+              <div class="desc">Support and community</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path><path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path><path fill="#ffd23f" d="M15 10h7v4h-7z"></path></svg>
+            <div>
+              <div class="title">Vote on Top.gg</div>
+              <div class="desc">Vote for Purgito</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <div>
+              <div class="title">GitHub</div>
+              <div class="desc">Open source</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="docs-shell wrap">
+<details class="docs-sidebar guia-sidebar" open aria-label="Purgito Guide">
+  <summary>Guide ▾</summary>
+  <ul>
+    <li><a href="#introduction">Introduction</a></li>
+    <li><a href="#getting-started">Getting started</a></li>
+    <li><a href="#how-purgito-learns">How Purgito learns</a></li>
+    <li><a href="#chat">Chat</a></li>
+    <li><a href="#corpus">Corpus</a></li>
+    <li><a href="#gifs">GIFs</a></li>
+    <li><a href="#memes">Memes</a></li>
+    <li><a href="#reactions">Reactions</a></li>
+    <li><a href="#phrases-and-packs">Phrases and packs</a></li>
+    <li><a href="#triggers">Triggers</a></li>
+    <li><a href="#embeds">Embeds</a></li>
+    <li><a href="#youtube">YouTube</a></li>
+    <li><a href="#scheduled-announcements">Scheduled announcements</a></li>
+    <li><a href="#premium">Premium</a></li>
+    <li><a href="#dashboard">Dashboard</a></li>
+    <li><a href="#history">History</a></li>
+  </ul>
+</details>
+  <main id="contenido" class="docs-content guia-content">
+<header class="docs-home-head" id="introduction">
+  <h1>Purgito Guide</h1>
+  <p class="docs-home-lead">
+    Learn what Purgito does, how its learning system works, and how to configure every feature from your server's panel.
+  </p>
+
+  <div class="guia-pills" aria-label="Quick section links">
+    <a class="guia-pill" href="#getting-started">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+      <span>Getting started</span>
+    </a>
+    <a class="guia-pill" href="#how-purgito-learns">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5.1 7.5V20a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.5c3-.8 5.1-4.1 5.1-7.5a8 8 0 0 0-8-8z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+      <span>How it learns</span>
+    </a>
+    <a class="guia-pill" href="#chat">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Chat &amp; Markov</span>
+    </a>
+    <a class="guia-pill" href="#corpus">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+      <span>Corpus</span>
+    </a>
+    <a class="guia-pill" href="#gifs">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+      <span>GIFs</span>
+    </a>
+    <a class="guia-pill" href="#memes">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+      <span>Memes</span>
+    </a>
+    <a class="guia-pill" href="#embeds">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+      <span>Embeds</span>
+    </a>
+    <a class="guia-pill" href="#youtube">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><polygon points="10 15 15 12 10 9 10 15"/></svg>
+      <span>YouTube</span>
+    </a>
+    <a class="guia-pill" href="#premium">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <span>Premium</span>
+    </a>
+  </div>
+
+  <div class="docs-quick-links" aria-label="Direct links">
+    <a class="docs-quick-btn dash-link" href="/en/perfil/servidores">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect width="7" height="9" x="3" y="3" rx="1"/>
+        <rect width="7" height="5" x="14" y="3" rx="1"/>
+        <rect width="7" height="9" x="14" y="12" rx="1"/>
+        <rect width="7" height="5" x="3" y="16" rx="1"/>
+      </svg>
+      <span>Open Dashboard</span>
+    </a>
+    <a class="docs-quick-btn" href="/en/documentation">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+      </svg>
+      <span>Technical documentation</span>
+    </a>
+    <a class="docs-quick-btn" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920" target="_blank" rel="noopener">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="16"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      <span>Invite Purgito</span>
+    </a>
+  </div>
+</header>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 1. GETTING STARTED ────────────────────────────────────────── -->
+<section class="guia-section" id="getting-started">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Getting started</h2>
+  </div>
+  <p class="guia-lead">
+    Getting Purgito up and running takes less than two minutes. Everything is controlled visually from the web Dashboard, with no complicated commands.
+  </p>
+
+  <div class="guia-steps">
+    <div class="guia-step">
+      <div class="guia-step-num">1</div>
+      <div class="guia-step-body">
+        <h4>Invite Purgito</h4>
+        <p>Add the bot to your server, authorizing permissions to read messages, send messages, embeds, and emojis.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">2</div>
+      <div class="guia-step-body">
+        <h4>Open the Dashboard</h4>
+        <p>Log in with your Discord account at <a href="/en/perfil/servidores">purgito.app</a> and open your server's admin panel.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">3</div>
+      <div class="guia-step-body">
+        <h4>Enable learning channels</h4>
+        <p>For privacy, Purgito starts with an empty channel list. In the <strong>Chat &gt; Channels</strong> tab, select the text channels it should learn from.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">4</div>
+      <div class="guia-step-body">
+        <h4>Configure responses</h4>
+        <p>Choose which channels it can reply to mentions in or speak up spontaneously, and set the frequency you want.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">5</div>
+      <div class="guia-step-body">
+        <h4>Let Purgito learn</h4>
+        <p>As members chat in the enabled channels, Purgito builds its memory and starts talking with your server's characteristic style.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 2. HOW PURGITO LEARNS ─────────────────────────────────────── -->
+<section class="guia-section" id="how-purgito-learns">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">How Purgito learns</h2>
+  </div>
+  <p class="guia-lead">
+    Purgito's normal response generation runs locally through Markov chains that link real words and idioms from your server. For the specific meme-caption feature, there's an optional integration with Groq (with automatic fallback to Markov if it's not configured or doesn't respond).
+  </p>
+
+  <div class="guia-pipeline" aria-label="Learning flow">
+    <div class="guia-pipeline-step">
+      <svg class="guia-pipeline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <div><strong>Chat messages</strong> — New messages sent by users in authorized channels.</div>
+    </div>
+    <div class="guia-pipeline-arrow">↓</div>
+    <div class="guia-pipeline-step">
+      <svg class="guia-pipeline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <div><strong>Data cleanup</strong> — Bots are discarded and mentions, links, and IDs are automatically stripped.</div>
+    </div>
+    <div class="guia-pipeline-arrow">↓</div>
+    <div class="guia-pipeline-step">
+      <svg class="guia-pipeline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+      <div><strong>Server corpus</strong> — Local, isolated memory that stores the learned text fragments.</div>
+    </div>
+    <div class="guia-pipeline-arrow">↓</div>
+    <div class="guia-pipeline-step">
+      <svg class="guia-pipeline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5.1 7.5V20a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.5c3-.8 5.1-4.1 5.1-7.5a8 8 0 0 0-8-8z"/></svg>
+      <div><strong>Markov model</strong> — Links word sequences based on how often they're used in your community.</div>
+    </div>
+    <div class="guia-pipeline-arrow">↓</div>
+    <div class="guia-pipeline-step">
+      <svg class="guia-pipeline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
+      <div><strong>Generated response</strong> — Coherent output that mimics your community's style, humor, and vocabulary.</div>
+    </div>
+  </div>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>Full isolation</span>
+      </div>
+      <p class="guia-card-p">Every server has its own, independent corpus. What Purgito learns on one server is never shared with or affects another.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Local chat generation</span>
+      </div>
+      <p class="guia-card-p">Chat doesn't send conversations to external providers: replies are processed locally and mathematically through Markov chains.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Activation threshold</span>
+      </div>
+      <p class="guia-card-p">Requires a minimum amount of messages in the corpus before it can speak. The more active the chat, the richer and more varied its responses.</p>
+    </div>
+  </div>
+
+  <a class="guia-doc-callout" href="/en/documentation/generation">
+    <div class="guia-doc-callout-text">
+      <strong>Want the technical details of the model?</strong>
+      <span>Check the documentation on the Markov engine, pipeline, and concurrency limits.</span>
+    </div>
+    <span class="guia-doc-callout-btn">See technical documentation →</span>
+  </a>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 3. CHAT ─────────────────────────────────────────────────── -->
+<section class="guia-section" id="chat">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Chat and Responses</h2>
+  </div>
+  <p class="guia-lead">
+    Configure how and when Purgito joins in on your server's text channels.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>
+        <span>Mentions and Replies</span>
+      </div>
+      <p class="guia-card-p">
+        When a user mentions <code>@Purgito</code> or replies directly to one of its messages, the bot evaluates its memory and produces an immediate response based on the server's corpus.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span>Spontaneous replies</span>
+      </div>
+      <p class="guia-card-p">
+        Purgito can join the chat on its own initiative, without a direct mention. You can adjust how often this happens through the cadence and probability settings in the panel.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        <span>Balanced probabilities</span>
+      </div>
+      <p class="guia-card-p">
+        For every reply, the bot balances whether to generate a phrase with Markov, use a fixed special phrase, or add a GIF, according to the probabilities you configure.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+        <span>Per-channel settings (Overrides)</span>
+      </div>
+      <p class="guia-card-p">
+        Customize behavior per channel: let it talk a lot in casual channels (<code>#spam</code>, <code>#general</code>) and restrict it in serious channels, or mute it entirely where needed.
+      </p>
+    </div>
+  </div>
+
+  <a class="guia-doc-callout" href="/en/documentation/discord">
+    <div class="guia-doc-callout-text">
+      <strong>Want to see Discord's events and permissions?</strong>
+      <span>Learn how Purgito resolves effective permissions and per-channel interactions.</span>
+    </div>
+    <span class="guia-doc-callout-btn">See Discord documentation →</span>
+  </a>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 4. CORPUS ───────────────────────────────────────────────── -->
+<section class="guia-section" id="corpus">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Corpus (Server memory)</h2>
+  </div>
+  <p class="guia-lead">
+    The corpus is the database of messages learned on your server. It's the core of Purgito's vocabulary and personality.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span>Authorized channels</span>
+      </div>
+      <p class="guia-card-p">
+        Purgito only stores messages from channels you explicitly add to the allowed list. Channels not selected are completely ignored.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Privacy filter</span>
+      </div>
+      <p class="guia-card-p">
+        Before a message is stored, external links, user and role mentions, and IDs are stripped to keep memory clean and private.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        <span>Automatic rotation (FIFO)</span>
+      </div>
+      <p class="guia-card-p">
+        Once the storage limit is reached (10,000 messages on the Free plan / 50,000 on Premium), the system drops the oldest messages proportionally across channels.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        <span>Reset and maintenance</span>
+      </div>
+      <p class="guia-card-p">
+        You can clear or reset the corpus at any time from the Dashboard's <strong>Chat &gt; Data</strong> tab if you want Purgito to start learning from scratch.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 5. GIFS ─────────────────────────────────────────────────── -->
+<section class="guia-section" id="gifs">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">GIF Gallery</h2>
+  </div>
+  <p class="guia-lead">
+    Build a visual collection of your own for your community that Purgito can use in its replies, or that admins can manage from the web.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        <span>Interactive web gallery</span>
+      </div>
+      <p class="guia-card-p">Browse, preview, and organize every GIF saved on your server in a smooth interface from the panel's <strong>GIFs</strong> tab.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Multiple ways to add GIFs</span>
+      </div>
+      <p class="guia-card-p">Upload files directly, paste GIF URLs, or search and pick animations with the built-in Tenor search.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+        <span>GIF replies</span>
+      </div>
+      <p class="guia-card-p">Turn on the GIF probability in the Chat panel so Purgito sends animations from your gallery in its replies.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 6. MEMES ────────────────────────────────────────────────── -->
+<section class="guia-section" id="memes">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">
+      <span>Memes and Meme Bank</span>
+      <span class="guia-badge guia-badge--premium">Premium feature</span>
+    </h2>
+  </div>
+  <p class="guia-lead">
+    Generate memes on the fly by combining visual templates saved by your community with the humor of Purgito's corpus.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span><code>/momo</code> and <code>/meme</code> commands</span>
+      </div>
+      <p class="guia-card-p">
+        Any member can use these Discord commands to generate an instant meme from the meme bank's images and the text the bot has learned.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+        <span>Collaborative meme bank</span>
+      </div>
+      <p class="guia-card-p">
+        Save templates and funny images by reacting to messages in Discord or uploading them directly from the Dashboard's <strong>Memes</strong> tab.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Automatic memes</span>
+      </div>
+      <p class="guia-card-p">
+        Set up a meme channel so Purgito automatically posts generated memes at regular intervals, with no manual work needed.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5.1 7.5V20a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.5c3-.8 5.1-4.1 5.1-7.5a8 8 0 0 0-8-8z"/></svg>
+        <span>Smart captions</span>
+      </div>
+      <p class="guia-card-p">
+        If the server has the vision engine enabled, Purgito interprets the image's content to produce contextually funny punchlines.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 7. REACCIONES ───────────────────────────────────────────── -->
+<section class="guia-section" id="reactions">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Automatic reactions</h2>
+  </div>
+  <p class="guia-lead">
+    Have Purgito interact with users' messages by reacting with the server's custom emojis.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        <span>Adjustable frequency</span>
+      </div>
+      <p class="guia-card-p">Control how often Purgito reacts (low, medium, or high) from the <strong>Chat &gt; Reactions</strong> tab.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Server emojis</span>
+      </div>
+      <p class="guia-card-p">Uses the custom emojis created in your community so reactions feel natural.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        <span>Muted channels</span>
+      </div>
+      <p class="guia-card-p">Channels marked as muted automatically disable reactions so nothing gets interrupted.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 8. FRASES Y PACKS ───────────────────────────────────────── -->
+<section class="guia-section" id="phrases-and-packs">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Special phrases and Packs</h2>
+  </div>
+  <p class="guia-lead">
+    Customize Purgito's replies with fixed punchlines, in-jokes, or themed messages exclusive to specific channels.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Special phrases</span>
+      </div>
+      <p class="guia-card-p">
+        Fixed phrases written by admins. When replying, Purgito has a chance of picking a special phrase instead of generating new text with Markov.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <span>Themed packs</span>
+      </div>
+      <p class="guia-card-p">
+        Let you group phrases and assign them to specific channels. Phrases without a pack stay in the general pool, while ones assigned to a pack are only used in its linked channels.
+      </p>
+    </div>
+  </div>
+
+  <div class="guia-pipeline" style="margin-top: 1rem;">
+    <div class="guia-pipeline-step">
+      <div><strong>Phrase without a pack</strong> → General pool → Available in every response channel</div>
+    </div>
+    <div class="guia-pipeline-step">
+      <div><strong>Phrase in a Pack (e.g. #welcome)</strong> → Restricted → Only triggers in the Pack's channels</div>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 9. TRIGGERS ─────────────────────────────────────────────── -->
+<section class="guia-section" id="triggers">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Triggers (Automatic triggers)</h2>
+  </div>
+  <p class="guia-lead">
+    Configure exact, deterministic replies for when a user types a keyword or key phrase in chat.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Deterministic vs Probabilistic</span>
+      </div>
+      <p class="guia-card-p">
+        While Markov chat is random and generates text, a Trigger is 100% exact: if the message matches the criteria, Purgito replies instantly with the assigned response.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h12"/></svg>
+        <span>Match types</span>
+      </div>
+      <p class="guia-card-p">
+        Choose whether the trigger fires when the message <strong>contains</strong> the word, requires an <strong>exact match</strong>, or looks for standalone keywords.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 10. EMBEDS ──────────────────────────────────────────────── -->
+<section class="guia-section" id="embeds">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Embed and Component Editor</h2>
+  </div>
+  <p class="guia-lead">
+    Design announcements, welcome rules, and rich panels with interactive buttons, directly from the web Dashboard.
+  </p>
+
+  <div class="guia-steps">
+    <div class="guia-step">
+      <div class="guia-step-num">1</div>
+      <div class="guia-step-body">
+        <h4>Design your message</h4>
+        <p>Set title, description, accent color, columned fields, author, images, thumbnails, and footer.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">2</div>
+      <div class="guia-step-body">
+        <h4>Add interactive buttons</h4>
+        <p>Add link buttons or modern components (Components V2) to link to websites, social media, or server actions.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">3</div>
+      <div class="guia-step-body">
+        <h4>Preview live</h4>
+        <p>See exactly how your message will look in Discord, in real time, before publishing it.</p>
+      </div>
+    </div>
+
+    <div class="guia-step">
+      <div class="guia-step-num">4</div>
+      <div class="guia-step-body">
+        <h4>Send or Schedule</h4>
+        <p>Publish instantly to the channel you pick, or schedule it for a specific date and time.</p>
+      </div>
+    </div>
+  </div>
+
+  <a class="guia-doc-callout" href="/en/documentation/discord">
+    <div class="guia-doc-callout-text">
+      <strong>Want to see how interactive components and buttons work?</strong>
+      <span>Check the technical documentation on layouts, actions, and Discord components.</span>
+    </div>
+    <span class="guia-doc-callout-btn">See Discord documentation →</span>
+  </a>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 11. YOUTUBE ─────────────────────────────────────────────── -->
+<section class="guia-section" id="youtube">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">YouTube alerts</h2>
+  </div>
+  <p class="guia-lead">
+    Get automatic alerts on your Discord server every time your favorite YouTube channels publish a new video.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect width="14" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+        <span>Link a channel</span>
+      </div>
+      <p class="guia-card-p">Enter the YouTube channel's URL or ID in the panel's <strong>YouTube</strong> tab.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>
+        <span>Target channel</span>
+      </div>
+      <p class="guia-card-p">Pick the Discord text channel where Purgito will post the alert for each new video.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Custom mentions</span>
+      </div>
+      <p class="guia-card-p">Set a role to mention (e.g. <code>@Notifications</code> or <code>@everyone</code>) alongside the alert message.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 12. ANUNCIOS PROGRAMADOS ────────────────────────────────── -->
+<section class="guia-section" id="scheduled-announcements">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Scheduled announcements</h2>
+  </div>
+  <p class="guia-lead">
+    Automate reminders, community notices, and recurring messages without sending them manually.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Frequencies and intervals</span>
+      </div>
+      <p class="guia-card-p">
+        Schedule messages to go out at fixed intervals (every X hours or days) or on a specific date and time for special events.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>Format and channels</span>
+      </div>
+      <p class="guia-card-p">
+        Send plain text or rich embed messages to the Discord channels you designate, to keep your server informed.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 13. PREMIUM ─────────────────────────────────────────────── -->
+<section class="guia-section" id="premium">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">
+      <span>Purgito Premium</span>
+      <span class="guia-badge guia-badge--premium">Server benefits</span>
+    </h2>
+  </div>
+  <p class="guia-lead">
+    Unlock extended limits and advanced features so your community gets the best possible experience with Purgito.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+        <span>50,000 Corpus messages</span>
+      </div>
+      <p class="guia-card-p">5x more memory capacity, so Purgito remembers longer conversations and generates richer replies.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+        <span>Automatic memes</span>
+      </div>
+      <p class="guia-card-p">Regular, automatic meme posting in designated channels to keep chat always active.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        <span>Up to 4,000 GIFs</span>
+      </div>
+      <p class="guia-card-p">A massive media gallery so your server never runs out of animations and visual replies.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Tied to the server</span>
+      </div>
+      <p class="guia-card-p">The Premium subscription is activated directly on the selected Discord server, benefiting all its members.</p>
+    </div>
+  </div>
+
+  <a class="guia-doc-callout" href="/en/premium">
+    <div class="guia-doc-callout-text">
+      <strong>Want to see pricing or start your 7-day free trial?</strong>
+      <span>Visit the Purgito Premium page to see every plan and manage your subscription.</span>
+    </div>
+    <span class="guia-doc-callout-btn">See Purgito Premium plans →</span>
+  </a>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 14. DASHBOARD ───────────────────────────────────────────── -->
+<section class="guia-section" id="dashboard">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Dashboard map</h2>
+  </div>
+  <p class="guia-lead">
+    The control panel at <a href="/en/perfil/servidores">purgito.app</a> lets you configure every detail of your server instantly.
+  </p>
+
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </div>
+      <p class="guia-card-p">Overview of the bot's status on your server and quick links.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Chat</span>
+      </div>
+      <p class="guia-card-p">Learning, channels, cadence, phrases, packs, triggers, and reactions.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        <span>GIFs</span>
+      </div>
+      <p class="guia-card-p">Media gallery to browse, upload, and organize GIFs.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+        <span>Memes</span>
+      </div>
+      <p class="guia-card-p">Meme bank and automatic meme settings.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        <span>Embeds</span>
+      </div>
+      <p class="guia-card-p">Visual editor for rich messages and buttons.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Premium</span>
+      </div>
+      <p class="guia-card-p">Subscription status and unlocked features.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect width="14" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+        <span>YouTube</span>
+      </div>
+      <p class="guia-card-p">Subscriptions and automatic video alerts.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+        <span>History</span>
+      </div>
+      <p class="guia-card-p">Audit log of configuration changes.</p>
+    </div>
+  </div>
+
+  <a class="guia-doc-callout" href="/en/perfil/servidores">
+    <div class="guia-doc-callout-text">
+      <strong>Ready to configure your server?</strong>
+      <span>Open your Purgito profile and select the server you want to manage.</span>
+    </div>
+    <span class="guia-doc-callout-btn">Go to Dashboard →</span>
+  </a>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 15. HISTORIAL ───────────────────────────────────────────── -->
+<section class="guia-section" id="history">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Change history</h2>
+  </div>
+  <p class="guia-lead">
+    Keep track of your server's admin activity with a clear log of who made each change.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Who did it</span>
+      </div>
+      <p class="guia-card-p">Identifies the Discord user who changed any of the bot's settings in the panel.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>When it happened</span>
+      </div>
+      <p class="guia-card-p">Records the exact date and time of every admin action.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span>What changed</span>
+      </div>
+      <p class="guia-card-p">Details the previous value and the new value applied to the setting.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── SOPORTE & COMUNIDAD ─────────────────────────────────────── -->
+<section class="guia-section" id="support">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Have more questions or need help?</h2>
+  </div>
+  <p class="guia-lead">
+    We're here to help you get the most out of Purgito in your community.
+  </p>
+
+  <div class="docs-cards">
+    <a class="box docs-card" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+      <div class="docs-card-top">
+        <div class="docs-card-icon docs-card-icon--blurple">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>
+          </svg>
+        </div>
+        <svg class="docs-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <h3>Support server</h3>
+      <p>Join our Discord server for direct support, questions, and community suggestions.</p>
+    </a>
+
+    <a class="box docs-card" href="/en/documentation">
+      <div class="docs-card-top">
+        <div class="docs-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+          </svg>
+        </div>
+        <svg class="docs-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <h3>Technical documentation</h3>
+      <p>Check Purgito's architecture, APIs, SQLite/R2 storage, and infrastructure.</p>
+    </a>
+  </div>
+</section>
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="wrap box foot-inner">
+
+    <div class="foot-cols">
+      <div class="foot-brand">
+        <div class="foot-name">
+          <img class="nav-logo" src="/assets/mascota.webp" alt="" onerror="this.remove()">
+          <span class="foot-word-a">Purgito</span> <span class="foot-word-b">Bot</span>
+        </div>
+
+        <div class="foot-social">
+          <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener" aria-label="Discord">
+            <svg class="i" viewBox="0 0 24 24"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+          </a>
+          <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+          </a>
+          <a href="https://ko-fi.com/punkyyy01" target="_blank" rel="noopener" aria-label="Ko-fi">
+            <svg class="i" viewBox="0 0 24 24"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+          </a>
+        </div>
+
+        <p class="foot-by">
+          Made by
+          <a class="chip" href="https://github.com/punkyyy01" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+            punkyyy01
+          </a>
+        </p>
+      </div>
+
+      <nav class="foot-col" aria-label="Resources">
+        <h3>Resources</h3>
+        <a href="/en/documentation">Documentation</a>
+        <a href="/en/estado">Status</a>
+        <a href="/en/guia">Guide</a>
+      </nav>
+
+      <nav class="foot-col" aria-label="Purgito">
+        <h3>Purgito</h3>
+        <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener">Code</a>
+        <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">Support</a>
+      </nav>
+
+      <nav class="foot-col" aria-label="Legal">
+        <h3>Legal</h3>
+        <a href="/en/terms">Terms</a>
+        <a href="/en/privacy">Privacy</a>
+        <a href="/en/refunds">Refunds</a>
+      </nav>
+    </div>
+
+    <hr class="foot-rule">
+
+    <div class="foot-bottom">
+      <div class="foot-actions">
+        <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Invite</a>
+        <a class="btn btn-sm" href="https://top.gg/bot/1471724794411089920/vote" target="_blank" rel="noopener">
+          <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M2 6h9v4H7.5v6H2z"></path>
+            <path fill="currentColor" d="M11 6h11v4h-7v3h-4z" opacity=".6"></path>
+          </svg>
+          Vote
+        </a>
+      </div>
+
+      <!-- Sin selector de idioma ni botón "volver arriba": el boceto del footer
+           solo tiene los dos botones y el copyright. -->
+      <p class="foot-copy">© Purgito 2026 · Not affiliated with Discord Inc.</p>
+    </div>
+
+  </div>
+</footer>
+
+<script src="/script.js?v=0d10f74a"></script>
+</body>
+</html>

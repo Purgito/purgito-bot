@@ -3,9 +3,7 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiosqlite
 import discord
-from aiohttp import web
 import pytest
 
 from cogs.chat import Chat
@@ -81,6 +79,7 @@ def test_delete_message_invalidates_cache_and_removes_from_markov(memory_db):
     6. Confirmar que _markov_cache[guild_id] fue invalidada.
     7. Reconstruir modelo y confirmar que la transición ya no existe en el nuevo modelo.
     """
+
     async def _run():
         guild_id = 555
         channel_id = 666
@@ -153,6 +152,7 @@ def test_sfw_to_nsfw_transition_purges_corpus_and_invalidates_cache(memory_db):
     1. Se eliminan todos los mensajes de ese channel_id de SQLite.
     2. Se invalida la caché del guild en RAM.
     """
+
     async def _run():
         guild_id = 100
         channel_id = 200
@@ -225,9 +225,19 @@ def test_nsfw_channel_blocked_on_live_message(memory_db):
         msg.author.bot = False
         msg.content = "contenido explicito en canal nsfw"
 
-        with patch("cogs.chat.is_channel_ignored", new_callable=AsyncMock, return_value=False), \
-             patch("cogs.chat.is_corpus_allowed", new_callable=AsyncMock, return_value=True), \
-             patch.object(cog, "_save_message_to_corpus", new_callable=AsyncMock) as mock_save:
+        with (
+            patch(
+                "cogs.chat.is_channel_ignored",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                "cogs.chat.is_corpus_allowed", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                cog, "_save_message_to_corpus", new_callable=AsyncMock
+            ) as mock_save,
+        ):
             await cog._on_message_impl(msg)
             mock_save.assert_not_called()
 
@@ -258,6 +268,7 @@ def test_api_rejects_nsfw_channel():
                 self.match_info = {"guild_id": "123"}
                 self.headers = {}
                 self.remote = "1.2.3.4"
+
             async def json(self):
                 return self._body
 
@@ -269,10 +280,18 @@ def test_api_rejects_nsfw_channel():
         channel_nsfw.is_nsfw.return_value = True
         guild.get_channel.return_value = channel_nsfw
 
-        with patch("webapi.get_session", new_callable=AsyncMock, return_value={"user_id": "1", "username": "admin"}), \
-             patch("webapi.check_guild_access", new_callable=AsyncMock, return_value=None), \
-             patch("webapi._bot_guild", return_value=guild), \
-             patch("webapi._rate_post", webapi.LRUDict(64)):
+        with (
+            patch(
+                "webapi.get_session",
+                new_callable=AsyncMock,
+                return_value={"user_id": "1", "username": "admin"},
+            ),
+            patch(
+                "webapi.check_guild_access", new_callable=AsyncMock, return_value=None
+            ),
+            patch("webapi._bot_guild", return_value=guild),
+            patch("webapi._rate_post", webapi.LRUDict(64)),
+        ):
             resp = await webapi._api_corpus_post(request)
             assert resp.status == 400
             assert "nsfw" in resp.text.lower()
@@ -282,6 +301,7 @@ def test_api_rejects_nsfw_channel():
 
 def test_forget_user_invalidates_both_user_and_guild_caches(memory_db):
     """Verifica que forget_user purga DB y todas las entradas de caché de usuario y de guild."""
+
     async def _run():
         guild_id = 700
         author_id = 800

@@ -14,6 +14,93 @@ function locale() {
   return LANGS.indexOf(nav) !== -1 ? nav : 'es';
 }
 
+/* Strings de este script (no de landing/js/: ese árbol usa core/i18n.js,
+   pero script.js es un <script> clásico compartido por TODO el sitio
+   público, incluidas las páginas que no cargan ningún módulo ES, así que
+   no puede depender de un import). Tabla chica, centralizada, sin
+   if/lang repetido en cada punto de uso. */
+var T = {
+  es: {
+    soon: 'Próximamente',
+    login: 'Iniciar sesión con Discord',
+    accountMenu: 'Menú de cuenta de ',
+    user: 'Usuario',
+    profile: 'Perfil',
+    support: 'Soporte',
+    docs: 'Documentación',
+    premium: 'Premium',
+    logout: 'Cerrar sesión',
+    dashboard: 'Dashboard',
+    planMonthlyCta: 'Comenzar prueba gratis',
+    planMonthlyHeroCta: 'Comenzar 7 días gratis',
+    planMonthlyNotes: 'La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo.',
+    planAnnualCta: 'Suscribirse al plan anual',
+    planAnnualHeroCta: 'Elegir plan anual',
+    planAnnualNotes: 'La suscripción anual se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. El primer cobro se realiza al suscribirte.',
+    perMonthly: '/mensual',
+    perAnnual: '/anual'
+  },
+  en: {
+    soon: 'Coming soon',
+    login: 'Log in with Discord',
+    accountMenu: 'Account menu for ',
+    user: 'User',
+    profile: 'Profile',
+    support: 'Support',
+    docs: 'Documentation',
+    premium: 'Premium',
+    logout: 'Log out',
+    dashboard: 'Dashboard',
+    planMonthlyCta: 'Start free trial',
+    planMonthlyHeroCta: 'Start your free 7 days',
+    planMonthlyNotes: 'The 7-day free trial is available for monthly subscriptions. The subscription is billed securely through Polar and tied to the Discord server you select in your panel. You can cancel anytime before the trial period ends at no charge.',
+    planAnnualCta: 'Subscribe to the annual plan',
+    planAnnualHeroCta: 'Choose annual plan',
+    planAnnualNotes: 'The annual subscription is billed securely through Polar and tied to the Discord server you select in your panel. The first charge happens when you subscribe.',
+    perMonthly: '/monthly',
+    perAnnual: '/annual'
+  }
+};
+function t(key) { return (T[locale()] || T.es)[key]; }
+
+/* Mapeo de slugs que cambian entre ES y EN (páginas legales y el árbol de
+   documentación) -- espejo de SLUG_MAP_ES_EN en landing/build_docs.py.
+   El resto de los slugs del sitio (guia, premium, estado, dashboard,
+   perfil/*) son el mismo texto en los dos idiomas, así que no necesitan
+   entrada acá: el selector conserva el resto del path tal cual.
+   landing/test_lang.mjs verifica que cada slug de acá tenga página real
+   en disco en ambos idiomas, para detectar si esto se desincroniza. */
+var SLUG_MAP_ES_EN = {
+  'terminos': 'terms',
+  'privacidad': 'privacy',
+  'reembolsos': 'refunds',
+  'documentacion': 'documentation',
+  'documentacion/arquitectura': 'documentation/architecture',
+  'documentacion/discord': 'documentation/discord',
+  'documentacion/api': 'documentation/api',
+  'documentacion/generacion': 'documentation/generation',
+  'documentacion/almacenamiento': 'documentation/storage',
+  'documentacion/seguridad': 'documentation/security',
+  'documentacion/infraestructura': 'documentation/infrastructure',
+  'documentacion/desarrollo': 'documentation/development',
+  'documentacion/referencia': 'documentation/reference'
+};
+var SLUG_MAP_EN_ES = {};
+for (var esSlug in SLUG_MAP_ES_EN) { SLUG_MAP_EN_ES[SLUG_MAP_ES_EN[esSlug]] = esSlug; }
+
+/* Traduce el resto de la ruta (todo lo que sigue al prefijo de idioma) al
+   cambiar de `from` a `to`. Solo ES↔EN tienen slugs mapeados; cualquier
+   otro par de idiomas (o un slug sin entrada en el mapa) conserva el
+   texto tal cual. */
+function translateRest(rest, from, to) {
+  var slug = rest.replace(/^\/|\/$/g, '');
+  if (!slug) return rest;
+  var mapped = slug;
+  if (from === 'es' && to === 'en') mapped = SLUG_MAP_ES_EN[slug] || slug;
+  else if (from === 'en' && to === 'es') mapped = SLUG_MAP_EN_ES[slug] || slug;
+  return '/' + mapped;
+}
+
 /* Abre/cierra un popover: click afuera y Escape lo cierran. Lo comparten el
    selector de idioma y el menú de perfil. */
 function popover(btn, menu, container) {
@@ -56,26 +143,49 @@ function svgIcon(paths) {
    librerías. Respeta prefers-reduced-motion (cambio directo, sin animación). */
 
 (function () {
-  var PHRASES = [
-    'no cacho ni lo que estoy diciendo pero igual',
-    'alguien vio el mensaje como de recién que decía',
-    'esto claramente no era lo que iba a',
-    'ya po pero quién fue el que mandó el',
-    'el meme estaba bueno hasta que después nadie',
-    'creo que me perdí como en la parte tres del',
-    'según lo que leí esto no tiene mucho',
-    'espera espera eso lo dije yo o fue el otro',
-    'básicamente sí pero también depende de si',
-    'el gif que subieron ayer todavía me da un poco de',
-    'no me acuerdo de qué hablábamos pero era importante',
-    'confirmo que esto es real aunque no estoy tan',
-    'la música se cortó justo cuando venía la mejor',
-    'leí demasiados mensajes y ahora solo pienso en',
-    'posiblemente tengan razón o posiblemente yo esté',
-    'wena la idea igual pero cómo se supone que uno',
-    'juraría que ese comando existía o quizás lo soñé',
-    'al final terminamos hablando de cualquier cosa menos del'
-  ];
+  var PHRASES_BY_LANG = {
+    es: [
+      'no cacho ni lo que estoy diciendo pero igual',
+      'alguien vio el mensaje como de recién que decía',
+      'esto claramente no era lo que iba a',
+      'ya po pero quién fue el que mandó el',
+      'el meme estaba bueno hasta que después nadie',
+      'creo que me perdí como en la parte tres del',
+      'según lo que leí esto no tiene mucho',
+      'espera espera eso lo dije yo o fue el otro',
+      'básicamente sí pero también depende de si',
+      'el gif que subieron ayer todavía me da un poco de',
+      'no me acuerdo de qué hablábamos pero era importante',
+      'confirmo que esto es real aunque no estoy tan',
+      'la música se cortó justo cuando venía la mejor',
+      'leí demasiados mensajes y ahora solo pienso en',
+      'posiblemente tengan razón o posiblemente yo esté',
+      'wena la idea igual pero cómo se supone que uno',
+      'juraría que ese comando existía o quizás lo soñé',
+      'al final terminamos hablando de cualquier cosa menos del'
+    ],
+    en: [
+      "not sure what I'm even saying right now but sure",
+      'someone posted that message earlier that said something like',
+      'that was clearly not what I meant to',
+      'okay but who even sent the',
+      'the meme was good until nobody',
+      'pretty sure I lost the plot around part three of',
+      "based on what I just read this doesn't really",
+      'wait wait I said that or was it someone else who',
+      'basically yes but it also depends on whether',
+      'that gif from yesterday still gives me a bit of',
+      "don't remember what we were talking about but it mattered",
+      "can confirm this is real although I'm not that",
+      'the music cut out right before the best',
+      'read way too many messages and now all I think about is',
+      "they might be right or maybe I'm just",
+      'solid idea honestly but how is anyone supposed to',
+      "could've sworn that command existed or maybe I dreamed it",
+      'somehow we ended up talking about anything except the'
+    ]
+  };
+  var PHRASES = PHRASES_BY_LANG[locale()] || PHRASES_BY_LANG.es;
 
   var textEl = document.getElementById('ticker-text');
   if (!textEl) return;
@@ -150,10 +260,11 @@ function svgIcon(paths) {
         // Sin href no es clickeable ni enfocable: queda visible pero inerte.
         item.removeAttribute('href');
         item.setAttribute('aria-disabled', 'true');
-        item.insertAdjacentHTML('beforeend', '<span class="soon">Próximamente</span>');
+        item.insertAdjacentHTML('beforeend', '<span class="soon">' + t('soon') + '</span>');
         return;
       }
-      item.href = '/' + lang + (rest || '/') + location.search + location.hash;
+      var translatedRest = translateRest(rest || '/', current, lang);
+      item.href = '/' + lang + (translatedRest || '/') + location.search + location.hash;
       item.setAttribute('aria-checked', String(lang === current));
     });
 
@@ -213,7 +324,7 @@ function svgIcon(paths) {
     a.href = LOGIN;
 
     a.innerHTML = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>';
-    a.appendChild(document.createTextNode('Iniciar sesión con Discord'));
+    a.appendChild(document.createTextNode(t('login')));
     slot.appendChild(a);
   }
 
@@ -230,7 +341,7 @@ function svgIcon(paths) {
     btn.className = 'auth-btn';
     btn.setAttribute('aria-haspopup', 'true');
     btn.setAttribute('aria-expanded', 'false');
-    btn.setAttribute('aria-label', 'Menú de cuenta de ' + (data.name || 'usuario'));
+    btn.setAttribute('aria-label', t('accountMenu') + (data.name || t('user')));
 
     if (data.avatar_url) {
       var img = document.createElement('img');
@@ -241,7 +352,7 @@ function svgIcon(paths) {
     }
     var name = document.createElement('span');
     name.className = 'auth-name';
-    name.textContent = data.name || 'Usuario';
+    name.textContent = data.name || t('user');
     btn.appendChild(name);
 
     var chev = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -267,7 +378,7 @@ function svgIcon(paths) {
     var ident = document.createElement('div');
     var nick = document.createElement('p');
     nick.className = 'auth-menu-name';
-    nick.textContent = data.name || 'Usuario';
+    nick.textContent = data.name || t('user');
     ident.appendChild(nick);
     if (data.email) {
       var mail = document.createElement('p');
@@ -278,16 +389,20 @@ function svgIcon(paths) {
     head.appendChild(ident);
     menu.appendChild(head);
 
+    // documentacion es el único slug de este menú que cambia en inglés
+    // (ver SLUG_MAP_ES_EN); el resto es el mismo texto en los dos idiomas.
+    var docsSlug = LOC === 'en' ? SLUG_MAP_ES_EN['documentacion'] : 'documentacion';
+
     /* Menú de cuenta autenticada: Perfil, Soporte, Documentación, separador, Premium, Cerrar sesión. */
     [
-      { href: '/' + LOC + '/perfil', label: 'Perfil', icon: ICONS.user },
-      { href: 'https://discord.gg/5U7HKyxnBv', label: 'Soporte', icon: ICONS.help },
-      { href: '/' + LOC + '/documentacion', label: 'Documentación', icon: ICONS.book },
+      { href: '/' + LOC + '/perfil', label: 'Perfil', i18nKey: 'profile', icon: ICONS.user },
+      { href: 'https://discord.gg/5U7HKyxnBv', label: t('support'), icon: ICONS.help },
+      { href: '/' + LOC + '/' + docsSlug, label: t('docs'), icon: ICONS.book },
       null,
-      { href: '/' + LOC + '/premium', label: 'Premium', icon: ICONS.star },
+      { href: '/' + LOC + '/premium', label: t('premium'), icon: ICONS.star },
       {
         href: PANEL + '/auth/logout',
-        label: 'Cerrar sesión',
+        label: t('logout'),
         icon: ICONS.logout,
         danger: true,
         logout: true
@@ -315,7 +430,7 @@ function svgIcon(paths) {
         });
       }
       a.appendChild(svgIcon(item.icon));
-      a.appendChild(document.createTextNode(item.label));
+      a.appendChild(document.createTextNode(item.i18nKey ? t(item.i18nKey) : item.label));
       menu.appendChild(a);
     });
 
@@ -333,7 +448,7 @@ function svgIcon(paths) {
       var navDash = document.createElement('a');
       navDash.className = 'nav-link nav-link-dashboard' + (isDashboardActive ? ' is-active' : '');
       navDash.href = '/' + LOC + '/perfil/servidores';
-      navDash.textContent = 'Dashboard';
+      navDash.textContent = t('dashboard');
       if (isDashboardActive) {
         navDash.setAttribute('aria-current', 'page');
       }
@@ -351,7 +466,7 @@ function svgIcon(paths) {
       var mobDash = document.createElement('a');
       mobDash.className = 'nav-mobile-item nav-mobile-item-dashboard' + (isDashboardActive ? ' is-active' : '');
       mobDash.href = '/' + LOC + '/perfil/servidores';
-      mobDash.innerHTML = '<span>Dashboard</span>';
+      mobDash.innerHTML = '<span>' + t('dashboard') + '</span>';
       if (isDashboardActive) {
         mobDash.setAttribute('aria-current', 'page');
       }
@@ -390,14 +505,14 @@ function svgIcon(paths) {
 
   var PLANS = {
     mensual: {
-      key: 'monthly', amount: '$4.99', per: '/mensual', trial: true,
-      cta: 'Comenzar prueba gratis', heroCta: 'Comenzar 7 días gratis',
-      notes: 'La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo.'
+      key: 'monthly', amount: '$4.99', per: t('perMonthly'), trial: true,
+      cta: t('planMonthlyCta'), heroCta: t('planMonthlyHeroCta'),
+      notes: t('planMonthlyNotes')
     },
     anual: {
-      key: 'annual', amount: '$39.99', per: '/anual', trial: false,
-      cta: 'Suscribirse al plan anual', heroCta: 'Elegir plan anual',
-      notes: 'La suscripción anual se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. El primer cobro se realiza al suscribirte.'
+      key: 'annual', amount: '$39.99', per: t('perAnnual'), trial: false,
+      cta: t('planAnnualCta'), heroCta: t('planAnnualHeroCta'),
+      notes: t('planAnnualNotes')
     }
   };
 

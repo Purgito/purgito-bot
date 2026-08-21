@@ -19,16 +19,95 @@ import { loadHistorial } from '/js/tabs/historial.js';
 import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
 } from '/js/embeds/shared-ui.js';
+import { t, addStrings } from '/js/core/i18n.js';
+
+addStrings({
+  es: {
+    'dash.cat.principal': 'Principal',
+    'dash.cat.alertas': 'Alertas',
+    'dash.cat.anuncios': 'Anuncios',
+    'dash.cat.automatizacion': 'Automatización',
+    'dash.cat.entretenimiento': 'Entretenimiento',
+    'dash.cat.utilidades': 'Utilidades',
+    'dash.mod.inicio.label': 'Inicio',
+    'dash.mod.inicio.desc': 'Resumen del servidor, estado de Purgito y accesos rápidos',
+    'dash.mod.chat.label': 'Ajustes de Chat',
+    'dash.mod.chat.desc': 'Comportamiento, probabilidades, canales y límites del chat',
+    'dash.mod.estilo.label': 'Personalización',
+    'dash.mod.estilo.desc': 'Apariencia de Purgito en este servidor: nick, avatar y banner',
+    'dash.mod.playground.label': 'Simulador de Chat',
+    'dash.mod.playground.desc': 'Simula y prueba cómo respondería Purgito en vivo según las reglas y corpus del canal',
+    'dash.mod.historial.label': 'Auditoría',
+    'dash.mod.historial.desc': 'Registro de cambios y auditoría de acciones realizadas',
+    'dash.mod.premium.desc': 'Memoria ampliada a 50.000 mensajes, 4.000 GIFs y soporte prioritario',
+    'dash.mod.youtube.desc': 'Avisos automáticos de nuevos videos en canales de YouTube',
+    'dash.mod.embeds.label': 'Diseñador de Mensajes',
+    'dash.mod.embeds.desc': 'Editor visual de embeds clásicos y bloques interactivos Layout V2',
+    'dash.mod.updates.label': 'Canal de Novedades',
+    'dash.mod.updates.desc': 'Canal donde Purgito publica sus anuncios y actualizaciones',
+    'dash.mod.triggers.label': 'Triggers de canal',
+    'dash.mod.triggers.desc': 'Respuestas automáticas por coincidencia de texto o regex',
+    'dash.mod.reacciones.label': 'Reacciones automáticas',
+    'dash.mod.reacciones.desc': 'Reacciona automáticamente con emojis configurados en mensajes',
+    'dash.mod.frases.label': 'Frases y Packs',
+    'dash.mod.frases.desc': 'Frases personalizadas y paquetes temáticos organizados por canal',
+    'dash.mod.gifs.desc': 'Galería de GIFs del servidor para respuestas y comandos',
+    'dash.mod.memes.desc': 'Generación automática de memes y plantillas',
+    'dash.mod.canales.label': 'Canales y Permisos',
+    'dash.mod.canales.desc': 'Matriz de lectura/respuesta y canales o roles ignorados',
+    'dash.mod.amnesia.label': 'Limpieza',
+    'dash.mod.amnesia.desc': 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
+  },
+  en: {
+    'dash.cat.principal': 'Main',
+    'dash.cat.alertas': 'Alerts',
+    'dash.cat.anuncios': 'Announcements',
+    'dash.cat.automatizacion': 'Automation',
+    'dash.cat.entretenimiento': 'Entertainment',
+    'dash.cat.utilidades': 'Utilities',
+    'dash.mod.inicio.label': 'Home',
+    'dash.mod.inicio.desc': "Server overview, Purgito's status, and quick links",
+    'dash.mod.chat.label': 'Chat settings',
+    'dash.mod.chat.desc': 'Behavior, probabilities, channels, and chat limits',
+    'dash.mod.estilo.label': 'Customization',
+    'dash.mod.estilo.desc': "Purgito's appearance on this server: nickname, avatar, and banner",
+    'dash.mod.playground.label': 'Chat Simulator',
+    'dash.mod.playground.desc': "Simulate and test how Purgito would reply live, based on the channel's rules and corpus",
+    'dash.mod.historial.label': 'Audit log',
+    'dash.mod.historial.desc': 'Log of changes and audit trail of actions taken',
+    'dash.mod.premium.desc': 'Extended memory up to 50,000 messages, 4,000 GIFs, and priority support',
+    'dash.mod.youtube.desc': 'Automatic alerts for new videos on YouTube channels',
+    'dash.mod.embeds.label': 'Message Designer',
+    'dash.mod.embeds.desc': 'Visual editor for classic embeds and interactive Layout V2 blocks',
+    'dash.mod.updates.label': 'Updates Channel',
+    'dash.mod.updates.desc': "Channel where Purgito posts its announcements and updates",
+    'dash.mod.triggers.label': 'Channel Triggers',
+    'dash.mod.triggers.desc': 'Automatic replies matched by text or regex',
+    'dash.mod.reacciones.label': 'Automatic Reactions',
+    'dash.mod.reacciones.desc': 'Automatically reacts to messages with configured emojis',
+    'dash.mod.frases.label': 'Phrases and Packs',
+    'dash.mod.frases.desc': 'Custom phrases and themed packs organized by channel',
+    'dash.mod.gifs.desc': "The server's GIF gallery for replies and commands",
+    'dash.mod.memes.desc': 'Automatic meme generation and templates',
+    'dash.mod.canales.label': 'Channels and Permissions',
+    'dash.mod.canales.desc': 'Read/reply matrix and ignored channels or roles',
+    'dash.mod.amnesia.label': 'Cleanup',
+    'dash.mod.amnesia.desc': 'Deletes messages and style learned in the last 24 hours',
+  },
+});
 
 // ---------------- ESTRUCTURA DE MÓDULOS Y CATEGORÍAS ----------------
+// Nota sobre `keywords`: alimentan el filtro del buscador (Ctrl+K), no se
+// renderizan. Se mantienen en español -- ver informe final sobre búsqueda
+// bilingüe como límite conocido.
 
 export const CATEGORIES = [
-  { key: 'principal', label: 'Principal', icon: 'home' },
-  { key: 'alertas', label: 'Alertas', icon: 'bell' },
-  { key: 'anuncios', label: 'Anuncios', icon: 'layout' },
-  { key: 'automatizacion', label: 'Automatización', icon: 'zap' },
-  { key: 'entretenimiento', label: 'Entretenimiento', icon: 'image' },
-  { key: 'utilidades', label: 'Utilidades', icon: 'sliders' },
+  { key: 'principal', label: t('dash.cat.principal'), icon: 'home' },
+  { key: 'alertas', label: t('dash.cat.alertas'), icon: 'bell' },
+  { key: 'anuncios', label: t('dash.cat.anuncios'), icon: 'layout' },
+  { key: 'automatizacion', label: t('dash.cat.automatizacion'), icon: 'zap' },
+  { key: 'entretenimiento', label: t('dash.cat.entretenimiento'), icon: 'image' },
+  { key: 'utilidades', label: t('dash.cat.utilidades'), icon: 'sliders' },
 ];
 
 export const MODULES = [
@@ -36,45 +115,45 @@ export const MODULES = [
   {
     key: 'inicio',
     cat: 'principal',
-    label: 'Inicio',
+    label: t('dash.mod.inicio.label'),
     icon: 'home',
-    desc: 'Resumen del servidor, estado de Purgito y accesos rápidos',
+    desc: t('dash.mod.inicio.desc'),
     keywords: ['dashboard', 'resumen', 'estado', 'general', 'servidor', 'inicio'],
     load: loadInicio,
   },
   {
     key: 'chat',
     cat: 'principal',
-    label: 'Ajustes de Chat',
+    label: t('dash.mod.chat.label'),
     icon: 'chat',
-    desc: 'Comportamiento, probabilidades, canales y límites del chat',
+    desc: t('dash.mod.chat.desc'),
     keywords: ['chat', 'ajustes', 'markov', 'probabilidad', 'menciones', 'espontaneo', 'comportamiento'],
     load: loadChatTab,
   },
   {
     key: 'estilo',
     cat: 'principal',
-    label: 'Personalización',
+    label: t('dash.mod.estilo.label'),
     icon: 'palette',
-    desc: 'Apariencia de Purgito en este servidor: nick, avatar y banner',
+    desc: t('dash.mod.estilo.desc'),
     keywords: ['estilo', 'personalizacion', 'nick', 'apodo', 'avatar', 'banner', 'foto', 'apariencia'],
     load: loadEstiloModule,
   },
   {
     key: 'playground',
     cat: 'principal',
-    label: 'Simulador de Chat',
+    label: t('dash.mod.playground.label'),
     icon: 'play',
-    desc: 'Simula y prueba cómo respondería Purgito en vivo según las reglas y corpus del canal',
+    desc: t('dash.mod.playground.desc'),
     keywords: ['simulador', 'probar', 'simular', 'markov', 'generacion', 'chat', 'playground', 'respuestas'],
     load: loadPlaygroundModule,
   },
   {
     key: 'historial',
     cat: 'principal',
-    label: 'Auditoría',
+    label: t('dash.mod.historial.label'),
     icon: 'history',
-    desc: 'Registro de cambios y auditoría de acciones realizadas',
+    desc: t('dash.mod.historial.desc'),
     keywords: ['auditoria', 'historial', 'logs', 'registro', 'cambios', 'seguridad'],
     load: loadHistorial,
   },
@@ -85,7 +164,7 @@ export const MODULES = [
     icon: 'star',
     badge: 'PREMIUM',
     badgeType: 'premium',
-    desc: 'Memoria ampliada a 50.000 mensajes, 4.000 GIFs y soporte prioritario',
+    desc: t('dash.mod.premium.desc'),
     keywords: ['premium', 'suscripcion', 'polar', 'planes', 'limites', 'cupo', '50000'],
     load: loadPremium,
   },
@@ -96,7 +175,7 @@ export const MODULES = [
     cat: 'alertas',
     label: 'YouTube',
     icon: 'youtube',
-    desc: 'Avisos automáticos de nuevos videos en canales de YouTube',
+    desc: t('dash.mod.youtube.desc'),
     keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
     load: loadYoutube,
   },
@@ -105,18 +184,18 @@ export const MODULES = [
   {
     key: 'embeds',
     cat: 'anuncios',
-    label: 'Diseñador de Mensajes',
+    label: t('dash.mod.embeds.label'),
     icon: 'layout',
-    desc: 'Editor visual de embeds clásicos y bloques interactivos Layout V2',
+    desc: t('dash.mod.embeds.desc'),
     keywords: ['embeds', 'anuncios', 'mensajes', 'diseñador', 'plantillas', 'layout', 'botones'],
     load: loadEmbeds,
   },
   {
     key: 'updates',
     cat: 'anuncios',
-    label: 'Canal de Novedades',
+    label: t('dash.mod.updates.label'),
     icon: 'bell',
-    desc: 'Canal donde Purgito publica sus anuncios y actualizaciones',
+    desc: t('dash.mod.updates.desc'),
     keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal'],
     load: loadUpdatesModule,
   },
@@ -125,27 +204,27 @@ export const MODULES = [
   {
     key: 'triggers',
     cat: 'automatizacion',
-    label: 'Triggers de canal',
+    label: t('dash.mod.triggers.label'),
     icon: 'zap',
-    desc: 'Respuestas automáticas por coincidencia de texto o regex',
+    desc: t('dash.mod.triggers.desc'),
     keywords: ['triggers', 'automatizacion', 'regex', 'patrones', 'coincidencias', 'respuestas'],
     load: loadTriggersModule,
   },
   {
     key: 'reacciones',
     cat: 'automatizacion',
-    label: 'Reacciones automáticas',
+    label: t('dash.mod.reacciones.label'),
     icon: 'smile',
-    desc: 'Reacciona automáticamente con emojis configurados en mensajes',
+    desc: t('dash.mod.reacciones.desc'),
     keywords: ['reacciones', 'emojis', 'automatizacion', 'reaccionar', 'caritas'],
     load: loadReaccionesModule,
   },
   {
     key: 'frases',
     cat: 'automatizacion',
-    label: 'Frases y Packs',
+    label: t('dash.mod.frases.label'),
     icon: 'sparkle',
-    desc: 'Frases personalizadas y paquetes temáticos organizados por canal',
+    desc: t('dash.mod.frases.desc'),
     keywords: ['frases', 'packs', 'especiales', 'personalizadas', 'mensajes'],
     load: loadFrasesModule,
   },
@@ -156,7 +235,7 @@ export const MODULES = [
     cat: 'entretenimiento',
     label: 'GIFs',
     icon: 'film',
-    desc: 'Galería de GIFs del servidor para respuestas y comandos',
+    desc: t('dash.mod.gifs.desc'),
     keywords: ['gifs', 'galeria', 'animaciones', 'tenor', 'giphy', 'entretenimiento'],
     load: loadGifs,
   },
@@ -165,7 +244,7 @@ export const MODULES = [
     cat: 'entretenimiento',
     label: 'Memes',
     icon: 'image',
-    desc: 'Generación automática de memes y plantillas',
+    desc: t('dash.mod.memes.desc'),
     keywords: ['memes', 'imagenes', 'generador', 'plantillas', 'entretenimiento'],
     load: loadMemes,
   },
@@ -174,18 +253,18 @@ export const MODULES = [
   {
     key: 'canales',
     cat: 'utilidades',
-    label: 'Canales y Permisos',
+    label: t('dash.mod.canales.label'),
     icon: 'sliders',
-    desc: 'Matriz de lectura/respuesta y canales o roles ignorados',
+    desc: t('dash.mod.canales.desc'),
     keywords: ['canales', 'permisos', 'matriz', 'exentos', 'ignorados', 'silenciados', 'aprender'],
     load: loadCanalesModule,
   },
   {
     key: 'amnesia',
     cat: 'utilidades',
-    label: 'Limpieza',
+    label: t('dash.mod.amnesia.label'),
     icon: 'trash',
-    desc: 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
+    desc: t('dash.mod.amnesia.desc'),
     keywords: ['amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset'],
     load: loadAmnesiaModule,
   },
@@ -193,14 +272,14 @@ export const MODULES = [
 
 // Compatibilidad con TABS existentes
 export const TABS = [
-  { key: 'inicio', label: 'INICIO', icon: 'home', load: loadInicio },
-  { key: 'chat', label: 'CHAT', icon: 'chat', load: loadChatTab },
+  { key: 'inicio', label: t('dash.mod.inicio.label').toUpperCase(), icon: 'home', load: loadInicio },
+  { key: 'chat', label: t('dash.mod.chat.label').toUpperCase(), icon: 'chat', load: loadChatTab },
   { key: 'gifs', label: 'GIFS', icon: 'film', load: loadGifs },
   { key: 'memes', label: 'MEMES', icon: 'image', load: loadMemes },
-  { key: 'embeds', label: 'EMBEDS', icon: 'layout', load: loadEmbeds },
+  { key: 'embeds', label: t('dash.mod.embeds.label').toUpperCase(), icon: 'layout', load: loadEmbeds },
   { key: 'premium', label: 'PREMIUM', icon: 'star', load: loadPremium },
   { key: 'youtube', label: 'YOUTUBE', icon: 'youtube', load: loadYoutube },
-  { key: 'historial', label: 'HISTORIAL', icon: 'history', load: loadHistorial },
+  { key: 'historial', label: t('dash.mod.historial.label').toUpperCase(), icon: 'history', load: loadHistorial },
 ];
 
 const SIDEBAR_COLLAPSED_KEY = 'purgito_dash_sidebar_collapsed';
@@ -280,6 +359,35 @@ function toggleCategoryCollapse(catKey) {
 
 // ---------------- SELECTOR DE SERVIDOR PERSISTENTE ----------------
 
+addStrings({
+  es: {
+    'dash.serverPicker.select': 'Seleccionar servidor',
+    'dash.serverPicker.change': 'Cambiar servidor',
+    'dash.serverPicker.members': '{count} miembros',
+    'dash.serverPicker.searchPlaceholder': 'Buscar servidor…',
+    'dash.serverPicker.noResults': 'No se encontraron servidores.',
+    'dash.serverPicker.configuredHeader': 'Tus servidores con Purgito',
+    'dash.serverPicker.activeServer': 'Servidor activo',
+    'dash.serverPicker.availableHeader': 'Otros servidores que administras',
+    'dash.serverPicker.invite': 'Invitar a Purgito',
+    'dash.serverPicker.loadError': 'No se pudieron cargar los servidores.',
+    'dash.serverPicker.manageAll': 'Administrar todos los servidores →',
+  },
+  en: {
+    'dash.serverPicker.select': 'Select server',
+    'dash.serverPicker.change': 'Change server',
+    'dash.serverPicker.members': '{count} members',
+    'dash.serverPicker.searchPlaceholder': 'Search server…',
+    'dash.serverPicker.noResults': 'No servers found.',
+    'dash.serverPicker.configuredHeader': 'Your servers with Purgito',
+    'dash.serverPicker.activeServer': 'Active server',
+    'dash.serverPicker.availableHeader': 'Other servers you manage',
+    'dash.serverPicker.invite': 'Invite Purgito',
+    'dash.serverPicker.loadError': 'Could not load servers.',
+    'dash.serverPicker.manageAll': 'Manage all servers →',
+  },
+});
+
 let _cachedGuilds = null;
 let _fetchingGuildsPromise = null;
 
@@ -322,7 +430,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
     class: 'server-picker-btn' + (_serverPickerOpen ? ' active' : ''),
     'aria-haspopup': 'true',
     'aria-expanded': String(_serverPickerOpen),
-    title: active ? active.name : 'Seleccionar servidor',
+    title: active ? active.name : t('dash.serverPicker.select'),
     onclick: (e) => {
       e.stopPropagation();
       _serverPickerOpen = !_serverPickerOpen;
@@ -334,7 +442,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       el('div', { class: 'server-picker-name' }, active ? active.name : 'Servidor'),
       el('div', { class: 'server-picker-sub dim' },
         active && active.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null,
-        active && active.member_count != null ? `${Number(active.member_count).toLocaleString('es')} miembros` : 'Cambiar servidor'
+        active && active.member_count != null ? t('dash.serverPicker.members', { count: Number(active.member_count).toLocaleString('es') }) : t('dash.serverPicker.change')
       )
     ),
     el('span', { class: 'server-picker-caret' }, icon('chevronDown'))
@@ -346,7 +454,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
     const searchInput = el('input', {
       type: 'search',
       class: 'server-dropdown-search',
-      placeholder: 'Buscar servidor…',
+      placeholder: t('dash.serverPicker.searchPlaceholder'),
       autocomplete: 'off',
     });
 
@@ -373,12 +481,12 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       );
 
       if (!filteredConfigured.length && !filteredAvailable.length) {
-        listContainer.append(el('div', { class: 'server-dropdown-empty dim' }, 'No se encontraron servidores.'));
+        listContainer.append(el('div', { class: 'server-dropdown-empty dim' }, t('dash.serverPicker.noResults')));
         return;
       }
 
       if (filteredConfigured.length) {
-        listContainer.append(el('div', { class: 'server-dropdown-header' }, 'Tus servidores con Purgito'));
+        listContainer.append(el('div', { class: 'server-dropdown-header' }, t('dash.serverPicker.configuredHeader')));
         for (const g of filteredConfigured) {
           const isCurrent = g.id === GUILD_ID;
           const row = el('button', {
@@ -397,7 +505,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
                 g.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null
               ),
               el('div', { class: 'server-dropdown-item-sub dim' },
-                isCurrent ? 'Servidor activo' : (g.member_count != null ? `${Number(g.member_count).toLocaleString('es')} miembros` : '')
+                isCurrent ? t('dash.serverPicker.activeServer') : (g.member_count != null ? t('dash.serverPicker.members', { count: Number(g.member_count).toLocaleString('es') }) : '')
               )
             ),
             isCurrent ? el('span', { class: 'server-dropdown-check' }, icon('check')) : null
@@ -407,7 +515,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       }
 
       if (filteredAvailable.length) {
-        listContainer.append(el('div', { class: 'server-dropdown-header' }, 'Otros servidores que administras'));
+        listContainer.append(el('div', { class: 'server-dropdown-header' }, t('dash.serverPicker.availableHeader')));
         for (const g of filteredAvailable) {
           const row = el('a', {
             class: 'server-dropdown-item server-dropdown-item--invite',
@@ -418,7 +526,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
             guildIcon(g),
             el('div', { class: 'server-dropdown-item-info' },
               el('div', { class: 'server-dropdown-item-name' }, g.name),
-              el('div', { class: 'server-dropdown-item-sub dim' }, 'Invitar a Purgito')
+              el('div', { class: 'server-dropdown-item-sub dim' }, t('dash.serverPicker.invite'))
             ),
             el('span', { class: 'server-dropdown-ext' }, icon('externalLink'))
           );
@@ -439,7 +547,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       }).catch(() => {
         if (!_serverPickerOpen) return;
         listContainer.innerHTML = '';
-        listContainer.append(el('div', { class: 'server-dropdown-empty dim text-danger' }, 'No se pudieron cargar los servidores.'));
+        listContainer.append(el('div', { class: 'server-dropdown-empty dim text-danger' }, t('dash.serverPicker.loadError')));
       });
     } else {
       renderList();
@@ -453,7 +561,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       listContainer,
       el('div', { class: 'server-dropdown-footer' },
         el('a', { class: 'server-dropdown-manage-link', href: `/${currentLocale()}/perfil/servidores` },
-          'Administrar todos los servidores →'
+          t('dash.serverPicker.manageAll')
         )
       )
     );
@@ -466,6 +574,23 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
 }
 
 // ---------------- BUSCADOR GLOBAL DE MÓDULOS (Ctrl + K) ----------------
+
+addStrings({
+  es: {
+    'dash.palette.searchPlaceholder': 'Buscar módulo, ajuste o comando…',
+    'dash.palette.noResults': 'No se encontraron módulos para "{query}".',
+    'dash.palette.navigate': 'para navegar',
+    'dash.palette.open': 'para abrir',
+    'dash.palette.close': 'para cerrar',
+  },
+  en: {
+    'dash.palette.searchPlaceholder': 'Search module, setting, or command…',
+    'dash.palette.noResults': 'No modules found for "{query}".',
+    'dash.palette.navigate': 'to navigate',
+    'dash.palette.open': 'to open',
+    'dash.palette.close': 'to close',
+  },
+});
 
 let _commandPaletteOpen = false;
 
@@ -482,7 +607,7 @@ function openCommandPalette() {
   const input = el('input', {
     type: 'search',
     class: 'cmd-palette-input',
-    placeholder: 'Buscar módulo, ajuste o comando…',
+    placeholder: t('dash.palette.searchPlaceholder'),
     autocomplete: 'off',
   });
 
@@ -513,7 +638,7 @@ function openCommandPalette() {
     });
 
     if (!matches.length) {
-      resultsList.append(el('div', { class: 'cmd-palette-empty dim' }, `No se encontraron módulos para "${input.value}".`));
+      resultsList.append(el('div', { class: 'cmd-palette-empty dim' }, t('dash.palette.noResults', { query: input.value })));
       return;
     }
 
@@ -596,9 +721,9 @@ function openCommandPalette() {
   );
 
   const footer = el('div', { class: 'cmd-palette-footer' },
-    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, '↑↓'), ' para navegar'),
-    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, '↵'), ' para abrir'),
-    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, 'ESC'), ' para cerrar')
+    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, '↑↓'), ' ' + t('dash.palette.navigate')),
+    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, '↵'), ' ' + t('dash.palette.open')),
+    el('span', { class: 'cmd-palette-tip' }, el('kbd', {}, 'ESC'), ' ' + t('dash.palette.close'))
   );
 
   modal.append(header, resultsList, footer);
@@ -627,6 +752,23 @@ document.addEventListener('click', (e) => {
 
 // ---------------- RENDERIZADO DE SIDEBAR ----------------
 
+addStrings({
+  es: {
+    'dash.sidebar.showNav': 'Mostrar navegación',
+    'dash.sidebar.hideNav': 'Ocultar navegación',
+    'dash.sidebar.openMobileNav': 'Abrir navegación del dashboard',
+    'dash.sidebar.searchModule': 'Buscar módulo (Ctrl + K)',
+    'dash.sidebar.searchModuleShort': 'Buscar módulo…',
+  },
+  en: {
+    'dash.sidebar.showNav': 'Show navigation',
+    'dash.sidebar.hideNav': 'Hide navigation',
+    'dash.sidebar.openMobileNav': 'Open dashboard navigation',
+    'dash.sidebar.searchModule': 'Search module (Ctrl + K)',
+    'dash.sidebar.searchModuleShort': 'Search module…',
+  },
+});
+
 export function renderSidebar(activeTab) {
   const nav = document.getElementById('dashTabs');
   if (!nav) return;
@@ -640,8 +782,8 @@ export function renderSidebar(activeTab) {
   const collapseBtn = el('button', {
     type: 'button',
     class: 'dash-sidebar-collapse-btn',
-    title: _sidebarCollapsed ? 'Mostrar navegación' : 'Ocultar navegación',
-    'aria-label': _sidebarCollapsed ? 'Mostrar navegación' : 'Ocultar navegación',
+    title: _sidebarCollapsed ? t('dash.sidebar.showNav') : t('dash.sidebar.hideNav'),
+    'aria-label': _sidebarCollapsed ? t('dash.sidebar.showNav') : t('dash.sidebar.hideNav'),
     'aria-expanded': String(!_sidebarCollapsed),
     onclick: () => toggleSidebarCollapse(),
   }, icon(_sidebarCollapsed ? 'panelOpen' : 'panelClose'));
@@ -657,7 +799,7 @@ export function renderSidebar(activeTab) {
     type: 'button',
     class: 'dash-mobile-nav-toggle',
     'aria-expanded': 'false',
-    'aria-label': 'Abrir navegación del dashboard',
+    'aria-label': t('dash.sidebar.openMobileNav'),
     onclick: () => {
       const isOpen = nav.classList.toggle('open');
       toggleBtn.setAttribute('aria-expanded', String(isOpen));
@@ -687,14 +829,14 @@ export function renderSidebar(activeTab) {
     const cmdSearchBtn = el('button', {
       type: 'button',
       class: 'dash-cmd-search-btn',
-      title: 'Buscar módulo (Ctrl + K)',
+      title: t('dash.sidebar.searchModule'),
       onclick: () => {
         closeMobileNav();
         openCommandPalette();
       },
     },
       icon('search'),
-      el('span', { class: 'dash-cmd-search-text' }, 'Buscar módulo…'),
+      el('span', { class: 'dash-cmd-search-text' }, t('dash.sidebar.searchModuleShort')),
       el('kbd', { class: 'dash-cmd-search-badge' }, '⌘K')
     );
     inner.append(cmdSearchBtn);
@@ -765,6 +907,19 @@ export function renderSidebar(activeTab) {
 
 // ---------------- CABECERA Y TOPBAR ----------------
 
+addStrings({
+  es: {
+    'dash.topbar.servers': 'Servidores',
+    'dash.topbar.searchModuleOrCommand': 'Buscar módulo o comando (Ctrl + K)',
+    'dash.topbar.search': 'Buscar',
+  },
+  en: {
+    'dash.topbar.servers': 'Servers',
+    'dash.topbar.searchModuleOrCommand': 'Search module or command (Ctrl + K)',
+    'dash.topbar.search': 'Search',
+  },
+});
+
 export function renderTopBar(guild) {
   const head = document.getElementById('dashHead');
   if (!head) return;
@@ -775,17 +930,17 @@ export function renderTopBar(guild) {
   const titleNode = el('div', { class: 'dash-topbar' },
     el('a', { class: 'dash-back-link', href: `/${loc}/perfil/servidores` },
       icon('arrowLeft'),
-      el('span', {}, 'Servidores')
+      el('span', {}, t('dash.topbar.servers'))
     ),
     el('div', { class: 'dash-topbar-actions' },
       el('button', {
         type: 'button',
         class: 'btn btn-secondary btn-sm',
-        title: 'Buscar módulo o comando (Ctrl + K)',
+        title: t('dash.topbar.searchModuleOrCommand'),
         onclick: () => openCommandPalette(),
       },
         icon('search'),
-        el('span', { class: 'hide-mobile' }, 'Buscar')
+        el('span', { class: 'hide-mobile' }, t('dash.topbar.search'))
       )
     )
   );
@@ -812,6 +967,25 @@ export async function loadHead() {
 
 // ---------------- CAMBIO REACTIVO DE SERVIDOR ----------------
 
+addStrings({
+  es: {
+    'dash.init.switchingServer': 'Cambiando al servidor…',
+    'dash.init.backToServers': 'Volver a servidores',
+    'dash.init.notInstalled': 'Purgito todavía no está instalado en este servidor.',
+    'dash.init.invite': 'Invitar a Purgito',
+    'dash.init.viewMyServers': 'Ver mis servidores',
+    'dash.init.notFound': 'No encontramos ese servidor entre los que administras.',
+  },
+  en: {
+    'dash.init.switchingServer': 'Switching servers…',
+    'dash.init.backToServers': 'Back to servers',
+    'dash.init.notInstalled': "Purgito isn't installed on this server yet.",
+    'dash.init.invite': 'Invite Purgito',
+    'dash.init.viewMyServers': 'View my servers',
+    'dash.init.notFound': "We couldn't find that server among the ones you manage.",
+  },
+});
+
 export async function selectGuild(newGuildId) {
   if (!newGuildId || newGuildId === GUILD_ID) return;
 
@@ -831,7 +1005,7 @@ export async function selectGuild(newGuildId) {
   renderTopBar(_activeGuild);
 
   activate(curTab, false);
-  toast('Cambiando al servidor…', 'ok');
+  toast(t('dash.init.switchingServer'), 'ok');
 }
 
 // ---------------- ACTIVACIÓN DE MÓDULO ----------------
@@ -900,7 +1074,7 @@ export async function initDash() {
     if (!g) {
       const avail = available.find(x => x.id === GUILD_ID);
       const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
-        el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), 'Volver a servidores');
+        el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), t('dash.init.backToServers'));
       if (head) {
         head.innerHTML = '';
         head.append(back);
@@ -913,15 +1087,15 @@ export async function initDash() {
             guildIcon(avail),
             el('div', { class: 'dash-server-hero-info', style: 'align-items: center;' },
               el('h2', { class: 'dash-server-hero-name', style: 'font-size: 20px;' }, avail.name),
-              el('p', { class: 'dim', style: 'margin: 6px 0 16px; font-size: 14px;' }, 'Purgito todavía no está instalado en este servidor.'),
+              el('p', { class: 'dim', style: 'margin: 6px 0 16px; font-size: 14px;' }, t('dash.init.notInstalled')),
               el('div', { style: 'display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;' },
-                el('a', { class: 'btn btn-primary', href: avail.invite_url || `https://discord.com/oauth2/authorize?client_id=1471724794411089920&guild_id=${avail.id}&scope=bot%20applications.commands&permissions=8`, target: '_blank', rel: 'noopener' }, 'Invitar a Purgito'),
-                el('a', { class: 'btn btn-secondary', href: `/${currentLocale()}/perfil/servidores` }, 'Ver mis servidores')
+                el('a', { class: 'btn btn-primary', href: avail.invite_url || `https://discord.com/oauth2/authorize?client_id=1471724794411089920&guild_id=${avail.id}&scope=bot%20applications.commands&permissions=8`, target: '_blank', rel: 'noopener' }, t('dash.init.invite')),
+                el('a', { class: 'btn btn-secondary', href: `/${currentLocale()}/perfil/servidores` }, t('dash.init.viewMyServers'))
               )
             )
           ));
         } else {
-          box.append(emptyState('No encontramos ese servidor entre los que administras.'));
+          box.append(emptyState(t('dash.init.notFound')));
         }
       }
       return;
@@ -1032,6 +1206,124 @@ function quickActionCard(iconName, title, desc, onClick) {
   );
 }
 
+addStrings({
+  es: {
+    'dash.common.save': 'Guardar',
+    'dash.common.saving': 'Guardando…',
+    'dash.common.cancel': 'Cancelar',
+    'dash.common.edit': 'Editar',
+    'dash.common.add': 'Agregar',
+    'dash.common.remove': 'Quitar',
+    'dash.common.uploadImage': 'Subir imagen',
+    'dash.common.uploading': 'Subiendo…',
+  },
+  en: {
+    'dash.common.save': 'Save',
+    'dash.common.saving': 'Saving…',
+    'dash.common.cancel': 'Cancel',
+    'dash.common.edit': 'Edit',
+    'dash.common.add': 'Add',
+    'dash.common.remove': 'Remove',
+    'dash.common.uploadImage': 'Upload image',
+    'dash.common.uploading': 'Uploading…',
+  },
+});
+
+addStrings({
+  es: {
+    'dash.inicio.members': '{count} miembros',
+    'dash.inicio.discordServer': 'Servidor de Discord',
+    'dash.inicio.serverFallback': 'Servidor',
+    'dash.inicio.channelsCount': '{count} canales',
+    'dash.inicio.statMessages': 'Mensajes en memoria',
+    'dash.inicio.statMessagesSub': 'Corpus de aprendizaje',
+    'dash.inicio.statGifs': 'GIFs en catálogo',
+    'dash.inicio.statGifsSub': 'Para respuestas y comandos',
+    'dash.inicio.statFrases': 'Frases especiales',
+    'dash.inicio.statFrasesSub': 'Respuestas configuradas',
+    'dash.inicio.statReading': 'Canales que lee',
+    'dash.inicio.statReadingSub': 'Para armar estilo',
+    'dash.inicio.statReply': 'Canales que responde',
+    'dash.inicio.statReplySub': 'Menciones y espontáneos',
+    'dash.inicio.statReactions': 'Emojis de reacción',
+    'dash.inicio.statReactionsSub': 'Pool activo',
+    'dash.inicio.quotaSavedMessages': 'mensajes guardados',
+    'dash.inicio.quotaGifs': 'GIFs',
+    'dash.inicio.quotaFrases': 'frases especiales',
+    'dash.inicio.quotaFullText': 'Has alcanzado el límite de {items}. Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.',
+    'dash.inicio.quotaNearText': 'Estás cerca del cupo de {items}: al alcanzarlo, Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.',
+    'dash.inicio.statusTitle': 'Estado de Purgito en este servidor',
+    'dash.inicio.quickActionsTitle': 'Acciones rápidas',
+    'dash.inicio.qaChatTitle': 'Ajustes de Chat',
+    'dash.inicio.qaChatDesc': 'Comportamiento, probabilidades y límites de conversación',
+    'dash.inicio.qaStyleTitle': 'Personalización',
+    'dash.inicio.qaStyleDesc': 'Personaliza el nombre, avatar y banner de Purgito',
+    'dash.inicio.qaEmbedsTitle': 'Diseñador de Mensajes',
+    'dash.inicio.qaEmbedsDesc': 'Crea y programa anuncios con embeds o Layout V2',
+    'dash.inicio.qaGifsTitle': 'Galería de GIFs',
+    'dash.inicio.qaGifsDesc': 'Gestiona y verifica la colección de GIFs del servidor',
+    'dash.inicio.qaTriggersTitle': 'Triggers y Automatización',
+    'dash.inicio.qaTriggersDesc': 'Configura respuestas automáticas y frases clave',
+    'dash.inicio.qaHistorialTitle': 'Auditoría',
+    'dash.inicio.qaHistorialDesc': 'Revisa el historial de cambios y acciones realizadas',
+    'dash.inicio.quickStyleTitle': 'Personalización rápida',
+    'dash.inicio.previewText': 'Así se ve Purgito en este servidor',
+    'dash.inicio.editStyle': 'Editar estilo',
+    'dash.inicio.viewOptions': 'Ver opciones →',
+    'dash.inicio.activityTitle': 'Actividad histórica',
+    'dash.inicio.activityDesc': 'Actividad acumulada en este servidor desde que se unió Purgito.',
+    'dash.inicio.gifsSent': 'GIFs enviados',
+    'dash.inicio.totalAccumulated': 'Total histórico acumulado',
+    'dash.inicio.messagesSent': 'Mensajes enviados',
+  },
+  en: {
+    'dash.inicio.members': '{count} members',
+    'dash.inicio.discordServer': 'Discord server',
+    'dash.inicio.serverFallback': 'Server',
+    'dash.inicio.channelsCount': '{count} channels',
+    'dash.inicio.statMessages': 'Messages in memory',
+    'dash.inicio.statMessagesSub': 'Learning corpus',
+    'dash.inicio.statGifs': 'GIFs in catalog',
+    'dash.inicio.statGifsSub': 'For replies and commands',
+    'dash.inicio.statFrases': 'Special phrases',
+    'dash.inicio.statFrasesSub': 'Configured replies',
+    'dash.inicio.statReading': 'Channels it reads',
+    'dash.inicio.statReadingSub': 'To build its style',
+    'dash.inicio.statReply': 'Channels it replies in',
+    'dash.inicio.statReplySub': 'Mentions and spontaneous',
+    'dash.inicio.statReactions': 'Reaction emojis',
+    'dash.inicio.statReactionsSub': 'Active pool',
+    'dash.inicio.quotaSavedMessages': 'saved messages',
+    'dash.inicio.quotaGifs': 'GIFs',
+    'dash.inicio.quotaFrases': 'special phrases',
+    'dash.inicio.quotaFullText': "You've reached the limit for {items}. Purgito automatically discards the oldest content to make room for new content.",
+    'dash.inicio.quotaNearText': "You're close to the quota for {items}: once reached, Purgito will start discarding the oldest content to make room for new content.",
+    'dash.inicio.statusTitle': "Purgito's status on this server",
+    'dash.inicio.quickActionsTitle': 'Quick actions',
+    'dash.inicio.qaChatTitle': 'Chat settings',
+    'dash.inicio.qaChatDesc': 'Behavior, probabilities, and conversation limits',
+    'dash.inicio.qaStyleTitle': 'Customization',
+    'dash.inicio.qaStyleDesc': "Customize Purgito's name, avatar, and banner",
+    'dash.inicio.qaEmbedsTitle': 'Message Designer',
+    'dash.inicio.qaEmbedsDesc': 'Create and schedule announcements with embeds or Layout V2',
+    'dash.inicio.qaGifsTitle': 'GIF gallery',
+    'dash.inicio.qaGifsDesc': "Manage and review the server's GIF collection",
+    'dash.inicio.qaTriggersTitle': 'Triggers and automation',
+    'dash.inicio.qaTriggersDesc': 'Set up automatic replies and key phrases',
+    'dash.inicio.qaHistorialTitle': 'Audit log',
+    'dash.inicio.qaHistorialDesc': 'Review the change and action history',
+    'dash.inicio.quickStyleTitle': 'Quick customization',
+    'dash.inicio.previewText': "This is how Purgito looks on this server",
+    'dash.inicio.editStyle': 'Edit style',
+    'dash.inicio.viewOptions': 'View options →',
+    'dash.inicio.activityTitle': 'Historical activity',
+    'dash.inicio.activityDesc': "Activity accumulated on this server since Purgito joined.",
+    'dash.inicio.gifsSent': 'GIFs sent',
+    'dash.inicio.totalAccumulated': 'Historical total',
+    'dash.inicio.messagesSent': 'Messages sent',
+  },
+});
+
 async function loadInicio() {
   const box = content();
   if (box) {
@@ -1067,20 +1359,20 @@ async function loadInicio() {
 
     // 1. Resumen / Hero del Servidor
     const memberText = g && g.member_count != null
-      ? `${Number(g.member_count).toLocaleString('es')} miembros`
-      : 'Servidor de Discord';
+      ? t('dash.inicio.members', { count: Number(g.member_count).toLocaleString('es') })
+      : t('dash.inicio.discordServer');
 
     const serverHero = el('div', { class: 'dash-server-hero' },
       g ? guildIcon(g) : null,
       el('div', { class: 'dash-server-hero-info' },
         el('div', { class: 'dash-server-hero-title-row' },
-          el('h1', { class: 'dash-server-hero-name' }, (g && g.name) || 'Servidor'),
+          el('h1', { class: 'dash-server-hero-name' }, (g && g.name) || t('dash.inicio.serverFallback')),
           g && g.is_premium ? el('span', { class: 'badge badge-premium' }, 'PREMIUM') : null
         ),
         el('div', { class: 'dash-server-hero-meta dim' },
           el('span', {}, memberText),
           el('span', { class: 'meta-sep' }, '·'),
-          el('span', {}, `${stats.text_channels || channels.length || 0} canales`),
+          el('span', {}, t('dash.inicio.channelsCount', { count: stats.text_channels || channels.length || 0 })),
           el('span', { class: 'meta-sep' }, '·'),
           el('span', { class: 'server-id-mono' }, `ID: ${GUILD_ID}`)
         )
@@ -1091,24 +1383,24 @@ async function loadInicio() {
     // 2. Estado y Métricas de Purgito
     const lims = stats.limits || {};
     const tiles = el('div', { class: 'stat-grid' },
-      statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), 'Mensajes en memoria', 'Corpus de aprendizaje'),
-      statTile('film', withCap(stats.gifs, lims.gifs), 'GIFs en catálogo', 'Para respuestas y comandos'),
-      statTile('sparkle', withCap(stats.frases, lims.frases), 'Frases especiales', 'Respuestas configuradas'),
-      statTile('chat', `${stats.reading_channels || 0} / ${stats.text_channels || channels.length || 0}`, 'Canales que lee', 'Para armar estilo'),
-      statTile('layout', `${stats.reply_channels || 0} / ${stats.text_channels || channels.length || 0}`, 'Canales que responde', 'Menciones y espontáneos'),
-      statTile('smile', stats.reactions || 0, 'Emojis de reacción', 'Pool activo')
+      statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), t('dash.inicio.statMessages'), t('dash.inicio.statMessagesSub')),
+      statTile('film', withCap(stats.gifs, lims.gifs), t('dash.inicio.statGifs'), t('dash.inicio.statGifsSub')),
+      statTile('sparkle', withCap(stats.frases, lims.frases), t('dash.inicio.statFrases'), t('dash.inicio.statFrasesSub')),
+      statTile('chat', `${stats.reading_channels || 0} / ${stats.text_channels || channels.length || 0}`, t('dash.inicio.statReading'), t('dash.inicio.statReadingSub')),
+      statTile('layout', `${stats.reply_channels || 0} / ${stats.text_channels || channels.length || 0}`, t('dash.inicio.statReply'), t('dash.inicio.statReplySub')),
+      statTile('smile', stats.reactions || 0, t('dash.inicio.statReactions'), t('dash.inicio.statReactionsSub'))
     );
 
     const alcanzados = [
-      [stats.corpus_total, lims.corpus_total, 'mensajes guardados'],
-      [stats.gifs, lims.gifs, 'GIFs'],
-      [stats.frases, lims.frases, 'frases especiales'],
+      [stats.corpus_total, lims.corpus_total, t('dash.inicio.quotaSavedMessages')],
+      [stats.gifs, lims.gifs, t('dash.inicio.quotaGifs')],
+      [stats.frases, lims.frases, t('dash.inicio.quotaFrases')],
     ].filter(([used, cap]) => cap && used >= cap);
 
     const cerca = [
-      [stats.corpus_total, lims.corpus_total, 'mensajes guardados'],
-      [stats.gifs, lims.gifs, 'GIFs'],
-      [stats.frases, lims.frases, 'frases especiales'],
+      [stats.corpus_total, lims.corpus_total, t('dash.inicio.quotaSavedMessages')],
+      [stats.gifs, lims.gifs, t('dash.inicio.quotaGifs')],
+      [stats.frases, lims.frases, t('dash.inicio.quotaFrases')],
     ].filter(([used, cap]) => cap && used >= cap * 0.9 && used < cap);
 
     let quotaNotice = null;
@@ -1116,56 +1408,54 @@ async function loadInicio() {
       quotaNotice = el('div', { class: 'stat-quota-box stat-quota-box--full' },
         el('span', { class: 'stat-quota-icon' }, '⚠️'),
         el('div', { class: 'stat-quota-text' },
-          `Has alcanzado el límite de ${alcanzados.map(c => c[2]).join(' y ')}. ` +
-          'Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.'
+          t('dash.inicio.quotaFullText', { items: alcanzados.map(c => c[2]).join(' y ') })
         )
       );
     } else if (cerca.length) {
       quotaNotice = el('div', { class: 'stat-quota-box stat-quota-box--near' },
         el('span', { class: 'stat-quota-icon' }, 'ℹ️'),
         el('div', { class: 'stat-quota-text' },
-          `Estás cerca del cupo de ${cerca.map(c => c[2]).join(' y ')}: al alcanzarlo, ` +
-          'Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.'
+          t('dash.inicio.quotaNearText', { items: cerca.map(c => c[2]).join(' y ') })
         )
       );
     }
 
-    box.append(formGroup('Estado de Purgito en este servidor', tiles, quotaNotice));
+    box.append(formGroup(t('dash.inicio.statusTitle'), tiles, quotaNotice));
 
     // 3. Acciones rápidas (Quick Actions)
     const quickActionsGrid = el('div', { class: 'quick-actions-grid' },
-      quickActionCard('chat', 'Ajustes de Chat', 'Comportamiento, probabilidades y límites de conversación', () => activate('chat', true)),
-      quickActionCard('palette', 'Personalización', 'Personaliza el nombre, avatar y banner de Purgito', () => activate('estilo', true)),
-      quickActionCard('layout', 'Diseñador de Mensajes', 'Crea y programa anuncios con embeds o Layout V2', () => activate('embeds', true)),
-      quickActionCard('film', 'Galería de GIFs', 'Gestiona y verifica la colección de GIFs del servidor', () => activate('gifs', true)),
-      quickActionCard('zap', 'Triggers y Automatización', 'Configura respuestas automáticas y frases clave', () => activate('triggers', true)),
-      quickActionCard('history', 'Auditoría', 'Revisa el historial de cambios y acciones realizadas', () => activate('historial', true))
+      quickActionCard('chat', t('dash.inicio.qaChatTitle'), t('dash.inicio.qaChatDesc'), () => activate('chat', true)),
+      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => activate('estilo', true)),
+      quickActionCard('layout', t('dash.inicio.qaEmbedsTitle'), t('dash.inicio.qaEmbedsDesc'), () => activate('embeds', true)),
+      quickActionCard('film', t('dash.inicio.qaGifsTitle'), t('dash.inicio.qaGifsDesc'), () => activate('gifs', true)),
+      quickActionCard('zap', t('dash.inicio.qaTriggersTitle'), t('dash.inicio.qaTriggersDesc'), () => activate('triggers', true)),
+      quickActionCard('history', t('dash.inicio.qaHistorialTitle'), t('dash.inicio.qaHistorialDesc'), () => activate('historial', true))
     );
 
-    box.append(formGroup('Acciones rápidas', quickActionsGrid));
+    box.append(formGroup(t('dash.inicio.quickActionsTitle'), quickActionsGrid));
 
     // 4. Configuración Rápida / Estilo y Actualizaciones
     const avatar = style.avatar_url || style.current_avatar_url;
     const nick = style.nick || style.current_nick || 'Purgito';
 
-    const stylePreviewNode = formGroup('Personalización rápida',
+    const stylePreviewNode = formGroup(t('dash.inicio.quickStyleTitle'),
       el('div', { class: 'style-card' },
         el('div', { class: 'style-preview' },
           avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
           el('div', {},
             el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
-            el('div', { class: 'dim' }, 'Así se ve Purgito en este servidor')
+            el('div', { class: 'dim' }, t('dash.inicio.previewText'))
           )
         ),
         el('div', { class: 'style-card-actions' },
           el('button', {
             class: 'btn btn-secondary',
             onclick: () => openStyleModal(style),
-          }, 'Editar estilo'),
+          }, t('dash.inicio.editStyle')),
           el('button', {
             class: 'btn btn-secondary',
             onclick: () => activate('estilo', true),
-          }, 'Ver opciones →')
+          }, t('dash.inicio.viewOptions'))
         )
       )
     );
@@ -1175,23 +1465,23 @@ async function loadInicio() {
 
     // Actividad histórica acumulada
     const counters = stats.counters || {};
-    const activityRow = formGroup('Actividad histórica',
-      el('p', { class: 'dim' }, 'Actividad acumulada en este servidor desde que se unió Purgito.'),
+    const activityRow = formGroup(t('dash.inicio.activityTitle'),
+      el('p', { class: 'dim' }, t('dash.inicio.activityDesc')),
       el('div', { class: 'activity-grid' },
         el('div', { class: 'activity-card' },
           el('div', { class: 'activity-icon-wrap' }, icon('film')),
           el('div', { class: 'activity-content' },
             el('div', { class: 'activity-value' }, Number(counters.gifs_enviados || 0).toLocaleString('es')),
-            el('div', { class: 'activity-label' }, 'GIFs enviados'),
-            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado')
+            el('div', { class: 'activity-label' }, t('dash.inicio.gifsSent')),
+            el('div', { class: 'activity-sub dim' }, t('dash.inicio.totalAccumulated'))
           )
         ),
         el('div', { class: 'activity-card' },
           el('div', { class: 'activity-icon-wrap' }, icon('chat')),
           el('div', { class: 'activity-content' },
             el('div', { class: 'activity-value' }, Number(counters.mensajes_enviados || 0).toLocaleString('es')),
-            el('div', { class: 'activity-label' }, 'Mensajes enviados'),
-            el('div', { class: 'activity-sub dim' }, 'Total histórico acumulado')
+            el('div', { class: 'activity-label' }, t('dash.inicio.messagesSent')),
+            el('div', { class: 'activity-sub dim' }, t('dash.inicio.totalAccumulated'))
           )
         )
       )
@@ -1204,6 +1494,47 @@ async function loadInicio() {
 }
 
 // ---------------- MÓDULOS ESPECÍFICOS DIRECTOS ----------------
+
+addStrings({
+  es: {
+    'dash.styleModal.imageHelp': 'PNG, JPG, GIF o WEBP. Máx 10 MB.',
+    'dash.styleModal.avatarUploaded': 'Avatar subido',
+    'dash.styleModal.uploadError': 'No se pudo subir la imagen',
+    'dash.styleModal.bannerUploaded': 'Banner subido',
+    'dash.styleModal.appearanceUpdated': 'Apariencia de Purgito actualizada',
+    'dash.styleModal.saveError': 'No se pudo guardar la apariencia',
+    'dash.styleModal.nickLabel': 'Apodo en este servidor',
+    'dash.styleModal.nickDesc': 'Nombre con el que aparece Purgito en este servidor.',
+    'dash.styleModal.avatarToggle': 'Modificar avatar',
+    'dash.styleModal.avatarDesc': 'Avatar exclusivo para este servidor.',
+    'dash.styleModal.bannerToggle': 'Modificar banner',
+    'dash.styleModal.bannerDesc': 'Banner del perfil de Purgito en este servidor.',
+    'dash.styleModal.title': 'Editar apariencia en este servidor',
+    'dash.styleModal.moduleTitle': 'Personalización de Purgito',
+    'dash.styleModal.moduleDesc': 'Modifica cómo se presenta Purgito exclusivamente en este servidor (apodo, avatar y banner de perfil).',
+    'dash.styleModal.modulePreview': 'Vista previa del bot en este servidor',
+    'dash.styleModal.editAppearance': 'Editar apariencia',
+  },
+  en: {
+    'dash.styleModal.imageHelp': 'PNG, JPG, GIF, or WEBP. Max 10 MB.',
+    'dash.styleModal.avatarUploaded': 'Avatar uploaded',
+    'dash.styleModal.uploadError': 'Could not upload the image',
+    'dash.styleModal.bannerUploaded': 'Banner uploaded',
+    'dash.styleModal.appearanceUpdated': "Purgito's appearance updated",
+    'dash.styleModal.saveError': 'Could not save the appearance',
+    'dash.styleModal.nickLabel': 'Nickname on this server',
+    'dash.styleModal.nickDesc': 'The name Purgito appears with on this server.',
+    'dash.styleModal.avatarToggle': 'Change avatar',
+    'dash.styleModal.avatarDesc': 'Exclusive avatar for this server.',
+    'dash.styleModal.bannerToggle': 'Change banner',
+    'dash.styleModal.bannerDesc': "Purgito's profile banner on this server.",
+    'dash.styleModal.title': 'Edit appearance on this server',
+    'dash.styleModal.moduleTitle': 'Customize Purgito',
+    'dash.styleModal.moduleDesc': "Change how Purgito presents itself exclusively on this server (nickname, avatar, and profile banner).",
+    'dash.styleModal.modulePreview': "Preview of the bot on this server",
+    'dash.styleModal.editAppearance': 'Edit appearance',
+  },
+});
 
 export function openStyleModal(style = {}) {
   const currentNick = style.nick || style.current_nick || '';
@@ -1242,7 +1573,7 @@ export function openStyleModal(style = {}) {
   });
   const avatarUploadBtn = el('button', {
     type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => avatarFile.click(),
-  }, 'Subir imagen');
+  }, t('dash.common.uploadImage'));
   const avatarRemoveBtn = el('button', {
     type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => {
       avatarUrl = null;
@@ -1250,13 +1581,13 @@ export function openStyleModal(style = {}) {
       avatarCheck.checked = true;
       editAvatar = true;
     },
-  }, 'Quitar');
+  }, t('dash.common.remove'));
 
   const avatarControls = el('div', { class: 'style-img-body' },
     avatarPreview,
     el('div', { style: 'display:flex;flex-direction:column;gap:6px;' },
       el('div', { style: 'display:flex;gap:6px;' }, avatarUploadBtn, avatarRemoveBtn),
-      el('span', { class: 'dim', style: 'font-size:12px;' }, 'PNG, JPG, GIF o WEBP. Máx 10 MB.')
+      el('span', { class: 'dim', style: 'font-size:12px;' }, t('dash.styleModal.imageHelp'))
     ),
     avatarFile
   );
@@ -1265,19 +1596,19 @@ export function openStyleModal(style = {}) {
     const file = avatarFile.files[0];
     if (!file) return;
     avatarUploadBtn.disabled = true;
-    avatarUploadBtn.textContent = 'Subiendo…';
+    avatarUploadBtn.textContent = t('dash.common.uploading');
     try {
       const url = await uploadImageBlob(file);
       avatarUrl = url;
       avatarPreview.src = url;
       avatarCheck.checked = true;
       editAvatar = true;
-      toast('Avatar subido', 'ok');
+      toast(t('dash.styleModal.avatarUploaded'), 'ok');
     } catch (e) {
-      toast(e.message || 'No se pudo subir la imagen', 'err');
+      toast(e.message || t('dash.styleModal.uploadError'), 'err');
     } finally {
       avatarUploadBtn.disabled = false;
-      avatarUploadBtn.textContent = 'Subir imagen';
+      avatarUploadBtn.textContent = t('dash.common.uploadImage');
     }
   };
 
@@ -1296,7 +1627,7 @@ export function openStyleModal(style = {}) {
   });
   const bannerUploadBtn = el('button', {
     type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => bannerFile.click(),
-  }, 'Subir imagen');
+  }, t('dash.common.uploadImage'));
   const bannerRemoveBtn = el('button', {
     type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => {
       bannerUrl = null;
@@ -1304,7 +1635,7 @@ export function openStyleModal(style = {}) {
       bannerCheck.checked = true;
       editBanner = true;
     },
-  }, 'Quitar');
+  }, t('dash.common.remove'));
 
   const bannerControls = el('div', { style: 'display:flex;flex-direction:column;gap:8px;' },
     bannerPreview,
@@ -1316,7 +1647,7 @@ export function openStyleModal(style = {}) {
     const file = bannerFile.files[0];
     if (!file) return;
     bannerUploadBtn.disabled = true;
-    bannerUploadBtn.textContent = 'Subiendo…';
+    bannerUploadBtn.textContent = t('dash.common.uploading');
     try {
       const url = await uploadImageBlob(file);
       bannerUrl = url;
@@ -1324,12 +1655,12 @@ export function openStyleModal(style = {}) {
       bannerPreview.style.display = 'block';
       bannerCheck.checked = true;
       editBanner = true;
-      toast('Banner subido', 'ok');
+      toast(t('dash.styleModal.bannerUploaded'), 'ok');
     } catch (e) {
-      toast(e.message || 'No se pudo subir la imagen', 'err');
+      toast(e.message || t('dash.styleModal.uploadError'), 'err');
     } finally {
       bannerUploadBtn.disabled = false;
-      bannerUploadBtn.textContent = 'Subir imagen';
+      bannerUploadBtn.textContent = t('dash.common.uploadImage');
     }
   };
 
@@ -1341,7 +1672,7 @@ export function openStyleModal(style = {}) {
     class: 'btn btn-primary',
     onclick: async () => {
       saveBtn.disabled = true;
-      saveBtn.textContent = 'Guardando…';
+      saveBtn.textContent = t('dash.common.saving');
       try {
         const body = { nick: nickInput.value.trim() };
         if (editAvatar) body.avatar_url = avatarUrl;
@@ -1351,43 +1682,43 @@ export function openStyleModal(style = {}) {
           method: 'PUT',
           body,
         });
-        toast('Apariencia de Purgito actualizada', 'ok');
+        toast(t('dash.styleModal.appearanceUpdated'), 'ok');
         if (res && res.warning) toast(res.warning, 'warn');
         if (modal) modal.remove();
         if (currentTab() === 'inicio') loadInicio();
         else if (currentTab() === 'estilo') loadEstiloModule();
       } catch (e) {
-        toast(e.message || 'No se pudo guardar la apariencia', 'err');
+        toast(e.message || t('dash.styleModal.saveError'), 'err');
       } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Guardar';
+        saveBtn.textContent = t('dash.common.save');
       }
     },
-  }, 'Guardar');
+  }, t('dash.common.save'));
 
   const cancelBtn = el('button', {
     type: 'button',
     class: 'btn btn-secondary',
     onclick: () => { if (modal) modal.remove(); },
-  }, 'Cancelar');
+  }, t('dash.common.cancel'));
 
   const modalBody = el('div', { class: 'style-modal' },
-    formGroup(el('span', {}, 'Apodo en este servidor', nickCounter),
-      el('p', { class: 'dim' }, 'Nombre con el que aparece Purgito en este servidor.'),
+    formGroup(el('span', {}, t('dash.styleModal.nickLabel'), nickCounter),
+      el('p', { class: 'dim' }, t('dash.styleModal.nickDesc')),
       nickInput
     ),
-    formGroup(el('label', { class: 'toggle' }, avatarCheck, 'Modificar avatar'),
-      el('p', { class: 'dim' }, 'Avatar exclusivo para este servidor.'),
+    formGroup(el('label', { class: 'toggle' }, avatarCheck, t('dash.styleModal.avatarToggle')),
+      el('p', { class: 'dim' }, t('dash.styleModal.avatarDesc')),
       avatarControls
     ),
-    formGroup(el('label', { class: 'toggle' }, bannerCheck, 'Modificar banner'),
-      el('p', { class: 'dim' }, 'Banner del perfil de Purgito en este servidor.'),
+    formGroup(el('label', { class: 'toggle' }, bannerCheck, t('dash.styleModal.bannerToggle')),
+      el('p', { class: 'dim' }, t('dash.styleModal.bannerDesc')),
       bannerControls
     ),
     el('div', { class: 'style-modal-actions' }, cancelBtn, saveBtn)
   );
 
-  modal = panelModal('Editar apariencia en este servidor', modalBody);
+  modal = panelModal(t('dash.styleModal.title'), modalBody);
 }
 
 async function loadEstiloModule() {
@@ -1405,25 +1736,70 @@ async function loadEstiloModule() {
     const nick = (style && (style.nick || style.current_nick)) || 'Purgito';
 
     box.append(
-      formGroup('Personalización de Purgito',
-        el('p', { class: 'dim' }, 'Modifica cómo se presenta Purgito exclusivamente en este servidor (apodo, avatar y banner de perfil).'),
+      formGroup(t('dash.styleModal.moduleTitle'),
+        el('p', { class: 'dim' }, t('dash.styleModal.moduleDesc')),
         el('div', { class: 'style-card' },
           el('div', { class: 'style-preview' },
             avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
             el('div', {},
               el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
-              el('div', { class: 'dim' }, 'Vista previa del bot en este servidor')
+              el('div', { class: 'dim' }, t('dash.styleModal.modulePreview'))
             )
           ),
           el('button', {
             class: 'btn btn-primary',
             onclick: () => openStyleModal(style || {}),
-          }, 'Editar apariencia')
+          }, t('dash.styleModal.editAppearance'))
         )
       )
     );
   } catch (e) { if (box) renderError(box, e); }
 }
+
+addStrings({
+  es: {
+    'dash.playground.title': 'Simulador de Chat',
+    'dash.playground.moduleDesc': 'Previsualiza cómo respondería Purgito en cualquier canal según las configuraciones reales activas. Esta simulación es segura: no envía ningún mensaje a Discord ni consume cupos.',
+    'dash.playground.noChannels': 'No hay canales disponibles para simular.',
+    'dash.playground.noChannelsDesc': 'Purgito necesita permisos suficientes para acceder y responder en un canal.',
+    'dash.playground.sandboxBadge': 'Sandbox seguro — Sin envíos a Discord',
+    'dash.playground.sandboxDesc': 'Simula una interacción espontánea en este canal usando la configuración real de Purgito. Nada se enviará a Discord.',
+    'dash.playground.simulate': 'Simular interacción',
+    'dash.playground.testChannelTitle': 'Canal de prueba',
+    'dash.playground.testChannelDesc': 'Selecciona un canal para previsualizar cómo respondería Purgito usando su generación espontánea.',
+    'dash.playground.readyTitle': 'Listo para simular',
+    'dash.playground.readyDesc': 'Ejecuta una simulación para previsualizar una interacción espontánea de Purgito en este canal.',
+    'dash.playground.invalidChannel': 'Selecciona un canal válido',
+    'dash.playground.simulating': 'Simulando…',
+    'dash.playground.simulatingSpontaneous': 'Simulando interacción espontánea…',
+    'dash.playground.errDefault': 'No fue posible simular la respuesta.',
+    'dash.playground.err403': 'Purgito ya no tiene acceso a este canal o carece de permisos para ver y enviar mensajes.',
+    'dash.playground.err400': 'El canal seleccionado no es válido.',
+    'dash.playground.err429': 'Has realizado demasiadas simulaciones consecutivas. Espera unos momentos antes de intentar nuevamente.',
+    'dash.playground.errTitle': 'Error al ejecutar la simulación',
+  },
+  en: {
+    'dash.playground.title': 'Chat Simulator',
+    'dash.playground.moduleDesc': "Preview how Purgito would reply in any channel based on the settings currently active. This simulation is safe: it doesn't send any message to Discord or use up quotas.",
+    'dash.playground.noChannels': 'No channels available to simulate.',
+    'dash.playground.noChannelsDesc': 'Purgito needs sufficient permissions to access and reply in a channel.',
+    'dash.playground.sandboxBadge': 'Safe sandbox — Nothing sent to Discord',
+    'dash.playground.sandboxDesc': "Simulate a spontaneous interaction in this channel using Purgito's real configuration. Nothing will be sent to Discord.",
+    'dash.playground.simulate': 'Simulate interaction',
+    'dash.playground.testChannelTitle': 'Test channel',
+    'dash.playground.testChannelDesc': "Select a channel to preview how Purgito would reply using its spontaneous generation.",
+    'dash.playground.readyTitle': 'Ready to simulate',
+    'dash.playground.readyDesc': "Run a simulation to preview a spontaneous interaction from Purgito in this channel.",
+    'dash.playground.invalidChannel': 'Select a valid channel',
+    'dash.playground.simulating': 'Simulating…',
+    'dash.playground.simulatingSpontaneous': 'Simulating spontaneous interaction…',
+    'dash.playground.errDefault': 'Could not simulate the reply.',
+    'dash.playground.err403': "Purgito no longer has access to this channel or lacks permission to view and send messages.",
+    'dash.playground.err400': 'The selected channel is not valid.',
+    'dash.playground.err429': 'You have run too many simulations in a row. Wait a moment before trying again.',
+    'dash.playground.errTitle': 'Error running the simulation',
+  },
+});
 
 async function loadPlaygroundModule() {
   const box = content();
@@ -1447,15 +1823,15 @@ async function loadPlaygroundModule() {
     // Estado vacío si no hay canales utilizables
     if (!usableChannels.length) {
       box.append(
-        formGroup('Simulador de Chat',
+        formGroup(t('dash.playground.title'),
           el('p', { class: 'dim' },
-            'Previsualiza cómo respondería Purgito en cualquier canal según las configuraciones reales activas. Esta simulación es segura: no envía ningún mensaje a Discord ni consume cupos.'
+            t('dash.playground.moduleDesc')
           ),
           el('div', { class: 'sim-empty-state' },
             el('div', { class: 'sim-empty-state-icon' }, icon('lock')),
-            el('h3', { class: 'sim-empty-state-title' }, 'No hay canales disponibles para simular.'),
+            el('h3', { class: 'sim-empty-state-title' }, t('dash.playground.noChannels')),
             el('p', { class: 'sim-empty-state-desc' },
-              'Purgito necesita permisos suficientes para acceder y responder en un canal.'
+              t('dash.playground.noChannelsDesc')
             )
           )
         )
@@ -1473,10 +1849,10 @@ async function loadPlaygroundModule() {
       el('div', { class: 'sim-header-info' },
         el('div', { class: 'sim-badge sim-badge-sandbox' },
           icon('check'),
-          el('span', {}, 'Sandbox seguro — Sin envíos a Discord')
+          el('span', {}, t('dash.playground.sandboxBadge'))
         ),
         el('p', { class: 'sim-header-desc' },
-          'Simula una interacción espontánea en este canal usando la configuración real de Purgito. Nada se enviará a Discord.'
+          t('dash.playground.sandboxDesc')
         )
       )
     );
@@ -1486,7 +1862,7 @@ async function loadPlaygroundModule() {
       type: 'button',
       class: 'btn btn-primary sim-submit-btn',
       onclick: () => runSimulation(),
-    }, icon('play'), el('span', {}, 'Simular interacción'));
+    }, icon('play'), el('span', {}, t('dash.playground.simulate')));
 
     const channelPicker = buildPlaygroundChannelPicker(usableChannels, selectedChannelId, (newId) => {
       selectedChannelId = newId;
@@ -1495,9 +1871,9 @@ async function loadPlaygroundModule() {
 
     const channelCard = el('div', { class: 'sim-card sim-channel-card' },
       el('div', { class: 'sim-card-header' },
-        el('h3', { class: 'sim-card-title' }, 'Canal de prueba'),
+        el('h3', { class: 'sim-card-title' }, t('dash.playground.testChannelTitle')),
         el('p', { class: 'sim-card-desc' },
-          'Selecciona un canal para previsualizar cómo respondería Purgito usando su generación espontánea.'
+          t('dash.playground.testChannelDesc')
         )
       ),
       el('div', { class: 'sim-channel-action-row' },
@@ -1522,15 +1898,15 @@ async function loadPlaygroundModule() {
       resultSlot.append(
         el('div', { class: 'sim-card sim-empty-ready-card' },
           el('div', { class: 'sim-empty-ready-icon' }, icon('play')),
-          el('h3', { class: 'sim-empty-ready-title' }, 'Listo para simular'),
+          el('h3', { class: 'sim-empty-ready-title' }, t('dash.playground.readyTitle')),
           el('p', { class: 'sim-empty-ready-desc' },
-            'Ejecuta una simulación para previsualizar una interacción espontánea de Purgito en este canal.'
+            t('dash.playground.readyDesc')
           ),
           el('button', {
             type: 'button',
             class: 'btn btn-primary sim-empty-action-btn',
             onclick: () => runSimulation(),
-          }, icon('play'), el('span', {}, 'Simular interacción'))
+          }, icon('play'), el('span', {}, t('dash.playground.simulate')))
         )
       );
     }
@@ -1538,21 +1914,21 @@ async function loadPlaygroundModule() {
     async function runSimulation() {
       if (isSubmitting) return;
       if (!selectedChannelId) {
-        toast('Selecciona un canal válido', 'warn');
+        toast(t('dash.playground.invalidChannel'), 'warn');
         return;
       }
 
       isSubmitting = true;
       refreshBtn.disabled = true;
       refreshBtn.innerHTML = '';
-      refreshBtn.append(spinner(), el('span', {}, 'Simulando…'));
+      refreshBtn.append(spinner(), el('span', {}, t('dash.playground.simulating')));
 
       // Solo cambia el resultado: loading localizado sin provocar scroll jumps ni recrear la página
       resultSlot.innerHTML = '';
       resultSlot.append(
         el('div', { class: 'sim-card sim-result-loading-card' },
           spinner(),
-          el('div', { class: 'sim-result-loading-text' }, 'Simulando interacción espontánea…')
+          el('div', { class: 'sim-result-loading-text' }, t('dash.playground.simulatingSpontaneous'))
         )
       );
 
@@ -1574,20 +1950,20 @@ async function loadPlaygroundModule() {
         rulesSlot.append(buildRulesSection(data));
       } catch (err) {
         resultSlot.innerHTML = '';
-        let errText = 'No fue posible simular la respuesta.';
+        let errText = t('dash.playground.errDefault');
         if (err && err.status === 403) {
-          errText = (err.data && err.data.error) || 'Purgito ya no tiene acceso a este canal o carece de permisos para ver y enviar mensajes.';
+          errText = (err.data && err.data.error) || t('dash.playground.err403');
         } else if (err && err.status === 400) {
-          errText = (err.data && err.data.error) || 'El canal seleccionado no es válido.';
+          errText = (err.data && err.data.error) || t('dash.playground.err400');
         } else if (err && err.status === 429) {
-          errText = 'Has realizado demasiadas simulaciones consecutivas. Espera unos momentos antes de intentar nuevamente.';
+          errText = t('dash.playground.err429');
         }
         toast(errText, 'err');
         resultSlot.append(
           el('div', { class: 'sim-error-card' },
             el('div', { class: 'sim-error-icon' }, icon('x')),
             el('div', { class: 'sim-error-content' },
-              el('h4', {}, 'Error al ejecutar la simulación'),
+              el('h4', {}, t('dash.playground.errTitle')),
               el('p', {}, errText)
             )
           )
@@ -1596,14 +1972,14 @@ async function loadPlaygroundModule() {
         isSubmitting = false;
         refreshBtn.disabled = false;
         refreshBtn.innerHTML = '';
-        refreshBtn.append(icon('play'), el('span', {}, 'Simular interacción'));
+        refreshBtn.append(icon('play'), el('span', {}, t('dash.playground.simulate')));
       }
     }
 
     container.append(headerBanner, channelCard, resultSlot, configSlot, rulesSlot);
 
     box.append(
-      formGroup('Simulador de Chat',
+      formGroup(t('dash.playground.title'),
         container
       )
     );
@@ -1612,6 +1988,105 @@ async function loadPlaygroundModule() {
     renderInitialEmptyState();
   } catch (e) { if (box) renderError(box, e); }
 }
+
+addStrings({
+  es: {
+    'dash.playground.mightSendGif': 'Purgito podría enviar un GIF:',
+    'dash.playground.gifAlt': 'GIF espontáneo',
+    'dash.playground.packTag': 'Pack: {pack}',
+    'dash.playground.frasePecial': 'Frase especial',
+    'dash.playground.mightReply': 'Purgito podría responder:',
+    'dash.playground.today': 'Hoy',
+    'dash.playground.textCopied': 'Texto copiado al portapapeles',
+    'dash.playground.copy': 'Copiar',
+    'dash.playground.noContentTitle': 'No se pudo generar contenido',
+    'dash.playground.noContentDesc': 'El servidor no cuenta con mensajes suficientes en el corpus para generar texto con Markov ni tiene frases disponibles.',
+    'dash.playground.resultTitle': 'Resultado simulado',
+    'dash.playground.gifSpontaneous': 'GIF espontáneo',
+    'dash.playground.messageSpontaneous': 'Mensaje espontáneo',
+    'dash.playground.generatedFor': 'Interacción generada para #{channel}:',
+    'dash.playground.thisChannel': 'este canal',
+    'dash.playground.configTitle': 'Configuración disponible',
+    'dash.playground.configDesc': 'Parámetros y recursos configurados en este servidor:',
+    'dash.playground.markovGeneration': 'Generación Markov',
+    'dash.playground.corpusActive': 'Corpus activo',
+    'dash.playground.corpusInactive': 'Corpus inactivo',
+    'dash.playground.messagesLearned': 'Mensajes aprendidos:',
+    'dash.playground.channelVsTotal': '{channel} en canal / {total} total',
+    'dash.playground.spontaneousCadence': 'Cadencia espontánea:',
+    'dash.playground.everyNMsgs': 'Cada {n} msgs ({pct}%)',
+    'dash.playground.messagePacks': 'Packs de mensajes',
+    'dash.playground.defaultPool': 'Pool por defecto',
+    'dash.playground.disabled': 'Desactivado',
+    'dash.playground.fraseProbability': 'Probabilidad de frases:',
+    'dash.playground.packsInServer': 'Packs en el servidor:',
+    'dash.playground.configuredCount': '{count} configurados',
+    'dash.playground.enabled': 'Habilitados',
+    'dash.playground.disabledPlural': 'Desactivados',
+    'dash.playground.gifsInCatalog': 'GIFs en catálogo:',
+    'dash.playground.savedCount': '{count} guardados',
+    'dash.playground.gifProbability': 'Probabilidad de GIF:',
+    'dash.playground.inThisChannel': '{count} en este canal',
+    'dash.playground.actionLabel': 'Acción: {action}',
+    'dash.playground.noTriggersHere': 'Sin triggers en este canal',
+    'dash.playground.autoReactions': 'Reacciones automáticas',
+    'dash.playground.enabledFem': 'Habilitadas',
+    'dash.playground.disabledFem': 'Desactivadas',
+    'dash.playground.emojiPool': 'Emojis en pool:',
+    'dash.playground.emojiPoolValue': '{count} emojis ({pct}%)',
+    'dash.playground.appliesToMembers': 'Aplican a mensajes de miembros',
+    'dash.playground.rulesEvaluated': 'Reglas evaluadas',
+    'dash.playground.rulesDesc': 'Condiciones y políticas verificadas para la generación espontánea:',
+  },
+  en: {
+    'dash.playground.mightSendGif': 'Purgito might send a GIF:',
+    'dash.playground.gifAlt': 'Spontaneous GIF',
+    'dash.playground.packTag': 'Pack: {pack}',
+    'dash.playground.frasePecial': 'Special phrase',
+    'dash.playground.mightReply': 'Purgito might reply:',
+    'dash.playground.today': 'Today',
+    'dash.playground.textCopied': 'Text copied to clipboard',
+    'dash.playground.copy': 'Copy',
+    'dash.playground.noContentTitle': 'Could not generate content',
+    'dash.playground.noContentDesc': "The server doesn't have enough messages in its corpus to generate Markov text, and no phrases are available either.",
+    'dash.playground.resultTitle': 'Simulated result',
+    'dash.playground.gifSpontaneous': 'Spontaneous GIF',
+    'dash.playground.messageSpontaneous': 'Spontaneous message',
+    'dash.playground.generatedFor': 'Interaction generated for #{channel}:',
+    'dash.playground.thisChannel': 'this channel',
+    'dash.playground.configTitle': 'Available configuration',
+    'dash.playground.configDesc': 'Parameters and resources configured on this server:',
+    'dash.playground.markovGeneration': 'Markov generation',
+    'dash.playground.corpusActive': 'Corpus active',
+    'dash.playground.corpusInactive': 'Corpus inactive',
+    'dash.playground.messagesLearned': 'Messages learned:',
+    'dash.playground.channelVsTotal': '{channel} in channel / {total} total',
+    'dash.playground.spontaneousCadence': 'Spontaneous cadence:',
+    'dash.playground.everyNMsgs': 'Every {n} msgs ({pct}%)',
+    'dash.playground.messagePacks': 'Message packs',
+    'dash.playground.defaultPool': 'Default pool',
+    'dash.playground.disabled': 'Disabled',
+    'dash.playground.fraseProbability': 'Phrase probability:',
+    'dash.playground.packsInServer': 'Packs on the server:',
+    'dash.playground.configuredCount': '{count} configured',
+    'dash.playground.enabled': 'Enabled',
+    'dash.playground.disabledPlural': 'Disabled',
+    'dash.playground.gifsInCatalog': 'GIFs in catalog:',
+    'dash.playground.savedCount': '{count} saved',
+    'dash.playground.gifProbability': 'GIF probability:',
+    'dash.playground.inThisChannel': '{count} in this channel',
+    'dash.playground.actionLabel': 'Action: {action}',
+    'dash.playground.noTriggersHere': 'No triggers in this channel',
+    'dash.playground.autoReactions': 'Automatic reactions',
+    'dash.playground.enabledFem': 'Enabled',
+    'dash.playground.disabledFem': 'Disabled',
+    'dash.playground.emojiPool': 'Emojis in pool:',
+    'dash.playground.emojiPoolValue': '{count} emojis ({pct}%)',
+    'dash.playground.appliesToMembers': "Applies to members' messages",
+    'dash.playground.rulesEvaluated': 'Rules evaluated',
+    'dash.playground.rulesDesc': 'Conditions and policies checked for spontaneous generation:',
+  },
+});
 
 function buildSimulationResultCard(data, styleRes) {
   const botNick = (styleRes && styleRes.current_nick) || 'Purgito';
@@ -1622,29 +2097,29 @@ function buildSimulationResultCard(data, styleRes) {
   let resultSectionBody;
   if (isGif) {
     resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría enviar un GIF:'),
+      el('div', { class: 'sim-result-lead-label' }, t('dash.playground.mightSendGif')),
       el('div', { class: 'sim-gif-hero-container' },
-        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: 'GIF espontáneo' })
+        el('img', { class: 'sim-gif-hero-image', src: data.gif_url, alt: t('dash.playground.gifAlt') })
       )
     );
   } else if (data.text) {
     let reasonTag = 'Markov';
     if (data.reason === 'frase_especial') {
       const packName = channelInfo.effective_pack_name;
-      reasonTag = packName ? `Pack: ${packName}` : 'Frase especial';
+      reasonTag = packName ? t('dash.playground.packTag', { pack: packName }) : t('dash.playground.frasePecial');
     } else if (data.reason === 'trigger') {
       reasonTag = 'Trigger';
     }
 
     resultSectionBody = el('div', { class: 'sim-single-result' },
-      el('div', { class: 'sim-result-lead-label' }, 'Purgito podría responder:'),
+      el('div', { class: 'sim-result-lead-label' }, t('dash.playground.mightReply')),
       el('div', { class: 'sim-discord-message' },
         el('img', { class: 'sim-discord-avatar', src: botAvatar, alt: botNick, onerror: (e) => { e.target.style.display = 'none'; } }),
         el('div', { class: 'sim-discord-content' },
           el('div', { class: 'sim-discord-author-row' },
             el('span', { class: 'sim-discord-author' }, botNick),
             el('span', { class: 'sim-discord-bot-badge' }, 'BOT'),
-            el('span', { class: 'sim-discord-timestamp' }, 'Hoy'),
+            el('span', { class: 'sim-discord-timestamp' }, t('dash.playground.today')),
             el('span', { class: 'sim-origin-badge' }, reasonTag)
           ),
           el('div', { class: 'sim-discord-text' }, data.text),
@@ -1654,9 +2129,9 @@ function buildSimulationResultCard(data, styleRes) {
               class: 'btn btn-secondary btn-sm',
               onclick: () => {
                 navigator.clipboard?.writeText(data.text || '');
-                toast('Texto copiado al portapapeles', 'ok');
+                toast(t('dash.playground.textCopied'), 'ok');
               },
-            }, icon('clipboard'), 'Copiar')
+            }, icon('clipboard'), t('dash.playground.copy'))
           )
         )
       )
@@ -1666,8 +2141,8 @@ function buildSimulationResultCard(data, styleRes) {
       el('div', { class: 'sim-error-card' },
         el('div', { class: 'sim-error-icon' }, icon('x')),
         el('div', { class: 'sim-error-content' },
-          el('h4', {}, 'No se pudo generar contenido'),
-          el('p', {}, 'El servidor no cuenta con mensajes suficientes en el corpus para generar texto con Markov ni tiene frases disponibles.')
+          el('h4', {}, t('dash.playground.noContentTitle')),
+          el('p', {}, t('dash.playground.noContentDesc'))
         )
       )
     );
@@ -1676,13 +2151,13 @@ function buildSimulationResultCard(data, styleRes) {
   return el('div', { class: 'sim-card sim-preview-card sim-hero-result-card' },
     el('div', { class: 'sim-card-header' },
       el('div', { class: 'sim-result-header-row' },
-        el('h3', { class: 'sim-card-title' }, 'Resultado simulado'),
+        el('h3', { class: 'sim-card-title' }, t('dash.playground.resultTitle')),
         el('span', { class: 'sim-pill-badge sim-pill-badge-cyan' },
-          isGif ? 'GIF espontáneo' : 'Mensaje espontáneo'
+          isGif ? t('dash.playground.gifSpontaneous') : t('dash.playground.messageSpontaneous')
         )
       ),
       el('p', { class: 'sim-card-desc' },
-        `Interacción generada para #${channelInfo.name || 'este canal'}:`
+        t('dash.playground.generatedFor', { channel: channelInfo.name || t('dash.playground.thisChannel') })
       )
     ),
     resultSectionBody
@@ -1705,8 +2180,8 @@ function buildConfigSection(data) {
 
   return el('div', { class: 'sim-section sim-config-section' },
     el('div', { class: 'sim-section-header' },
-      el('h4', { class: 'sim-section-title' }, 'Configuración disponible'),
-      el('p', { class: 'sim-section-desc' }, 'Parámetros y recursos configurados en este servidor:')
+      el('h4', { class: 'sim-section-title' }, t('dash.playground.configTitle')),
+      el('p', { class: 'sim-section-desc' }, t('dash.playground.configDesc'))
     ),
     el('div', { class: 'sim-config-grid' },
       // Markov
@@ -1714,20 +2189,20 @@ function buildConfigSection(data) {
         el('div', { class: 'sim-config-header' },
           el('div', { class: 'sim-config-title-group' },
             icon('corpus'),
-            el('span', { class: 'sim-config-title' }, 'Generación Markov')
+            el('span', { class: 'sim-config-title' }, t('dash.playground.markovGeneration'))
           ),
           el('span', { class: `sim-pill-badge ${corpusAllowed ? 'ok' : 'off'}` },
-            corpusAllowed ? 'Corpus activo' : 'Corpus inactivo'
+            corpusAllowed ? t('dash.playground.corpusActive') : t('dash.playground.corpusInactive')
           )
         ),
         el('div', { class: 'sim-config-body' },
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'Mensajes aprendidos:'),
-            el('span', { class: 'sim-stat-value' }, `${channelMsgs.toLocaleString()} en canal / ${guildMsgs.toLocaleString()} total`)
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.messagesLearned')),
+            el('span', { class: 'sim-stat-value' }, t('dash.playground.channelVsTotal', { channel: channelMsgs.toLocaleString(), total: guildMsgs.toLocaleString() }))
           ),
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'Cadencia espontánea:'),
-            el('span', { class: 'sim-stat-value' }, `Cada ${settings.auto_generate_every || 15} msgs (${Math.round((settings.auto_generate_probability || 0) * 100)}%)`)
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.spontaneousCadence')),
+            el('span', { class: 'sim-stat-value' }, t('dash.playground.everyNMsgs', { n: settings.auto_generate_every || 15, pct: Math.round((settings.auto_generate_probability || 0) * 100) }))
           )
         )
       ),
@@ -1737,20 +2212,20 @@ function buildConfigSection(data) {
         el('div', { class: 'sim-config-header' },
           el('div', { class: 'sim-config-title-group' },
             icon('layout'),
-            el('span', { class: 'sim-config-title' }, 'Packs de mensajes')
+            el('span', { class: 'sim-config-title' }, t('dash.playground.messagePacks'))
           ),
           el('span', { class: `sim-pill-badge ${fraseProb > 0 ? 'ok' : 'off'}` },
-            fraseProb > 0 ? (effectivePack ? `Pack: ${effectivePack}` : 'Pool por defecto') : 'Desactivado'
+            fraseProb > 0 ? (effectivePack ? t('dash.playground.packTag', { pack: effectivePack }) : t('dash.playground.defaultPool')) : t('dash.playground.disabled')
           )
         ),
         el('div', { class: 'sim-config-body' },
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'Probabilidad de frases:'),
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.fraseProbability')),
             el('span', { class: 'sim-stat-value' }, `${fraseProb}%`)
           ),
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'Packs en el servidor:'),
-            el('span', { class: 'sim-stat-value' }, `${(data.packs || []).length} configurados`)
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.packsInServer')),
+            el('span', { class: 'sim-stat-value' }, t('dash.playground.configuredCount', { count: (data.packs || []).length }))
           )
         )
       ),
@@ -1763,16 +2238,16 @@ function buildConfigSection(data) {
             el('span', { class: 'sim-config-title' }, 'GIFs')
           ),
           el('span', { class: `sim-pill-badge ${(gifTotal > 0 && gifProb > 0) ? 'ok' : 'off'}` },
-            (gifTotal > 0 && gifProb > 0) ? 'Habilitados' : 'Desactivados'
+            (gifTotal > 0 && gifProb > 0) ? t('dash.playground.enabled') : t('dash.playground.disabledPlural')
           )
         ),
         el('div', { class: 'sim-config-body' },
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'GIFs en catálogo:'),
-            el('span', { class: 'sim-stat-value' }, `${gifTotal.toLocaleString()} guardados`)
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.gifsInCatalog')),
+            el('span', { class: 'sim-stat-value' }, t('dash.playground.savedCount', { count: gifTotal.toLocaleString() }))
           ),
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'Probabilidad de GIF:'),
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.gifProbability')),
             el('span', { class: 'sim-stat-value' }, `${gifProb}%`)
           )
         )
@@ -1786,17 +2261,17 @@ function buildConfigSection(data) {
             el('span', { class: 'sim-config-title' }, 'Triggers')
           ),
           el('span', { class: `sim-pill-badge ${triggersList.length > 0 ? 'ok' : 'off'}` },
-            `${triggersList.length} en este canal`
+            t('dash.playground.inThisChannel', { count: triggersList.length })
           )
         ),
         el('div', { class: 'sim-config-body' },
           triggersList.length > 0
             ? el('div', { class: 'sim-trigger-chips' },
-                triggersList.slice(0, 3).map(t => el('span', { class: 'sim-trigger-chip', title: `Acción: ${t.action}` }, `"${t.pattern}"`)),
+                triggersList.slice(0, 3).map(trig => el('span', { class: 'sim-trigger-chip', title: t('dash.playground.actionLabel', { action: trig.action }) }, `"${trig.pattern}"`)),
                 triggersList.length > 3 ? el('span', { class: 'sim-trigger-chip-more' }, `+${triggersList.length - 3}`) : null
               )
             : el('div', { class: 'sim-config-stat' },
-                el('span', { class: 'sim-stat-label dim' }, 'Sin triggers en este canal')
+                el('span', { class: 'sim-stat-label dim' }, t('dash.playground.noTriggersHere'))
               )
         )
       ),
@@ -1806,19 +2281,19 @@ function buildConfigSection(data) {
         el('div', { class: 'sim-config-header' },
           el('div', { class: 'sim-config-title-group' },
             icon('smile'),
-            el('span', { class: 'sim-config-title' }, 'Reacciones automáticas')
+            el('span', { class: 'sim-config-title' }, t('dash.playground.autoReactions'))
           ),
           el('span', { class: `sim-pill-badge ${(reactionTotal > 0 && reactionProb > 0) ? 'ok' : 'off'}` },
-            (reactionTotal > 0 && reactionProb > 0) ? 'Habilitadas' : 'Desactivadas'
+            (reactionTotal > 0 && reactionProb > 0) ? t('dash.playground.enabledFem') : t('dash.playground.disabledFem')
           )
         ),
         el('div', { class: 'sim-config-body' },
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label' }, 'Emojis en pool:'),
-            el('span', { class: 'sim-stat-value' }, `${reactionTotal} emojis (${reactionProb}%)`)
+            el('span', { class: 'sim-stat-label' }, t('dash.playground.emojiPool')),
+            el('span', { class: 'sim-stat-value' }, t('dash.playground.emojiPoolValue', { count: reactionTotal, pct: reactionProb }))
           ),
           el('div', { class: 'sim-config-stat' },
-            el('span', { class: 'sim-stat-label dim', style: 'font-size: 11px;' }, 'Aplican a mensajes de miembros')
+            el('span', { class: 'sim-stat-label dim', style: 'font-size: 11px;' }, t('dash.playground.appliesToMembers'))
           )
         )
       )
@@ -1830,9 +2305,9 @@ function buildRulesSection(data) {
   const rulesList = Array.isArray(data.rules_evaluated) ? data.rules_evaluated : [];
   return el('div', { class: 'sim-card sim-rules-card' },
     el('div', { class: 'sim-card-header' },
-      el('h3', { class: 'sim-card-title' }, 'Reglas evaluadas'),
+      el('h3', { class: 'sim-card-title' }, t('dash.playground.rulesEvaluated')),
       el('p', { class: 'sim-card-desc' },
-        'Condiciones y políticas verificadas para la generación espontánea:'
+        t('dash.playground.rulesDesc')
       )
     ),
     el('div', { class: 'sim-rules-list' },
@@ -1848,14 +2323,61 @@ function buildRulesSection(data) {
   );
 }
 
+addStrings({
+  es: {
+    'dash.updates.defaultTitle': 'Actualizaciones del Bot',
+    'dash.updates.defaultSubtitle': 'Canal donde Purgito publica anuncios y novedades de actualizaciones.',
+    'dash.updates.noChannelOption': 'Sin canal — no publicar',
+    'dash.updates.noChannelPill': '⚪ Sin canal configurado',
+    'dash.updates.noChannelDesc': 'Las novedades y anuncios oficiales del bot no se publicarán en este servidor.',
+    'dash.updates.healthyPill': '🟢 Canal configurado y operativo',
+    'dash.updates.healthyDesc': 'Purgito tiene permisos suficientes para publicar novedades en #{channel}.',
+    'dash.updates.missingPermsPill': '🟠 Permisos insuficientes',
+    'dash.updates.missingPermsDesc': 'Purgito no puede publicar en #{channel} porque faltan permisos en Discord:',
+    'dash.updates.permViewChannel': 'Ver canal',
+    'dash.updates.permSendMessages': 'Enviar mensajes',
+    'dash.updates.grantPermsHelp': 'Concede estos permisos en los ajustes de canal o rol de Purgito en Discord para activar las actualizaciones.',
+    'dash.updates.notFoundPill': '🔴 Canal eliminado o inaccesible',
+    'dash.updates.notFoundDesc': 'El canal configurado (ID: {channelId}) ya no existe en el servidor o fue eliminado. Selecciona un canal válido.',
+    'dash.updates.invalidTypePill': '🔴 Tipo de canal no compatible',
+    'dash.updates.invalidTypeDesc': 'El canal seleccionado no admite mensajes de texto.',
+    'dash.updates.channelSaved': 'Canal de actualizaciones guardado',
+    'dash.updates.channelRemoved': 'Canal de actualizaciones quitado',
+    'dash.updates.saveError': 'No se pudo guardar el canal, intenta de nuevo',
+    'dash.updates.viewSendPerms': 'Ver canal / Enviar mensajes',
+  },
+  en: {
+    'dash.updates.defaultTitle': 'Bot Updates',
+    'dash.updates.defaultSubtitle': "Channel where Purgito posts announcements and update news.",
+    'dash.updates.noChannelOption': 'No channel — do not post',
+    'dash.updates.noChannelPill': '⚪ No channel configured',
+    'dash.updates.noChannelDesc': "The bot's official updates and announcements won't be posted on this server.",
+    'dash.updates.healthyPill': '🟢 Channel configured and working',
+    'dash.updates.healthyDesc': 'Purgito has sufficient permissions to post updates in #{channel}.',
+    'dash.updates.missingPermsPill': '🟠 Insufficient permissions',
+    'dash.updates.missingPermsDesc': "Purgito can't post in #{channel} because it's missing permissions in Discord:",
+    'dash.updates.permViewChannel': 'View channel',
+    'dash.updates.permSendMessages': 'Send messages',
+    'dash.updates.grantPermsHelp': "Grant these permissions in Purgito's channel or role settings in Discord to enable updates.",
+    'dash.updates.notFoundPill': '🔴 Channel deleted or inaccessible',
+    'dash.updates.notFoundDesc': 'The configured channel (ID: {channelId}) no longer exists on the server, or was deleted. Select a valid channel.',
+    'dash.updates.invalidTypePill': '🔴 Unsupported channel type',
+    'dash.updates.invalidTypeDesc': "The selected channel doesn't support text messages.",
+    'dash.updates.channelSaved': 'Updates channel saved',
+    'dash.updates.channelRemoved': 'Updates channel removed',
+    'dash.updates.saveError': 'Could not save the channel, try again',
+    'dash.updates.viewSendPerms': 'View channel / Send messages',
+  },
+});
+
 export function createUpdatesSection(initialUpdates, channels, {
-  title = 'Actualizaciones del Bot',
-  subtitle = 'Canal donde Purgito publica anuncios y novedades de actualizaciones.',
+  title = t('dash.updates.defaultTitle'),
+  subtitle = t('dash.updates.defaultSubtitle'),
 } = {}) {
   let currentUpdates = initialUpdates || {};
   let currentChannelId = currentUpdates.channel_id || '';
 
-  const sel = channelSelect(channels, currentChannelId, 'Sin canal — no publicar');
+  const sel = channelSelect(channels, currentChannelId, t('dash.updates.noChannelOption'));
   const statusWrap = el('div', { class: 'updates-status-card' });
 
   function renderStatus(info) {
@@ -1864,14 +2386,14 @@ export function createUpdatesSection(initialUpdates, channels, {
     const chName = info.channel_name || ((Array.isArray(channels) ? channels : []).find(c => c && String(c.id) === String(info.channel_id)) || {}).name || info.channel_id;
 
     let pillClass = 'updates-status-pill--neutral';
-    let pillText = '⚪ Sin canal configurado';
-    let descText = 'Las novedades y anuncios oficiales del bot no se publicarán en este servidor.';
+    let pillText = t('dash.updates.noChannelPill');
+    let descText = t('dash.updates.noChannelDesc');
     const extraNodes = [];
 
     if (status === 'healthy') {
       pillClass = 'updates-status-pill--healthy';
-      pillText = '🟢 Canal configurado y operativo';
-      descText = `Purgito tiene permisos suficientes para publicar novedades en #${chName || 'este canal'}.`;
+      pillText = t('dash.updates.healthyPill');
+      descText = t('dash.updates.healthyDesc', { channel: chName || t('dash.playground.thisChannel') });
       if (Array.isArray(info.warnings) && info.warnings.length) {
         extraNodes.push(
           el('div', { class: 'updates-warnings-wrap dim' },
@@ -1881,27 +2403,27 @@ export function createUpdatesSection(initialUpdates, channels, {
       }
     } else if (status === 'missing_permissions') {
       pillClass = 'updates-status-pill--warning';
-      pillText = '🟠 Permisos insuficientes';
-      descText = `Purgito no puede publicar en #${chName || 'este canal'} porque faltan permisos en Discord:`;
+      pillText = t('dash.updates.missingPermsPill');
+      descText = t('dash.updates.missingPermsDesc', { channel: chName || t('dash.playground.thisChannel') });
       const missingLabels = Array.isArray(info.missing_permissions_labels) && info.missing_permissions_labels.length
         ? info.missing_permissions_labels
-        : ['Ver canal', 'Enviar mensajes'];
+        : [t('dash.updates.permViewChannel'), t('dash.updates.permSendMessages')];
       extraNodes.push(
         el('div', { class: 'updates-perms-list' },
           ...missingLabels.map(lbl => el('span', { class: 'updates-perm-tag' }, lbl))
         ),
         el('p', { class: 'updates-help-text dim' },
-          'Concede estos permisos en los ajustes de canal o rol de Purgito en Discord para activar las actualizaciones.'
+          t('dash.updates.grantPermsHelp')
         )
       );
     } else if (status === 'not_found') {
       pillClass = 'updates-status-pill--error';
-      pillText = '🔴 Canal eliminado o inaccesible';
-      descText = `El canal configurado (ID: ${info.channel_id || currentChannelId}) ya no existe en el servidor o fue eliminado. Selecciona un canal válido.`;
+      pillText = t('dash.updates.notFoundPill');
+      descText = t('dash.updates.notFoundDesc', { channelId: info.channel_id || currentChannelId });
     } else if (status === 'invalid_type') {
       pillClass = 'updates-status-pill--error';
-      pillText = '🔴 Tipo de canal no compatible';
-      descText = info.details || 'El canal seleccionado no admite mensajes de texto.';
+      pillText = t('dash.updates.invalidTypePill');
+      descText = info.details || t('dash.updates.invalidTypeDesc');
     }
 
     const pill = el('span', { class: `updates-status-pill ${pillClass}` }, pillText);
@@ -1935,15 +2457,15 @@ export function createUpdatesSection(initialUpdates, channels, {
         details: res.details,
       };
       renderStatus(currentUpdates);
-      toast(selectedId ? 'Canal de actualizaciones guardado' : 'Canal de actualizaciones quitado', 'ok');
+      toast(selectedId ? t('dash.updates.channelSaved') : t('dash.updates.channelRemoved'), 'ok');
     } catch (e) {
-      toast(e.message || 'No se pudo guardar el canal, intenta de nuevo', 'err');
+      toast(e.message || t('dash.updates.saveError'), 'err');
       sel.value = currentChannelId || '';
       if (e.status === 400 && e.message) {
         renderStatus({
           channel_id: selectedId,
           status: 'missing_permissions',
-          missing_permissions_labels: ['Ver canal / Enviar mensajes'],
+          missing_permissions_labels: [t('dash.updates.viewSendPerms')],
           details: e.message,
         });
       }
@@ -1959,6 +2481,29 @@ export function createUpdatesSection(initialUpdates, channels, {
 
   return formGroup(title, row, statusWrap);
 }
+
+addStrings({
+  es: {
+    'dash.updates.moduleTitle': 'Canal de Novedades y Actualizaciones',
+    'dash.updates.moduleSubtitle': 'Elige el canal donde Purgito publicará avisos de novedades, notas de versiones y anuncios importantes.',
+    'dash.triggers.moduleTitle': 'Triggers de canal',
+    'dash.triggers.moduleDesc': 'Si un mensaje recibido coincide con el patrón configurado, Purgito responderá automáticamente sin esperar una mención.',
+    'dash.reacciones.moduleTitle': 'Reacciones automáticas',
+    'dash.reacciones.moduleDesc': 'Configura la probabilidad y la colección de emojis con los que Purgito puede reaccionar a los mensajes del chat.',
+    'dash.reacciones.probLabel': 'Probabilidad de reaccionar con un emoji',
+    'dash.reacciones.emojiCollectionLabel': 'Colección de emojis',
+  },
+  en: {
+    'dash.updates.moduleTitle': 'Updates Channel',
+    'dash.updates.moduleSubtitle': 'Choose the channel where Purgito will post update notices, release notes, and important announcements.',
+    'dash.triggers.moduleTitle': 'Channel Triggers',
+    'dash.triggers.moduleDesc': "If an incoming message matches the configured pattern, Purgito will reply automatically without waiting for a mention.",
+    'dash.reacciones.moduleTitle': 'Automatic Reactions',
+    'dash.reacciones.moduleDesc': "Set the probability and the collection of emojis Purgito can use to react to chat messages.",
+    'dash.reacciones.probLabel': 'Probability of reacting with an emoji',
+    'dash.reacciones.emojiCollectionLabel': 'Emoji collection',
+  },
+});
 
 async function loadUpdatesModule() {
   const box = content();
@@ -1976,8 +2521,8 @@ async function loadUpdatesModule() {
 
     box.append(
       createUpdatesSection(updates, channels, {
-        title: 'Canal de Novedades y Actualizaciones',
-        subtitle: 'Elige el canal donde Purgito publicará avisos de novedades, notas de versiones y anuncios importantes.',
+        title: t('dash.updates.moduleTitle'),
+        subtitle: t('dash.updates.moduleSubtitle'),
       })
     );
   } catch (e) { if (box) renderError(box, e); }
@@ -2003,9 +2548,9 @@ async function loadTriggersModule() {
     renderTriggers(triggersBox, triggers, channels || [], packsList);
 
     box.append(
-      formGroup('Triggers de canal',
+      formGroup(t('dash.triggers.moduleTitle'),
         el('p', { class: 'dim' },
-          'Si un mensaje recibido coincide con el patrón configurado, Purgito responderá automáticamente sin esperar una mención.'
+          t('dash.triggers.moduleDesc')
         ),
         triggersBox
       )
@@ -2032,20 +2577,41 @@ async function loadReaccionesModule() {
     renderReacciones(reaccionesBox, reactionsList);
 
     box.append(
-      formGroup('Reacciones automáticas',
-        el('p', { class: 'dim' }, 'Configura la probabilidad y la colección de emojis con los que Purgito puede reaccionar a los mensajes del chat.'),
-        probabilityField('Probabilidad de reaccionar con un emoji', null, {
+      formGroup(t('dash.reacciones.moduleTitle'),
+        el('p', { class: 'dim' }, t('dash.reacciones.moduleDesc')),
+        probabilityField(t('dash.reacciones.probLabel'), null, {
           key: 'reaction_probability',
           value: chat ? chat.reaction_probability : 0,
         }),
         el('div', { class: 'field' },
-          el('label', {}, 'Colección de emojis'),
+          el('label', {}, t('dash.reacciones.emojiCollectionLabel')),
           reaccionesBox
         )
       )
     );
   } catch (e) { if (box) renderError(box, e); }
 }
+
+addStrings({
+  es: {
+    'dash.frasesModule.title': 'Frases especiales',
+    'dash.frasesModule.desc': 'Frases predefinidas que Purgito puede intercalar en sus respuestas o mediante triggers.',
+    'dash.frasesModule.dynamicVars': 'Variables dinámicas disponibles en frases',
+    'dash.frasesModule.packsTitle': 'Paquetes de frases (Packs)',
+    'dash.frasesModule.packsDesc': 'Agrupa frases temáticas para asignarlas a canales específicos o dispararlas mediante triggers.',
+    'dash.frasesModule.channelsAccordion': 'Canales donde pueden salir frases especiales generales',
+    'dash.frasesModule.noChannelsSelected': 'Sin canales específicos seleccionados: pueden salir en cualquiera.',
+  },
+  en: {
+    'dash.frasesModule.title': 'Special phrases',
+    'dash.frasesModule.desc': 'Predefined phrases Purgito can mix into its replies or trigger through triggers.',
+    'dash.frasesModule.dynamicVars': 'Dynamic variables available in phrases',
+    'dash.frasesModule.packsTitle': 'Phrase packs',
+    'dash.frasesModule.packsDesc': 'Group themed phrases to assign them to specific channels or trigger them through triggers.',
+    'dash.frasesModule.channelsAccordion': 'Channels where general special phrases can appear',
+    'dash.frasesModule.noChannelsSelected': 'No specific channels selected: they can appear in any channel.',
+  },
+});
 
 async function loadFrasesModule() {
   const box = content();
@@ -2076,20 +2642,20 @@ async function loadFrasesModule() {
       '{{channel.mention}}', '{{guild.name}}', '{{markov.word}}', '{{markov.sentence}}'];
 
     box.append(
-      formGroup('Frases especiales',
-        el('p', { class: 'dim' }, 'Frases predefinidas que Purgito puede intercalar en sus respuestas o mediante triggers.'),
+      formGroup(t('dash.frasesModule.title'),
+        el('p', { class: 'dim' }, t('dash.frasesModule.desc')),
         frasesBox,
-        accordionGroup('Variables dinámicas disponibles en frases', false,
+        accordionGroup(t('dash.frasesModule.dynamicVars'), false,
           el('div', { class: 'tag-list' },
-            TAGS.map(t => el('code', { class: 'cmd' }, t))
+            TAGS.map(tag => el('code', { class: 'cmd' }, tag))
           )
         )
       ),
-      formGroup('Paquetes de frases (Packs)',
-        el('p', { class: 'dim' }, 'Agrupa frases temáticas para asignarlas a canales específicos o dispararlas mediante triggers.'),
+      formGroup(t('dash.frasesModule.packsTitle'),
+        el('p', { class: 'dim' }, t('dash.frasesModule.packsDesc')),
         packsBox
       ),
-      accordionGroup('Canales donde pueden salir frases especiales generales', false,
+      accordionGroup(t('dash.frasesModule.channelsAccordion'), false,
         channelToggleList({
           channels: channels || [],
           isSelected: id => fraseChannelsSelected.has(id),
@@ -2105,12 +2671,75 @@ async function loadFrasesModule() {
             });
             fraseChannelsSelected.delete(ch.id);
           },
-          listBelow: 'Sin canales específicos seleccionados: pueden salir en cualquiera.',
+          listBelow: t('dash.frasesModule.noChannelsSelected'),
         })
       )
     );
   } catch (e) { if (box) renderError(box, e); }
 }
+
+addStrings({
+  es: {
+    'dash.canalesModule.colSpeakShort': 'Habla',
+    'dash.canalesModule.colSpeakOn': 'habla por su cuenta acá',
+    'dash.canalesModule.colSpeakOff': 'ya no habla solo acá',
+    'dash.canalesModule.colSpeakHelp': 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
+    'dash.canalesModule.colReplyShort': 'Responde',
+    'dash.canalesModule.colReplyOn': 'responde menciones acá',
+    'dash.canalesModule.colReplyOff': 'ya no responde menciones acá',
+    'dash.canalesModule.colReplyHelp': 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
+    'dash.canalesModule.colLearnShort': 'Aprende',
+    'dash.canalesModule.colLearnOn': 'aprende de acá',
+    'dash.canalesModule.colLearnOff': 'ya no aprende de acá',
+    'dash.canalesModule.colLearnHelp': 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
+    'dash.canalesModule.ovrEvery': 'Cada cuántos mensajes',
+    'dash.canalesModule.ovrEverySuffix': 'mensajes',
+    'dash.canalesModule.ovrTalkProb': 'Probabilidad de hablar',
+    'dash.canalesModule.ovrGifProb': 'Responde con GIF',
+    'dash.canalesModule.ovrFraseProb': 'Usa una frase especial',
+    'dash.canalesModule.ovrReactionProb': 'Reacciona con emoji',
+    'dash.canalesModule.ovrMentionLimit': 'Menciones por hora',
+    'dash.canalesModule.ovrMentionLimitSuffix': 'por usuario',
+    'dash.canalesModule.matrixTitle': 'Matriz de canales',
+    'dash.canalesModule.silencedOne': 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.',
+    'dash.canalesModule.silencedMany': 'Hay {count} canales silenciados desde /settings: quedan fuera aunque los marques acá.',
+    'dash.canalesModule.exemptionsTitle': 'Exenciones de límites',
+    'dash.canalesModule.exemptRolesLabel': 'Roles exentos de límites de menciones',
+    'dash.canalesModule.noExemptRoles': 'Ningún rol exento: el límite aplica a todos por igual.',
+    'dash.canalesModule.exemptChannelsLabel': 'Canales exentos de límites de menciones',
+    'dash.canalesModule.noExemptChannels': 'Ningún canal exento: el límite aplica en todos.',
+  },
+  en: {
+    'dash.canalesModule.colSpeakShort': 'Speaks',
+    'dash.canalesModule.colSpeakOn': 'speaks on its own here',
+    'dash.canalesModule.colSpeakOff': 'no longer speaks on its own here',
+    'dash.canalesModule.colSpeakHelp': "Purgito can start a conversation on its own in this channel. With no channel checked, it can do so in all of them.",
+    'dash.canalesModule.colReplyShort': 'Replies',
+    'dash.canalesModule.colReplyOn': 'replies to mentions here',
+    'dash.canalesModule.colReplyOff': 'no longer replies to mentions here',
+    'dash.canalesModule.colReplyHelp': "Purgito replies when mentioned in this channel. With no channel checked, it replies in all of them.",
+    'dash.canalesModule.colLearnShort': 'Learns',
+    'dash.canalesModule.colLearnOn': 'learns from here',
+    'dash.canalesModule.colLearnOff': 'no longer learns from here',
+    'dash.canalesModule.colLearnHelp': "Purgito saves messages from this channel to build its style. With no channel checked, it doesn't learn from any.",
+    'dash.canalesModule.ovrEvery': 'Every how many messages',
+    'dash.canalesModule.ovrEverySuffix': 'messages',
+    'dash.canalesModule.ovrTalkProb': 'Probability of speaking',
+    'dash.canalesModule.ovrGifProb': 'Replies with GIF',
+    'dash.canalesModule.ovrFraseProb': 'Uses a special phrase',
+    'dash.canalesModule.ovrReactionProb': 'Reacts with emoji',
+    'dash.canalesModule.ovrMentionLimit': 'Mentions per hour',
+    'dash.canalesModule.ovrMentionLimitSuffix': 'per user',
+    'dash.canalesModule.matrixTitle': 'Channel matrix',
+    'dash.canalesModule.silencedOne': "There's 1 channel muted via /settings: it stays excluded even if you check it here.",
+    'dash.canalesModule.silencedMany': 'There are {count} channels muted via /settings: they stay excluded even if you check them here.',
+    'dash.canalesModule.exemptionsTitle': 'Limit exemptions',
+    'dash.canalesModule.exemptRolesLabel': 'Roles exempt from mention limits',
+    'dash.canalesModule.noExemptRoles': 'No role exempt: the limit applies equally to everyone.',
+    'dash.canalesModule.exemptChannelsLabel': 'Channels exempt from mention limits',
+    'dash.canalesModule.noExemptChannels': 'No channel exempt: the limit applies to all of them.',
+  },
+});
 
 async function loadCanalesModule() {
   const box = content();
@@ -2138,8 +2767,8 @@ async function loadCanalesModule() {
 
     const cols = [
       {
-        short: 'Habla', onLabel: 'habla por su cuenta acá', offLabel: 'ya no habla solo acá',
-        help: 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
+        short: t('dash.canalesModule.colSpeakShort'), onLabel: t('dash.canalesModule.colSpeakOn'), offLabel: t('dash.canalesModule.colSpeakOff'),
+        help: t('dash.canalesModule.colSpeakHelp'),
         isSelected: id => spontaneousSelected.has(id),
         add: async ch => {
           await apiFetch(`/api/server/${GUILD_ID}/settings/spontaneous-channels`, {
@@ -2153,8 +2782,8 @@ async function loadCanalesModule() {
         },
       },
       {
-        short: 'Responde', onLabel: 'responde menciones acá', offLabel: 'ya no responde menciones acá',
-        help: 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
+        short: t('dash.canalesModule.colReplyShort'), onLabel: t('dash.canalesModule.colReplyOn'), offLabel: t('dash.canalesModule.colReplyOff'),
+        help: t('dash.canalesModule.colReplyHelp'),
         isSelected: id => mentionSelected.has(id),
         add: async ch => {
           await apiFetch(`/api/server/${GUILD_ID}/settings/mention-channels`, {
@@ -2168,8 +2797,8 @@ async function loadCanalesModule() {
         },
       },
       {
-        short: 'Aprende', onLabel: 'aprende de acá', offLabel: 'ya no aprende de acá',
-        help: 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
+        short: t('dash.canalesModule.colLearnShort'), onLabel: t('dash.canalesModule.colLearnOn'), offLabel: t('dash.canalesModule.colLearnOff'),
+        help: t('dash.canalesModule.colLearnHelp'),
         isSelected: id => corpusSelected.has(id),
         add: async ch => {
           await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
@@ -2192,32 +2821,32 @@ async function loadCanalesModule() {
       panel.append(
         el('div', { class: 'ovr-grid' },
           channelOverrideRow(ch.id, {
-            key: 'auto_generate_every', label: 'Cada cuántos mensajes', kind: 'number',
+            key: 'auto_generate_every', label: t('dash.canalesModule.ovrEvery'), kind: 'number',
             effective: eff.auto_generate_every, override: ov.auto_generate_every,
             min: rng('auto_generate_every', [1])[0], max: rng('auto_generate_every', [null, 1000])[1],
-            suffix: 'mensajes',
+            suffix: t('dash.canalesModule.ovrEverySuffix'),
           }),
           channelOverrideRow(ch.id, {
-            key: 'auto_generate_probability', label: 'Probabilidad de hablar', kind: 'percent',
+            key: 'auto_generate_probability', label: t('dash.canalesModule.ovrTalkProb'), kind: 'percent',
             effective: eff.auto_generate_probability, override: ov.auto_generate_probability, suffix: '%',
           }),
           channelOverrideRow(ch.id, {
-            key: 'gif_response_probability', label: 'Responde con GIF', kind: 'percent',
+            key: 'gif_response_probability', label: t('dash.canalesModule.ovrGifProb'), kind: 'percent',
             effective: eff.gif_response_probability, override: ov.gif_response_probability, suffix: '%',
           }),
           channelOverrideRow(ch.id, {
-            key: 'frase_probability', label: 'Usa una frase especial', kind: 'percent',
+            key: 'frase_probability', label: t('dash.canalesModule.ovrFraseProb'), kind: 'percent',
             effective: eff.frase_probability, override: ov.frase_probability, suffix: '%',
           }),
           channelOverrideRow(ch.id, {
-            key: 'reaction_probability', label: 'Reacciona con emoji', kind: 'percent',
+            key: 'reaction_probability', label: t('dash.canalesModule.ovrReactionProb'), kind: 'percent',
             effective: eff.reaction_probability, override: ov.reaction_probability, suffix: '%',
           }),
           channelOverrideRow(ch.id, {
-            key: 'mention_rate_limit', label: 'Menciones por hora', kind: 'number',
+            key: 'mention_rate_limit', label: t('dash.canalesModule.ovrMentionLimit'), kind: 'number',
             effective: eff.mention_rate_limit, override: ov.mention_rate_limit,
             min: rng('mention_rate_limit', [0])[0], max: rng('mention_rate_limit', [null, 1000])[1],
-            suffix: 'por usuario',
+            suffix: t('dash.canalesModule.ovrMentionLimitSuffix'),
           })
         )
       );
@@ -2229,17 +2858,17 @@ async function loadCanalesModule() {
     const exemptChannelsSelected = new Set(((exemptChans && exemptChans.channels) || []).map(c => c.id));
 
     box.append(
-      formGroup('Matriz de canales',
+      formGroup(t('dash.canalesModule.matrixTitle'),
         ignoredSet.size
           ? el('p', { class: 'dim' }, ignoredSet.size === 1
-            ? 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.'
-            : `Hay ${ignoredSet.size} canales silenciados desde /settings: quedan fuera aunque los marques acá.`)
+            ? t('dash.canalesModule.silencedOne')
+            : t('dash.canalesModule.silencedMany', { count: ignoredSet.size }))
           : null,
         matrixNode
       ),
-      formGroup('Exenciones de límites',
+      formGroup(t('dash.canalesModule.exemptionsTitle'),
         el('div', { class: 'field' },
-          el('label', {}, 'Roles exentos de límites de menciones'),
+          el('label', {}, t('dash.canalesModule.exemptRolesLabel')),
           roleToggleList({
             roles,
             selected: exemptSelected,
@@ -2255,11 +2884,11 @@ async function loadCanalesModule() {
               });
               exemptSelected.delete(role.id);
             },
-            listBelow: 'Ningún rol exento: el límite aplica a todos por igual.',
+            listBelow: t('dash.canalesModule.noExemptRoles'),
           })
         ),
         el('div', { class: 'field' },
-          el('label', {}, 'Canales exentos de límites de menciones'),
+          el('label', {}, t('dash.canalesModule.exemptChannelsLabel')),
           channelToggleList({
             channels,
             isSelected: id => exemptChannelsSelected.has(id),
@@ -2275,7 +2904,7 @@ async function loadCanalesModule() {
               });
               exemptChannelsSelected.delete(ch.id);
             },
-            listBelow: 'Ningún canal exento: el límite aplica en todos.',
+            listBelow: t('dash.canalesModule.noExemptChannels'),
           })
         )
       )

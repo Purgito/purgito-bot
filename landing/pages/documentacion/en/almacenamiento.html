@@ -1,0 +1,46 @@
+<h1>Storage</h1>
+<p>All of Purgito's state lives in a single SQLite database —
+<code>data/bot.db</code> — with no external database engine. Binary
+files (GIFs, images) optionally go to Cloudflare R2.</p>
+
+<h2 id="sqlite">SQLite</h2>
+<p>A schema of several dozen tables, almost all indexed by
+<code>guild_id</code>: per-server configuration, message corpus (by
+channel and by user), configurable reactions and special phrases,
+triggers, saved GIFs and images, embed templates, scheduled
+announcements, Premium status, revoked sessions, and an audit log
+of changes made from the dashboard. Separation between servers is by
+schema — indexed <code>guild_id</code> columns — not by separate
+files or databases.</p>
+
+<h2 id="r2">R2</h2>
+<p>Using Cloudflare R2 is entirely optional: if it's not configured,
+Purgito keeps working and uses Discord/Giphy/Tenor URLs directly instead of
+keeping its own copy. When it's active, GIFs are
+downloaded (with protections against the URL pointing to an internal
+network), optimized, and stored keyed by the hash of their content —
+so the same GIF uploaded by two different servers takes up a single object,
+with reference counting to know when it's safe to actually delete it. Embed
+editor images, on the other hand, are stored per server, not
+shared across servers.</p>
+
+<h2 id="cache">Cache</h2>
+<p>All of Purgito's caching lives in the process's own memory — there's no
+Redis or any external cache — so it's lost entirely on every
+restart. This includes the Markov models already trained per server and
+per user, the list of servers each logged-in user can administer,
+and the files uploaded to a "File" block in the embed editor while
+waiting for someone to hit "send" (with a short lifetime, designed for a
+single process — it wouldn't survive running several
+instances of the bot at once).</p>
+
+<h2 id="retention">Data retention</h2>
+<p>A periodic task runs once a day handling time-based
+retention: when the bot leaves a server, its data isn't deleted right
+away — it's marked and only purged after a grace
+period (if the server re-invites the bot before then, the purge is
+canceled). The same task cleans up old audit log entries, expired
+shareable embed links, and revoked sessions that have already expired.</p>
+<p>The message corpus itself has no age-based expiration while the
+server stays active — it's trimmed only by capacity, not by
+age (see <a href="/en/documentation/generation#concurrency-and-limits">Generation engine</a>).</p>

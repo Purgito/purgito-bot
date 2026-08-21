@@ -40,7 +40,9 @@ def test_db_crud_excluded_users(memory_db):
         assert not await db.is_user_excluded_from_learning(guild1, user1)
 
         # Agregar exclusion completa
-        saved = await db.set_user_exclusion(guild1, user1, exclude_interaction=True, exclude_learning=True)
+        saved = await db.set_user_exclusion(
+            guild1, user1, exclude_interaction=True, exclude_learning=True
+        )
         assert saved["exclude_interaction"] is True
         assert saved["exclude_learning"] is True
 
@@ -53,7 +55,9 @@ def test_db_crud_excluded_users(memory_db):
         assert await db.is_user_excluded_from_learning(guild2, user1) is False
 
         # Agregar solo interaccion para user2
-        await db.set_user_exclusion(guild1, user2, exclude_interaction=True, exclude_learning=False)
+        await db.set_user_exclusion(
+            guild1, user2, exclude_interaction=True, exclude_learning=False
+        )
         assert await db.is_user_excluded_from_interaction(guild1, user2) is True
         assert await db.is_user_excluded_from_learning(guild1, user2) is False
 
@@ -64,7 +68,9 @@ def test_db_crud_excluded_users(memory_db):
         assert user1 in uids and user2 in uids
 
         # Actualizar user1 a solo aprendizaje
-        await db.set_user_exclusion(guild1, user1, exclude_interaction=False, exclude_learning=True)
+        await db.set_user_exclusion(
+            guild1, user1, exclude_interaction=False, exclude_learning=True
+        )
         exc1 = await db.get_user_exclusion(guild1, user1)
         assert exc1 is not None
         assert exc1["exclude_interaction"] is False
@@ -76,7 +82,9 @@ def test_db_crud_excluded_users(memory_db):
         assert await db.is_user_excluded_from_learning(guild1, user1) is False
 
         # Desactivar ambos flags auto-elimina
-        await db.set_user_exclusion(guild1, user2, exclude_interaction=False, exclude_learning=False)
+        await db.set_user_exclusion(
+            guild1, user2, exclude_interaction=False, exclude_learning=False
+        )
         assert await db.get_user_exclusion(guild1, user2) is None
 
     asyncio.run(_run())
@@ -90,10 +98,38 @@ def test_corpus_filtering_when_user_excluded_from_learning(memory_db):
         user_excluded = 4002
 
         # Guardar mensajes previos de ambos usuarios
-        await db.save_corpus_and_user_message(guild_id, channel_id, user_normal, "UserNormal", "primer mensaje normal de prueba", message_id=101)
-        await db.save_corpus_and_user_message(guild_id, channel_id, user_normal, "UserNormal", "segundo mensaje normal de prueba", message_id=102)
-        await db.save_corpus_and_user_message(guild_id, channel_id, user_excluded, "UsuarioExcluido", "primer mensaje prohibido para aprender", message_id=103)
-        await db.save_corpus_and_user_message(guild_id, channel_id, user_excluded, "UsuarioExcluido", "segundo mensaje prohibido para aprender", message_id=104)
+        await db.save_corpus_and_user_message(
+            guild_id,
+            channel_id,
+            user_normal,
+            "UserNormal",
+            "primer mensaje normal de prueba",
+            message_id=101,
+        )
+        await db.save_corpus_and_user_message(
+            guild_id,
+            channel_id,
+            user_normal,
+            "UserNormal",
+            "segundo mensaje normal de prueba",
+            message_id=102,
+        )
+        await db.save_corpus_and_user_message(
+            guild_id,
+            channel_id,
+            user_excluded,
+            "UsuarioExcluido",
+            "primer mensaje prohibido para aprender",
+            message_id=103,
+        )
+        await db.save_corpus_and_user_message(
+            guild_id,
+            channel_id,
+            user_excluded,
+            "UsuarioExcluido",
+            "segundo mensaje prohibido para aprender",
+            message_id=104,
+        )
 
         # Sin exclusion: aparecen todos
         msgs = await db.get_corpus_messages(guild_id)
@@ -103,7 +139,9 @@ def test_corpus_filtering_when_user_excluded_from_learning(memory_db):
         assert await db.count_user_messages(guild_id, user_excluded) == 2
 
         # Excluir a user_excluded de aprendizaje
-        await db.set_user_exclusion(guild_id, user_excluded, exclude_interaction=False, exclude_learning=True)
+        await db.set_user_exclusion(
+            guild_id, user_excluded, exclude_interaction=False, exclude_learning=True
+        )
 
         # Con exclusion: los mensajes de user_excluded se filtran dinamicamente (sin borrarlos fisicamente)
         msgs_filtered = await db.get_corpus_messages(guild_id)
@@ -127,7 +165,9 @@ def test_purge_guild_data_removes_excluded_users(memory_db):
     async def _run():
         guild_id = 9999
         user_id = 8888
-        await db.set_user_exclusion(guild_id, user_id, exclude_interaction=True, exclude_learning=True)
+        await db.set_user_exclusion(
+            guild_id, user_id, exclude_interaction=True, exclude_learning=True
+        )
         assert await db.get_user_exclusion(guild_id, user_id) is not None
 
         await db.purge_guild_data(guild_id)
@@ -143,7 +183,9 @@ def test_save_message_to_corpus_blocks_learning_excluded_user(memory_db):
         guild_id = 5001
         user_id = 6001
 
-        await db.set_user_exclusion(guild_id, user_id, exclude_interaction=False, exclude_learning=True)
+        await db.set_user_exclusion(
+            guild_id, user_id, exclude_interaction=False, exclude_learning=True
+        )
 
         msg = MagicMock()
         msg.id = 991
@@ -170,7 +212,9 @@ def test_on_message_blocks_interaction_excluded_user(memory_db):
         user_id = 6002
         channel_id = 7002
 
-        await db.set_user_exclusion(guild_id, user_id, exclude_interaction=True, exclude_learning=False)
+        await db.set_user_exclusion(
+            guild_id, user_id, exclude_interaction=True, exclude_learning=False
+        )
 
         channel = MagicMock()
         channel.id = channel_id
@@ -187,12 +231,21 @@ def test_on_message_blocks_interaction_excluded_user(memory_db):
         msg.raw_mentions = [12345]
         msg.reference = None
 
-        with patch("cogs.chat.is_channel_ignored", new_callable=AsyncMock, return_value=False), \
-             patch("cogs.chat.is_corpus_allowed", new_callable=AsyncMock, return_value=True), \
-             patch.object(cog, "_handle_trigger", new_callable=AsyncMock) as mock_trigger, \
-             patch.object(msg, "add_reaction", new_callable=AsyncMock) as mock_react, \
-             patch.object(msg, "reply", new_callable=AsyncMock) as mock_reply:
-
+        with (
+            patch(
+                "cogs.chat.is_channel_ignored",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                "cogs.chat.is_corpus_allowed", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                cog, "_handle_trigger", new_callable=AsyncMock
+            ) as mock_trigger,
+            patch.object(msg, "add_reaction", new_callable=AsyncMock) as mock_react,
+            patch.object(msg, "reply", new_callable=AsyncMock) as mock_reply,
+        ):
             await cog._on_message_impl(msg)
 
             # No debe responder ni reaccionar ni evaluar triggers
@@ -210,6 +263,7 @@ def test_on_message_blocks_interaction_excluded_user(memory_db):
 def test_simulator_reports_excluded_user_avisos(memory_db):
     async def _run():
         from cogs.chat import _entrega_avisos
+
         guild_id = 8001
         channel_id = 9001
         user_id = 7001
@@ -225,7 +279,9 @@ def test_simulator_reports_excluded_user_avisos(memory_db):
         assert "usuario_excluido_aprendizaje" not in avisos
 
         # Con ambas exclusiones
-        await db.set_user_exclusion(guild_id, user_id, exclude_interaction=True, exclude_learning=True)
+        await db.set_user_exclusion(
+            guild_id, user_id, exclude_interaction=True, exclude_learning=True
+        )
         avisos_exc = await _entrega_avisos(guild_id, channel_id, user_id, settings)
         assert "usuario_excluido_interaccion" in avisos_exc
         assert "usuario_excluido_aprendizaje" in avisos_exc
@@ -238,7 +294,9 @@ def test_imitar_command_with_learning_excluded_user(memory_db):
         guild_id = 3333
         author_id = 4444
 
-        await db.set_user_exclusion(guild_id, author_id, exclude_interaction=False, exclude_learning=True)
+        await db.set_user_exclusion(
+            guild_id, author_id, exclude_interaction=False, exclude_learning=True
+        )
         result = await generation.generate_markov_for_user(guild_id, author_id)
         assert result is None
 
@@ -253,7 +311,9 @@ def test_memes_interaction_exclusion(memory_db):
         guild_id = 4444
         user_id = 5555
 
-        await db.set_user_exclusion(guild_id, user_id, exclude_interaction=True, exclude_learning=False)
+        await db.set_user_exclusion(
+            guild_id, user_id, exclude_interaction=True, exclude_learning=False
+        )
 
         # Mensaje con trigger de meme
         msg = MagicMock()
@@ -262,7 +322,9 @@ def test_memes_interaction_exclusion(memory_db):
         msg.guild.id = guild_id
         msg.content = "purgito momo"
 
-        with patch("cogs.memes.handle_meme_command", new_callable=AsyncMock) as mock_momo:
+        with patch(
+            "cogs.memes.handle_meme_command", new_callable=AsyncMock
+        ) as mock_momo:
             await cog.on_message(msg)
             mock_momo.assert_not_called()
 
@@ -314,14 +376,20 @@ def test_webapi_excluded_users_endpoints(memory_db):
 
             async def json_data():
                 return body
+
             req.json = json_data
             return req
 
-        with patch("webapi._session_logged_in", new_callable=AsyncMock, return_value=True), \
-             patch("webapi.check_guild_access", new_callable=AsyncMock, return_value=None), \
-             patch("webapi._bot_guild", return_value=guild), \
-             patch("webapi._log_audit", new_callable=AsyncMock):
-
+        with (
+            patch(
+                "webapi._session_logged_in", new_callable=AsyncMock, return_value=True
+            ),
+            patch(
+                "webapi.check_guild_access", new_callable=AsyncMock, return_value=None
+            ),
+            patch("webapi._bot_guild", return_value=guild),
+            patch("webapi._log_audit", new_callable=AsyncMock),
+        ):
             # 1. GET inicial
             req_get = make_req("GET", f"/api/server/{guild_id}/settings/excluded-users")
             res_get = await webapi._api_excluded_users_get(req_get)
@@ -333,7 +401,11 @@ def test_webapi_excluded_users_endpoints(memory_db):
             req_post = make_req(
                 "POST",
                 f"/api/server/{guild_id}/settings/excluded-users",
-                body={"user_id": user_id, "exclude_interaction": True, "exclude_learning": True}
+                body={
+                    "user_id": user_id,
+                    "exclude_interaction": True,
+                    "exclude_learning": True,
+                },
             )
             res_post = await webapi._api_excluded_users_post(req_post)
             assert res_post.status == 200
@@ -347,7 +419,7 @@ def test_webapi_excluded_users_endpoints(memory_db):
                 "PUT",
                 f"/api/server/{guild_id}/settings/excluded-users/{user_id}",
                 body={"exclude_interaction": False, "exclude_learning": True},
-                match_info={"guild_id": str(guild_id), "user_id": str(user_id)}
+                match_info={"guild_id": str(guild_id), "user_id": str(user_id)},
             )
             res_put = await webapi._api_excluded_users_put(req_put)
             assert res_put.status == 200
@@ -373,7 +445,7 @@ def test_webapi_excluded_users_endpoints(memory_db):
             req_del = make_req(
                 "DELETE",
                 f"/api/server/{guild_id}/settings/excluded-users/{user_id}",
-                match_info={"guild_id": str(guild_id), "user_id": str(user_id)}
+                match_info={"guild_id": str(guild_id), "user_id": str(user_id)},
             )
             res_del = await webapi._api_excluded_users_delete(req_del)
             assert res_del.status == 200

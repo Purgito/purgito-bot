@@ -22,7 +22,9 @@ from cogs.memes import _generate_caption, generate_groq_meme_caption
 def test_groq_absent_returns_none(monkeypatch):
     """Si no hay cliente Groq configurado, generate_groq_meme_caption retorna None inmediatamente."""
     monkeypatch.setattr(memes_mod, "_groq_client", None)
-    caption = asyncio.run(generate_groq_meme_caption(b"fake_image_bytes", ["hola", "mundo"], guild_id=100))
+    caption = asyncio.run(
+        generate_groq_meme_caption(b"fake_image_bytes", ["hola", "mundo"], guild_id=100)
+    )
     assert caption is None
 
 
@@ -70,7 +72,9 @@ def test_fallback_to_markov_when_groq_fails_or_rate_limited(monkeypatch):
     monkeypatch.setattr(memes_mod, "build_markov_model", fake_build_markov)
     monkeypatch.setattr(memes_mod, "_try_short_sentence", fake_short_sentence)
 
-    caption = asyncio.run(_generate_caption(456, b"\x89PNG\r\n\x1a\nfake", ["un mensaje"]))
+    caption = asyncio.run(
+        _generate_caption(456, b"\x89PNG\r\n\x1a\nfake", ["un mensaje"])
+    )
     assert caption == "caption de rescate markov"
 
 
@@ -81,24 +85,29 @@ def test_groq_sample_is_strictly_bounded_and_never_sends_full_corpus(monkeypatch
 
     async def fake_create(**kwargs):
         captured_payload.update(kwargs)
-        choice = SimpleNamespace(message=SimpleNamespace(content="caption generado por groq"))
+        choice = SimpleNamespace(
+            message=SimpleNamespace(content="caption generado por groq")
+        )
         return SimpleNamespace(choices=[choice])
 
     fake_groq = SimpleNamespace(
-        chat=SimpleNamespace(
-            completions=SimpleNamespace(create=fake_create)
-        )
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
     )
     monkeypatch.setattr(memes_mod, "_groq_client", fake_groq)
     monkeypatch.setattr(memes_mod, "_groq_cooldowns", {})
 
     # Crear 100 mensajes cortos (<= 5 palabras) y 100 mensajes largos (> 5 palabras)
     short_corpus = [f"corto {i}" for i in range(100)]
-    long_corpus = [f"este es un mensaje bastante largo numero {i} para el corpus" for i in range(100)]
+    long_corpus = [
+        f"este es un mensaje bastante largo numero {i} para el corpus"
+        for i in range(100)
+    ]
     full_corpus = short_corpus + long_corpus
 
     img_bytes = b"\x89PNG\r\n\x1a\nfake_image_content"
-    caption = asyncio.run(generate_groq_meme_caption(img_bytes, full_corpus, guild_id=789))
+    caption = asyncio.run(
+        generate_groq_meme_caption(img_bytes, full_corpus, guild_id=789)
+    )
 
     assert caption == "caption generado por groq"
     assert captured_payload["model"] == "meta-llama/llama-4-scout-17b-16e-instruct"
@@ -122,9 +131,14 @@ def test_groq_sample_is_strictly_bounded_and_never_sends_full_corpus(monkeypatch
 
     # Los primeros 15 largos deben estar presentes
     for i in range(15):
-        assert f"este es un mensaje bastante largo numero {i} para el corpus" in prompt_text
+        assert (
+            f"este es un mensaje bastante largo numero {i} para el corpus"
+            in prompt_text
+        )
     # El largo 16 NO debe estar presente
-    assert "este es un mensaje bastante largo numero 15 para el corpus" not in prompt_text
+    assert (
+        "este es un mensaje bastante largo numero 15 para el corpus" not in prompt_text
+    )
 
 
 def test_no_contradictory_privacy_claims_in_landing_or_docs():
@@ -140,7 +154,9 @@ def test_no_contradictory_privacy_claims_in_landing_or_docs():
     for html_file in landing_es.rglob("*.html"):
         content = html_file.read_text("utf-8")
         for pattern in forbidden_patterns:
-            assert pattern not in content, f"Patrón prohibido '{pattern}' encontrado en {html_file}"
+            assert pattern not in content, (
+                f"Patrón prohibido '{pattern}' encontrado en {html_file}"
+            )
 
     # Verificar que la política de privacidad explique adecuadamente a Groq
     privacy_html = (landing_es / "privacidad" / "index.html").read_text("utf-8")

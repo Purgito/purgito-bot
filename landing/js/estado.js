@@ -1,6 +1,93 @@
 // /es/estado — Monitoreo de estado en vivo de Purgito.
 // Script self-contained con DOM nativo, sin dependencias de bundler.
 
+import { t, addStrings } from './core/i18n.js';
+
+addStrings({
+  es: {
+    'estado.outage': 'Interrupción',
+    'estado.serviceOutage': 'Interrupción del servicio',
+    'estado.cantConnect': 'No se puede establecer conexión con los servidores de Purgito.',
+    'estado.disconnected': 'Desconectado',
+    'estado.noServerResponse': 'Sin respuesta del servidor',
+    'estado.noResponse': 'Sin respuesta',
+    'estado.webNotResponding': 'El servidor web no responde',
+    'estado.unknown': 'Desconocido',
+    'estado.unreachable': 'Inaccesible',
+    'estado.activeIncidentTitle': 'Incidente activo: API inaccesible',
+    'estado.activeIncidentDesc': 'No se ha podido consultar el estado de la API de Purgito. Es posible que el servicio esté experimentando una interrupción.',
+    'estado.connectionError': 'Error de conexión',
+    'estado.updatedAt': 'Actualizado a las {time}',
+    'estado.operational': 'Operativo',
+    'estado.allSystemsOperational': 'Todos los sistemas operativos',
+    'estado.allSubsystemsNormal': 'Purgito y todos sus subsistemas están funcionando con normalidad.',
+    'estado.degraded': 'Degradado',
+    'estado.degradedPerformance': 'Rendimiento degradado',
+    'estado.gatewayIssues': 'El bot está activo pero la conexión con el Gateway de Discord presenta problemas.',
+    'estado.connected': 'Conectado',
+    'estado.disconnectedShort': 'Sin conexión',
+    'estado.gatewayActive': 'Conexión activa con Discord Gateway · Eventos y chat en vivo',
+    'estado.gatewayDown': 'Sin conexión con el Gateway de Discord',
+    'estado.aiohttpActive': 'Servidor aiohttp activo · purgito.app',
+    'estado.normal': 'Normal',
+    'estado.engineDetail': 'Cadenas de Markov, generador de memes y tareas de fondo',
+    'estado.noIncidents': 'Sin incidentes reportados',
+    'estado.allComponentsUptime': 'Todos los componentes han operado continuamente desde el último inicio del proceso ({uptime} activo).',
+    'estado.incidentGatewayTitle': 'Incidente: Gateway de Discord no responde',
+    'estado.incidentGatewayDesc': 'El servidor web está en línea pero se ha perdido el latido WebSocket con Discord.',
+    'estado.checkingServer': 'Consultando servidor…',
+    'estado.serverNotFound': 'Servidor no encontrado',
+    'estado.serverNotFoundDesc': 'Purgito no está presente en ese servidor o la ID ingresada no es válida.',
+    'estado.online': '● En línea',
+    'estado.memberCount': '{count} miembros',
+    'estado.premium': 'Premium',
+    'estado.rateLimited': 'Demasiadas consultas seguidas — espera un momento antes de volver a intentar.',
+    'estado.checkFailed': 'No se pudo completar la comprobación del servidor.',
+    'estado.invalidGuildId': 'Ingresa una ID de servidor válida (solo números, entre 5 y 25 dígitos).',
+  },
+  en: {
+    'estado.outage': 'Outage',
+    'estado.serviceOutage': 'Service outage',
+    'estado.cantConnect': 'Unable to connect to Purgito’s servers.',
+    'estado.disconnected': 'Disconnected',
+    'estado.noServerResponse': 'No response from the server',
+    'estado.noResponse': 'No response',
+    'estado.webNotResponding': 'The web server is not responding',
+    'estado.unknown': 'Unknown',
+    'estado.unreachable': 'Unreachable',
+    'estado.activeIncidentTitle': 'Active incident: API unreachable',
+    'estado.activeIncidentDesc': 'Purgito’s API status could not be checked. The service may be experiencing an outage.',
+    'estado.connectionError': 'Connection error',
+    'estado.updatedAt': 'Updated at {time}',
+    'estado.operational': 'Operational',
+    'estado.allSystemsOperational': 'All systems operational',
+    'estado.allSubsystemsNormal': 'Purgito and all its subsystems are running normally.',
+    'estado.degraded': 'Degraded',
+    'estado.degradedPerformance': 'Degraded performance',
+    'estado.gatewayIssues': 'The bot is active but the connection to Discord’s Gateway is having issues.',
+    'estado.connected': 'Connected',
+    'estado.disconnectedShort': 'Disconnected',
+    'estado.gatewayActive': 'Active connection to Discord Gateway · Live events and chat',
+    'estado.gatewayDown': 'No connection to Discord’s Gateway',
+    'estado.aiohttpActive': 'aiohttp server active · purgito.app',
+    'estado.normal': 'Normal',
+    'estado.engineDetail': 'Markov chains, meme generator, and background tasks',
+    'estado.noIncidents': 'No incidents reported',
+    'estado.allComponentsUptime': 'All components have been running continuously since the last process start ({uptime} uptime).',
+    'estado.incidentGatewayTitle': 'Incident: Discord Gateway not responding',
+    'estado.incidentGatewayDesc': 'The web server is online but the WebSocket heartbeat with Discord has been lost.',
+    'estado.checkingServer': 'Checking server…',
+    'estado.serverNotFound': 'Server not found',
+    'estado.serverNotFoundDesc': 'Purgito isn’t in that server, or the ID entered is not valid.',
+    'estado.online': '● Online',
+    'estado.memberCount': '{count} members',
+    'estado.premium': 'Premium',
+    'estado.rateLimited': 'Too many requests in a row — wait a moment before trying again.',
+    'estado.checkFailed': 'Could not complete the server check.',
+    'estado.invalidGuildId': 'Enter a valid server ID (numbers only, between 5 and 25 digits).',
+  },
+});
+
 const REFRESH_MS = 30000;
 
 function fmtUptime(seconds) {
@@ -84,39 +171,39 @@ async function loadStatus() {
   } catch (e) {
     // Falla total de conectividad con la API
     setDot(globalDot, 'down');
-    setBadge(globalBadge, 'Interrupción', 'down');
-    if (globalTitle) globalTitle.textContent = 'Interrupción del servicio';
-    if (globalDesc) globalDesc.textContent = 'No se puede establecer conexión con los servidores de Purgito.';
+    setBadge(globalBadge, t('estado.outage'), 'down');
+    if (globalTitle) globalTitle.textContent = t('estado.serviceOutage');
+    if (globalDesc) globalDesc.textContent = t('estado.cantConnect');
 
     setDot(dotBot, 'down');
-    setBadge(badgeBot, 'Desconectado', 'down');
-    if (botDetail) botDetail.textContent = 'Sin respuesta del servidor';
+    setBadge(badgeBot, t('estado.disconnected'), 'down');
+    if (botDetail) botDetail.textContent = t('estado.noServerResponse');
 
     setDot(dotWeb, 'down');
-    setBadge(badgeWeb, 'Sin respuesta', 'down');
-    if (webDetail) webDetail.textContent = 'El servidor web no responde';
+    setBadge(badgeWeb, t('estado.noResponse'), 'down');
+    if (webDetail) webDetail.textContent = t('estado.webNotResponding');
 
     setDot(dotEngine, 'down');
-    setBadge(badgeEngine, 'Desconocido', 'down');
+    setBadge(badgeEngine, t('estado.unknown'), 'down');
 
     setDot(dotInfraDiscord, 'down');
-    setBadge(badgeInfraDiscord, 'Inaccesible', 'down');
+    setBadge(badgeInfraDiscord, t('estado.unreachable'), 'down');
 
     setDot(dotInfraHost, 'down');
-    setBadge(badgeInfraHost, 'Inaccesible', 'down');
+    setBadge(badgeInfraHost, t('estado.unreachable'), 'down');
 
     setDot(dotInfraDb, 'down');
-    setBadge(badgeInfraDb, 'Desconocido', 'down');
+    setBadge(badgeInfraDb, t('estado.unknown'), 'down');
 
     if (incidentCard) {
       incidentCard.classList.remove('is-ok', 'is-warn');
       incidentCard.classList.add('is-down');
     }
-    if (incidentTitle) incidentTitle.textContent = 'Incidente activo: API inaccesible';
-    if (incidentDesc) incidentDesc.textContent = 'No se ha podido consultar el estado de la API de Purgito. Es posible que el servicio esté experimentando una interrupción.';
-    if (incidentTag) setBadge(incidentTag, 'Interrupción', 'down');
+    if (incidentTitle) incidentTitle.textContent = t('estado.activeIncidentTitle');
+    if (incidentDesc) incidentDesc.textContent = t('estado.activeIncidentDesc');
+    if (incidentTag) setBadge(incidentTag, t('estado.outage'), 'down');
 
-    if (lastUpdate) lastUpdate.textContent = 'Error de conexión';
+    if (lastUpdate) lastUpdate.textContent = t('estado.connectionError');
     return;
   }
 
@@ -126,20 +213,20 @@ async function loadStatus() {
   const timeStr = now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   if (lastUpdate) {
-    lastUpdate.textContent = `Actualizado a las ${timeStr}`;
+    lastUpdate.textContent = t('estado.updatedAt', { time: timeStr });
   }
 
   // 1. Estado Global
   if (latencyOk) {
     setDot(globalDot, 'ok');
-    setBadge(globalBadge, 'Operativo', 'ok');
-    if (globalTitle) globalTitle.textContent = 'Todos los sistemas operativos';
-    if (globalDesc) globalDesc.textContent = 'Purgito y todos sus subsistemas están funcionando con normalidad.';
+    setBadge(globalBadge, t('estado.operational'), 'ok');
+    if (globalTitle) globalTitle.textContent = t('estado.allSystemsOperational');
+    if (globalDesc) globalDesc.textContent = t('estado.allSubsystemsNormal');
   } else {
     setDot(globalDot, 'warn');
-    setBadge(globalBadge, 'Degradado', 'warn');
-    if (globalTitle) globalTitle.textContent = 'Rendimiento degradado';
-    if (globalDesc) globalDesc.textContent = 'El bot está activo pero la conexión con el Gateway de Discord presenta problemas.';
+    setBadge(globalBadge, t('estado.degraded'), 'warn');
+    if (globalTitle) globalTitle.textContent = t('estado.degradedPerformance');
+    if (globalDesc) globalDesc.textContent = t('estado.gatewayIssues');
   }
 
   // Métricas de resumen
@@ -155,11 +242,11 @@ async function loadStatus() {
 
   // 2. Fila Bot de Discord
   setDot(dotBot, latencyOk ? 'ok' : 'down');
-  setBadge(badgeBot, latencyOk ? 'Conectado' : 'Sin conexión', latencyOk ? 'ok' : 'down');
+  setBadge(badgeBot, latencyOk ? t('estado.connected') : t('estado.disconnectedShort'), latencyOk ? 'ok' : 'down');
   if (botDetail) {
     botDetail.textContent = latencyOk
-      ? 'Conexión activa con Discord Gateway · Eventos y chat en vivo'
-      : 'Sin conexión con el Gateway de Discord';
+      ? t('estado.gatewayActive')
+      : t('estado.gatewayDown');
   }
   const elBotLatency = document.getElementById('estadoBotLatency');
   const elBotGuilds = document.getElementById('estadoBotGuilds');
@@ -170,8 +257,8 @@ async function loadStatus() {
 
   // 3. Fila Panel Web y API
   setDot(dotWeb, 'ok');
-  setBadge(badgeWeb, 'Operativo', 'ok');
-  if (webDetail) webDetail.textContent = 'Servidor aiohttp activo · purgito.app';
+  setBadge(badgeWeb, t('estado.operational'), 'ok');
+  if (webDetail) webDetail.textContent = t('estado.aiohttpActive');
   const elWebLatency = document.getElementById('estadoWebLatency');
   const elWebUptime = document.getElementById('estadoWebUptime');
   if (elWebLatency) elWebLatency.textContent = `${httpLatency} ms`;
@@ -179,8 +266,8 @@ async function loadStatus() {
 
   // 4. Fila Proceso y Memoria
   setDot(dotEngine, 'ok');
-  setBadge(badgeEngine, 'Normal', 'ok');
-  if (engineDetail) engineDetail.textContent = 'Cadenas de Markov, generador de memes y tareas de fondo';
+  setBadge(badgeEngine, t('estado.normal'), 'ok');
+  if (engineDetail) engineDetail.textContent = t('estado.engineDetail');
   const elEngineMemory = document.getElementById('estadoEngineMemory');
   const elEngineUptime = document.getElementById('estadoEngineUptime');
   if (elEngineMemory) elEngineMemory.textContent = fmtMemory(data.memory_mb);
@@ -188,35 +275,35 @@ async function loadStatus() {
 
   // 5. Infraestructura
   setDot(dotInfraDiscord, latencyOk ? 'ok' : 'down');
-  setBadge(badgeInfraDiscord, latencyOk ? 'Operativo' : 'Desconectado', latencyOk ? 'ok' : 'down');
+  setBadge(badgeInfraDiscord, latencyOk ? t('estado.operational') : t('estado.disconnected'), latencyOk ? 'ok' : 'down');
   const elInfraDiscordLat = document.getElementById('estadoInfraDiscordLatency');
   if (elInfraDiscordLat) elInfraDiscordLat.textContent = latencyOk ? `${data.latency_ms} ms` : '—';
 
   setDot(dotInfraHost, 'ok');
-  setBadge(badgeInfraHost, 'Operativo', 'ok');
+  setBadge(badgeInfraHost, t('estado.operational'), 'ok');
   const elInfraHostMem = document.getElementById('estadoInfraHostMem');
   if (elInfraHostMem) elInfraHostMem.textContent = fmtMemory(data.memory_mb);
 
   setDot(dotInfraDb, 'ok');
-  setBadge(badgeInfraDb, 'Operativo', 'ok');
+  setBadge(badgeInfraDb, t('estado.operational'), 'ok');
 
   // 6. Registro de incidentes
   if (incidentCard) {
     incidentCard.classList.remove('is-ok', 'is-warn', 'is-down');
     if (latencyOk) {
       incidentCard.classList.add('is-ok');
-      if (incidentTitle) incidentTitle.textContent = 'Sin incidentes reportados';
+      if (incidentTitle) incidentTitle.textContent = t('estado.noIncidents');
       if (incidentDesc) {
-        incidentDesc.textContent = `Todos los componentes han operado continuamente desde el último inicio del proceso (${fmtUptime(data.uptime_seconds)} activo).`;
+        incidentDesc.textContent = t('estado.allComponentsUptime', { uptime: fmtUptime(data.uptime_seconds) });
       }
-      if (incidentTag) setBadge(incidentTag, 'Operativo', 'ok');
+      if (incidentTag) setBadge(incidentTag, t('estado.operational'), 'ok');
     } else {
       incidentCard.classList.add('is-warn');
-      if (incidentTitle) incidentTitle.textContent = 'Incidente: Gateway de Discord no responde';
+      if (incidentTitle) incidentTitle.textContent = t('estado.incidentGatewayTitle');
       if (incidentDesc) {
-        incidentDesc.textContent = 'El servidor web está en línea pero se ha perdido el latido WebSocket con Discord.';
+        incidentDesc.textContent = t('estado.incidentGatewayDesc');
       }
-      if (incidentTag) setBadge(incidentTag, 'Degradado', 'warn');
+      if (incidentTag) setBadge(incidentTag, t('estado.degraded'), 'warn');
     }
   }
 }
@@ -230,7 +317,7 @@ function el(tag, className, text) {
 
 function renderSearchResult(box, guildId) {
   box.innerHTML = '';
-  box.append(el('p', 'estado-search-status', 'Consultando servidor…'));
+  box.append(el('p', 'estado-search-status', t('estado.checkingServer')));
 
   fetch(`/api/status/guild/${encodeURIComponent(guildId)}`)
     .then((resp) => {
@@ -243,8 +330,8 @@ function renderSearchResult(box, guildId) {
       if (!data.found) {
         const emptyBox = el('div', 'estado-result-empty');
         emptyBox.append(
-          el('strong', 'estado-result-empty-title', 'Servidor no encontrado'),
-          el('p', 'estado-search-status', 'Purgito no está presente en ese servidor o la ID ingresada no es válida.')
+          el('strong', 'estado-result-empty-title', t('estado.serverNotFound')),
+          el('p', 'estado-search-status', t('estado.serverNotFoundDesc'))
         );
         box.append(emptyBox);
         return;
@@ -259,15 +346,15 @@ function renderSearchResult(box, guildId) {
       const nameRow = el('div', 'estado-result-name-row');
       nameRow.append(el('strong', 'estado-result-name', data.name));
       if (data.premium) {
-        const badge = el('span', 'badge badge-premium', 'Premium');
+        const badge = el('span', 'badge badge-premium', t('estado.premium'));
         nameRow.append(badge);
       }
 
       const metaRow = el('div', 'estado-result-meta-row');
       metaRow.append(
-        el('span', 'estado-result-status-dot', '● En línea'),
+        el('span', 'estado-result-status-dot', t('estado.online')),
         el('span', 'estado-result-divider', '·'),
-        el('span', 'estado-result-members', `${fmtNumber(data.member_count)} miembros`)
+        el('span', 'estado-result-members', t('estado.memberCount', { count: fmtNumber(data.member_count) }))
       );
 
       copy.append(nameRow, metaRow);
@@ -277,8 +364,8 @@ function renderSearchResult(box, guildId) {
     .catch((e) => {
       box.innerHTML = '';
       const msg = e.message === 'rate-limit'
-        ? 'Demasiadas consultas seguidas — espera un momento antes de volver a intentar.'
-        : 'No se pudo completar la comprobación del servidor.';
+        ? t('estado.rateLimited')
+        : t('estado.checkFailed');
       const errBox = el('div', 'estado-result-empty');
       errBox.append(el('p', 'estado-search-status is-err', msg));
       box.append(errBox);
@@ -296,7 +383,7 @@ function setupSearch() {
     if (!/^\d{5,25}$/.test(id)) {
       result.innerHTML = '';
       const errBox = el('div', 'estado-result-empty');
-      errBox.append(el('p', 'estado-search-status is-err', 'Ingresa una ID de servidor válida (solo números, entre 5 y 25 dígitos).'));
+      errBox.append(el('p', 'estado-search-status is-err', t('estado.invalidGuildId')));
       result.append(errBox);
       return;
     }

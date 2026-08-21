@@ -68,7 +68,9 @@ class FakeChannel:
         self.sent_messages: list[dict] = []
 
     async def send(self, content=None, *, file=None, files=None, **kwargs):
-        self.sent_messages.append({"content": content, "file": file, "files": files, "kwargs": kwargs})
+        self.sent_messages.append(
+            {"content": content, "file": file, "files": files, "kwargs": kwargs}
+        )
         return SimpleNamespace(id=1, channel=self)
 
 
@@ -78,13 +80,17 @@ class FakeMessage:
         self.content = content
         self.guild = SimpleNamespace(id=guild_id, name="Guild")
         self.channel = FakeChannel(channel_id=channel_id)
-        self.author = SimpleNamespace(id=55, bot=False, display_name="user", mention="<@55>", roles=[])
+        self.author = SimpleNamespace(
+            id=55, bot=False, display_name="user", mention="<@55>", roles=[]
+        )
         self.raw_mentions = [9999]  # Mención al bot
         self.reference = None
         self.replies: list[dict] = []
 
     async def reply(self, content=None, *, file=None, files=None, **kwargs):
-        self.replies.append({"content": content, "file": file, "files": files, "kwargs": kwargs})
+        self.replies.append(
+            {"content": content, "file": file, "files": files, "kwargs": kwargs}
+        )
         return SimpleNamespace(id=2, channel=self.channel)
 
 
@@ -134,7 +140,9 @@ def test_fetch_gif_bytes_direct_tenor_url(monkeypatch):
 
     monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
 
-    data = asyncio.run(gifs_mod.fetch_gif_bytes("https://media1.tenor.com/m/abc/bombo.gif"))
+    data = asyncio.run(
+        gifs_mod.fetch_gif_bytes("https://media1.tenor.com/m/abc/bombo.gif")
+    )
     assert data == _VALID_GIF_BYTES
 
 
@@ -155,14 +163,23 @@ def test_fetch_gif_bytes_resolves_tenor_page_first(monkeypatch):
     monkeypatch.setattr(gifs_mod, "resolve_media_url", fake_resolve)
     monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
 
-    data = asyncio.run(gifs_mod.fetch_gif_bytes("https://tenor.com/view/mi-bombo-12345"))
+    data = asyncio.run(
+        gifs_mod.fetch_gif_bytes("https://tenor.com/view/mi-bombo-12345")
+    )
     assert data == _VALID_GIF_BYTES
 
 
 def test_fetch_gif_bytes_rejects_ssrf_and_invalid_hosts():
-    assert asyncio.run(gifs_mod.fetch_gif_bytes("http://127.0.0.1/internal.gif")) is None
-    assert asyncio.run(gifs_mod.fetch_gif_bytes("http://169.254.169.254/meta.gif")) is None
-    assert asyncio.run(gifs_mod.fetch_gif_bytes("https://attacker.site/malicious.gif")) is None
+    assert (
+        asyncio.run(gifs_mod.fetch_gif_bytes("http://127.0.0.1/internal.gif")) is None
+    )
+    assert (
+        asyncio.run(gifs_mod.fetch_gif_bytes("http://169.254.169.254/meta.gif")) is None
+    )
+    assert (
+        asyncio.run(gifs_mod.fetch_gif_bytes("https://attacker.site/malicious.gif"))
+        is None
+    )
 
 
 def test_fetch_gif_bytes_rejects_non_gif_bytes(monkeypatch):
@@ -177,7 +194,10 @@ def test_fetch_gif_bytes_rejects_non_gif_bytes(monkeypatch):
             pass
 
     monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
-    assert asyncio.run(gifs_mod.fetch_gif_bytes("https://media.tenor.com/fake.gif")) is None
+    assert (
+        asyncio.run(gifs_mod.fetch_gif_bytes("https://media.tenor.com/fake.gif"))
+        is None
+    )
 
 
 # ─── Tests de Memoria LRU Cache ──────────────────────────────────────────────
@@ -235,7 +255,11 @@ def test_get_live_gif_from_r2_storage(memory_db, monkeypatch):
     async def run():
         # Guardar GIF con content_hash (subido a R2)
         content_hash = "f" * 64
-        await db.save_gif_url(_GUILD, f"https://cdn.example.com/gifs/ff/{content_hash}.gif", content_hash=content_hash)
+        await db.save_gif_url(
+            _GUILD,
+            f"https://cdn.example.com/gifs/ff/{content_hash}.gif",
+            content_hash=content_hash,
+        )
 
         monkeypatch.setattr(r2, "available", lambda: True)
         monkeypatch.setattr(r2, "get_object_bytes_sync", lambda key: _VALID_GIF_BYTES)
@@ -273,12 +297,16 @@ def test_chat_spontaneous_sends_gif_as_attachment_not_url(memory_db, monkeypatch
         monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_effective)
         monkeypatch.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
         monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_true())
-        monkeypatch.setattr(chat_mod, "list_spontaneous_channels", lambda *a: _async_list())
+        monkeypatch.setattr(
+            chat_mod, "list_spontaneous_channels", lambda *a: _async_list()
+        )
         monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
         monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
         monkeypatch.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
         monkeypatch.setattr(chat_mod, "_check_spontaneous_cooldown", lambda *a: True)
-        monkeypatch.setattr(chat_mod.generation, "note_message_for_auto_generate", lambda *a, **k: True)
+        monkeypatch.setattr(
+            chat_mod.generation, "note_message_for_auto_generate", lambda *a, **k: True
+        )
 
         async def fake_get_live_gif(guild_id):
             return discord.File(io.BytesIO(_VALID_GIF_BYTES), filename="purgito.gif")
@@ -365,6 +393,7 @@ def test_chat_mention_sends_gif_as_attachment_not_url(memory_db, monkeypatch):
 def test_chat_forbidden_attachment_falls_back_to_text_cleanly(memory_db, monkeypatch):
     """Si Discord rechaza el attachment (ej. falta permiso attach_files), el bot
     cae limpiamente a generación de texto y NUNCA envía la URL como texto."""
+
     async def run():
         chat_mod._muted_reply_cooldowns.clear()
         chat_mod._recent_message_ids.clear()
@@ -412,7 +441,9 @@ def test_chat_forbidden_attachment_falls_back_to_text_cleanly(memory_db, monkeyp
                     raise discord.Forbidden(resp, "Missing Permissions: Attach Files")
                 self.replies.append({"content": content, "file": None})
 
-        msg = FailingReplyMessage(content="hola <@9999>", channel_id=10, guild_id=_GUILD)
+        msg = FailingReplyMessage(
+            content="hola <@9999>", channel_id=10, guild_id=_GUILD
+        )
         msg.raw_mentions = [9999]
 
         await chat_cog.on_message(msg)

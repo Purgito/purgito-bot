@@ -200,9 +200,27 @@ def test_refeed_channels_summary_complete_with_gifs_multiple_channels(monkeypatc
     monkeypatch.setattr(chat_mod, "list_corpus_channels", fake_list_channels)
 
     results = {
-        101: {"saved": 30, "gifs_saved": 2, "backfill_complete": True, "was_incremental": False, "forbidden": False},
-        102: {"saved": 31, "gifs_saved": 1, "backfill_complete": True, "was_incremental": False, "forbidden": False},
-        103: {"saved": 20, "gifs_saved": 1, "backfill_complete": True, "was_incremental": False, "forbidden": False},
+        101: {
+            "saved": 30,
+            "gifs_saved": 2,
+            "backfill_complete": True,
+            "was_incremental": False,
+            "forbidden": False,
+        },
+        102: {
+            "saved": 31,
+            "gifs_saved": 1,
+            "backfill_complete": True,
+            "was_incremental": False,
+            "forbidden": False,
+        },
+        103: {
+            "saved": 20,
+            "gifs_saved": 1,
+            "backfill_complete": True,
+            "was_incremental": False,
+            "forbidden": False,
+        },
     }
 
     async def fake_refeed_channel(gid, channel, max_msgs):
@@ -312,7 +330,9 @@ def test_refeed_channels_summary_single_gif_singular(monkeypatch):
 
     progress_msg_es = _FakeProgressMessage()
     asyncio.run(chat._refeed_guild(guild, progress_msg_es, None))
-    assert "Aprendí de 10 mensajes en 1 canal y guardé 1 GIF." in progress_msg_es.edits[-1]
+    assert (
+        "Aprendí de 10 mensajes en 1 canal y guardé 1 GIF." in progress_msg_es.edits[-1]
+    )
 
     async def fake_locale_en(gid):
         return "en"
@@ -320,7 +340,10 @@ def test_refeed_channels_summary_single_gif_singular(monkeypatch):
     monkeypatch.setattr(chat_mod.i18n, "guild_locale", fake_locale_en)
     progress_msg_en = _FakeProgressMessage()
     asyncio.run(chat._refeed_guild(guild, progress_msg_en, None))
-    assert "Learned from 10 messages across 1 channel and saved 1 GIF." in progress_msg_en.edits[-1]
+    assert (
+        "Learned from 10 messages across 1 channel and saved 1 GIF."
+        in progress_msg_en.edits[-1]
+    )
 
 
 # ─── 5. Estado parcial (límite de mensajes alcanzado) ─────────────────────────
@@ -523,7 +546,13 @@ def test_refeed_single_channel_complete_incremental_partial(monkeypatch):
 
     # 1. Complete con 0 gifs
     async def fake_refeed_1(gid, ch, max_m):
-        return {"saved": 81, "gifs_saved": 0, "backfill_complete": True, "was_incremental": False, "forbidden": False}
+        return {
+            "saved": 81,
+            "gifs_saved": 0,
+            "backfill_complete": True,
+            "was_incremental": False,
+            "forbidden": False,
+        }
 
     monkeypatch.setattr(chat, "_refeed_channel", fake_refeed_1)
     inter1 = _FakeInteraction()
@@ -532,34 +561,64 @@ def test_refeed_single_channel_complete_incremental_partial(monkeypatch):
 
     # 2. Complete con 1 gif (singular)
     async def fake_refeed_2(gid, ch, max_m):
-        return {"saved": 81, "gifs_saved": 1, "backfill_complete": True, "was_incremental": False, "forbidden": False}
+        return {
+            "saved": 81,
+            "gifs_saved": 1,
+            "backfill_complete": True,
+            "was_incremental": False,
+            "forbidden": False,
+        }
 
     monkeypatch.setattr(chat, "_refeed_channel", fake_refeed_2)
     inter2 = _FakeInteraction()
     asyncio.run(chat.refeed.callback(chat, inter2))
-    assert inter2.followup_sent == ["Historial completado: 81 mensajes aprendidos y 1 GIF nuevo."]
+    assert inter2.followup_sent == [
+        "Historial completado: 81 mensajes aprendidos y 1 GIF nuevo."
+    ]
 
     # 3. Complete con 4 gifs (plural)
     async def fake_refeed_3(gid, ch, max_m):
-        return {"saved": 81, "gifs_saved": 4, "backfill_complete": True, "was_incremental": False, "forbidden": False}
+        return {
+            "saved": 81,
+            "gifs_saved": 4,
+            "backfill_complete": True,
+            "was_incremental": False,
+            "forbidden": False,
+        }
 
     monkeypatch.setattr(chat, "_refeed_channel", fake_refeed_3)
     inter3 = _FakeInteraction()
     asyncio.run(chat.refeed.callback(chat, inter3))
-    assert inter3.followup_sent == ["Historial completado: 81 mensajes aprendidos y 4 GIFs nuevos."]
+    assert inter3.followup_sent == [
+        "Historial completado: 81 mensajes aprendidos y 4 GIFs nuevos."
+    ]
 
     # 4. Incremental con 2 gifs
     async def fake_refeed_4(gid, ch, max_m):
-        return {"saved": 5, "gifs_saved": 2, "backfill_complete": True, "was_incremental": True, "forbidden": False}
+        return {
+            "saved": 5,
+            "gifs_saved": 2,
+            "backfill_complete": True,
+            "was_incremental": True,
+            "forbidden": False,
+        }
 
     monkeypatch.setattr(chat, "_refeed_channel", fake_refeed_4)
     inter4 = _FakeInteraction()
     asyncio.run(chat.refeed.callback(chat, inter4))
-    assert inter4.followup_sent == ["Este canal ya estaba al día: 5 mensajes nuevos aprendidos y 2 GIFs nuevos."]
+    assert inter4.followup_sent == [
+        "Este canal ya estaba al día: 5 mensajes nuevos aprendidos y 2 GIFs nuevos."
+    ]
 
     # 5. Parcial (límite alcanzado)
     async def fake_refeed_5(gid, ch, max_m):
-        return {"saved": 80000, "gifs_saved": 0, "backfill_complete": False, "was_incremental": False, "forbidden": False}
+        return {
+            "saved": 80000,
+            "gifs_saved": 0,
+            "backfill_complete": False,
+            "was_incremental": False,
+            "forbidden": False,
+        }
 
     monkeypatch.setattr(chat, "_refeed_channel", fake_refeed_5)
     inter5 = _FakeInteraction()
@@ -569,9 +628,17 @@ def test_refeed_single_channel_complete_incremental_partial(monkeypatch):
 
     # 6. Forbidden
     async def fake_refeed_6(gid, ch, max_m):
-        return {"saved": 0, "gifs_saved": 0, "backfill_complete": False, "was_incremental": False, "forbidden": True}
+        return {
+            "saved": 0,
+            "gifs_saved": 0,
+            "backfill_complete": False,
+            "was_incremental": False,
+            "forbidden": True,
+        }
 
     monkeypatch.setattr(chat, "_refeed_channel", fake_refeed_6)
     inter6 = _FakeInteraction()
     asyncio.run(chat.refeed.callback(chat, inter6))
-    assert inter6.followup_sent == ["Purgito no tiene permiso para ver el historial de este canal."]
+    assert inter6.followup_sent == [
+        "Purgito no tiene permiso para ver el historial de este canal."
+    ]

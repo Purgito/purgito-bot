@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infrastructure — Technical Documentation — Purgito</title>
+<meta name="description" content="Runtime, nginx, Cloudflare, and Purgito&#x27;s production deployment.">
+<meta name="theme-color" content="#13c4d8">
+
+<!-- Open Graph / Link Previews (Discord, Twitter, Telegram, Slack, etc.) -->
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Purgito">
+<meta property="og:url" content="https://purgito.app/en/documentation/infrastructure">
+<meta property="og:title" content="Infrastructure — Technical Documentation — Purgito">
+<meta property="og:description" content="Runtime, nginx, Cloudflare, and Purgito&#x27;s production deployment.">
+<meta property="og:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Purgito">
+<meta property="og:locale" content="en_US">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Infrastructure — Technical Documentation — Purgito">
+<meta name="twitter:description" content="Runtime, nginx, Cloudflare, and Purgito&#x27;s production deployment.">
+<meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
+
+<link rel="canonical" href="https://purgito.app/en/documentation/infrastructure">
+<link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/infraestructura">
+<link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/infrastructure">
+<link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/infraestructura">
+<link rel="icon" href="/assets/icon.png">
+<link rel="stylesheet" href="/style.css?v=635a0c7d">
+</head>
+<body>
+
+<div id="bg" class="bg-short" aria-hidden="true"></div>
+
+<a class="skip" href="#contenido">Skip to content</a>
+
+<nav class="nav" id="top">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/en/" aria-label="Purgito, go to homepage">
+      <img class="nav-logo" src="/assets/mascota.webp" alt="" onerror="this.remove()">
+      <span class="nav-brand-name">Purgito</span>
+    </a>
+
+    <span class="nav-sep" aria-hidden="true"></span>
+
+    <a class="nav-topgg" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener" aria-label="Purgito on top.gg">
+      <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+        <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+        <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+      </svg>
+      <span>.gg</span>
+    </a>
+
+    <div class="nav-links">
+      <!-- Item 1: Premium (Direct Link) -->
+      <a class="nav-link" href="/en/premium">Premium</a>
+
+      <!-- Item 2: Recursos (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-recursos">
+          <span>Resources</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-recursos" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Resources &amp; Guides</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/en/guia">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Purgito Guide</span>
+                  <span class="nav-drop-desc">How the bot works and what you can configure</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/documentation">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Documentation</span>
+                  <span class="nav-drop-desc">Guides, architecture, commands, and API</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/estado">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Service status</span>
+                  <span class="nav-drop-desc">Live availability, shards, and latency</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 3: Comunidad (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-comunidad">
+          <span>Community</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-comunidad" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Community &amp; Links</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--blurple">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Discord server</span>
+                  <span class="nav-drop-desc">Support, suggestions, and chat</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--topgg">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+                    <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+                    <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Vote on Top.gg</span>
+                  <span class="nav-drop-desc">Support Purgito with your vote</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Source code and development</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <!-- Selector de idioma: el prefijo del path cambia con la elección. -->
+      <div class="lang" data-lang-picker>
+        <button type="button" class="lang-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="lang-code" data-lang-code>EN</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="lang-menu" role="menu" hidden>
+          <a class="lang-item" role="menuitemradio" href="/es/" data-lang="es"><span class="radio" aria-hidden="true"></span>Español</a>
+          <a class="lang-item" role="menuitemradio" href="/en/" data-lang="en"><span class="radio" aria-hidden="true"></span>English</a>
+          <a class="lang-item" role="menuitemradio" href="/ru/" data-lang="ru"><span class="radio" aria-hidden="true"></span>Русский</a>
+          <a class="lang-item" role="menuitemradio" href="/ja/" data-lang="ja"><span class="radio" aria-hidden="true"></span>日本語</a>
+          <a class="lang-item" role="menuitemradio" href="/de/" data-lang="de"><span class="radio" aria-hidden="true"></span>Deutsch</a>
+        </div>
+      </div>
+
+      <!-- Slot de sesión: arranca vacío y se rellena ya resuelto (sin parpadeo).
+           El acceso al dashboard vive dentro de este dropdown, no suelto en el nav. -->
+      <div id="auth-slot" class="auth-slot"></div>
+
+      <!-- Botón de menú móvil -->
+      <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-expanded="false" aria-label="Open navigation menu" aria-controls="nav-mobile-panel">
+        <span class="nav-hamburger" aria-hidden="true">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel móvil desplegable -->
+  <div class="nav-mobile-panel" id="nav-mobile-panel" hidden>
+    <div class="nav-mobile-content">
+      <a class="nav-mobile-item nav-mobile-item--highlight" href="/en/premium">
+        <span>Purgito Premium</span>
+      </a>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Resources</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/en/guia">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            <div>
+              <div class="title">Purgito Guide</div>
+              <div class="desc">How the bot works and configuration</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/documentation">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <div>
+              <div class="title">Documentation</div>
+              <div class="desc">Guides, architecture, and commands</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/estado">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <div>
+              <div class="title">Service status</div>
+              <div class="desc">Live availability and shards</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Community</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+            <div>
+              <div class="title">Discord server</div>
+              <div class="desc">Support and community</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path><path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path><path fill="#ffd23f" d="M15 10h7v4h-7z"></path></svg>
+            <div>
+              <div class="title">Vote on Top.gg</div>
+              <div class="desc">Vote for Purgito</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <div>
+              <div class="title">GitHub</div>
+              <div class="desc">Open source</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="docs-shell wrap">
+<details class="docs-sidebar" open aria-label="Technical documentation">
+  <summary>Categories</summary>
+  <ul>
+    <li><a href="/en/documentation">Home</a>
+    </li>
+    <li><a href="/en/documentation/architecture">Architecture</a>
+    </li>
+    <li><a href="/en/documentation/discord">Discord</a>
+    </li>
+    <li><a href="/en/documentation/api">API</a>
+    </li>
+    <li><a href="/en/documentation/generation">Generation</a>
+    </li>
+    <li><a href="/en/documentation/storage">Storage</a>
+    </li>
+    <li><a href="/en/documentation/security">Security</a>
+    </li>
+    <li><a class="active" href="/en/documentation/infrastructure">Infrastructure</a>
+      <ul class="docs-subnav"><li><a href="#runtime">Runtime</a></li><li><a href="#nginx">Nginx</a></li><li><a href="#cloudflare">Cloudflare</a></li><li><a href="#deployment">Deployment</a></li><li><a href="#health-checks">Health checks</a></li></ul>
+    </li>
+    <li><a href="/en/documentation/development">Development</a>
+    </li>
+    <li><a href="/en/documentation/reference">Reference</a>
+    </li>
+  </ul>
+</details>
+  <main id="contenido" class="docs-content">
+<h1>Infrastructure</h1>
+<p>Deployment architecture on a single server: nginx at the edge,
+the Python process behind it, and Cloudflare as the CDN and front proxy.</p>
+
+<h2 id="runtime">Runtime</h2>
+<p>The bot and its API run as a single Python process. The API listens
+only on localhost — never exposed directly to the internet — so nginx is
+the only real entry point.</p>
+
+<h2 id="nginx">Nginx</h2>
+<p>Nginx splits by route: <code>/auth/*</code>, <code>/api/*</code>,
+<code>/webhooks/*</code>, and <code>/health</code> go to the
+Python process; everything else — the landing page, the dashboard, the legal
+pages, and this documentation — is served directly from static files, never
+touching Python. Since the site has per-language routes (<code>/es/...</code>,
+<code>/en/...</code>), the one route with a dynamic segment (the server ID
+in the dashboard URL) has a dedicated nginx rule; everything else is
+static routes on disk.</p>
+
+<h2 id="cloudflare">Cloudflare</h2>
+<p>Cloudflare acts as a CDN and reverse proxy layer in front of nginx:
+it handles TLS termination, protects the origin server, and caches the
+site's static content, reducing load on the server.</p>
+
+<h2 id="deployment">Deployment</h2>
+<p>Deployment is based on syncing the repository: since the static
+site and the documentation are pre-generated and versioned in the
+repository, no build step is required on the server;
+syncing changes with <code>git pull</code> and restarting the
+application service is enough.</p>
+
+<h2 id="health-checks">Health checks</h2>
+<p><code>/health</code> is a simple liveness check: it confirms the
+process is running and responding, not that the database or the
+connection to Discord are healthy. It exists for basic monitoring, not as
+a full system diagnostic.</p>
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="wrap box foot-inner">
+
+    <div class="foot-cols">
+      <div class="foot-brand">
+        <div class="foot-name">
+          <img class="nav-logo" src="/assets/mascota.webp" alt="" onerror="this.remove()">
+          <span class="foot-word-a">Purgito</span> <span class="foot-word-b">Bot</span>
+        </div>
+
+        <div class="foot-social">
+          <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener" aria-label="Discord">
+            <svg class="i" viewBox="0 0 24 24"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+          </a>
+          <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+          </a>
+          <a href="https://ko-fi.com/punkyyy01" target="_blank" rel="noopener" aria-label="Ko-fi">
+            <svg class="i" viewBox="0 0 24 24"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+          </a>
+        </div>
+
+        <p class="foot-by">
+          Made by
+          <a class="chip" href="https://github.com/punkyyy01" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+            punkyyy01
+          </a>
+        </p>
+      </div>
+
+      <nav class="foot-col" aria-label="Resources">
+        <h3>Resources</h3>
+        <a href="/en/documentation">Documentation</a>
+        <a href="/en/estado">Status</a>
+        <a href="/en/guia">Guide</a>
+      </nav>
+
+      <nav class="foot-col" aria-label="Purgito">
+        <h3>Purgito</h3>
+        <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener">Code</a>
+        <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">Support</a>
+      </nav>
+
+      <nav class="foot-col" aria-label="Legal">
+        <h3>Legal</h3>
+        <a href="/en/terms">Terms</a>
+        <a href="/en/privacy">Privacy</a>
+        <a href="/en/refunds">Refunds</a>
+      </nav>
+    </div>
+
+    <hr class="foot-rule">
+
+    <div class="foot-bottom">
+      <div class="foot-actions">
+        <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Invite</a>
+        <a class="btn btn-sm" href="https://top.gg/bot/1471724794411089920/vote" target="_blank" rel="noopener">
+          <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M2 6h9v4H7.5v6H2z"></path>
+            <path fill="currentColor" d="M11 6h11v4h-7v3h-4z" opacity=".6"></path>
+          </svg>
+          Vote
+        </a>
+      </div>
+
+      <!-- Sin selector de idioma ni botón "volver arriba": el boceto del footer
+           solo tiene los dos botones y el copyright. -->
+      <p class="foot-copy">© Purgito 2026 · Not affiliated with Discord Inc.</p>
+    </div>
+
+  </div>
+</footer>
+
+<script src="/script.js?v=0d10f74a"></script>
+</body>
+</html>

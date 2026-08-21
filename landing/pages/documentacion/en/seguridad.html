@@ -1,0 +1,44 @@
+<h1>Security</h1>
+<p>Purgito's security model at a conceptual level: what exists and
+why, without exact numbers or mechanisms — this page is public.</p>
+
+<h2 id="oauth2">OAuth2</h2>
+<p>Login uses Discord's standard flow: identity is confirmed by
+Discord, and Purgito never sees or stores a password. The resulting
+session lives encrypted in a browser cookie — the server doesn't keep a
+copy of the session, only a list of which sessions were explicitly
+closed, so it can invalidate them even if the encrypted cookie still
+exists somewhere. The cookie is restricted to HTTPS, isn't
+accessible from JavaScript, and doesn't travel on cross-site navigation
+except for the cases browsers allow by design (which is why there's an
+extra defense for that specific case).</p>
+
+<h2 id="permissions">Permissions</h2>
+<p>No action on a specific server is resolved by trusting
+data sent by the browser: every time the dashboard asks for something on a
+server, Purgito asks Discord's API directly, with the
+logged-in user's token, whether that person administers that server —
+never from a previously saved list or from anything sent in the
+request itself. On Discord's side, the bot's admin actions
+(settings commands, panels) verify the caller's
+<code>Manage Server</code> permission.</p>
+
+<h2 id="rate-limits">Rate limits</h2>
+<p>Purgito applies rate limits across several independent layers: per
+IP address on the public API, per user within each server for
+interactive commands (generating content, invoking memes), and per channel
+within each server for autonomous behavior (spontaneous
+replies, triggers). There's also a global cap on how much text generation
+can run at once, so no single server can saturate the
+process at the expense of the others. The exact values of those limits
+aren't public.</p>
+
+<h2 id="security-model">Security model</h2>
+<p>The general principles: isolate each server's data by schema
+design, never trust anything the client claims about itself without
+verifying it against the source (Discord), validate the actual content of
+what's uploaded instead of trusting what the client says it is, and
+verify the signature of any external webhook before processing it. The
+public surface is intentionally small: the API doesn't render HTML,
+so a good share of the vulnerability classes typical of a
+traditional web app don't directly apply.</p>

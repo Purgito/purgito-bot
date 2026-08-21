@@ -14,7 +14,7 @@ import generation
 import i18n
 from cogs.premium import is_premium_guild
 from cogs.youtube import get_latest_video
-from config import BOT_TRIGGER_NAME, PANEL_URL, get_dashboard_url
+from config import PANEL_URL, get_dashboard_url
 from db import (
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
@@ -25,7 +25,6 @@ from db import (
     count_guild_corpus_messages,
     get_chat_settings,
     list_corpus_channels,
-    list_ignored_channels,
     list_meme_schedules,
     list_scheduled_announcements,
     list_youtube_subs,
@@ -214,11 +213,13 @@ class CanalesCategory(SettingsCategory):
 
     async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
         allowed = await list_corpus_channels(panel.guild.id)
-        corpus_count = await count_guild_corpus_messages(panel.guild.id)
 
         body = t("settings.canales.body", panel.locale) + "\n\n"
         if allowed:
-            body += t("settings.canales.selected_count", panel.locale, count=len(allowed)) + "\n"
+            body += (
+                t("settings.canales.selected_count", panel.locale, count=len(allowed))
+                + "\n"
+            )
             body += ", ".join(f"<#{cid}>" for cid in allowed[:15])
             if len(allowed) > 15:
                 body += f" (+{len(allowed) - 15})"
@@ -258,11 +259,23 @@ class CanalesCategory(SettingsCategory):
                 if not real_ch or not isinstance(real_ch, discord.TextChannel):
                     continue
                 if getattr(real_ch, "is_nsfw", lambda: False)():
-                    problems.append(t("setup.error_nsfw_channel", panel.locale, channel=real_ch.name))
+                    problems.append(
+                        t(
+                            "setup.error_nsfw_channel",
+                            panel.locale,
+                            channel=real_ch.name,
+                        )
+                    )
                     continue
                 perms = real_ch.permissions_for(me)
                 if not (perms.view_channel and perms.read_message_history):
-                    problems.append(t("setup.error_no_permission_channel", panel.locale, channel=real_ch.name))
+                    problems.append(
+                        t(
+                            "setup.error_no_permission_channel",
+                            panel.locale,
+                            channel=real_ch.name,
+                        )
+                    )
                     continue
                 selected_ids.add(real_ch.id)
 
@@ -299,7 +312,9 @@ class CanalesCategory(SettingsCategory):
                 if chat_cog is not None:
                     await interaction.response.defer()
                     progress_msg = await interaction.original_response()
-                    chat_cog.start_refeed_channels(panel.guild, progress_msg, interaction.channel)
+                    chat_cog.start_refeed_channels(
+                        panel.guild, progress_msg, interaction.channel
+                    )
                 else:
                     await panel.refresh(interaction)
 
@@ -418,9 +433,16 @@ class AprendizajeCategory(SettingsCategory):
         elif not allowed:
             status = t("setup.status_no_channels", panel.locale)
         elif corpus_count == 0:
-            status = t("setup.status_channels_no_history", panel.locale, count=len(allowed))
+            status = t(
+                "setup.status_channels_no_history", panel.locale, count=len(allowed)
+            )
         else:
-            status = t("setup.status_ready", panel.locale, corpus=f"{corpus_count:,}", channels=len(allowed))
+            status = t(
+                "setup.status_ready",
+                panel.locale,
+                corpus=f"{corpus_count:,}",
+                channels=len(allowed),
+            )
 
         body = t("settings.aprendizaje.body", panel.locale) + "\n\n" + status
         return discord.Embed(
@@ -451,7 +473,9 @@ class AprendizajeCategory(SettingsCategory):
             if chat_cog is not None:
                 await interaction.response.defer()
                 progress_msg = await interaction.original_response()
-                chat_cog.start_refeed_channels(panel.guild, progress_msg, interaction.channel)
+                chat_cog.start_refeed_channels(
+                    panel.guild, progress_msg, interaction.channel
+                )
             else:
                 await panel.refresh(interaction)
 
@@ -1107,7 +1131,9 @@ class SetupView(discord.ui.View):
         elif not allowed:
             status = t("setup.status_no_channels", self.locale)
         elif corpus_count == 0:
-            status = t("setup.status_channels_no_history", self.locale, count=len(allowed))
+            status = t(
+                "setup.status_channels_no_history", self.locale, count=len(allowed)
+            )
         else:
             status = t(
                 "setup.status_ready",
@@ -1486,7 +1512,8 @@ class Settings(commands.Cog):
         await interaction.response.send_message(embed=embed, view=panel, ephemeral=True)
 
     @app_commands.command(
-        name="setup", description="Configuración inicial de Purgito y selección de canales."
+        name="setup",
+        description="Configuración inicial de Purgito y selección de canales.",
     )
     async def setup_cmd(self, interaction: discord.Interaction):
         if not interaction.guild:

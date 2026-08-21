@@ -1,6 +1,5 @@
 """Tests exhaustivos para SimpleMarkov Orden 2 con Backoff determinista (markov_engine.py)."""
 
-import pytest
 from markov_engine import SimpleMarkov
 
 
@@ -80,10 +79,12 @@ def test_generation_starts_from_start_and_stops_at_end():
 
 def test_sentinels_never_leak_in_generation():
     m = SimpleMarkov()
-    m.add_many([
-        "uno dos tres cuatro",
-        "cinco seis siete ocho",
-    ])
+    m.add_many(
+        [
+            "uno dos tres cuatro",
+            "cinco seis siete ocho",
+        ]
+    )
     for _ in range(50):
         res = m.generate()
         assert res is not None
@@ -100,7 +101,7 @@ def test_order2_priority_when_context_exists():
     m = SimpleMarkov()
     m.add("quiero comer pizza")
     m.add("puedo comer hamburguesa")
-    
+
     assert m.transitions_order2[("quiero", "comer")] == ["pizza"]
     assert m.transitions_order2[("puedo", "comer")] == ["hamburguesa"]
 
@@ -110,16 +111,16 @@ def test_backoff_to_order1_when_order2_context_missing():
     m = SimpleMarkov()
     m.add("hola mundo")
     m.add("lindo dia")
-    
+
     # Inyectamos una transición forzada en orden 2 que lleve a ('hola', 'lindo')
     # ('hola', 'lindo') no existe en orden 2, pero 'lindo' -> 'dia' existe en orden 1
     m.transitions_order2[(m.START, "hola")].append("lindo")
-    
+
     # ('hola', 'lindo') no está en transitions_order2
     assert ("hola", "lindo") not in m.transitions_order2
     # Pero 'lindo' está en transitions_order1 -> ['dia']
     assert m.transitions_order1["lindo"] == ["dia"]
-    
+
     # Generar debe ser capaz de continuar gracias al backoff
     res = m.generate()
     assert res is not None
@@ -143,7 +144,7 @@ def test_max_words_stops_infinite_loops():
     m.transitions_order2[(m.START, "a")] = ["b"]
     m.transitions_order2[("a", "b")] = ["a"]
     m.transitions_order2[("b", "a")] = ["b"]
-    
+
     res = m.generate(max_words=10)
     assert res is not None
     assert len(res.split()) == 10
@@ -168,6 +169,7 @@ def test_single_word_generation_works_with_min_words_1():
 
 def test_tokenize_strips_punctuation_from_words():
     from generation import tokenize_message
+
     assert tokenize_message("sting,") == ["sting"]
     assert tokenize_message("emi,") == ["emi"]
     assert tokenize_message("hola!") == ["hola"]
@@ -177,6 +179,7 @@ def test_tokenize_strips_punctuation_from_words():
 
 def test_tokenize_discards_floating_dots_and_commas():
     from generation import tokenize_message
+
     assert tokenize_message("no sale . dolares") == ["no", "sale", "dolares"]
     assert tokenize_message("... ...") == []
     assert tokenize_message("hola , mundo") == ["hola", "mundo"]
@@ -184,10 +187,21 @@ def test_tokenize_discards_floating_dots_and_commas():
 
 def test_tokenize_preserves_slang_and_accents():
     from generation import tokenize_message
+
     assert tokenize_message("xd lol 100k") == ["xd", "lol", "100k"]
-    assert tokenize_message("más está canción contraseña") == ["más", "está", "canción", "contraseña"]
+    assert tokenize_message("más está canción contraseña") == [
+        "más",
+        "está",
+        "canción",
+        "contraseña",
+    ]
 
 
 def test_tokenize_strips_markdown():
     from generation import tokenize_message
-    assert tokenize_message("**negrita** ||spoiler|| `codigo`") == ["negrita", "spoiler", "codigo"]
+
+    assert tokenize_message("**negrita** ||spoiler|| `codigo`") == [
+        "negrita",
+        "spoiler",
+        "codigo",
+    ]

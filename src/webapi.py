@@ -1527,9 +1527,7 @@ async def _api_exempt_channels_delete(
 
 
 @guild_api
-async def _api_excluded_users_get(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_excluded_users_get(request: web.Request, guild_id: int) -> web.Response:
     """Lista todos los usuarios excluidos de interacción y/o aprendizaje en este servidor."""
     guild = _bot_guild(request, guild_id)
     exclusions = await list_excluded_users(guild_id)
@@ -1541,12 +1539,18 @@ async def _api_excluded_users_get(
         avatar_url = None
         if member:
             user_name = member.display_name
-            avatar_url = str(member.display_avatar.url) if member.display_avatar else None
+            avatar_url = (
+                str(member.display_avatar.url) if member.display_avatar else None
+            )
         else:
             user_obj = request.app["bot"].get_user(uid)
             if user_obj:
                 user_name = user_obj.display_name
-                avatar_url = str(user_obj.display_avatar.url) if user_obj.display_avatar else None
+                avatar_url = (
+                    str(user_obj.display_avatar.url)
+                    if user_obj.display_avatar
+                    else None
+                )
 
         users.append(
             {
@@ -1562,9 +1566,7 @@ async def _api_excluded_users_get(
 
 
 @guild_api
-async def _api_excluded_users_post(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_excluded_users_post(request: web.Request, guild_id: int) -> web.Response:
     """Añade o actualiza la exclusión de un usuario en este servidor."""
     data = await _json_body(request)
     if data is None:
@@ -1615,7 +1617,9 @@ async def _api_excluded_users_post(
             "saved": {
                 "user_id": str(user_id),
                 "user_name": member.display_name,
-                "avatar_url": str(member.display_avatar.url) if member.display_avatar else None,
+                "avatar_url": str(member.display_avatar.url)
+                if member.display_avatar
+                else None,
                 "exclude_interaction": saved["exclude_interaction"],
                 "exclude_learning": saved["exclude_learning"],
             },
@@ -1624,9 +1628,7 @@ async def _api_excluded_users_post(
 
 
 @guild_api
-async def _api_excluded_users_put(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_excluded_users_put(request: web.Request, guild_id: int) -> web.Response:
     """Actualiza la exclusión de un usuario."""
     user_id = _to_int(request.match_info.get("user_id"))
     if user_id is None or user_id <= 0:
@@ -1681,9 +1683,7 @@ async def _api_excluded_users_delete(
 
 
 @guild_api
-async def _api_members_search(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_members_search(request: web.Request, guild_id: int) -> web.Response:
     """Busca miembros en el servidor por nombre o ID para el selector de exclusión."""
     q = (request.query.get("q") or "").strip()
     guild = _bot_guild(request, guild_id)
@@ -1701,11 +1701,15 @@ async def _api_members_search(
             except Exception:
                 member = None
         if member and not member.bot:
-            results.append({
-                "id": str(member.id),
-                "name": member.display_name,
-                "avatar_url": str(member.display_avatar.url) if member.display_avatar else None,
-            })
+            results.append(
+                {
+                    "id": str(member.id),
+                    "name": member.display_name,
+                    "avatar_url": str(member.display_avatar.url)
+                    if member.display_avatar
+                    else None,
+                }
+            )
             return web.json_response({"members": results})
 
     # Si es texto, buscar en miembros cacheados o query_members
@@ -1714,11 +1718,15 @@ async def _api_members_search(
             if m.bot:
                 continue
             if q.lower() in m.display_name.lower() or q.lower() in m.name.lower():
-                results.append({
-                    "id": str(m.id),
-                    "name": m.display_name,
-                    "avatar_url": str(m.display_avatar.url) if m.display_avatar else None,
-                })
+                results.append(
+                    {
+                        "id": str(m.id),
+                        "name": m.display_name,
+                        "avatar_url": str(m.display_avatar.url)
+                        if m.display_avatar
+                        else None,
+                    }
+                )
                 if len(results) >= 10:
                     break
 
@@ -1729,11 +1737,15 @@ async def _api_members_search(
                 for m in queried:
                     if m.bot or str(m.id) in seen:
                         continue
-                    results.append({
-                        "id": str(m.id),
-                        "name": m.display_name,
-                        "avatar_url": str(m.display_avatar.url) if m.display_avatar else None,
-                    })
+                    results.append(
+                        {
+                            "id": str(m.id),
+                            "name": m.display_name,
+                            "avatar_url": str(m.display_avatar.url)
+                            if m.display_avatar
+                            else None,
+                        }
+                    )
                     if len(results) >= 10:
                         break
             except Exception:
@@ -1867,9 +1879,14 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
     if raw_channel_id is None or raw_channel_id == "":
         await set_updates_channel(guild_id, None)
         await _log_audit(
-            request, guild_id, "updates_channel.set", detail="channel_id=None (desvinculado)"
+            request,
+            guild_id,
+            "updates_channel.set",
+            detail="channel_id=None (desvinculado)",
         )
-        return web.json_response({"ok": True, "channel_id": None, "status": "no_channel"})
+        return web.json_response(
+            {"ok": True, "channel_id": None, "status": "no_channel"}
+        )
 
     channel_id = _to_int(raw_channel_id)
     if channel_id is None:
@@ -1894,7 +1911,9 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
                 "error": error_msg,
                 "status": status_info["status"],
                 "missing_permissions": status_info.get("missing_permissions", []),
-                "missing_permissions_labels": status_info.get("missing_permissions_labels", []),
+                "missing_permissions_labels": status_info.get(
+                    "missing_permissions_labels", []
+                ),
             },
             status=400,
         )
@@ -1907,12 +1926,14 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
         "updates_channel.set",
         detail=f"channel_id={channel_id} channel_name={channel_name}",
     )
-    return web.json_response({
-        "ok": True,
-        "channel_id": str(channel_id),
-        "status": status_info["status"],
-        "channel_name": channel_name,
-    })
+    return web.json_response(
+        {
+            "ok": True,
+            "channel_id": str(channel_id),
+            "status": status_info["status"],
+            "channel_name": channel_name,
+        }
+    )
 
 
 @guild_api
@@ -4466,12 +4487,8 @@ async def start_web_server(bot: commands.Bot) -> None:
             f"{base}/settings/corpus/{{channel_id}}", _api_corpus_delete
         )
         app.router.add_post(f"{base}/settings/corpus/amnesia", _api_corpus_amnesia_post)
-        app.router.add_get(
-            f"{base}/settings/excluded-users", _api_excluded_users_get
-        )
-        app.router.add_post(
-            f"{base}/settings/excluded-users", _api_excluded_users_post
-        )
+        app.router.add_get(f"{base}/settings/excluded-users", _api_excluded_users_get)
+        app.router.add_post(f"{base}/settings/excluded-users", _api_excluded_users_post)
         app.router.add_put(
             f"{base}/settings/excluded-users/{{user_id}}", _api_excluded_users_put
         )

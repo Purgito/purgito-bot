@@ -1220,8 +1220,32 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 25: loadUpdatesModule carga y renderiza el módulo de actualizaciones');
 }
 
+// ── Test 26: Cobertura de i18n -- toda key de STRINGS.es existe en STRINGS.en
+// (y viceversa) ──────────────────────────────────────────────────────────────
+// Importar dash.js ya registró (por efecto de import transitivo) los strings
+// de panel-shell.js, tabs/*.js y embeds/*.js. perfil.js y estado.js son
+// entrypoints de página independientes que dash.js no importa, así que hace
+// falta traerlos acá para que sus addStrings() también corran antes de
+// comparar. Esto corre DESPUÉS de todos los tests de arriba a propósito: si
+// alguno de ellos rompiera un import, queremos ver ESE error primero.
+{
+  await import('./js/perfil.js');
+  // estado.js arranca un setInterval de polling en su propio top-level (ver
+  // el final del archivo) -- necesario en el navegador, pero en Node deja el
+  // proceso vivo para siempre. process.exit() de más abajo lo corta.
+  await import('./js/estado.js');
+  const { missingKeys } = await import('./js/core/i18n.js');
+  const missing = missingKeys();
+  assert.deepEqual(missing, [], `Keys de traducción incompletas: ${JSON.stringify(missing, null, 2)}`);
+  console.log('✓ Test 26: Cobertura de i18n completa (keys(es) === keys(en))');
+}
+
 console.log('\n========================================');
 console.log('✓ TODOS LOS TESTS DEL DASHBOARD PASARON');
 console.log('========================================\n');
+
+// estado.js dejó un setInterval corriendo (ver Test 26) -- sin esto el
+// proceso de Node nunca termina solo.
+process.exit(0);
 
 

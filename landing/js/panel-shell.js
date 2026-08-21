@@ -13,6 +13,12 @@ import { el } from '/js/core/dom.js';
 import {
   GUILD_ID, channelCache, setChannelCache, roleCache, setRoleCache,
 } from '/js/core/config.js';
+import { t, addStrings } from '/js/core/i18n.js';
+
+addStrings({
+  es: { 'panelShell.channelUnavailable': 'Canal no disponible (ID: {id})' },
+  en: { 'panelShell.channelUnavailable': 'Channel not available (ID: {id})' },
+});
 
 // Cacheados por la vida de la página (viven en core/config.js para que
 // core/markdown.js pueda leerlos sin importar de acá). Acepta { force: true }
@@ -55,7 +61,7 @@ export function channelSelect(channels, selectedId, noneLabel) {
     sel.append(el('option', { value: ch.id }, '#' + (ch.name || ch.id)));
   }
   if (selectedId && !hasSelected) {
-    sel.append(el('option', { value: selectedId }, `Canal no disponible (ID: ${selectedId})`));
+    sel.append(el('option', { value: selectedId }, t('panelShell.channelUnavailable', { id: selectedId })));
   }
   sel.value = selectedId || '';
   return sel;

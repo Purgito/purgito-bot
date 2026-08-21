@@ -12,6 +12,38 @@ import { embedDict, docDicts, blockToApi, apiToBlock, embedToState } from '/js/e
 import { renderEmbedsPreview } from '/js/embeds/classic-editor.js';
 import { renderLayoutPreview } from '/js/embeds/layout-editor.js';
 import { loadEmbeds, panelModal } from '/js/embeds/shared-ui.js';
+import { t, addStrings } from '../core/i18n.js';
+
+addStrings({
+  es: {
+    'embedsPersistence.historyLayoutSummary': 'Layout con {count} bloque(s)',
+    'embedsPersistence.historyEmbedSummary': '{count} embed(s)',
+    'embedsPersistence.historyEmpty': 'Todavía no hay versiones guardadas — se van a guardar solas a medida que editás.',
+    'embedsPersistence.view': 'Ver',
+    'embedsPersistence.restore': 'Restaurar',
+    'embedsPersistence.historyTitle': 'Historial local',
+    'embedsPersistence.invalidJson': 'JSON inválido: {message}',
+    'embedsPersistence.apply': 'Aplicar',
+    'embedsPersistence.cancel': 'Cancelar',
+    'embedsPersistence.downloadJson': 'Descargar .json',
+    'embedsPersistence.wordWrap': 'Ajuste de línea',
+    'embedsPersistence.jsonModalTitle': 'Editar como JSON',
+  },
+  en: {
+    'embedsPersistence.historyLayoutSummary': 'Layout with {count} block(s)',
+    'embedsPersistence.historyEmbedSummary': '{count} embed(s)',
+    'embedsPersistence.historyEmpty': "No saved versions yet — they'll save automatically as you edit.",
+    'embedsPersistence.view': 'View',
+    'embedsPersistence.restore': 'Restore',
+    'embedsPersistence.historyTitle': 'Local history',
+    'embedsPersistence.invalidJson': 'Invalid JSON: {message}',
+    'embedsPersistence.apply': 'Apply',
+    'embedsPersistence.cancel': 'Cancel',
+    'embedsPersistence.downloadJson': 'Download .json',
+    'embedsPersistence.wordWrap': 'Word wrap',
+    'embedsPersistence.jsonModalTitle': 'Edit as JSON',
+  },
+});
 
 // --- Historial local (5.4) ---
 
@@ -42,16 +74,16 @@ export function scheduleHistorySnapshot() {
 }
 
 function historySummary(doc) {
-  if (doc.blocks) return `Layout con ${doc.blocks.length} bloque(s)`;
+  if (doc.blocks) return t('embedsPersistence.historyLayoutSummary', { count: doc.blocks.length });
   const n = doc.embeds.map(embedDict).filter(d => Object.keys(d).length).length;
-  return `${n} embed(s)`;
+  return t('embedsPersistence.historyEmbedSummary', { count: n });
 }
 
 export function openHistoryModal() {
   saveHistorySnapshot(); // el estado actual también entra, así restaurar es reversible
   const list = readHistory();
   const body = el('div', { class: 'hist-list' });
-  if (!list.length) body.append(emptyState('Todavía no hay versiones guardadas — se van a guardar solas a medida que editás.'));
+  if (!list.length) body.append(emptyState(t('embedsPersistence.historyEmpty')));
   list.forEach((entry, i) => {
     const previewBox = el('div', { style: 'display:none' });
     let previewLoaded = false;
@@ -70,7 +102,7 @@ export function openHistoryModal() {
             }
             previewBox.style.display = previewBox.style.display === 'none' ? '' : 'none';
           },
-        }, 'Ver'),
+        }, t('embedsPersistence.view')),
         el('button', {
           class: 'btn btn-primary btn-sm',
           onclick: () => {
@@ -80,11 +112,11 @@ export function openHistoryModal() {
             document.querySelector('.modal-overlay')?.remove();
             loadEmbeds();
           },
-        }, 'Restaurar')),
+        }, t('embedsPersistence.restore'))),
       previewBox);
     body.append(row);
   });
-  panelModal('Historial local', body);
+  panelModal(t('embedsPersistence.historyTitle'), body);
 }
 
 // --- Borrador automático (autosave del estado en progreso) ---
@@ -134,13 +166,13 @@ export function openJsonModal() {
   ta.value = JSON.stringify(payload, null, 2);
   ta.wrap = 'off';
   const errBox = el('p', { class: 'error', style: 'min-height:1.2em;margin:6px 0' }, '');
-  const applyBtn = el('button', { class: 'btn btn-primary', disabled: true }, 'Aplicar');
+  const applyBtn = el('button', { class: 'btn btn-primary', disabled: true }, t('embedsPersistence.apply'));
   let parsed = payload;
   let validateTimer = null;
 
   async function validate() {
     try { parsed = JSON.parse(ta.value); }
-    catch (e) { errBox.textContent = 'JSON inválido: ' + e.message; applyBtn.disabled = true; return; }
+    catch (e) { errBox.textContent = t('embedsPersistence.invalidJson', { message: e.message }); applyBtn.disabled = true; return; }
     const body = isLayout
       ? { content_mode: 'layout_v2', layout: parsed }
       : { content_mode: 'classic_embed', embeds: parsed.embeds };
@@ -175,14 +207,14 @@ export function openJsonModal() {
       a.remove();
       URL.revokeObjectURL(url);
     },
-  }, 'Descargar .json');
+  }, t('embedsPersistence.downloadJson'));
 
-  panelModal('Editar como JSON', el('div', {},
+  panelModal(t('embedsPersistence.jsonModalTitle'), el('div', {},
     ta, errBox,
     el('div', { class: 'add-row' },
       applyBtn,
-      el('button', { class: 'btn btn-secondary', onclick: () => document.querySelector('.modal-overlay')?.remove() }, 'Cancelar'),
+      el('button', { class: 'btn btn-secondary', onclick: () => document.querySelector('.modal-overlay')?.remove() }, t('embedsPersistence.cancel')),
       downloadBtn,
-      el('label', { class: 'toggle' }, wrapChk, 'Ajuste de línea'))));
+      el('label', { class: 'toggle' }, wrapChk, t('embedsPersistence.wordWrap')))));
   validate();
 }

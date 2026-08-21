@@ -696,7 +696,9 @@ class Chat(commands.Cog):
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
         if payload.guild_id:
             try:
-                res = await delete_message_from_corpus(payload.guild_id, payload.message_id)
+                res = await delete_message_from_corpus(
+                    payload.guild_id, payload.message_id
+                )
                 if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
                     generation.reset_guild_caches(payload.guild_id)
             except Exception:
@@ -1553,7 +1555,8 @@ class Chat(commands.Cog):
                     await report_channel.send(msg)
                 except Exception:
                     log.warning(
-                        "refeed_guild: no se pudo avisar allowlist vacía en %s", guild.id
+                        "refeed_guild: no se pudo avisar allowlist vacía en %s",
+                        guild.id,
                     )
             return totals
         me = guild.me
@@ -1625,9 +1628,7 @@ class Chat(commands.Cog):
                     "refeed_guild: error procesando canal %s (%s)", channel.id, guild.id
                 )
                 totals["errors"] += 1
-                problem = i18n.t(
-                    "refeed.problem_error", locale, channel=channel.name
-                )
+                problem = i18n.t("refeed.problem_error", locale, channel=channel.name)
                 problem_lines.append(problem)
                 done_lines.append(f"#{channel.name}\nerror inesperado")
                 continue

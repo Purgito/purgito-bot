@@ -1331,7 +1331,9 @@ async def get_corpus_messages(guild_id: int, limit: int | None = None) -> list[s
 
     if not has_excluded:
         if limit is None:
-            query = "SELECT content FROM corpus_messages WHERE guild_id=? ORDER BY RANDOM()"
+            query = (
+                "SELECT content FROM corpus_messages WHERE guild_id=? ORDER BY RANDOM()"
+            )
             params = (guild_id,)
         else:
             query = (
@@ -1809,8 +1811,7 @@ async def get_random_gif_candidates(guild_id: int, limit: int = 3) -> list[dict]
     ) as cursor:
         rows = await cursor.fetchall()
     return [
-        {"id": r[0], "url": r[1], "media_url": r[2], "content_hash": r[3]}
-        for r in rows
+        {"id": r[0], "url": r[1], "media_url": r[2], "content_hash": r[3]} for r in rows
     ]
 
 

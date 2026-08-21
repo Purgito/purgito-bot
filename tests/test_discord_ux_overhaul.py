@@ -17,14 +17,10 @@ import pytest
 
 import db
 import generation
-import i18n
 from cogs.settings import (
-    AprendizajeCategory,
-    CanalesCategory,
     SettingsPanel,
     SetupView,
     WelcomeView,
-    _send_setup_panel,
     build_dm_welcome_embed,
     build_welcome_embed,
 )
@@ -127,9 +123,7 @@ def test_setup_view_status_channels_no_history(memory_db):
 def test_setup_view_status_ready_with_history(memory_db):
     guild = _make_guild([_make_channel(101, "general")])
     asyncio.run(db.add_corpus_channel(_GUILD_ID, 101))
-    asyncio.run(
-        db.save_corpus_and_user_message(_GUILD_ID, 101, 1, 99, "hola a todos")
-    )
+    asyncio.run(db.save_corpus_and_user_message(_GUILD_ID, 101, 1, 99, "hola a todos"))
 
     view = SetupView(guild, "es", _USER_ADMIN)
     embed = asyncio.run(view.build_embed())
@@ -163,13 +157,11 @@ def test_setup_view_rebuild_components(memory_db):
     items = view.children
     assert any(isinstance(item, discord.ui.ChannelSelect) for item in items)
     assert any(
-        isinstance(item, discord.ui.Button)
-        and item.label == "Aprender del historial"
+        isinstance(item, discord.ui.Button) and item.label == "Aprender del historial"
         for item in items
     )
     assert any(
-        isinstance(item, discord.ui.Button)
-        and item.label == "Abrir dashboard"
+        isinstance(item, discord.ui.Button) and item.label == "Abrir dashboard"
         for item in items
     )
 
@@ -252,7 +244,11 @@ def test_aprendizaje_category_in_settings(memory_db):
 
     asyncio.run(panel.rebuild())
     btn = next(
-        (i for i in panel.children if isinstance(i, discord.ui.Button) and i.label == "Iniciar aprendizaje"),
+        (
+            i
+            for i in panel.children
+            if isinstance(i, discord.ui.Button) and i.label == "Iniciar aprendizaje"
+        ),
         None,
     )
     assert btn is not None

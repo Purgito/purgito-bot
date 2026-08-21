@@ -4,6 +4,89 @@
 // document/window, es el módulo candidato natural a tests unitarios con el
 // runner nativo de Node más adelante.
 
+import { t, addStrings } from '../core/i18n.js';
+
+addStrings({
+  es: {
+    'embedsState.blockLabelText': 'Texto',
+    'embedsState.blockLabelSection': 'Sección',
+    'embedsState.blockLabelMediaGallery': 'Galería',
+    'embedsState.blockLabelSeparator': 'Separador',
+    'embedsState.blockLabelActionRow': 'Botones',
+    'embedsState.blockLabelContainer': 'Container',
+    'embedsState.blockLabelFile': 'Archivo',
+    'embedsState.titleTooLong': 'El título supera los {limit} caracteres.',
+    'embedsState.descriptionTooLong': 'La descripción supera los {limit} caracteres.',
+    'embedsState.tooManyFields': 'Máximo {limit} fields.',
+    'embedsState.fieldNameTooLong': 'Un field tiene el nombre demasiado largo (máx {limit}).',
+    'embedsState.fieldValueTooLong': 'Un field tiene el valor demasiado largo (máx {limit}).',
+    'embedsState.footerTooLong': 'El footer supera los {limit} caracteres.',
+    'embedsState.authorTooLong': 'El autor supera los {limit} caracteres.',
+    'embedsState.embedEmpty': 'El embed está vacío: completa al menos un campo.',
+    'embedsState.needAtLeastOneEmbed': 'Agrega al menos un embed con contenido.',
+    'embedsState.tooManyEmbeds': 'Máximo {limit} embeds por mensaje.',
+    'embedsState.embedIndexError': 'Embed {index}: {err}',
+    'embedsState.messageTooLong': 'El mensaje supera los {limit} caracteres sumando todos los embeds ({total}).',
+    'embedsState.giphyDetected': 'GIF de Giphy detectado — usaremos el archivo optimizado.',
+    'embedsState.tenorPageWarn': 'Página de Tenor detectada — para que se vea en el embed pega el enlace directo del GIF (media.tenor.com/…), no el de la página.',
+    'embedsState.galleryImageCount': '{n} imagen(es)',
+    'embedsState.separatorVisible': 'línea visible',
+    'embedsState.separatorSpacingOnly': 'solo espacio',
+    'embedsState.containerBlockCount': '{n} bloque(s)',
+    'embedsState.buttonNoText': 'Botón sin texto',
+    'embedsState.buttonNoUrl': 'Botón sin URL válida',
+    'embedsState.buttonNoRole': 'Botón sin rol elegido',
+    'embedsState.textEmpty': 'Texto vacío',
+    'embedsState.sectionNoText': 'Sección sin texto',
+    'embedsState.thumbnailNoImage': 'Miniatura sin imagen',
+    'embedsState.galleryNoImages': 'Galería sin imágenes',
+    'embedsState.rowNoButtons': 'Fila sin botones',
+    'embedsState.containerEmpty': 'Container vacío',
+    'embedsState.fileNotChosen': 'Sin archivo elegido',
+    'embedsState.noTextPlaceholder': '(sin texto)',
+    'embedsState.layoutNoTextPlaceholder': '(layout sin texto)',
+  },
+  en: {
+    'embedsState.blockLabelText': 'Text',
+    'embedsState.blockLabelSection': 'Section',
+    'embedsState.blockLabelMediaGallery': 'Gallery',
+    'embedsState.blockLabelSeparator': 'Separator',
+    'embedsState.blockLabelActionRow': 'Buttons',
+    'embedsState.blockLabelContainer': 'Container',
+    'embedsState.blockLabelFile': 'File',
+    'embedsState.titleTooLong': 'The title exceeds {limit} characters.',
+    'embedsState.descriptionTooLong': 'The description exceeds {limit} characters.',
+    'embedsState.tooManyFields': 'Maximum of {limit} fields.',
+    'embedsState.fieldNameTooLong': 'A field has a name that is too long (max {limit}).',
+    'embedsState.fieldValueTooLong': 'A field has a value that is too long (max {limit}).',
+    'embedsState.footerTooLong': 'The footer exceeds {limit} characters.',
+    'embedsState.authorTooLong': 'The author exceeds {limit} characters.',
+    'embedsState.embedEmpty': 'The embed is empty: fill in at least one field.',
+    'embedsState.needAtLeastOneEmbed': 'Add at least one embed with content.',
+    'embedsState.tooManyEmbeds': 'Maximum of {limit} embeds per message.',
+    'embedsState.embedIndexError': 'Embed {index}: {err}',
+    'embedsState.messageTooLong': 'The message exceeds {limit} characters combining all embeds ({total}).',
+    'embedsState.giphyDetected': 'Giphy GIF detected — we\'ll use the optimized file.',
+    'embedsState.tenorPageWarn': 'Tenor page detected — for it to show up in the embed, paste the direct GIF link (media.tenor.com/…), not the page link.',
+    'embedsState.galleryImageCount': '{n} image(s)',
+    'embedsState.separatorVisible': 'visible line',
+    'embedsState.separatorSpacingOnly': 'spacing only',
+    'embedsState.containerBlockCount': '{n} block(s)',
+    'embedsState.buttonNoText': 'Button with no text',
+    'embedsState.buttonNoUrl': 'Button with no valid URL',
+    'embedsState.buttonNoRole': 'Button with no role chosen',
+    'embedsState.textEmpty': 'Empty text',
+    'embedsState.sectionNoText': 'Section with no text',
+    'embedsState.thumbnailNoImage': 'Thumbnail with no image',
+    'embedsState.galleryNoImages': 'Gallery with no images',
+    'embedsState.rowNoButtons': 'Row with no buttons',
+    'embedsState.containerEmpty': 'Empty container',
+    'embedsState.fileNotChosen': 'No file chosen',
+    'embedsState.noTextPlaceholder': '(no text)',
+    'embedsState.layoutNoTextPlaceholder': '(layout has no text)',
+  },
+});
+
 // Espejo de los límites de validate_embed_payload (webapi.py) para dar
 // feedback inmediato sin esperar el 400 del server.
 export const EMBED_LIMITS = {
@@ -15,9 +98,10 @@ export const EMBED_LIMITS = {
 export const MAX_WEBHOOK_USERNAME = 80;
 
 export const BLOCK_LABELS = {
-  text: 'Texto', section: 'Sección', media_gallery: 'Galería',
-  separator: 'Separador', action_row: 'Botones', container: 'Container',
-  file: 'Archivo',
+  text: t('embedsState.blockLabelText'), section: t('embedsState.blockLabelSection'),
+  media_gallery: t('embedsState.blockLabelMediaGallery'), separator: t('embedsState.blockLabelSeparator'),
+  action_row: t('embedsState.blockLabelActionRow'), container: t('embedsState.blockLabelContainer'),
+  file: t('embedsState.blockLabelFile'),
 };
 
 export const LAYOUT_MAX_COMPONENTS = 40;
@@ -136,18 +220,18 @@ export function embedChars(e) {
 }
 
 export function validateEmbedClient(e) {
-  if ((e.title || '').length > EMBED_LIMITS.title) return `El título supera los ${EMBED_LIMITS.title} caracteres.`;
-  if ((e.description || '').length > EMBED_LIMITS.description) return `La descripción supera los ${EMBED_LIMITS.description} caracteres.`;
+  if ((e.title || '').length > EMBED_LIMITS.title) return t('embedsState.titleTooLong', { limit: EMBED_LIMITS.title });
+  if ((e.description || '').length > EMBED_LIMITS.description) return t('embedsState.descriptionTooLong', { limit: EMBED_LIMITS.description });
   const fields = e.fields || [];
-  if (fields.length > EMBED_LIMITS.fields) return `Máximo ${EMBED_LIMITS.fields} fields.`;
+  if (fields.length > EMBED_LIMITS.fields) return t('embedsState.tooManyFields', { limit: EMBED_LIMITS.fields });
   for (const f of fields) {
-    if (f.name.length > EMBED_LIMITS.fieldName) return `Un field tiene el nombre demasiado largo (máx ${EMBED_LIMITS.fieldName}).`;
-    if (f.value.length > EMBED_LIMITS.fieldValue) return `Un field tiene el valor demasiado largo (máx ${EMBED_LIMITS.fieldValue}).`;
+    if (f.name.length > EMBED_LIMITS.fieldName) return t('embedsState.fieldNameTooLong', { limit: EMBED_LIMITS.fieldName });
+    if (f.value.length > EMBED_LIMITS.fieldValue) return t('embedsState.fieldValueTooLong', { limit: EMBED_LIMITS.fieldValue });
   }
-  if (((e.footer && e.footer.text) || '').length > EMBED_LIMITS.footer) return `El footer supera los ${EMBED_LIMITS.footer} caracteres.`;
-  if (((e.author && e.author.name) || '').length > EMBED_LIMITS.author) return `El autor supera los ${EMBED_LIMITS.author} caracteres.`;
+  if (((e.footer && e.footer.text) || '').length > EMBED_LIMITS.footer) return t('embedsState.footerTooLong', { limit: EMBED_LIMITS.footer });
+  if (((e.author && e.author.name) || '').length > EMBED_LIMITS.author) return t('embedsState.authorTooLong', { limit: EMBED_LIMITS.author });
   if (!e.title && !e.description && !fields.length && !e.image && !e.thumbnail && !e.author && !e.footer) {
-    return 'El embed está vacío: completa al menos un campo.';
+    return t('embedsState.embedEmpty');
   }
   return null;
 }
@@ -156,15 +240,15 @@ export function validateEmbedClient(e) {
 // El tope de 6000 aplica a la SUMA de todos los embeds del mensaje (regla real
 // de Discord), no por embed.
 export function validateEmbedsClient(dicts) {
-  if (!dicts.length) return 'Agrega al menos un embed con contenido.';
-  if (dicts.length > EMBED_LIMITS.count) return `Máximo ${EMBED_LIMITS.count} embeds por mensaje.`;
+  if (!dicts.length) return t('embedsState.needAtLeastOneEmbed');
+  if (dicts.length > EMBED_LIMITS.count) return t('embedsState.tooManyEmbeds', { limit: EMBED_LIMITS.count });
   for (let i = 0; i < dicts.length; i++) {
     const err = validateEmbedClient(dicts[i]);
-    if (err) return `Embed ${i + 1}: ${err}`;
+    if (err) return t('embedsState.embedIndexError', { index: i + 1, err });
   }
   const total = dicts.reduce((n, d) => n + embedChars(d), 0);
   if (total > EMBED_LIMITS.total) {
-    return `El mensaje supera los ${EMBED_LIMITS.total} caracteres sumando todos los embeds (${total}).`;
+    return t('embedsState.messageTooLong', { limit: EMBED_LIMITS.total, total });
   }
   return null;
 }
@@ -185,13 +269,13 @@ export function detectGif(raw) {
   if (host.endsWith('giphy.com')) {
     const m = url.match(/giphy\.com\/(?:gifs|media)\/(?:.*-)?(\w+)/);
     if (m && !host.startsWith('media')) {
-      return { note: 'GIF de Giphy detectado — usaremos el archivo optimizado.', url: `https://media.giphy.com/media/${m[1]}/giphy.gif` };
+      return { note: t('embedsState.giphyDetected'), url: `https://media.giphy.com/media/${m[1]}/giphy.gif` };
     }
     return null;
   }
   if (host.endsWith('tenor.com')) {
     if (host.startsWith('media') || host.startsWith('c.')) return null; // ya es archivo directo
-    return { warn: true, url, note: 'Página de Tenor detectada — para que se vea en el embed pega el enlace directo del GIF (media.tenor.com/…), no el de la página.' };
+    return { warn: true, url, note: t('embedsState.tenorPageWarn') };
   }
   return null;
 }
@@ -336,50 +420,50 @@ export function docFromLayout(layout, templateId, templateName, sendOptions) {
 // --- Outline de bloques (5.3): resumen, advertencias y conteo de componentes ---
 
 export function firstWords(text, max = 40) {
-  const t = (text || '').trim().replace(/\s+/g, ' ');
-  return t.length > max ? t.slice(0, max) + '…' : t;
+  const trimmed = (text || '').trim().replace(/\s+/g, ' ');
+  return trimmed.length > max ? trimmed.slice(0, max) + '…' : trimmed;
 }
 
 // Adelanto corto del contenido de un bloque para su fila colapsada.
 export function blockSummary(b) {
   if (b.type === 'text') return firstWords(b.content);
-  if (b.type === 'section') return firstWords((b.texts || []).find(t => t.trim()) || '');
+  if (b.type === 'section') return firstWords((b.texts || []).find(txt => txt.trim()) || '');
   if (b.type === 'media_gallery') {
     const n = b.items.filter(it => it.url.trim()).length;
-    return n ? `${n} imagen(es)` : '';
+    return n ? t('embedsState.galleryImageCount', { n }) : '';
   }
   if (b.type === 'action_row') return b.buttons.map(bt => bt.label.trim()).filter(Boolean).join(', ');
-  if (b.type === 'separator') return b.visible ? 'línea visible' : 'solo espacio';
-  if (b.type === 'container') return `${b.children.length} bloque(s)`;
+  if (b.type === 'separator') return b.visible ? t('embedsState.separatorVisible') : t('embedsState.separatorSpacingOnly');
+  if (b.type === 'container') return t('embedsState.containerBlockCount', { n: b.children.length });
   if (b.type === 'file') return b.upload ? b.upload.filename : '';
   return '';
 }
 
 export function btnWarn(bt) {
-  if (!bt.label.trim()) return 'Botón sin texto';
-  if (bt.style === 'link' && !/^https?:\/\//.test((bt.url || '').trim())) return 'Botón sin URL válida';
-  if (bt.style === 'role' && !bt.role_id) return 'Botón sin rol elegido';
+  if (!bt.label.trim()) return t('embedsState.buttonNoText');
+  if (bt.style === 'link' && !/^https?:\/\//.test((bt.url || '').trim())) return t('embedsState.buttonNoUrl');
+  if (bt.style === 'role' && !bt.role_id) return t('embedsState.buttonNoRole');
   return null;
 }
 
 // Problema de validación visible en la fila colapsada, sin expandir el bloque.
 export function blockWarning(b) {
-  if (b.type === 'text' && !b.content.trim()) return 'Texto vacío';
+  if (b.type === 'text' && !b.content.trim()) return t('embedsState.textEmpty');
   if (b.type === 'section') {
-    if (!(b.texts || []).some(t => t.trim())) return 'Sección sin texto';
-    if (b.accessory.type === 'thumbnail' && !b.accessory.url.trim()) return 'Miniatura sin imagen';
+    if (!(b.texts || []).some(txt => txt.trim())) return t('embedsState.sectionNoText');
+    if (b.accessory.type === 'thumbnail' && !b.accessory.url.trim()) return t('embedsState.thumbnailNoImage');
     if (b.accessory.type === 'button') return btnWarn(b.accessory);
   }
-  if (b.type === 'media_gallery' && !b.items.some(it => it.url.trim())) return 'Galería sin imágenes';
+  if (b.type === 'media_gallery' && !b.items.some(it => it.url.trim())) return t('embedsState.galleryNoImages');
   if (b.type === 'action_row') {
-    if (!b.buttons.length) return 'Fila sin botones';
+    if (!b.buttons.length) return t('embedsState.rowNoButtons');
     for (const bt of b.buttons) { const w = btnWarn(bt); if (w) return w; }
   }
   if (b.type === 'container') {
-    if (!b.children.length) return 'Container vacío';
+    if (!b.children.length) return t('embedsState.containerEmpty');
     for (const c of b.children) { const w = blockWarning(c); if (w) return w; }
   }
-  if (b.type === 'file' && !b.upload) return 'Sin archivo elegido';
+  if (b.type === 'file' && !b.upload) return t('embedsState.fileNotChosen');
   return null;
 }
 
@@ -437,17 +521,17 @@ export function stripBlockIds(b) {
 // Snippet de texto legible del primer embed no vacío de una plantilla.
 export function templateSnippet(embeds) {
   const e = embeds.find(x => x && Object.keys(x).length) || {};
-  return e.title || e.description || (e.fields && e.fields[0] && e.fields[0].name) || '(sin texto)';
+  return e.title || e.description || (e.fields && e.fields[0] && e.fields[0].name) || t('embedsState.noTextPlaceholder');
 }
 
 // Snippet del primer bloque con texto de un layout V2 (para "Mis plantillas").
 export function layoutSnippet(layout) {
   function text(b) {
     if (b.type === 'text') return (b.content || '').trim();
-    if (b.type === 'section') return (b.texts || []).find(t => t && t.trim()) || '';
+    if (b.type === 'section') return (b.texts || []).find(txt => txt && txt.trim()) || '';
     if (b.type === 'container') { for (const c of b.children || []) { const s = text(c); if (s) return s; } }
     return '';
   }
   for (const b of (layout && layout.blocks) || []) { const s = text(b); if (s) return s; }
-  return '(layout sin texto)';
+  return t('embedsState.layoutNoTextPlaceholder');
 }

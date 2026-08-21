@@ -1,0 +1,37 @@
+<h1>Development</h1>
+
+<h2 id="project-structure">Project structure</h2>
+<ul>
+  <li><code>src/cogs/</code> — the bot's commands and features (chat, gifs,
+  memes, youtube, premium, announcements, layout_buttons, settings, general).</li>
+  <li><code>src/webapi.py</code> — the full JSON API.</li>
+  <li><code>landing/</code> — the static site: <code>index.html</code>,
+  <code>style.css</code>, <code>script.js</code>.</li>
+  <li><code>landing/pages/</code> — hand-written page bodies;
+  <code>build_docs.py</code> adds the navbar/footer/head to them.</li>
+  <li><code>landing/js/</code> + <code>landing/dash.css</code> — the
+  dashboard, native ES modules with no bundler.</li>
+  <li><code>data/bot.db</code> — the SQLite database.</li>
+</ul>
+
+<h2 id="local-environment">Local environment</h2>
+<p>The bot is Python 3.11+; CI runs on 3.12. Three environment files with
+different rules: <code>.env</code> (secrets, not versioned — expected
+names in <code>.env.example</code>), <code>urls.env</code> (public
+URLs, versioned), and <code>limits.env</code> (per-server quotas,
+versioned). All three are loaded when <code>src/config.py</code> is imported.</p>
+
+<h2 id="tests">Tests</h2>
+<pre><code># pytest isn't in requirements.txt — use the project's venv.
+.venv/bin/python -m pytest tests -q
+
+# Lint and formatting, run in CI.
+ruff check .
+ruff format --check .
+
+# Regenerates the landing/es/ and landing/en/ pages — run after touching
+# docs/*.md, landing/pages/*, or any .css or .js file.
+.venv/bin/python landing/build_docs.py
+.venv/bin/python landing/build_docs.py --check</code></pre>
+<p>There's no <code>pytest.ini</code>: tests are discovered automatically from
+<code>tests/</code>.</p>

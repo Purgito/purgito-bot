@@ -1,0 +1,36 @@
+<h1>Infrastructure</h1>
+<p>Deployment architecture on a single server: nginx at the edge,
+the Python process behind it, and Cloudflare as the CDN and front proxy.</p>
+
+<h2 id="runtime">Runtime</h2>
+<p>The bot and its API run as a single Python process. The API listens
+only on localhost — never exposed directly to the internet — so nginx is
+the only real entry point.</p>
+
+<h2 id="nginx">Nginx</h2>
+<p>Nginx splits by route: <code>/auth/*</code>, <code>/api/*</code>,
+<code>/webhooks/*</code>, and <code>/health</code> go to the
+Python process; everything else — the landing page, the dashboard, the legal
+pages, and this documentation — is served directly from static files, never
+touching Python. Since the site has per-language routes (<code>/es/...</code>,
+<code>/en/...</code>), the one route with a dynamic segment (the server ID
+in the dashboard URL) has a dedicated nginx rule; everything else is
+static routes on disk.</p>
+
+<h2 id="cloudflare">Cloudflare</h2>
+<p>Cloudflare acts as a CDN and reverse proxy layer in front of nginx:
+it handles TLS termination, protects the origin server, and caches the
+site's static content, reducing load on the server.</p>
+
+<h2 id="deployment">Deployment</h2>
+<p>Deployment is based on syncing the repository: since the static
+site and the documentation are pre-generated and versioned in the
+repository, no build step is required on the server;
+syncing changes with <code>git pull</code> and restarting the
+application service is enough.</p>
+
+<h2 id="health-checks">Health checks</h2>
+<p><code>/health</code> is a simple liveness check: it confirms the
+process is running and responding, not that the database or the
+connection to Discord are healthy. It exists for basic monitoring, not as
+a full system diagnostic.</p>

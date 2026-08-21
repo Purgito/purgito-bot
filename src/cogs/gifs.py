@@ -180,10 +180,7 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
 def _valid_media_url(resolved) -> bool:
     """Un media_url resuelto solo se acepta si es un string válido,
     pertenece a un host de GIFs conocido y no apunta a una extensión estática incompatible."""
-    if not (
-        isinstance(resolved, str)
-        and resolved.startswith(("http://", "https://"))
-    ):
+    if not (isinstance(resolved, str) and resolved.startswith(("http://", "https://"))):
         return False
     host = _gif_host(resolved)
     if not _is_gif_site(host):
@@ -218,7 +215,9 @@ class _OgImageParser(HTMLParser):
 
         if prop == "og:image":
             self.og_image = content
-        elif (name == "twitter:image" or itemprop == "contentUrl") and not self._fallback_image:
+        elif (
+            name == "twitter:image" or itemprop == "contentUrl"
+        ) and not self._fallback_image:
             self._fallback_image = content
 
     def get_image(self) -> str | None:
@@ -245,7 +244,11 @@ async def resolve_tenor_gif_url(url: str) -> str | None:
     except Exception:
         return None
     resolved = parser.get_image()
-    if not resolved or not _valid_media_url(resolved) or not resolved.lower().split("?")[0].endswith(".gif"):
+    if (
+        not resolved
+        or not _valid_media_url(resolved)
+        or not resolved.lower().split("?")[0].endswith(".gif")
+    ):
         return None
     return resolved
 
@@ -324,7 +327,9 @@ async def fetch_gif_bytes(url: str, timeout: float = 8.0) -> bytes | None:
 
     target_host = _gif_host(target_url)
     if not _is_allowed_gif_host(target_host):
-        log.warning("URL de GIF resuelta rechazada por host no permitido: %s", target_url)
+        log.warning(
+            "URL de GIF resuelta rechazada por host no permitido: %s", target_url
+        )
         return None
 
     max_bytes = r2._env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
@@ -360,7 +365,9 @@ async def fetch_gif_bytes(url: str, timeout: float = 8.0) -> bytes | None:
             resp.close()
             data = b"".join(chunks)
             if not is_valid_gif_bytes(data):
-                log.debug("Bytes descargados no corresponden a un GIF válido: %s", target_url)
+                log.debug(
+                    "Bytes descargados no corresponden a un GIF válido: %s", target_url
+                )
                 return None
             return data
         except Exception:

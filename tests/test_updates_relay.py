@@ -193,7 +193,9 @@ def test_multiple_guilds_all_receive_update(memory_db):
     ch10.send.assert_awaited_once()
     ch20.send.assert_awaited_once()
     ch30.send.assert_awaited_once()
-    assert ch10.send.call_args.kwargs["content"] == "Lanzamiento de características nuevas"
+    assert (
+        ch10.send.call_args.kwargs["content"] == "Lanzamiento de características nuevas"
+    )
 
 
 def test_failed_guild_does_not_break_other_guilds(memory_db, caplog):
@@ -203,7 +205,9 @@ def test_failed_guild_does_not_break_other_guilds(memory_db, caplog):
     asyncio.run(db.set_updates_channel(300, 30))
 
     ch10 = _fake_channel(10, 100)
-    ch10.send.side_effect = discord.HTTPException(SimpleNamespace(status=500, reason="Discord error"), "fallo")
+    ch10.send.side_effect = discord.HTTPException(
+        SimpleNamespace(status=500, reason="Discord error"), "fallo"
+    )
 
     ch20 = _fake_channel(20, 200)
     ch30 = _fake_channel(30, 300)
@@ -285,7 +289,9 @@ def test_cross_guild_channel_leak_rejected(memory_db, caplog):
     # Canal 10 pertenece a Guild 999, no a Guild 100
     ch10_wrong = _fake_channel(10, 999)
     bot = MagicMock()
-    bot.get_guild.return_value = SimpleNamespace(id=100, me=MagicMock(), get_channel=lambda cid: ch10_wrong)
+    bot.get_guild.return_value = SimpleNamespace(
+        id=100, me=MagicMock(), get_channel=lambda cid: ch10_wrong
+    )
     cog = Updates(bot)
 
     msg = _fake_message(content="Anuncio confidencial")
@@ -312,7 +318,10 @@ def test_missing_send_messages_permission_skipped(memory_db, caplog):
 
     assert sent == 0
     ch10.send.assert_not_awaited()
-    assert any("Sin permisos suficientes" in r.message and "Send Messages" in r.message for r in caplog.records)
+    assert any(
+        "Sin permisos suficientes" in r.message and "Send Messages" in r.message
+        for r in caplog.records
+    )
 
 
 def test_missing_view_channel_permission_skipped(memory_db, caplog):
@@ -330,7 +339,10 @@ def test_missing_view_channel_permission_skipped(memory_db, caplog):
 
     assert sent == 0
     ch10.send.assert_not_awaited()
-    assert any("Sin permisos suficientes" in r.message and "View Channel" in r.message for r in caplog.records)
+    assert any(
+        "Sin permisos suficientes" in r.message and "View Channel" in r.message
+        for r in caplog.records
+    )
 
 
 def test_missing_embed_links_permission_sends_text_without_embeds(memory_db, caplog):
@@ -391,7 +403,9 @@ def test_discord_forbidden_handled_gracefully(memory_db, caplog):
     asyncio.run(db.set_updates_channel(200, 20))
 
     ch10 = _fake_channel(10, 100)
-    ch10.send.side_effect = discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "Missing Access")
+    ch10.send.side_effect = discord.Forbidden(
+        SimpleNamespace(status=403, reason="Forbidden"), "Missing Access"
+    )
     ch20 = _fake_channel(20, 200)
 
     guilds = {
@@ -417,7 +431,9 @@ def test_discord_not_found_cleans_db_configuration(memory_db, caplog):
     asyncio.run(db.set_updates_channel(200, 20))
 
     ch10 = _fake_channel(10, 100)
-    ch10.send.side_effect = discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "Unknown Channel")
+    ch10.send.side_effect = discord.NotFound(
+        SimpleNamespace(status=404, reason="Not Found"), "Unknown Channel"
+    )
     ch20 = _fake_channel(20, 200)
 
     guilds = {
@@ -536,7 +552,9 @@ def test_check_updates_channel_permissions_all_cases():
     ch10 = _fake_channel(10, 100, name="anuncios")
     ch_no_send = _fake_channel(20, 100, send_messages=False, name="solo-lectura")
     ch_no_view = _fake_channel(30, 100, view_channel=False, name="oculto")
-    ch_no_both = _fake_channel(40, 100, view_channel=False, send_messages=False, name="restringido")
+    ch_no_both = _fake_channel(
+        40, 100, view_channel=False, send_messages=False, name="restringido"
+    )
 
     guild = _fake_guild(100, {10: ch10, 20: ch_no_send, 30: ch_no_view, 40: ch_no_both})
 
@@ -655,7 +673,9 @@ def test_api_updates_put_rejects_missing_view_channel(memory_db, monkeypatch):
 
 def test_api_updates_put_rejects_missing_both_permissions(memory_db, monkeypatch):
     """PUT /settings/updates rechaza canal sin Ver canal ni Enviar mensajes detallando ambos."""
-    ch40 = _fake_channel(40, 100, view_channel=False, send_messages=False, name="restringido")
+    ch40 = _fake_channel(
+        40, 100, view_channel=False, send_messages=False, name="restringido"
+    )
     guild = _fake_guild(100, {40: ch40})
     monkeypatch.setattr(webapi, "_bot_guild", lambda req, gid: guild)
 
@@ -719,4 +739,3 @@ def test_api_updates_get_returns_complete_status_payload(memory_db, monkeypatch)
     body4 = json.loads(resp4.text)
     assert body4["status"] == "not_found"
     assert body4["can_publish"] is False
-

@@ -124,19 +124,31 @@ def test_cambio_en_asset_og_actualiza_hash_y_url(tmp_path, monkeypatch):
     og_file.write_bytes(b"mock_png_binary_content_v2_with_different_data")
     hash_v2 = build_docs.og_image_digest()
     url_v2 = build_docs.get_default_og_image()
-    assert hash_v2 == hashlib.sha256(b"mock_png_binary_content_v2_with_different_data").hexdigest()[:8]
+    assert (
+        hash_v2
+        == hashlib.sha256(
+            b"mock_png_binary_content_v2_with_different_data"
+        ).hexdigest()[:8]
+    )
     assert url_v2 == f"https://purgito.app/assets/og-purgito.png?v={hash_v2}"
     assert hash_v1 != hash_v2
     assert url_v1 != url_v2
 
     # Verifica que stamp() actualiza etiquetas sin versionar o con hash previo
-    unversioned_html = '<meta property="og:image" content="https://purgito.app/assets/og-purgito.png">'
+    unversioned_html = (
+        '<meta property="og:image" content="https://purgito.app/assets/og-purgito.png">'
+    )
     stamped = build_docs.stamp(unversioned_html)
     assert f'content="https://purgito.app/assets/og-purgito.png?v={hash_v2}"' in stamped
 
     # Verifica que stamp() actualiza una versión previa (re-sellado)
-    stamped_again = build_docs.stamp(f'<meta property="og:image" content="https://purgito.app/assets/og-purgito.png?v={hash_v1}">')
-    assert f'content="https://purgito.app/assets/og-purgito.png?v={hash_v2}"' in stamped_again
+    stamped_again = build_docs.stamp(
+        f'<meta property="og:image" content="https://purgito.app/assets/og-purgito.png?v={hash_v1}">'
+    )
+    assert (
+        f'content="https://purgito.app/assets/og-purgito.png?v={hash_v2}"'
+        in stamped_again
+    )
     assert hash_v1 not in stamped_again
 
 
@@ -148,10 +160,12 @@ def test_no_quedan_referencias_estaticas_sin_version_en_html_del_sitio():
     for html_file in html_files:
         content = html_file.read_text("utf-8")
         if "og-purgito.png" in content:
-            matches = re.findall(r'https://purgito\.app/assets/og-purgito\.png(?:\?v=([0-9a-f]+))?', content)
+            matches = re.findall(
+                r"https://purgito\.app/assets/og-purgito\.png(?:\?v=([0-9a-f]+))?",
+                content,
+            )
             assert matches, f"No se pudo parsear og-purgito.png en {html_file}"
             for m in matches:
                 assert len(m) == 8, (
                     f"URL de og-purgito sin hash de 8 caracteres en {html_file}: {m}"
                 )
-

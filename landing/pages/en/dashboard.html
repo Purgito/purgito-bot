@@ -1,0 +1,20 @@
+<!-- Cuerpo de /en/dashboard/:id[/tab]. El navbar, el footer y el <head> los
+     pega landing/build_docs.py — no los agregues acá.
+
+     ⚠️ Esta es la ÚNICA página del sitio con un segmento dinámico en la ruta.
+     nginx necesita un location propio que haga fallback a este index.html
+     (ver DEPLOY.md → Configurar nginx); sin eso, /en/dashboard/123 cae en la
+     homepage. El id del servidor lo lee landing/js/core/config.js del path.
+
+     Los tres huecos los llena landing/js/dash.js: cabecera del servidor, tabs
+     y contenido de la tab activa. -->
+<main id="contenido" class="shell-main">
+  <div id="dashHead"></div>
+  <div class="dash-layout">
+    <nav id="dashTabs" class="dash-sidebar" aria-label="Server sections"></nav>
+    <div id="catContent" class="dash-content"></div>
+  </div>
+</main>
+
+<!-- Toast de confirmación del autoguardado (abajo a la izquierda). -->
+<div id="toast" role="status" aria-live="polite"></div>

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-XZdqffSf7TZ1Kkoli0wRvKdpWxXleEGmPL6IIIcj0O4='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Purgito — Un bot que imita tu comunidad</title>
 <meta name="description" content="Purgito aprende del humor de tu servidor de Discord — mensajes, gifs — y responde imitando su estilo. Gratis para siempre.">
@@ -29,6 +29,9 @@
 <meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
 
 <link rel="canonical" href="https://purgito.app/">
+<link rel="alternate" hreflang="es" href="https://purgito.app/es/">
+<link rel="alternate" hreflang="en" href="https://purgito.app/en/">
+<link rel="alternate" hreflang="x-default" href="https://purgito.app/">
 
 <link rel="icon" href="/assets/icon.png">
 <link rel="stylesheet" href="/style.css?v=635a0c7d">
@@ -37,9 +40,9 @@
      traducción disponible y cae a español. Va en el <head> para redirigir
      antes de pintar nada. -->
 <script>
-/* ponytail: agregar 'en','ru','ja','de' aquí cuando exista su traducción —
+/* ponytail: agregar 'ru','ja','de' aquí cuando exista su traducción —
    habilita a la vez el redirect y su ítem en el selector de idioma. */
-window.READY_LANGS = ['es'];
+window.READY_LANGS = ['es', 'en'];
 (function () {
   if (/^\/(es|en|ru|ja|de)(\/|$)/.test(location.pathname)) return;
   var want = navigator.languages || [navigator.language || ''];
@@ -578,6 +581,6 @@ window.READY_LANGS = ['es'];
   </div>
 </footer>
 
-<script src="/script.js?v=0341ea30"></script>
+<script src="/script.js?v=0d10f74a"></script>
 </body>
 </html>

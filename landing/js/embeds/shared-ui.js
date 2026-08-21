@@ -19,6 +19,143 @@ import { getRoles, getChannels, content } from '/js/panel-shell.js';
 import { saveHistorySnapshot } from '/js/embeds/persistence.js';
 import { renderClassicEditor } from '/js/embeds/classic-editor.js';
 import { renderLayoutEditor } from '/js/embeds/layout-editor.js';
+// Alias `tr` (no `t`): este módulo ya usa `t` como nombre de variable de
+// loop/template en varios lugares (ver renderEmbedTemplates), así que
+// importar la función de traducción como `t` colisionaría con eso.
+import { t, addStrings } from '../core/i18n.js';
+
+addStrings({
+  es: {
+    'embedsShared.tabMenciones': 'Menciones',
+    'embedsShared.tabFecha': 'Fecha',
+    'embedsShared.tabEmoji': 'Emoji',
+    'embedsShared.searchRoleChannel': 'Buscar rol o canal…',
+    'embedsShared.noResults': 'Sin resultados',
+    'embedsShared.styleShortTime': 'Hora corta',
+    'embedsShared.styleLongTime': 'Hora con segundos',
+    'embedsShared.styleShortDate': 'Fecha corta',
+    'embedsShared.styleLongDate': 'Fecha larga',
+    'embedsShared.styleShortDateTime': 'Fecha y hora',
+    'embedsShared.styleLongDateTime': 'Fecha y hora completa',
+    'embedsShared.styleRelative': 'Relativo (hace / en…)',
+    'embedsShared.searchEmoji': 'Buscar emoji…',
+    'embedsShared.insertTitle': 'Insertar mención, fecha o emoji',
+    'embedsShared.connectionError': 'No se pudo conectar con el servidor.',
+    'embedsShared.uploadedImagesTitle': 'Imágenes subidas antes',
+    'embedsShared.noImagesYet': 'Todavía no subiste ninguna imagen en este servidor.',
+    'embedsShared.uploadingImage': 'Subiendo imagen…',
+    'embedsShared.imageUploaded': 'Imagen subida',
+    'embedsShared.uploadFailed': 'No se pudo subir: {error}',
+    'embedsShared.pasteImageUrl': '…o pega un enlace de imagen',
+    'embedsShared.resolvingTenorGif': 'Resolviendo GIF de Tenor…',
+    'embedsShared.uploadImage': 'Subir imagen',
+    'embedsShared.imageFormatHint': 'PNG, JPG, GIF o WEBP, hasta 8 MB.',
+    'embedsShared.pasteHintTitle': 'También puedes pegar con {hint} con el campo enfocado',
+    'embedsShared.noImageInClipboard': 'No hay imagen en el portapapeles',
+    'embedsShared.useHintPaste': 'Usa {hint} con el campo de URL enfocado',
+    'embedsShared.pasteButton': 'Pegar ({hint})',
+    'embedsShared.chooseFromUploads': 'Elegir de subidas anteriores',
+    'embedsShared.colorPurgito': 'Purgito',
+    'embedsShared.colorRed': 'Rojo',
+    'embedsShared.colorYellow': 'Amarillo',
+    'embedsShared.colorGreen': 'Verde',
+    'embedsShared.colorBlurple': 'Blurple',
+    'embedsShared.colorPink': 'Rosa',
+    'embedsShared.colorPurple': 'Violeta',
+    'embedsShared.colorWhite': 'Blanco',
+    'embedsShared.colorBlack': 'Negro',
+    'embedsShared.rolesPingLabel': 'Roles que SÍ pueden ser pingueados (vacío = nadie; Ctrl+click para varios)',
+    'embedsShared.identityWarn': 'El bot no tiene permiso de "Gestionar webhooks" en este canal, así que nombre/avatar personalizado no va a funcionar acá — revisa los permisos del canal o vuelve a invitar al bot.',
+    'embedsShared.customIdentityLabel': 'Nombre y avatar personalizado',
+    'embedsShared.customIdentityHint': 'Si completas alguno, el mensaje se manda con un webhook propio del canal en vez de como Purgito — los botones siguen funcionando igual.',
+    'embedsShared.nameLabel': 'Nombre',
+    'embedsShared.avatarLabel': 'Avatar',
+    'embedsShared.sendOptionsSummary': 'Opciones de envío',
+    'embedsShared.silentSend': 'Envío silencioso (sin notificación push)',
+    'embedsShared.restrictMentions': 'No mencionar a nadie salvo lo explícito',
+    'embedsShared.tabEditor': 'Crear / Enviar',
+    'embedsShared.tabTemplates': 'Mis plantillas',
+    'embedsShared.modeClassic': 'Embeds clásicos',
+    'embedsShared.modeLayout': 'Layout V2',
+    'embedsShared.templatesUsedSuffix': ' / {limit} plantillas usadas',
+    'embedsShared.noTemplatesYet': 'Todavía no hay plantillas guardadas — crea una desde "Crear / Enviar".',
+    'embedsShared.badgeLayout': 'LAYOUT',
+    'embedsShared.embedsCountBadge': '{count} embeds',
+    'embedsShared.loadInEditor': 'Cargar en el editor',
+    'embedsShared.renamePromptLabel': 'Nuevo nombre:',
+    'embedsShared.rename': 'Renombrar',
+    'embedsShared.confirmDeleteTemplate': '¿Eliminar la plantilla "{name}"?',
+    'embedsShared.templateDeleted': 'Plantilla eliminada',
+    'embedsShared.delete': 'Eliminar',
+    'embedsShared.embedLoadedFromShare': 'Embed cargado desde un link compartido',
+    'embedsShared.shareExpiredOrMissing': 'Este link ya expiró o no existe',
+  },
+  en: {
+    'embedsShared.tabMenciones': 'Mentions',
+    'embedsShared.tabFecha': 'Date',
+    'embedsShared.tabEmoji': 'Emoji',
+    'embedsShared.searchRoleChannel': 'Search role or channel…',
+    'embedsShared.noResults': 'No results',
+    'embedsShared.styleShortTime': 'Short time',
+    'embedsShared.styleLongTime': 'Long time',
+    'embedsShared.styleShortDate': 'Short date',
+    'embedsShared.styleLongDate': 'Long date',
+    'embedsShared.styleShortDateTime': 'Short date/time',
+    'embedsShared.styleLongDateTime': 'Long date/time',
+    'embedsShared.styleRelative': 'Relative (in / ago…)',
+    'embedsShared.searchEmoji': 'Search emoji…',
+    'embedsShared.insertTitle': 'Insert mention, date, or emoji',
+    'embedsShared.connectionError': 'Could not connect to the server.',
+    'embedsShared.uploadedImagesTitle': 'Previously uploaded images',
+    'embedsShared.noImagesYet': "You haven't uploaded any images in this server yet.",
+    'embedsShared.uploadingImage': 'Uploading image…',
+    'embedsShared.imageUploaded': 'Image uploaded',
+    'embedsShared.uploadFailed': 'Upload failed: {error}',
+    'embedsShared.pasteImageUrl': '…or paste an image link',
+    'embedsShared.resolvingTenorGif': 'Resolving Tenor GIF…',
+    'embedsShared.uploadImage': 'Upload image',
+    'embedsShared.imageFormatHint': 'PNG, JPG, GIF, or WEBP, up to 8 MB.',
+    'embedsShared.pasteHintTitle': 'You can also paste with {hint} while the field is focused',
+    'embedsShared.noImageInClipboard': 'No image in clipboard',
+    'embedsShared.useHintPaste': 'Use {hint} while the URL field is focused',
+    'embedsShared.pasteButton': 'Paste ({hint})',
+    'embedsShared.chooseFromUploads': 'Choose from previous uploads',
+    'embedsShared.colorPurgito': 'Purgito',
+    'embedsShared.colorRed': 'Red',
+    'embedsShared.colorYellow': 'Yellow',
+    'embedsShared.colorGreen': 'Green',
+    'embedsShared.colorBlurple': 'Blurple',
+    'embedsShared.colorPink': 'Pink',
+    'embedsShared.colorPurple': 'Purple',
+    'embedsShared.colorWhite': 'White',
+    'embedsShared.colorBlack': 'Black',
+    'embedsShared.rolesPingLabel': 'Roles that CAN be pinged (empty = none; Ctrl+click for multiple)',
+    'embedsShared.identityWarn': 'The bot doesn\'t have "Manage Webhooks" permission in this channel, so a custom name/avatar won\'t work here — check the channel permissions or reinvite the bot.',
+    'embedsShared.customIdentityLabel': 'Custom name and avatar',
+    'embedsShared.customIdentityHint': "If you fill in either one, the message is sent with the channel's own webhook instead of as Purgito — buttons keep working the same.",
+    'embedsShared.nameLabel': 'Name',
+    'embedsShared.avatarLabel': 'Avatar',
+    'embedsShared.sendOptionsSummary': 'Send options',
+    'embedsShared.silentSend': 'Silent send (no push notification)',
+    'embedsShared.restrictMentions': "Only mention what's explicitly set",
+    'embedsShared.tabEditor': 'Create / Send',
+    'embedsShared.tabTemplates': 'My templates',
+    'embedsShared.modeClassic': 'Classic embeds',
+    'embedsShared.modeLayout': 'Layout V2',
+    'embedsShared.templatesUsedSuffix': ' / {limit} templates used',
+    'embedsShared.noTemplatesYet': 'No templates saved yet — create one from "Create / Send".',
+    'embedsShared.badgeLayout': 'LAYOUT',
+    'embedsShared.embedsCountBadge': '{count} embeds',
+    'embedsShared.loadInEditor': 'Load in editor',
+    'embedsShared.renamePromptLabel': 'New name:',
+    'embedsShared.rename': 'Rename',
+    'embedsShared.confirmDeleteTemplate': 'Delete the template "{name}"?',
+    'embedsShared.templateDeleted': 'Template deleted',
+    'embedsShared.delete': 'Delete',
+    'embedsShared.embedLoadedFromShare': 'Embed loaded from a shared link',
+    'embedsShared.shareExpiredOrMissing': "This link expired or doesn't exist",
+  },
+});
 
 // Modal genérico del panel (historial, JSON). Cierra con ✗, click afuera o Escape.
 export function panelModal(title, body) {
@@ -177,7 +314,11 @@ function _scheduleInsertPopoverPosition() {
   _insPopFrame = requestAnimationFrame(_positionInsertPopover);
 }
 
-const INS_TAB_LABELS = { menciones: 'Menciones', fecha: 'Fecha', emoji: 'Emoji' };
+const INS_TAB_LABELS = {
+  get menciones() { return t('embedsShared.tabMenciones'); },
+  get fecha() { return t('embedsShared.tabFecha'); },
+  get emoji() { return t('embedsShared.tabEmoji'); },
+};
 
 export function openInsertPopover(anchor, input, tabs, initialTab) {
   closeInsertPopover();
@@ -188,15 +329,15 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
 
   function renderTabs() {
     tabBar.innerHTML = '';
-    for (const t of tabs) {
+    for (const tabKey of tabs) {
       tabBar.append(el('div', {
-        class: 'ins-pop-tab' + (t === active ? ' active' : ''),
+        class: 'ins-pop-tab' + (tabKey === active ? ' active' : ''),
         onclick: () => {
-          active = t;
+          active = tabKey;
           renderTabs();
           renderBody().finally(_scheduleInsertPopoverPosition);
         },
-      }, INS_TAB_LABELS[t]));
+      }, INS_TAB_LABELS[tabKey]));
     }
   }
 
@@ -214,7 +355,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
       try { [roles, channels] = await Promise.all([getRoles(), getChannels()]); }
       catch (e) { body.innerHTML = ''; body.append(el('p', { class: 'error' }, e.message)); _scheduleInsertPopoverPosition(); return; }
       body.innerHTML = '';
-      const search = el('input', { type: 'text', placeholder: 'Buscar rol o canal…' });
+      const search = el('input', { type: 'text', placeholder: t('embedsShared.searchRoleChannel') });
       const list = el('div', { class: 'ins-pop-list' });
       function renderList() {
         const q = search.value.trim().toLowerCase();
@@ -229,7 +370,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
           if (q && !c.name.toLowerCase().includes(q)) continue;
           list.append(el('div', { class: 'ins-pop-item', onclick: (ev) => insert(`<#${c.id}>`, ev) }, '#' + c.name));
         }
-        if (!list.children.length) list.append(el('p', { class: 'dim', style: 'padding:8px' }, 'Sin resultados'));
+        if (!list.children.length) list.append(el('p', { class: 'dim', style: 'padding:8px' }, t('embedsShared.noResults')));
         _scheduleInsertPopoverPosition();
       }
       search.oninput = renderList;
@@ -242,9 +383,9 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
       const dt = el('input', { type: 'datetime-local', value: now });
       const list = el('div', { class: 'ins-pop-list' });
       const STYLES = [
-        ['t', 'Hora corta'], ['T', 'Hora con segundos'], ['d', 'Fecha corta'],
-        ['D', 'Fecha larga'], ['f', 'Fecha y hora'], ['F', 'Fecha y hora completa'],
-        ['R', 'Relativo (hace / en…)'],
+        ['t', t('embedsShared.styleShortTime')], ['T', t('embedsShared.styleLongTime')], ['d', t('embedsShared.styleShortDate')],
+        ['D', t('embedsShared.styleLongDate')], ['f', t('embedsShared.styleShortDateTime')], ['F', t('embedsShared.styleLongDateTime')],
+        ['R', t('embedsShared.styleRelative')],
       ];
       // El formato en sí (Intl.DateTimeFormat/RelativeTimeFormat) vive en
       // discordTimestampText, compartido con el renderer del Preview.
@@ -266,7 +407,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
       renderStyles();
     } else {
       // emoji
-      const search = el('input', { type: 'text', placeholder: 'Buscar emoji…' });
+      const search = el('input', { type: 'text', placeholder: t('embedsShared.searchEmoji') });
       const grid = el('div', { class: 'ins-emoji-grid' });
       let custom = [];
       try { custom = await getEmojis(); } catch (e) { /* sin custom, unicode igual sirve */ }
@@ -316,7 +457,7 @@ export function openInsertPopover(anchor, input, tabs, initialTab) {
 // Ctrl/Cmd+M (menciones), Ctrl/Cmd+P (fecha), Ctrl/Cmd+E (emoji).
 export function insertWrap(input, tabs) {
   const btn = el('button', {
-    type: 'button', class: 'ins-btn', title: 'Insertar mención, fecha o emoji',
+    type: 'button', class: 'ins-btn', title: t('embedsShared.insertTitle'),
     onclick: () => openInsertPopover(btn, input, tabs),
   });
   btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>';
@@ -341,7 +482,7 @@ export async function uploadImageBlob(blob) {
       body: blob,
     });
   } catch (e) {
-    throw new Error('No se pudo conectar con el servidor.');
+    throw new Error(t('embedsShared.connectionError'));
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || humanError(r.status));
@@ -383,7 +524,7 @@ export async function uploadLayoutFile(file) {
       body: file,
     });
   } catch (e) {
-    throw new Error('No se pudo conectar con el servidor.');
+    throw new Error(t('embedsShared.connectionError'));
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || humanError(r.status));
@@ -394,11 +535,11 @@ export async function uploadLayoutFile(file) {
 // elige. Carga perezosa (solo al abrir), no en cada render del campo.
 function openImageLibrary(onPick) {
   const body = el('div', { class: 'img-library' }, spinner());
-  panelModal('Imágenes subidas antes', body);
+  panelModal(t('embedsShared.uploadedImagesTitle'), body);
   getUploadedImages().then((urls) => {
     body.innerHTML = '';
     if (!urls.length) {
-      body.append(emptyState('Todavía no subiste ninguna imagen en este servidor.'));
+      body.append(emptyState(t('embedsShared.noImagesYet')));
       return;
     }
     const grid = el('div', { class: 'img-library-grid' });
@@ -424,16 +565,16 @@ export function imageField(obj, key, onChange, opts = {}) {
   async function handleUpload(file) {
     // Estado de carga claro dentro del widget (no dejar el botón inerte).
     wrap.innerHTML = '';
-    wrap.append(el('div', { class: 'img-uploading' }, spinner(), el('span', {}, 'Subiendo imagen…')));
+    wrap.append(el('div', { class: 'img-uploading' }, spinner(), el('span', {}, t('embedsShared.uploadingImage'))));
     try {
       const url = await uploadImageBlob(file);
       set(url);
-      toast('Imagen subida', 'ok');
+      toast(t('embedsShared.imageUploaded'), 'ok');
     } catch (e) {
       // El error queda visible en el campo (además del toast), no solo un toast
       // que desaparece.
       render();
-      wrap.prepend(el('div', { class: 'img-error' }, 'No se pudo subir: ' + e.message));
+      wrap.prepend(el('div', { class: 'img-error' }, t('embedsShared.uploadFailed', { error: e.message })));
       toast(e.message, e.status === 429 ? 'warn' : 'err');
     }
   }
@@ -449,7 +590,7 @@ export function imageField(obj, key, onChange, opts = {}) {
       return;
     }
 
-    const url = el('input', { type: 'url', placeholder: '…o pega un enlace de imagen' });
+    const url = el('input', { type: 'url', placeholder: t('embedsShared.pasteImageUrl') });
     const gifNote = el('div', { class: 'embed-gif-note' });
     url.oninput = () => {
       if (!opts.gif) return;
@@ -471,7 +612,7 @@ export function imageField(obj, key, onChange, opts = {}) {
           // Si falla, se manda igual la URL de la página como antes de esto
           // — queda como chip roto con el mismo aviso manual de siempre.
           gifNote.className = 'embed-gif-note';
-          gifNote.textContent = 'Resolviendo GIF de Tenor…';
+          gifNote.textContent = t('embedsShared.resolvingTenorGif');
           const resolved = await resolveTenorUrl(v);
           if (resolved) v = resolved;
         }
@@ -485,25 +626,25 @@ export function imageField(obj, key, onChange, opts = {}) {
     // campo de URL pasa a secundario para que el usuario no-técnico no vea
     // "esto empieza con una URL".
     const uploadBtn = el('button', { type: 'button', class: 'btn btn-primary', onclick: () => fileInput.click() },
-      icon('image'), 'Subir imagen');
-    const uploadHint = helpIcon('PNG, JPG, GIF o WEBP, hasta 8 MB.');
+      icon('image'), t('embedsShared.uploadImage'));
+    const uploadHint = helpIcon(t('embedsShared.imageFormatHint'));
     const pasteBtn = el('button', {
-      type: 'button', class: 'btn btn-secondary btn-sm', title: 'También puedes pegar con ' + _PASTE_HINT + ' con el campo enfocado',
+      type: 'button', class: 'btn btn-secondary btn-sm', title: t('embedsShared.pasteHintTitle', { hint: _PASTE_HINT }),
       onclick: async () => {
         // clipboard.read() solo anda en Chromium con permiso; el paste con
         // teclado (listener de abajo) es el camino universal.
         try {
           const items = await navigator.clipboard.read();
           for (const item of items) {
-            const type = item.types.find(t => t.startsWith('image/'));
+            const type = item.types.find(mime => mime.startsWith('image/'));
             if (type) { handleUpload(await item.getType(type)); return; }
           }
-          toast('No hay imagen en el portapapeles', 'warn');
+          toast(t('embedsShared.noImageInClipboard'), 'warn');
         } catch (e) {
-          toast('Usa ' + _PASTE_HINT + ' con el campo de URL enfocado', 'warn');
+          toast(t('embedsShared.useHintPaste', { hint: _PASTE_HINT }), 'warn');
         }
       },
-    }, 'Pegar (' + _PASTE_HINT + ')');
+    }, t('embedsShared.pasteButton', { hint: _PASTE_HINT }));
     url.addEventListener('paste', (ev) => {
       const file = [...(ev.clipboardData?.files || [])].find(f => f.type.startsWith('image/'));
       if (file) { ev.preventDefault(); handleUpload(file); }
@@ -512,7 +653,7 @@ export function imageField(obj, key, onChange, opts = {}) {
     const libraryBtn = el('button', {
       type: 'button', class: 'btn btn-secondary btn-sm',
       onclick: () => openImageLibrary(set),
-    }, 'Elegir de subidas anteriores');
+    }, t('embedsShared.chooseFromUploads'));
     const secondary = el('div', { class: 'img-field-secondary' }, url, pasteBtn, libraryBtn);
     wrap.append(
       el('div', { class: 'img-field-primary' }, uploadBtn, fileInput, uploadHint),
@@ -603,7 +744,7 @@ export function sendOptionsPanel(o, roles, channels, chSel) {
   }
   roleSel.onchange = () => { o.roleIds = [...roleSel.selectedOptions].map(x => x.value); };
   const roleBlock = el('div', { class: 'field', style: o.restrict ? '' : 'display:none' },
-    el('label', {}, 'Roles que SÍ pueden ser pingueados (vacío = nadie; Ctrl+click para varios)'),
+    el('label', {}, t('embedsShared.rolesPingLabel')),
     roleSel);
   restrict.onchange = () => { o.restrict = restrict.checked; roleBlock.style.display = o.restrict ? '' : 'none'; };
 
@@ -627,29 +768,23 @@ export function sendOptionsPanel(o, roles, channels, chSel) {
     const ch = channels.find(c => c.id === chSel.value);
     const blocked = !!ch && ch.can_manage_webhooks === false;
     identityWarn.style.display = blocked ? '' : 'none';
-    identityWarn.textContent = blocked
-      ? 'El bot no tiene permiso de "Gestionar webhooks" en este canal, así '
-        + 'que nombre/avatar personalizado no va a funcionar acá — revisa '
-        + 'los permisos del canal o vuelve a invitar al bot.'
-      : '';
+    identityWarn.textContent = blocked ? t('embedsShared.identityWarn') : '';
   }
   if (chSel) chSel.addEventListener('change', refreshIdentityWarn);
   refreshIdentityWarn();
 
   const identityBlock = el('div', { class: 'field' },
-    el('label', {}, 'Nombre y avatar personalizado'),
-    el('p', { class: 'dim' },
-      'Si completas alguno, el mensaje se manda con un webhook propio del '
-      + 'canal en vez de como Purgito — los botones siguen funcionando igual.'),
+    el('label', {}, t('embedsShared.customIdentityLabel')),
+    el('p', { class: 'dim' }, t('embedsShared.customIdentityHint')),
     identityWarn,
     el('div', { class: 'embed-two' },
-      el('div', {}, el('label', {}, 'Nombre'), username),
-      el('div', {}, el('label', {}, 'Avatar'), avatarField)));
+      el('div', {}, el('label', {}, t('embedsShared.nameLabel')), username),
+      el('div', {}, el('label', {}, t('embedsShared.avatarLabel')), avatarField)));
 
   const details = el('details', { class: 'send-opts' },
-    el('summary', {}, 'Opciones de envío'),
-    el('div', { class: 'field' }, el('label', { class: 'toggle' }, silent, 'Envío silencioso (sin notificación push)')),
-    el('div', { class: 'field' }, el('label', { class: 'toggle' }, restrict, 'No mencionar a nadie salvo lo explícito')),
+    el('summary', {}, t('embedsShared.sendOptionsSummary')),
+    el('div', { class: 'field' }, el('label', { class: 'toggle' }, silent, t('embedsShared.silentSend'))),
+    el('div', { class: 'field' }, el('label', { class: 'toggle' }, restrict, t('embedsShared.restrictMentions'))),
     roleBlock,
     identityBlock);
   if (o.silent || o.restrict || o.username || o.avatarUrl) details.open = true;
@@ -690,8 +825,8 @@ export async function renderEmbedEditor(box) {
 
   // Selector de modo: embeds clásicos vs Layout V2 (excluyentes en Discord).
   box.append(el('div', { class: 'embed-mode-sel' },
-    modeRadio('classic', 'Embeds clásicos'),
-    modeRadio('layout', 'Layout V2')));
+    modeRadio('classic', t('embedsShared.modeClassic')),
+    modeRadio('layout', t('embedsShared.modeLayout'))));
   const inner = el('div', {});
   box.append(inner);
   if (_embedMode === 'layout') renderLayoutEditor(inner, channels, roles);
@@ -706,65 +841,65 @@ export async function renderEmbedTemplates(box) {
   box.innerHTML = '';
 
   box.append(el('p', { class: 'dim gif-stats' },
-    el('strong', { class: 'stat-num' }, String(data.total)), ` / ${data.limit} plantillas usadas`));
+    el('strong', { class: 'stat-num' }, String(data.total)), t('embedsShared.templatesUsedSuffix', { limit: data.limit })));
 
   if (!data.templates.length) {
-    box.append(emptyState('Todavía no hay plantillas guardadas — crea una desde "Crear / Enviar".'));
+    box.append(emptyState(t('embedsShared.noTemplatesYet')));
     return;
   }
 
   const list = el('ul', { class: 'item-list' });
-  for (const t of data.templates) {
-    const isLayout = t.content_mode === 'layout_v2';
-    const embeds = t.embeds || [];
+  for (const tpl of data.templates) {
+    const isLayout = tpl.content_mode === 'layout_v2';
+    const embeds = tpl.embeds || [];
     const first = embeds.find(x => x && Object.keys(x).length) || {};
     const color = colorToHex(first.color) || '#8B6EF5';
     const badge = isLayout
-      ? el('span', { class: 'badge badge-premium' }, 'LAYOUT')
-      : (embeds.length > 1 ? el('span', { class: 'badge' }, embeds.length + ' embeds') : null);
-    const snippet = isLayout ? layoutSnippet(t.layout) : templateSnippet(embeds);
+      ? el('span', { class: 'badge badge-premium' }, t('embedsShared.badgeLayout'))
+      : (embeds.length > 1 ? el('span', { class: 'badge' }, t('embedsShared.embedsCountBadge', { count: embeds.length })) : null);
+    const snippet = isLayout ? layoutSnippet(tpl.layout) : templateSnippet(embeds);
     // Payload que reusa el "Renombrar" (PUT exige revalidar todo el contenido;
     // send_options viaja de vuelta para no perderse en el re-guardado).
     const renameBody = (name) => isLayout
-      ? { name, content_mode: 'layout_v2', layout: t.layout, send_options: t.send_options || undefined }
-      : { name, embeds, send_options: t.send_options || undefined };
+      ? { name, content_mode: 'layout_v2', layout: tpl.layout, send_options: tpl.send_options || undefined }
+      : { name, embeds, send_options: tpl.send_options || undefined };
     list.append(el('li', {},
       el('span', {},
         el('span', { class: 'tpl-dot', style: 'background:' + color }), ' ',
-        el('strong', {}, t.name),
+        el('strong', {}, tpl.name),
         badge,
         ' — ',
         el('span', { class: 'dim' }, snippet.slice(0, 60))),
       el('button', {
         class: 'btn btn-secondary btn-sm',
         onclick: () => {
-          if (isLayout) { setEmbedMode('layout'); setLayoutDoc(docFromLayout(t.layout, t.id, t.name, t.send_options)); }
-          else { setEmbedMode('classic'); setEmbedDoc(docFromEmbeds(embeds, t.id, t.name, t.send_options)); }
+          if (isLayout) { setEmbedMode('layout'); setLayoutDoc(docFromLayout(tpl.layout, tpl.id, tpl.name, tpl.send_options)); }
+          else { setEmbedMode('classic'); setEmbedDoc(docFromEmbeds(embeds, tpl.id, tpl.name, tpl.send_options)); }
           setEmbedTab('editor'); loadEmbeds();
         },
-      }, 'Cargar en el editor'),
+      }, t('embedsShared.loadInEditor')),
       el('button', {
         class: 'btn btn-secondary btn-sm',
         onclick: async () => {
-          const name = (prompt('Nuevo nombre:', t.name) || '').trim();
-          if (!name || name === t.name) return;
+          const name = (prompt(t('embedsShared.renamePromptLabel'), tpl.name) || '').trim();
+          if (!name || name === tpl.name) return;
           try {
-            await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${t.id}`, { method: 'PUT', body: renameBody(name) });
+            await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${tpl.id}`, { method: 'PUT', body: renameBody(name) });
             loadEmbeds();
           } catch (err) { toast(err.message, 'err'); }
         },
-      }, 'Renombrar'),
+      }, t('embedsShared.rename')),
       el('button', {
         class: 'btn btn-danger btn-sm',
         onclick: async () => {
-          if (!confirm(`¿Eliminar la plantilla "${t.name}"?`)) return;
+          if (!confirm(t('embedsShared.confirmDeleteTemplate', { name: tpl.name }))) return;
           try {
-            await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${t.id}`, { method: 'DELETE' });
-            toast('Plantilla eliminada', 'ok');
+            await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${tpl.id}`, { method: 'DELETE' });
+            toast(t('embedsShared.templateDeleted'), 'ok');
             loadEmbeds();
           } catch (err) { toast(err.message, 'err'); }
         },
-      }, 'Eliminar')));
+      }, t('embedsShared.delete'))));
   }
   box.append(list);
 }
@@ -780,10 +915,10 @@ export async function loadSharedEmbed(shareId) {
     setEmbedMode('classic');
     setEmbedDoc(docFromEmbeds(data.embeds, null, '', data.send_options));
     sessionStorage.setItem('purgito_share_id', shareId);
-    toast('Embed cargado desde un link compartido', 'ok');
+    toast(t('embedsShared.embedLoadedFromShare'), 'ok');
   } catch (e) {
     sessionStorage.removeItem('purgito_share_id');
-    toast(e.message || 'Este link ya expiró o no existe', 'err');
+    toast(e.message || t('embedsShared.shareExpiredOrMissing'), 'err');
   }
   history.replaceState({}, '', location.pathname);
 }

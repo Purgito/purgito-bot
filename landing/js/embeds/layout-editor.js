@@ -19,6 +19,166 @@ import {
   readEmbedDraft, clearEmbedDraft, scheduleHistorySnapshot, scheduleDraftSave,
   openHistoryModal, openJsonModal,
 } from '/js/embeds/persistence.js';
+import { t, addStrings } from '../core/i18n.js';
+
+addStrings({
+  es: {
+    'embedsLayout.noBlocksYet': 'Todavía no hay bloques. Agregá el primero con los botones de abajo.',
+    'embedsLayout.addText': '+ Texto',
+    'embedsLayout.addSection': '+ Sección',
+    'embedsLayout.addGallery': '+ Galería',
+    'embedsLayout.addSeparator': '+ Separador',
+    'embedsLayout.addButtons': '+ Botones',
+    'embedsLayout.addFile': '+ Archivo',
+    'embedsLayout.addContainer': '+ Container',
+    'embedsLayout.maxFilesTooltip': 'Máximo {limit} archivos por mensaje',
+    'embedsLayout.maxComponentsTooltip': 'Límite de {limit} componentes por mensaje alcanzado',
+    'embedsLayout.expand': 'Expandir',
+    'embedsLayout.collapse': 'Colapsar',
+    'embedsLayout.dragToReorder': 'Arrastra para reordenar',
+    'embedsLayout.duplicateBlock': 'Duplicar bloque',
+    'embedsLayout.linkOption': 'Enlace',
+    'embedsLayout.assignRoleOption': 'Asignar rol',
+    'embedsLayout.buttonTextPlaceholder': 'Texto del botón',
+    'embedsLayout.chooseRolePlaceholder': 'Elegir rol…',
+    'embedsLayout.colorGray': 'Gris',
+    'embedsLayout.colorBlurple': 'Blurple',
+    'embedsLayout.colorGreen': 'Verde',
+    'embedsLayout.colorRed': 'Rojo',
+    'embedsLayout.assignRoleHelp': '"Asignar rol" alterna: si quien clickea no tiene el rol se lo da, si ya lo tiene se lo quita.',
+    'embedsLayout.textMarkdownPlaceholder': 'Texto (markdown de Discord)',
+    'embedsLayout.smallSpaceOption': 'Espacio chico',
+    'embedsLayout.largeSpaceOption': 'Espacio grande',
+    'embedsLayout.visibleLineLabel': 'Línea visible',
+    'embedsLayout.descriptionOptionalPlaceholder': 'Descripción (opcional)',
+    'embedsLayout.addImage': '+ Imagen',
+    'embedsLayout.addButton': '+ Botón',
+    'embedsLayout.textPlaceholderN': 'Texto {n}',
+    'embedsLayout.addTextItem': '+ Texto',
+    'embedsLayout.thumbnailOption': 'Miniatura',
+    'embedsLayout.buttonOption': 'Botón',
+    'embedsLayout.textsMaxLabel': 'Textos (máx 3)',
+    'embedsLayout.accessoryLabel': 'Accesorio',
+    'embedsLayout.fileTooLarge': 'El archivo supera el máximo de {size}',
+    'embedsLayout.uploadingFile': 'Subiendo archivo…',
+    'embedsLayout.uploadFailed': 'No se pudo subir: {error}',
+    'embedsLayout.chooseFile': 'Elegir archivo',
+    'embedsLayout.markAsSpoiler': 'Marcar como spoiler',
+    'embedsLayout.spoilerHelp': 'Se ve pixelado hasta que alguien lo abre a propósito.',
+    'embedsLayout.fileHint': 'Máx. {size}. Solo funciona con "Enviar ahora" — no se puede programar ni guardar en una plantilla.',
+    'embedsLayout.accentBarLabel': 'Barra de color',
+    'embedsLayout.accentBarHelp': 'Pinta un borde de color a la izquierda de todo el container, como el de un embed clásico.',
+    'embedsLayout.previewEmptyHint': 'Agrega bloques para ver tu mensaje',
+    'embedsLayout.buttonFallbackLabel': 'botón',
+    'embedsLayout.roleTag': 'ROL',
+    'embedsLayout.noFilePlaceholder': '(sin archivo)',
+    'embedsLayout.v2Warning': 'Los layouts V2 no pueden combinar con embeds clásicos en el mismo mensaje — es una limitación de Discord, no del panel.',
+    'embedsLayout.draftRecovered': 'Recuperamos tu borrador anterior',
+    'embedsLayout.discard': 'Descartar',
+    'embedsLayout.schedBlockedByFile': 'No disponible: el layout tiene un bloque de archivo',
+    'embedsLayout.channelPlaceholder': 'Canal destino…',
+    'embedsLayout.intervalOption': 'Por intervalo',
+    'embedsLayout.dailyOption': 'A hora fija',
+    'embedsLayout.scheduleLabel': 'Programar',
+    'embedsLayout.sendNowLabel': 'Enviar ahora',
+    'embedsLayout.needAtLeastOneBlock': 'Agrega al menos un bloque',
+    'embedsLayout.chooseChannel': 'Elige un canal destino',
+    'embedsLayout.emptyFileBlock': 'Hay un bloque de archivo sin elegir todavía.',
+    'embedsLayout.fileBlockCantSchedule': 'Los bloques de archivo no se pueden programar — usa "Enviar ahora".',
+    'embedsLayout.layoutScheduled': 'Layout programado',
+    'embedsLayout.layoutSent': 'Layout enviado',
+    'embedsLayout.fileBlockCantSaveTemplate': 'Los bloques de archivo no se pueden guardar en una plantilla — usa "Enviar ahora".',
+    'embedsLayout.templateNamePrompt': 'Nombre de la plantilla:',
+    'embedsLayout.templateUpdated': 'Plantilla actualizada',
+    'embedsLayout.templateSaved': 'Plantilla guardada',
+    'embedsLayout.saveAsTemplate': 'Guardar como plantilla',
+    'embedsLayout.clear': 'Limpiar',
+    'embedsLayout.history': 'Historial',
+    'embedsLayout.viewEditJson': 'Ver/editar JSON',
+    'embedsLayout.blocksSection': 'Bloques',
+    'embedsLayout.destinationSection': 'Destino y envío',
+    'embedsLayout.targetChannelLabel': 'Canal destino',
+    'embedsLayout.previewLabel': 'Preview',
+  },
+  en: {
+    'embedsLayout.noBlocksYet': 'No blocks yet. Add the first one with the buttons below.',
+    'embedsLayout.addText': '+ Text',
+    'embedsLayout.addSection': '+ Section',
+    'embedsLayout.addGallery': '+ Gallery',
+    'embedsLayout.addSeparator': '+ Separator',
+    'embedsLayout.addButtons': '+ Buttons',
+    'embedsLayout.addFile': '+ File',
+    'embedsLayout.addContainer': '+ Container',
+    'embedsLayout.maxFilesTooltip': 'Maximum of {limit} files per message',
+    'embedsLayout.maxComponentsTooltip': 'Limit of {limit} components per message reached',
+    'embedsLayout.expand': 'Expand',
+    'embedsLayout.collapse': 'Collapse',
+    'embedsLayout.dragToReorder': 'Drag to reorder',
+    'embedsLayout.duplicateBlock': 'Duplicate block',
+    'embedsLayout.linkOption': 'Link',
+    'embedsLayout.assignRoleOption': 'Assign role',
+    'embedsLayout.buttonTextPlaceholder': 'Button text',
+    'embedsLayout.chooseRolePlaceholder': 'Choose role…',
+    'embedsLayout.colorGray': 'Gray',
+    'embedsLayout.colorBlurple': 'Blurple',
+    'embedsLayout.colorGreen': 'Green',
+    'embedsLayout.colorRed': 'Red',
+    'embedsLayout.assignRoleHelp': '"Assign role" toggles it: if the clicker doesn\'t have the role they get it, if they already have it they lose it.',
+    'embedsLayout.textMarkdownPlaceholder': 'Text (Discord markdown)',
+    'embedsLayout.smallSpaceOption': 'Small spacing',
+    'embedsLayout.largeSpaceOption': 'Large spacing',
+    'embedsLayout.visibleLineLabel': 'Visible line',
+    'embedsLayout.descriptionOptionalPlaceholder': 'Description (optional)',
+    'embedsLayout.addImage': '+ Image',
+    'embedsLayout.addButton': '+ Button',
+    'embedsLayout.textPlaceholderN': 'Text {n}',
+    'embedsLayout.addTextItem': '+ Text',
+    'embedsLayout.thumbnailOption': 'Thumbnail',
+    'embedsLayout.buttonOption': 'Button',
+    'embedsLayout.textsMaxLabel': 'Texts (max 3)',
+    'embedsLayout.accessoryLabel': 'Accessory',
+    'embedsLayout.fileTooLarge': 'The file exceeds the maximum of {size}',
+    'embedsLayout.uploadingFile': 'Uploading file…',
+    'embedsLayout.uploadFailed': 'Could not upload: {error}',
+    'embedsLayout.chooseFile': 'Choose file',
+    'embedsLayout.markAsSpoiler': 'Mark as spoiler',
+    'embedsLayout.spoilerHelp': 'Shows up pixelated until someone deliberately opens it.',
+    'embedsLayout.fileHint': 'Max. {size}. Only works with "Send now" — can\'t be scheduled or saved in a template.',
+    'embedsLayout.accentBarLabel': 'Color bar',
+    'embedsLayout.accentBarHelp': 'Paints a colored border on the left of the entire container, like a classic embed\'s.',
+    'embedsLayout.previewEmptyHint': 'Add blocks to see your message',
+    'embedsLayout.buttonFallbackLabel': 'button',
+    'embedsLayout.roleTag': 'ROLE',
+    'embedsLayout.noFilePlaceholder': '(no file)',
+    'embedsLayout.v2Warning': 'V2 layouts can\'t be combined with classic embeds in the same message — that\'s a Discord limitation, not the panel\'s.',
+    'embedsLayout.draftRecovered': 'We recovered your previous draft',
+    'embedsLayout.discard': 'Discard',
+    'embedsLayout.schedBlockedByFile': 'Not available: the layout has a file block',
+    'embedsLayout.channelPlaceholder': 'Target channel…',
+    'embedsLayout.intervalOption': 'By interval',
+    'embedsLayout.dailyOption': 'At a fixed time',
+    'embedsLayout.scheduleLabel': 'Schedule',
+    'embedsLayout.sendNowLabel': 'Send now',
+    'embedsLayout.needAtLeastOneBlock': 'Add at least one block',
+    'embedsLayout.chooseChannel': 'Choose a target channel',
+    'embedsLayout.emptyFileBlock': 'There\'s a file block with nothing chosen yet.',
+    'embedsLayout.fileBlockCantSchedule': 'File blocks can\'t be scheduled — use "Send now".',
+    'embedsLayout.layoutScheduled': 'Layout scheduled',
+    'embedsLayout.layoutSent': 'Layout sent',
+    'embedsLayout.fileBlockCantSaveTemplate': 'File blocks can\'t be saved in a template — use "Send now".',
+    'embedsLayout.templateNamePrompt': 'Template name:',
+    'embedsLayout.templateUpdated': 'Template updated',
+    'embedsLayout.templateSaved': 'Template saved',
+    'embedsLayout.saveAsTemplate': 'Save as template',
+    'embedsLayout.clear': 'Clear',
+    'embedsLayout.history': 'History',
+    'embedsLayout.viewEditJson': 'View/edit JSON',
+    'embedsLayout.blocksSection': 'Blocks',
+    'embedsLayout.destinationSection': 'Destination and sending',
+    'embedsLayout.targetChannelLabel': 'Target channel',
+    'embedsLayout.previewLabel': 'Preview',
+  },
+});
 
 // Lista editable de bloques (recursiva: un container tiene su propia lista).
 export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
@@ -40,26 +200,26 @@ export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
   // lista vacía sin indicación.
   if (!blocks.length && !inContainer) {
     listEl.append(el('div', { class: 'outline-empty' },
-      'Todavía no hay bloques. Agregá el primero con los botones de abajo.'));
+      t('embedsLayout.noBlocksYet')));
   }
   const adder = el('div', { class: 'add-row layout-adder' });
   const atMax = componentCount(_layoutDoc ? _layoutDoc.blocks : blocks) >= LAYOUT_MAX_COMPONENTS;
-  const types = [['text', '+ Texto'], ['section', '+ Sección'], ['media_gallery', '+ Galería'],
-                 ['separator', '+ Separador'], ['action_row', '+ Botones'], ['file', '+ Archivo']];
-  if (!inContainer) types.push(['container', '+ Container']);
-  for (const [t, label] of types) {
+  const types = [['text', t('embedsLayout.addText')], ['section', t('embedsLayout.addSection')], ['media_gallery', t('embedsLayout.addGallery')],
+                 ['separator', t('embedsLayout.addSeparator')], ['action_row', t('embedsLayout.addButtons')], ['file', t('embedsLayout.addFile')]];
+  if (!inContainer) types.push(['container', t('embedsLayout.addContainer')]);
+  for (const [blockType, label] of types) {
     // "+ Archivo" además respeta su propio tope (Discord: adjuntos por
     // mensaje), independiente del tope general de componentes.
-    const atFileMax = t === 'file'
+    const atFileMax = blockType === 'file'
       && countFileBlocks(_layoutDoc ? _layoutDoc.blocks : blocks) >= LAYOUT_MAX_FILES;
     const disabled = atMax || atFileMax;
     adder.append(el('button', {
       class: 'btn btn-secondary btn-sm',
       disabled: disabled || null,
       title: atFileMax
-        ? `Máximo ${LAYOUT_MAX_FILES} archivos por mensaje`
-        : atMax ? `Límite de ${LAYOUT_MAX_COMPONENTS} componentes por mensaje alcanzado` : null,
-      onclick: () => { blocks.push(newBlock(t)); renderBlocks(listEl, blocks, inContainer, onChange, roles); onChange(); },
+        ? t('embedsLayout.maxFilesTooltip', { limit: LAYOUT_MAX_FILES })
+        : atMax ? t('embedsLayout.maxComponentsTooltip', { limit: LAYOUT_MAX_COMPONENTS }) : null,
+      onclick: () => { blocks.push(newBlock(blockType)); renderBlocks(listEl, blocks, inContainer, onChange, roles); onChange(); },
     }, label));
   }
   listEl.append(adder);
@@ -78,7 +238,7 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
   if (b._collapsed) body.style.display = 'none';
   const toggle = el('button', {
     class: 'btn btn-secondary btn-sm',
-    title: b._collapsed ? 'Expandir' : 'Colapsar',
+    title: b._collapsed ? t('embedsLayout.expand') : t('embedsLayout.collapse'),
     onclick: () => {
       // _collapsed vive solo en el estado del editor (blockToApi nunca lo copia).
       b._collapsed = !b._collapsed;
@@ -90,7 +250,7 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
   // seguir seleccionando texto normalmente, no mover el bloque.
   const handle = el('span', {
     class: 'layout-block-handle', draggable: 'true',
-    title: 'Arrastra para reordenar', 'aria-label': 'Arrastra para reordenar',
+    title: t('embedsLayout.dragToReorder'), 'aria-label': t('embedsLayout.dragToReorder'),
   }, '⠿');
   const head = el('div', { class: 'layout-block-head' },
     el('span', { class: 'layout-block-title' },
@@ -100,7 +260,7 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
       summary ? el('span', { class: 'layout-block-summary dim' }, summary) : null),
     el('span', { class: 'layout-block-actions' },
       el('button', {
-        class: 'btn btn-secondary btn-sm', title: 'Duplicar bloque',
+        class: 'btn btn-secondary btn-sm', title: t('embedsLayout.duplicateBlock'),
         disabled: componentCount(_layoutDoc ? _layoutDoc.blocks : blocks) >= LAYOUT_MAX_COMPONENTS || null,
         onclick: () => {
           const copy = structuredClone(b);
@@ -148,21 +308,21 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
 
 // Campos de un botón: selector Enlace/Asignar rol + los inputs correspondientes.
 export function buttonStyleFields(bt, onChange, roles) {
-  const styleSel = el('select', {}, el('option', { value: 'link' }, 'Enlace'), el('option', { value: 'role' }, 'Asignar rol'));
+  const styleSel = el('select', {}, el('option', { value: 'link' }, t('embedsLayout.linkOption')), el('option', { value: 'role' }, t('embedsLayout.assignRoleOption')));
   styleSel.value = bt.style || 'link';
-  const label = el('input', { type: 'text', placeholder: 'Texto del botón', maxlength: '80', value: bt.label });
+  const label = el('input', { type: 'text', placeholder: t('embedsLayout.buttonTextPlaceholder'), maxlength: '80', value: bt.label });
   label.oninput = () => { bt.label = label.value; onChange(); };
   const urlInput = el('input', { type: 'url', placeholder: 'https://…', value: bt.url || '' });
   urlInput.oninput = () => { bt.url = urlInput.value; onChange(); };
-  const roleSel = roleSelect(roles, bt.role_id, 'Elegir rol…');
+  const roleSel = roleSelect(roles, bt.role_id, t('embedsLayout.chooseRolePlaceholder'));
   roleSel.onchange = () => { bt.role_id = roleSel.value; onChange(); };
   // Color (Fase 4): solo para botones de rol -- uno de link siempre es el
   // mismo gris con ícono en Discord, no se puede recolorear.
   const colorSel = el('select', {},
-    el('option', { value: 'secondary' }, 'Gris'),
-    el('option', { value: 'primary' }, 'Blurple'),
-    el('option', { value: 'success' }, 'Verde'),
-    el('option', { value: 'danger' }, 'Rojo'));
+    el('option', { value: 'secondary' }, t('embedsLayout.colorGray')),
+    el('option', { value: 'primary' }, t('embedsLayout.colorBlurple')),
+    el('option', { value: 'success' }, t('embedsLayout.colorGreen')),
+    el('option', { value: 'danger' }, t('embedsLayout.colorRed')));
   colorSel.value = bt.color || 'secondary';
   colorSel.onchange = () => { bt.color = colorSel.value; onChange(); };
   function sync() {
@@ -174,12 +334,12 @@ export function buttonStyleFields(bt, onChange, roles) {
   styleSel.onchange = () => { bt.style = styleSel.value; sync(); onChange(); };
   sync();
   return el('div', { class: 'add-row layout-btn-fields' }, styleSel, label, urlInput, roleSel, colorSel,
-    helpIcon('"Asignar rol" alterna: si quien clickea no tiene el rol se lo da, si ya lo tiene se lo quita.'));
+    helpIcon(t('embedsLayout.assignRoleHelp')));
 }
 
 export function renderBlockForm(b, onChange, roles) {
   if (b.type === 'text') {
-    const ta = el('textarea', { class: 'autogrow', placeholder: 'Texto (markdown de Discord)' });
+    const ta = el('textarea', { class: 'autogrow', placeholder: t('embedsLayout.textMarkdownPlaceholder') });
     ta.value = b.content;
     ta.oninput = () => { b.content = ta.value; autoGrow(ta); onChange(); };
     return insertWrap(ta, ['menciones', 'fecha', 'emoji']);
@@ -187,24 +347,24 @@ export function renderBlockForm(b, onChange, roles) {
   if (b.type === 'separator') {
     const vis = el('input', { type: 'checkbox', checked: b.visible });
     vis.onchange = () => { b.visible = vis.checked; onChange(); };
-    const sp = el('select', {}, el('option', { value: 'small' }, 'Espacio chico'), el('option', { value: 'large' }, 'Espacio grande'));
+    const sp = el('select', {}, el('option', { value: 'small' }, t('embedsLayout.smallSpaceOption')), el('option', { value: 'large' }, t('embedsLayout.largeSpaceOption')));
     sp.value = b.spacing;
     sp.onchange = () => { b.spacing = sp.value; onChange(); };
-    return el('div', { class: 'add-row' }, el('label', { class: 'toggle' }, vis, 'Línea visible'), sp);
+    return el('div', { class: 'add-row' }, el('label', { class: 'toggle' }, vis, t('embedsLayout.visibleLineLabel')), sp);
   }
   if (b.type === 'media_gallery') {
     const box = el('div', {});
     function renderItems() {
       box.innerHTML = '';
       b.items.forEach((it, idx) => {
-        const desc = el('input', { type: 'text', placeholder: 'Descripción (opcional)', value: it.description });
+        const desc = el('input', { type: 'text', placeholder: t('embedsLayout.descriptionOptionalPlaceholder'), value: it.description });
         desc.oninput = () => { it.description = desc.value; onChange(); };
         box.append(el('div', { class: 'gallery-item-row' },
           imageField(it, 'url', onChange),
           desc,
           b.items.length > 1 ? el('button', { class: 'btn btn-danger btn-sm', onclick: () => { b.items.splice(idx, 1); renderItems(); onChange(); } }, '✗') : null));
       });
-      box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.items.length >= 10 || null, onclick: () => { b.items.push({ url: '', description: '' }); renderItems(); onChange(); } }, '+ Imagen'));
+      box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.items.length >= 10 || null, onclick: () => { b.items.push({ url: '', description: '' }); renderItems(); onChange(); } }, t('embedsLayout.addImage')));
     }
     renderItems();
     return box;
@@ -218,7 +378,7 @@ export function renderBlockForm(b, onChange, roles) {
           buttonStyleFields(bt, onChange, roles),
           el('button', { class: 'btn btn-danger btn-sm', onclick: () => { b.buttons.splice(idx, 1); renderBtns(); onChange(); } }, '✗')));
       });
-      box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.buttons.length >= 5 || null, onclick: () => { b.buttons.push({ style: 'link', label: '', url: '', role_id: '', color: 'secondary' }); renderBtns(); onChange(); } }, '+ Botón'));
+      box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.buttons.length >= 5 || null, onclick: () => { b.buttons.push({ style: 'link', label: '', url: '', role_id: '', color: 'secondary' }); renderBtns(); onChange(); } }, t('embedsLayout.addButton')));
     }
     renderBtns();
     return box;
@@ -229,21 +389,21 @@ export function renderBlockForm(b, onChange, roles) {
     function renderTexts() {
       textsBox.innerHTML = '';
       b.texts.forEach((tx, idx) => {
-        const inp = el('input', { type: 'text', placeholder: 'Texto ' + (idx + 1), value: tx });
+        const inp = el('input', { type: 'text', placeholder: t('embedsLayout.textPlaceholderN', { n: idx + 1 }), value: tx });
         inp.oninput = () => { b.texts[idx] = inp.value; onChange(); };
         textsBox.append(el('div', { class: 'add-row' }, insertWrap(inp, ['menciones', 'fecha', 'emoji']),
           b.texts.length > 1 ? el('button', { class: 'btn btn-danger btn-sm', onclick: () => { b.texts.splice(idx, 1); renderTexts(); onChange(); } }, '✗') : null));
       });
-      textsBox.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.texts.length >= 3 || null, onclick: () => { b.texts.push(''); renderTexts(); onChange(); } }, '+ Texto'));
+      textsBox.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.texts.length >= 3 || null, onclick: () => { b.texts.push(''); renderTexts(); onChange(); } }, t('embedsLayout.addTextItem')));
     }
     renderTexts();
-    const accType = el('select', {}, el('option', { value: 'thumbnail' }, 'Miniatura'), el('option', { value: 'button' }, 'Botón'));
+    const accType = el('select', {}, el('option', { value: 'thumbnail' }, t('embedsLayout.thumbnailOption')), el('option', { value: 'button' }, t('embedsLayout.buttonOption')));
     accType.value = b.accessory.type;
     const accBox = el('div', {});
     function renderAcc() {
       accBox.innerHTML = '';
       if (b.accessory.type === 'thumbnail') {
-        const desc = el('input', { type: 'text', placeholder: 'Descripción (opcional)', value: b.accessory.description });
+        const desc = el('input', { type: 'text', placeholder: t('embedsLayout.descriptionOptionalPlaceholder'), value: b.accessory.description });
         desc.oninput = () => { b.accessory.description = desc.value; onChange(); };
         accBox.append(el('div', { class: 'add-row' }, imageField(b.accessory, 'url', onChange), desc));
       } else {
@@ -253,8 +413,8 @@ export function renderBlockForm(b, onChange, roles) {
     accType.onchange = () => { b.accessory.type = accType.value; renderAcc(); onChange(); };
     renderAcc();
     return el('div', {},
-      el('div', { class: 'field' }, el('label', {}, 'Textos (máx 3)'), textsBox),
-      el('div', { class: 'field' }, el('label', {}, 'Accesorio'), accType, accBox));
+      el('div', { class: 'field' }, el('label', {}, t('embedsLayout.textsMaxLabel')), textsBox),
+      el('div', { class: 'field' }, el('label', {}, t('embedsLayout.accessoryLabel')), accType, accBox));
   }
   if (b.type === 'file') {
     const box = el('div', {});
@@ -272,11 +432,11 @@ export function renderBlockForm(b, onChange, roles) {
         const file = fileInput.files[0];
         if (!file) return;
         if (file.size > LAYOUT_MAX_FILE_BYTES) {
-          toast(`El archivo supera el máximo de ${formatBytes(LAYOUT_MAX_FILE_BYTES)}`, 'warn');
+          toast(t('embedsLayout.fileTooLarge', { size: formatBytes(LAYOUT_MAX_FILE_BYTES) }), 'warn');
           return;
         }
         box.innerHTML = '';
-        box.append(el('div', { class: 'img-uploading' }, spinner(), el('span', {}, 'Subiendo archivo…')));
+        box.append(el('div', { class: 'img-uploading' }, spinner(), el('span', {}, t('embedsLayout.uploadingFile'))));
         try {
           const upload = await uploadLayoutFile(file);
           b.upload = { id: upload.id, filename: upload.filename, size: file.size };
@@ -284,12 +444,12 @@ export function renderBlockForm(b, onChange, roles) {
           onChange();
         } catch (e) {
           render();
-          box.prepend(el('div', { class: 'img-error' }, 'No se pudo subir: ' + e.message));
+          box.prepend(el('div', { class: 'img-error' }, t('embedsLayout.uploadFailed', { error: e.message })));
           toast(e.message, e.status === 429 ? 'warn' : 'err');
         }
       };
       box.append(
-        el('button', { type: 'button', class: 'btn btn-primary', onclick: () => fileInput.click() }, 'Elegir archivo'),
+        el('button', { type: 'button', class: 'btn btn-primary', onclick: () => fileInput.click() }, t('embedsLayout.chooseFile')),
         fileInput);
     }
     render();
@@ -297,18 +457,18 @@ export function renderBlockForm(b, onChange, roles) {
     spoilerChk.onchange = () => { b.spoiler = spoilerChk.checked; onChange(); };
     return el('div', {}, box,
       el('div', { class: 'add-row' },
-        el('label', { class: 'toggle' }, spoilerChk, 'Marcar como spoiler'),
-        helpIcon('Se ve pixelado hasta que alguien lo abre a propósito.')),
+        el('label', { class: 'toggle' }, spoilerChk, t('embedsLayout.markAsSpoiler')),
+        helpIcon(t('embedsLayout.spoilerHelp'))),
       el('p', { class: 'dim' },
-        `Máx. ${formatBytes(LAYOUT_MAX_FILE_BYTES)}. Solo funciona con "Enviar ahora" — no se puede programar ni guardar en una plantilla.`));
+        t('embedsLayout.fileHint', { size: formatBytes(LAYOUT_MAX_FILE_BYTES) })));
   }
   // container
   const box = el('div', {});
   const accentChk = el('input', { type: 'checkbox', checked: b.accent });
   accentChk.onchange = () => { b.accent = accentChk.checked; onChange(); };
   box.append(el('div', { class: 'add-row' },
-    el('label', { class: 'toggle' }, accentChk, 'Barra de color'),
-    helpIcon('Pinta un borde de color a la izquierda de todo el container, como el de un embed clásico.'),
+    el('label', { class: 'toggle' }, accentChk, t('embedsLayout.accentBarLabel')),
+    helpIcon(t('embedsLayout.accentBarHelp')),
     colorField(b, 'accent_color', onChange)));
   const nested = el('div', { class: 'layout-nested' });
   renderBlocks(nested, b.children, true, onChange, roles);
@@ -318,7 +478,7 @@ export function renderBlockForm(b, onChange, roles) {
 
 // Preview anidado de un layout (bloques ya en formato API).
 export function renderLayoutPreview(blocks) {
-  if (!blocks.length) return previewEmpty('Agrega bloques para ver tu mensaje');
+  if (!blocks.length) return previewEmpty(t('embedsLayout.previewEmptyHint'));
   const wrap = el('div', { class: 'lv2-preview' });
   for (const b of blocks) wrap.append(renderPreviewBlock(b));
   return wrap;
@@ -331,7 +491,7 @@ export function lv2Button(bt) {
   // siempre se ve igual (gris + ícono), Discord no lo deja recolorear.
   const colorClass = bt.style === 'role' ? ` lv2-btn-${bt.color || 'secondary'}` : '';
   return el('span', { class: 'lv2-btn' + colorClass },
-    bt.label || 'botón', bt.style === 'role' ? el('span', { class: 'lv2-btn-tag' }, 'ROL') : null);
+    bt.label || t('embedsLayout.buttonFallbackLabel'), bt.style === 'role' ? el('span', { class: 'lv2-btn-tag' }, t('embedsLayout.roleTag')) : null);
 }
 
 export function renderPreviewBlock(b) {
@@ -345,7 +505,7 @@ export function renderPreviewBlock(b) {
   if (b.type === 'text') return el('div', { class: 'lv2-text' }, ...mdToNodes(b.content || ''));
   if (b.type === 'section') {
     const texts = el('div', { class: 'lv2-section-texts' },
-      b.texts.map(t => el('div', { class: 'lv2-text' }, ...mdToNodes(t))));
+      b.texts.map(tx => el('div', { class: 'lv2-text' }, ...mdToNodes(tx))));
     let acc;
     if (b.accessory.type === 'thumbnail') acc = b.accessory.url ? previewImg({ src: b.accessory.url, alt: '', class: 'lv2-thumb' }) : null;
     else acc = lv2Button(b.accessory);
@@ -360,7 +520,7 @@ export function renderPreviewBlock(b) {
   if (b.type === 'action_row') return el('div', { class: 'lv2-row' }, b.buttons.map(lv2Button));
   if (b.type === 'file') {
     return el('div', { class: 'lv2-file' + (b.spoiler ? ' lv2-file-spoiler' : '') },
-      b.filename || '(sin archivo)');
+      b.filename || t('embedsLayout.noFilePlaceholder'));
   }
   return el('div', {});
 }
@@ -370,8 +530,8 @@ export function renderLayoutEditor(box, channels, roles) {
     const draft = readEmbedDraft('layout');
     if (draft) {
       setLayoutDoc(draft);
-      toast('Recuperamos tu borrador anterior', 'ok', {
-        label: 'Descartar', onclick: () => { clearEmbedDraft('layout'); setLayoutDoc(blankLayoutDoc()); loadEmbeds(); },
+      toast(t('embedsLayout.draftRecovered'), 'ok', {
+        label: t('embedsLayout.discard'), onclick: () => { clearEmbedDraft('layout'); setLayoutDoc(blankLayoutDoc()); loadEmbeds(); },
       });
     } else {
       setLayoutDoc(blankLayoutDoc());
@@ -381,7 +541,7 @@ export function renderLayoutEditor(box, channels, roles) {
   if (!doc.sendOpts) doc.sendOpts = blankSendOpts();
 
   box.append(el('div', { class: 'embed-warn' },
-    'Los layouts V2 no pueden combinar con embeds clásicos en el mismo mensaje — es una limitación de Discord, no del panel.'));
+    t('embedsLayout.v2Warning')));
 
   const previewBox = el('div', {});
   function updatePreview() {
@@ -396,7 +556,7 @@ export function renderLayoutEditor(box, channels, roles) {
     // permite) sería un estado confuso del que no se puede salir clickeando.
     const blockedBySched = hasFileBlock(doc.blocks);
     modeSched.disabled = blockedBySched;
-    modeSched.title = blockedBySched ? 'No disponible: el layout tiene un bloque de archivo' : '';
+    modeSched.title = blockedBySched ? t('embedsLayout.schedBlockedByFile') : '';
     if (blockedBySched && modeSched.checked) { modeNow.checked = true; syncSched(); }
     scheduleHistorySnapshot();
     scheduleDraftSave();
@@ -406,11 +566,11 @@ export function renderLayoutEditor(box, channels, roles) {
   renderBlocks(blocksList, doc.blocks, false, updatePreview, roles);
 
   // destino + modo de envío (persistidos en el doc), misma UX que el clásico.
-  const chSel = channelSelect(channels, doc.channelId, 'Canal destino…');
+  const chSel = channelSelect(channels, doc.channelId, t('embedsLayout.channelPlaceholder'));
   chSel.onchange = () => { doc.channelId = chSel.value; };
   const modeNow = el('input', { type: 'radio', name: 'lvMode', checked: doc.sendMode === 'now' });
   const modeSched = el('input', { type: 'radio', name: 'lvMode', checked: doc.sendMode === 'sched' });
-  const schedType = el('select', {}, el('option', { value: 'interval' }, 'Por intervalo'), el('option', { value: 'daily' }, 'A hora fija'));
+  const schedType = el('select', {}, el('option', { value: 'interval' }, t('embedsLayout.intervalOption')), el('option', { value: 'daily' }, t('embedsLayout.dailyOption')));
   schedType.value = doc.schedType;
   const intervalInput = el('input', { type: 'number', min: '5', max: '1440', value: doc.interval, style: 'width:110px' });
   const timeInput = el('input', { type: 'time', value: doc.time });
@@ -423,7 +583,7 @@ export function renderLayoutEditor(box, channels, roles) {
     const daily = schedType.value === 'daily';
     intervalInput.style.display = daily ? 'none' : '';
     timeInput.style.display = daily ? '' : 'none';
-    sendBtn.textContent = modeSched.checked ? 'Programar' : 'Enviar ahora';
+    sendBtn.textContent = modeSched.checked ? t('embedsLayout.scheduleLabel') : t('embedsLayout.sendNowLabel');
   }
   modeNow.onchange = modeSched.onchange = schedType.onchange = syncSched;
   intervalInput.oninput = () => { doc.interval = intervalInput.value; };
@@ -434,10 +594,10 @@ export function renderLayoutEditor(box, channels, roles) {
   const sendBtn = el('button', {
     class: 'btn btn-primary',
     onclick: async () => {
-      if (!doc.blocks.length) { showFormAlert(alertBox, 'Agrega al menos un bloque'); return; }
-      if (!chSel.value) { showFormAlert(alertBox, 'Elige un canal destino'); return; }
-      if (hasEmptyFileBlock(doc.blocks)) { showFormAlert(alertBox, 'Hay un bloque de archivo sin elegir todavía.'); return; }
-      if (modeSched.checked && hasFileBlock(doc.blocks)) { showFormAlert(alertBox, 'Los bloques de archivo no se pueden programar — usa "Enviar ahora".'); return; }
+      if (!doc.blocks.length) { showFormAlert(alertBox, t('embedsLayout.needAtLeastOneBlock')); return; }
+      if (!chSel.value) { showFormAlert(alertBox, t('embedsLayout.chooseChannel')); return; }
+      if (hasEmptyFileBlock(doc.blocks)) { showFormAlert(alertBox, t('embedsLayout.emptyFileBlock')); return; }
+      if (modeSched.checked && hasFileBlock(doc.blocks)) { showFormAlert(alertBox, t('embedsLayout.fileBlockCantSchedule')); return; }
       showFormAlert(alertBox, '');
       const layout = { blocks: doc.blocks.map(blockToApi) };
       try {
@@ -447,52 +607,52 @@ export function renderLayoutEditor(box, channels, roles) {
           if (schedType.value === 'interval') body.interval_minutes = parseInt(intervalInput.value, 10);
           else { const [h, m] = timeInput.value.split(':'); body.hour = parseInt(h, 10); body.minute = parseInt(m, 10); }
           await apiFetch(`/api/server/${GUILD_ID}/embeds/schedule`, { method: 'POST', body });
-          toast('Layout programado', 'ok');
+          toast(t('embedsLayout.layoutScheduled'), 'ok');
         } else {
           await apiFetch(`/api/server/${GUILD_ID}/embeds/send`, { method: 'POST', body: { channel_id: chSel.value, content_mode: 'layout_v2', layout, send_options: sendOpts } });
-          toast('Layout enviado', 'ok');
+          toast(t('embedsLayout.layoutSent'), 'ok');
           clearEmbedDraft('layout'); // ver criterio (envío inmediato) en el reporte
         }
       } catch (e) { toast(e.message, e.status === 429 ? 'warn' : 'err'); }
     },
-  }, 'Enviar ahora');
+  }, t('embedsLayout.sendNowLabel'));
 
   const saveBtn = el('button', {
     class: 'btn btn-secondary',
     onclick: async () => {
-      if (!doc.blocks.length) { showFormAlert(alertBox, 'Agrega al menos un bloque'); return; }
-      if (hasFileBlock(doc.blocks)) { showFormAlert(alertBox, 'Los bloques de archivo no se pueden guardar en una plantilla — usa "Enviar ahora".'); return; }
+      if (!doc.blocks.length) { showFormAlert(alertBox, t('embedsLayout.needAtLeastOneBlock')); return; }
+      if (hasFileBlock(doc.blocks)) { showFormAlert(alertBox, t('embedsLayout.fileBlockCantSaveTemplate')); return; }
       showFormAlert(alertBox, '');
       const layout = { blocks: doc.blocks.map(blockToApi) };
-      const name = (prompt('Nombre de la plantilla:', doc.templateName || '') || '').trim();
+      const name = (prompt(t('embedsLayout.templateNamePrompt'), doc.templateName || '') || '').trim();
       if (!name) return;
       try {
         const body = { name, content_mode: 'layout_v2', layout, send_options: sendOptsToApi(doc.sendOpts) };
         if (doc.templateId) {
           await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${doc.templateId}`, { method: 'PUT', body });
-          toast('Plantilla actualizada', 'ok');
+          toast(t('embedsLayout.templateUpdated'), 'ok');
         } else {
           const resp = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, { method: 'POST', body });
           doc.templateId = resp.id;
-          toast('Plantilla guardada', 'ok');
+          toast(t('embedsLayout.templateSaved'), 'ok');
         }
         doc.templateName = name;
       } catch (e) { toast(e.message, e.status === 409 ? 'warn' : 'err'); }
     },
-  }, 'Guardar como plantilla');
+  }, t('embedsLayout.saveAsTemplate'));
 
-  const clearBtn = el('button', { class: 'btn btn-secondary', onclick: () => { clearEmbedDraft('layout'); setLayoutDoc(blankLayoutDoc()); loadEmbeds(); } }, 'Limpiar');
-  const histBtn = el('button', { class: 'btn btn-secondary', onclick: openHistoryModal }, 'Historial');
-  const jsonBtn = el('button', { class: 'btn btn-secondary', onclick: openJsonModal }, 'Ver/editar JSON');
+  const clearBtn = el('button', { class: 'btn btn-secondary', onclick: () => { clearEmbedDraft('layout'); setLayoutDoc(blankLayoutDoc()); loadEmbeds(); } }, t('embedsLayout.clear'));
+  const histBtn = el('button', { class: 'btn btn-secondary', onclick: openHistoryModal }, t('embedsLayout.history'));
+  const jsonBtn = el('button', { class: 'btn btn-secondary', onclick: openJsonModal }, t('embedsLayout.viewEditJson'));
 
   const form = el('div', { class: 'embed-form' },
-    formGroup('Bloques',
+    formGroup(t('embedsLayout.blocksSection'),
       el('div', { class: 'field' }, blocksList)),
-    formGroup('Destino y envío',
-      el('div', { class: 'field' }, el('label', {}, 'Canal destino'), chSel),
+    formGroup(t('embedsLayout.destinationSection'),
+      el('div', { class: 'field' }, el('label', {}, t('embedsLayout.targetChannelLabel')), chSel),
       el('div', { class: 'field' },
-        el('label', { class: 'toggle' }, modeNow, 'Enviar ahora'),
-        el('label', { class: 'toggle' }, modeSched, 'Programar'),
+        el('label', { class: 'toggle' }, modeNow, t('embedsLayout.sendNowLabel')),
+        el('label', { class: 'toggle' }, modeSched, t('embedsLayout.scheduleLabel')),
         schedControls),
       sendOptionsPanel(doc.sendOpts, roles, channels, chSel)),
     alertBox,
@@ -503,7 +663,7 @@ export function renderLayoutEditor(box, channels, roles) {
 
   box.append(el('div', { class: 'embed-layout' },
     form,
-    el('div', { class: 'd-embed-wrap' }, el('p', { class: 'dim', style: 'margin-top:0' }, 'Preview'), previewBox)));
+    el('div', { class: 'd-embed-wrap' }, el('p', { class: 'dim', style: 'margin-top:0' }, t('embedsLayout.previewLabel')), previewBox)));
   box.querySelectorAll('.autogrow').forEach(autoGrow);
   updatePreview();
   syncSched();

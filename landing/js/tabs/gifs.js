@@ -3,6 +3,100 @@ import { el, spinner, emptyState, renderError, toast } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 import { watchTasks } from '/js/core/tasks.js';
+import { t, addStrings } from '../core/i18n.js';
+
+addStrings({
+  es: {
+    'tabsGifs.openGif': 'ABRIR GIF',
+    'tabsGifs.statsWithLimit': ' de {limit} GIFs — ',
+    'tabsGifs.statsNoLimit': ' GIFs — ',
+    'tabsGifs.statsPreview': ' con preview · ',
+    'tabsGifs.statsLink': ' como link',
+    'tabsGifs.quotaReached': 'Llegaste al cupo: cada GIF nuevo que se guarde va a reemplazar al más antiguo.',
+    'tabsGifs.quotaNear': 'Estás cerca del cupo — al llegar, cada GIF nuevo reemplaza al más antiguo.',
+    'tabsGifs.autoRemovedSingle': 'En los últimos 30 días se quitó 1 GIF solo porque su host dejó de servirlo. ',
+    'tabsGifs.autoRemovedPlural': 'En los últimos 30 días se quitaron {count} GIFs solos porque sus hosts dejaron de servirlos. ',
+    'tabsGifs.autoRemovedLink': 'Verlos en el historial',
+    'tabsGifs.loadMoreRemaining': 'Cargar más ({left} restantes)',
+    'tabsGifs.remove': 'Quitar',
+    'tabsGifs.block': 'Bloquear',
+    'tabsGifs.blockTitle': 'Lo borra ahora y evita que se vuelva a guardar en este servidor',
+    'tabsGifs.confirmSure': '¿Seguro?',
+    'tabsGifs.blockConfirm': 'Bloqueado — no se va a volver a guardar en este servidor. ¿Seguro?',
+    'tabsGifs.notFound': 'No se encontró ese GIF',
+    'tabsGifs.deleted': 'GIF eliminado',
+    'tabsGifs.rateLimitDelete': 'Rate limit — espera antes de borrar más',
+    'tabsGifs.blocked': 'GIF bloqueado para siempre en este servidor',
+    'tabsGifs.rateLimitBlock': 'Rate limit — espera antes de bloquear más',
+    'tabsGifs.originLink': 'Enlace',
+    'tabsGifs.originDirect': 'GIF directo',
+    'tabsGifs.kindLink': 'enlace',
+    'tabsGifs.kindPreview': 'preview',
+    'tabsGifs.unblock': 'Desbloquear',
+    'tabsGifs.blockNotFound': 'No se encontró ese bloqueo',
+    'tabsGifs.unblocked': 'GIF desbloqueado — se puede volver a guardar',
+    'tabsGifs.noBlocked': 'No hay GIFs bloqueados.',
+    'tabsGifs.blockedSection': 'GIFs bloqueados',
+    'tabsGifs.urlPlaceholder': 'https://tenor.com/… o URL de R2',
+    'tabsGifs.verifyTitle': 'Revisa cada GIF contra su host de origen y saca los que estén realmente muertos (los que solo el navegador no puede previsualizar no se tocan). Puede tardar unos minutos.',
+    'tabsGifs.verifying': 'Verificando…',
+    'tabsGifs.verifyPartial': 'Verificando los {checking} más antiguos de {total} GIFs — el resto se cubre en próximos ciclos',
+    'tabsGifs.verifyAll': 'Verificación de {total} GIFs iniciada en segundo plano',
+    'tabsGifs.verifyRateLimit': 'Ya hay una verificación reciente — espera antes de disparar otra',
+    'tabsGifs.verifyBtn': 'Verificar GIFs',
+    'tabsGifs.added': 'GIF agregado',
+    'tabsGifs.alreadySaved': 'Ese GIF ya estaba guardado',
+    'tabsGifs.rateLimitAdd': 'Rate limit — espera antes de agregar más',
+    'tabsGifs.addBtn': 'Agregar',
+    'tabsGifs.emptyState': 'Todavía no hay GIFs guardados — añade uno con el campo de arriba.',
+    'tabsGifs.loadMore': 'Cargar más',
+  },
+  en: {
+    'tabsGifs.openGif': 'OPEN GIF',
+    'tabsGifs.statsWithLimit': ' of {limit} GIFs — ',
+    'tabsGifs.statsNoLimit': ' GIFs — ',
+    'tabsGifs.statsPreview': ' with preview · ',
+    'tabsGifs.statsLink': ' as link',
+    'tabsGifs.quotaReached': "You've hit the limit: every new GIF saved will replace the oldest one.",
+    'tabsGifs.quotaNear': "You're close to the limit — once you hit it, every new GIF will replace the oldest one.",
+    'tabsGifs.autoRemovedSingle': 'In the last 30 days, 1 GIF was automatically removed because its host stopped serving it. ',
+    'tabsGifs.autoRemovedPlural': 'In the last 30 days, {count} GIFs were automatically removed because their hosts stopped serving them. ',
+    'tabsGifs.autoRemovedLink': 'View them in the history',
+    'tabsGifs.loadMoreRemaining': 'Load more ({left} remaining)',
+    'tabsGifs.remove': 'Remove',
+    'tabsGifs.block': 'Block',
+    'tabsGifs.blockTitle': 'Deletes it now and prevents it from being saved again on this server',
+    'tabsGifs.confirmSure': 'Are you sure?',
+    'tabsGifs.blockConfirm': "Blocked — it won't be saved again on this server. Are you sure?",
+    'tabsGifs.notFound': "That GIF wasn't found",
+    'tabsGifs.deleted': 'GIF deleted',
+    'tabsGifs.rateLimitDelete': 'Rate limit — wait before deleting more',
+    'tabsGifs.blocked': 'GIF permanently blocked on this server',
+    'tabsGifs.rateLimitBlock': 'Rate limit — wait before blocking more',
+    'tabsGifs.originLink': 'Link',
+    'tabsGifs.originDirect': 'Direct GIF',
+    'tabsGifs.kindLink': 'link',
+    'tabsGifs.kindPreview': 'preview',
+    'tabsGifs.unblock': 'Unblock',
+    'tabsGifs.blockNotFound': "That block wasn't found",
+    'tabsGifs.unblocked': 'GIF unblocked — it can be saved again',
+    'tabsGifs.noBlocked': 'No blocked GIFs.',
+    'tabsGifs.blockedSection': 'Blocked GIFs',
+    'tabsGifs.urlPlaceholder': 'https://tenor.com/… or R2 URL',
+    'tabsGifs.verifyTitle': "Checks each GIF against its source host and removes the ones that are truly dead (ones the browser just can't preview are left alone). May take a few minutes.",
+    'tabsGifs.verifying': 'Verifying…',
+    'tabsGifs.verifyPartial': 'Verifying the {checking} oldest of {total} GIFs — the rest will be covered in upcoming cycles',
+    'tabsGifs.verifyAll': 'Verification of {total} GIFs started in the background',
+    'tabsGifs.verifyRateLimit': 'A verification already ran recently — wait before starting another',
+    'tabsGifs.verifyBtn': 'Verify GIFs',
+    'tabsGifs.added': 'GIF added',
+    'tabsGifs.alreadySaved': 'That GIF was already saved',
+    'tabsGifs.rateLimitAdd': 'Rate limit — wait before adding more',
+    'tabsGifs.addBtn': 'Add',
+    'tabsGifs.emptyState': 'No GIFs saved yet — add one using the field above.',
+    'tabsGifs.loadMore': 'Load more',
+  },
+});
 
 const GIFS_PAGE = 30;
 let _gifPool = [];
@@ -37,7 +131,7 @@ function gifLinkCard(url) {
     style: 'flex-direction:column;gap:4px',
   },
     el('span', {}, '⛓'),
-    el('span', { style: 'font-size:10px;letter-spacing:0.15em' }, 'ABRIR GIF'));
+    el('span', { style: 'font-size:10px;letter-spacing:0.15em' }, t('tabsGifs.openGif')));
 }
 
 function gifThumb(g) {
@@ -69,15 +163,15 @@ function updateGifStats() {
   _gifStatsEl.innerHTML = '';
   _gifStatsEl.append(
     el('strong', { class: 'stat-num' }, String(_gifPool.length)),
-    _gifLimit ? ` de ${_gifLimit.toLocaleString('es')} GIFs — ` : ' GIFs — ',
-    el('strong', { class: 'stat-num' }, String(preview)), ' con preview · ',
-    el('strong', { class: 'stat-num' }, String(link)), ' como link');
+    _gifLimit ? t('tabsGifs.statsWithLimit', { limit: _gifLimit.toLocaleString('es') }) : t('tabsGifs.statsNoLimit'),
+    el('strong', { class: 'stat-num' }, String(preview)), t('tabsGifs.statsPreview'),
+    el('strong', { class: 'stat-num' }, String(link)), t('tabsGifs.statsLink'));
   // Al llegar al cupo, guardar uno nuevo desaloja el más viejo: decirlo antes
   // de que pase, no después.
   if (_gifLimit && _gifPool.length >= _gifLimit * 0.9) {
     _gifStatsEl.append(el('p', { class: 'dim' }, _gifPool.length >= _gifLimit
-      ? 'Llegaste al cupo: cada GIF nuevo que se guarde va a reemplazar al más antiguo.'
-      : 'Estás cerca del cupo — al llegar, cada GIF nuevo reemplaza al más antiguo.'));
+      ? t('tabsGifs.quotaReached')
+      : t('tabsGifs.quotaNear')));
   }
 }
 
@@ -89,9 +183,9 @@ function autoRemovedNote(count) {
   if (!count) return null;
   return el('p', { class: 'dim' },
     count === 1
-      ? 'En los últimos 30 días se quitó 1 GIF solo porque su host dejó de servirlo. '
-      : `En los últimos 30 días se quitaron ${count} GIFs solos porque sus hosts dejaron de servirlos. `,
-    el('a', { href: `/es/dashboard/${GUILD_ID}/historial` }, 'Verlos en el historial'),
+      ? t('tabsGifs.autoRemovedSingle')
+      : t('tabsGifs.autoRemovedPlural', { count }),
+    el('a', { href: `/es/dashboard/${GUILD_ID}/historial` }, t('tabsGifs.autoRemovedLink')),
     '.');
 }
 
@@ -101,7 +195,7 @@ function syncGifMore() {
   if (!grid || !btn) return;
   const left = _gifPool.length - grid.querySelectorAll('.gif-card').length;
   btn.parentElement.style.display = left > 0 ? '' : 'none';
-  if (left > 0) btn.textContent = `Cargar más (${left} restantes)`;
+  if (left > 0) btn.textContent = t('tabsGifs.loadMoreRemaining', { left });
 }
 
 function renderGifBatch() {
@@ -126,23 +220,23 @@ function gifCardActions(gifId, card) {
   function showButtons() {
     wrap.innerHTML = '';
     wrap.append(
-      el('button', { class: 'btn btn-danger btn-sm', onclick: showDeleteConfirm }, 'Quitar'),
+      el('button', { class: 'btn btn-danger btn-sm', onclick: showDeleteConfirm }, t('tabsGifs.remove')),
       el('button', {
         class: 'btn btn-secondary btn-sm', onclick: showBlockConfirm,
-        title: 'Lo borra ahora y evita que se vuelva a guardar en este servidor',
-      }, 'Bloquear'));
+        title: t('tabsGifs.blockTitle'),
+      }, t('tabsGifs.block')));
   }
   function showDeleteConfirm() {
     wrap.innerHTML = '';
     wrap.append(el('div', { class: 'gif-confirm' },
-      '¿Seguro?',
+      t('tabsGifs.confirmSure'),
       el('button', { class: 'btn btn-danger btn-sm', onclick: doDelete }, '✓'),
       el('button', { class: 'btn btn-secondary btn-sm', onclick: showButtons }, '✗')));
   }
   function showBlockConfirm() {
     wrap.innerHTML = '';
     wrap.append(el('div', { class: 'gif-confirm' },
-      'Bloqueado — no se va a volver a guardar en este servidor. ¿Seguro?',
+      t('tabsGifs.blockConfirm'),
       el('button', { class: 'btn btn-danger btn-sm', onclick: doBlock }, '✓'),
       el('button', { class: 'btn btn-secondary btn-sm', onclick: showButtons }, '✗')));
   }
@@ -156,14 +250,14 @@ function gifCardActions(gifId, card) {
     try {
       const resp = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/${gifId}`, { method: 'DELETE' });
       if (!resp.deleted) {
-        toast('No se encontró ese GIF', 'warn');
+        toast(t('tabsGifs.notFound'), 'warn');
         showButtons();
         return;
       }
-      toast('GIF eliminado', 'ok');
+      toast(t('tabsGifs.deleted'), 'ok');
       removeCard();
     } catch (e) {
-      toast(e.status === 429 ? 'Rate limit — espera antes de borrar más' : e.message, e.status === 429 ? 'warn' : 'err');
+      toast(e.status === 429 ? t('tabsGifs.rateLimitDelete') : e.message, e.status === 429 ? 'warn' : 'err');
       showButtons();
     }
   }
@@ -171,14 +265,14 @@ function gifCardActions(gifId, card) {
     try {
       const resp = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/${gifId}/block`, { method: 'POST' });
       if (!resp.blocked) {
-        toast('No se encontró ese GIF', 'warn');
+        toast(t('tabsGifs.notFound'), 'warn');
         showButtons();
         return;
       }
-      toast('GIF bloqueado para siempre en este servidor', 'ok');
+      toast(t('tabsGifs.blocked'), 'ok');
       removeCard();
     } catch (e) {
-      toast(e.status === 429 ? 'Rate limit — espera antes de bloquear más' : e.message, e.status === 429 ? 'warn' : 'err');
+      toast(e.status === 429 ? t('tabsGifs.rateLimitBlock') : e.message, e.status === 429 ? 'warn' : 'err');
     }
   }
 
@@ -187,17 +281,17 @@ function gifCardActions(gifId, card) {
 }
 
 function gifOriginLabel(g) {
-  if (!g) return 'Enlace';
+  if (!g) return t('tabsGifs.originLink');
   const { type } = classifyGif(g);
   const u = (g.url || '').toLowerCase();
-  let source = 'Enlace';
+  let source = t('tabsGifs.originLink');
   if (u.includes('r2.dev') || (g.media_url && g.media_url.includes('r2.dev'))) source = 'R2';
   else if (u.includes('tenor.com')) source = 'Tenor';
   else if (u.includes('giphy.com')) source = 'Giphy';
   else if (u.includes('discordapp.com') || u.includes('discord.gg')) source = 'Discord';
-  else if (u.endsWith('.gif')) source = 'GIF directo';
+  else if (u.endsWith('.gif')) source = t('tabsGifs.originDirect');
 
-  const kind = type === 'link' ? 'enlace' : 'preview';
+  const kind = type === 'link' ? t('tabsGifs.kindLink') : t('tabsGifs.kindPreview');
   return `${source} · ${kind}`;
 }
 
@@ -220,7 +314,7 @@ function gifCard(g) {
 // corpus_gifs se borró al bloquear) -- content_hash o url identifica el veto.
 function blockedGifRow(b, list) {
   const key = b.content_hash || b.url;
-  const btn = el('button', { class: 'btn btn-secondary btn-sm' }, 'Desbloquear');
+  const btn = el('button', { class: 'btn btn-secondary btn-sm' }, t('tabsGifs.unblock'));
   const label = b.url ? `${gifOriginLabel(b)} · ${b.url}` : b.content_hash;
   const row = el('div', { class: 'gif-blocked-row' },
     el('span', { class: 'gif-url', title: b.url || b.content_hash }, label), btn);
@@ -231,14 +325,14 @@ function blockedGifRow(b, list) {
         `/api/server/${GUILD_ID}/settings/gifs/blocked/${encodeURIComponent(key)}`,
         { method: 'DELETE' });
       if (!resp.unblocked) {
-        toast('No se encontró ese bloqueo', 'warn');
+        toast(t('tabsGifs.blockNotFound'), 'warn');
         btn.disabled = false;
         return;
       }
-      toast('GIF desbloqueado — se puede volver a guardar', 'ok');
+      toast(t('tabsGifs.unblocked'), 'ok');
       row.remove();
       if (!list.querySelector('.gif-blocked-row')) {
-        list.append(el('p', { class: 'dim' }, 'No hay GIFs bloqueados.'));
+        list.append(el('p', { class: 'dim' }, t('tabsGifs.noBlocked')));
       }
     } catch (e) {
       toast(e.message, 'err');
@@ -253,7 +347,7 @@ function blockedGifRow(b, list) {
 // se abre, no en cada carga del tab.
 function blockedGifsSection() {
   const details = el('details', { class: 'gif-blocked-section' },
-    el('summary', {}, 'GIFs bloqueados'));
+    el('summary', {}, t('tabsGifs.blockedSection')));
   const list = el('div', { class: 'gif-blocked-list' });
   details.append(list);
   details.addEventListener('toggle', async () => {
@@ -264,7 +358,7 @@ function blockedGifsSection() {
       const data = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/blocked`);
       list.innerHTML = '';
       if (!data.blocked.length) {
-        list.append(el('p', { class: 'dim' }, 'No hay GIFs bloqueados.'));
+        list.append(el('p', { class: 'dim' }, t('tabsGifs.noBlocked')));
       } else {
         for (const b of data.blocked) list.append(blockedGifRow(b, list));
       }
@@ -295,31 +389,29 @@ export async function loadGifs() {
     const autoRemoved = autoRemovedNote(data.auto_removed_30d || 0);
     if (autoRemoved) box.append(autoRemoved);
 
-    const input = el('input', { type: 'text', placeholder: 'https://tenor.com/… o URL de R2', style: 'flex:1' });
+    const input = el('input', { type: 'text', placeholder: t('tabsGifs.urlPlaceholder'), style: 'flex:1' });
     const verifyBtn = el('button', {
       class: 'btn btn-secondary',
-      title: 'Revisa cada GIF contra su host de origen y saca los que estén '
-        + 'realmente muertos (los que solo el navegador no puede previsualizar '
-        + 'no se tocan). Puede tardar unos minutos.',
+      title: t('tabsGifs.verifyTitle'),
       onclick: async () => {
         verifyBtn.disabled = true;
         const original = verifyBtn.textContent;
-        verifyBtn.textContent = 'Verificando…';
+        verifyBtn.textContent = t('tabsGifs.verifying');
         try {
           const resp = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/verify`, { method: 'POST' });
           const msg = resp.checking < resp.total
-            ? `Verificando los ${resp.checking} más antiguos de ${resp.total} GIFs — el resto se cubre en próximos ciclos`
-            : `Verificación de ${resp.total} GIFs iniciada en segundo plano`;
+            ? t('tabsGifs.verifyPartial', { checking: resp.checking, total: resp.total })
+            : t('tabsGifs.verifyAll', { total: resp.total });
           toast(msg, 'ok');
           watchTasks(taskBanner);
         } catch (e) {
-          toast(e.status === 429 ? 'Ya hay una verificación reciente — espera antes de disparar otra' : e.message, e.status === 429 ? 'warn' : 'err');
+          toast(e.status === 429 ? t('tabsGifs.verifyRateLimit') : e.message, e.status === 429 ? 'warn' : 'err');
         } finally {
           verifyBtn.disabled = false;
           verifyBtn.textContent = original;
         }
       },
-    }, 'Verificar GIFs');
+    }, t('tabsGifs.verifyBtn'));
     box.append(el('div', { class: 'add-row' }, input,
       el('button', {
         class: 'btn btn-primary',
@@ -331,22 +423,22 @@ export async function loadGifs() {
               method: 'POST', body: { url },
             });
             if (addResp.inserted) {
-              toast('GIF agregado', 'ok');
+              toast(t('tabsGifs.added'), 'ok');
               loadGifs();
             } else {
-              toast('Ese GIF ya estaba guardado', 'warn');
+              toast(t('tabsGifs.alreadySaved'), 'warn');
             }
           } catch (e) {
-            toast(e.status === 429 ? 'Rate limit — espera antes de agregar más' : e.message, e.status === 429 ? 'warn' : 'err');
+            toast(e.status === 429 ? t('tabsGifs.rateLimitAdd') : e.message, e.status === 429 ? 'warn' : 'err');
           }
         },
-      }, 'Agregar'),
+      }, t('tabsGifs.addBtn')),
       verifyBtn));
 
     box.append(blockedGifsSection());
 
     if (!_gifPool.length) {
-      box.append(emptyState('Todavía no hay GIFs guardados — añade uno con el campo de arriba.'));
+      box.append(emptyState(t('tabsGifs.emptyState')));
       return;
     }
 
@@ -354,7 +446,7 @@ export async function loadGifs() {
     box.append(grid);
     renderGifBatch();
 
-    const moreBtn = el('button', { class: 'btn btn-secondary', id: 'gifMoreBtn', onclick: renderGifBatch }, 'Cargar más');
+    const moreBtn = el('button', { class: 'btn btn-secondary', id: 'gifMoreBtn', onclick: renderGifBatch }, t('tabsGifs.loadMore'));
     box.append(el('div', { class: 'gif-more-wrap' }, moreBtn));
     syncGifMore();
   } catch (e) { renderError(box, e); }

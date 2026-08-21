@@ -127,7 +127,9 @@ def check_updates_channel_permissions(
         if not getattr(perms, "send_messages_in_threads", True):
             missing.append("send_messages_in_threads")
             missing_labels.append("Enviar mensajes en hilos")
-        if getattr(channel, "locked", False) and not getattr(perms, "manage_threads", False):
+        if getattr(channel, "locked", False) and not getattr(
+            perms, "manage_threads", False
+        ):
             missing.append("manage_threads")
             missing_labels.append("Gestionar hilos (el hilo está bloqueado)")
 
@@ -206,9 +208,7 @@ class Updates(commands.Cog):
                         getattr(att, "filename", "desconocido"),
                     )
 
-        embeds = [
-            discord.Embed.from_dict(e.to_dict()) for e in message.embeds[:10]
-        ]
+        embeds = [discord.Embed.from_dict(e.to_dict()) for e in message.embeds[:10]]
         content = message.content or ""
         chunks = chunk_message(content) if content else []
 
@@ -302,7 +302,9 @@ class Updates(commands.Cog):
                     if getattr(channel, "parent", None) is not None:
                         if not getattr(perms, "send_messages_in_threads", True):
                             missing.append("Send Messages in Threads")
-                        if getattr(channel, "locked", False) and not getattr(perms, "manage_threads", False):
+                        if getattr(channel, "locked", False) and not getattr(
+                            perms, "manage_threads", False
+                        ):
                             missing.append("Manage Threads (hilo bloqueado)")
 
                     if missing:
@@ -385,16 +387,22 @@ class Updates(commands.Cog):
                     log.error(
                         "[Updates Relay] Discord Forbidden (403) enviando a guild %s (%s) en canal #%s (%s): %s",
                         guild_id,
-                        getattr(guild, "name", "Desconocido") if guild else "Desconocido",
-                        getattr(channel, "name", "desconocido") if channel else "desconocido",
+                        getattr(guild, "name", "Desconocido")
+                        if guild
+                        else "Desconocido",
+                        getattr(channel, "name", "desconocido")
+                        if channel
+                        else "desconocido",
                         channel_id,
                         err,
                     )
-                except discord.NotFound as err:
+                except discord.NotFound:
                     log.warning(
                         "[Updates Relay] Discord NotFound (404) enviando a guild %s (%s) en canal %s: canal eliminado. Limpiando configuración.",
                         guild_id,
-                        getattr(guild, "name", "Desconocido") if guild else "Desconocido",
+                        getattr(guild, "name", "Desconocido")
+                        if guild
+                        else "Desconocido",
                         channel_id,
                     )
                     try:
@@ -446,12 +454,16 @@ class Updates(commands.Cog):
                     log.exception(
                         "[Updates Relay] Excepción no controlada enviando a guild %s (%s) en canal %s: %s",
                         guild_id,
-                        getattr(guild, "name", "Desconocido") if guild else "Desconocido",
+                        getattr(guild, "name", "Desconocido")
+                        if guild
+                        else "Desconocido",
                         channel_id,
                         err,
                     )
 
-        await asyncio.gather(*[_send_to_guild(d) for d in destinations], return_exceptions=True)
+        await asyncio.gather(
+            *[_send_to_guild(d) for d in destinations], return_exceptions=True
+        )
         log.info(
             "[Updates Relay] Broadcast completado: %d de %d servidores recibieron la actualización exitosamente",
             sent_count,
@@ -462,4 +474,3 @@ class Updates(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Updates(bot))
-

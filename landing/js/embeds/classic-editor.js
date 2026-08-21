@@ -19,6 +19,136 @@ import {
   openHistoryModal, openJsonModal,
 } from '/js/embeds/persistence.js';
 import { insertWrap, imageField, colorField, sendOptionsPanel, loadEmbeds } from '/js/embeds/shared-ui.js';
+import { t, addStrings } from '../core/i18n.js';
+
+addStrings({
+  es: {
+    'embedsClassic.emptyEmbedTooltip': 'Este embed está vacío y no se va a enviar',
+    'embedsClassic.draftRecovered': 'Recuperamos tu borrador anterior',
+    'embedsClassic.discard': 'Descartar',
+    'embedsClassic.nowButton': 'Ahora',
+    'embedsClassic.timestampHelp': 'Se muestra en el footer del embed, siempre convertido a la hora local de quien lo ve — no hace falta ajustar por zona horaria.',
+    'embedsClassic.addField': '+ Agregar field',
+    'embedsClassic.fieldHeader': 'Field {index}',
+    'embedsClassic.fieldNamePlaceholder': 'Nombre',
+    'embedsClassic.fieldValuePlaceholder': 'Valor',
+    'embedsClassic.dragToReorder': 'Arrastra para reordenar',
+    'embedsClassic.moveUp': 'Mover arriba',
+    'embedsClassic.moveDown': 'Mover abajo',
+    'embedsClassic.duplicate': 'Duplicar',
+    'embedsClassic.delete': 'Eliminar',
+    'embedsClassic.inlineLabel': 'inline',
+    'embedsClassic.embedPillLabel': 'Embed {index}',
+    'embedsClassic.moveBefore': 'Mover antes',
+    'embedsClassic.moveAfter': 'Mover después',
+    'embedsClassic.addEmbed': '+ Agregar embed',
+    'embedsClassic.galleryTooltip': 'Agrupa varias imágenes en una galería compartiendo el enlace del embed actual',
+    'embedsClassic.addImageFirst': 'Agrega primero una imagen a este embed',
+    'embedsClassic.addGallery': '+ Galería',
+    'embedsClassic.channelPlaceholder': 'Canal destino…',
+    'embedsClassic.intervalOption': 'Por intervalo',
+    'embedsClassic.dailyOption': 'A hora fija',
+    'embedsClassic.scheduleLabel': 'Programar',
+    'embedsClassic.sendNowLabel': 'Enviar ahora',
+    'embedsClassic.chooseChannel': 'Elige un canal destino',
+    'embedsClassic.embedScheduled': 'Embed programado',
+    'embedsClassic.embedsSent': '{count} embeds enviados',
+    'embedsClassic.embedSentSingular': 'Embed enviado',
+    'embedsClassic.templateNamePrompt': 'Nombre de la plantilla:',
+    'embedsClassic.templateUpdated': 'Plantilla actualizada',
+    'embedsClassic.templateSaved': 'Plantilla guardada',
+    'embedsClassic.saveAsTemplate': 'Guardar como plantilla',
+    'embedsClassic.shareLinkReady': 'Link listo — cualquiera con el link puede cargar este embed en su servidor',
+    'embedsClassic.copyLink': 'Copiar link',
+    'embedsClassic.linkCopied': 'Link copiado',
+    'embedsClassic.copyLinkPrompt': 'Copia el link:',
+    'embedsClassic.share': 'Compartir',
+    'embedsClassic.clear': 'Limpiar',
+    'embedsClassic.history': 'Historial',
+    'embedsClassic.viewEditJson': 'Ver/editar JSON',
+    'embedsClassic.bodySection': 'Cuerpo',
+    'embedsClassic.titleLabel': 'Título',
+    'embedsClassic.descriptionLabel': 'Descripción',
+    'embedsClassic.colorLabel': 'Color',
+    'embedsClassic.dateOptionalLabel': 'Fecha (opcional)',
+    'embedsClassic.authorSection': 'Autor',
+    'embedsClassic.nameLabel': 'Nombre',
+    'embedsClassic.authorIconLabel': 'Ícono del autor',
+    'embedsClassic.imagesSection': 'Imágenes',
+    'embedsClassic.thumbnailLabel': 'Thumbnail',
+    'embedsClassic.largeImageLabel': 'Imagen grande',
+    'embedsClassic.footerSection': 'Footer',
+    'embedsClassic.textLabel': 'Texto',
+    'embedsClassic.footerIconLabel': 'Ícono del footer',
+    'embedsClassic.fieldsSection': 'Fields',
+    'embedsClassic.destinationSection': 'Destino y envío',
+    'embedsClassic.targetChannelLabel': 'Canal destino',
+    'embedsClassic.previewLabel': 'Preview',
+  },
+  en: {
+    'embedsClassic.emptyEmbedTooltip': 'This embed is empty and won\'t be sent',
+    'embedsClassic.draftRecovered': 'We recovered your previous draft',
+    'embedsClassic.discard': 'Discard',
+    'embedsClassic.nowButton': 'Now',
+    'embedsClassic.timestampHelp': 'Shown in the embed footer, always converted to the local time of whoever views it — no need to adjust for time zones.',
+    'embedsClassic.addField': '+ Add field',
+    'embedsClassic.fieldHeader': 'Field {index}',
+    'embedsClassic.fieldNamePlaceholder': 'Name',
+    'embedsClassic.fieldValuePlaceholder': 'Value',
+    'embedsClassic.dragToReorder': 'Drag to reorder',
+    'embedsClassic.moveUp': 'Move up',
+    'embedsClassic.moveDown': 'Move down',
+    'embedsClassic.duplicate': 'Duplicate',
+    'embedsClassic.delete': 'Delete',
+    'embedsClassic.inlineLabel': 'inline',
+    'embedsClassic.embedPillLabel': 'Embed {index}',
+    'embedsClassic.moveBefore': 'Move earlier',
+    'embedsClassic.moveAfter': 'Move later',
+    'embedsClassic.addEmbed': '+ Add embed',
+    'embedsClassic.galleryTooltip': 'Groups several images into a gallery by sharing the current embed\'s link',
+    'embedsClassic.addImageFirst': 'Add an image to this embed first',
+    'embedsClassic.addGallery': '+ Gallery',
+    'embedsClassic.channelPlaceholder': 'Target channel…',
+    'embedsClassic.intervalOption': 'By interval',
+    'embedsClassic.dailyOption': 'At a fixed time',
+    'embedsClassic.scheduleLabel': 'Schedule',
+    'embedsClassic.sendNowLabel': 'Send now',
+    'embedsClassic.chooseChannel': 'Choose a target channel',
+    'embedsClassic.embedScheduled': 'Embed scheduled',
+    'embedsClassic.embedsSent': '{count} embeds sent',
+    'embedsClassic.embedSentSingular': 'Embed sent',
+    'embedsClassic.templateNamePrompt': 'Template name:',
+    'embedsClassic.templateUpdated': 'Template updated',
+    'embedsClassic.templateSaved': 'Template saved',
+    'embedsClassic.saveAsTemplate': 'Save as template',
+    'embedsClassic.shareLinkReady': 'Link ready — anyone with the link can load this embed into their server',
+    'embedsClassic.copyLink': 'Copy link',
+    'embedsClassic.linkCopied': 'Link copied',
+    'embedsClassic.copyLinkPrompt': 'Copy the link:',
+    'embedsClassic.share': 'Share',
+    'embedsClassic.clear': 'Clear',
+    'embedsClassic.history': 'History',
+    'embedsClassic.viewEditJson': 'View/edit JSON',
+    'embedsClassic.bodySection': 'Body',
+    'embedsClassic.titleLabel': 'Title',
+    'embedsClassic.descriptionLabel': 'Description',
+    'embedsClassic.colorLabel': 'Color',
+    'embedsClassic.dateOptionalLabel': 'Date (optional)',
+    'embedsClassic.authorSection': 'Author',
+    'embedsClassic.nameLabel': 'Name',
+    'embedsClassic.authorIconLabel': 'Author icon',
+    'embedsClassic.imagesSection': 'Images',
+    'embedsClassic.thumbnailLabel': 'Thumbnail',
+    'embedsClassic.largeImageLabel': 'Large image',
+    'embedsClassic.footerSection': 'Footer',
+    'embedsClassic.textLabel': 'Text',
+    'embedsClassic.footerIconLabel': 'Footer icon',
+    'embedsClassic.fieldsSection': 'Fields',
+    'embedsClassic.destinationSection': 'Destination and sending',
+    'embedsClassic.targetChannelLabel': 'Target channel',
+    'embedsClassic.previewLabel': 'Preview',
+  },
+});
 
 // Preview puro HTML/CSS de un embed de Discord; sin llamada al backend.
 export function renderEmbedPreview(e) {
@@ -71,8 +201,8 @@ export function renderClassicEditor(box, channels, roles) {
     const draft = readEmbedDraft('classic');
     if (draft) {
       setEmbedDoc(draft);
-      toast('Recuperamos tu borrador anterior', 'ok', {
-        label: 'Descartar', onclick: () => { clearEmbedDraft('classic'); setEmbedDoc(blankDoc()); loadEmbeds(); },
+      toast(t('embedsClassic.draftRecovered'), 'ok', {
+        label: t('embedsClassic.discard'), onclick: () => { clearEmbedDraft('classic'); setEmbedDoc(blankDoc()); loadEmbeds(); },
       });
     } else {
       setEmbedDoc(blankDoc());
@@ -96,7 +226,7 @@ export function renderClassicEditor(box, channels, roles) {
     embedPills.forEach((pill, i) => {
       const empty = !Object.keys(dicts[i] || {}).length;
       pill.classList.toggle('empty', empty);
-      pill.title = empty ? 'Este embed está vacío y no se va a enviar' : '';
+      pill.title = empty ? t('embedsClassic.emptyEmbedTooltip') : '';
     });
   }
   function updatePreview() {
@@ -134,13 +264,13 @@ export function renderClassicEditor(box, channels, roles) {
     const nowBtn = el('button', {
       type: 'button', class: 'btn btn-secondary btn-sm',
       onclick: () => { s.timestamp = new Date().toISOString(); dt.value = isoToLocalInput(s.timestamp); updatePreview(); },
-    }, 'Ahora');
+    }, t('embedsClassic.nowButton'));
     const clearBtn = el('button', {
       type: 'button', class: 'btn btn-secondary btn-sm',
       onclick: () => { s.timestamp = ''; dt.value = ''; updatePreview(); },
     }, '✗');
     return el('div', { class: 'add-row' }, dt, nowBtn, clearBtn,
-      helpIcon('Se muestra en el footer del embed, siempre convertido a la hora local de quien lo ve — no hace falta ajustar por zona horaria.'));
+      helpIcon(t('embedsClassic.timestampHelp')));
   }
 
   // --- fields dinámicos ---
@@ -159,7 +289,7 @@ export function renderClassicEditor(box, channels, roles) {
       renderFields();
       updatePreview();
     },
-  }, '+ Agregar field');
+  }, t('embedsClassic.addField'));
 
   function renderFields() {
     fieldsBox.innerHTML = '';
@@ -167,14 +297,14 @@ export function renderClassicEditor(box, channels, roles) {
       // Header: "Field N" o "Field N — {nombre|valor}" (patrón fieldNText de
       // Discohook), actualizado en vivo mientras se escribe.
       const headText = () => {
-        const t = (f.name || '').trim() || (f.value || '').trim();
-        return `Field ${i + 1}` + (t ? ` — ${t.length > 40 ? t.slice(0, 40) + '…' : t}` : '');
+        const txt = (f.name || '').trim() || (f.value || '').trim();
+        return t('embedsClassic.fieldHeader', { index: i + 1 }) + (txt ? ` — ${txt.length > 40 ? txt.slice(0, 40) + '…' : txt}` : '');
       };
       const label = el('span', { class: 'embed-field-label' }, headText());
 
-      const name = el('input', { type: 'text', placeholder: 'Nombre', maxlength: String(EMBED_LIMITS.fieldName), value: f.name });
+      const name = el('input', { type: 'text', placeholder: t('embedsClassic.fieldNamePlaceholder'), maxlength: String(EMBED_LIMITS.fieldName), value: f.name });
       name.oninput = () => { f.name = name.value; label.textContent = headText(); updatePreview(); };
-      const value = el('textarea', { placeholder: 'Valor', maxlength: String(EMBED_LIMITS.fieldValue), rows: '2' });
+      const value = el('textarea', { placeholder: t('embedsClassic.fieldValuePlaceholder'), maxlength: String(EMBED_LIMITS.fieldValue), rows: '2' });
       value.value = f.value;
       value.oninput = () => { f.value = value.value; label.textContent = headText(); updatePreview(); };
       const inline = el('input', { type: 'checkbox', checked: f.inline });
@@ -185,7 +315,7 @@ export function renderClassicEditor(box, channels, roles) {
       // Discohook) — no funciona en touch; ahí el fallback son los ▲/▼.
       const handle = el('span', {
         class: 'field-drag-handle', draggable: 'true',
-        title: 'Arrastra para reordenar', 'aria-label': 'Arrastra para reordenar',
+        title: t('embedsClassic.dragToReorder'), 'aria-label': t('embedsClassic.dragToReorder'),
       }, '⠿');
 
       // Acciones del header. preventDefault evita que el click pliegue el
@@ -196,20 +326,20 @@ export function renderClassicEditor(box, channels, roles) {
       }, icon);
       const moveTo = (to) => { s.fields.splice(i, 1); s.fields.splice(to, 0, f); };
       const actions = el('span', { class: 'embed-field-actions' },
-        action('▲', 'Mover arriba', i === 0, () => moveTo(i - 1)),
-        action('▼', 'Mover abajo', i === s.fields.length - 1, () => moveTo(i + 1)),
-        action('⧉', 'Duplicar', s.fields.length >= EMBED_LIMITS.fields, () => {
+        action('▲', t('embedsClassic.moveUp'), i === 0, () => moveTo(i - 1)),
+        action('▼', t('embedsClassic.moveDown'), i === s.fields.length - 1, () => moveTo(i + 1)),
+        action('⧉', t('embedsClassic.duplicate'), s.fields.length >= EMBED_LIMITS.fields, () => {
           const dup = { name: f.name, value: f.value, inline: f.inline };
           s.fields.splice(i + 1, 0, dup);
           openFields.add(dup);
         }),
-        action('✗', 'Eliminar', false, () => { s.fields.splice(i, 1); openFields.delete(f); }));
+        action('✗', t('embedsClassic.delete'), false, () => { s.fields.splice(i, 1); openFields.delete(f); }));
 
       const det = el('details', { class: 'embed-field', open: openFields.has(f) ? '' : null },
         el('summary', { class: 'embed-field-head' }, handle, label, actions),
         el('div', { class: 'embed-field-body' },
           el('div', { class: 'embed-field-name-row' },
-            name, el('label', { class: 'toggle' }, inline, 'inline')),
+            name, el('label', { class: 'toggle' }, inline, t('embedsClassic.inlineLabel'))),
           value));
       det.ontoggle = () => { if (det.open) openFields.add(f); else openFields.delete(f); };
 
@@ -252,12 +382,12 @@ export function renderClassicEditor(box, channels, roles) {
     const pillActions = doc.embeds.length > 1 ? el('span', { class: 'embed-pill-actions' },
       el('span', {
         class: 'embed-pill-move' + (i === 0 ? ' disabled' : ''),
-        title: 'Mover antes',
+        title: t('embedsClassic.moveBefore'),
         onclick: (ev) => { ev.stopPropagation(); if (i > 0) moveEmbed(i, i - 1); },
       }, '◂'),
       el('span', {
         class: 'embed-pill-move' + (i === doc.embeds.length - 1 ? ' disabled' : ''),
-        title: 'Mover después',
+        title: t('embedsClassic.moveAfter'),
         onclick: (ev) => { ev.stopPropagation(); if (i < doc.embeds.length - 1) moveEmbed(i, i + 1); },
       }, '▸'),
       el('span', {
@@ -272,19 +402,19 @@ export function renderClassicEditor(box, channels, roles) {
     const pill = el('div', {
       class: 'embed-pill' + (i === doc.active ? ' active' : ''),
       onclick: () => { doc.active = i; loadEmbeds(); },
-    }, 'Embed ' + (i + 1), pillActions);
+    }, t('embedsClassic.embedPillLabel', { index: i + 1 }), pillActions);
     embedPills.push(pill);
     embedBar.append(pill);
   });
   embedBar.append(el('button', {
     class: 'btn btn-secondary btn-sm', disabled: atMax || null,
     onclick: () => { doc.embeds.push(blankEmbed()); doc.active = doc.embeds.length - 1; loadEmbeds(); },
-  }, '+ Agregar embed'));
+  }, t('embedsClassic.addEmbed')));
   embedBar.append(el('button', {
     class: 'btn btn-secondary btn-sm', disabled: atMax || null,
-    title: 'Agrupa varias imágenes en una galería compartiendo el enlace del embed actual',
+    title: t('embedsClassic.galleryTooltip'),
     onclick: () => {
-      if (!s.image.trim()) { toast('Agrega primero una imagen a este embed', 'warn'); return; }
+      if (!s.image.trim()) { toast(t('embedsClassic.addImageFirst'), 'warn'); return; }
       // Discord agrupa en galería los embeds que comparten el mismo `url`;
       // usamos la imagen del embed activo como enlace compartido.
       const shared = s.url.trim() || s.image.trim();
@@ -295,16 +425,16 @@ export function renderClassicEditor(box, channels, roles) {
       doc.active = doc.embeds.length - 1;
       loadEmbeds();
     },
-  }, '+ Galería'));
+  }, t('embedsClassic.addGallery')));
 
   // --- destino y modo de envío (persistidos en el doc) ---
-  const chSel = channelSelect(channels, doc.channelId, 'Canal destino…');
+  const chSel = channelSelect(channels, doc.channelId, t('embedsClassic.channelPlaceholder'));
   chSel.onchange = () => { doc.channelId = chSel.value; };
   const modeNow = el('input', { type: 'radio', name: 'embedMode', checked: doc.sendMode === 'now' });
   const modeSched = el('input', { type: 'radio', name: 'embedMode', checked: doc.sendMode === 'sched' });
   const schedType = el('select', {},
-    el('option', { value: 'interval' }, 'Por intervalo'),
-    el('option', { value: 'daily' }, 'A hora fija'));
+    el('option', { value: 'interval' }, t('embedsClassic.intervalOption')),
+    el('option', { value: 'daily' }, t('embedsClassic.dailyOption')));
   schedType.value = doc.schedType;
   const intervalInput = el('input', { type: 'number', min: '5', max: '1440', value: doc.interval, style: 'width:110px' });
   const timeInput = el('input', { type: 'time', value: doc.time });
@@ -318,7 +448,7 @@ export function renderClassicEditor(box, channels, roles) {
     const daily = schedType.value === 'daily';
     intervalInput.style.display = daily ? 'none' : '';
     timeInput.style.display = daily ? '' : 'none';
-    sendBtn.textContent = modeSched.checked ? 'Programar' : 'Enviar ahora';
+    sendBtn.textContent = modeSched.checked ? t('embedsClassic.scheduleLabel') : t('embedsClassic.sendNowLabel');
   }
   modeNow.onchange = modeSched.onchange = schedType.onchange = syncSched;
   intervalInput.oninput = () => { doc.interval = intervalInput.value; };
@@ -334,7 +464,7 @@ export function renderClassicEditor(box, channels, roles) {
       const dicts = docDicts(doc);
       const err = validateEmbedsClient(dicts);
       if (err) { showFormAlert(alertBox, err); return; }
-      if (!chSel.value) { showFormAlert(alertBox, 'Elige un canal destino'); return; }
+      if (!chSel.value) { showFormAlert(alertBox, t('embedsClassic.chooseChannel')); return; }
       showFormAlert(alertBox, '');
       try {
         const sendOpts = sendOptsToApi(doc.sendOpts);
@@ -347,10 +477,10 @@ export function renderClassicEditor(box, channels, roles) {
             body.hour = parseInt(h, 10); body.minute = parseInt(m, 10);
           }
           await apiFetch(`/api/server/${GUILD_ID}/embeds/schedule`, { method: 'POST', body });
-          toast('Embed programado', 'ok');
+          toast(t('embedsClassic.embedScheduled'), 'ok');
         } else {
           await apiFetch(`/api/server/${GUILD_ID}/embeds/send`, { method: 'POST', body: { channel_id: chSel.value, embeds: dicts, send_options: sendOpts } });
-          toast(dicts.length > 1 ? `${dicts.length} embeds enviados` : 'Embed enviado', 'ok');
+          toast(dicts.length > 1 ? t('embedsClassic.embedsSent', { count: dicts.length }) : t('embedsClassic.embedSentSingular'), 'ok');
           // Envío inmediato ya salió: el borrador de "lo que tengo a medio
           // escribir" dejó de tener sentido (a diferencia de programar, donde
           // seguís editando variantes). Ver criterio en el reporte.
@@ -361,7 +491,7 @@ export function renderClassicEditor(box, channels, roles) {
         }
       } catch (err2) { toast(err2.message, err2.status === 429 ? 'warn' : 'err'); }
     },
-  }, 'Enviar ahora');
+  }, t('embedsClassic.sendNowLabel'));
 
   const saveBtn = el('button', {
     class: 'btn btn-secondary',
@@ -370,22 +500,22 @@ export function renderClassicEditor(box, channels, roles) {
       const err = validateEmbedsClient(dicts);
       if (err) { showFormAlert(alertBox, err); return; }
       showFormAlert(alertBox, '');
-      const name = (prompt('Nombre de la plantilla:', doc.templateName || '') || '').trim();
+      const name = (prompt(t('embedsClassic.templateNamePrompt'), doc.templateName || '') || '').trim();
       if (!name) return;
       try {
         const body = { name, embeds: dicts, send_options: sendOptsToApi(doc.sendOpts) };
         if (doc.templateId) {
           await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${doc.templateId}`, { method: 'PUT', body });
-          toast('Plantilla actualizada', 'ok');
+          toast(t('embedsClassic.templateUpdated'), 'ok');
         } else {
           const resp = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, { method: 'POST', body });
           doc.templateId = resp.id;
-          toast('Plantilla guardada', 'ok');
+          toast(t('embedsClassic.templateSaved'), 'ok');
         }
         doc.templateName = name;
       } catch (err2) { toast(err2.message, err2.status === 409 ? 'warn' : 'err'); }
     },
-  }, 'Guardar como plantilla');
+  }, t('embedsClassic.saveAsTemplate'));
 
   const shareBtn = el('button', {
     class: 'btn btn-secondary',
@@ -398,55 +528,55 @@ export function renderClassicEditor(box, channels, roles) {
         const resp = await apiFetch(`/api/server/${GUILD_ID}/embeds/share`, {
           method: 'POST', body: { embeds: dicts, send_options: sendOptsToApi(doc.sendOpts) },
         });
-        toast('Link listo — cualquiera con el link puede cargar este embed en su servidor', 'ok', {
-          label: 'Copiar link',
+        toast(t('embedsClassic.shareLinkReady'), 'ok', {
+          label: t('embedsClassic.copyLink'),
           onclick: async () => {
-            try { await navigator.clipboard.writeText(resp.url); toast('Link copiado', 'ok'); }
-            catch (e2) { prompt('Copia el link:', resp.url); }
+            try { await navigator.clipboard.writeText(resp.url); toast(t('embedsClassic.linkCopied'), 'ok'); }
+            catch (e2) { prompt(t('embedsClassic.copyLinkPrompt'), resp.url); }
           },
         });
       } catch (err2) { toast(err2.message, err2.status === 429 ? 'warn' : 'err'); }
     },
-  }, 'Compartir');
+  }, t('embedsClassic.share'));
 
   const clearBtn = el('button', {
     class: 'btn btn-secondary',
     onclick: () => { clearEmbedDraft('classic'); sessionStorage.removeItem('purgito_share_id'); setEmbedDoc(blankDoc()); loadEmbeds(); },
-  }, 'Limpiar');
+  }, t('embedsClassic.clear'));
 
-  const histBtn = el('button', { class: 'btn btn-secondary', onclick: openHistoryModal }, 'Historial');
-  const jsonBtn = el('button', { class: 'btn btn-secondary', onclick: openJsonModal }, 'Ver/editar JSON');
+  const histBtn = el('button', { class: 'btn btn-secondary', onclick: openHistoryModal }, t('embedsClassic.history'));
+  const jsonBtn = el('button', { class: 'btn btn-secondary', onclick: openJsonModal }, t('embedsClassic.viewEditJson'));
 
   const form = el('div', { class: 'embed-form' },
     embedBar,
-    accordionGroup('Cuerpo', true,
-      fieldBlock('Título', bound('input', 'title', { type: 'text', maxlength: String(EMBED_LIMITS.title) })),
-      fieldBlock('Descripción', insertWrap(
+    accordionGroup(t('embedsClassic.bodySection'), true,
+      fieldBlock(t('embedsClassic.titleLabel'), bound('input', 'title', { type: 'text', maxlength: String(EMBED_LIMITS.title) })),
+      fieldBlock(t('embedsClassic.descriptionLabel'), insertWrap(
         bound('textarea', 'description', { maxlength: String(EMBED_LIMITS.description) }),
         ['menciones', 'fecha', 'emoji'])),
-      fieldBlock('Color', colorField(s, 'color', updatePreview)),
-      fieldBlock('Fecha (opcional)', timestampField())),
-    accordionGroup('Autor', false,
+      fieldBlock(t('embedsClassic.colorLabel'), colorField(s, 'color', updatePreview)),
+      fieldBlock(t('embedsClassic.dateOptionalLabel'), timestampField())),
+    accordionGroup(t('embedsClassic.authorSection'), false,
       el('div', { class: 'embed-two' },
-        fieldBlock('Nombre', insertWrap(
+        fieldBlock(t('embedsClassic.nameLabel'), insertWrap(
           bound('input', 'authorName', { type: 'text', maxlength: String(EMBED_LIMITS.author) }), ['emoji'])),
-        fieldBlock('Ícono del autor', imageField(s, 'authorIcon', updatePreview)))),
-    accordionGroup('Imágenes', false,
+        fieldBlock(t('embedsClassic.authorIconLabel'), imageField(s, 'authorIcon', updatePreview)))),
+    accordionGroup(t('embedsClassic.imagesSection'), false,
       el('div', { class: 'embed-two' },
-        fieldBlock('Thumbnail', imageField(s, 'thumbnail', updatePreview, { gif: true })),
-        fieldBlock('Imagen grande', imageField(s, 'image', updatePreview, { gif: true })))),
-    accordionGroup('Footer', false,
+        fieldBlock(t('embedsClassic.thumbnailLabel'), imageField(s, 'thumbnail', updatePreview, { gif: true })),
+        fieldBlock(t('embedsClassic.largeImageLabel'), imageField(s, 'image', updatePreview, { gif: true })))),
+    accordionGroup(t('embedsClassic.footerSection'), false,
       el('div', { class: 'embed-two' },
-        fieldBlock('Texto', insertWrap(
+        fieldBlock(t('embedsClassic.textLabel'), insertWrap(
           bound('input', 'footerText', { type: 'text', maxlength: String(EMBED_LIMITS.footer) }), ['emoji'])),
-        fieldBlock('Ícono del footer', imageField(s, 'footerIcon', updatePreview)))),
-    accordionGroup('Fields', false,
+        fieldBlock(t('embedsClassic.footerIconLabel'), imageField(s, 'footerIcon', updatePreview)))),
+    accordionGroup(t('embedsClassic.fieldsSection'), false,
       el('div', { class: 'field' }, fieldsBox, addFieldBtn)),
-    formGroup('Destino y envío',
-      el('div', { class: 'field' }, el('label', {}, 'Canal destino'), chSel),
+    formGroup(t('embedsClassic.destinationSection'),
+      el('div', { class: 'field' }, el('label', {}, t('embedsClassic.targetChannelLabel')), chSel),
       el('div', { class: 'field' },
-        el('label', { class: 'toggle' }, modeNow, 'Enviar ahora'),
-        el('label', { class: 'toggle' }, modeSched, 'Programar'),
+        el('label', { class: 'toggle' }, modeNow, t('embedsClassic.sendNowLabel')),
+        el('label', { class: 'toggle' }, modeSched, t('embedsClassic.scheduleLabel')),
         schedControls),
       sendOptionsPanel(doc.sendOpts, roles, channels, chSel)),
     alertBox,
@@ -458,7 +588,7 @@ export function renderClassicEditor(box, channels, roles) {
   box.append(el('div', { class: 'embed-layout' },
     form,
     el('div', { class: 'd-embed-wrap' },
-      el('p', { class: 'dim preview-header', style: 'margin-top:0' }, 'Preview', charCounter),
+      el('p', { class: 'dim preview-header', style: 'margin-top:0' }, t('embedsClassic.previewLabel'), charCounter),
       previewBox)));
   box.querySelectorAll('.autogrow').forEach(autoGrow);
   updatePreview();

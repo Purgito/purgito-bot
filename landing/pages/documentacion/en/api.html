@@ -1,0 +1,75 @@
+<h1>API</h1>
+<p>Purgito's API is pure JSON over aiohttp — it doesn't render HTML on
+any endpoint. It runs in the same process as the bot, listening only on
+localhost; nginx is what exposes it externally under <code>/api/*</code>,
+<code>/auth/*</code>, and <code>/webhooks/*</code>.</p>
+
+<h2 id="overview">Overview</h2>
+<p>Two categories of endpoints: a handful of public ones with no session
+(health check, bot status, the payment webhook), and the per-server
+endpoints under <code>/api/server/{guild_id}/...</code>, which require an
+authenticated session and require whoever is calling to administer that
+specific server.</p>
+
+<h2 id="authentication">Authentication</h2>
+<p>Standard Discord OAuth2 (Authorization Code flow), implemented
+directly on aiohttp with no OAuth library. Login redirects to Discord;
+the callback exchanges the code for a token, fetches the user and their
+servers, and builds the session. If the user doesn't administer any
+server, the login is rejected.</p>
+
+<h2 id="sessions">Sessions</h2>
+<p>The session lives entirely encrypted in the cookie (no session table
+on the server) — httpOnly, SameSite=Lax, marked secure. Since a stolen
+encrypted cookie would still be valid until it expires, logout alone
+isn't enough: each login generates an identifier that goes into a
+revocation list in the database, and every request re-checks that that
+identifier hasn't been revoked.</p>
+
+<h2 id="endpoints">Endpoints</h2>
+<h3>Public</h3>
+<table>
+<tr><th>Method</th><th>Route</th><th>Auth</th><th>What it does</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/health</code></td><td>None</td><td>Liveness check.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status</code></td><td>None</td><td>Live bot status: uptime, memory, latency.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status/guild/{guild_id}</code></td><td>None</td><td>Minimal public info for a server (name, icon, member count) for the search on <a href="/en/estado">/en/estado</a>. No configuration data.</td></tr>
+</table>
+<h3>Authentication</h3>
+<table>
+<tr><th>Method</th><th>Route</th><th>What it does</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/login</code></td><td>Redirects into Discord's OAuth2 flow.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/callback</code></td><td>Completes login, builds the session.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--post">POST</span></td><td><code>/auth/logout</code></td><td>Revokes the session.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me</code></td><td>Currently logged-in user.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/guilds</code></td><td>Servers the user can administer.</td></tr>
+</table>
+<h3>Per-server — <code>/api/server/{guild_id}/...</code></h3>
+<p>Require a session, the <code>Manage Server</code> permission verified
+live against Discord, and the bot being present on that server.
+Grouped by area — each group has its own set of GET/PUT/
+POST/DELETE routes:</p>
+<ul>
+  <li>Server metadata: channels, roles, emojis, statistics.</li>
+  <li>Chat settings: probabilities, spontaneous/mention channels,
+  per-channel overrides, test playground.</li>
+  <li>Roles and channels exempt from the mention rate limit.</li>
+  <li>Corpus: adding, deleting, "amnesia" (resetting the last 24 hours).</li>
+  <li>Automatic reactions and special phrases, including reusable
+  packs.</li>
+  <li>Configurable triggers (regex, exact text, starts-with).</li>
+  <li>The server's GIF gallery.</li>
+  <li>YouTube subscriptions.</li>
+  <li>Embed editor: templates, sending, scheduling, uploading
+  images/files, shareable links.</li>
+  <li>Premium status and starting checkout.</li>
+  <li>Audit log of changes made from the panel.</li>
+</ul>
+
+<h2 id="webhooks">Webhooks</h2>
+<p><code>POST /webhooks/polar</code> receives Polar's payment events.
+The payload's signature is verified with the Standard Webhooks spec before
+processing anything — with no secret configured, the endpoint rejects
+outright instead of accepting unverified. It processes activation, pause,
+resumption, and revocation of subscriptions, free-trial start, and
+refunds, applying events in timestamp order so an older event never
+gets processed after a newer one.</p>
