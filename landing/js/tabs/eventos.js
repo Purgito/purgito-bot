@@ -69,6 +69,7 @@ addStrings({
     'tabsEventos.sectionAuthor': 'Autor',
     'tabsEventos.sectionFooter': 'Pie de página',
     'tabsEventos.sectionFields': 'Campos adicionales (Fields)',
+    'tabsEventos.embedMoreOptions': 'Más opciones (color, thumbnail, icono de pie)',
     'tabsEventos.sectionIdentity': 'Identidad personalizada (Webhook)',
     'tabsEventos.embedTitleLabel': 'Título del embed',
     'tabsEventos.embedDescLabel': 'Descripción',
@@ -196,6 +197,7 @@ addStrings({
     'tabsEventos.sectionAuthor': 'Author',
     'tabsEventos.sectionFooter': 'Footer',
     'tabsEventos.sectionFields': 'Additional fields',
+    'tabsEventos.embedMoreOptions': 'More options (color, thumbnail, footer icon)',
     'tabsEventos.sectionIdentity': 'Custom identity (Webhook)',
     'tabsEventos.embedTitleLabel': 'Embed title',
     'tabsEventos.embedDescLabel': 'Description',
@@ -574,7 +576,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
 
   // Root panes
   const rootWrapper = el('div', { class: 'purg-event-wrapper' });
-  const editorPane = el('div', { class: 'event-editor-pane' });
+  const editorPane = el('div', { class: 'cfg-main-col' });
   const previewPane = el('div', { class: 'event-preview-pane' });
 
   // ─────────────────────────────────────────────────────────────
@@ -728,7 +730,10 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. HEADER & CONFIGURACIÓN PRINCIPAL (Ultra Compacta)
+  // 2. CARD ÚNICA DEL CONFIGURADOR: header, activación+canal y
+  //    contenido (selector de formato + editor), como una sola card
+  //    plana con divisores — sin cajas anidadas. Botones y Opciones
+  //    avanzadas viven fuera de esta card (ver más abajo).
   // ─────────────────────────────────────────────────────────────
   const toggleChk = el('input', {
     type: 'checkbox',
@@ -761,7 +766,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
   checkChannelPerms();
 
   const disabledNotice = el('div', {
-    class: 'event-disabled-banner',
+    class: 'cfg-disabled-hint',
     style: isEnabled ? 'display: none;' : 'display: flex;',
   },
     icon('info'),
@@ -777,44 +782,50 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     updateLivePreview();
   };
 
-  const masterConfigCard = el('div', { class: 'card event-master-card' },
-    el('div', { class: 'event-master-head' },
-      el('div', { class: 'event-master-meta' },
-        el('div', { class: 'event-master-title' },
-          el('span', { class: 'event-icon' }, icon(cfg.icon)),
-          el('h1', { class: 'section-title' }, t(cfg.titleKey)),
-          toggleStatusBadge
-        ),
-        el('p', { class: 'dim event-master-desc' }, t(cfg.subtitleKey))
+  const headerBlock = el('div', { class: 'cfg-block' },
+    el('div', { class: 'cfg-head-row' },
+      el('div', { class: 'cfg-head-title' },
+        el('span', { class: 'event-icon' }, icon(cfg.icon)),
+        el('h1', {}, t(cfg.titleKey)),
+        toggleStatusBadge
       ),
-      el('label', { class: 'toggle toggle-lg event-master-switch', title: t(cfg.toggleLabelKey) },
+      el('label', { class: 'toggle toggle-lg', title: t(cfg.toggleLabelKey) },
         toggleChk,
         el('span', { class: 'toggle-label' }, t(cfg.toggleLabelKey))
       )
     ),
-    el('div', { class: 'event-master-row' },
-      el('div', { class: 'event-channel-field' },
-        el('label', { class: 'event-field-label' },
-          icon('chat'),
-          t(cfg.channelLabelKey)
-        ),
-        channelSel,
-        channelWarning
-      )
+    el('p', { class: 'dim cfg-desc' }, t(cfg.subtitleKey))
+  );
+
+  const activationBlock = el('div', { class: 'cfg-block' },
+    el('label', { class: 'cfg-field-label' },
+      icon('chat'),
+      t(cfg.channelLabelKey)
     ),
+    channelSel,
+    channelWarning,
     disabledNotice
   );
 
   // ─────────────────────────────────────────────────────────────
-  // 3. CONSTRUCTOR DE CONTENIDO UNIFICADO (Componible)
+  // 3. CONTENIDO: selector de formato Texto|Embed + editor activo.
+  //    Vive como un cfg-block más dentro de la misma card.
   // ─────────────────────────────────────────────────────────────
-  const contentCard = el('div', { class: 'card event-content-card' });
+  const contentCard = el('div', { class: 'cfg-block' });
+  // Card separada de Botones y wrapper de Opciones avanzadas (fuera del
+  // flujo principal): se rellenan desde renderContentBuilder/renderLayoutV2Section.
+  const buttonsCard = el('div', { class: 'card cfg-card' });
+  const advancedWrap = el('div');
+
+  const cfgCard = el('div', { class: 'card cfg-card' }, headerBlock, activationBlock, contentCard);
 
   function syncBodyVisibility() {
     if (isEnabled) {
       contentCard.classList.remove('is-disabled');
+      buttonsCard.classList.remove('is-disabled');
     } else {
       contentCard.classList.add('is-disabled');
+      buttonsCard.classList.add('is-disabled');
     }
   }
 
@@ -878,15 +889,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       charCounter
     );
 
-    return el('div', { class: 'event-builder-section is-active' },
-      el('div', { class: 'event-builder-section-head' },
-        el('div', { class: 'event-builder-section-title' },
-          icon('chat'),
-          el('strong', {}, t('tabsEventos.secMessage'))
-        )
-      ),
-      el('div', { class: 'event-builder-section-body' }, msgTxt, msgFooterBar)
-    );
+    return el('div', { class: 'cfg-format-body' }, msgTxt, msgFooterBar);
   }
 
   function buildEmbedEditor() {
@@ -936,24 +939,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       descInput
     );
 
-    // Embed Appearance & Images
-    const colorRow = el('div', { class: 'form-group-compact' },
-      el('label', {}, t('tabsEventos.embedColorLabel')),
-      colorField(s, 'color', () => updateLivePreview())
-    );
-
-    const imagesRow = el('div', { class: 'grid-2' },
-      el('div', { class: 'form-group-compact' },
-        el('label', {}, t('tabsEventos.embedThumbLabel')),
-        imageField(s, 'thumbnail', () => updateLivePreview(), { gif: true })
-      ),
-      el('div', { class: 'form-group-compact' },
-        el('label', {}, t('tabsEventos.embedImageLabel')),
-        imageField(s, 'image', () => updateLivePreview(), { gif: true })
-      )
-    );
-
-    // Embed Author & Footer
+    // Autor: identidad del embed, primario (mirrors Nekotina: icono + nombre juntos)
     const authorRow = el('div', { class: 'grid-2' },
       el('div', { class: 'form-group-compact' },
         el('label', {}, t('tabsEventos.embedAuthorNameLabel')),
@@ -965,14 +951,38 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       )
     );
 
-    const footerRow = el('div', { class: 'grid-2' },
-      el('div', { class: 'form-group-compact' },
-        el('label', {}, t('tabsEventos.embedFooterTextLabel')),
-        boundInput('footer_text', 'Pie de página', false, EMBED_LIMITS.footer)
+    // Imagen grande: primaria (protagonista visual del embed, como en Nekotina)
+    const imageRow = el('div', { class: 'form-group-compact' },
+      el('label', {}, t('tabsEventos.embedImageLabel')),
+      imageField(s, 'image', () => updateLivePreview(), { gif: true })
+    );
+
+    const footerTextRow = el('div', { class: 'form-group-compact' },
+      el('label', {}, t('tabsEventos.embedFooterTextLabel')),
+      boundInput('footer_text', 'Pie de página', false, EMBED_LIMITS.footer)
+    );
+
+    // Color, thumbnail e icono de footer: uso poco frecuente, se cuelgan de un
+    // <details> colapsado para no sumar más filas a la vista principal.
+    const moreOptionsDetails = el('details', { class: 'event-advanced-accordion' },
+      el('summary', { class: 'event-advanced-summary' },
+        el('div', { class: 'event-advanced-summary-title' }, t('tabsEventos.embedMoreOptions')),
       ),
-      el('div', { class: 'form-group-compact' },
-        el('label', {}, t('tabsEventos.embedFooterIconLabel')),
-        imageField(s, 'footer_icon_url', () => updateLivePreview())
+      el('div', { class: 'event-advanced-body' },
+        el('div', { class: 'form-group-compact' },
+          el('label', {}, t('tabsEventos.embedColorLabel')),
+          colorField(s, 'color', () => updateLivePreview())
+        ),
+        el('div', { class: 'grid-2', style: 'margin-top: 10px;' },
+          el('div', { class: 'form-group-compact' },
+            el('label', {}, t('tabsEventos.embedThumbLabel')),
+            imageField(s, 'thumbnail', () => updateLivePreview(), { gif: true })
+          ),
+          el('div', { class: 'form-group-compact' },
+            el('label', {}, t('tabsEventos.embedFooterIconLabel')),
+            imageField(s, 'footer_icon_url', () => updateLivePreview())
+          )
+        )
       )
     );
 
@@ -1092,29 +1102,21 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       }, icon('star'), t('tabsEventos.saveTemplate'))
     );
 
-    return el('div', { class: 'event-builder-section is-active' },
-      el('div', { class: 'event-builder-section-head' },
-        el('div', { class: 'event-builder-section-title' },
-          icon('layout'),
-          el('strong', {}, t('tabsEventos.secEmbed'))
-        )
-      ),
-      el('div', { class: 'event-builder-section-body event-embed-body' },
-        embedTitleRow,
-        embedDescRow,
-        colorRow,
-        imagesRow,
-        authorRow,
-        footerRow,
-        el('div', { class: 'form-group-compact' },
-          el('div', { class: 'field-label-row' },
-            el('label', {}, t('tabsEventos.sectionFields')),
-            addFieldBtn
-          ),
-          fieldsListWrap
+    return el('div', { class: 'cfg-format-body' },
+      authorRow,
+      embedTitleRow,
+      embedDescRow,
+      el('div', { class: 'form-group-compact' },
+        el('div', { class: 'field-label-row' },
+          el('label', {}, t('tabsEventos.sectionFields')),
+          addFieldBtn
         ),
-        templateActions
-      )
+        fieldsListWrap
+      ),
+      imageRow,
+      footerTextRow,
+      moreOptionsDetails,
+      templateActions
     );
   }
 
@@ -1133,7 +1135,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     ];
 
     const pillsWrap = el('div', { class: 'event-mode-pills' });
-    const formatBodyWrap = el('div', { class: 'event-format-body' });
+    const formatBodyWrap = el('div', { class: 'cfg-format-body' });
     const legacyNoticeWrap = el('div', { class: 'event-legacy-notice-wrap' });
 
     function renderLegacyNotice() {
@@ -1300,18 +1302,14 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
 
     renderButtonsEditor();
 
-    const buttonsSection = el('div', { class: 'event-builder-section is-active' },
-      el('div', { class: 'event-builder-section-head' },
-        el('div', { class: 'event-builder-section-title' },
-          icon('link'),
-          el('strong', {}, t('tabsEventos.buttonsTitle')),
-          el('span', { class: 'dim text-xs' }, t('tabsEventos.buttonsHelp'))
-        ),
+    buttonsCard.innerHTML = '';
+    buttonsCard.append(
+      el('div', { class: 'cfg-row' },
+        el('div', { class: 'cfg-block-label' }, t('tabsEventos.buttonsTitle')),
         addBtnAction
       ),
-      el('div', { class: 'event-builder-section-body' },
-        buttonsListWrap
-      )
+      el('p', { class: 'dim text-xs', style: 'margin: 0;' }, t('tabsEventos.buttonsHelp')),
+      buttonsListWrap
     );
 
     // SECTION D: OPCIONES AVANZADAS (Webhook identity & Layout V2)
@@ -1370,12 +1368,20 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       )
     );
 
-    contentCard.append(formatSelectorRow, legacyNoticeWrap, formatBodyWrap, buttonsSection, advancedSection);
+    contentCard.append(formatSelectorRow, legacyNoticeWrap, formatBodyWrap);
+    advancedWrap.innerHTML = '';
+    advancedWrap.append(advancedSection);
+    buttonsCard.style.display = '';
     syncBodyVisibility();
   }
 
   function renderLayoutV2Section() {
     contentCard.innerHTML = '';
+    // Layout V2 reemplaza texto/embed/botones estándar por su propio editor de
+    // bloques (incluye sus propias filas de botones) — la card de Botones y el
+    // acordeón de Opciones avanzadas no aplican mientras está activo.
+    buttonsCard.style.display = 'none';
+    advancedWrap.innerHTML = '';
 
     const backToSimpleBtn = el('button', {
       type: 'button',
@@ -1479,11 +1485,8 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     }
     refreshLayoutBlocks();
 
-    const lv2Head = el('div', { class: 'event-builder-section-head' },
-      el('div', { class: 'event-builder-section-title' },
-        icon('sparkle'),
-        el('strong', {}, 'Layout V2 (Modo Avanzado)')
-      ),
+    const lv2Head = el('div', { class: 'cfg-row' },
+      el('div', { class: 'cfg-block-label' }, 'Layout V2 (modo avanzado)'),
       backToSimpleBtn
     );
 
@@ -1644,7 +1647,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     resetBtn
   );
 
-  editorPane.append(masterConfigCard, contentCard, actionsBar);
+  editorPane.append(cfgCard, buttonsCard, advancedWrap, actionsBar);
 
   // ─────────────────────────────────────────────────────────────
   // 5. LIVE PREVIEW (Fiel a Discord y Reactivo)
@@ -1736,7 +1739,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
 
   updateLivePreview();
 
-  const workspaceGrid = el('div', { class: 'event-workspace-grid' },
+  const workspaceGrid = el('div', { class: 'cfg-page-grid' },
     editorPane,
     el('div', { class: 'event-preview-pane-wrap' }, previewPane)
   );

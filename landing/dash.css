@@ -5163,56 +5163,91 @@ h1 {
   gap: 14px;
 }
 
-/* ---------- Módulo de Eventos del Servidor (UX Redesign) ---------- */
+/* ---------- Módulo de Eventos del Servidor (Bienvenidas/Despedidas/Boosts) ----------
+   Una sola card plana por bloque conceptual (Configurador, Botones). Dentro de cada
+   card, las secciones se separan con un divisor + label uppercase, nunca con una caja
+   anidada — evita el efecto "caja dentro de caja" del layout anterior. */
 
-.event-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.event-nav-card {
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.purg-event-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  text-align: left;
-  font-family: inherit;
-  color: inherit;
+  gap: 16px;
   width: 100%;
 }
 
-.event-nav-card:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  background: var(--surface-hover, color-mix(in srgb, var(--accent) 4%, var(--surface-card)));
+.cfg-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
 }
 
-.event-nav-card.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-card));
-  box-shadow: 0 0 0 1px var(--accent);
+@media (max-width: 960px) {
+  .cfg-page-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.event-nav-card-head {
+.cfg-main-col {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.cfg-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: opacity 0.2s ease;
+}
+
+.cfg-card.is-disabled,
+.cfg-block.is-disabled {
+  opacity: 0.7;
+}
+
+.cfg-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cfg-block + .cfg-block {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.cfg-block-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cfg-head-row {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.event-nav-card-title {
+.cfg-head-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14.5px;
-  font-weight: 600;
+  gap: 10px;
+}
+
+.cfg-head-title h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text-main);
 }
 
@@ -5224,97 +5259,26 @@ h1 {
 }
 
 .event-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
 }
 
-.event-nav-card-desc {
-  font-size: 12.5px;
+.cfg-desc {
   margin: 0;
-  line-height: 1.35;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
-.event-nav-card-foot {
-  font-size: 11.5px;
-  margin-top: 4px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-  font-family: var(--font-mono, monospace);
-  color: var(--text-dim);
-}
-
-/* Minimal Config Bar & Master Card */
-.purg-event-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
-.event-master-card {
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.event-master-head {
+.cfg-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.event-master-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.event-master-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.event-master-title .section-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.event-master-desc {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
-
-.event-master-switch {
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.event-master-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.event-channel-field {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.event-field-label {
+.cfg-field-label {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -5323,12 +5287,11 @@ h1 {
   color: var(--text-muted);
 }
 
-.event-disabled-banner {
+.cfg-disabled-hint {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 4px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   background: rgba(239, 68, 68, 0.08);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: var(--radius-sm);
@@ -5336,14 +5299,14 @@ h1 {
   color: var(--text-muted);
 }
 
-.event-disabled-banner svg {
-  width: 15px;
-  height: 15px;
+.cfg-disabled-hint svg {
+  width: 14px;
+  height: 14px;
   color: var(--danger, #ef4444);
   flex-shrink: 0;
 }
 
-/* Selector de formato Texto | Embed, arriba del editor de contenido */
+/* Selector de formato Texto | Embed + editor del formato activo, sin caja anidada */
 .event-format-selector {
   display: flex;
   align-items: center;
@@ -5379,94 +5342,10 @@ h1 {
   min-width: 0;
 }
 
-/* Workspace 2-Col Layout */
-.event-workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
-  gap: 20px;
-  align-items: start;
-}
-
-@media (max-width: 960px) {
-  .event-workspace-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.event-editor-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.event-content-card {
-  padding: 16px 18px;
+.cfg-format-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  transition: opacity 0.2s ease;
-}
-
-.event-content-card.is-disabled {
-  opacity: 0.7;
-}
-
-/* Composable Builder Sections */
-.event-builder-section {
-  background: var(--surface-bg, #12141a);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  transition: all 0.2s ease;
-}
-
-.event-builder-section.is-active {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-}
-
-.event-builder-section.is-collapsed {
-  opacity: 0.85;
-}
-
-.event-builder-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 12px;
-  background: color-mix(in srgb, var(--border) 18%, transparent);
-  border-bottom: 1px solid transparent;
-}
-
-.event-builder-section.is-active .event-builder-section-head {
-  border-bottom-color: var(--border);
-}
-
-.event-builder-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13.5px;
-  color: var(--text-main);
-}
-
-.event-builder-section-title svg {
-  width: 15px;
-  height: 15px;
-  color: var(--accent);
-}
-
-.event-builder-section-body {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.event-embed-body {
-  gap: 10px;
 }
 
 .event-message-textarea {
@@ -5475,6 +5354,14 @@ h1 {
   line-height: 1.5;
   min-height: 80px;
   resize: vertical;
+}
+
+/* Card de Botones: filas compactas, sin envolver en otra caja */
+.cfg-buttons-empty {
+  margin: 0;
+  padding: 2px 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
 }
 
 /* Quick Vars & Textarea Bar */
