@@ -374,11 +374,11 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
           try {
             await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}`, {
               method: 'PUT',
-              body: JSON.stringify({
+              body: {
                 enabled: isEnabled,
-                channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
-                template_id: newTemplateId,
-              }),
+                channel_id: selectedChannelId || null,
+                template_id: newTemplateId ? parseInt(newTemplateId, 10) : null,
+              },
             });
           } catch (err) {
             toast(err.message || 'Error', 'err');
@@ -437,15 +437,15 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
       }
       const res = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
       });
       await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}`, {
         method: 'PUT',
-        body: JSON.stringify({
+        body: {
           enabled: isEnabled,
-          channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+          channel_id: selectedChannelId || null,
           template_id: res.id,
-        }),
+        },
       });
       toast(t('tabsEventos.migratedSuccess'), 'ok');
       loadEventPage(eventType);
@@ -476,11 +476,11 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
       try {
         await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}`, {
           method: 'PUT',
-          body: JSON.stringify({
+          body: {
             enabled: isEnabled,
-            channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+            channel_id: selectedChannelId || null,
             template_id: selectedTemplateId ? parseInt(selectedTemplateId, 10) : null,
-          }),
+          },
         });
         toast(t('tabsEventos.savedSuccess'), 'ok');
       } catch (err) {
@@ -499,11 +499,11 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
       testBtn.disabled = true;
       testBtn.textContent = t('tabsEventos.testing');
       try {
-        const body = { channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null };
+        const body = { channel_id: selectedChannelId || null };
         if (selectedTemplateId) body.template_id = parseInt(selectedTemplateId, 10);
         await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}/test`, {
           method: 'POST',
-          body: JSON.stringify(body),
+          body: body,
         });
         toast(t('tabsEventos.testSuccess'), 'ok');
       } catch (err) {

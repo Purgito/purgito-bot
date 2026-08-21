@@ -1082,7 +1082,7 @@ function renderAnunciosManager(container, initialData, channels, roles) {
 
         try {
           const payload = {
-            channel_id: parseInt(selectedChannelId, 10),
+            channel_id: selectedChannelId,
             mode: scheduleMode,
             content_mode: contentMode,
             delete_after_seconds: enableAutoDelete ? autoDeleteSeconds : null,

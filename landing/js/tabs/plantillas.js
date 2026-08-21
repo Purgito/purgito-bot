@@ -374,7 +374,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
         el('option', { value: '' }, 'Selecciona un rol…'),
         ...roles.map(r => el('option', { value: String(r.id), selected: String(btn.role_id) === String(r.id) }, r.name))
       );
-      roleSel.onchange = () => { btn.role_id = roleSel.value ? parseInt(roleSel.value, 10) : null; };
+      roleSel.onchange = () => { btn.role_id = roleSel.value || null; };
 
       const colorSel = el('select', { class: 'form-control form-control-sm', style: btn.style === 'role' ? 'display:block;' : 'display:none;' },
         el('option', { value: 'secondary', selected: btn.color === 'secondary' }, t('tabsEventos.buttonColorSecondary')),

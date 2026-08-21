@@ -49,18 +49,19 @@ def allow_guild_access(monkeypatch):
     async def fake_check_guild_access(request, guild_id):
         return None
 
-    fake_channel = MagicMock(spec=discord.TextChannel)
-    fake_channel.id = _CHANNEL_ID
-    fake_channel.name = "llegadas"
-    fake_channel.permissions_for = MagicMock(
-        return_value=MagicMock(send_messages=True, embed_links=True)
-    )
-
     fake_guild = MagicMock(spec=discord.Guild)
     fake_guild.id = _GUILD
     fake_guild.name = "Test Server"
     fake_guild.member_count = 100
     fake_guild.me = MagicMock()
+
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = _CHANNEL_ID
+    fake_channel.name = "llegadas"
+    fake_channel.guild = fake_guild
+    fake_channel.permissions_for = MagicMock(
+        return_value=MagicMock(send_messages=True, embed_links=True)
+    )
     fake_guild.get_channel = MagicMock(
         side_effect=lambda cid: fake_channel if cid == _CHANNEL_ID else None
     )
@@ -546,4 +547,173 @@ def test_server_events_enable_preserves_legacy_inline_when_unlinked(memory_db):
         assert ev["template_id"] is None
 
     asyncio.run(_test())
+
+
+def test_server_events_snowflake_channel_id_preserved_and_resolved(memory_db, monkeypatch):
+    """Verifica que un Snowflake de 19 dígitos (> 2^53) se procese sin pérdida de precisión."""
+    snowflake_channel_id = 1345678901234567895
+
+    fake_guild = MagicMock(spec=discord.Guild)
+    fake_guild.id = _GUILD
+    fake_guild.name = "Test Server"
+    fake_guild.me = MagicMock()
+
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = snowflake_channel_id
+    fake_channel.guild = fake_guild
+    fake_channel.permissions_for = MagicMock(
+        return_value=MagicMock(send_messages=True, embed_links=True)
+    )
+    fake_guild.get_channel = MagicMock(
+        side_effect=lambda cid: fake_channel if cid == snowflake_channel_id else None
+    )
+
+    monkeypatch.setattr(webapi, "_bot_guild", lambda req, gid: fake_guild)
+
+    async def _test():
+        tpl_res = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(body={"name": "Bienvenida Snowflake", "content_mode": "plain_text", "message": "Hola {user}"})
+        )
+        tpl_id = json.loads(tpl_res.text)["id"]
+
+        # Guardar pasando snowflake como string
+        put_resp = await webapi._api_server_event_put(FakeRequest(
+            event_type="welcome",
+            body={"enabled": True, "channel_id": str(snowflake_channel_id), "template_id": tpl_id},
+        ))
+        assert put_resp.status == 200
+        saved_ev = json.loads(put_resp.text)["event"]
+        assert saved_ev["channel_id"] == snowflake_channel_id
+
+        # Recargar y verificar exactitud del Snowflake
+        get_resp = await webapi._api_server_event_get(FakeRequest(event_type="welcome"))
+        assert get_resp.status == 200
+        ev = json.loads(get_resp.text)["event"]
+        assert ev["channel_id"] == snowflake_channel_id
+
+    asyncio.run(_test())
+
+
+def test_server_events_channel_fallback_to_fetch_channel(memory_db, monkeypatch):
+    """Si el canal no está en la caché local del guild, se resuelve vía bot.fetch_channel."""
+    uncached_channel_id = 777888999
+
+    fake_guild = MagicMock(spec=discord.Guild)
+    fake_guild.id = _GUILD
+    fake_guild.me = MagicMock()
+    # Cache local retorna None
+    fake_guild.get_channel = MagicMock(return_value=None)
+
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = uncached_channel_id
+    fake_channel.guild = fake_guild
+    fake_channel.permissions_for = MagicMock(
+        return_value=MagicMock(send_messages=True, embed_links=True)
+    )
+
+    fake_bot = MagicMock()
+    fake_bot.fetch_channel = AsyncMock(return_value=fake_channel)
+    fake_bot.user = MagicMock(id=1234)
+
+    monkeypatch.setattr(webapi, "_bot_guild", lambda req, gid: fake_guild)
+
+    async def _test():
+        req = FakeRequest(
+            event_type="welcome",
+            body={
+                "enabled": True,
+                "channel_id": uncached_channel_id,
+                "content_mode": "plain_text",
+                "message": "Hola {user}",
+            },
+        )
+        req.app["bot"] = fake_bot
+
+        put_resp = await webapi._api_server_event_put(req)
+        assert put_resp.status == 200
+        assert fake_bot.fetch_channel.called
+
+    asyncio.run(_test())
+
+
+def test_server_events_composite_button_validation(memory_db):
+    """Valida límites y seguridad de botones en plantillas y eventos composite."""
+    async def _test():
+        # 1. URL maliciosa (javascript:) rechazada
+        bad_url_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
+            body={
+                "name": "Malicious Button",
+                "content_mode": "composite",
+                "message": "Test",
+                "buttons": [{"label": "Click", "style": "link", "url": "javascript:alert(1)"}],
+            }
+        ))
+        assert bad_url_resp.status == 400
+        assert "http" in json.loads(bad_url_resp.text)["error"]
+
+        # 2. Más de 5 botones rechazado
+        too_many_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
+            body={
+                "name": "Too Many Buttons",
+                "content_mode": "composite",
+                "message": "Test",
+                "buttons": [
+                    {"label": f"B{i}", "style": "link", "url": "https://example.com"}
+                    for i in range(6)
+                ],
+            }
+        ))
+        assert too_many_resp.status == 400
+        assert "más de 5 botones" in json.loads(too_many_resp.text)["error"]
+
+        # 3. Botón de rol sin role_id rechazado
+        no_role_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
+            body={
+                "name": "Missing Role ID",
+                "content_mode": "composite",
+                "message": "Test",
+                "buttons": [{"label": "Rol", "style": "role", "role_id": None}],
+            }
+        ))
+        assert no_role_resp.status == 400
+        assert "rol asignado" in json.loads(no_role_resp.text)["error"]
+
+        # 4. Botones válidos aceptados
+        ok_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
+            body={
+                "name": "Valid Buttons",
+                "content_mode": "composite",
+                "message": "Test {user}",
+                "buttons": [
+                    {"label": "Web", "style": "link", "url": "https://purgito.app"},
+                    {"label": "Rol VIP", "style": "role", "role_id": 999999999999999999},
+                ],
+            }
+        ))
+        assert ok_resp.status == 200
+
+    asyncio.run(_test())
+
+
+def test_cross_server_template_idor_blocked(memory_db):
+    """Un servidor no puede asignar ni acceder a una plantilla de otro servidor."""
+    async def _test():
+        # Crear plantilla en Servidor 1 (guild_id = _GUILD = 123)
+        res1 = await webapi._api_embed_templates_post(FakeTemplateRequest(
+            guild_id=123,
+            body={"name": "Plantilla Guild 123", "content_mode": "plain_text", "message": "Guild 123 {user}"},
+        ))
+        tpl_id = json.loads(res1.text)["id"]
+
+        # Intentar asignar la plantilla en Servidor 2 (guild_id = 999)
+        put_idor = await webapi._api_server_event_put(FakeRequest(
+            guild_id=999,
+            event_type="welcome",
+            body={"enabled": False, "channel_id": None, "template_id": tpl_id},
+        ))
+        assert put_idor.status == 400
+        assert "plantilla no encontrada" in json.loads(put_idor.text)["error"]
+
+    asyncio.run(_test())
+
 

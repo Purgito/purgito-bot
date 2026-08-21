@@ -465,6 +465,22 @@ def extract_variables_from_content(
             if isinstance(b, dict):
                 found.update(_extract_from_block(b))
         return found
+    if content_mode == "composite":
+        found = set()
+        if isinstance(content, dict):
+            found.update(extract_variables_from_text(content.get("message")))
+            for e in content.get("embeds") or []:
+                if isinstance(e, dict):
+                    found.update(_extract_from_embed(e))
+            for b in content.get("buttons") or []:
+                if isinstance(b, dict):
+                    found.update(extract_variables_from_text(b.get("label")))
+                    found.update(extract_variables_from_text(b.get("url")))
+            send_opts = content.get("send_options")
+            if isinstance(send_opts, dict):
+                found.update(extract_variables_from_text(send_opts.get("username")))
+                found.update(extract_variables_from_text(send_opts.get("avatar_url")))
+        return found
     return set()
 
 
@@ -719,6 +735,34 @@ def resolve_content_placeholders(
             res = copy.deepcopy(content)
             if "blocks" in res and isinstance(res["blocks"], list):
                 res["blocks"] = [_resolve_block(b, context) for b in res["blocks"]]
+            return res
+        return content
+    if content_mode == "composite":
+        if isinstance(content, dict):
+            res = copy.deepcopy(content)
+            if "message" in res and isinstance(res["message"], str):
+                res["message"] = resolve_placeholders(res["message"], context)
+            if "embeds" in res and isinstance(res["embeds"], list):
+                res["embeds"] = [_resolve_embed(e, context) for e in res["embeds"] if isinstance(e, dict)]
+            if "buttons" in res and isinstance(res["buttons"], list):
+                valid_btns = []
+                for btn in res["buttons"]:
+                    if isinstance(btn, dict):
+                        b_copy = copy.deepcopy(btn)
+                        if "label" in b_copy and isinstance(b_copy["label"], str):
+                            b_copy["label"] = resolve_placeholders(b_copy["label"], context)
+                        if "url" in b_copy and isinstance(b_copy["url"], str):
+                            res_url = resolve_placeholders(b_copy["url"], context)
+                            if _is_valid_http_url(res_url):
+                                b_copy["url"] = res_url
+                        valid_btns.append(b_copy)
+                res["buttons"] = valid_btns
+            if "send_options" in res and isinstance(res["send_options"], dict):
+                so = res["send_options"]
+                if "username" in so and isinstance(so["username"], str):
+                    so["username"] = resolve_placeholders(so["username"], context)
+                if "avatar_url" in so and isinstance(so["avatar_url"], str):
+                    so["avatar_url"] = resolve_placeholders(so["avatar_url"], context)
             return res
         return content
     return content

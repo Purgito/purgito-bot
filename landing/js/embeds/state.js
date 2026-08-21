@@ -345,7 +345,7 @@ export function buttonToApi(bt) {
     // color (Fase 4): solo tiene sentido en botones de rol — Discord no deja
     // recolorear uno de link, siempre es el mismo gris con ícono.
     return {
-      style: 'role', label: bt.label, role_id: bt.role_id ? parseInt(bt.role_id, 10) : null,
+      style: 'role', label: bt.label, role_id: bt.role_id ? String(bt.role_id) : null,
       color: bt.color || 'secondary',
     };
   }

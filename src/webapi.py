@@ -198,6 +198,7 @@ from db import (
 import i18n
 from placeholders import (
     EVENT_TYPES,
+    _is_valid_http_url,
     get_available_placeholders,
     validate_content_variables,
 )
@@ -2936,6 +2937,36 @@ def validate_embeds_payload(embeds) -> str | None:
     return None
 
 
+def validate_buttons_payload(buttons: Any) -> str | None:
+    """Valida la lista de botones de un mensaje o plantilla composite (hasta 5 botones por fila)."""
+    if not isinstance(buttons, list):
+        return "la lista de botones debe ser un arreglo"
+    if len(buttons) > 5:
+        return "un mensaje no puede tener más de 5 botones por fila"
+    for i, b in enumerate(buttons):
+        if not isinstance(b, dict):
+            return f"Botón {i + 1}: estructura inválida"
+        label = str(b.get("label") or "").strip()
+        if not label:
+            return f"Botón {i + 1}: la etiqueta no puede estar vacía"
+        if len(label) > 80:
+            return f"Botón {i + 1}: la etiqueta no puede superar los 80 caracteres"
+        b_style = b.get("style", "link")
+        if b_style not in ("link", "role"):
+            return f"Botón {i + 1}: estilo '{b_style}' no soportado"
+        if b_style == "link":
+            url = str(b.get("url") or "").strip()
+            if not url:
+                return f"Botón {i + 1}: los botones de enlace necesitan una URL"
+            if not _is_valid_http_url(url) and not ("{" in url and "}" in url):
+                return f"Botón {i + 1}: la URL debe comenzar con http:// o https://"
+        elif b_style == "role":
+            role_id = _to_int(b.get("role_id"))
+            if not role_id:
+                return f"Botón {i + 1}: los botones de rol necesitan un rol asignado"
+    return None
+
+
 def _extract_embeds(data: dict) -> tuple[list, str | None]:
     """Saca la lista de embeds del body y la valida. Acepta el formato nuevo
     ({"embeds": [...]}); no hay clientes con el formato viejo de {"embed": {...}}
@@ -3107,24 +3138,87 @@ async def _reject_unassignable_roles(request: web.Request, guild_id: int, layout
     return None
 
 
-def _embed_target_channel(request: web.Request, guild_id: int, channel_id: int | None):
-    """(canal, None) si el canal es del guild y el bot puede mandar embeds ahí;
-    si no, (None, respuesta de error)."""
+async def _resolve_target_channel(
+    request: web.Request,
+    guild_id: int,
+    channel_id: int | None,
+    require_embeds: bool = False,
+):
+    """Resuelve un canal en el guild con soporte para caché, threads y fallback de Discord API.
+
+    Retorna (canal, None) si es válido y con permisos adecuados, o (None, web.json_response).
+    """
     if channel_id is None:
         return None, web.json_response({"error": "channel_id inválido"}, status=400)
     guild = _bot_guild(request, guild_id)
-    channel = guild.get_channel(channel_id)
-    if not isinstance(channel, discord.TextChannel):
+    channel = guild.get_channel(channel_id) if guild else None
+    if not isinstance(
+        channel,
+        (
+            discord.TextChannel,
+            discord.VoiceChannel,
+            discord.StageChannel,
+            discord.Thread,
+        ),
+    ):
+        channel = None
+
+    if channel is None and guild and hasattr(guild, "get_thread"):
+        th = guild.get_thread(channel_id)
+        if isinstance(th, discord.Thread):
+            channel = th
+
+    if channel is None:
+        bot = request.app.get("bot")
+        if bot and hasattr(bot, "fetch_channel"):
+            try:
+                fetched = await bot.fetch_channel(channel_id)
+                if isinstance(
+                    fetched,
+                    (
+                        discord.TextChannel,
+                        discord.VoiceChannel,
+                        discord.StageChannel,
+                        discord.Thread,
+                    ),
+                ):
+                    ch_guild = getattr(fetched, "guild", None)
+                    if ch_guild and getattr(ch_guild, "id", None) == guild_id:
+                        channel = fetched
+            except Exception:
+                channel = None
+
+    if not channel:
         return None, web.json_response(
             {"error": "el canal no existe en este servidor"}, status=400
         )
-    perms = channel.permissions_for(guild.me)
-    if not perms.send_messages or not perms.embed_links:
-        return None, web.json_response(
-            {"error": "el bot no tiene permiso de enviar mensajes/embeds en ese canal"},
-            status=403,
-        )
+    me = (
+        guild.me
+        if guild
+        else None
+    ) or (
+        guild.get_member(request.app["bot"].user.id)
+        if guild and request.app.get("bot") and request.app["bot"].user
+        else None
+    )
+    if me and hasattr(channel, "permissions_for"):
+        perms = channel.permissions_for(me)
+        if not perms.send_messages or (require_embeds and not perms.embed_links):
+            err_msg = (
+                "el bot no tiene permiso de enviar mensajes/embeds en ese canal"
+                if require_embeds
+                else "el bot no tiene permiso de enviar mensajes en ese canal"
+            )
+            return None, web.json_response({"error": err_msg}, status=403)
     return channel, None
+
+
+async def _embed_target_channel(request: web.Request, guild_id: int, channel_id: int | None):
+    """(canal, None) si el canal es del guild y el bot puede mandar embeds ahí;
+    si no, (None, respuesta de error)."""
+    return await _resolve_target_channel(
+        request, guild_id, channel_id, require_embeds=True
+    )
 
 
 @guild_api
@@ -3142,7 +3236,7 @@ async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
         _, err = _extract_embeds(data)
     if err:
         return web.json_response({"error": err}, status=400)
-    channel, denied = _embed_target_channel(
+    channel, denied = await _embed_target_channel(
         request, guild_id, _to_int(data.get("channel_id"))
     )
     if denied is not None:
@@ -3230,7 +3324,7 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
     content_mode, payload, preview, err = _extract_content(data)
     if err:
         return web.json_response({"error": err}, status=400)
-    channel, denied = _embed_target_channel(
+    channel, denied = await _embed_target_channel(
         request, guild_id, _to_int(data.get("channel_id"))
     )
     if denied is not None:
@@ -3364,7 +3458,7 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
             return web.json_response({"error": err}, status=400)
         message = preview
 
-    channel, denied = _embed_target_channel(
+    channel, denied = await _embed_target_channel(
         request, guild_id, _to_int(data.get("channel_id"))
     )
     if denied is not None:
@@ -3471,7 +3565,7 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
             return web.json_response({"error": err}, status=400)
         message = preview
 
-    channel, denied = _embed_target_channel(
+    channel, denied = await _embed_target_channel(
         request, guild_id, _to_int(data.get("channel_id"))
     )
     if denied is not None:
@@ -3722,6 +3816,9 @@ def _template_body(
                 return web.json_response({"error": embed_err}, status=400)
             payload_dict["embeds"] = embeds
         if has_buttons:
+            btn_err = validate_buttons_payload(buttons)
+            if btn_err:
+                return web.json_response({"error": btn_err}, status=400)
             payload_dict["buttons"] = buttons
         if options:
             opts_err = validate_send_options(options)
@@ -3864,20 +3961,11 @@ async def _api_server_event_put(
                 {"error": "debes seleccionar un canal para activar el evento"},
                 status=400,
             )
-        guild = _bot_guild(request, guild_id)
-        channel = guild.get_channel(channel_id)
-        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
-            return web.json_response(
-                {"error": "el canal no existe en este servidor"}, status=400
-            )
-        me = guild.me or guild.get_member(request.app["bot"].user.id if request.app["bot"].user else 0)
-        if me:
-            perms = channel.permissions_for(me)
-            if not perms.send_messages:
-                return web.json_response(
-                    {"error": "el bot no tiene permiso de enviar mensajes en ese canal"},
-                    status=403,
-                )
+        channel, denied = await _resolve_target_channel(
+            request, guild_id, channel_id, require_embeds=False
+        )
+        if denied is not None:
+            return denied
 
     raw_template_id = data.get("template_id")
     template_id = _to_int(raw_template_id) if raw_template_id is not None else None
@@ -4113,6 +4201,9 @@ async def _api_server_event_put(
             payload_dict["embeds"] = embeds
 
         if has_buttons:
+            btn_err = validate_buttons_payload(buttons)
+            if btn_err:
+                return web.json_response({"error": btn_err}, status=400)
             payload_dict["buttons"] = buttons
 
         if options:

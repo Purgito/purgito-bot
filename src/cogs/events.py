@@ -290,6 +290,7 @@ class ServerEvents(commands.Cog):
 
                     if buttons_data and isinstance(buttons_data, list) and len(buttons_data) > 0:
                         view = discord.ui.View()
+                        role_rows = []
                         for b in buttons_data[:5]:
                             if not isinstance(b, dict):
                                 continue
@@ -300,9 +301,24 @@ class ServerEvents(commands.Cog):
                                 if _is_valid_http_url(b_url):
                                     view.add_item(discord.ui.Button(label=b_label, url=b_url, style=discord.ButtonStyle.link))
                             elif b_style == "role" and b.get("role_id"):
+                                try:
+                                    role_id = int(b.get("role_id"))
+                                except (ValueError, TypeError):
+                                    continue
                                 color_style = BUTTON_COLORS.get(b.get("color"), discord.ButtonStyle.secondary)
                                 custom_id = b.get("custom_id") or f"{ROLE_TOGGLE_PREFIX}{uuid.uuid4().hex[:12]}"
                                 view.add_item(discord.ui.Button(label=b_label, style=color_style, custom_id=custom_id))
+                                action_data = json.dumps({"role_id": role_id})
+                                await add_button_action(custom_id, guild.id, "role_toggle", action_data)
+                                role_rows.append({
+                                    "custom_id": custom_id,
+                                    "guild_id": guild.id,
+                                    "action_type": "role_toggle",
+                                    "action_data": action_data,
+                                })
+                        if role_rows:
+                            from cogs.layout_buttons import register_button_actions
+                            await register_button_actions(self.bot, role_rows)
 
                 if not final_msg and not embeds and not view:
                     return False, "No hay contenido configurado para enviar"
