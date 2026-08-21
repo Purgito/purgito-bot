@@ -3798,7 +3798,7 @@ async def _api_server_event_put(
                 )
 
     content_mode = data.get("content_mode") or "plain_text"
-    if content_mode not in ("plain_text", "classic_embed", "layout_v2"):
+    if content_mode not in ("plain_text", "classic_embed", "layout_v2", "composite"):
         return web.json_response(
             {"error": f"modo de contenido inválido: {content_mode}"}, status=400
         )
@@ -3888,6 +3888,69 @@ async def _api_server_event_put(
             return web.json_response({"error": var_errors[0]}, status=400)
         saved_embed_json = json.dumps(layout)
 
+    elif content_mode == "composite":
+        message = data.get("message") or ""
+        embeds = data.get("embeds")
+        buttons = data.get("buttons")
+        options = sanitize_send_options(data.get("send_options"))
+
+        if not isinstance(message, str):
+            return web.json_response(
+                {"error": "el mensaje debe ser texto"}, status=400
+            )
+        if len(message) > 2000:
+            return web.json_response(
+                {"error": "el mensaje no puede superar los 2000 caracteres"},
+                status=400,
+            )
+
+        has_text = bool(message.strip())
+        has_embeds = bool(embeds and isinstance(embeds, list) and len(embeds) > 0)
+        has_buttons = bool(buttons and isinstance(buttons, list) and len(buttons) > 0)
+
+        if enabled and not (has_text or has_embeds or has_buttons):
+            return web.json_response(
+                {"error": "debes configurar al menos un mensaje de texto o embed si el evento está activo"},
+                status=400,
+            )
+
+        if has_text:
+            var_errors = validate_content_variables(
+                "plain_text", message, event_type, locale=locale
+            )
+            if var_errors:
+                return web.json_response({"error": var_errors[0]}, status=400)
+            saved_message = message
+
+        payload_dict = {}
+        if has_embeds:
+            embed_err = validate_embeds_payload(embeds)
+            if embed_err:
+                return web.json_response({"error": embed_err}, status=400)
+            var_errors = validate_content_variables(
+                "classic_embed", embeds, event_type, locale=locale
+            )
+            if var_errors:
+                return web.json_response({"error": var_errors[0]}, status=400)
+            payload_dict["embeds"] = embeds
+
+        if has_buttons:
+            payload_dict["buttons"] = buttons
+
+        if options:
+            opts_err = validate_send_options(options)
+            if opts_err:
+                return web.json_response({"error": opts_err}, status=400)
+            var_errors = validate_content_variables(
+                "classic_embed", {"embeds": [], "send_options": options}, event_type, locale=locale
+            )
+            if var_errors:
+                return web.json_response({"error": var_errors[0]}, status=400)
+            payload_dict["send_options"] = options
+
+        if payload_dict:
+            saved_embed_json = json.dumps(payload_dict)
+
     # Estado previo para auditar cambios de activación
     prev = await get_server_event(guild_id, event_type)
     prev_enabled = prev.get("enabled", False) if prev else False
@@ -3962,6 +4025,33 @@ async def _api_server_event_test(
                     return web.json_response(
                         {"error": var_errs[0], "details": var_errs}, status=400
                     )
+            elif content_mode == "composite":
+                payload_dict = {}
+                if data.get("embeds"):
+                    embeds = data.get("embeds")
+                    var_errs = validate_content_variables(
+                        "classic_embed", embeds, event_type, locale=locale
+                    )
+                    if var_errs:
+                        return web.json_response(
+                            {"error": var_errs[0], "details": var_errs}, status=400
+                        )
+                    payload_dict["embeds"] = embeds
+                if data.get("buttons"):
+                    payload_dict["buttons"] = data.get("buttons")
+                opts = sanitize_send_options(data.get("send_options"))
+                if opts:
+                    payload_dict["send_options"] = opts
+                if payload_dict:
+                    embed_json = json.dumps(payload_dict)
+                if message:
+                    var_errs = validate_content_variables(
+                        "plain_text", message, event_type, locale=locale
+                    )
+                    if var_errs:
+                        return web.json_response(
+                            {"error": var_errs[0], "details": var_errs}, status=400
+                        )
             elif content_mode == "layout_v2" and data.get("layout"):
                 layout = data.get("layout")
                 opts = sanitize_send_options(data.get("send_options"))

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 import discord
@@ -24,7 +25,13 @@ from db import (
     try_record_member_boost,
 )
 from embeds_core import validate_embeds_payload
-from layout_v2 import assign_button_custom_ids, build_layout_view, validate_layout_v2_payload
+from layout_v2 import (
+    BUTTON_COLORS,
+    ROLE_TOGGLE_PREFIX,
+    assign_button_custom_ids,
+    build_layout_view,
+    validate_layout_v2_payload,
+)
 from message_options import send_kwargs, wants_custom_identity
 from placeholders import (
     _is_valid_http_url,
@@ -239,6 +246,92 @@ class ServerEvents(commands.Cog):
                     )
                 else:
                     await channel.send(view=view, **extra)
+
+            elif content_mode == "composite":
+                raw_msg = config.get("message") or ""
+                final_msg = resolve_placeholders(raw_msg, ctx) if raw_msg.strip() else None
+                if final_msg and len(final_msg) > 2000:
+                    return False, "El mensaje excede el límite de 2000 caracteres de Discord tras resolver variables"
+
+                embeds = None
+                raw_embed_json = config.get("embed_json")
+                options = {}
+                view = None
+
+                if raw_embed_json:
+                    embed_dicts = normalize_embeds_json(raw_embed_json)
+                    if embed_dicts:
+                        if me and not channel.permissions_for(me).embed_links:
+                            return False, "Purgito no tiene permiso para incrustar enlaces (embeds) en ese canal"
+                        resolved_embed_dicts = [
+                            _resolve_embed(e, ctx) for e in embed_dicts if isinstance(e, dict)
+                        ]
+                        val_err = validate_embeds_payload(resolved_embed_dicts)
+                        if val_err:
+                            return False, f"El embed excede los límites de Discord tras resolver variables: {val_err}"
+                        embeds = [
+                            discord.Embed.from_dict(e)
+                            for e in resolved_embed_dicts
+                            if e
+                        ]
+                    options = extract_send_options(raw_embed_json)
+
+                    # Extract buttons
+                    try:
+                        parsed_raw = json.loads(raw_embed_json) if isinstance(raw_embed_json, str) else raw_embed_json
+                        buttons_data = parsed_raw.get("buttons") if isinstance(parsed_raw, dict) else None
+                    except Exception:
+                        buttons_data = None
+
+                    if buttons_data and isinstance(buttons_data, list) and len(buttons_data) > 0:
+                        view = discord.ui.View()
+                        for b in buttons_data[:5]:
+                            if not isinstance(b, dict):
+                                continue
+                            b_label = resolve_placeholders(b.get("label", ""), ctx)[:80] or "Enlace"
+                            b_url = resolve_placeholders(b.get("url", ""), ctx)
+                            b_style = b.get("style", "link")
+                            if b_style == "link" or b_url:
+                                if _is_valid_http_url(b_url):
+                                    view.add_item(discord.ui.Button(label=b_label, url=b_url, style=discord.ButtonStyle.link))
+                            elif b_style == "role" and b.get("role_id"):
+                                color_style = BUTTON_COLORS.get(b.get("color"), discord.ButtonStyle.secondary)
+                                custom_id = b.get("custom_id") or f"{ROLE_TOGGLE_PREFIX}{uuid.uuid4().hex[:12]}"
+                                view.add_item(discord.ui.Button(label=b_label, style=color_style, custom_id=custom_id))
+
+                if not final_msg and not embeds and not view:
+                    return False, "No hay contenido configurado para enviar"
+
+                extra = send_kwargs(options)
+                send_params = {}
+                if final_msg:
+                    send_params["content"] = final_msg
+                if embeds:
+                    send_params["embeds"] = embeds
+                if view:
+                    send_params["view"] = view
+
+                if wants_custom_identity(options):
+                    raw_user = options.get("username", "")
+                    raw_avatar = options.get("avatar_url", "")
+                    res_user = resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    if len(res_user) > 80:
+                        res_user = res_user[:80]
+                    res_avatar = resolve_placeholders(raw_avatar, ctx).strip() if raw_avatar else ""
+                    if res_avatar and not _is_valid_http_url(res_avatar):
+                        res_avatar = ""
+
+                    await send_via_webhook(
+                        self.bot,
+                        guild.id,
+                        channel,
+                        username=res_user,
+                        avatar_url=res_avatar,
+                        **send_params,
+                        **extra,
+                    )
+                else:
+                    await channel.send(**send_params, **extra)
             else:
                 return False, f"Modo de contenido no soportado: {content_mode}"
 

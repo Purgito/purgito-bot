@@ -203,7 +203,36 @@ def test_server_events_api_put_embed_and_layout(memory_db):
         assert data["saved"] is True
         assert data["event"]["content_mode"] == "layout_v2"
 
+        # Composite Mode (Message + Embed + Buttons)
+        composite_body = {
+            "enabled": True,
+            "channel_id": _CHANNEL_ID,
+            "content_mode": "composite",
+            "message": "¡Bienvenido {user} a {server_name}!",
+            "embeds": [
+                {
+                    "title": "Reglas de la comunidad",
+                    "description": "Por favor revisa {channel} antes de comenzar",
+                }
+            ],
+            "buttons": [
+                {"label": "Web Oficial", "url": "https://purgito.com", "style": "link"}
+            ],
+            "send_options": {"username": "Purgito Welcomer"},
+        }
+        req = FakeRequest(event_type="welcome", body=composite_body)
+        resp = await webapi._api_server_event_put(req)
+        assert resp.status == 200
+        data = json.loads(resp.text)
+        assert data["saved"] is True
+        assert data["event"]["content_mode"] == "composite"
+        assert data["event"]["message"] == composite_body["message"]
+        parsed_embed_json = json.loads(data["event"]["embed_json"])
+        assert len(parsed_embed_json["embeds"]) == 1
+        assert len(parsed_embed_json["buttons"]) == 1
+
     asyncio.run(_test())
+
 
 
 def test_server_events_api_delete(memory_db):

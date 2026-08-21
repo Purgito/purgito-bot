@@ -1,17 +1,17 @@
 // Módulos independientes de Eventos del Servidor: Bienvenidas, Despedidas y Boosts.
-// Cada página es una herramienta dedicada con su propio contexto, editor, variables y live preview.
+// Arquitectura compacta, clara, componible y de alta densidad visual con Live Preview fiel a Discord.
 
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, spinner, renderError, toast, formGroup, accordionGroup, autoGrow, helpIcon, icon,
+  el, spinner, renderError, toast, autoGrow, helpIcon, icon,
 } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
 import { mdToNodes } from '/js/core/markdown.js';
 import { t, addStrings } from '/js/core/i18n.js';
 import {
-  blankDoc, blankEmbed, embedDict, embedChars, EMBED_LIMITS,
-  blankLayoutDoc, newBlock, blockWarning, apiToBlock,
+  blankDoc, blankEmbed, embedDict, EMBED_LIMITS,
+  blankLayoutDoc, newBlock, apiToBlock,
 } from '/js/embeds/state.js';
 import { renderEmbedsPreview } from '/js/embeds/classic-editor.js';
 import { renderLayoutPreview } from '/js/embeds/layout-editor.js';
@@ -48,9 +48,14 @@ addStrings({
     'tabsEventos.statusActive': 'Activado',
     'tabsEventos.statusInactive': 'Desactivado',
     'tabsEventos.secChannel': 'Canal de destino',
+    'tabsEventos.secMainConfig': 'Configuración principal',
+    'tabsEventos.secContent': 'Contenido',
+    'tabsEventos.secAdvanced': 'Opciones avanzadas',
     'tabsEventos.channelSelectPlaceholder': 'Elige un canal…',
     'tabsEventos.noPermsWarning': '⚠ Purgito no puede enviar mensajes o embeds en este canal.',
-    'tabsEventos.secMessage': 'Mensaje',
+    'tabsEventos.secMessage': 'Mensaje de texto',
+    'tabsEventos.secEmbed': 'Embed de Discord',
+    'tabsEventos.secButtons': 'Botones interactivos',
     'tabsEventos.contentModeLabel': 'Tipo de contenido',
     'tabsEventos.modePlainText': 'Mensaje normal',
     'tabsEventos.modeClassicEmbed': 'Embed clásico',
@@ -86,6 +91,7 @@ addStrings({
     'tabsEventos.varsSearchPlaceholder': 'Buscar variables…',
     'tabsEventos.varsCopied': 'Variable {var} copiada al portapapeles',
     'tabsEventos.varsInserted': 'Variable {var} insertada',
+    'tabsEventos.insertVarBtn': 'Insertar variable',
     'tabsEventos.catAll': 'Todas',
     'tabsEventos.catUser': 'Usuario',
     'tabsEventos.catServer': 'Servidor',
@@ -96,6 +102,7 @@ addStrings({
     'tabsEventos.previewHeader': 'Purgito',
     'tabsEventos.previewBotTag': 'BOT',
     'tabsEventos.previewToday': 'HOY',
+    'tabsEventos.previewEmpty': 'No hay contenido activo. Activa el mensaje de texto o el embed para ver la vista previa.',
     'tabsEventos.saveBtn': 'Guardar cambios',
     'tabsEventos.saving': 'Guardando…',
     'tabsEventos.savedSuccess': 'Configuración guardada correctamente',
@@ -115,6 +122,24 @@ addStrings({
     'tabsEventos.templateSaved': 'Plantilla guardada',
     'tabsEventos.templateLoaded': 'Plantilla cargada',
     'tabsEventos.noTemplates': 'No hay plantillas guardadas',
+    'tabsEventos.buttonsTitle': 'Botones',
+    'tabsEventos.buttonsHelp': 'Añade botones de enlace o de rol a tu bienvenida.',
+    'tabsEventos.addButton': '+ Añadir botón',
+    'tabsEventos.buttonLabelPlaceholder': 'Etiqueta del botón',
+    'tabsEventos.buttonUrlPlaceholder': 'https://ejemplo.com',
+    'tabsEventos.buttonTypeLink': 'Enlace (URL)',
+    'tabsEventos.buttonTypeRole': 'Rol (Toggle)',
+    'tabsEventos.buttonColorPrimary': 'Azul (Primary)',
+    'tabsEventos.buttonColorSecondary': 'Gris (Secondary)',
+    'tabsEventos.buttonColorSuccess': 'Verde (Success)',
+    'tabsEventos.buttonColorDanger': 'Rojo (Danger)',
+    'tabsEventos.useLayoutV2': 'Usar Layout V2 (Editor avanzado de bloques)',
+    'tabsEventos.layoutV2Hint': 'Permite diseñar mensajes con la arquitectura moderna de bloques de Discord.',
+    'tabsEventos.close': 'Cerrar',
+    'tabsEventos.quickVars': 'Variables rápidas:',
+    'tabsEventos.eventDisabledNotice': 'La bienvenida está desactivada. Actívala arriba para enviar mensajes automáticamente.',
+    'tabsEventos.eventDisabledNoticeGoodbye': 'Las despedidas están desactivadas. Actívalas arriba para enviar mensajes automáticamente.',
+    'tabsEventos.eventDisabledNoticeBoost': 'Los mensajes de boost están desactivados. Actívalos arriba para enviar mensajes automáticamente.',
   },
   en: {
     // Welcome
@@ -146,9 +171,14 @@ addStrings({
     'tabsEventos.statusActive': 'Enabled',
     'tabsEventos.statusInactive': 'Disabled',
     'tabsEventos.secChannel': 'Destination Channel',
+    'tabsEventos.secMainConfig': 'Main Configuration',
+    'tabsEventos.secContent': 'Content',
+    'tabsEventos.secAdvanced': 'Advanced Options',
     'tabsEventos.channelSelectPlaceholder': 'Choose a channel…',
     'tabsEventos.noPermsWarning': '⚠ Purgito cannot send messages or embeds in this channel.',
-    'tabsEventos.secMessage': 'Message',
+    'tabsEventos.secMessage': 'Text Message',
+    'tabsEventos.secEmbed': 'Discord Embed',
+    'tabsEventos.secButtons': 'Interactive Buttons',
     'tabsEventos.contentModeLabel': 'Content type',
     'tabsEventos.modePlainText': 'Normal message',
     'tabsEventos.modeClassicEmbed': 'Classic embed',
@@ -184,6 +214,7 @@ addStrings({
     'tabsEventos.varsSearchPlaceholder': 'Search variables…',
     'tabsEventos.varsCopied': 'Variable {var} copied to clipboard',
     'tabsEventos.varsInserted': 'Variable {var} inserted',
+    'tabsEventos.insertVarBtn': 'Insert variable',
     'tabsEventos.catAll': 'All',
     'tabsEventos.catUser': 'User',
     'tabsEventos.catServer': 'Server',
@@ -194,6 +225,7 @@ addStrings({
     'tabsEventos.previewHeader': 'Purgito',
     'tabsEventos.previewBotTag': 'BOT',
     'tabsEventos.previewToday': 'TODAY',
+    'tabsEventos.previewEmpty': 'No active content. Enable text message or embed to see live preview.',
     'tabsEventos.saveBtn': 'Save changes',
     'tabsEventos.saving': 'Saving…',
     'tabsEventos.savedSuccess': 'Settings saved successfully',
@@ -213,6 +245,24 @@ addStrings({
     'tabsEventos.templateSaved': 'Template saved',
     'tabsEventos.templateLoaded': 'Template loaded',
     'tabsEventos.noTemplates': 'No templates saved',
+    'tabsEventos.buttonsTitle': 'Buttons',
+    'tabsEventos.buttonsHelp': 'Add optional link or role buttons to your welcome message.',
+    'tabsEventos.addButton': '+ Add button',
+    'tabsEventos.buttonLabelPlaceholder': 'Button label',
+    'tabsEventos.buttonUrlPlaceholder': 'https://example.com',
+    'tabsEventos.buttonTypeLink': 'Link (URL)',
+    'tabsEventos.buttonTypeRole': 'Role (Toggle)',
+    'tabsEventos.buttonColorPrimary': 'Blurple (Primary)',
+    'tabsEventos.buttonColorSecondary': 'Grey (Secondary)',
+    'tabsEventos.buttonColorSuccess': 'Green (Success)',
+    'tabsEventos.buttonColorDanger': 'Red (Danger)',
+    'tabsEventos.useLayoutV2': 'Use Layout V2 (Advanced block editor)',
+    'tabsEventos.layoutV2Hint': 'Allows designing messages using Discord Components V2 block architecture.',
+    'tabsEventos.close': 'Close',
+    'tabsEventos.quickVars': 'Quick variables:',
+    'tabsEventos.eventDisabledNotice': 'Welcome is disabled. Enable it above to automatically send messages.',
+    'tabsEventos.eventDisabledNoticeGoodbye': 'Goodbyes are disabled. Enable it above to automatically send messages.',
+    'tabsEventos.eventDisabledNoticeBoost': 'Boost messages are disabled. Enable it above to automatically send messages.',
   },
 });
 
@@ -226,6 +276,7 @@ const EVENT_CONFIGS = {
     toggleHelpKey: 'tabsWelcome.toggleHelp',
     channelLabelKey: 'tabsWelcome.channelLabel',
     channelHelpKey: 'tabsWelcome.channelHelp',
+    disabledNoticeKey: 'tabsEventos.eventDisabledNotice',
     placeholderDefault: '¡Bienvenido {user} a {server_name}! Ya somos {server_membercount} miembros.',
   },
   goodbye: {
@@ -237,6 +288,7 @@ const EVENT_CONFIGS = {
     toggleHelpKey: 'tabsGoodbye.toggleHelp',
     channelLabelKey: 'tabsGoodbye.channelLabel',
     channelHelpKey: 'tabsGoodbye.channelHelp',
+    disabledNoticeKey: 'tabsEventos.eventDisabledNoticeGoodbye',
     placeholderDefault: 'Hasta luego {user} 👋 Gracias por haber formado parte de {server_name}.',
   },
   boost: {
@@ -248,6 +300,7 @@ const EVENT_CONFIGS = {
     toggleHelpKey: 'tabsBoost.toggleHelp',
     channelLabelKey: 'tabsBoost.channelLabel',
     channelHelpKey: 'tabsBoost.channelHelp',
+    disabledNoticeKey: 'tabsEventos.eventDisabledNoticeBoost',
     placeholderDefault: '🚀 ¡Muchas gracias {user} por el boost a {server_name}! Ahora tenemos nivel {server_boostlevel} ({server_boostcount} mejoras).',
   },
 };
@@ -255,11 +308,11 @@ const EVENT_CONFIGS = {
 function getMockContext(eventType) {
   const isEn = (typeof document !== 'undefined' && document.documentElement && document.documentElement.lang === 'en') || false;
   return {
-    user: isEn ? '@Test User' : '@Usuario de prueba',
+    user: isEn ? '@TestUser' : '@Usuario',
     user_tag: 'usuario_prueba',
     user_name: 'usuario_prueba',
-    user_nick: isEn ? 'Test User' : 'Usuario de prueba',
-    user_displayname: isEn ? 'Test User' : 'Usuario de prueba',
+    user_nick: isEn ? 'Test User' : 'Usuario',
+    user_displayname: isEn ? 'Test User' : 'Usuario',
     user_avatar: 'https://cdn.discordapp.com/embed/avatars/1.png',
     user_id: '987654321012345678',
     user_created_at: isEn ? 'January 15, 2022' : '15 de enero de 2022',
@@ -404,17 +457,21 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
   const serverEvents = initialData.events || {};
   const allVariables = initialData.variables || [];
 
+  // Filter variables applicable to current event
+  const eventVariables = allVariables.filter(v => {
+    if (!v.allowed_events || !Array.isArray(v.allowed_events)) return true;
+    return v.allowed_events.includes(eventType);
+  });
+
   // Track focused input for smart variable insertion
   let lastActiveInput = null;
 
-  // Header dedicado
-  const header = el('div', { class: 'tab-header' },
-    el('h1', {}, el('span', { class: 'nav-icon' }, icon(cfg.icon)), t(cfg.titleKey)),
-    el('p', { class: 'dim' }, t(cfg.subtitleKey))
-  );
-  container.append(header);
+  function registerInputFocus(inputNode) {
+    inputNode.addEventListener('focus', () => { lastActiveInput = inputNode; });
+    inputNode.addEventListener('click', () => { lastActiveInput = inputNode; });
+  }
 
-  // Configuration state
+  // Load existing event configuration
   const evConfig = serverEvents[eventType] || {
     enabled: false,
     channel_id: '',
@@ -425,58 +482,236 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
 
   let isEnabled = !!evConfig.enabled;
   let selectedChannelId = evConfig.channel_id ? String(evConfig.channel_id) : (channels.length ? String(channels[0].id) : '');
-  let currentMode = evConfig.content_mode || 'plain_text';
+  const savedMode = evConfig.content_mode || 'plain_text';
+
   let currentMessage = evConfig.message !== undefined && evConfig.message !== null ? evConfig.message : cfg.placeholderDefault;
   let customUsername = '';
   let customAvatarUrl = '';
+  let buttons = [];
 
-  // Embed and Layout state
+  // State: Component enablement
+  let isMessageEnabled = true;
+  let isEmbedEnabled = false;
+  let isLayoutV2 = savedMode === 'layout_v2';
+  let isButtonsEnabled = false;
+
   let localEmbedDoc = blankDoc();
   let localLayoutDoc = blankLayoutDoc();
 
-  if (currentMode === 'classic_embed' && evConfig.embed_json) {
+  // Parse embed_json from server
+  if (evConfig.embed_json) {
     try {
       const parsed = JSON.parse(evConfig.embed_json);
-      const list = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
-      if (parsed && !Array.isArray(parsed) && parsed.send_options) {
-        customUsername = parsed.send_options.username || '';
-        customAvatarUrl = parsed.send_options.avatar_url || '';
+      if (savedMode === 'layout_v2') {
+        if (parsed && parsed.send_options) {
+          customUsername = parsed.send_options.username || '';
+          customAvatarUrl = parsed.send_options.avatar_url || '';
+        }
+        localLayoutDoc.blocks = (parsed.blocks || []).map(apiToBlock);
+      } else {
+        // Classic or Composite mode
+        const list = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
+        if (parsed && !Array.isArray(parsed)) {
+          if (parsed.send_options) {
+            customUsername = parsed.send_options.username || '';
+            customAvatarUrl = parsed.send_options.avatar_url || '';
+          }
+          if (Array.isArray(parsed.buttons)) {
+            buttons = parsed.buttons.map(b => ({ ...b }));
+          }
+        }
+        if (list.length > 0) {
+          localEmbedDoc.embeds = list.map(e => ({ ...e }));
+        }
       }
-      localEmbedDoc.embeds = list.map(e => ({ ...e }));
     } catch (e) {
       localEmbedDoc = blankDoc();
     }
   }
 
-  if (currentMode === 'layout_v2' && evConfig.embed_json) {
-    try {
-      const parsed = JSON.parse(evConfig.embed_json);
-      if (parsed && parsed.send_options) {
-        customUsername = parsed.send_options.username || '';
-        customAvatarUrl = parsed.send_options.avatar_url || '';
-      }
-      localLayoutDoc.blocks = (parsed.blocks || []).map(apiToBlock);
-    } catch (e) {
-      localLayoutDoc = blankLayoutDoc();
-    }
+  // Setup initial toggles based on saved data
+  if (savedMode === 'classic_embed') {
+    isEmbedEnabled = true;
+    isMessageEnabled = Boolean(evConfig.message && evConfig.message.trim());
+  } else if (savedMode === 'composite') {
+    isMessageEnabled = Boolean(evConfig.message && evConfig.message.trim());
+    isEmbedEnabled = Boolean(localEmbedDoc.embeds.some(e => e.title || e.description || e.image || e.thumbnail || (e.fields && e.fields.length)));
+    if (!isMessageEnabled && !isEmbedEnabled) isMessageEnabled = true;
+  } else if (savedMode === 'layout_v2') {
+    isLayoutV2 = true;
+    isMessageEnabled = false;
+    isEmbedEnabled = false;
+  } else {
+    // plain_text
+    isMessageEnabled = true;
+    isEmbedEnabled = false;
   }
+
+  isButtonsEnabled = buttons.length > 0;
 
   if (!localEmbedDoc.embeds.length) {
     localEmbedDoc.embeds.push(blankEmbed());
   }
   const embedState = localEmbedDoc.embeds[0];
 
-  // Panes
+  // Root panes
+  const rootWrapper = el('div', { class: 'purg-event-wrapper' });
   const editorPane = el('div', { class: 'event-editor-pane' });
   const previewPane = el('div', { class: 'event-preview-pane' });
 
-  // Helper for tracking focused input
-  function registerInputFocus(inputNode) {
-    inputNode.addEventListener('focus', () => { lastActiveInput = inputNode; });
-    inputNode.addEventListener('click', () => { lastActiveInput = inputNode; });
+  // ─────────────────────────────────────────────────────────────
+  // 1. SMART VARIABLES MODAL / FLOATING POPOVER
+  // ─────────────────────────────────────────────────────────────
+  function openVariablesModal(targetInput) {
+    const existingModal = document.getElementById('purg-variables-modal-backdrop');
+    if (existingModal) existingModal.remove();
+
+    const target = targetInput || lastActiveInput;
+
+    const varCategories = [
+      { key: 'all', label: t('tabsEventos.catAll') },
+      { key: 'user', label: t('tabsEventos.catUser') },
+      { key: 'server', label: t('tabsEventos.catServer') },
+      { key: 'channel', label: t('tabsEventos.catChannel') },
+    ];
+    if (eventType === 'boost') {
+      varCategories.push({ key: 'boost', label: t('tabsEventos.catBoost') });
+    }
+    varCategories.push({ key: 'date', label: t('tabsEventos.catDate') });
+
+    let activeCat = 'all';
+    let searchQuery = '';
+
+    const searchInput = el('input', {
+      type: 'search',
+      class: 'form-control form-control-sm var-modal-search',
+      placeholder: t('tabsEventos.varsSearchPlaceholder'),
+      autofocus: true,
+    });
+
+    const categoryTabsWrap = el('div', { class: 'var-category-tabs' });
+    const chipsGrid = el('div', { class: 'var-modal-grid' });
+
+    function renderModalChips() {
+      chipsGrid.innerHTML = '';
+      const q = searchQuery.toLowerCase().trim();
+
+      const filtered = eventVariables.filter(v => {
+        const matchCat = activeCat === 'all' || v.category === activeCat;
+        if (!matchCat) return false;
+        if (!q) return true;
+        return v.name.toLowerCase().includes(q) || (v.description && v.description.toLowerCase().includes(q));
+      });
+
+      if (!filtered.length) {
+        chipsGrid.append(el('p', { class: 'dim text-sm', style: 'padding: 12px; text-align: center;' }, 'No se encontraron variables'));
+        return;
+      }
+
+      for (const v of filtered) {
+        const varTag = `{${v.name}}`;
+        const chip = el('button', {
+          type: 'button',
+          class: 'var-chip-compact',
+          title: `${v.description || ''} (${t('tabsEventos.varExample')} ${v.example || ''})`,
+          onclick: () => {
+            if (target && typeof target.value === 'string') {
+              const start = target.selectionStart !== undefined ? target.selectionStart : target.value.length;
+              const end = target.selectionEnd !== undefined ? target.selectionEnd : target.value.length;
+              const val = target.value;
+              target.value = val.substring(0, start) + varTag + val.substring(end);
+              target.selectionStart = target.selectionEnd = start + varTag.length;
+              target.dispatchEvent(new Event('input', { bubbles: true }));
+              target.focus();
+              toast(t('tabsEventos.varsInserted', { var: varTag }), 'ok');
+            } else {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(varTag);
+                toast(t('tabsEventos.varsCopied', { var: varTag }), 'ok');
+              }
+            }
+            closeModal();
+          },
+        },
+          el('code', { class: 'var-tag' }, varTag),
+          el('span', { class: 'var-desc' }, v.description || '')
+        );
+        chipsGrid.append(chip);
+      }
+    }
+
+    function renderModalCatTabs() {
+      categoryTabsWrap.innerHTML = '';
+      for (const cat of varCategories) {
+        const btn = el('button', {
+          type: 'button',
+          class: 'category-tab-btn' + (activeCat === cat.key ? ' active' : ''),
+          onclick: () => {
+            activeCat = cat.key;
+            renderModalCatTabs();
+            renderModalChips();
+          },
+        }, cat.label);
+        categoryTabsWrap.append(btn);
+      }
+    }
+
+    searchInput.oninput = () => {
+      searchQuery = searchInput.value;
+      renderModalChips();
+    };
+
+    renderModalCatTabs();
+    renderModalChips();
+
+    function closeModal() {
+      document.removeEventListener('keydown', handleKeyDown);
+      backdrop.remove();
+    }
+
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+
+    const closeBtn = el('button', {
+      type: 'button',
+      class: 'modal-close-btn',
+      onclick: closeModal,
+      title: t('tabsEventos.close'),
+    }, '✕');
+
+    const modalBox = el('div', { class: 'purg-variables-modal' },
+      el('div', { class: 'var-modal-header' },
+        el('div', { class: 'var-modal-title' },
+          icon('sparkle'),
+          el('strong', {}, t('tabsEventos.varsTitle'))
+        ),
+        closeBtn
+      ),
+      el('p', { class: 'dim text-xs', style: 'margin: 0 0 10px 0;' }, t('tabsEventos.varsSubtitle')),
+      searchInput,
+      categoryTabsWrap,
+      chipsGrid
+    );
+
+    const backdrop = el('div', {
+      id: 'purg-variables-modal-backdrop',
+      class: 'purg-modal-backdrop',
+      onclick: (e) => {
+        if (e.target === backdrop) closeModal();
+      },
+    }, modalBox);
+
+    document.body.append(backdrop);
+    setTimeout(() => { searchInput.focus(); }, 30);
   }
 
-  // 1. SECCIÓN: ESTADO
+  // ─────────────────────────────────────────────────────────────
+  // 2. HEADER & CONFIGURACIÓN PRINCIPAL (Ultra Compacta)
+  // ─────────────────────────────────────────────────────────────
   const toggleChk = el('input', {
     type: 'checkbox',
     checked: isEnabled,
@@ -486,28 +721,8 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     class: 'badge ' + (isEnabled ? 'badge-ok' : 'badge-dim'),
   }, isEnabled ? `● ${t('tabsEventos.statusActive')}` : `○ ${t('tabsEventos.statusInactive')}`);
 
-  toggleChk.onchange = () => {
-    isEnabled = toggleChk.checked;
-    toggleStatusBadge.className = 'badge ' + (isEnabled ? 'badge-ok' : 'badge-dim');
-    toggleStatusBadge.textContent = isEnabled ? `● ${t('tabsEventos.statusActive')}` : `○ ${t('tabsEventos.statusInactive')}`;
-  };
-
-  const statusCard = el('div', { class: 'card event-section-card' },
-    el('div', { class: 'event-section-header' },
-      el('h3', { class: 'section-title' }, t('tabsEventos.secStatus')),
-      toggleStatusBadge
-    ),
-    el('label', { class: 'toggle' },
-      toggleChk,
-      el('span', { class: 'toggle-label' }, t(cfg.toggleLabelKey)),
-      helpIcon(t(cfg.toggleHelpKey))
-    ),
-    el('p', { class: 'dim text-sm', style: 'margin: 4px 0 0 0;' }, t(cfg.toggleHelpKey))
-  );
-
-  // 2. SECCIÓN: CANAL
   const channelSel = channelSelect(channels, selectedChannelId, t('tabsEventos.channelSelectPlaceholder'));
-  const channelWarning = el('p', { class: 'form-error-msg', style: 'display: none; margin-top: 6px;' },
+  const channelWarning = el('p', { class: 'form-error-msg', style: 'display: none; margin: 4px 0 0 0;' },
     t('tabsEventos.noPermsWarning')
   );
 
@@ -527,494 +742,721 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
   };
   checkChannelPerms();
 
-  const channelCard = el('div', { class: 'card event-section-card' },
-    el('h3', { class: 'section-title' }, t('tabsEventos.secChannel')),
-    formGroup(t(cfg.channelLabelKey), channelSel, channelWarning),
-    el('p', { class: 'dim text-sm', style: 'margin: 0;' }, t(cfg.channelHelpKey))
+  const disabledNotice = el('div', {
+    class: 'event-disabled-banner',
+    style: isEnabled ? 'display: none;' : 'display: flex;',
+  },
+    icon('info'),
+    el('span', {}, t(cfg.disabledNoticeKey || 'tabsEventos.eventDisabledNotice'))
   );
 
-  // 3. SECCIÓN: MENSAJE (Contenido Principal)
-  const modePillsWrap = el('div', { class: 'event-mode-pills' });
-  const modeModes = [
-    { key: 'plain_text', label: t('tabsEventos.modePlainText'), icon: 'chat' },
-    { key: 'classic_embed', label: t('tabsEventos.modeClassicEmbed'), icon: 'layout' },
-    { key: 'layout_v2', label: t('tabsEventos.modeLayoutV2'), icon: 'sparkle' },
-  ];
+  toggleChk.onchange = () => {
+    isEnabled = toggleChk.checked;
+    toggleStatusBadge.className = 'badge ' + (isEnabled ? 'badge-ok' : 'badge-dim');
+    toggleStatusBadge.textContent = isEnabled ? `● ${t('tabsEventos.statusActive')}` : `○ ${t('tabsEventos.statusInactive')}`;
+    disabledNotice.style.display = isEnabled ? 'none' : 'flex';
+    syncBodyVisibility();
+    updateLivePreview();
+  };
 
-  const contentEditorBody = el('div', { class: 'event-content-editor-wrap' });
+  const masterConfigCard = el('div', { class: 'card event-master-card' },
+    el('div', { class: 'event-master-head' },
+      el('div', { class: 'event-master-meta' },
+        el('div', { class: 'event-master-title' },
+          el('span', { class: 'event-icon' }, icon(cfg.icon)),
+          el('h1', { class: 'section-title' }, t(cfg.titleKey)),
+          toggleStatusBadge
+        ),
+        el('p', { class: 'dim event-master-desc' }, t(cfg.subtitleKey))
+      ),
+      el('label', { class: 'toggle toggle-lg event-master-switch', title: t(cfg.toggleLabelKey) },
+        toggleChk,
+        el('span', { class: 'toggle-label' }, t(cfg.toggleLabelKey))
+      )
+    ),
+    el('div', { class: 'event-master-row' },
+      el('div', { class: 'event-channel-field' },
+        el('label', { class: 'event-field-label' },
+          icon('chat'),
+          t(cfg.channelLabelKey)
+        ),
+        channelSel,
+        channelWarning
+      )
+    ),
+    disabledNotice
+  );
 
-  function renderModeSelector() {
-    modePillsWrap.innerHTML = '';
-    for (const m of modeModes) {
-      const pill = el('button', {
-        type: 'button',
-        class: 'mode-pill' + (currentMode === m.key ? ' active' : ''),
-        onclick: () => {
-          if (currentMode === m.key) return;
-          currentMode = m.key;
-          renderModeSelector();
-          renderContentEditor();
-          updateLivePreview();
-        },
-      },
-        el('span', { class: 'mode-pill-icon' }, icon(m.icon)),
-        m.label
-      );
-      modePillsWrap.append(pill);
+  // ─────────────────────────────────────────────────────────────
+  // 3. CONSTRUCTOR DE CONTENIDO UNIFICADO (Componible)
+  // ─────────────────────────────────────────────────────────────
+  const contentCard = el('div', { class: 'card event-content-card' });
+
+  function syncBodyVisibility() {
+    if (isEnabled) {
+      contentCard.classList.remove('is-disabled');
+    } else {
+      contentCard.classList.add('is-disabled');
     }
   }
 
-  function renderContentEditor() {
-    contentEditorBody.innerHTML = '';
+  function renderContentBuilder() {
+    contentCard.innerHTML = '';
 
-    if (currentMode === 'plain_text') {
-      const txtArea = el('textarea', {
-        class: 'form-control autogrow',
-        rows: 4,
-        placeholder: cfg.placeholderDefault,
+    if (isLayoutV2) {
+      renderLayoutV2Section();
+      return;
+    }
+
+    // SECTION A: MENSAJE DE TEXTO
+    const msgToggleChk = el('input', {
+      type: 'checkbox',
+      checked: isMessageEnabled,
+      onchange: () => {
+        isMessageEnabled = msgToggleChk.checked;
+        msgBodyWrap.style.display = isMessageEnabled ? 'flex' : 'none';
+        msgSection.className = 'event-builder-section' + (isMessageEnabled ? ' is-active' : ' is-collapsed');
+        updateLivePreview();
+      },
+    });
+
+    const msgTxt = el('textarea', {
+      class: 'form-control autogrow event-message-textarea',
+      rows: 3,
+      placeholder: cfg.placeholderDefault,
+    });
+    msgTxt.value = currentMessage;
+    registerInputFocus(msgTxt);
+
+    const charCounter = el('span', { class: 'char-counter' },
+      t('tabsEventos.plainTextCounter', { count: currentMessage.length })
+    );
+
+    msgTxt.oninput = () => {
+      currentMessage = msgTxt.value;
+      autoGrow(msgTxt);
+      charCounter.textContent = t('tabsEventos.plainTextCounter', { count: currentMessage.length });
+      charCounter.className = 'char-counter' + (currentMessage.length > 2000 ? ' over' : '');
+      updateLivePreview();
+    };
+
+    // Quick insertion tags bar
+    const quickVarsWrap = el('div', { class: 'event-quick-vars' });
+    const quickVars = ['user', 'server_name', 'server_membercount', 'channel'];
+    if (eventType === 'boost') quickVars.push('server_boostlevel');
+
+    quickVars.forEach(vName => {
+      const tag = `{${vName}}`;
+      const btn = el('button', {
+        type: 'button',
+        class: 'quick-var-btn',
+        title: `Insertar ${tag}`,
+        onclick: () => {
+          const start = msgTxt.selectionStart || msgTxt.value.length;
+          const end = msgTxt.selectionEnd || msgTxt.value.length;
+          msgTxt.value = msgTxt.value.substring(0, start) + tag + msgTxt.value.substring(end);
+          msgTxt.selectionStart = msgTxt.selectionEnd = start + tag.length;
+          msgTxt.dispatchEvent(new Event('input', { bubbles: true }));
+          msgTxt.focus();
+          toast(t('tabsEventos.varsInserted', { var: tag }), 'ok');
+        },
+      }, tag);
+      quickVarsWrap.append(btn);
+    });
+
+    const moreVarsBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-secondary btn-xs btn-more-vars',
+      onclick: () => openVariablesModal(msgTxt),
+    }, icon('sparkle'), t('tabsEventos.insertVarBtn'));
+
+    const msgFooterBar = el('div', { class: 'event-textarea-bar' },
+      el('div', { class: 'event-textarea-bar-left' },
+        el('span', { class: 'quick-vars-label dim text-xs' }, `${t('tabsEventos.varsTitle')}:`),
+        quickVarsWrap,
+        moreVarsBtn
+      ),
+      charCounter
+    );
+
+    const msgBodyWrap = el('div', {
+      class: 'event-builder-section-body',
+      style: isMessageEnabled ? 'display: flex;' : 'display: none;',
+    },
+      msgTxt,
+      msgFooterBar
+    );
+
+    const msgSection = el('div', {
+      class: 'event-builder-section' + (isMessageEnabled ? ' is-active' : ' is-collapsed'),
+    },
+      el('div', { class: 'event-builder-section-head' },
+        el('div', { class: 'event-builder-section-title' },
+          icon('chat'),
+          el('strong', {}, t('tabsEventos.secMessage')),
+          el('span', { class: 'dim text-xs' }, t('tabsEventos.plainTextLabel'))
+        ),
+        el('label', { class: 'toggle toggle-sm' },
+          msgToggleChk,
+          el('span', { class: 'toggle-label' }, isMessageEnabled ? t('tabsEventos.statusActive') : t('tabsEventos.statusInactive'))
+        )
+      ),
+      msgBodyWrap
+    );
+
+    // SECTION B: EMBED DE DISCORD
+    const embedToggleChk = el('input', {
+      type: 'checkbox',
+      checked: isEmbedEnabled,
+      onchange: () => {
+        isEmbedEnabled = embedToggleChk.checked;
+        embedBodyWrap.style.display = isEmbedEnabled ? 'flex' : 'none';
+        embedSection.className = 'event-builder-section' + (isEmbedEnabled ? ' is-active' : ' is-collapsed');
+        updateLivePreview();
+      },
+    });
+
+    const s = embedState;
+
+    function boundInput(key, placeholder, isArea = false, maxL = null) {
+      const inp = el(isArea ? 'textarea' : 'input', {
+        class: 'form-control' + (isArea ? ' autogrow' : ''),
+        placeholder,
+        maxlength: maxL ? String(maxL) : null,
       });
-      txtArea.value = currentMessage;
-      registerInputFocus(txtArea);
-
-      const counter = el('div', { class: 'char-counter' },
-        t('tabsEventos.plainTextCounter', { count: currentMessage.length })
-      );
-
-      txtArea.oninput = () => {
-        currentMessage = txtArea.value;
-        autoGrow(txtArea);
-        counter.textContent = t('tabsEventos.plainTextCounter', { count: currentMessage.length });
-        counter.className = 'char-counter' + (currentMessage.length > 2000 ? ' over' : '');
+      inp.value = s[key] || '';
+      registerInputFocus(inp);
+      inp.oninput = () => {
+        s[key] = inp.value;
+        if (isArea) autoGrow(inp);
         updateLivePreview();
       };
+      return inp;
+    }
 
-      contentEditorBody.append(
-        formGroup(t('tabsEventos.plainTextLabel'), txtArea, counter)
-      );
-    } else if (currentMode === 'classic_embed') {
-      const s = embedState;
+    // Embed Content (Title & Description)
+    const titleInput = boundInput('title', 'Título del embed…', false, EMBED_LIMITS.title);
+    const descInput = boundInput('description', 'Descripción del embed (soporta markdown y variables)…', true, EMBED_LIMITS.description);
 
-      function boundInput(key, placeholder, isArea = false, maxL = null) {
-        const input = el(isArea ? 'textarea' : 'input', {
-          class: 'form-control' + (isArea ? ' autogrow' : ''),
-          placeholder,
-          maxlength: maxL ? String(maxL) : null,
+    const embedTitleRow = el('div', { class: 'form-group-compact' },
+      el('div', { class: 'field-label-row' },
+        el('label', {}, t('tabsEventos.embedTitleLabel')),
+        el('button', {
+          type: 'button',
+          class: 'btn-inline-var',
+          onclick: () => openVariablesModal(titleInput),
+        }, icon('sparkle'), '{ }')
+      ),
+      titleInput
+    );
+
+    const embedDescRow = el('div', { class: 'form-group-compact' },
+      el('div', { class: 'field-label-row' },
+        el('label', {}, t('tabsEventos.embedDescLabel')),
+        el('button', {
+          type: 'button',
+          class: 'btn-inline-var',
+          onclick: () => openVariablesModal(descInput),
+        }, icon('sparkle'), '{ }')
+      ),
+      descInput
+    );
+
+    // Embed Appearance & Images
+    const colorRow = el('div', { class: 'form-group-compact' },
+      el('label', {}, t('tabsEventos.embedColorLabel')),
+      colorField(s, 'color', () => updateLivePreview())
+    );
+
+    const imagesRow = el('div', { class: 'grid-2' },
+      el('div', { class: 'form-group-compact' },
+        el('label', {}, t('tabsEventos.embedThumbLabel')),
+        imageField(s, 'thumbnail', () => updateLivePreview(), { gif: true })
+      ),
+      el('div', { class: 'form-group-compact' },
+        el('label', {}, t('tabsEventos.embedImageLabel')),
+        imageField(s, 'image', () => updateLivePreview(), { gif: true })
+      )
+    );
+
+    // Embed Author & Footer
+    const authorRow = el('div', { class: 'grid-2' },
+      el('div', { class: 'form-group-compact' },
+        el('label', {}, t('tabsEventos.embedAuthorNameLabel')),
+        boundInput('author_name', 'Nombre del autor', false, EMBED_LIMITS.author)
+      ),
+      el('div', { class: 'form-group-compact' },
+        el('label', {}, t('tabsEventos.embedAuthorIconLabel')),
+        imageField(s, 'author_icon_url', () => updateLivePreview())
+      )
+    );
+
+    const footerRow = el('div', { class: 'grid-2' },
+      el('div', { class: 'form-group-compact' },
+        el('label', {}, t('tabsEventos.embedFooterTextLabel')),
+        boundInput('footer_text', 'Pie de página', false, EMBED_LIMITS.footer)
+      ),
+      el('div', { class: 'form-group-compact' },
+        el('label', {}, t('tabsEventos.embedFooterIconLabel')),
+        imageField(s, 'footer_icon_url', () => updateLivePreview())
+      )
+    );
+
+    // Embed Fields
+    const fieldsListWrap = el('div', { class: 'embed-fields-container' });
+    s.fields = s.fields || [];
+
+    function renderFields() {
+      fieldsListWrap.innerHTML = '';
+      s.fields.forEach((f, idx) => {
+        const fName = el('input', {
+          class: 'form-control form-control-sm',
+          placeholder: t('tabsEventos.fieldNamePlaceholder'),
+          value: f.name || '',
+          maxlength: String(EMBED_LIMITS.fieldName),
         });
-        input.value = s[key] || '';
-        registerInputFocus(input);
-        input.oninput = () => {
-          s[key] = input.value;
-          if (isArea) autoGrow(input);
+        registerInputFocus(fName);
+        fName.oninput = () => { f.name = fName.value; updateLivePreview(); };
+
+        const fVal = el('input', {
+          class: 'form-control form-control-sm',
+          placeholder: t('tabsEventos.fieldValuePlaceholder'),
+          value: f.value || '',
+          maxlength: String(EMBED_LIMITS.fieldValue),
+        });
+        registerInputFocus(fVal);
+        fVal.oninput = () => { f.value = fVal.value; updateLivePreview(); };
+
+        const inlineChk = el('input', {
+          type: 'checkbox',
+          checked: !!f.inline,
+          onchange: () => { f.inline = inlineChk.checked; updateLivePreview(); },
+        });
+
+        const delBtn = el('button', {
+          type: 'button',
+          class: 'btn btn-secondary btn-xs btn-field-del',
+          onclick: () => { s.fields.splice(idx, 1); renderFields(); updateLivePreview(); },
+          title: 'Eliminar campo',
+        }, '✕');
+
+        const row = el('div', { class: 'embed-field-item-compact' },
+          el('div', { class: 'field-inputs-compact' }, fName, fVal),
+          el('label', { class: 'toggle toggle-xs' }, inlineChk, t('tabsEventos.fieldInlineLabel')),
+          delBtn
+        );
+        fieldsListWrap.append(row);
+      });
+    }
+
+    const addFieldBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-secondary btn-xs',
+      onclick: () => {
+        if (s.fields.length >= EMBED_LIMITS.maxFields) {
+          toast(`Máximo ${EMBED_LIMITS.maxFields} campos`, 'warn');
+          return;
+        }
+        s.fields.push({ name: '', value: '', inline: false });
+        renderFields();
+        updateLivePreview();
+      },
+    }, t('tabsEventos.addFieldBtn'));
+
+    renderFields();
+
+    // Template actions
+    const templateActions = el('div', { class: 'embed-templates-bar' },
+      el('button', {
+        type: 'button',
+        class: 'btn btn-secondary btn-xs',
+        onclick: async () => {
+          try {
+            const res = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`);
+            const templates = res.templates || [];
+            if (!templates.length) {
+              toast(t('tabsEventos.noTemplates'), 'info');
+              return;
+            }
+            const chosen = prompt(
+              `Elige una plantilla:\n` + templates.map((t, idx) => `${idx + 1}. ${t.name}`).join('\n')
+            );
+            const idx = parseInt(chosen, 10) - 1;
+            if (!isNaN(idx) && templates[idx]) {
+              const tmpl = templates[idx];
+              const parsed = JSON.parse(tmpl.embed_json);
+              const embeds = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
+              if (embeds.length) {
+                Object.assign(s, embeds[0]);
+                renderContentBuilder();
+                updateLivePreview();
+                toast(t('tabsEventos.templateLoaded'), 'ok');
+              }
+            }
+          } catch (e) {
+            toast(e.message || 'Error', 'err');
+          }
+        },
+      }, icon('layout'), t('tabsEventos.loadTemplate')),
+      el('button', {
+        type: 'button',
+        class: 'btn btn-secondary btn-xs',
+        onclick: async () => {
+          const name = (prompt(t('tabsEventos.templatePrompt')) || '').trim();
+          if (!name) return;
+          try {
+            const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+            await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, {
+              method: 'POST',
+              body: JSON.stringify({ name, embeds: rawDicts }),
+            });
+            toast(t('tabsEventos.templateSaved'), 'ok');
+          } catch (e) {
+            toast(e.message || 'Error', 'err');
+          }
+        },
+      }, icon('star'), t('tabsEventos.saveTemplate'))
+    );
+
+    const embedBodyWrap = el('div', {
+      class: 'event-builder-section-body event-embed-body',
+      style: isEmbedEnabled ? 'display: flex;' : 'display: none;',
+    },
+      embedTitleRow,
+      embedDescRow,
+      colorRow,
+      imagesRow,
+      authorRow,
+      footerRow,
+      el('div', { class: 'form-group-compact' },
+        el('div', { class: 'field-label-row' },
+          el('label', {}, t('tabsEventos.sectionFields')),
+          addFieldBtn
+        ),
+        fieldsListWrap
+      ),
+      templateActions
+    );
+
+    const embedSection = el('div', {
+      class: 'event-builder-section' + (isEmbedEnabled ? ' is-active' : ' is-collapsed'),
+    },
+      el('div', { class: 'event-builder-section-head' },
+        el('div', { class: 'event-builder-section-title' },
+          icon('layout'),
+          el('strong', {}, t('tabsEventos.secEmbed')),
+          el('span', { class: 'dim text-xs' }, 'Tarjeta visual estructurada')
+        ),
+        el('label', { class: 'toggle toggle-sm' },
+          embedToggleChk,
+          el('span', { class: 'toggle-label' }, isEmbedEnabled ? t('tabsEventos.statusActive') : t('tabsEventos.statusInactive'))
+        )
+      ),
+      embedBodyWrap
+    );
+
+    // SECTION C: BOTONES INTERACTIVOS
+    const buttonsListWrap = el('div', { class: 'event-buttons-list' });
+
+    function renderButtonsEditor() {
+      buttonsListWrap.innerHTML = '';
+      if (!buttons.length) {
+        buttonsListWrap.append(
+          el('p', { class: 'dim text-xs', style: 'margin: 0; padding: 4px 0;' }, t('tabsEventos.buttonsHelp'))
+        );
+      }
+
+      buttons.forEach((btn, bIdx) => {
+        const lblInp = el('input', {
+          class: 'form-control form-control-sm',
+          placeholder: t('tabsEventos.buttonLabelPlaceholder'),
+          value: btn.label || '',
+          maxlength: '80',
+        });
+        registerInputFocus(lblInp);
+        lblInp.oninput = () => { btn.label = lblInp.value; updateLivePreview(); };
+
+        const typeSel = el('select', { class: 'form-control form-control-sm' },
+          el('option', { value: 'link', selected: btn.style !== 'role' }, t('tabsEventos.buttonTypeLink')),
+          el('option', { value: 'role', selected: btn.style === 'role' }, t('tabsEventos.buttonTypeRole'))
+        );
+
+        const urlInp = el('input', {
+          class: 'form-control form-control-sm',
+          placeholder: t('tabsEventos.buttonUrlPlaceholder'),
+          value: btn.url || '',
+          style: btn.style === 'role' ? 'display: none;' : 'display: block;',
+        });
+        registerInputFocus(urlInp);
+        urlInp.oninput = () => { btn.url = urlInp.value; updateLivePreview(); };
+
+        // Role selector and color if role style
+        const roleSel = el('select', {
+          class: 'form-control form-control-sm',
+          style: btn.style === 'role' ? 'display: block;' : 'display: none;',
+        },
+          el('option', { value: '' }, 'Selecciona un rol…'),
+          ...roles.map(r => el('option', { value: String(r.id), selected: String(btn.role_id) === String(r.id) }, r.name))
+        );
+        roleSel.onchange = () => { btn.role_id = roleSel.value ? parseInt(roleSel.value, 10) : null; updateLivePreview(); };
+
+        const colorSel = el('select', {
+          class: 'form-control form-control-sm',
+          style: btn.style === 'role' ? 'display: block;' : 'display: none;',
+        },
+          el('option', { value: 'secondary', selected: btn.color === 'secondary' }, t('tabsEventos.buttonColorSecondary')),
+          el('option', { value: 'primary', selected: btn.color === 'primary' }, t('tabsEventos.buttonColorPrimary')),
+          el('option', { value: 'success', selected: btn.color === 'success' }, t('tabsEventos.buttonColorSuccess')),
+          el('option', { value: 'danger', selected: btn.color === 'danger' }, t('tabsEventos.buttonColorDanger'))
+        );
+        colorSel.onchange = () => { btn.color = colorSel.value; updateLivePreview(); };
+
+        typeSel.onchange = () => {
+          btn.style = typeSel.value;
+          urlInp.style.display = btn.style === 'role' ? 'none' : 'block';
+          roleSel.style.display = btn.style === 'role' ? 'block' : 'none';
+          colorSel.style.display = btn.style === 'role' ? 'block' : 'none';
           updateLivePreview();
         };
-        return input;
-      }
 
-      // Templates Action Bar
-      const templateBar = el('div', { class: 'template-action-bar' },
-        el('button', {
+        const delBtn = el('button', {
           type: 'button',
-          class: 'btn btn-secondary btn-xs',
-          onclick: async () => {
-            try {
-              const res = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`);
-              const templates = res.templates || [];
-              if (!templates.length) {
-                toast(t('tabsEventos.noTemplates'), 'info');
-                return;
-              }
-              const chosen = prompt(
-                `Elige una plantilla:\n` + templates.map((t, idx) => `${idx + 1}. ${t.name}`).join('\n')
-              );
-              const idx = parseInt(chosen, 10) - 1;
-              if (!isNaN(idx) && templates[idx]) {
-                const tmpl = templates[idx];
-                const parsed = JSON.parse(tmpl.embed_json);
-                const embeds = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
-                if (embeds.length) {
-                  Object.assign(s, embeds[0]);
-                  renderContentEditor();
-                  updateLivePreview();
-                  toast(t('tabsEventos.templateLoaded'), 'ok');
-                }
-              }
-            } catch (e) {
-              toast(e.message || 'Error', 'err');
-            }
+          class: 'btn btn-secondary btn-xs btn-field-del',
+          onclick: () => {
+            buttons.splice(bIdx, 1);
+            isButtonsEnabled = buttons.length > 0;
+            renderButtonsEditor();
+            updateLivePreview();
           },
-        }, icon('layout'), t('tabsEventos.loadTemplate')),
-        el('button', {
-          type: 'button',
-          class: 'btn btn-secondary btn-xs',
-          onclick: async () => {
-            const name = (prompt(t('tabsEventos.templatePrompt')) || '').trim();
-            if (!name) return;
-            try {
-              const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
-              await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, {
-                method: 'POST',
-                body: JSON.stringify({ name, embeds: rawDicts }),
-              });
-              toast(t('tabsEventos.templateSaved'), 'ok');
-            } catch (e) {
-              toast(e.message || 'Error', 'err');
-            }
-          },
-        }, icon('star'), t('tabsEventos.saveTemplate'))
-      );
+        }, '✕');
 
-      // Accordion Groups
-      const contentSec = accordionGroup(t('tabsEventos.sectionContent'), true,
-        formGroup(t('tabsEventos.embedTitleLabel'), boundInput('title', 'Título del mensaje', false, EMBED_LIMITS.title)),
-        formGroup(t('tabsEventos.embedDescLabel'), boundInput('description', 'Descripción del mensaje…', true, EMBED_LIMITS.description))
-      );
+        const btnRow = el('div', { class: 'event-button-item' },
+          el('div', { class: 'event-button-grid' },
+            lblInp,
+            typeSel,
+            urlInp,
+            roleSel,
+            colorSel,
+            delBtn
+          )
+        );
+        buttonsListWrap.append(btnRow);
+      });
+    }
 
-      const appearanceSec = accordionGroup(t('tabsEventos.sectionAppearance'), false,
-        formGroup(t('tabsEventos.embedColorLabel'), colorField(s, 'color', () => updateLivePreview()))
-      );
+    const addBtnAction = el('button', {
+      type: 'button',
+      class: 'btn btn-secondary btn-xs',
+      onclick: () => {
+        if (buttons.length >= 5) {
+          toast('Máximo 5 botones por fila', 'warn');
+          return;
+        }
+        buttons.push({ label: 'Enlace', style: 'link', url: 'https://discord.com' });
+        isButtonsEnabled = true;
+        renderButtonsEditor();
+        updateLivePreview();
+      },
+    }, t('tabsEventos.addButton'));
 
-      const imagesSec = accordionGroup(t('tabsEventos.sectionImages'), false,
-        formGroup(t('tabsEventos.embedThumbLabel'), imageField(s, 'thumbnail', () => updateLivePreview(), { gif: true })),
-        formGroup(t('tabsEventos.embedImageLabel'), imageField(s, 'image', () => updateLivePreview(), { gif: true }))
-      );
+    renderButtonsEditor();
 
-      const authorSec = accordionGroup(t('tabsEventos.sectionAuthor'), false,
-        formGroup(t('tabsEventos.embedAuthorNameLabel'), boundInput('author_name', 'Nombre del autor', false, EMBED_LIMITS.author)),
-        formGroup(t('tabsEventos.embedAuthorIconLabel'), imageField(s, 'author_icon_url', () => updateLivePreview()))
-      );
+    const buttonsSection = el('div', { class: 'event-builder-section is-active' },
+      el('div', { class: 'event-builder-section-head' },
+        el('div', { class: 'event-builder-section-title' },
+          icon('link'),
+          el('strong', {}, t('tabsEventos.buttonsTitle')),
+          el('span', { class: 'dim text-xs' }, t('tabsEventos.buttonsHelp'))
+        ),
+        addBtnAction
+      ),
+      el('div', { class: 'event-builder-section-body' },
+        buttonsListWrap
+      )
+    );
 
-      const footerSec = accordionGroup(t('tabsEventos.sectionFooter'), false,
-        formGroup(t('tabsEventos.embedFooterTextLabel'), boundInput('footer_text', 'Pie de página', false, EMBED_LIMITS.footer)),
-        formGroup(t('tabsEventos.embedFooterIconLabel'), imageField(s, 'footer_icon_url', () => updateLivePreview()))
-      );
+    // SECTION D: OPCIONES AVANZADAS (Webhook identity & Layout V2)
+    const customUserInp = el('input', {
+      class: 'form-control form-control-sm',
+      placeholder: 'Nombre personalizado',
+      value: customUsername,
+    });
+    registerInputFocus(customUserInp);
+    customUserInp.oninput = () => { customUsername = customUserInp.value; updateLivePreview(); };
 
-      // Fields
-      const fieldsListWrap = el('div', { class: 'embed-fields-container' });
-      s.fields = s.fields || [];
+    const customAvatarInp = el('input', {
+      class: 'form-control form-control-sm',
+      placeholder: 'https://ejemplo.com/avatar.png',
+      value: customAvatarUrl,
+    });
+    registerInputFocus(customAvatarInp);
+    customAvatarInp.oninput = () => { customAvatarUrl = customAvatarInp.value; updateLivePreview(); };
 
-      function renderFields() {
-        fieldsListWrap.innerHTML = '';
-        s.fields.forEach((f, idx) => {
-          const fName = el('input', {
-            class: 'form-control',
-            placeholder: t('tabsEventos.fieldNamePlaceholder'),
-            value: f.name || '',
-            maxlength: String(EMBED_LIMITS.fieldName),
+    const layoutV2ToggleChk = el('input', {
+      type: 'checkbox',
+      checked: isLayoutV2,
+      onchange: () => {
+        isLayoutV2 = layoutV2ToggleChk.checked;
+        renderContentBuilder();
+        updateLivePreview();
+      },
+    });
+
+    const advancedSection = el('details', { class: 'event-advanced-accordion' },
+      el('summary', { class: 'event-advanced-summary' },
+        el('div', { class: 'event-advanced-summary-title' },
+          icon('settings'),
+          el('strong', {}, t('tabsEventos.secAdvanced'))
+        ),
+        el('span', { class: 'dim text-xs' }, 'Webhook e identidad')
+      ),
+      el('div', { class: 'event-advanced-body' },
+        el('div', { class: 'form-group-compact' },
+          el('label', { class: 'toggle toggle-sm' },
+            layoutV2ToggleChk,
+            el('span', { class: 'toggle-label' }, t('tabsEventos.useLayoutV2'))
+          ),
+          el('p', { class: 'dim form-hint', style: 'margin: 2px 0 0 28px;' }, t('tabsEventos.layoutV2Hint'))
+        ),
+        el('div', { class: 'grid-2', style: 'margin-top: 10px;' },
+          el('div', { class: 'form-group-compact' },
+            el('label', {}, t('tabsEventos.webhookUsernameLabel')),
+            customUserInp
+          ),
+          el('div', { class: 'form-group-compact' },
+            el('label', {}, t('tabsEventos.webhookAvatarLabel')),
+            customAvatarInp
+          )
+        )
+      )
+    );
+
+    contentCard.append(msgSection, embedSection, buttonsSection, advancedSection);
+    syncBodyVisibility();
+  }
+
+  function renderLayoutV2Section() {
+    contentCard.innerHTML = '';
+
+    const backToSimpleBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-secondary btn-xs',
+      onclick: () => {
+        isLayoutV2 = false;
+        renderContentBuilder();
+        updateLivePreview();
+      },
+    }, '← Volver al modo estándar');
+
+    const blocksList = el('div', { class: 'layout-blocks-list' });
+
+    function refreshLayoutBlocks() {
+      blocksList.innerHTML = '';
+      localLayoutDoc.blocks.forEach((b, idx) => {
+        const blockRow = el('div', { class: 'layout-block-card' },
+          el('div', { class: 'layout-block-head' },
+            el('strong', {}, `${b.type.toUpperCase()}`),
+            el('button', {
+              type: 'button',
+              class: 'btn btn-danger btn-xs',
+              onclick: () => {
+                localLayoutDoc.blocks.splice(idx, 1);
+                refreshLayoutBlocks();
+                updateLivePreview();
+              },
+            }, '✕')
+          )
+        );
+
+        if (b.type === 'text') {
+          const ta = el('textarea', { class: 'form-control autogrow' });
+          ta.value = b.content || '';
+          registerInputFocus(ta);
+          ta.oninput = () => { b.content = ta.value; autoGrow(ta); updateLivePreview(); };
+          blockRow.append(ta);
+        } else if (b.type === 'section') {
+          const ta = el('textarea', { class: 'form-control autogrow' });
+          ta.value = (b.texts && b.texts[0]) || '';
+          registerInputFocus(ta);
+          ta.oninput = () => { b.texts = [ta.value]; autoGrow(ta); updateLivePreview(); };
+          blockRow.append(ta);
+          if (b.accessory && b.accessory.type === 'button') {
+            const lbl = el('input', { class: 'form-control', value: b.accessory.label || '', placeholder: 'Etiqueta del botón' });
+            registerInputFocus(lbl);
+            lbl.oninput = () => { b.accessory.label = lbl.value; updateLivePreview(); };
+            const url = el('input', { class: 'form-control', value: b.accessory.url || '', placeholder: 'https://...' });
+            registerInputFocus(url);
+            url.oninput = () => { b.accessory.url = url.value; updateLivePreview(); };
+            blockRow.append(el('div', { class: 'grid-2', style: 'margin-top: 6px;' }, lbl, url));
+          }
+        } else if (b.type === 'action_row') {
+          const btnsWrap = el('div', { class: 'action-row-buttons' });
+          (b.buttons || []).forEach((btn) => {
+            const lbl = el('input', { class: 'form-control', value: btn.label || '', placeholder: 'Etiqueta' });
+            registerInputFocus(lbl);
+            lbl.oninput = () => { btn.label = lbl.value; updateLivePreview(); };
+            const url = el('input', { class: 'form-control', value: btn.url || '', placeholder: 'https://...' });
+            registerInputFocus(url);
+            url.oninput = () => { btn.url = url.value; updateLivePreview(); };
+            btnsWrap.append(el('div', { class: 'btn-row-item' }, lbl, url));
           });
-          registerInputFocus(fName);
-          fName.oninput = () => { f.name = fName.value; updateLivePreview(); };
+          blockRow.append(btnsWrap);
+        }
+        blocksList.append(blockRow);
+      });
+    }
 
-          const fVal = el('input', {
-            class: 'form-control',
-            placeholder: t('tabsEventos.fieldValuePlaceholder'),
-            value: f.value || '',
-            maxlength: String(EMBED_LIMITS.fieldValue),
-          });
-          registerInputFocus(fVal);
-          fVal.oninput = () => { f.value = fVal.value; updateLivePreview(); };
-
-          const inlineChk = el('input', {
-            type: 'checkbox',
-            checked: !!f.inline,
-            onchange: () => { f.inline = inlineChk.checked; updateLivePreview(); },
-          });
-
-          const delBtn = el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-xs',
-            onclick: () => { s.fields.splice(idx, 1); renderFields(); updateLivePreview(); },
-          }, '✕');
-
-          const row = el('div', { class: 'embed-field-item' },
-            el('div', { class: 'field-inputs' }, fName, fVal),
-            el('div', { class: 'field-controls' },
-              el('label', { class: 'toggle toggle-xs' }, inlineChk, t('tabsEventos.fieldInlineLabel')),
-              delBtn
-            )
-          );
-          fieldsListWrap.append(row);
-        });
-      }
-
-      const addFieldBtn = el('button', {
+    const addBlockBtns = el('div', { class: 'layout-add-btns' },
+      el('button', {
+        type: 'button',
+        class: 'btn btn-secondary btn-sm',
+        onclick: () => { localLayoutDoc.blocks.push(newBlock('text')); refreshLayoutBlocks(); updateLivePreview(); },
+      }, '+ Texto'),
+      el('button', {
         type: 'button',
         class: 'btn btn-secondary btn-sm',
         onclick: () => {
-          if (s.fields.length >= EMBED_LIMITS.maxFields) {
-            toast(`Máximo ${EMBED_LIMITS.maxFields} campos`, 'warn');
-            return;
-          }
-          s.fields.push({ name: '', value: '', inline: false });
-          renderFields();
+          const sec = newBlock('section');
+          sec.accessory = { type: 'button', style: 'link', label: 'Enlace', url: 'https://discord.com' };
+          localLayoutDoc.blocks.push(sec);
+          refreshLayoutBlocks();
           updateLivePreview();
         },
-      }, t('tabsEventos.addFieldBtn'));
-
-      renderFields();
-      const fieldsSec = accordionGroup(t('tabsEventos.sectionFields'), false,
-        fieldsListWrap,
-        el('div', { style: 'margin-top: 10px;' }, addFieldBtn)
-      );
-
-      // Webhook Identity
-      const customUserInp = el('input', {
-        class: 'form-control',
-        placeholder: 'Nombre personalizado',
-        value: customUsername,
-      });
-      registerInputFocus(customUserInp);
-      customUserInp.oninput = () => { customUsername = customUserInp.value; updateLivePreview(); };
-
-      const customAvatarInp = el('input', {
-        class: 'form-control',
-        placeholder: 'https://ejemplo.com/avatar.png',
-        value: customAvatarUrl,
-      });
-      registerInputFocus(customAvatarInp);
-      customAvatarInp.oninput = () => { customAvatarUrl = customAvatarInp.value; updateLivePreview(); };
-
-      const identitySec = accordionGroup(t('tabsEventos.sectionIdentity'), false,
-        el('p', { class: 'dim form-hint', style: 'margin-top:0' }, t('tabsEventos.webhookHelp')),
-        formGroup(t('tabsEventos.webhookUsernameLabel'), customUserInp),
-        formGroup(t('tabsEventos.webhookAvatarLabel'), customAvatarInp)
-      );
-
-      contentEditorBody.append(templateBar, contentSec, appearanceSec, imagesSec, authorSec, footerSec, fieldsSec, identitySec);
-    } else if (currentMode === 'layout_v2') {
-      const blocksList = el('div', { class: 'layout-blocks-list' });
-
-      function refreshLayoutBlocks() {
-        blocksList.innerHTML = '';
-        localLayoutDoc.blocks.forEach((b, idx) => {
-          const blockRow = el('div', { class: 'layout-block-card' },
-            el('div', { class: 'layout-block-head' },
-              el('strong', {}, `${b.type.toUpperCase()}`),
-              el('button', {
-                type: 'button',
-                class: 'btn btn-danger btn-xs',
-                onclick: () => {
-                  localLayoutDoc.blocks.splice(idx, 1);
-                  refreshLayoutBlocks();
-                  updateLivePreview();
-                },
-              }, '✕')
-            )
-          );
-
-          if (b.type === 'text') {
-            const ta = el('textarea', { class: 'form-control autogrow' });
-            ta.value = b.content || '';
-            registerInputFocus(ta);
-            ta.oninput = () => { b.content = ta.value; autoGrow(ta); updateLivePreview(); };
-            blockRow.append(ta);
-          } else if (b.type === 'section') {
-            const ta = el('textarea', { class: 'form-control autogrow' });
-            ta.value = (b.texts && b.texts[0]) || '';
-            registerInputFocus(ta);
-            ta.oninput = () => { b.texts = [ta.value]; autoGrow(ta); updateLivePreview(); };
-            blockRow.append(formGroup('Texto', ta));
-            if (b.accessory && b.accessory.type === 'button') {
-              const lbl = el('input', { class: 'form-control', value: b.accessory.label || '', placeholder: 'Etiqueta del botón' });
-              registerInputFocus(lbl);
-              lbl.oninput = () => { b.accessory.label = lbl.value; updateLivePreview(); };
-              const url = el('input', { class: 'form-control', value: b.accessory.url || '', placeholder: 'https://...' });
-              registerInputFocus(url);
-              url.oninput = () => { b.accessory.url = url.value; updateLivePreview(); };
-              blockRow.append(formGroup('Botón de enlace', el('div', { class: 'grid-2' }, lbl, url)));
-            }
-          } else if (b.type === 'action_row') {
-            const btnsWrap = el('div', { class: 'action-row-buttons' });
-            (b.buttons || []).forEach((btn) => {
-              const lbl = el('input', { class: 'form-control', value: btn.label || '', placeholder: 'Etiqueta' });
-              registerInputFocus(lbl);
-              lbl.oninput = () => { btn.label = lbl.value; updateLivePreview(); };
-              const url = el('input', { class: 'form-control', value: btn.url || '', placeholder: 'https://...' });
-              registerInputFocus(url);
-              url.oninput = () => { btn.url = url.value; updateLivePreview(); };
-              btnsWrap.append(el('div', { class: 'btn-row-item' }, lbl, url));
-            });
-            blockRow.append(btnsWrap);
-          }
-          blocksList.append(blockRow);
-        });
-      }
-
-      const addBlockBtns = el('div', { class: 'layout-add-btns' },
-        el('button', {
-          type: 'button',
-          class: 'btn btn-secondary btn-sm',
-          onclick: () => { localLayoutDoc.blocks.push(newBlock('text')); refreshLayoutBlocks(); updateLivePreview(); },
-        }, '+ Texto'),
-        el('button', {
-          type: 'button',
-          class: 'btn btn-secondary btn-sm',
-          onclick: () => {
-            const sec = newBlock('section');
-            sec.accessory = { type: 'button', style: 'link', label: 'Enlace', url: 'https://discord.com' };
-            localLayoutDoc.blocks.push(sec);
-            refreshLayoutBlocks();
-            updateLivePreview();
-          },
-        }, '+ Sección con Botón'),
-        el('button', {
-          type: 'button',
-          class: 'btn btn-secondary btn-sm',
-          onclick: () => {
-            const row = newBlock('action_row');
-            localLayoutDoc.blocks.push(row);
-            refreshLayoutBlocks();
-            updateLivePreview();
-          },
-        }, '+ Fila de Botones')
-      );
-
-      if (!localLayoutDoc.blocks.length) {
-        localLayoutDoc.blocks.push({ type: 'text', content: cfg.placeholderDefault });
-      }
-
-      refreshLayoutBlocks();
-
-      const customUserInp = el('input', {
-        class: 'form-control',
-        placeholder: 'Nombre personalizado',
-        value: customUsername,
-      });
-      registerInputFocus(customUserInp);
-      customUserInp.oninput = () => { customUsername = customUserInp.value; updateLivePreview(); };
-
-      const customAvatarInp = el('input', {
-        class: 'form-control',
-        placeholder: 'https://ejemplo.com/avatar.png',
-        value: customAvatarUrl,
-      });
-      registerInputFocus(customAvatarInp);
-      customAvatarInp.oninput = () => { customAvatarUrl = customAvatarInp.value; updateLivePreview(); };
-
-      const identitySec = accordionGroup(t('tabsEventos.sectionIdentity'), false,
-        el('p', { class: 'dim form-hint', style: 'margin-top:0' }, t('tabsEventos.webhookHelp')),
-        formGroup(t('tabsEventos.webhookUsernameLabel'), customUserInp),
-        formGroup(t('tabsEventos.webhookAvatarLabel'), customAvatarInp)
-      );
-
-      contentEditorBody.append(blocksList, addBlockBtns, identitySec);
-    }
-  }
-
-  renderModeSelector();
-  renderContentEditor();
-
-  const messageCard = el('div', { class: 'card event-section-card' },
-    el('h3', { class: 'section-title' }, t('tabsEventos.secMessage')),
-    formGroup(t('tabsEventos.contentModeLabel'), modePillsWrap),
-    contentEditorBody
-  );
-
-  // 4. SECCIÓN: VARIABLES DISPONIBLES (Compacta y contextual)
-  // Filtrar variables aplicables al evento actual
-  const eventVariables = allVariables.filter(v => {
-    if (!v.allowed_events || !Array.isArray(v.allowed_events)) return true;
-    return v.allowed_events.includes(eventType);
-  });
-
-  const varCategories = [
-    { key: 'all', label: t('tabsEventos.catAll') },
-    { key: 'user', label: t('tabsEventos.catUser') },
-    { key: 'server', label: t('tabsEventos.catServer') },
-    { key: 'channel', label: t('tabsEventos.catChannel') },
-  ];
-  if (eventType === 'boost') {
-    varCategories.push({ key: 'boost', label: t('tabsEventos.catBoost') });
-  }
-  varCategories.push({ key: 'date', label: t('tabsEventos.catDate') });
-
-  let activeVarCategory = 'all';
-  let varSearchQuery = '';
-
-  const varSearchInp = el('input', {
-    type: 'search',
-    class: 'form-control form-control-sm',
-    placeholder: t('tabsEventos.varsSearchPlaceholder'),
-  });
-
-  const varTabsWrap = el('div', { class: 'var-category-tabs' });
-  const varListGrid = el('div', { class: 'var-chips-grid-compact' });
-
-  function renderVarChips() {
-    varListGrid.innerHTML = '';
-    const q = varSearchQuery.toLowerCase().trim();
-
-    const filtered = eventVariables.filter(v => {
-      const matchCat = activeVarCategory === 'all' || v.category === activeVarCategory;
-      if (!matchCat) return false;
-      if (!q) return true;
-      return v.name.toLowerCase().includes(q) || (v.description && v.description.toLowerCase().includes(q));
-    });
-
-    for (const v of filtered) {
-      const varTag = `{${v.name}}`;
-      const chip = el('button', {
+      }, '+ Sección con Botón'),
+      el('button', {
         type: 'button',
-        class: 'var-chip-compact',
-        title: `${v.description || ''} (${t('tabsEventos.varExample')} ${v.example || ''})`,
+        class: 'btn btn-secondary btn-sm',
         onclick: () => {
-          if (lastActiveInput && typeof lastActiveInput.value === 'string') {
-            const start = lastActiveInput.selectionStart || lastActiveInput.value.length;
-            const end = lastActiveInput.selectionEnd || lastActiveInput.value.length;
-            const val = lastActiveInput.value;
-            lastActiveInput.value = val.substring(0, start) + varTag + val.substring(end);
-            lastActiveInput.selectionStart = lastActiveInput.selectionEnd = start + varTag.length;
-            lastActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
-            lastActiveInput.focus();
-            toast(t('tabsEventos.varsInserted', { var: varTag }), 'ok');
-          } else {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(varTag);
-              toast(t('tabsEventos.varsCopied', { var: varTag }), 'ok');
-            }
-          }
+          const row = newBlock('action_row');
+          localLayoutDoc.blocks.push(row);
+          refreshLayoutBlocks();
+          updateLivePreview();
         },
-      },
-        el('code', { class: 'var-tag' }, varTag),
-        el('span', { class: 'var-desc' }, v.description || '')
-      );
-      varListGrid.append(chip);
+      }, '+ Fila de Botones')
+    );
+
+    if (!localLayoutDoc.blocks.length) {
+      localLayoutDoc.blocks.push({ type: 'text', content: cfg.placeholderDefault });
     }
+    refreshLayoutBlocks();
+
+    const lv2Head = el('div', { class: 'event-builder-section-head' },
+      el('div', { class: 'event-builder-section-title' },
+        icon('sparkle'),
+        el('strong', {}, 'Layout V2 (Modo Avanzado)')
+      ),
+      backToSimpleBtn
+    );
+
+    contentCard.append(lv2Head, blocksList, addBlockBtns);
+    syncBodyVisibility();
   }
 
-  function renderVarCategoryTabs() {
-    varTabsWrap.innerHTML = '';
-    for (const cat of varCategories) {
-      const btn = el('button', {
-        type: 'button',
-        class: 'category-tab-btn' + (activeVarCategory === cat.key ? ' active' : ''),
-        onclick: () => {
-          activeVarCategory = cat.key;
-          renderVarCategoryTabs();
-          renderVarChips();
-        },
-      }, cat.label);
-      varTabsWrap.append(btn);
-    }
-  }
+  renderContentBuilder();
 
-  varSearchInp.oninput = () => {
-    varSearchQuery = varSearchInp.value;
-    renderVarChips();
-  };
-
-  renderVarCategoryTabs();
-  renderVarChips();
-
-  const variablesCard = el('div', { class: 'card event-section-card event-variables-card' },
-    el('div', { class: 'event-section-header' },
-      el('h3', { class: 'section-title' }, t('tabsEventos.varsTitle')),
-      el('span', { class: 'dim text-xs' }, t('tabsEventos.varsSubtitle'))
-    ),
-    el('div', { class: 'var-controls-row' }, varSearchInp, varTabsWrap),
-    varListGrid
-  );
-
-  // 5. SECCIÓN: ACCIONES TOOLBAR
+  // ─────────────────────────────────────────────────────────────
+  // 4. BARRA DE ACCIONES (Guardar, Probar, Restablecer)
+  // ─────────────────────────────────────────────────────────────
   const saveBtn = el('button', {
     type: 'button',
     class: 'btn btn-primary',
@@ -1028,24 +1470,51 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       saveBtn.textContent = t('tabsEventos.saving');
 
       try {
-        const payload = {
-          enabled: isEnabled,
-          channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
-          content_mode: currentMode,
-        };
-
         const sendOpts = (customUsername.trim() || customAvatarUrl.trim())
           ? { username: customUsername.trim(), avatar_url: customAvatarUrl.trim() }
           : null;
 
-        if (currentMode === 'plain_text') {
-          payload.message = currentMessage;
-        } else if (currentMode === 'classic_embed') {
-          payload.embeds = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+        let payload = {};
+
+        if (isLayoutV2) {
+          payload = {
+            enabled: isEnabled,
+            channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+            content_mode: 'layout_v2',
+            layout: { blocks: localLayoutDoc.blocks },
+          };
           if (sendOpts) payload.send_options = sendOpts;
-        } else if (currentMode === 'layout_v2') {
-          payload.layout = { blocks: localLayoutDoc.blocks };
-          if (sendOpts) payload.send_options = sendOpts;
+        } else {
+          const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+          const hasText = isMessageEnabled && Boolean(currentMessage.trim());
+          const hasEmbed = isEmbedEnabled && rawDicts.length > 0;
+          const hasBtns = isButtonsEnabled && buttons.length > 0;
+
+          if (hasText && !hasEmbed && !hasBtns && !sendOpts) {
+            payload = {
+              enabled: isEnabled,
+              channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+              content_mode: 'plain_text',
+              message: currentMessage,
+            };
+          } else if (!hasText && hasEmbed && !hasBtns && !sendOpts) {
+            payload = {
+              enabled: isEnabled,
+              channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+              content_mode: 'classic_embed',
+              embeds: rawDicts,
+            };
+          } else {
+            payload = {
+              enabled: isEnabled,
+              channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+              content_mode: 'composite',
+              message: isMessageEnabled ? currentMessage : '',
+              embeds: isEmbedEnabled ? rawDicts : [],
+              buttons: isButtonsEnabled ? buttons : [],
+            };
+            if (sendOpts) payload.send_options = sendOpts;
+          }
         }
 
         const res = await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}`, {
@@ -1071,7 +1540,34 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       testBtn.disabled = true;
       testBtn.textContent = t('tabsEventos.testing');
       try {
-        await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}/test`, { method: 'POST' });
+        const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+        const sendOpts = (customUsername.trim() || customAvatarUrl.trim())
+          ? { username: customUsername.trim(), avatar_url: customAvatarUrl.trim() }
+          : null;
+
+        let testBody = {};
+        if (isLayoutV2) {
+          testBody = {
+            channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+            content_mode: 'layout_v2',
+            layout: { blocks: localLayoutDoc.blocks },
+          };
+          if (sendOpts) testBody.send_options = sendOpts;
+        } else {
+          testBody = {
+            channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
+            content_mode: 'composite',
+            message: isMessageEnabled ? currentMessage : '',
+            embeds: isEmbedEnabled ? rawDicts : [],
+            buttons: isButtonsEnabled ? buttons : [],
+          };
+          if (sendOpts) testBody.send_options = sendOpts;
+        }
+
+        await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}/test`, {
+          method: 'POST',
+          body: JSON.stringify(testBody),
+        });
         toast(t('tabsEventos.testSuccess'), 'ok');
       } catch (err) {
         toast(err.message || 'Error al enviar prueba', 'err');
@@ -1109,9 +1605,11 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     resetBtn
   );
 
-  editorPane.append(statusCard, channelCard, messageCard, variablesCard, actionsBar);
+  editorPane.append(masterConfigCard, contentCard, actionsBar);
 
-  // LIVE PREVIEW
+  // ─────────────────────────────────────────────────────────────
+  // 5. LIVE PREVIEW (Fiel a Discord y Reactivo)
+  // ─────────────────────────────────────────────────────────────
   function updateLivePreview() {
     previewPane.innerHTML = '';
     const ctx = getMockContext(eventType);
@@ -1123,8 +1621,8 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       ctx.channel_id = String(ch.id);
     }
 
-    const previewAuthorName = customUsername || t('tabsEventos.previewHeader');
-    const previewAvatarUrl = customAvatarUrl || '/assets/icon.png';
+    const previewAuthorName = customUsername.trim() || t('tabsEventos.previewHeader');
+    const previewAvatarUrl = customAvatarUrl.trim() || '/assets/icon.png';
 
     const msgHeader = el('div', { class: 'd-msg-header' },
       el('img', { src: previewAvatarUrl, alt: 'Purgito', class: 'd-msg-avatar' }),
@@ -1136,17 +1634,51 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     );
 
     const msgBody = el('div', { class: 'd-msg-body' });
+    let hasPreviewContent = false;
 
-    if (currentMode === 'plain_text') {
-      const resolved = resolvePlaceholders(currentMessage, ctx);
-      msgBody.append(el('div', { class: 'd-msg-text' }, ...mdToNodes(resolved)));
-    } else if (currentMode === 'classic_embed') {
-      const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
-      const resolvedEmbeds = rawDicts.map(e => resolveEmbedForPreview(e, ctx));
-      msgBody.append(renderEmbedsPreview(resolvedEmbeds));
-    } else if (currentMode === 'layout_v2') {
+    if (isLayoutV2) {
       const resolvedBlocks = localLayoutDoc.blocks.map(b => resolveBlockForPreview(b, ctx));
       msgBody.append(renderLayoutPreview(resolvedBlocks));
+      hasPreviewContent = true;
+    } else {
+      // 1. Text message
+      if (isMessageEnabled && currentMessage.trim()) {
+        const resolved = resolvePlaceholders(currentMessage, ctx);
+        msgBody.append(el('div', { class: 'd-msg-text' }, ...mdToNodes(resolved)));
+        hasPreviewContent = true;
+      }
+
+      // 2. Embed
+      if (isEmbedEnabled) {
+        const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+        if (rawDicts.length > 0) {
+          const resolvedEmbeds = rawDicts.map(e => resolveEmbedForPreview(e, ctx));
+          msgBody.append(renderEmbedsPreview(resolvedEmbeds));
+          hasPreviewContent = true;
+        }
+      }
+
+      // 3. Buttons
+      if (isButtonsEnabled && buttons.length > 0) {
+        const buttonsRow = el('div', { class: 'lv2-row' });
+        buttons.forEach(b => {
+          const bLabel = resolvePlaceholders(b.label || 'Enlace', ctx);
+          const colorClass = b.style === 'role' ? ` lv2-btn-${b.color || 'secondary'}` : '';
+          const btnSpan = el('span', { class: 'lv2-btn' + colorClass },
+            bLabel,
+            b.style === 'role' ? el('span', { class: 'lv2-btn-tag' }, 'ROL') : null
+          );
+          buttonsRow.append(btnSpan);
+        });
+        msgBody.append(buttonsRow);
+        hasPreviewContent = true;
+      }
+    }
+
+    if (!hasPreviewContent) {
+      msgBody.append(
+        el('p', { class: 'dim text-sm', style: 'margin: 6px 0; font-style: italic;' }, t('tabsEventos.previewEmpty'))
+      );
     }
 
     const discordCard = el('div', { class: 'd-message-card' },
@@ -1170,5 +1702,6 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     el('div', { class: 'event-preview-pane-wrap' }, previewPane)
   );
 
-  container.append(workspaceGrid);
+  rootWrapper.append(workspaceGrid);
+  container.append(rootWrapper);
 }

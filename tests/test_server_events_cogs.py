@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -266,9 +267,34 @@ def test_dispatch_event_embed_and_layout(memory_db):
         assert err is None
         assert channel.send.called
         call_kwargs = channel.send.call_args[1]
+        # Composite Mode (Message + Embed + Buttons)
+        composite_payload = {
+            "embeds": [{"title": "Bienvenido {user_name}!", "description": "A {server_name}"}],
+            "buttons": [{"label": "Reglas", "url": "https://example.com/rules", "style": "link"}],
+        }
+        await db.set_server_event(
+            guild_id=_GUILD_ID,
+            event_type="welcome",
+            enabled=True,
+            channel_id=_CHANNEL_ID,
+            content_mode="composite",
+            message="¡Hola {user}!",
+            embed_json=json.dumps(composite_payload),
+        )
+
+        channel.send.reset_mock()
+        ok, err = await cog.dispatch_server_event("welcome", guild, member)
+        assert ok is True
+        assert err is None
+        assert channel.send.called
+        call_kwargs = channel.send.call_args[1]
+        assert call_kwargs.get("content") == "¡Hola <@777>!"
+        assert "embeds" in call_kwargs
+        assert len(call_kwargs["embeds"]) == 1
         assert "view" in call_kwargs
 
     asyncio.run(_test())
+
 
 
 def test_boost_100_concurrent_updates_exact_one_message(memory_db):
