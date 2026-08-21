@@ -238,7 +238,7 @@ function svgIcon(paths) {
    navegan — la lista viene del <head> (window.READY_LANGS). */
 
 (function () {
-  var READY = window.READY_LANGS || ['es'];
+  var READY = window.READY_LANGS || ['es', 'en'];
   var current = locale();
   var seg = location.pathname.split('/')[1];
   // Si el path ya venía con prefijo, el resto es lo que sigue; si no, todo.

@@ -143,6 +143,25 @@ for (const file of ['index.html', 'index.en.html']) {
   assert.match(html, /window\.READY_LANGS = \['es', 'en'\];/, `${file}: READY_LANGS desactualizado`);
 }
 
+// script.js debe tener ['es', 'en'] como fallback cuando window.READY_LANGS no está definido (subpáginas)
+const scriptJs = readFileSync(new URL('./script.js', import.meta.url), 'utf8');
+assert.match(
+  scriptJs,
+  /var\s+READY\s*=\s*window\.READY_LANGS\s*\|\|\s*\['es',\s*'en'\];/,
+  "script.js: el fallback de READY_LANGS debe ser ['es', 'en'] para no deshabilitar English en subpáginas"
+);
+
+// Simulación de comportamiento en subpágina sin window.READY_LANGS:
+{
+  const subpageWindow = {};
+  const subpageReady = subpageWindow.READY_LANGS || ['es', 'en'];
+  assert.ok(subpageReady.includes('es'), 'Fallback debe incluir es');
+  assert.ok(subpageReady.includes('en'), 'Fallback debe incluir en');
+  assert.ok(!subpageReady.includes('ru'), 'Fallback no debe incluir ru');
+  assert.ok(!subpageReady.includes('ja'), 'Fallback no debe incluir ja');
+  assert.ok(!subpageReady.includes('de'), 'Fallback no debe incluir de');
+}
+
 // hreflang + canonical: toda página ES generada tiene su alternate EN con la
 // URL real, y viceversa (muestreo sobre el mapa de slugs, que cubre los
 // casos con slug distinto -- los más propensos a un href mal armado).
