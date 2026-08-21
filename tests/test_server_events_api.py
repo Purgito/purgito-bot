@@ -432,7 +432,7 @@ def test_template_delete_blocked_while_in_use(memory_db):
         # Al desvincular el evento, ahora sí se puede borrar.
         await webapi._api_server_event_put(FakeRequest(
             event_type="boost",
-            body={"enabled": False, "channel_id": _CHANNEL_ID, "content_mode": "plain_text", "message": ""},
+            body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": None},
         ))
         delete_resp2 = await webapi._api_embed_template_delete(
             FakeTemplateRequest(template_id=template_id)
@@ -441,3 +441,109 @@ def test_template_delete_blocked_while_in_use(memory_db):
         assert json.loads(delete_resp2.text)["deleted"] is True
 
     asyncio.run(_test())
+
+
+def test_server_events_save_and_switch_templates_cycle(memory_db):
+    """Prueba el ciclo completo de guardar, cambiar plantilla y desvincular para welcome, goodbye y boost."""
+    async def _test():
+        # Crear Plantilla A
+        res_a = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(body={"name": "Plantilla A", "content_mode": "plain_text", "message": "Mensaje A {user}"})
+        )
+        tpl_a_id = json.loads(res_a.text)["id"]
+
+        # Crear Plantilla B
+        res_b = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(body={"name": "Plantilla B", "content_mode": "plain_text", "message": "Mensaje B {user}"})
+        )
+        tpl_b_id = json.loads(res_b.text)["id"]
+
+        for ev_type in ("welcome", "goodbye", "boost"):
+            # 1. Guardar con Plantilla A
+            put_a = await webapi._api_server_event_put(FakeRequest(
+                event_type=ev_type,
+                body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": tpl_a_id},
+            ))
+            assert put_a.status == 200
+            assert json.loads(put_a.text)["event"]["template_id"] == tpl_a_id
+
+            # 2. Recargar y verificar que tiene plantilla A
+            get_a = await webapi._api_server_event_get(FakeRequest(event_type=ev_type))
+            ev_a = json.loads(get_a.text)["event"]
+            assert ev_a["template_id"] == tpl_a_id
+            assert ev_a["message"] == "Mensaje A {user}"
+            assert ev_a["template_name"] == "Plantilla A"
+
+            # 3. Cambiar a Plantilla B
+            put_b = await webapi._api_server_event_put(FakeRequest(
+                event_type=ev_type,
+                body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": tpl_b_id},
+            ))
+            assert put_b.status == 200
+            assert json.loads(put_b.text)["event"]["template_id"] == tpl_b_id
+
+            # 4. Recargar y verificar que tiene plantilla B
+            get_b = await webapi._api_server_event_get(FakeRequest(event_type=ev_type))
+            ev_b = json.loads(get_b.text)["event"]
+            assert ev_b["template_id"] == tpl_b_id
+            assert ev_b["message"] == "Mensaje B {user}"
+            assert ev_b["template_name"] == "Plantilla B"
+
+            # 5. Desvincular plantilla (template_id = None) y desactivar
+            put_none = await webapi._api_server_event_put(FakeRequest(
+                event_type=ev_type,
+                body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": None},
+            ))
+            assert put_none.status == 200
+            assert json.loads(put_none.text)["event"]["template_id"] is None
+
+            # 6. Recargar y verificar que no tiene plantilla
+            get_none = await webapi._api_server_event_get(FakeRequest(event_type=ev_type))
+            ev_none = json.loads(get_none.text)["event"]
+            assert ev_none["template_id"] is None
+            assert ev_none["enabled"] is False
+
+    asyncio.run(_test())
+
+
+def test_server_events_enable_without_template_rejected_if_no_legacy(memory_db):
+    """Activar un evento sin plantilla ni contenido previo es rechazado con error claro."""
+    async def _test():
+        resp = await webapi._api_server_event_put(FakeRequest(
+            event_type="welcome",
+            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": None},
+        ))
+        assert resp.status == 400
+        data = json.loads(resp.text)
+        assert "debes seleccionar una plantilla" in data["error"]
+
+    asyncio.run(_test())
+
+
+def test_server_events_enable_preserves_legacy_inline_when_unlinked(memory_db):
+    """Un evento antiguo con mensaje inline puede reactivarse sin template_id y conserva su mensaje."""
+    async def _test():
+        # Configurar evento en formato legacy
+        await webapi._api_server_event_put(FakeRequest(
+            event_type="goodbye",
+            body={
+                "enabled": True,
+                "channel_id": _CHANNEL_ID,
+                "content_mode": "plain_text",
+                "message": "Hasta luego {user}",
+            },
+        ))
+
+        # Actualizar desde el configurador cambiando solo canal y enabled
+        resp = await webapi._api_server_event_put(FakeRequest(
+            event_type="goodbye",
+            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": None},
+        ))
+        assert resp.status == 200
+        ev = json.loads(resp.text)["event"]
+        assert ev["enabled"] is True
+        assert ev["message"] == "Hasta luego {user}"
+        assert ev["template_id"] is None
+
+    asyncio.run(_test())
+

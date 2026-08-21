@@ -75,6 +75,23 @@ addStrings({
     'embedsShared.restrictMentions': 'No mencionar a nadie salvo lo explícito',
     'embedsShared.tabEditor': 'Crear / Enviar',
     'embedsShared.tabTemplates': 'Mis plantillas',
+    'embedsShared.tabVariables': 'Variables',
+    'embedsShared.varsSectionTitle': 'Variables disponibles',
+    'embedsShared.varsSectionDesc': 'Utiliza estas variables dentro de tus mensajes o embeds. Purgito las reemplazará automáticamente con la información del servidor o usuario correspondiente al momento de enviar el mensaje.',
+    'embedsShared.varsGeneralGroup': 'Variables generales',
+    'embedsShared.varsGeneralDesc': 'Disponibles en cualquier mensaje, embed o evento del servidor.',
+    'embedsShared.varsBoostGroup': 'Variables de Boosts',
+    'embedsShared.varsBoostDesc': 'Solo disponibles cuando el mensaje se envía como respuesta a un Boost al servidor.',
+    'embedsShared.varsCatUser': 'Usuario',
+    'embedsShared.varsCatServer': 'Servidor',
+    'embedsShared.varsCatChannel': 'Canal',
+    'embedsShared.varsCatDate': 'Fecha',
+    'embedsShared.varsCopy': 'Copiar',
+    'embedsShared.varsCopied': '¡Copiado!',
+    'embedsShared.varsSearchPlaceholder': 'Buscar variables… (ej: user, server, member_count)',
+    'embedsShared.varsNoResults': 'No se encontraron variables con esa búsqueda',
+    'embedsShared.varsBadgeGeneral': 'General',
+    'embedsShared.varsBadgeBoost': 'Solo Boosts',
     'embedsShared.modeClassic': 'Embeds clásicos',
     'embedsShared.modeLayout': 'Layout V2',
     'embedsShared.templatesUsedSuffix': ' / {limit} plantillas usadas',
@@ -143,6 +160,23 @@ addStrings({
     'embedsShared.restrictMentions': "Only mention what's explicitly set",
     'embedsShared.tabEditor': 'Create / Send',
     'embedsShared.tabTemplates': 'My templates',
+    'embedsShared.tabVariables': 'Variables',
+    'embedsShared.varsSectionTitle': 'Available variables',
+    'embedsShared.varsSectionDesc': 'Use these variables inside your messages or embeds. Purgito will automatically replace them with the server or user info when sending the message.',
+    'embedsShared.varsGeneralGroup': 'General variables',
+    'embedsShared.varsGeneralDesc': 'Available in any message, embed, or server event.',
+    'embedsShared.varsBoostGroup': 'Boost variables',
+    'embedsShared.varsBoostDesc': 'Only available when the message is sent in response to a server Boost.',
+    'embedsShared.varsCatUser': 'User',
+    'embedsShared.varsCatServer': 'Server',
+    'embedsShared.varsCatChannel': 'Channel',
+    'embedsShared.varsCatDate': 'Date',
+    'embedsShared.varsCopy': 'Copy',
+    'embedsShared.varsCopied': 'Copied!',
+    'embedsShared.varsSearchPlaceholder': 'Search variables… (e.g. user, server, member_count)',
+    'embedsShared.varsNoResults': 'No variables found matching your search',
+    'embedsShared.varsBadgeGeneral': 'General',
+    'embedsShared.varsBadgeBoost': 'Boosts only',
     'embedsShared.modeClassic': 'Classic embeds',
     'embedsShared.modeLayout': 'Layout V2',
     'embedsShared.templatesUsedSuffix': ' / {limit} templates used',
@@ -803,12 +837,14 @@ export async function loadEmbeds() {
   saveHistorySnapshot();
   const box = content();
   const tabs = el('div', { class: 'embed-tabs' },
-    el('div', { class: 'embed-tab' + (_embedTab === 'editor' ? ' active' : ''), onclick: () => { setEmbedTab('editor'); loadEmbeds(); } }, 'Crear / Enviar'),
-    el('div', { class: 'embed-tab' + (_embedTab === 'templates' ? ' active' : ''), onclick: () => { setEmbedTab('templates'); loadEmbeds(); } }, 'Mis plantillas'));
+    el('div', { class: 'embed-tab' + (_embedTab === 'editor' ? ' active' : ''), onclick: () => { setEmbedTab('editor'); loadEmbeds(); } }, t('embedsShared.tabEditor')),
+    el('div', { class: 'embed-tab' + (_embedTab === 'templates' ? ' active' : ''), onclick: () => { setEmbedTab('templates'); loadEmbeds(); } }, t('embedsShared.tabTemplates')),
+    el('div', { class: 'embed-tab' + (_embedTab === 'variables' ? ' active' : ''), onclick: () => { setEmbedTab('variables'); loadEmbeds(); } }, t('embedsShared.tabVariables')));
   const view = el('div', {});
   box.append(tabs, view);
   if (_embedTab === 'editor') await renderEmbedEditor(view);
-  else await renderEmbedTemplates(view);
+  else if (_embedTab === 'templates') await renderEmbedTemplates(view);
+  else if (_embedTab === 'variables') await renderEmbedVariables(view);
 }
 
 function modeRadio(mode, label) {
@@ -957,4 +993,124 @@ export async function loadSharedEmbed(shareId) {
     toast(e.message || t('embedsShared.shareExpiredOrMissing'), 'err');
   }
   history.replaceState({}, '', location.pathname);
+}
+
+export async function renderEmbedVariables(box) {
+  box.append(spinner());
+  let data;
+  try {
+    data = await apiFetch(`/api/server/${GUILD_ID}/events`);
+  } catch (e) {
+    renderError(box, e);
+    return;
+  }
+  box.innerHTML = '';
+
+  const allVars = data.variables || [];
+
+  const header = el('div', { class: 'embed-vars-header' },
+    el('h2', { class: 'cfg-field-label', style: 'font-size: 16px; margin: 0 0 4px 0;' },
+      icon('sparkle'), t('embedsShared.varsSectionTitle')
+    ),
+    el('p', { class: 'dim text-sm', style: 'margin: 0 0 16px 0;' }, t('embedsShared.varsSectionDesc'))
+  );
+
+  const searchInput = el('input', {
+    type: 'search',
+    class: 'form-control form-control-sm var-modal-search',
+    placeholder: t('embedsShared.varsSearchPlaceholder'),
+  });
+
+  const searchWrap = el('div', { class: 'embed-vars-search-wrap' }, searchInput);
+
+  const container = el('div', { class: 'embed-vars-container' });
+
+  function renderList() {
+    container.innerHTML = '';
+    const q = searchInput.value.toLowerCase().trim();
+
+    const filtered = allVars.filter(v =>
+      !q ||
+      v.name.toLowerCase().includes(q) ||
+      (v.description || '').toLowerCase().includes(q) ||
+      (v.category || '').toLowerCase().includes(q) ||
+      (v.example || '').toLowerCase().includes(q)
+    );
+
+    if (!filtered.length) {
+      container.append(emptyState(t('embedsShared.varsNoResults')));
+      return;
+    }
+
+    const generalVars = filtered.filter(v => (v.allowed_events || []).length >= 3 || v.category !== 'boost');
+    const boostVars = filtered.filter(v => (v.allowed_events || []).length < 3 && v.category === 'boost');
+
+    function createVarCard(v, isBoost = false) {
+      const varTag = `{${v.name}}`;
+      const copyBtn = el('button', {
+        type: 'button',
+        class: 'btn btn-secondary btn-xs',
+        onclick: async () => {
+          if (navigator.clipboard) {
+            try {
+              await navigator.clipboard.writeText(varTag);
+            } catch (_) {}
+          }
+          toast(t('tabsEventos.varsCopied', { var: varTag }) || `Variable ${varTag} copiada`, 'ok');
+          copyBtn.textContent = t('embedsShared.varsCopied');
+          setTimeout(() => { copyBtn.textContent = t('embedsShared.varsCopy'); }, 1500);
+        },
+      }, t('embedsShared.varsCopy'));
+
+      const badge = isBoost
+        ? el('span', { class: 'badge badge-dim' }, t('embedsShared.varsBadgeBoost'))
+        : el('span', { class: 'badge badge-ok' }, t('embedsShared.varsBadgeGeneral'));
+
+      const topRow = el('div', { class: 'embed-var-top' },
+        el('code', { class: 'embed-var-tag' }, varTag),
+        badge
+      );
+
+      const bodyChildren = [
+        el('p', { class: 'embed-var-desc' }, v.description || '')
+      ];
+      if (v.example) {
+        bodyChildren.push(el('p', { class: 'embed-var-example' }, `${t('tabsEventos.varExample')} `, el('code', {}, v.example)));
+      }
+
+      const bodyCol = el('div', { class: 'embed-var-body' }, ...bodyChildren);
+
+      const footerRow = el('div', { class: 'embed-var-footer' },
+        el('span', { class: 'dim text-xs' }, v.category ? v.category.toUpperCase() : ''),
+        copyBtn
+      );
+
+      return el('div', { class: 'embed-var-card' }, topRow, bodyCol, footerRow);
+    }
+
+    if (generalVars.length) {
+      const generalGrid = el('div', { class: 'embed-vars-grid' }, ...generalVars.map(v => createVarCard(v, false)));
+      const generalSection = el('div', { class: 'embed-vars-group' },
+        el('h3', { class: 'embed-vars-group-title' }, icon('sparkle'), t('embedsShared.varsGeneralGroup')),
+        el('p', { class: 'embed-vars-group-desc' }, t('embedsShared.varsGeneralDesc')),
+        generalGrid
+      );
+      container.append(generalSection);
+    }
+
+    if (boostVars.length) {
+      const boostGrid = el('div', { class: 'embed-vars-grid' }, ...boostVars.map(v => createVarCard(v, true)));
+      const boostSection = el('div', { class: 'embed-vars-group' },
+        el('h3', { class: 'embed-vars-group-title' }, icon('star'), t('embedsShared.varsBoostGroup')),
+        el('p', { class: 'embed-vars-group-desc' }, t('embedsShared.varsBoostDesc')),
+        boostGrid
+      );
+      container.append(boostSection);
+    }
+  }
+
+  searchInput.oninput = renderList;
+  renderList();
+
+  box.append(header, searchWrap, container);
 }

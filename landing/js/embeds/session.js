@@ -4,7 +4,7 @@
 // copia. Se expone `export let` (lectura como binding vivo) + un setter por
 // variable, porque un importador no puede reasignar un binding importado.
 
-// Sub-vista activa del tab Embeds: 'editor' o 'templates'.
+// Sub-vista activa del tab Embeds: 'editor', 'templates' o 'variables'.
 export let _embedTab = 'editor';
 // Modo de contenido: 'classic' (embeds clásicos) o 'layout' (Components V2).
 // Discord no permite combinar ambos en un mismo mensaje.

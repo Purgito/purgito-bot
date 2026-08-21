@@ -403,7 +403,10 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
   if (!templates.length) {
     templateBlockChildren.push(el('p', { class: 'dim text-xs', style: 'margin: 0;' }, t('tabsEventos.noTemplatesHint')));
   }
-  if (evConfig.template_id && evConfig.template_missing) {
+  const isTemplateMissing = Boolean(
+    evConfig.template_id && (!templates.some(tpl => String(tpl.id) === String(evConfig.template_id)) || evConfig.template_missing)
+  );
+  if (isTemplateMissing) {
     templateBlockChildren.push(
       el('div', { class: 'event-legacy-notice' }, icon('info'), el('span', {}, t('tabsEventos.templateMissingNotice')))
     );

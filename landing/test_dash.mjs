@@ -1538,6 +1538,66 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 32: Módulo de Gestión de Anuncios Programados verificado');
 }
 
+// ── Test 33: Naming Embeds en Sidebar y Sección Variables en Embeds ─────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  const { CATEGORIES, MODULES } = await import('./js/dash.js');
+  const catEmbeds = CATEGORIES.find(c => c.key === 'plantillas');
+  assert.ok(catEmbeds, 'Categoría plantillas debe existir');
+  assert.equal(catEmbeds.label, 'Embeds', 'La categoría de la barra lateral debe llamarse Embeds');
+
+  const modEmbeds = MODULES.find(m => m.key === 'embeds');
+  assert.ok(modEmbeds, 'Módulo embeds debe existir');
+  assert.equal(modEmbeds.label, 'Embeds', 'El módulo de la barra lateral debe llamarse Embeds');
+
+  const { loadEmbeds } = await import('./js/embeds/shared-ui.js');
+  const { setEmbedTab } = await import('./js/embeds/session.js');
+
+  const mockVariablesData = {
+    events: {},
+    variables: [
+      { name: 'user', category: 'user', description: 'Mención al usuario', example: '@Isa', allowed_events: ['boost', 'goodbye', 'welcome'] },
+      { name: 'server_name', category: 'server', description: 'Nombre del servidor', example: 'Mi Servidor', allowed_events: ['boost', 'goodbye', 'welcome'] },
+      { name: 'server_membercount', category: 'server', description: 'Cantidad total de miembros', example: '1.284', allowed_events: ['boost', 'goodbye', 'welcome'] },
+      { name: 'channel', category: 'channel', description: 'Mención del canal', example: '#general', allowed_events: ['boost', 'goodbye', 'welcome'] },
+      { name: 'server_nextboostlevel', category: 'boost', description: 'Siguiente nivel de boost', example: '3', allowed_events: ['boost'] },
+    ],
+  };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/events')) return jsonResp(mockVariablesData);
+      if (url.includes('/api/server/123456789/embeds/templates')) return jsonResp({ templates: [], total: 0, limit: 20 });
+      if (url.includes('/api/server/123456789/channels')) return jsonResp({ channels: [] });
+      if (url.includes('/api/server/123456789/roles')) return jsonResp({ roles: [] });
+      return jsonResp({});
+    },
+  ];
+
+  // 1. Cargar pestaña Variables de Embeds
+  setEmbedTab('variables');
+  await loadEmbeds();
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.match(contentText, /Crear \/ Enviar/, 'Debe mostrar pestaña Crear / Enviar');
+  assert.match(contentText, /Mis plantillas/, 'Debe mostrar pestaña Mis plantillas');
+  assert.match(contentText, /Variables/, 'Debe mostrar pestaña Variables');
+  assert.match(contentText, /Variables disponibles/, 'Debe mostrar título de la sección Variables');
+  assert.match(contentText, /Variables generales/, 'Debe agrupar Variables generales');
+  assert.match(contentText, /Variables de Boosts/, 'Debe agrupar Variables de Boosts');
+  assert.match(contentText, /{user}/, 'Debe mostrar tag {user}');
+  assert.match(contentText, /{server_name}/, 'Debe mostrar tag {server_name}');
+  assert.match(contentText, /{server_membercount}/, 'Debe mostrar tag {server_membercount}');
+  assert.match(contentText, /{server_nextboostlevel}/, 'Debe mostrar tag {server_nextboostlevel}');
+  assert.match(contentText, /Solo Boosts/, 'Debe mostrar badge Solo Boosts para variables específicas');
+  assert.match(contentText, /Copiar/, 'Debe incluir botón Copiar');
+
+  console.log('✓ Test 33: Naming Embeds en Sidebar y Sección Variables en Embeds');
+}
+
 console.log('\n========================================');
 console.log('✓ TODOS LOS TESTS DEL DASHBOARD PASARON');
 console.log('========================================\n');

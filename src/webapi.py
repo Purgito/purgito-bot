@@ -3922,6 +3922,59 @@ async def _api_server_event_put(
             )
         return web.json_response({"saved": True, "event": event})
 
+    # Si no se pasó template_id, verificar si se envió contenido inline (legacy)
+    # o si se trata de una actualización del configurador (desvincular plantilla o guardar sin plantilla).
+    has_inline_payload = any(
+        k in data
+        for k in ("content_mode", "message", "embeds", "layout", "buttons", "send_options")
+    )
+
+    if not has_inline_payload:
+        prev = await get_server_event(guild_id, event_type, resolve_template=False)
+        prev_enabled = prev.get("enabled", False) if prev else False
+        has_legacy_content = bool(
+            prev
+            and (
+                (prev.get("message") and prev.get("message").strip())
+                or (
+                    prev.get("embed_json")
+                    and prev.get("embed_json") != "null"
+                    and prev.get("embed_json") != "[]"
+                )
+            )
+        )
+        if enabled and not has_legacy_content:
+            return web.json_response(
+                {"error": "debes seleccionar una plantilla para activar el evento"},
+                status=400,
+            )
+        event = await set_server_event(
+            guild_id=guild_id,
+            event_type=event_type,
+            enabled=enabled,
+            channel_id=channel_id,
+            content_mode=(prev.get("content_mode") if prev else None) or "plain_text",
+            message=prev.get("message") if prev else None,
+            embed_json=prev.get("embed_json") if prev else None,
+            template_id=None,
+        )
+        await _log_audit(
+            request,
+            guild_id,
+            f"events.{event_type}.update",
+            detail=f"template_id=None, channel={channel_id}",
+        )
+        if prev_enabled != enabled:
+            action_name = (
+                f"events.{event_type}.enabled"
+                if enabled
+                else f"events.{event_type}.disabled"
+            )
+            await _log_audit(
+                request, guild_id, action_name, detail=f"channel={channel_id}"
+            )
+        return web.json_response({"saved": True, "event": event})
+
     content_mode = data.get("content_mode") or "plain_text"
     if content_mode not in ("plain_text", "classic_embed", "layout_v2", "composite"):
         return web.json_response(

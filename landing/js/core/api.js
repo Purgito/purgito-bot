@@ -2,9 +2,14 @@ import { getLoginUrl } from './config.js';
 
 export async function apiFetch(url, options = {}) {
   const opts = { credentials: 'include', ...options };
-  if (opts.body && typeof opts.body !== 'string') {
-    opts.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-    opts.body = JSON.stringify(opts.body);
+  opts.headers = { ...(opts.headers || {}) };
+  if (opts.body && !(opts.body instanceof FormData) && !(opts.body instanceof Blob)) {
+    if (!opts.headers['Content-Type'] && !opts.headers['content-type']) {
+      opts.headers['Content-Type'] = 'application/json';
+    }
+    if (typeof opts.body !== 'string') {
+      opts.body = JSON.stringify(opts.body);
+    }
   }
   let r;
   try {
