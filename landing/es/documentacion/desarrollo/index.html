@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Desarrollo — Documentación técnica — Purgito</title>
 <meta name="description" content="Estructura del proyecto, entorno local y tests de Purgito.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/development">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/desarrollo">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Términos</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/terminos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Términos del Servicio</span>
+                  <span class="nav-drop-desc">Condiciones de uso y responsabilidad</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/privacidad">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Privacidad</span>
+                  <span class="nav-drop-desc">Tratamiento y protección de datos</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/reembolsos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Reembolso</span>
+                  <span class="nav-drop-desc">Condiciones de prueba y pagos</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -257,6 +310,36 @@
           </a>
         </div>
       </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/terminos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="title">Términos del Servicio</div>
+              <div class="desc">Condiciones de uso y responsabilidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/privacidad">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Política de Privacidad</div>
+              <div class="desc">Tratamiento y protección de datos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/reembolsos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Política de Reembolso</div>
+              <div class="desc">Condiciones de prueba y pagos</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -290,42 +373,77 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Desarrollo</h1>
+<p>Guía técnica para configurar el entorno local, ejecutar la suite de pruebas automatizadas y contribuir al código de Purgito.</p>
 
-<h2 id="estructura-del-proyecto">Estructura del proyecto</h2>
+<h2 id="estructura-del-proyecto">Estructura del Repositorio</h2>
 <ul>
-  <li><code>src/cogs/</code> — comandos y features del bot (chat, gifs,
-  memes, youtube, premium, anuncios, layout_buttons, settings, general).</li>
-  <li><code>src/webapi.py</code> — la API JSON completa.</li>
-  <li><code>landing/</code> — sitio estático: <code>index.html</code>,
-  <code>style.css</code>, <code>script.js</code>.</li>
-  <li><code>landing/pages/</code> — cuerpos de página escritos a mano;
-  <code>build_docs.py</code> les agrega navbar/footer/head.</li>
-  <li><code>landing/js/</code> + <code>landing/dash.css</code> — el
-  dashboard, módulos ES nativos sin bundler.</li>
-  <li><code>data/bot.db</code> — la base SQLite.</li>
+  <li><code>src/bot.py</code> — Punto de entrada del bot de Discord, configuración de intents y carga ordenada de cogs.</li>
+  <li><code>src/config.py</code> — Módulo centralizado de carga y validación de variables de entorno (<code>.env</code>, <code>urls.env</code>, <code>limits.env</code>).</li>
+  <li><code>src/db.py</code> — Capa de persistencia asíncrona sobre SQLite (<code>aiosqlite</code>), migraciones automáticas y transacciones.</li>
+  <li><code>src/webapi.py</code> — Servidor web <code>aiohttp.web</code> con todos los endpoints REST JSON, autenticación OAuth2 y webhooks.</li>
+  <li><code>src/markov_engine.py</code> — Implementación del motor probabilístico de cadenas de Markov de orden 1 y 2.</li>
+  <li><code>src/r2.py</code> — Cliente S3 compatible para Cloudflare R2, deduplicación de medios por hash SHA-256 y hashing perceptivo.</li>
+  <li><code>src/tasks.py</code> — Tareas programadas periódicas (purga diferida de servidores, expiración de auditoría y despachos).</li>
+  <li><code>src/cogs/</code> — Cogs de Discord organizados por funcionalidad (chat, gifs, memes, youtube, premium, anuncios, settings, layout_buttons).</li>
+  <li><code>landing/</code> — Frontend estático: páginas HTML (<code>landing/pages/</code>), estilos CSS (<code>landing/style.css</code>, <code>landing/dash.css</code>) y JavaScript modular (<code>landing/js/</code>).</li>
+  <li><code>landing/build_docs.py</code> — Script de compilación de páginas HTML, inyección de layout común y cálculo de hashes de cache-busting.</li>
+  <li><code>tests/</code> — Suite de pruebas automatizadas con <code>pytest</code> y pruebas de frontend con Node.js.</li>
 </ul>
 
-<h2 id="entorno-local">Entorno local</h2>
-<p>El bot es Python 3.11+; CI corre en 3.12. Tres archivos de entorno con
-reglas distintas: <code>.env</code> (secretos, no versionado — nombres
-esperados en <code>.env.example</code>), <code>urls.env</code> (URLs
-públicas, versionado) y <code>limits.env</code> (cuotas por servidor,
-versionado). Los tres se cargan al importar <code>src/config.py</code>.</p>
+<h2 id="entorno-local">Entorno de Desarrollo Local</h2>
+<p>Requisitos: Python 3.11 o superior (recomendado 3.12) y Node.js 18+ para los tests de frontend.</p>
 
-<h2 id="tests">Tests</h2>
-<pre><code># pytest no está en requirements.txt — usar el venv del proyecto.
+<h3>1. Configuración de archivos de entorno</h3>
+<p>Purgito utiliza tres archivos de configuración independientes con propósitos específicos:</p>
+<ul>
+  <li><code>.env</code>: Secretos y tokens de desarrollo (token del bot de Discord, credenciales OAuth2, claves de sesión y webhooks). No versionado en Git. Copiar desde <code>.env.example</code>.</li>
+  <li><code>urls.env</code>: URLs y endpoints públicos de la aplicación. Versionado en Git.</li>
+  <li><code>limits.env</code>: Cuotas y límites de almacenamiento por servidor para planes Free y Premium. Versionado en Git.</li>
+</ul>
+
+<h3>2. Instalación de dependencias</h3>
+<pre><code># Crear y activar entorno virtual
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Instalar dependencias del bot y herramientas de prueba
+pip install -r requirements.txt pytest ruff
+</code></pre>
+
+<h2 id="suite-de-pruebas">Ejecución de Pruebas y Linting</h2>
+
+<h3>Pruebas unitarias de Python (pytest)</h3>
+<pre><code># Ejecutar todos los tests automatizados del bot y la API
 .venv/bin/python -m pytest tests -q
 
-# Lint y formato, corren en CI.
-ruff check .
-ruff format --check .
+# Ejecutar un archivo de test específico
+.venv/bin/python -m pytest tests/test_dashboard_routes.py -v
+</code></pre>
 
-# Regenera las páginas de landing/es/ — correr después de tocar
-# docs/*.md, landing/pages/*, cualquier .css o .js.
+<h3>Pruebas de frontend (Node.js)</h3>
+<pre><code># Pruebas de integración del dashboard SPA
+node landing/test_dash.mjs
+
+# Pruebas de paridad y cobertura de internacionalización (ES / EN)
+node landing/test_lang.mjs
+</code></pre>
+
+<h3>Formateo y análisis estático con Ruff</h3>
+<pre><code># Verificar estilo y reglas de código
+ruff check .
+
+# Formateo automático de código
+ruff format .
+</code></pre>
+
+<h3>Generación de documentación y páginas web</h3>
+<p>Siempre que se modifiquen archivos en <code>landing/pages/</code>, <code>landing/js/</code>, <code>landing/style.css</code> o <code>landing/dash.css</code>, es necesario regenerar las páginas para actualizar los hashes de cache-busting y verificar la paridad entre idiomas:</p>
+<pre><code># Regenerar páginas estáticas en landing/es/ y landing/en/
 .venv/bin/python landing/build_docs.py
-.venv/bin/python landing/build_docs.py --check</code></pre>
-<p>No hay <code>pytest.ini</code>: los tests se descubren solos desde
-<code>tests/</code>.</p>
+
+# Verificar que los archivos generados coincidan exactamente con el repositorio (usado en CI)
+.venv/bin/python landing/build_docs.py --check
+</code></pre>
   </main>
 </div>
 

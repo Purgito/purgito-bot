@@ -51,10 +51,12 @@ EXTENSIONS = [
     "cogs.layout_buttons",
     "cogs.privacy",
     "cogs.updates",
+    "cogs.events",
 ]
 
 intents = discord.Intents.default()
 intents.message_content = config.ENABLE_MESSAGE_CONTENT
+intents.members = True
 
 
 class PurgitoBot(commands.Bot):

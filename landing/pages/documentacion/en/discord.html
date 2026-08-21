@@ -1,48 +1,46 @@
 <h1>Discord</h1>
-<p>Purgito is a discord.py bot structured as a collection of cogs
-— each with one responsibility — loaded when the process starts.</p>
+<p>Purgito is built on <code>discord.py</code> and structured as a modular collection of cogs. Each cog encapsulates application slash commands, Gateway event listeners, and asynchronous periodic routines.</p>
 
-<h2 id="bot-and-cogs">Bot and cogs</h2>
-<p>The entrypoint (<code>src/bot.py</code>) loads cogs in a deliberate
-order: <code>premium</code> first, because it exposes
-<code>is_premium_guild</code> to the rest.</p>
+<h2 id="structure">Bot Structure and Cogs</h2>
+<p>The bot entrypoint (<code>src/bot.py</code>) initializes the <code>commands.Bot</code> instance with the minimum required intents: <code>guilds</code>, <code>message_content</code>, <code>emojis_and_stickers</code>, and <code>reactions</code>. Cogs are loaded asynchronously during <code>setup_hook</code> in a deliberate order:</p>
+
 <table>
-<tr><th>Cog</th><th>Responsibility</th></tr>
-<tr><td><code>premium</code></td><td>Per-server Premium status, managed from the dashboard.</td></tr>
-<tr><td><code>chat</code></td><td>Corpus, Markov chains, and automatic replies.</td></tr>
-<tr><td><code>gifs</code></td><td>GIF capture and management: detecting them in messages, uploading to R2, web gallery.</td></tr>
-<tr><td><code>memes</code></td><td>Memes: command, automatic generation, image capture via reaction.</td></tr>
-<tr><td><code>youtube</code></td><td>YouTube notifications via RSS.</td></tr>
-<tr><td><code>anuncios</code></td><td>Messages scheduled to a channel, on an interval or at a fixed time.</td></tr>
-<tr><td><code>general</code></td><td>Help command, ping, errors, and server lifecycle.</td></tr>
-<tr><td><code>settings</code></td><td>Unified settings panel and onboarding when joining a server.</td></tr>
-<tr><td><code>layout_buttons</code></td><td>Functional actions for the embed editor's buttons (Layout V2).</td></tr>
+<tr><th>Cog</th><th>Module</th><th>Technical Responsibility</th></tr>
+<tr><td><code>premium</code></td><td><code>src/cogs/premium.py</code></td><td>Quota verification and Premium status checks (<code>is_premium_guild</code>). Loaded first to expose quota helpers to other cogs.</td></tr>
+<tr><td><code>chat</code></td><td><code>src/cogs/chat.py</code></td><td>Message capture, cleaning for the corpus, reply probability evaluation, Markov engine invocation, and mention handling.</td></tr>
+<tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>GIF detection in messages, native URL extraction (Tenor/Giphy), optional compression, and deduplicated uploads to Cloudflare R2.</td></tr>
+<tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>Server image gallery, meme template rendering, caption generation via Markov or Groq AI, and emoji reaction capture.</td></tr>
+<tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>Periodic monitoring of YouTube RSS channel feeds and automatic alert dispatching to configured Discord channels.</td></tr>
+<tr><td><code>anuncios</code></td><td><code>src/cogs/anuncios.py</code></td><td>Automated announcement scheduler: dispatches embeds and messages at recurring intervals or fixed times with timezone support.</td></tr>
+<tr><td><code>general</code></td><td><code>src/cogs/general.py</code></td><td>General commands (<code>/ping</code>, <code>/ayuda</code>), global command synchronization, and guild lifecycle handling.</td></tr>
+<tr><td><code>settings</code></td><td><code>src/cogs/settings.py</code></td><td>Native in-Discord interactive panel (views, selects, buttons) and onboarding greeting upon joining new servers.</td></tr>
+<tr><td><code>layout_buttons</code></td><td><code>src/cogs/layout_buttons.py</code></td><td>Interactive components controller (Layout V2): role assignment/removal, external URLs, and modal dialogs.</td></tr>
+<tr><td><code>events</code></td><td><code>src/cogs/events.py</code></td><td>Server events: Welcome, Goodbye, and Boosts with dynamic variable resolution ({user}, {server_membercount_ordinal}, etc.), 3 content modes, and secure channel dispatching.</td></tr>
 </table>
 
-<h2 id="events">Events</h2>
-<p>Besides <code>on_ready</code> (startup, syncs slash commands and starts
-the web API), cogs listen for the events they need:
-<code>on_message</code> (chat, GIF capture, meme capture by
-reaction), <code>on_guild_join</code>/<code>on_guild_remove</code> (lifecycle
-— leaving a server schedules the deferred deletion of its data),
-<code>on_raw_reaction_add</code> (meme capture), and
-<code>on_guild_channel_update</code>. Slash command errors don't
-go through the same channel as prefix command errors, so they have
-their own handler (<code>on_app_command_error</code>), wired by hand
-instead of with the standard decorator.</p>
+<h2 id="lifecycle">Gateway Event Lifecycle</h2>
+<p>Cogs subscribe to events emitted by the Discord Gateway WebSocket (requiring <code>intents.members = True</code> for member events):</p>
 
-<h2 id="permissions">Permissions</h2>
-<p>There's no role system of the bot's own: every permission check looks
-directly at Discord's native permissions. Admin actions
-(opening the settings panel, changing settings) verify that whoever
-invokes them has <code>Manage Server</code>. Before running an
-action that needs the bot's own permissions — like assigning a role from
-an embed button — the bot checks its own permissions and role
-hierarchy, not just those of whoever clicked.</p>
+<ul>
+  <li><code>on_ready</code>: Fired when the bot completes identification with the Gateway. Syncs application slash commands and starts periodic background tasks in <code>src/tasks.py</code>.</li>
+  <li><code>on_message</code>: Pipeline execution: bot filtering, allowed/silenced channel checks, insertion into the <code>corpus</code> table, trigger evaluation, and response generation.</li>
+  <li><code>on_member_join</code>: Detects new member joins and dispatches the configured Welcome message.</li>
+  <li><code>on_member_remove</code>: Detects member departures and dispatches the configured Goodbye message.</li>
+  <li><code>on_member_update</code>: Idempotently detects boost transitions and dispatches the configured Boost thank you message.</li>
+  <li><code>on_raw_reaction_add</code>: Captures reactions for automatic emoji triggers and meme image collection.</li>
+  <li><code>on_guild_join</code>: Inserts the server into the database, sets default configuration, and posts the welcome onboarding guide.</li>
+  <li><code>on_guild_remove</code>: Marks the server with a <code>left_at</code> timestamp in the database, starting the retention grace period before permanent purging.</li>
+  <li><code>on_guild_channel_update</code>: Updates cached channel metadata to keep the web dashboard synchronized.</li>
+</ul>
 
-<h2 id="interactions">Interactions</h2>
-<p>Practically every command is a slash command; <code>!ping</code>
-is the only prefix-command exception. Panels and menus are built with
-discord.py views (buttons, selects), and every view restricts who can
-use it to whoever opened it — a settings button meant for someone else
-doesn't respond if you click it.</p>
+<h2 id="error-handling">Error Handling and Interactions</h2>
+<p>Application slash commands use Discord's command tree (<code>app_commands.CommandTree</code>). Interaction errors are intercepted by a global <code>on_app_command_error</code> handler:</p>
+
+<ul>
+  <li><code>app_commands.MissingPermissions</code>: Informs the user that they lack required permissions (e.g., <code>Manage Server</code>) via an ephemeral message.</li>
+  <li><code>app_commands.BotMissingPermissions</code>: Lists missing channel permissions required by Purgito (e.g., <code>Send Messages</code>, <code>Embed Links</code>, <code>Attach Files</code>).</li>
+  <li><code>app_commands.CommandOnCooldown</code>: Displays remaining cooldown time to prevent spam on intensive operations.</li>
+</ul>
+
+<h2 id="permissions">Permissions and Hierarchy</h2>
+<p>Purgito delegates authorization directly to Discord's native permission system. It does not maintain a separate roles table: all checks inspect <code>interaction.user.guild_permissions</code>. For administrative member actions (such as role assignment via Layout V2 buttons), the bot verifies that its own highest role sits above the target role in the server's role hierarchy.</p>

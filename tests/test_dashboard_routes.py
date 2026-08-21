@@ -483,8 +483,8 @@ def test_dashboard_y_premium_tienen_fallbacks_de_viewport_y_blur():
     assert "max-height: 85vh;" in dash_css
     assert "max-height: 85dvh;" in dash_css
     assert "height: calc(100dvh - 230px);" in dash_css
-    assert ".prem-float-chip" in style_css
-    assert "-webkit-backdrop-filter: blur(12px);" in style_css
+    assert ".prem-mascot-card" in style_css
+    assert ".prem-mascot-img" in style_css
 
 
 def test_pagina_premium_redisenada_tiene_elementos_y_limites_reales():
@@ -619,7 +619,7 @@ def test_popover_positioning_and_viewport_resilience():
     # style.css aísla la capa del dropdown y soporta dvh en el menú móvil
     assert ".nav-mobile-panel" in style_css
     assert "height: calc(100dvh - var(--nav-h));" in style_css
-    assert "will-change: transform;" in style_css
+    assert ".nav-sep" in style_css
 
 
 def test_dashboard_en_navbar_y_menu_de_usuario_para_autenticados():

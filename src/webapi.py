@@ -108,6 +108,7 @@ from db import (
     count_guild_corpus_messages,
     delete_channel_trigger,
     delete_embed_template,
+    delete_server_event,
     delete_frase_especial,
     delete_frase_pack,
     delete_gif_url_by_id,
@@ -126,6 +127,7 @@ from db import (
     get_gif_by_id,
     get_gif_by_url,
     get_random_gif_candidates,
+    get_server_event,
     get_shared_embed,
     get_updates_channel,
     gifs_limit,
@@ -137,6 +139,7 @@ from db import (
     list_channel_triggers,
     list_corpus_channels,
     list_embed_templates,
+    list_server_events,
     list_excluded_users,
     list_exempt_channels,
     list_exempt_roles,
@@ -172,15 +175,23 @@ from db import (
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
+    set_server_event,
     set_updates_channel,
     set_user_exclusion,
     set_youtube_mention_role_by_id,
+    toggle_server_event,
     unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
     update_frase_especial,
     update_last_video_id,
     upsert_premium_subscription,
+)
+import i18n
+from placeholders import (
+    EVENT_TYPES,
+    get_available_placeholders,
+    validate_content_variables,
 )
 from layout_v2 import (
     MAX_FILENAME_LEN,
@@ -3454,6 +3465,320 @@ async def _api_embed_template_delete(
     return web.json_response({"deleted": deleted})
 
 
+# ─── API: Eventos del Servidor (Bienvenidas, Despedidas, Boost) ─────────────
+
+
+@guild_api
+async def _api_server_events_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    locale = await i18n.guild_locale(guild_id)
+    events = await list_server_events(guild_id)
+    variables = get_available_placeholders(locale=locale)
+    return web.json_response(
+        {
+            "events": events,
+            "variables": variables,
+        }
+    )
+
+
+@guild_api
+async def _api_server_event_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    event_type = request.match_info.get("event_type", "").lower()
+    if event_type not in EVENT_TYPES:
+        return web.json_response({"error": "tipo de evento inválido"}, status=400)
+    locale = await i18n.guild_locale(guild_id)
+    event = await get_server_event(guild_id, event_type)
+    variables = get_available_placeholders(event_type, locale=locale)
+    return web.json_response(
+        {
+            "event": event,
+            "variables": variables,
+        }
+    )
+
+
+@guild_api
+async def _api_server_event_put(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    event_type = request.match_info.get("event_type", "").lower()
+    if event_type not in EVENT_TYPES:
+        return web.json_response({"error": "tipo de evento inválido"}, status=400)
+
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+
+    enabled = bool(data.get("enabled", False))
+    raw_channel_id = data.get("channel_id")
+    channel_id = _to_int(raw_channel_id) if raw_channel_id is not None else None
+
+    # Si se activa el evento o se pasa channel_id, validar que el canal sea válido
+    if channel_id is not None or enabled:
+        if channel_id is None:
+            return web.json_response(
+                {"error": "debes seleccionar un canal para activar el evento"},
+                status=400,
+            )
+        guild = _bot_guild(request, guild_id)
+        channel = guild.get_channel(channel_id)
+        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            return web.json_response(
+                {"error": "el canal no existe en este servidor"}, status=400
+            )
+        me = guild.me or guild.get_member(request.app["bot"].user.id if request.app["bot"].user else 0)
+        if me:
+            perms = channel.permissions_for(me)
+            if not perms.send_messages:
+                return web.json_response(
+                    {"error": "el bot no tiene permiso de enviar mensajes en ese canal"},
+                    status=403,
+                )
+
+    content_mode = data.get("content_mode") or "plain_text"
+    if content_mode not in ("plain_text", "classic_embed", "layout_v2"):
+        return web.json_response(
+            {"error": f"modo de contenido inválido: {content_mode}"}, status=400
+        )
+
+    saved_message: str | None = None
+    saved_embed_json: str | None = None
+
+    locale = await i18n.guild_locale(guild_id)
+
+    if content_mode == "plain_text":
+        message = data.get("message") or ""
+        if not isinstance(message, str):
+            return web.json_response(
+                {"error": "el mensaje debe ser texto"}, status=400
+            )
+        if len(message) > 2000:
+            return web.json_response(
+                {"error": "el mensaje no puede superar los 2000 caracteres"},
+                status=400,
+            )
+        if enabled and not message.strip():
+            return web.json_response(
+                {"error": "el mensaje de texto no puede estar vacío si el evento está activo"},
+                status=400,
+            )
+        var_errors = validate_content_variables(
+            "plain_text", message, event_type, locale=locale
+        )
+        if var_errors:
+            return web.json_response({"error": var_errors[0]}, status=400)
+        saved_message = message
+
+    elif content_mode == "classic_embed":
+        embeds = data.get("embeds")
+        if not embeds:
+            return web.json_response(
+                {"error": "debes configurar al menos un embed"}, status=400
+            )
+        embed_err = validate_embeds_payload(embeds)
+        if embed_err:
+            return web.json_response({"error": embed_err}, status=400)
+
+        options = sanitize_send_options(data.get("send_options"))
+        opts_err = validate_send_options(options)
+        if opts_err:
+            return web.json_response({"error": opts_err}, status=400)
+
+        payload = {"embeds": embeds, "send_options": options} if options else embeds
+        var_errors = validate_content_variables(
+            "classic_embed", payload, event_type, locale=locale
+        )
+        if var_errors:
+            return web.json_response({"error": var_errors[0]}, status=400)
+
+        saved_embed_json = json.dumps(payload)
+
+    elif content_mode == "layout_v2":
+        layout = data.get("layout")
+        if not layout:
+            return web.json_response(
+                {"error": "debes configurar la estructura del layout"}, status=400
+            )
+        layout_err = validate_layout_v2_payload(layout)
+        if layout_err:
+            return web.json_response({"error": layout_err}, status=400)
+
+        if has_file_block(layout.get("blocks")):
+            return web.json_response(
+                {
+                    "error": "los bloques de archivo no se pueden guardar en eventos — usa URLs de imágenes"
+                },
+                status=400,
+            )
+
+        options = sanitize_send_options(data.get("send_options"))
+        opts_err = validate_send_options(options)
+        if opts_err:
+            return web.json_response({"error": opts_err}, status=400)
+
+        if options:
+            layout["send_options"] = options
+
+        var_errors = validate_content_variables(
+            "layout_v2", layout, event_type, locale=locale
+        )
+        if var_errors:
+            return web.json_response({"error": var_errors[0]}, status=400)
+        saved_embed_json = json.dumps(layout)
+
+    # Estado previo para auditar cambios de activación
+    prev = await get_server_event(guild_id, event_type)
+    prev_enabled = prev.get("enabled", False) if prev else False
+
+    event = await set_server_event(
+        guild_id=guild_id,
+        event_type=event_type,
+        enabled=enabled,
+        channel_id=channel_id,
+        content_mode=content_mode,
+        message=saved_message,
+        embed_json=saved_embed_json,
+    )
+
+    await _log_audit(
+        request,
+        guild_id,
+        f"events.{event_type}.update",
+        detail=f"mode={content_mode}, channel={channel_id}",
+    )
+    if prev_enabled != enabled:
+        action_name = (
+            f"events.{event_type}.enabled"
+            if enabled
+            else f"events.{event_type}.disabled"
+        )
+        await _log_audit(
+            request, guild_id, action_name, detail=f"channel={channel_id}"
+        )
+
+    return web.json_response({"saved": True, "event": event})
+
+
+@guild_api
+async def _api_server_event_test(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_post, ip, 5):
+        return web.json_response(
+            {"error": "demasiados intentos de envío — espera unos segundos"},
+            status=429,
+        )
+
+    event_type = request.match_info.get("event_type", "").lower()
+    if event_type not in EVENT_TYPES:
+        return web.json_response({"error": "tipo de evento inválido"}, status=400)
+
+    data = await _json_body(request)
+    guild = _bot_guild(request, guild_id)
+    locale = await i18n.guild_locale(guild_id)
+
+    # Si mandan datos de prueba en el body, usarlos; de lo contrario leer de DB
+    content_override = None
+    channel_id = None
+
+    if data:
+        channel_id = _to_int(data.get("channel_id"))
+        if data.get("content_mode"):
+            content_mode = data.get("content_mode")
+            message = data.get("message")
+            embed_json = None
+            if content_mode == "classic_embed" and data.get("embeds"):
+                embeds = data.get("embeds")
+                opts = sanitize_send_options(data.get("send_options"))
+                payload = {"embeds": embeds, "send_options": opts} if opts else embeds
+                embed_json = json.dumps(payload)
+                var_errs = validate_content_variables(
+                    "classic_embed", payload, event_type, locale=locale
+                )
+                if var_errs:
+                    return web.json_response(
+                        {"error": var_errs[0], "details": var_errs}, status=400
+                    )
+            elif content_mode == "layout_v2" and data.get("layout"):
+                layout = data.get("layout")
+                opts = sanitize_send_options(data.get("send_options"))
+                if opts:
+                    layout["send_options"] = opts
+                embed_json = json.dumps(layout)
+                var_errs = validate_content_variables(
+                    "layout_v2", layout, event_type, locale=locale
+                )
+                if var_errs:
+                    return web.json_response(
+                        {"error": var_errs[0], "details": var_errs}, status=400
+                    )
+            elif content_mode == "plain_text" and message:
+                var_errs = validate_content_variables(
+                    "plain_text", message, event_type, locale=locale
+                )
+                if var_errs:
+                    return web.json_response(
+                        {"error": var_errs[0], "details": var_errs}, status=400
+                    )
+
+            content_override = {
+                "guild_id": guild_id,
+                "event_type": event_type,
+                "enabled": True,
+                "channel_id": channel_id,
+                "content_mode": content_mode,
+                "message": message,
+                "embed_json": embed_json,
+            }
+
+    cog = request.app["bot"].get_cog("ServerEvents")
+    if not cog:
+        return web.json_response(
+            {"error": "el sistema de eventos no está disponible"}, status=503
+        )
+
+    ok, err = await cog.dispatch_server_event(
+        event_type=event_type,
+        guild=guild,
+        member=None,
+        test_channel_id=channel_id,
+        is_test=True,
+        mock_context=True,
+        content_override=content_override,
+    )
+    if not ok:
+        return web.json_response({"error": err or "error enviando prueba"}, status=400)
+
+    await _log_audit(
+        request,
+        guild_id,
+        f"events.{event_type}.test",
+        detail=f"channel={channel_id}",
+    )
+    return web.json_response({"sent": True})
+
+
+@guild_api
+async def _api_server_event_delete(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    event_type = request.match_info.get("event_type", "").lower()
+    if event_type not in EVENT_TYPES:
+        return web.json_response({"error": "tipo de evento inválido"}, status=400)
+
+    deleted = await delete_server_event(guild_id, event_type)
+    if deleted:
+        await _log_audit(
+            request, guild_id, f"events.{event_type}.delete", detail=""
+        )
+    return web.json_response({"deleted": deleted})
+
+
 # ---------------- API: emojis, validación en vivo y subida de imágenes ------
 
 
@@ -4619,6 +4944,15 @@ async def start_web_server(bot: commands.Bot) -> None:
         )
         app.router.add_delete(
             f"{base}/embeds/templates/{{template_id}}", _api_embed_template_delete
+        )
+        app.router.add_get(f"{base}/events", _api_server_events_get)
+        app.router.add_get(f"{base}/events/{{event_type}}", _api_server_event_get)
+        app.router.add_put(f"{base}/events/{{event_type}}", _api_server_event_put)
+        app.router.add_post(
+            f"{base}/events/{{event_type}}/test", _api_server_event_test
+        )
+        app.router.add_delete(
+            f"{base}/events/{{event_type}}", _api_server_event_delete
         )
         app.router.add_get(f"{base}/premium", _api_premium_get)
         app.router.add_post(f"{base}/premium/checkout", _api_premium_checkout)

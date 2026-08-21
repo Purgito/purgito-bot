@@ -632,6 +632,31 @@ CREATE TABLE IF NOT EXISTS revoked_sessions (
     sid TEXT PRIMARY KEY,
     revoked_at TEXT NOT NULL
 );
+
+-- Eventos del servidor (Bienvenida, Despedida, Boost)
+CREATE TABLE IF NOT EXISTS server_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    channel_id INTEGER,
+    content_mode TEXT NOT NULL DEFAULT 'plain_text',
+    message TEXT,
+    embed_json TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(guild_id, event_type)
+);
+CREATE INDEX IF NOT EXISTS idx_server_events_guild ON server_events(guild_id);
+
+-- Registro de boosts procesados para idempotencia
+CREATE TABLE IF NOT EXISTS member_boost_records (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    premium_since TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY(guild_id, user_id)
+);
 """
 
 
@@ -3203,6 +3228,177 @@ async def delete_embed_template(template_id: int, guild_id: int) -> bool:
     return deleted
 
 
+# ─── Eventos del servidor (Bienvenida, Despedida, Boost) ───────────────────
+
+
+async def get_server_event(guild_id: int, event_type: str) -> dict | None:
+    """Devuelve la configuración de un evento para un servidor o None si no existe."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, event_type, enabled, channel_id, content_mode, "
+        "message, embed_json, created_at, updated_at "
+        "FROM server_events WHERE guild_id=? AND event_type=?",
+        (guild_id, event_type),
+    ) as cursor:
+        r = await cursor.fetchone()
+    if not r:
+        return None
+    return {
+        "id": r[0],
+        "guild_id": r[1],
+        "event_type": r[2],
+        "enabled": bool(r[3]),
+        "channel_id": r[4],
+        "content_mode": r[5],
+        "message": r[6],
+        "embed_json": r[7],
+        "created_at": r[8],
+        "updated_at": r[9],
+    }
+
+
+async def list_server_events(guild_id: int) -> dict[str, dict]:
+    """Devuelve un mapa {event_type: config_dict} con todos los eventos configurados del servidor."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, event_type, enabled, channel_id, content_mode, "
+        "message, embed_json, created_at, updated_at "
+        "FROM server_events WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    res = {}
+    for r in rows:
+        res[r[2]] = {
+            "id": r[0],
+            "guild_id": r[1],
+            "event_type": r[2],
+            "enabled": bool(r[3]),
+            "channel_id": r[4],
+            "content_mode": r[5],
+            "message": r[6],
+            "embed_json": r[7],
+            "created_at": r[8],
+            "updated_at": r[9],
+        }
+    return res
+
+
+async def set_server_event(
+    guild_id: int,
+    event_type: str,
+    enabled: bool,
+    channel_id: int | None,
+    content_mode: str,
+    message: str | None = None,
+    embed_json: str | None = None,
+) -> dict:
+    """Inserta o actualiza la configuración de un evento para un servidor."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO server_events (guild_id, event_type, enabled, channel_id, "
+            "content_mode, message, embed_json, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now')) "
+            "ON CONFLICT(guild_id, event_type) DO UPDATE SET "
+            "enabled=excluded.enabled, "
+            "channel_id=excluded.channel_id, "
+            "content_mode=excluded.content_mode, "
+            "message=excluded.message, "
+            "embed_json=excluded.embed_json, "
+            "updated_at=datetime('now')",
+            (
+                guild_id,
+                event_type,
+                1 if enabled else 0,
+                channel_id,
+                content_mode,
+                message,
+                embed_json,
+            ),
+        )
+        await db.commit()
+    ev = await get_server_event(guild_id, event_type)
+    return ev or {}
+
+
+async def toggle_server_event(guild_id: int, event_type: str, enabled: bool) -> bool:
+    """Activa o desactiva un evento."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE server_events SET enabled=?, updated_at=datetime('now') "
+            "WHERE guild_id=? AND event_type=?",
+            (1 if enabled else 0, guild_id, event_type),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def delete_server_event(guild_id: int, event_type: str) -> bool:
+    """Elimina / restablece la configuración de un evento para un servidor."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM server_events WHERE guild_id=? AND event_type=?",
+            (guild_id, event_type),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def try_record_member_boost(
+    guild_id: int, user_id: int, premium_since_iso: str
+) -> bool:
+    """Intenta registrar atómicamente la marca de tiempo de boost de un miembro.
+
+    Devuelve True si esta transición ganó y es la primera vez que se procesa este
+    timestamp específico, o False si ya fue procesada previamente por otra corrutina.
+    """
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT INTO member_boost_records (guild_id, user_id, premium_since, created_at) "
+            "VALUES (?, ?, ?, datetime('now')) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
+            "premium_since=excluded.premium_since, created_at=datetime('now') "
+            "WHERE member_boost_records.premium_since != excluded.premium_since",
+            (guild_id, user_id, premium_since_iso),
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def is_boost_processed(
+    guild_id: int, user_id: int, premium_since_iso: str
+) -> bool:
+    """Comprueba si este boost ya fue procesado para evitar duplicados."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT 1 FROM member_boost_records WHERE guild_id=? AND user_id=? AND premium_since=?",
+        (guild_id, user_id, premium_since_iso),
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row is not None
+
+
+async def record_member_boost(
+    guild_id: int, user_id: int, premium_since_iso: str
+) -> None:
+    """Registra la marca de tiempo de boost de un miembro para idempotencia."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO member_boost_records (guild_id, user_id, premium_since, created_at) "
+            "VALUES (?, ?, ?, datetime('now')) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
+            "premium_since=excluded.premium_since, created_at=datetime('now')",
+            (guild_id, user_id, premium_since_iso),
+        )
+        await db.commit()
+
+
+
 # ─── Galería de imágenes ya subidas (reuso entre sesiones/plantillas) ───────
 # R2 ya deduplica por hash del contenido (ver _store_upload en webapi.py);
 # esta tabla es solo el índice "qué URLs subió este guild" para poblar el
@@ -4831,6 +5027,9 @@ async def purge_guild_data(guild_id: int) -> None:
         "applied_migrations",
         "audit_log",
         "excluded_users",
+        "server_events",
+        "member_boost_records",
+        "channel_webhooks",
     ]
     async with _db_lock:
         for table in tables:

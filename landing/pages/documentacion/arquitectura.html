@@ -1,93 +1,75 @@
 <h1>Arquitectura</h1>
-<p>Purgito son tres piezas que comparten una única base de datos SQLite:
-el bot de Discord, una API JSON en aiohttp y un sitio estático que sirve
-tanto la landing pública como el dashboard.</p>
+<p>Purgito está diseñado como un sistema distribuido en tres capas que convergen en un único proceso en Python y una base de datos relacional SQLite embebida: el bot de Discord (discord.py), una API JSON asíncrona (aiohttp) y un sitio web estático optimizado servido por nginx.</p>
 
 <h2 id="vision-general">Visión general</h2>
-<p>El bot (Python + <code>discord.py</code>) es el proceso principal:
-mantiene la conexión con el gateway de Discord, corre el motor de
-generación de texto y escribe/lee directamente sobre <code>data/bot.db</code>.
-Dentro del mismo proceso corre un servidor aiohttp (<code>src/webapi.py</code>)
-que expone una API JSON pura — no renderiza HTML — escuchando solo en
-<code>127.0.0.1</code>; nginx es el único que le habla desde afuera. El
-dashboard y el resto del sitio son HTML/CSS/JS planos sin build step,
-servidos directamente por nginx desde el checkout del repo, sin pasar por
-el proceso de Python en absoluto salvo cuando llaman a la API.</p>
-<p>Servicios externos: Discord (gateway + OAuth2), Cloudflare R2 (opcional,
-almacena GIFs e imágenes si está configurado), Polar (pagos de Premium vía
-webhook) y Cloudflare como capa de CDN/proxy delante de nginx.</p>
+<p>El bot corre como un proceso único en Python 3.11+ gestionado por systemd. Mantiene la conexión WebSocket persistente con el Gateway de Discord, ejecuta el motor de cadenas de Markov y procesa operaciones de lectura y escritura sobre <code>data/bot.db</code>.</p>
+<p>Dentro del mismo bucle de eventos (<em>asyncio event loop</em>), se inicializa un servidor web aiohttp (<code>src/webapi.py</code>) que expone una API REST exclusivamente en JSON escuchando en <code>127.0.0.1:WEB_PORT</code> (puerto local). Esta API nunca renderiza HTML ni sirve activos estáticos directamente.</p>
+<p>Nginx actúa como proxy inverso en el host: despacha las peticiones dinámicas (<code>/auth/*</code>, <code>/api/*</code>, <code>/webhooks/*</code> y <code>/health</code>) hacia el socket local de Python, mientras que entrega la landing page, el dashboard y la documentación directamente desde el sistema de archivos como ficheros estáticos con cabeceras de caché inmutable.</p>
 
-<pre><code>Discord (gateway + OAuth2)
+<pre><code>Discord Gateway (WebSocket) / REST API v10
       │
       ▼
-┌──────────────────┐        ┌────────────────────┐
-│   Bot (Python)    │──────▶│ Motor de generación│
-│  src/cogs/*.py    │        │  Markov + corpus    │
-└──────────────────┘        └────────────────────┘
-      │        │
-      │        └────────────▶  data/bot.db (SQLite)
-      │                              ▲
-      ▼                              │
-┌──────────────────┐                 │
-│  aiohttp (JSON)   │─────────────────┘
-│  src/webapi.py     │  127.0.0.1 únicamente
-└──────────────────┘
-      ▲
-      │  /auth/*  /api/*  /webhooks/*  /health
-      │
-┌──────────────────┐        ┌────────────────────┐
-│      nginx        │◀──────│    Cloudflare       │◀── navegador
-│  (droplet)         │        │  CDN + proxy TLS    │
-└──────────────────┘        └────────────────────┘
-      │
-      └── todo lo demás (landing, dashboard, esta
-          documentación) sale de archivos estáticos,
-          sin pasar por el proceso de Python
-
-Servicios externos: Cloudflare R2 (GIFs/imágenes, opcional) · Polar (pagos, vía webhook)
+┌─────────────────────────────────────────────────────────────┐
+│                   Proceso Python (asyncio)                  │
+│                                                             │
+│  ┌───────────────────────┐       ┌───────────────────────┐  │
+│  │   Bot (discord.py)    │──────▶│  Motor de Generación  │  │
+│  │     src/cogs/*.py     │       │   Markov + Groq IA    │  │
+│  └───────────────────────┘       └───────────────────────┘  │
+│             │                                │              │
+│             └───────────────┬────────────────┘              │
+│                             ▼                               │
+│                  ┌──────────────────────┐                   │
+│                  │   data/bot.db (WAL)  │◀── SQLite         │
+│                  └──────────────────────┘                   │
+│                             ▲                               │
+│                             │                               │
+│  ┌──────────────────────────┴────────────────────────────┐  │
+│  │             API Web aiohttp (src/webapi.py)           │  │
+│  │               Escucha solo en 127.0.0.1               │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────▲───────────────────────────────┘
+                              │ proxy_pass /api/* /auth/* /webhooks/*
+                              │
+┌─────────────────────────────┴───────────────────────────────┐
+│                       Nginx en el Host                      │
+│   Sirve estáticos directamente (/es/*, /en/*, /assets/*)    │
+└─────────────────────────────▲───────────────────────────────┘
+                              │
+┌─────────────────────────────┴───────────────────────────────┐
+│               Cloudflare Edge (CDN + Proxy TLS)             │
+└─────────────────────────────▲───────────────────────────────┘
+                              │ HTTPS
+                          Navegador
 </code></pre>
 
-<h2 id="componentes">Componentes</h2>
-<h3>Bot y cogs</h3>
-<p>El bot se arma como una colección de <em>cogs</em> de discord.py, cada
-uno responsable de un área: chat/Markov, gifs, memes, youtube, anuncios
-programados, premium, ajustes generales, el panel de configuración y los
-botones de layout del editor de embeds. Ver <a href="/es/documentacion/discord">Discord</a>.</p>
-<h3>Motor de generación</h3>
-<p>Construye y cachea un modelo de Markov por servidor a partir del corpus
-guardado, con un límite global de tareas de generación concurrentes. Ver
-<a href="/es/documentacion/generacion">Motor de generación</a>.</p>
-<h3>SQLite</h3>
-<p>Una única base de datos (<code>data/bot.db</code>) para configuración,
-corpus, GIFs, sesiones y todo lo demás — sin motor externo. Ver
-<a href="/es/documentacion/almacenamiento">Almacenamiento</a>.</p>
-<h3>API + Dashboard</h3>
-<p>La API JSON autentica por sesión (cookie cifrada) y autoriza cada
-llamada verificando en vivo, contra la propia API de Discord, que quien
-llama administra el servidor que pide. El dashboard es JS plano que
-consume esa API. Ver <a href="/es/documentacion/api">API</a>.</p>
+<h2 id="componentes">Componentes del sistema</h2>
+<h3>1. Bot de Discord y cogs</h3>
+<p>El cliente de Discord está modularizado en <em>cogs</em> especializados. Cada cog encapsula comandos de barra diagonal (<em>slash commands</em>), oyentes de eventos y tareas en segundo plano. Se cargan ordenadamente al inicializar el bot en <code>src/bot.py</code>. Ver <a href="/es/documentacion/discord">Discord</a>.</p>
 
-<h2 id="flujo-de-una-peticion">Flujo de una petición</h2>
-<h3>Un mensaje en Discord</h3>
+<h3>2. Motor de generación probabilística</h3>
+<p>Implementación propia de cadenas de Markov de primer y segundo orden. Construye modelos estadísticos en memoria a partir de muestras del corpus histórico del servidor, controlando la concurrencia global mediante semáforos asíncronos. Ver <a href="/es/documentacion/generacion">Generación</a>.</p>
+
+<h3>3. Capa de almacenamiento SQLite</h3>
+<p>Base de datos relacional única (<code>data/bot.db</code>) configurada en modo WAL (<em>Write-Ahead Logging</em>) con claves foráneas activas. Centraliza configuraciones de servidores, corpus de mensajes, catálogos de GIFs, registros de auditoría y sesiones. Ver <a href="/es/documentacion/almacenamiento">Almacenamiento</a>.</p>
+
+<h3>4. API Web y Dashboard SPA</h3>
+<p>API REST stateless en aiohttp con sesiones cifradas mediante Fernet en cookies HttpOnly. Todas las rutas administrativas verifican permisos en tiempo real contra los endpoints oficiales de Discord. El dashboard es una Single Page Application construida con JavaScript moderno modular nativo (ES Modules), sin transpiladores ni dependencias de empaquetado. Ver <a href="/es/documentacion/api">API</a>.</p>
+
+<h2 id="flujo-de-datos">Flujo de datos de extremo a extremo</h2>
+<h3>Ciclo de un mensaje en Discord</h3>
 <ol>
-  <li>El gateway entrega el evento <code>on_message</code>.</li>
-  <li>Se resuelven los ajustes efectivos del canal (overrides sobre los del
-  servidor).</li>
-  <li>Si el canal está habilitado para aprender, el mensaje se guarda en el
-  corpus.</li>
-  <li>Se evalúan triggers configurados, y si el mensaje menciona o responde
-  al bot, o si toca generar espontáneamente, se pasa al motor de
-  generación.</li>
-  <li>El motor arma (o reutiliza del caché) el modelo de Markov del
-  servidor, genera una respuesta y la post-procesa.</li>
-  <li>El bot envía la respuesta.</li>
+  <li>Discord emite un evento <code>MESSAGE_CREATE</code> por el WebSocket del Gateway.</li>
+  <li><code>cogs/chat.py</code> recibe el evento en <code>on_message</code>, descarta mensajes de bots o canales no autorizados y resuelve la configuración efectiva del canal.</li>
+  <li>Si el canal tiene permitido el aprendizaje, el texto se limpia (eliminando menciones, URLs y caracteres especiales) y se persiste en la tabla <code>corpus</code> mediante <code>src/db.py</code>.</li>
+  <li>Si se activa un trigger o se cumplen las condiciones de respuesta (mención directa o probabilidad espontánea), se solicita un turno al semáforo de generación.</li>
+  <li>El motor de Markov entrena o reutiliza el modelo cacheado en memoria, genera la respuesta, aplica filtros de formato y envía el mensaje de vuelta al canal mediante la API REST de Discord.</li>
 </ol>
-<h3>Una petición al dashboard</h3>
+
+<h3>Ciclo de una petición al Dashboard</h3>
 <ol>
-  <li>El navegador manda la cookie de sesión (cifrada, sin estado en el
-  servidor más allá de una lista de revocación).</li>
-  <li>Cada endpoint de servidor específico verifica, contra la propia API
-  de Discord y no contra nada que mande el cliente, que la sesión
-  administra ese servidor.</li>
-  <li>El handler lee o escribe en SQLite y devuelve JSON — nunca HTML.</li>
+  <li>El navegador solicita una vista en el dashboard (ej. <code>/es/dashboard/123456/chat</code>). Nginx entrega inmediatamente el shell HTML y los scripts estáticos desde disco.</li>
+  <li>El frontend realiza una petición asíncrona autenticada a la API (ej. <code>GET /api/server/123456/chat</code>) enviando la cookie de sesión cifrada.</li>
+  <li>El middleware de <code>src/webapi.py</code> descifra la sesión, comprueba que no esté en la tabla <code>revoked_sessions</code> y consulta a la API de Discord si el usuario posee el permiso <code>ADMINISTRATOR</code> o <code>MANAGE_GUILD</code> en el servidor <code>123456</code>.</li>
+  <li>Con la autorización confirmada, el endpoint ejecuta la consulta en SQLite y retorna un payload JSON estructurado para su renderizado reactivo en el DOM del cliente.</li>
 </ol>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>API — Technical Documentation — Purgito</title>
 <meta name="description" content="Authentication, sessions, endpoints, and webhooks of Purgito&#x27;s API.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/api">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/api">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Terms</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/en/terms">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Terms of Service</span>
+                  <span class="nav-drop-desc">Usage conditions and liability</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/privacy">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Privacy Policy</span>
+                  <span class="nav-drop-desc">Data handling and security</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/refunds">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Refund Policy</span>
+                  <span class="nav-drop-desc">Trial conditions and payments</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -249,10 +302,44 @@
             </div>
           </a>
           <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
-            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Source code and development</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/en/terms">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <div>
-              <div class="title">GitHub</div>
-              <div class="desc">Open source</div>
+              <div class="title">Terms of Service</div>
+              <div class="desc">Usage conditions and liability</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/privacy">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Privacy Policy</div>
+              <div class="desc">Data handling and security</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/refunds">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Refund Policy</div>
+              <div class="desc">Trial conditions and payments</div>
             </div>
           </a>
         </div>
@@ -290,80 +377,70 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>API</h1>
-<p>Purgito's API is pure JSON over aiohttp — it doesn't render HTML on
-any endpoint. It runs in the same process as the bot, listening only on
-localhost; nginx is what exposes it externally under <code>/api/*</code>,
-<code>/auth/*</code>, and <code>/webhooks/*</code>.</p>
+<p>Purgito's API is an asynchronous JSON REST interface built on <code>aiohttp.web</code>. It runs within the same process as the bot on <code>127.0.0.1:WEB_PORT</code> and is securely exposed to the internet via Nginx's reverse proxy.</p>
 
-<h2 id="overview">Overview</h2>
-<p>Two categories of endpoints: a handful of public ones with no session
-(health check, bot status, the payment webhook), and the per-server
-endpoints under <code>/api/server/{guild_id}/...</code>, which require an
-authenticated session and require whoever is calling to administer that
-specific server.</p>
+<h2 id="authentication">OAuth2 Authentication and Sessions</h2>
+<p>Dashboard access uses Discord's standard OAuth2 authorization flow (<em>Authorization Code Flow</em>):</p>
+<ol>
+  <li><code>GET /auth/login</code> generates a cryptographically secure <code>state</code> parameter using <code>secrets.token_urlsafe(32)</code> and redirects the user to Discord's consent screen requesting the scopes <code>identify</code>, <code>email</code>, and <code>guilds</code>.</li>
+  <li>Discord redirects back to <code>GET /auth/callback</code> with the authorization code and <code>state</code>.</li>
+  <li>The server exchanges the code for an access token via <code>https://discord.com/api/v10/oauth2/token</code>, fetches the user's profile, and retrieves the guilds they administer (<code>/users/@me/guilds</code>). If the user does not manage any server where the bot is installed or available, authentication is rejected.</li>
+  <li>A session cookie is issued, symmetrically encrypted using Fernet (<code>SESSION_SECRET</code>) with <code>HttpOnly</code>, <code>SameSite=Lax</code>, and <code>Secure</code> flags.</li>
+</ol>
 
-<h2 id="authentication">Authentication</h2>
-<p>Standard Discord OAuth2 (Authorization Code flow), implemented
-directly on aiohttp with no OAuth library. Login redirects to Discord;
-the callback exchanges the code for a token, fetches the user and their
-servers, and builds the session. If the user doesn't administer any
-server, the login is rejected.</p>
+<p>To invalidate sessions without maintaining heavy state in memory, the <code>revoked_sessions</code> table records explicitly terminated session identifiers upon <code>POST /auth/logout</code>. Every incoming request verifies that its session ID is absent from this table.</p>
 
-<h2 id="sessions">Sessions</h2>
-<p>The session lives entirely encrypted in the cookie (no session table
-on the server) — httpOnly, SameSite=Lax, marked secure. Since a stolen
-encrypted cookie would still be valid until it expires, logout alone
-isn't enough: each login generates an identifier that goes into a
-revocation list in the database, and every request re-checks that that
-identifier hasn't been revoked.</p>
+<h2 id="endpoints">Endpoint Catalog</h2>
 
-<h2 id="endpoints">Endpoints</h2>
-<h3>Public</h3>
+<h3>Public and Monitoring Endpoints</h3>
 <table>
-<tr><th>Method</th><th>Route</th><th>Auth</th><th>What it does</th></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/health</code></td><td>None</td><td>Liveness check.</td></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status</code></td><td>None</td><td>Live bot status: uptime, memory, latency.</td></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status/guild/{guild_id}</code></td><td>None</td><td>Minimal public info for a server (name, icon, member count) for the search on <a href="/en/estado">/en/estado</a>. No configuration data.</td></tr>
+<tr><th>Method</th><th>Route</th><th>Description</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/health</code></td><td>Process liveness check for load balancers and system monitors.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status</code></td><td>Global system metrics: uptime, Discord WebSocket latency, server count, and user count.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status/guild/{guild_id}</code></td><td>Connectivity and basic availability check for a specific server (used by the status checker).</td></tr>
 </table>
-<h3>Authentication</h3>
+
+<h3>Account and Session Endpoints</h3>
 <table>
-<tr><th>Method</th><th>Route</th><th>What it does</th></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/login</code></td><td>Redirects into Discord's OAuth2 flow.</td></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/callback</code></td><td>Completes login, builds the session.</td></tr>
-<tr><td><span class="badge docs-badge docs-badge--post">POST</span></td><td><code>/auth/logout</code></td><td>Revokes the session.</td></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me</code></td><td>Currently logged-in user.</td></tr>
-<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/guilds</code></td><td>Servers the user can administer.</td></tr>
+<tr><th>Method</th><th>Route</th><th>Description</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/login</code></td><td>Initiates the Discord OAuth2 authorization flow.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/callback</code></td><td>Exchanges the authorization code and sets the encrypted cookie.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--post">POST</span></td><td><code>/auth/logout</code></td><td>Revokes the active session and invalidates the cookie.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me</code></td><td>Authenticated user profile (ID, username, avatar).</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/guilds</code></td><td>List of guilds administered by the user, classified into configured and available.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/billing</code></td><td>User subscription and billing status.</td></tr>
 </table>
-<h3>Per-server — <code>/api/server/{guild_id}/...</code></h3>
-<p>Require a session, the <code>Manage Server</code> permission verified
-live against Discord, and the bot being present on that server.
-Grouped by area — each group has its own set of GET/PUT/
-POST/DELETE routes:</p>
+
+<h3>Guild Endpoints (<code>/api/server/{guild_id}/*</code>)</h3>
+<p>All routes under this prefix require an active session and verify in real time that the user holds the <code>Manage Server</code> permission on the target guild:</p>
+
 <ul>
-  <li>Server metadata: channels, roles, emojis, statistics.</li>
-  <li>Chat settings: probabilities, spontaneous/mention channels,
-  per-channel overrides, test playground.</li>
-  <li>Roles and channels exempt from the mention rate limit.</li>
-  <li>Corpus: adding, deleting, "amnesia" (resetting the last 24 hours).</li>
-  <li>Automatic reactions and special phrases, including reusable
-  packs.</li>
-  <li>Configurable triggers (regex, exact text, starts-with).</li>
-  <li>The server's GIF gallery.</li>
-  <li>YouTube subscriptions.</li>
-  <li>Embed editor: templates, sending, scheduling, uploading
-  images/files, shareable links.</li>
-  <li>Premium status and starting checkout.</li>
-  <li>Audit log of changes made from the panel.</li>
+  <li><code>GET/POST /api/server/{id}/style</code>: Query and update Purgito's avatar, nickname, and banner on the server.</li>
+  <li><code>GET/POST /api/server/{id}/stats</code>: Detailed memory metrics for messages, GIFs, phrases, historical activity, and quotas.</li>
+  <li><code>GET/PUT /api/server/{id}/chat</code>: Generation parameters, spontaneous reply probabilities, and conversation limits.</li>
+  <li><code>GET/PUT /api/server/{id}/canales</code>: Matrix of reading channels, reply channels, silenced channels, and ignored roles.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/gifs</code>: GIF catalog, file uploads, and single/bulk deletion.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/memes</code>: Server meme image templates and assets.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/triggers</code>: Automatic triggers matching exact text, prefixes, or regular expressions.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/reacciones</code>: Automated emoji reaction rules.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/frases</code>: Custom static phrases and themed pack definitions.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/embeds</code>: Saved templates for classic embeds and interactive Layout V2 blocks.</li>
+  <li><code>POST /api/server/{id}/embeds/send</code>: Immediate dispatch of a designed message to a Discord channel.</li>
+  <li><code>GET/PUT/DELETE /api/server/{id}/events/{event_type}</code>: Query, configure (plain text, classic embed, Layout V2), and reset Welcome, Goodbye, and Boost server events with the placeholder engine.</li>
+  <li><code>POST /api/server/{id}/events/{event_type}/test</code>: Send a test event message with resolved placeholders to the configured channel.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/anuncios</code>: Automated announcement scheduling and management.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/youtube</code>: YouTube channel feed subscriptions and alert destinations.</li>
+  <li><code>POST /api/server/{id}/amnesia</code>: Purges messages and style learned within the last 24 hours.</li>
+  <li><code>GET /api/server/{id}/audit</code>: Audit log recording actions taken via the dashboard.</li>
 </ul>
 
-<h2 id="webhooks">Webhooks</h2>
-<p><code>POST /webhooks/polar</code> receives Polar's payment events.
-The payload's signature is verified with the Standard Webhooks spec before
-processing anything — with no secret configured, the endpoint rejects
-outright instead of accepting unverified. It processes activation, pause,
-resumption, and revocation of subscriptions, free-trial start, and
-refunds, applying events in timestamp order so an older event never
-gets processed after a newer one.</p>
+<h2 id="webhooks">Payment Webhooks (Polar)</h2>
+<p><code>POST /webhooks/polar</code> receives subscription and billing lifecycle events sent by Polar:</p>
+<ul>
+  <li><strong>Signature verification</strong>: The <code>Webhook-Signature</code> header is validated against the <em>Standard Webhooks</em> specification (HMAC-SHA256) using <code>POLAR_WEBHOOK_SECRET</code>. Invalid or missing signatures return HTTP <code>400</code>.</li>
+  <li><strong>Event ordering</strong>: Payload timestamps ensure out-of-order delivery over the network cannot overwrite newer subscription states.</li>
+  <li><strong>Supported events</strong>: <code>subscription.created</code>, <code>subscription.updated</code>, <code>subscription.active</code>, <code>subscription.canceled</code>, and <code>order.refunded</code>, updating the <code>guild_premium</code> table in real time.</li>
+</ul>
   </main>
 </div>
 

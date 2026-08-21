@@ -57,24 +57,46 @@ async def _find_existing_webhook(
 
 
 async def resolve_channel_webhook(
-    bot: discord.Client, guild_id: int, channel: discord.TextChannel
+    bot: discord.Client,
+    guild_id: int,
+    channel: discord.TextChannel | discord.Thread,
 ) -> discord.Webhook:
     """Webhook usable (con estado real adjunto vía client=bot) para este
-    canal, creándolo si hace falta. Levanta WebhookIdentityError con un
+    canal o hilo, creándolo si hace falta. Levanta WebhookIdentityError con un
     mensaje legible si no se puede -- nunca falla en silencio."""
-    row = await db.get_channel_webhook(guild_id, channel.id)
+    if isinstance(channel, discord.Thread):
+        if getattr(channel, "archived", False):
+            raise WebhookIdentityError(
+                "El hilo destino está archivado -- desarchívalo antes de enviar mensajes."
+            )
+        if getattr(channel, "locked", False):
+            raise WebhookIdentityError(
+                "El hilo destino está bloqueado -- no se pueden enviar mensajes."
+            )
+        parent = channel.parent
+        if not parent or not isinstance(parent, discord.TextChannel):
+            raise WebhookIdentityError(
+                "El canal principal del hilo no existe o no es de texto."
+            )
+        target_channel = parent
+    else:
+        target_channel = channel
+
+    row = await db.get_channel_webhook(guild_id, target_channel.id)
     if row:
         return discord.Webhook.partial(
             row["webhook_id"], row["webhook_token"], client=bot
         )
 
-    existing = await _find_existing_webhook(channel, bot.user.id)
+    existing = await _find_existing_webhook(target_channel, bot.user.id if bot.user else 0)
     if existing is not None:
-        await db.set_channel_webhook(guild_id, channel.id, existing.id, existing.token)
+        await db.set_channel_webhook(guild_id, target_channel.id, existing.id, existing.token)
         return discord.Webhook.partial(existing.id, existing.token, client=bot)
 
     try:
-        created = await channel.create_webhook(name=WEBHOOK_NAME, reason=_CREATE_REASON)
+        created = await target_channel.create_webhook(
+            name=WEBHOOK_NAME, reason=_CREATE_REASON
+        )
     except discord.Forbidden:
         raise WebhookIdentityError(
             'Purgito no tiene permiso de "Gestionar webhooks" en ese canal '
@@ -92,14 +114,14 @@ async def resolve_channel_webhook(
             "No se pudo crear el webhook para este canal, intenta de nuevo."
         ) from None
 
-    await db.set_channel_webhook(guild_id, channel.id, created.id, created.token)
+    await db.set_channel_webhook(guild_id, target_channel.id, created.id, created.token)
     return discord.Webhook.partial(created.id, created.token, client=bot)
 
 
 async def send_via_webhook(
     bot: discord.Client,
     guild_id: int,
-    channel: discord.TextChannel,
+    channel: discord.TextChannel | discord.Thread,
     *,
     username: str = "",
     avatar_url: str = "",
@@ -114,10 +136,13 @@ async def send_via_webhook(
         kwargs["username"] = username
     if avatar_url:
         kwargs["avatar_url"] = avatar_url
+    if isinstance(channel, discord.Thread):
+        kwargs["thread"] = channel
     try:
         return await webhook.send(wait=True, **kwargs)
     except discord.NotFound:
-        await db.delete_channel_webhook(guild_id, channel.id)
+        target_id = channel.parent.id if isinstance(channel, discord.Thread) and channel.parent else channel.id
+        await db.delete_channel_webhook(guild_id, target_id)
         raise WebhookIdentityError(
             "El webhook de este canal ya no existe en Discord (probablemente "
             "se borró a mano) -- intenta de nuevo, se va a crear uno nuevo."

@@ -1,59 +1,39 @@
-<h1>Generation engine</h1>
-<p>For chat conversation and replies, Purgito doesn't use an LLM: it generates text with a first-order
-Markov chain, built in-house with no external dependencies, trained on the real message
-corpus of each server (for the meme-caption feature, there's an optional vision integration with Groq that falls back to Markov if it's unavailable).</p>
+<h1>Generation Engine</h1>
+<p>Purgito uses a hybrid generation architecture: a custom first- and second-order probabilistic Markov chain engine for chat conversations, and an optional AI vision integration (Groq) for automatic meme captioning.</p>
 
-<h2 id="markov-engine">Markov engine</h2>
-<p>The model links each word to the ones that followed it in the
-training corpus, and builds a response by walking that chain word by
-word from a start state to an end state, with a length cap
-and retries if the result comes out too short. No third-party
-libraries — it's a deliberately simple, in-house implementation.</p>
+<h2 id="markov-engine">Markov Engine Mechanics</h2>
+<p>The Markov engine (<code>src/markov_engine.py</code>) statistically models word sequence transitions observed in the server's message corpus:</p>
 
-<h2 id="corpus">Corpus</h2>
-<p>Every server has its own corpus: the messages it learns are
-saved as-is (stripped of mentions, URLs, and IDs) in SQLite. A server's
-model is trained on a random sample of its full corpus
-— it isn't limited to the channel where the message originated — and
-requires a minimum number of stored messages before it can generate
-anything; below that minimum, Purgito says so instead of silently failing.</p>
-<p>Which channels feed the corpus is decided by its own allowed
-list: empty means the bot doesn't learn from any channel yet —
-learning is more invasive than replying, so the safe default is not to
-learn. A separate "muted" channel list cuts corpus, reactions, and
-triggers all at once, independently of the allowed list.</p>
-<p>There's also a per-user model, trained only on that
-person's messages, used by the commands that impersonate a specific user.</p>
+<ul>
+  <li><strong>Tokenization and States</strong>: Training text is normalized and split into word tokens while preserving punctuation boundaries. Two transition dictionaries are constructed: a second-order model (word pairs <code>(w1, w2) -&gt; w3</code>) to preserve grammatical flow and complex slang, and a first-order model (<code>w1 -&gt; w2</code>) acting as a fallback when a second-order state reaches a dead end.</li>
+  <li><strong>Sentence Generation</strong>: Chains begin by picking a weighted initial token, advancing through states according to observed transition frequencies, and terminating upon reaching an ending token or the configured length limit (capped at Discord's 2,000 characters limit).</li>
+  <li><strong>Post-processing Filters</strong>: Dangling conjunctions ("and", "or", "but", "of") at sentence endings are trimmed, malformed emoji syntax is stripped, and capitalization and whitespace are adjusted.</li>
+</ul>
 
-<h2 id="pipeline">Generation pipeline</h2>
-<ol>
-  <li>A message arrives; it's discarded if it's from a bot or was already
-  processed (a guard against gateway retries).</li>
-  <li>The channel's effective settings are resolved.</li>
-  <li>If applicable, the message is cleaned and saved to the corpus.</li>
-  <li>Manually configured triggers are evaluated; if one matches, it stops
-  there.</li>
-  <li>If the message mentions or replies to the bot, or it's time for a
-  spontaneous reply per the configured cadence, the response is built:
-  first it checks whether a "special phrase" (fixed, not generated) applies,
-  and if not, it falls back to Markov.</li>
-  <li>The response is post-processed — lowercased, emojis and
-  trailing loose connectors ("and", "or", "but"...) are stripped —
-  and trimmed if it exceeds Discord's length limit before sending.</li>
-</ol>
+<h2 id="corpus">Corpus Management and Ingestion</h2>
+<p>Each server maintains an isolated corpus stored in the SQLite <code>corpus</code> table:</p>
+<ul>
+  <li><strong>Ingestion Sanitization</strong>: Before database insertion, incoming messages pass through regex filters stripping user mentions (<code>&lt;@id&gt;</code>), role mentions (<code>&lt;@&amp;id&gt;</code>), channel links (<code>&lt;#id&gt;</code>), HTTP/HTTPS URLs, and code blocks.</li>
+  <li><strong>Channel Allowlist</strong>: Only channels explicitly marked on the reading allowlist feed the corpus. If a channel is placed on the silenced list, it is ignored entirely for both learning and automatic replies.</li>
+  <li><strong>Per-User Corpus</strong>: Messages are also tagged with the author's <code>user_id</code> in the <code>user_corpus</code> table, enabling dedicated models for commands that mimic specific community members.</li>
+</ul>
 
-<h2 id="concurrency-and-limits">Concurrency and limits</h2>
-<p>A global semaphore limits how many Markov generations/training runs
-run at once across the whole process — it's not per server, it's a shared
-cap so the thread pool doesn't get saturated. Spontaneous messages use
-a non-blocking mode (if there's no room, that generation is skipped instead
-of waiting); replies to mentions do wait their turn. SQLite writes
-share a single process-wide lock — there's no per-server lock — so
-separation between servers comes from the schema (everything indexed by
-<code>guild_id</code>), not from concurrency.</p>
-<p>The corpus has size caps per channel, per user, and per whole
-server (with a free-plan and a Premium value). Once exceeded, the
-oldest is trimmed first; the whole-server cap distributes the space
-proportionally across channels instead of emptying just one. Trimming doesn't
-run on every message — it fires every so many inserts,
-as a background task.</p>
+<h2 id="concurrency">Concurrency Control and Caching</h2>
+<p>Markov model training and sequence generation are CPU-bound operations. To prevent performance degradation across concurrent guilds, Purgito enforces strict resource governance:</p>
+
+<ul>
+  <li><strong>Global Asynchronous Semaphore</strong>: An <code>asyncio.Semaphore</code> limits concurrent model compilation and generation tasks process-wide.</li>
+  <li><strong>Non-blocking Spontaneous Replies</strong>: Spontaneous responses (triggered by conversation activity cadences) attempt non-blocking semaphore acquisition: if slots are saturated, the response is dropped silently to keep the bot responsive. Direct mentions and replies wait in queue.</li>
+  <li><strong>In-Memory LRU Cache</strong>: Compiled transition models are cached in an LRU (<em>Least Recently Used</em>) dictionary per guild and user. Models are invalidated automatically upon cleanup operations (amnesia) or substantial new data ingestion.</li>
+</ul>
+
+<h2 id="trimming">Trimming Policies and Quotas</h2>
+<p>To prevent unbounded database growth, corpus size is constrained by limits configured in <code>limits.env</code>:</p>
+
+<table>
+<tr><th>Quota</th><th>Free Plan</th><th>Premium Plan</th><th>Trimming Behavior</th></tr>
+<tr><td>Messages per channel</td><td>15,000</td><td>50,000</td><td>FIFO: oldest messages in the channel are pruned as new ones arrive.</td></tr>
+<tr><td>Total server messages</td><td>150,000</td><td>500,000</td><td>Proportional trim: when the total limit is reached, messages are removed evenly across all active channels.</td></tr>
+<tr><td>Messages per user</td><td>5,000</td><td>20,000</td><td>FIFO per author.</td></tr>
+</table>
+<p>Trimming routines (<code>trim_corpus</code> and <code>trim_guild_total</code>) run as periodic background tasks rather than on every single message insertion, maximizing disk I/O throughput.</p>

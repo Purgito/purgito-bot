@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Referencia — Documentación técnica — Purgito</title>
 <meta name="description" content="Variables de entorno de Purgito.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/reference">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/referencia">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Términos</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/terminos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Términos del Servicio</span>
+                  <span class="nav-drop-desc">Condiciones de uso y responsabilidad</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/privacidad">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Privacidad</span>
+                  <span class="nav-drop-desc">Tratamiento y protección de datos</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/reembolsos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Reembolso</span>
+                  <span class="nav-drop-desc">Condiciones de prueba y pagos</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -257,6 +310,36 @@
           </a>
         </div>
       </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/terminos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="title">Términos del Servicio</div>
+              <div class="desc">Condiciones de uso y responsabilidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/privacidad">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Política de Privacidad</div>
+              <div class="desc">Tratamiento y protección de datos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/reembolsos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Política de Reembolso</div>
+              <div class="desc">Condiciones de prueba y pagos</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -290,66 +373,66 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Referencia</h1>
+<p>Documentación técnica de referencia de todas las variables de entorno utilizadas por Purgito, distribuidas en tres archivos según su ciclo de vida y privacidad.</p>
 
-<h2 id="variables-de-entorno">Variables de entorno</h2>
-<p>Tres archivos, con reglas distintas: <code>.env</code> son secretos y
-nunca se versionan; <code>urls.env</code> y <code>limits.env</code> sí
-están en el repo. Los tres se cargan al importar <code>src/config.py</code>.
-Ninguno de los valores reales aparece acá — solo los nombres y para qué
-sirve cada uno.</p>
+<h2 id="variables-de-entorno">Archivos de Configuración</h2>
+<p>El módulo <code>src/config.py</code> carga automáticamente los tres archivos al importar la aplicación. Los secretos residen exclusivamente en <code>.env</code> (ignorado por Git), mientras que las constantes de URLs y cuotas están versionadas en <code>urls.env</code> y <code>limits.env</code>.</p>
 
-<h3><code>.env</code> — secretos y configuración específica del despliegue</h3>
+<h3><code>.env</code> — Secretos y Configuración de Despliegue</h3>
 <table>
-<tr><th>Variable</th><th>Para qué</th></tr>
-<tr><td><code>DISCORD_TOKEN</code></td><td>Token del bot.</td></tr>
-<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td>Activa el intent de contenido de mensajes.</td></tr>
-<tr><td><code>GUILD_ID</code></td><td>Servidor de desarrollo para sincronizar slash commands al instante.</td></tr>
-<tr><td><code>BOT_TRIGGER_NAME</code></td><td>Palabra que dispara la generación de memes por texto.</td></tr>
-<tr><td><code>BOT_OWNER_ID</code></td><td>ID de Discord del dueño del bot.</td></tr>
-<tr><td><code>GROQ_API_KEY</code></td><td>Clave de Groq para captions de memes con IA (si falta, cae a Markov).</td></tr>
-<tr><td><code>REFEED_MAX_MESSAGES</code> / <code>REFEED_ALL_MAX_MESSAGES</code></td><td>Tope de mensajes leídos por <code>/refeed</code> y <code>/refeed_all</code>.</td></tr>
-<tr><td><code>MARKOV_TRAINING_MESSAGES</code> / <code>USER_MARKOV_TRAINING_MESSAGES</code></td><td>Tamaño de muestra para entrenar el modelo por servidor / por usuario.</td></tr>
-<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td>Probabilidad de respuesta espontánea (fallback si el servidor no configuró la propia).</td></tr>
-<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td>Período de gracia antes de purgar los datos de un servidor que echó al bot.</td></tr>
-<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td>Antigüedad máxima del registro de auditoría.</td></tr>
-<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td>Credenciales de Cloudflare R2 — las cinco activan R2 juntas.</td></tr>
-<tr><td><code>WEB_PORT</code></td><td>Puerto local de la API.</td></tr>
-<tr><td><code>DISCORD_CLIENT_ID</code> / <code>DISCORD_CLIENT_SECRET</code></td><td>Credenciales de la app OAuth2 del dashboard.</td></tr>
-<tr><td><code>SESSION_SECRET</code></td><td>Clave de cifrado de la cookie de sesión.</td></tr>
-<tr><td><code>DASHBOARD_ENABLED</code></td><td>Fuerza el dashboard on/off.</td></tr>
-<tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code>, <code>POLAR_SERVER</code>, <code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td>Integración de pagos con Polar.</td></tr>
-<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td>Zona horaria para anuncios programados a hora fija.</td></tr>
+<tr><th>Variable</th><th>Tipo</th><th>Descripción y propósito</th></tr>
+<tr><td><code>DISCORD_TOKEN</code></td><td><code>string</code></td><td>Token secreto de autenticación del bot en el Gateway y API REST de Discord.</td></tr>
+<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>Habilita el intent privilegiado de contenido de mensajes (<code>message_content</code>). Requerido para capturar el corpus.</td></tr>
+<tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>ID de servidor de desarrollo para sincronización instantánea de comandos slash durante pruebas locales.</td></tr>
+<tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Nombre clave o palabra reservada que dispara la generación de memes y respuestas contextuales por texto.</td></tr>
+<tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>ID de usuario de Discord del propietario del bot con acceso a comandos de mantenimiento.</td></tr>
+<tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>Clave API de Groq para generación de captions de memes mediante modelos de visión por IA. Si no se define, se utiliza el motor de Markov.</td></tr>
+<tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Límite máximo de mensajes leídos al reentrenar un canal individual con <code>/refeed</code>.</td></tr>
+<tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Límite máximo de mensajes acumulados al reentrenar todos los canales del servidor con <code>/refeed_all</code>.</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Tamaño de la muestra aleatoria de mensajes extraída de la tabla <code>corpus</code> para compilar el modelo de Markov del servidor.</td></tr>
+<tr><td><code>USER_MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Tamaño de la muestra de mensajes para entrenar modelos específicos por usuario (comandos de imitación).</td></tr>
+<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>Probabilidad base (0.0 a 1.0) de respuesta espontánea cuando el servidor no ha establecido un valor personalizado.</td></tr>
+<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Días de período de gracia antes de purgar definitivamente los datos de un servidor que expulsó al bot (por defecto: 30).</td></tr>
+<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Antigüedad máxima en días para conservar registros en la tabla <code>audit_log</code> (por defecto: 90).</td></tr>
+<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code></td><td><code>string</code></td><td>Credenciales de acceso S3 para el bucket de Cloudflare R2.</td></tr>
+<tr><td><code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td><code>string</code></td><td>Endpoint de Cloudflare R2, nombre del bucket y dominio público CDN para servir los medios alojados.</td></tr>
+<tr><td><code>WEB_PORT</code></td><td><code>integer</code></td><td>Puerto local TCP donde escucha el servidor HTTP aiohttp (por defecto: 8080).</td></tr>
+<tr><td><code>DISCORD_CLIENT_ID</code>, <code>DISCORD_CLIENT_SECRET</code></td><td><code>string</code></td><td>Credenciales de la aplicación OAuth2 de Discord para autenticar usuarios en el dashboard.</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td><code>string</code></td><td>Clave secreta base64 utilizada para cifrar simétricamente las cookies de sesión con el algoritmo Fernet.</td></tr>
+<tr><td><code>DASHBOARD_ENABLED</code></td><td><code>boolean</code></td><td>Interruptor maestro para habilitar o deshabilitar las rutas del dashboard web.</td></tr>
+<tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code></td><td><code>string</code></td><td>Token de API y secreto HMAC para validar la firma de los webhooks de facturación de Polar.</td></tr>
+<tr><td><code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td><code>string</code></td><td>Identificadores de producto en Polar para suscripciones mensual y anual.</td></tr>
+<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td><code>string</code></td><td>Zona horaria IANA por defecto utilizada para calcular los envíos de anuncios programados a hora fija.</td></tr>
 </table>
 
-<h3><code>urls.env</code> — URLs públicas, versionado en git</h3>
+<h3><code>urls.env</code> — URLs Públicas y Enlaces del Ecosistema</h3>
 <table>
-<tr><th>Variable</th><th>Para qué</th></tr>
-<tr><td><code>PANEL_URL</code></td><td>URL pública del dashboard.</td></tr>
-<tr><td><code>DASHBOARD_BASE_URL</code></td><td>Host usado para armar el <code>redirect_uri</code> de OAuth2.</td></tr>
-<tr><td><code>LANDING_URL</code></td><td>Destino tras loguearse desde la landing.</td></tr>
-<tr><td><code>LANDING_ORIGINS</code></td><td>Orígenes permitidos para pedidos autenticados entre sitios.</td></tr>
-<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>Dominio de la cookie de sesión.</td></tr>
-<tr><td><code>SUPPORT_URL</code></td><td>Link al servidor de soporte.</td></tr>
-<tr><td><code>DOCS_URL</code></td><td>URL pública de esta documentación.</td></tr>
-<tr><td><code>REPO_URL</code></td><td>Link al repositorio.</td></tr>
+<tr><th>Variable</th><th>Descripción y propósito</th></tr>
+<tr><td><code>PANEL_URL</code></td><td>URL pública base del dashboard y panel de administración (ej. <code>https://purgito.app</code>).</td></tr>
+<tr><td><code>DASHBOARD_BASE_URL</code></td><td>Host público utilizado para construir la URL de redirección (<code>redirect_uri</code>) del flujo OAuth2.</td></tr>
+<tr><td><code>LANDING_URL</code></td><td>URL de destino tras completar el inicio de sesión desde la página principal.</td></tr>
+<tr><td><code>LANDING_ORIGINS</code></td><td>Lista de orígenes permitidos en cabeceras CORS para peticiones autenticadas entre dominios.</td></tr>
+<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>Dominio de alcance configurado en la cabecera <code>Set-Cookie</code> para la cookie de sesión.</td></tr>
+<tr><td><code>SUPPORT_URL</code></td><td>Enlace de invitación al servidor oficial de Discord de soporte y comunidad de Purgito.</td></tr>
+<tr><td><code>DOCS_URL</code></td><td>URL pública de la documentación técnica y guías.</td></tr>
+<tr><td><code>REPO_URL</code></td><td>Enlace al repositorio oficial de código fuente en GitHub.</td></tr>
 </table>
 
-<h3><code>limits.env</code> — cuotas por servidor, versionado en git</h3>
-<p>Casi todas van en pares para el plan gratuito y el premium.</p>
+<h3><code>limits.env</code> — Cuotas y Capacidad por Servidor</h3>
 <table>
-<tr><th>Variable</th><th>Para qué</th></tr>
-<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de corpus por canal.</td></tr>
-<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Tope de corpus por servidor completo.</td></tr>
-<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de corpus por autor.</td></tr>
-<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de GIFs guardados por servidor.</td></tr>
-<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Tamaño máximo de GIF aceptado.</td></tr>
-<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Nivel de compresión al subir GIFs.</td></tr>
-<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de imágenes de memes por servidor.</td></tr>
-<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de anuncios programados.</td></tr>
-<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de plantillas de embed guardadas.</td></tr>
-<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Tamaño máximo de imagen subida desde el editor de embeds.</td></tr>
-<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Tope diario de links de embed compartibles generados.</td></tr>
-<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Tamaño máximo de archivo subido en un bloque "Archivo" del editor.</td></tr>
+<tr><th>Variable</th><th>Propósito</th></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Límite máximo de mensajes en memoria conservados por canal (15.000 / 50.000).</td></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Capacidad total máxima de mensajes del corpus por servidor (150.000 / 500.000).</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Límite máximo de mensajes almacenados por autor para modelos individuales (5.000 / 20.000).</td></tr>
+<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de GIFs en el catálogo del servidor (1.500 / 4.000).</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Tamaño máximo en bytes permitido al descargar un GIF remoto (por defecto: 10 MB).</td></tr>
+<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Nivel de compresión con pérdida aplicado al optimizar GIFs para almacenamiento en R2.</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de imágenes guardadas en el banco de memes del servidor (50 / 200).</td></tr>
+<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de anuncios automatizados programables en el servidor (3 / 10).</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de plantillas guardadas en el diseñador de mensajes (10 / 50).</td></tr>
+<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Tamaño máximo en bytes de imágenes subidas al editor de embeds (por defecto: 8 MB).</td></tr>
+<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Límite diario de enlaces compartibles de plantillas que un servidor puede generar.</td></tr>
+<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Tamaño máximo de archivos adjuntos subidos en un bloque "Archivo" de Layout V2.</td></tr>
 </table>
   </main>
 </div>

@@ -1,37 +1,72 @@
 <h1>Desarrollo</h1>
+<p>Guía técnica para configurar el entorno local, ejecutar la suite de pruebas automatizadas y contribuir al código de Purgito.</p>
 
-<h2 id="estructura-del-proyecto">Estructura del proyecto</h2>
+<h2 id="estructura-del-proyecto">Estructura del Repositorio</h2>
 <ul>
-  <li><code>src/cogs/</code> — comandos y features del bot (chat, gifs,
-  memes, youtube, premium, anuncios, layout_buttons, settings, general).</li>
-  <li><code>src/webapi.py</code> — la API JSON completa.</li>
-  <li><code>landing/</code> — sitio estático: <code>index.html</code>,
-  <code>style.css</code>, <code>script.js</code>.</li>
-  <li><code>landing/pages/</code> — cuerpos de página escritos a mano;
-  <code>build_docs.py</code> les agrega navbar/footer/head.</li>
-  <li><code>landing/js/</code> + <code>landing/dash.css</code> — el
-  dashboard, módulos ES nativos sin bundler.</li>
-  <li><code>data/bot.db</code> — la base SQLite.</li>
+  <li><code>src/bot.py</code> — Punto de entrada del bot de Discord, configuración de intents y carga ordenada de cogs.</li>
+  <li><code>src/config.py</code> — Módulo centralizado de carga y validación de variables de entorno (<code>.env</code>, <code>urls.env</code>, <code>limits.env</code>).</li>
+  <li><code>src/db.py</code> — Capa de persistencia asíncrona sobre SQLite (<code>aiosqlite</code>), migraciones automáticas y transacciones.</li>
+  <li><code>src/webapi.py</code> — Servidor web <code>aiohttp.web</code> con todos los endpoints REST JSON, autenticación OAuth2 y webhooks.</li>
+  <li><code>src/markov_engine.py</code> — Implementación del motor probabilístico de cadenas de Markov de orden 1 y 2.</li>
+  <li><code>src/r2.py</code> — Cliente S3 compatible para Cloudflare R2, deduplicación de medios por hash SHA-256 y hashing perceptivo.</li>
+  <li><code>src/tasks.py</code> — Tareas programadas periódicas (purga diferida de servidores, expiración de auditoría y despachos).</li>
+  <li><code>src/cogs/</code> — Cogs de Discord organizados por funcionalidad (chat, gifs, memes, youtube, premium, anuncios, settings, layout_buttons).</li>
+  <li><code>landing/</code> — Frontend estático: páginas HTML (<code>landing/pages/</code>), estilos CSS (<code>landing/style.css</code>, <code>landing/dash.css</code>) y JavaScript modular (<code>landing/js/</code>).</li>
+  <li><code>landing/build_docs.py</code> — Script de compilación de páginas HTML, inyección de layout común y cálculo de hashes de cache-busting.</li>
+  <li><code>tests/</code> — Suite de pruebas automatizadas con <code>pytest</code> y pruebas de frontend con Node.js.</li>
 </ul>
 
-<h2 id="entorno-local">Entorno local</h2>
-<p>El bot es Python 3.11+; CI corre en 3.12. Tres archivos de entorno con
-reglas distintas: <code>.env</code> (secretos, no versionado — nombres
-esperados en <code>.env.example</code>), <code>urls.env</code> (URLs
-públicas, versionado) y <code>limits.env</code> (cuotas por servidor,
-versionado). Los tres se cargan al importar <code>src/config.py</code>.</p>
+<h2 id="entorno-local">Entorno de Desarrollo Local</h2>
+<p>Requisitos: Python 3.11 o superior (recomendado 3.12) y Node.js 18+ para los tests de frontend.</p>
 
-<h2 id="tests">Tests</h2>
-<pre><code># pytest no está en requirements.txt — usar el venv del proyecto.
+<h3>1. Configuración de archivos de entorno</h3>
+<p>Purgito utiliza tres archivos de configuración independientes con propósitos específicos:</p>
+<ul>
+  <li><code>.env</code>: Secretos y tokens de desarrollo (token del bot de Discord, credenciales OAuth2, claves de sesión y webhooks). No versionado en Git. Copiar desde <code>.env.example</code>.</li>
+  <li><code>urls.env</code>: URLs y endpoints públicos de la aplicación. Versionado en Git.</li>
+  <li><code>limits.env</code>: Cuotas y límites de almacenamiento por servidor para planes Free y Premium. Versionado en Git.</li>
+</ul>
+
+<h3>2. Instalación de dependencias</h3>
+<pre><code># Crear y activar entorno virtual
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Instalar dependencias del bot y herramientas de prueba
+pip install -r requirements.txt pytest ruff
+</code></pre>
+
+<h2 id="suite-de-pruebas">Ejecución de Pruebas y Linting</h2>
+
+<h3>Pruebas unitarias de Python (pytest)</h3>
+<pre><code># Ejecutar todos los tests automatizados del bot y la API
 .venv/bin/python -m pytest tests -q
 
-# Lint y formato, corren en CI.
-ruff check .
-ruff format --check .
+# Ejecutar un archivo de test específico
+.venv/bin/python -m pytest tests/test_dashboard_routes.py -v
+</code></pre>
 
-# Regenera las páginas de landing/es/ — correr después de tocar
-# docs/*.md, landing/pages/*, cualquier .css o .js.
+<h3>Pruebas de frontend (Node.js)</h3>
+<pre><code># Pruebas de integración del dashboard SPA
+node landing/test_dash.mjs
+
+# Pruebas de paridad y cobertura de internacionalización (ES / EN)
+node landing/test_lang.mjs
+</code></pre>
+
+<h3>Formateo y análisis estático con Ruff</h3>
+<pre><code># Verificar estilo y reglas de código
+ruff check .
+
+# Formateo automático de código
+ruff format .
+</code></pre>
+
+<h3>Generación de documentación y páginas web</h3>
+<p>Siempre que se modifiquen archivos en <code>landing/pages/</code>, <code>landing/js/</code>, <code>landing/style.css</code> o <code>landing/dash.css</code>, es necesario regenerar las páginas para actualizar los hashes de cache-busting y verificar la paridad entre idiomas:</p>
+<pre><code># Regenerar páginas estáticas en landing/es/ y landing/en/
 .venv/bin/python landing/build_docs.py
-.venv/bin/python landing/build_docs.py --check</code></pre>
-<p>No hay <code>pytest.ini</code>: los tests se descubren solos desde
-<code>tests/</code>.</p>
+
+# Verificar que los archivos generados coincidan exactamente con el repositorio (usado en CI)
+.venv/bin/python landing/build_docs.py --check
+</code></pre>

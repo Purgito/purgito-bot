@@ -1,61 +1,62 @@
 <h1>Reference</h1>
+<p>Technical reference documentation for all environment variables used by Purgito, organized across three distinct configuration files based on sensitivity and lifecycle.</p>
 
-<h2 id="environment-variables">Environment variables</h2>
-<p>Three files, with different rules: <code>.env</code> holds secrets and
-is never versioned; <code>urls.env</code> and <code>limits.env</code> are
-in the repo. All three are loaded when <code>src/config.py</code> is imported.
-None of the actual values appear here — just the names and what each is for.</p>
+<h2 id="environment-files">Configuration Files</h2>
+<p>The <code>src/config.py</code> module automatically loads all three files when initializing the application. Secrets reside exclusively in <code>.env</code> (ignored by Git), while public URLs and limit constants are versioned in <code>urls.env</code> and <code>limits.env</code>.</p>
 
-<h3><code>.env</code> — secrets and deployment-specific configuration</h3>
+<h3><code>.env</code> — Secrets and Deployment Settings</h3>
 <table>
-<tr><th>Variable</th><th>What it's for</th></tr>
-<tr><td><code>DISCORD_TOKEN</code></td><td>The bot's token.</td></tr>
-<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td>Enables the message content intent.</td></tr>
-<tr><td><code>GUILD_ID</code></td><td>Development server for syncing slash commands instantly.</td></tr>
-<tr><td><code>BOT_TRIGGER_NAME</code></td><td>Word that triggers meme generation via text.</td></tr>
-<tr><td><code>BOT_OWNER_ID</code></td><td>Discord ID of the bot's owner.</td></tr>
-<tr><td><code>GROQ_API_KEY</code></td><td>Groq key for AI meme captions (falls back to Markov if missing).</td></tr>
-<tr><td><code>REFEED_MAX_MESSAGES</code> / <code>REFEED_ALL_MAX_MESSAGES</code></td><td>Cap on messages read by <code>/refeed</code> and <code>/refeed_all</code>.</td></tr>
-<tr><td><code>MARKOV_TRAINING_MESSAGES</code> / <code>USER_MARKOV_TRAINING_MESSAGES</code></td><td>Sample size for training the per-server / per-user model.</td></tr>
-<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td>Spontaneous reply probability (fallback if the server hasn't set its own).</td></tr>
-<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td>Grace period before purging the data of a server that kicked the bot.</td></tr>
-<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td>Maximum age of the audit log.</td></tr>
-<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td>Cloudflare R2 credentials — all five together enable R2.</td></tr>
-<tr><td><code>WEB_PORT</code></td><td>Local port for the API.</td></tr>
-<tr><td><code>DISCORD_CLIENT_ID</code> / <code>DISCORD_CLIENT_SECRET</code></td><td>Credentials for the dashboard's OAuth2 app.</td></tr>
-<tr><td><code>SESSION_SECRET</code></td><td>Encryption key for the session cookie.</td></tr>
-<tr><td><code>DASHBOARD_ENABLED</code></td><td>Forces the dashboard on/off.</td></tr>
-<tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code>, <code>POLAR_SERVER</code>, <code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td>Polar payment integration.</td></tr>
-<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td>Time zone for announcements scheduled at a fixed time.</td></tr>
+<tr><th>Variable</th><th>Type</th><th>Description and purpose</th></tr>
+<tr><td><code>DISCORD_TOKEN</code></td><td><code>string</code></td><td>Secret authentication token for the bot on Discord's Gateway and REST API.</td></tr>
+<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>Enables the privileged Message Content intent (<code>message_content</code>). Required for corpus ingestion.</td></tr>
+<tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>Development guild ID used for instant slash command synchronization during local debugging.</td></tr>
+<tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Trigger keyword or reserved word that invokes automatic meme rendering and contextual replies.</td></tr>
+<tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>Discord user ID of the bot operator with access to administrative commands.</td></tr>
+<tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>Groq API key for AI vision meme captioning. Falls back to the Markov engine if undefined.</td></tr>
+<tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Maximum messages read when re-indexing an individual channel via <code>/refeed</code>.</td></tr>
+<tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Maximum cumulative messages read when re-indexing all guild channels via <code>/refeed_all</code>.</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Random sample size extracted from the <code>corpus</code> table to compile the server's Markov model.</td></tr>
+<tr><td><code>USER_MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Sample size extracted to train per-user Markov models (imitation commands).</td></tr>
+<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>Base probability (0.0 to 1.0) of spontaneous reply when a server has not set a custom override.</td></tr>
+<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Grace period in days before permanently purging data from servers that removed the bot (default: 30).</td></tr>
+<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Maximum age in days before pruning records from the <code>audit_log</code> table (default: 90).</td></tr>
+<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code></td><td><code>string</code></td><td>S3 access credentials for the Cloudflare R2 object storage bucket.</td></tr>
+<tr><td><code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td><code>string</code></td><td>Cloudflare R2 endpoint URL, bucket identifier, and public CDN domain serving stored media.</td></tr>
+<tr><td><code>WEB_PORT</code></td><td><code>integer</code></td><td>Local TCP port where the internal aiohttp HTTP server listens (default: 8080).</td></tr>
+<tr><td><code>DISCORD_CLIENT_ID</code>, <code>DISCORD_CLIENT_SECRET</code></td><td><code>string</code></td><td>Discord OAuth2 application credentials for authenticating web dashboard users.</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td><code>string</code></td><td>Base64 secret key used to symmetrically encrypt session cookies with the Fernet algorithm.</td></tr>
+<tr><td><code>DASHBOARD_ENABLED</code></td><td><code>boolean</code></td><td>Master switch enabling or disabling web dashboard routes.</td></tr>
+<tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code></td><td><code>string</code></td><td>API token and HMAC secret used to verify incoming Polar billing webhooks.</td></tr>
+<tr><td><code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td><code>string</code></td><td>Polar product IDs for monthly and annual premium subscriptions.</td></tr>
+<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td><code>string</code></td><td>Default IANA timezone used to calculate fixed-time announcement schedules.</td></tr>
 </table>
 
-<h3><code>urls.env</code> — public URLs, versioned in git</h3>
+<h3><code>urls.env</code> — Public URLs and Ecosystem Links</h3>
 <table>
-<tr><th>Variable</th><th>What it's for</th></tr>
-<tr><td><code>PANEL_URL</code></td><td>Public URL of the dashboard.</td></tr>
-<tr><td><code>DASHBOARD_BASE_URL</code></td><td>Host used to build the OAuth2 <code>redirect_uri</code>.</td></tr>
-<tr><td><code>LANDING_URL</code></td><td>Destination after logging in from the landing page.</td></tr>
-<tr><td><code>LANDING_ORIGINS</code></td><td>Allowed origins for authenticated cross-site requests.</td></tr>
-<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>Domain of the session cookie.</td></tr>
-<tr><td><code>SUPPORT_URL</code></td><td>Link to the support server.</td></tr>
-<tr><td><code>DOCS_URL</code></td><td>Public URL of this documentation.</td></tr>
-<tr><td><code>REPO_URL</code></td><td>Link to the repository.</td></tr>
+<tr><th>Variable</th><th>Description and purpose</th></tr>
+<tr><td><code>PANEL_URL</code></td><td>Base public URL of the web dashboard and management panel (e.g. <code>https://purgito.app</code>).</td></tr>
+<tr><td><code>DASHBOARD_BASE_URL</code></td><td>Public host used to construct OAuth2 redirect URLs (<code>redirect_uri</code>).</td></tr>
+<tr><td><code>LANDING_URL</code></td><td>Destination URL upon completing authentication from the landing page.</td></tr>
+<tr><td><code>LANDING_ORIGINS</code></td><td>Allowed origin whitelist for authenticated cross-origin requests.</td></tr>
+<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>Domain scope configured in the <code>Set-Cookie</code> header for session cookies.</td></tr>
+<tr><td><code>SUPPORT_URL</code></td><td>Invite link to the official Discord support and community server.</td></tr>
+<tr><td><code>DOCS_URL</code></td><td>Public URL of this documentation and technical guide.</td></tr>
+<tr><td><code>REPO_URL</code></td><td>Link to the official GitHub source repository.</td></tr>
 </table>
 
-<h3><code>limits.env</code> — per-server quotas, versioned in git</h3>
-<p>Almost all of them come in pairs for the free plan and Premium.</p>
+<h3><code>limits.env</code> — Quotas and Capacity Tiers</h3>
 <table>
-<tr><th>Variable</th><th>What it's for</th></tr>
-<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Corpus cap per channel.</td></tr>
-<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Corpus cap for the whole server.</td></tr>
-<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Corpus cap per author.</td></tr>
-<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Cap on GIFs saved per server.</td></tr>
-<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Maximum accepted GIF size.</td></tr>
-<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Compression level when uploading GIFs.</td></tr>
-<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Cap on meme images per server.</td></tr>
-<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Cap on scheduled announcements.</td></tr>
-<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Cap on saved embed templates.</td></tr>
-<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Maximum size of an image uploaded from the embed editor.</td></tr>
-<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Daily cap on generated shareable embed links.</td></tr>
-<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Maximum size of a file uploaded in a "File" block in the editor.</td></tr>
+<tr><th>Variable</th><th>Purpose</th></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum messages retained per channel (15,000 / 50,000).</td></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Maximum total corpus capacity across the entire guild (150,000 / 500,000).</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum messages stored per author for individual mimicry models (5,000 / 20,000).</td></tr>
+<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum GIFs stored in the guild catalog (1,500 / 4,000).</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Maximum byte size accepted when downloading remote GIFs (default: 10 MB).</td></tr>
+<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Lossy compression level applied when optimizing GIFs for R2 storage.</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum meme template images stored in the server image bank (50 / 200).</td></tr>
+<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum scheduled automated announcements per server (3 / 10).</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum saved message designer templates (10 / 50).</td></tr>
+<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Maximum byte size for images uploaded via the embed designer (default: 8 MB).</td></tr>
+<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Daily limit on shareable template links generated by a guild.</td></tr>
+<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Maximum byte size for files uploaded in Layout V2 "File" blocks.</td></tr>
 </table>

@@ -248,9 +248,9 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.ok(contentText.length > 0, 'catContent no debe estar vacío');
   assert.match(contentText, /Mi Servidor Pro/, 'Debe renderizar el nombre del servidor');
   assert.match(contentText, /500 miembros/, 'Debe renderizar la cantidad de miembros');
-  assert.match(contentText, /1[.,]?200/, 'Debe renderizar las métricas de mensajes');
   assert.match(contentText, /Acciones rápidas/, 'Debe renderizar la sección de acciones rápidas');
-  assert.match(contentText, /Actividad histórica/, 'Debe renderizar contadores históricos');
+  assert.match(contentText, /Personalización rápida/, 'Debe renderizar la tarjeta de estilo rápido');
+  assert.match(contentText, /Actualizaciones del Bot/, 'Debe renderizar la sección de novedades');
 
   // Verificamos que la barra superior sea limpia (sin duplicar el avatar/nombre del servidor)
   const topText = elementsById.dashHead.text();
@@ -259,7 +259,20 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.doesNotMatch(topText, /Mi Servidor Pro/, 'La barra superior no debe duplicar el nombre del servidor');
   assert.equal(elementsById.dashTabs.hidden, false, 'dashTabs no debe estar oculto');
 
-  console.log('✓ Test 2: Carga exitosa y render completo con servidor configurado (sin encabezado duplicado)');
+  // Comprobamos el módulo dedicado de Estadísticas (Stats)
+  const statsMod = MODULES.find(m => m.key === 'stats');
+  assert.ok(statsMod, 'El módulo stats debe existir');
+  await statsMod.load();
+  await new Promise(r => setTimeout(r, 50));
+
+  const statsContent = elementsById.catContent.text();
+  assert.match(statsContent, /Estadísticas y Uso/, 'Debe renderizar el título del módulo stats');
+  assert.match(statsContent, /1[.,]?200/, 'Debe renderizar las métricas de mensajes en memoria');
+  assert.match(statsContent, /Actividad histórica/, 'Debe renderizar contadores históricos');
+  assert.match(statsContent, /42/, 'Debe renderizar GIFs enviados');
+  assert.match(statsContent, /999/, 'Debe renderizar mensajes enviados');
+
+  console.log('✓ Test 2: Carga exitosa y render completo con servidor configurado e Inicio enfocado en configuración');
 }
 
 // ── Test 3: Servidor donde el bot no está instalado (disponible pero sin bot) ───
@@ -1294,7 +1307,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 // ── Test 29: Activación de pestañas del dashboard en ambos idiomas ─────────────
 {
   const { getDashboardUrl } = await import('./js/core/config.js');
-  const tabs = ['inicio', 'chat', 'gifs', 'historial', 'premium', 'youtube', 'embeds', 'memes', 'triggers', 'reacciones', 'frases', 'canales', 'amnesia', 'updates'];
+  const tabs = ['inicio', 'stats', 'chat', 'gifs', 'historial', 'premium', 'youtube', 'embeds', 'memes', 'triggers', 'reacciones', 'frases', 'canales', 'amnesia', 'updates'];
   for (const t of tabs) {
     assert.equal(getDashboardUrl('123', t, null, 'en'), `/en/dashboard/123/${t}`);
     assert.equal(getDashboardUrl('123', t, null, 'es'), `/es/dashboard/123/${t}`);

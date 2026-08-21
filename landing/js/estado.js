@@ -145,20 +145,6 @@ async function loadStatus() {
   const badgeEngine = document.getElementById('estadoEngineBadge');
   const engineDetail = document.getElementById('estadoEngineDetail');
 
-  const dotInfraDiscord = document.getElementById('estadoDotInfraDiscord');
-  const badgeInfraDiscord = document.getElementById('estadoBadgeInfraDiscord');
-
-  const dotInfraHost = document.getElementById('estadoDotInfraHost');
-  const badgeInfraHost = document.getElementById('estadoBadgeInfraHost');
-
-  const dotInfraDb = document.getElementById('estadoDotInfraDb');
-  const badgeInfraDb = document.getElementById('estadoBadgeInfraDb');
-
-  const incidentCard = document.getElementById('estadoIncidentCard');
-  const incidentTitle = document.getElementById('estadoIncidentTitle');
-  const incidentDesc = document.getElementById('estadoIncidentDesc');
-  const incidentTag = document.getElementById('estadoIncidentTag');
-
   const t0 = performance.now();
   let data = null;
   let httpLatency = 0;
@@ -185,23 +171,6 @@ async function loadStatus() {
 
     setDot(dotEngine, 'down');
     setBadge(badgeEngine, t('estado.unknown'), 'down');
-
-    setDot(dotInfraDiscord, 'down');
-    setBadge(badgeInfraDiscord, t('estado.unreachable'), 'down');
-
-    setDot(dotInfraHost, 'down');
-    setBadge(badgeInfraHost, t('estado.unreachable'), 'down');
-
-    setDot(dotInfraDb, 'down');
-    setBadge(badgeInfraDb, t('estado.unknown'), 'down');
-
-    if (incidentCard) {
-      incidentCard.classList.remove('is-ok', 'is-warn');
-      incidentCard.classList.add('is-down');
-    }
-    if (incidentTitle) incidentTitle.textContent = t('estado.activeIncidentTitle');
-    if (incidentDesc) incidentDesc.textContent = t('estado.activeIncidentDesc');
-    if (incidentTag) setBadge(incidentTag, t('estado.outage'), 'down');
 
     if (lastUpdate) lastUpdate.textContent = t('estado.connectionError');
     return;
@@ -264,48 +233,12 @@ async function loadStatus() {
   if (elWebLatency) elWebLatency.textContent = `${httpLatency} ms`;
   if (elWebUptime) elWebUptime.textContent = fmtUptime(data.uptime_seconds);
 
-  // 4. Fila Proceso y Memoria
+  // 4. Fila Motor de Generación y Tareas
   setDot(dotEngine, 'ok');
-  setBadge(badgeEngine, t('estado.normal'), 'ok');
+  setBadge(badgeEngine, t('estado.operational'), 'ok');
   if (engineDetail) engineDetail.textContent = t('estado.engineDetail');
-  const elEngineMemory = document.getElementById('estadoEngineMemory');
   const elEngineUptime = document.getElementById('estadoEngineUptime');
-  if (elEngineMemory) elEngineMemory.textContent = fmtMemory(data.memory_mb);
   if (elEngineUptime) elEngineUptime.textContent = fmtUptime(data.uptime_seconds);
-
-  // 5. Infraestructura
-  setDot(dotInfraDiscord, latencyOk ? 'ok' : 'down');
-  setBadge(badgeInfraDiscord, latencyOk ? t('estado.operational') : t('estado.disconnected'), latencyOk ? 'ok' : 'down');
-  const elInfraDiscordLat = document.getElementById('estadoInfraDiscordLatency');
-  if (elInfraDiscordLat) elInfraDiscordLat.textContent = latencyOk ? `${data.latency_ms} ms` : '—';
-
-  setDot(dotInfraHost, 'ok');
-  setBadge(badgeInfraHost, t('estado.operational'), 'ok');
-  const elInfraHostMem = document.getElementById('estadoInfraHostMem');
-  if (elInfraHostMem) elInfraHostMem.textContent = fmtMemory(data.memory_mb);
-
-  setDot(dotInfraDb, 'ok');
-  setBadge(badgeInfraDb, t('estado.operational'), 'ok');
-
-  // 6. Registro de incidentes
-  if (incidentCard) {
-    incidentCard.classList.remove('is-ok', 'is-warn', 'is-down');
-    if (latencyOk) {
-      incidentCard.classList.add('is-ok');
-      if (incidentTitle) incidentTitle.textContent = t('estado.noIncidents');
-      if (incidentDesc) {
-        incidentDesc.textContent = t('estado.allComponentsUptime', { uptime: fmtUptime(data.uptime_seconds) });
-      }
-      if (incidentTag) setBadge(incidentTag, t('estado.operational'), 'ok');
-    } else {
-      incidentCard.classList.add('is-warn');
-      if (incidentTitle) incidentTitle.textContent = t('estado.incidentGatewayTitle');
-      if (incidentDesc) {
-        incidentDesc.textContent = t('estado.incidentGatewayDesc');
-      }
-      if (incidentTag) setBadge(incidentTag, t('estado.degraded'), 'warn');
-    }
-  }
 }
 
 function el(tag, className, text) {

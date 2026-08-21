@@ -1,44 +1,35 @@
 <h1>Security</h1>
-<p>Purgito's security model at a conceptual level: what exists and
-why, without exact numbers or mechanisms — this page is public.</p>
+<p>Purgito's security architecture is founded on zero-trust client boundaries, defense in depth, and strict data isolation by design.</p>
 
-<h2 id="oauth2">OAuth2</h2>
-<p>Login uses Discord's standard flow: identity is confirmed by
-Discord, and Purgito never sees or stores a password. The resulting
-session lives encrypted in a browser cookie — the server doesn't keep a
-copy of the session, only a list of which sessions were explicitly
-closed, so it can invalidate them even if the encrypted cookie still
-exists somewhere. The cookie is restricted to HTTPS, isn't
-accessible from JavaScript, and doesn't travel on cross-site navigation
-except for the cases browsers allow by design (which is why there's an
-extra defense for that specific case).</p>
+<h2 id="authentication">OAuth2 Authentication and Encrypted Cookies</h2>
+<p>User identification is delegated entirely to Discord via standard OAuth2 (<em>Authorization Code Flow</em>):</p>
+<ul>
+  <li><strong>No Password Storage</strong>: Purgito never accepts, handles, or stores user passwords or raw Discord credentials.</li>
+  <li><strong>Symmetric Session Encryption</strong>: Session payloads are encrypted using Fernet (AES-128 in CBC mode with HMAC-SHA256 authentication) with the <code>SESSION_SECRET</code> key.</li>
+  <li><strong>Cookie Security Attributes</strong>: Cookies are configured with <code>HttpOnly</code> (mitigating XSS extraction via JavaScript), <code>Secure</code> (only transmitted over TLS), and <code>SameSite=Lax</code> (guarding against cross-site request forgery).</li>
+  <li><strong>Server-Side Revocation List</strong>: The <code>revoked_sessions</code> table records terminated session IDs on logout, ensuring immediate invalidation even if a valid cookie remains present in a client browser.</li>
+</ul>
 
-<h2 id="permissions">Permissions</h2>
-<p>No action on a specific server is resolved by trusting
-data sent by the browser: every time the dashboard asks for something on a
-server, Purgito asks Discord's API directly, with the
-logged-in user's token, whether that person administers that server —
-never from a previously saved list or from anything sent in the
-request itself. On Discord's side, the bot's admin actions
-(settings commands, panels) verify the caller's
-<code>Manage Server</code> permission.</p>
+<h2 id="authorization">Real-Time Authorization and Zero Trust</h2>
+<p>No administrative API request trusts client-declared claims (such as request body IDs or custom headers):</p>
+<ul>
+  <li><strong>Live Revalidation Against Discord API</strong>: Whenever a user interacts with a server in the dashboard (<code>/api/server/{guild_id}/*</code>), the server queries Discord's <code>/users/@me/guilds</code> in real time using the OAuth access token.</li>
+  <li><strong>Native Permission Validation</strong>: Operations require the <code>MANAGE_GUILD</code> or <code>ADMINISTRATOR</code> permission. There are no synthetic database roles that could drift out of sync with Discord.</li>
+  <li><strong>Bot Role Hierarchy Enforcement</strong>: Actions performed by Layout V2 interactive buttons (such as assigning roles) verify that Purgito's highest role is positioned above the target role in the server's role hierarchy, preventing privilege escalations.</li>
+</ul>
 
-<h2 id="rate-limits">Rate limits</h2>
-<p>Purgito applies rate limits across several independent layers: per
-IP address on the public API, per user within each server for
-interactive commands (generating content, invoking memes), and per channel
-within each server for autonomous behavior (spontaneous
-replies, triggers). There's also a global cap on how much text generation
-can run at once, so no single server can saturate the
-process at the expense of the others. The exact values of those limits
-aren't public.</p>
+<h2 id="ssrf">SSRF Defense and Asset Ingestion</h2>
+<p>When the bot fetches remote images or GIFs from user-supplied URLs or webhooks:</p>
+<ul>
+  <li><strong>Secure DNS Resolution</strong>: Target hostnames are resolved before opening HTTP connections. Requests attempting to reach private IPv4/IPv6 subnets (RFC 1918), local loopback (<code>127.0.0.1</code>, <code>::1</code>), or cloud metadata endpoints (e.g., <code>169.254.169.254</code>) are blocked immediately.</li>
+  <li><strong>Magic Number Verification</strong>: Downloaded streams are validated against binary magic bytes to guarantee legitimate image formats (PNG, JPEG, GIF, WEBP), preventing malicious executable uploads.</li>
+</ul>
 
-<h2 id="security-model">Security model</h2>
-<p>The general principles: isolate each server's data by schema
-design, never trust anything the client claims about itself without
-verifying it against the source (Discord), validate the actual content of
-what's uploaded instead of trusting what the client says it is, and
-verify the signature of any external webhook before processing it. The
-public surface is intentionally small: the API doesn't render HTML,
-so a good share of the vulnerability classes typical of a
-traditional web app don't directly apply.</p>
+<h2 id="rate-limiting">Multi-Layer Rate Limiting and Abuse Prevention</h2>
+<p>Purgito employs rate limiters across independent operational layers:</p>
+<ul>
+  <li><strong>IP Rate Limiting on Public API</strong>: Shields public endpoints (<code>/health</code>, <code>/api/status</code>, <code>/auth/*</code>) against denial-of-service attempts and aggressive web crawlers.</li>
+  <li><strong>User Command Cooldowns</strong>: Enforces per-user cooldowns on CPU-intensive Discord commands (meme rendering, member imitation, channel refeeding).</li>
+  <li><strong>Channel Reply Throttling</strong>: Enforces a minimum interval between spontaneous replies within the same channel to eliminate chat spam.</li>
+  <li><strong>Global CPU Semaphore</strong>: Caps simultaneous Markov model compilations process-wide, ensuring no single server can starve shared CPU capacity.</li>
+</ul>

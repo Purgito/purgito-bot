@@ -1,46 +1,42 @@
 <h1>Storage</h1>
-<p>All of Purgito's state lives in a single SQLite database —
-<code>data/bot.db</code> — with no external database engine. Binary
-files (GIFs, images) optionally go to Cloudflare R2.</p>
+<p>Purgito uses a hybrid storage architecture combining an embedded local SQLite database for relational state with an S3-compatible object store (Cloudflare R2) for media assets.</p>
 
-<h2 id="sqlite">SQLite</h2>
-<p>A schema of several dozen tables, almost all indexed by
-<code>guild_id</code>: per-server configuration, message corpus (by
-channel and by user), configurable reactions and special phrases,
-triggers, saved GIFs and images, embed templates, scheduled
-announcements, Premium status, revoked sessions, and an audit log
-of changes made from the dashboard. Separation between servers is by
-schema — indexed <code>guild_id</code> columns — not by separate
-files or databases.</p>
+<h2 id="sqlite">SQLite Database Architecture</h2>
+<p>All relational state resides in a single database file: <code>data/bot.db</code>. Asynchronous database connectivity is handled via <code>aiosqlite</code> in <code>src/db.py</code> with production pragmas:</p>
 
-<h2 id="r2">R2</h2>
-<p>Using Cloudflare R2 is entirely optional: if it's not configured,
-Purgito keeps working and uses Discord/Giphy/Tenor URLs directly instead of
-keeping its own copy. When it's active, GIFs are
-downloaded (with protections against the URL pointing to an internal
-network), optimized, and stored keyed by the hash of their content —
-so the same GIF uploaded by two different servers takes up a single object,
-with reference counting to know when it's safe to actually delete it. Embed
-editor images, on the other hand, are stored per server, not
-shared across servers.</p>
+<ul>
+  <li><code>PRAGMA journal_mode=WAL</code>: <em>Write-Ahead Logging</em> allows concurrent read operations without blocking writes, drastically reducing disk lock contention.</li>
+  <li><code>PRAGMA synchronous=NORMAL</code>: Ensures data integrity during host failures with minimal I/O wait latency.</li>
+  <li><code>PRAGMA foreign_keys=ON</code>: Enforces relational integrity across cascaded record deletions.</li>
+  <li><strong>Asynchronous Write Lock</strong>: A dedicated Python <code>asyncio.Lock</code> serializes write transactions process-wide, preventing <code>database is locked</code> errors under high concurrency.</li>
+</ul>
 
-<h2 id="cache">Cache</h2>
-<p>All of Purgito's caching lives in the process's own memory — there's no
-Redis or any external cache — so it's lost entirely on every
-restart. This includes the Markov models already trained per server and
-per user, the list of servers each logged-in user can administer,
-and the files uploaded to a "File" block in the embed editor while
-waiting for someone to hit "send" (with a short lifetime, designed for a
-single process — it wouldn't survive running several
-instances of the bot at once).</p>
+<h2 id="schema">Schema and Data Isolation</h2>
+<p>The database features over 20 tables organized by operational domain. Guild multi-tenancy is enforced at schema level via indexed <code>guild_id</code> columns across every table:</p>
+<ul>
+  <li><strong>Configuration and Customization</strong>: <code>guild_settings</code>, <code>guild_style</code>, <code>channel_settings</code>, <code>ignored_roles</code>, <code>silenced_channels</code>.</li>
+  <li><strong>Learning Corpus</strong>: <code>corpus</code> (channel messages) and <code>user_corpus</code> (author messages), both backed by composite indices on <code>(guild_id, created_at)</code> for rapid model sampling and trimming.</li>
+  <li><strong>Automation and Triggers</strong>: <code>triggers</code>, <code>custom_reactions</code>, <code>custom_phrases</code>, <code>phrase_packs</code>, <code>scheduled_announcements</code>.</li>
+  <li><strong>Server Events</strong>: <code>server_events</code> (welcome, goodbye, and boost configurations per guild), <code>member_boost_records</code> (idempotent boost timestamp tracking).</li>
+  <li><strong>Message Designer</strong>: <code>embed_templates</code>, <code>layout_v2_blocks</code>, <code>embed_share_links</code>.</li>
+  <li><strong>Security and Billing</strong>: <code>revoked_sessions</code>, <code>guild_premium</code>, <code>audit_log</code>.</li>
+</ul>
 
-<h2 id="retention">Data retention</h2>
-<p>A periodic task runs once a day handling time-based
-retention: when the bot leaves a server, its data isn't deleted right
-away — it's marked and only purged after a grace
-period (if the server re-invites the bot before then, the purge is
-canceled). The same task cleans up old audit log entries, expired
-shareable embed links, and revoked sessions that have already expired.</p>
-<p>The message corpus itself has no age-based expiration while the
-server stays active — it's trimmed only by capacity, not by
-age (see <a href="/en/documentation/generation#concurrency-and-limits">Generation engine</a>).</p>
+<h2 id="r2">Cloudflare R2 and Media Deduplication</h2>
+<p>Object storage on Cloudflare R2 (<code>src/r2.py</code>) is optional. When the five R2 environment variables are configured in <code>.env</code>, Purgito activates asset ingestion, optimization, and hosting:</p>
+
+<ul>
+  <li><strong>Content-Addressable Storage (SHA-256)</strong>: Stored media objects are named after the SHA-256 hash of their payload. If multiple servers save the same GIF, only one copy exists in the R2 bucket.</li>
+  <li><strong>Perceptual Hashing (pHash)</strong>: Computes an image hash via <code>imagehash.phash</code> to detect visually duplicate images despite varying compression or container headers.</li>
+  <li><strong>Reference Counting</strong>: The <code>gif_objects</code> table maintains an active reference counter. When a server deletes a GIF, the counter decrements; the object is physically purged from R2 only when the reference count drops to zero.</li>
+  <li><strong>SSRF Protection on Download</strong>: Media fetch routines validate that remote URLs do not resolve to private subnets (RFC 1918), local loopback (<code>127.0.0.1</code>), or cloud metadata endpoints.</li>
+</ul>
+
+<h2 id="retention">Retention Policies and Background Sweeps</h2>
+<p>The <code>src/tasks.py</code> module executes scheduled maintenance coroutines:</p>
+<ul>
+  <li><strong>Guild Removal Grace Period</strong>: When the bot is removed from a server (<code>on_guild_remove</code>), a <code>left_at</code> timestamp is recorded. A daily background job permanently purges the guild's data only after <code>GUILD_DATA_RETENTION_DAYS</code> (default: 30 days) have elapsed. Re-inviting the bot before this window expires automatically cancels the purge.</li>
+  <li><strong>Audit Log Expiration</strong>: Records in <code>audit_log</code> exceeding <code>AUDIT_LOG_RETENTION_DAYS</code> (default: 90 days) are pruned automatically.</li>
+  <li><strong>Share Links</strong>: Ephemeral share URLs for embed templates generated in the dashboard expire and are deleted after 24 hours.</li>
+  <li><strong>Revoked Sessions</strong>: Expired session IDs in <code>revoked_sessions</code> are periodically cleaned up to maintain small table footprints.</li>
+</ul>

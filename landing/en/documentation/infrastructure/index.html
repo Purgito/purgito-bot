@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Infrastructure — Technical Documentation — Purgito</title>
 <meta name="description" content="Runtime, nginx, Cloudflare, and Purgito&#x27;s production deployment.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/infrastructure">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/infraestructura">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Terms</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/en/terms">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Terms of Service</span>
+                  <span class="nav-drop-desc">Usage conditions and liability</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/privacy">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Privacy Policy</span>
+                  <span class="nav-drop-desc">Data handling and security</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/refunds">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Refund Policy</span>
+                  <span class="nav-drop-desc">Trial conditions and payments</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -249,10 +302,44 @@
             </div>
           </a>
           <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
-            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Source code and development</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/en/terms">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <div>
-              <div class="title">GitHub</div>
-              <div class="desc">Open source</div>
+              <div class="title">Terms of Service</div>
+              <div class="desc">Usage conditions and liability</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/privacy">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Privacy Policy</div>
+              <div class="desc">Data handling and security</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/refunds">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Refund Policy</div>
+              <div class="desc">Trial conditions and payments</div>
             </div>
           </a>
         </div>
@@ -290,41 +377,59 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Infrastructure</h1>
-<p>Deployment architecture on a single server: nginx at the edge,
-the Python process behind it, and Cloudflare as the CDN and front proxy.</p>
+<p>Purgito operates on an optimized single-node Linux host: an Nginx reverse proxy at the edge, a unified asynchronous Python process managed by systemd, and Cloudflare as the perimeter CDN and security layer.</p>
 
-<h2 id="runtime">Runtime</h2>
-<p>The bot and its API run as a single Python process. The API listens
-only on localhost — never exposed directly to the internet — so nginx is
-the only real entry point.</p>
+<h2 id="runtime">Runtime Environment</h2>
+<p>The Discord bot and its web API run co-located in a single Python 3.11+ process within the same asynchronous event loop (<em>asyncio</em>):</p>
+<ul>
+  <li><strong>systemd Service Management</strong>: The <code>bot-purg.service</code> unit file supervises process lifecycle, handling automatic crash recovery and structured logging to <code>journald</code>.</li>
+  <li><strong>Network Isolation</strong>: The HTTP API (<code>aiohttp</code>) binds strictly to <code>127.0.0.1:WEB_PORT</code> (default: port 8080/8081). No Python socket is exposed directly to the public internet.</li>
+</ul>
 
-<h2 id="nginx">Nginx</h2>
-<p>Nginx splits by route: <code>/auth/*</code>, <code>/api/*</code>,
-<code>/webhooks/*</code>, and <code>/health</code> go to the
-Python process; everything else — the landing page, the dashboard, the legal
-pages, and this documentation — is served directly from static files, never
-touching Python. Since the site has per-language routes (<code>/es/...</code>,
-<code>/en/...</code>), the one route with a dynamic segment (the server ID
-in the dashboard URL) has a dedicated nginx rule; everything else is
-static routes on disk.</p>
+<h2 id="nginx">Nginx Topology</h2>
+<p>Nginx serves as the sole local entry point, cleanly bifurcating static asset delivery from dynamic application routing:</p>
 
-<h2 id="cloudflare">Cloudflare</h2>
-<p>Cloudflare acts as a CDN and reverse proxy layer in front of nginx:
-it handles TLS termination, protects the origin server, and caches the
-site's static content, reducing load on the server.</p>
+<pre><code>Incoming Request (HTTPS)
+           │
+           ▼
+     ┌───────────┐
+     │   Nginx   │
+     └─────┬─────┘
+           │
+     ┌─────┴────────────────────────────────┐
+     │                                      │
+     ▼ Dynamic Routes                       ▼ Static Routes
+/api/*, /auth/*, /webhooks/*, /health       /es/*, /en/*, /assets/*, /style.css
+     │                                      │
+     ▼ proxy_pass                           ▼ try_files
+┌─────────────────────────┐           ┌─────────────────────────┐
+│  Python 127.0.0.1:8080  │           │     Direct from disk    │
+│   aiohttp REST API      │           │     (Zero Python CPU)   │
+└─────────────────────────┘           └─────────────────────────┘
+</code></pre>
 
-<h2 id="deployment">Deployment</h2>
-<p>Deployment is based on syncing the repository: since the static
-site and the documentation are pre-generated and versioned in the
-repository, no build step is required on the server;
-syncing changes with <code>git pull</code> and restarting the
-application service is enough.</p>
+<ul>
+  <li><strong>High-Performance Static Delivery</strong>: All HTML pages (landing, guide, documentation, dashboard), CSS styles, JS scripts, and public images are served directly from the filesystem without consuming application runtime resources.</li>
+  <li><strong>Dashboard Dynamic Segment Routing</strong>: Nginx routes any guild-scoped URL (e.g. <code>/en/dashboard/{id}/*</code>) to the appropriate static dashboard index file, allowing the client-side SPA router to take over.</li>
+  <li><strong>Security and Caching Headers</strong>: Nginx applies strict HTTP security headers (CSP, X-Content-Type-Options, Referrer-Policy) and attaches <code>Cache-Control: public, max-age=31536000, immutable</code> headers to cache-busted asset requests (<code>?v=...</code>).</li>
+</ul>
 
-<h2 id="health-checks">Health checks</h2>
-<p><code>/health</code> is a simple liveness check: it confirms the
-process is running and responding, not that the database or the
-connection to Discord are healthy. It exists for basic monitoring, not as
-a full system diagnostic.</p>
+<h2 id="cloudflare">CDN and Perimeter Security (Cloudflare)</h2>
+<p>Cloudflare sits in front of the origin server as a TLS proxy and content distribution network:</p>
+<ul>
+  <li><strong>TLS 1.3 Termination</strong>: Manages SSL/TLS certificates and client-side encryption handshakes.</li>
+  <li><strong>Edge Caching</strong>: Caches static assets globally across edge data centers, absorbing landing page traffic and eliminating origin server load.</li>
+  <li><strong>DDoS Mitigation &amp; WAF</strong>: Filters malicious traffic and volumetric denial-of-service attacks before packets reach the host Nginx port.</li>
+</ul>
+
+<h2 id="deployment">Continuous Deployment Without Build Steps</h2>
+<p>Purgito's architecture eliminates server-side build steps and compilation overhead:</p>
+<ol>
+  <li>Source code, modular scripts, and pregenerated documentation pages from <code>landing/build_docs.py</code> are versioned directly in Git.</li>
+  <li>Deployments consist of synchronizing repository state via <code>git pull</code>.</li>
+  <li>Documentation integrity is validated via <code>python3 landing/build_docs.py --check</code>.</li>
+  <li>The service is reloaded with <code>systemctl restart bot-purg.service</code>, completing the zero-downtime update in seconds.</li>
+</ol>
   </main>
 </div>
 

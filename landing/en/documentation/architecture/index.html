@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architecture — Technical Documentation — Purgito</title>
 <meta name="description" content="How Purgito&#x27;s Discord bot, generation engine, database, and dashboard connect to each other.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/architecture">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/arquitectura">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Terms</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/en/terms">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Terms of Service</span>
+                  <span class="nav-drop-desc">Usage conditions and liability</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/privacy">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Privacy Policy</span>
+                  <span class="nav-drop-desc">Data handling and security</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/refunds">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Refund Policy</span>
+                  <span class="nav-drop-desc">Trial conditions and payments</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -249,10 +302,44 @@
             </div>
           </a>
           <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
-            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Source code and development</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/en/terms">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <div>
-              <div class="title">GitHub</div>
-              <div class="desc">Open source</div>
+              <div class="title">Terms of Service</div>
+              <div class="desc">Usage conditions and liability</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/privacy">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Privacy Policy</div>
+              <div class="desc">Data handling and security</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/refunds">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Refund Policy</div>
+              <div class="desc">Trial conditions and payments</div>
             </div>
           </a>
         </div>
@@ -290,97 +377,79 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Architecture</h1>
-<p>Purgito is three pieces sharing a single SQLite database:
-the Discord bot, a JSON API in aiohttp, and a static site that serves
-both the public landing page and the dashboard.</p>
+<p>Purgito is designed as a three-tier system converging on a single Python process and an embedded SQLite relational database: the Discord bot (discord.py), an asynchronous JSON API (aiohttp), and an optimized static frontend served by nginx.</p>
 
 <h2 id="overview">Overview</h2>
-<p>The bot (Python + <code>discord.py</code>) is the main process:
-it keeps the connection to the Discord gateway, runs the text
-generation engine, and reads/writes directly to <code>data/bot.db</code>.
-Inside the same process runs an aiohttp server (<code>src/webapi.py</code>)
-that exposes a pure JSON API — it doesn't render HTML — listening only on
-<code>127.0.0.1</code>; nginx is the only thing that talks to it from outside. The
-dashboard and the rest of the site are plain HTML/CSS/JS with no build step,
-served directly by nginx from the repo checkout, never touching the
-Python process except when they call the API.</p>
-<p>External services: Discord (gateway + OAuth2), Cloudflare R2 (optional,
-stores GIFs and images if configured), Polar (Premium payments via
-webhook), and Cloudflare as the CDN/proxy layer in front of nginx.</p>
+<p>The bot runs as a single Python 3.11+ process managed by systemd. It maintains a persistent WebSocket connection to the Discord Gateway, executes the Markov chain generation engine, and performs read/write operations against <code>data/bot.db</code>.</p>
+<p>Within the same <em>asyncio event loop</em>, an aiohttp web server (<code>src/webapi.py</code>) is spawned, exposing a pure JSON REST API bound strictly to <code>127.0.0.1:WEB_PORT</code> (local loopback). This API never renders HTML nor serves static assets directly.</p>
+<p>Nginx acts as the host reverse proxy: it forwards dynamic requests (<code>/auth/*</code>, <code>/api/*</code>, <code>/webhooks/*</code>, and <code>/health</code>) to the local Python socket, while serving the landing page, dashboard, and documentation directly from the filesystem as static files with immutable caching headers.</p>
 
-<pre><code>Discord (gateway + OAuth2)
+<pre><code>Discord Gateway (WebSocket) / REST API v10
       │
       ▼
-┌──────────────────┐        ┌────────────────────┐
-│   Bot (Python)    │──────▶│ Generation engine   │
-│  src/cogs/*.py    │        │  Markov + corpus    │
-└──────────────────┘        └────────────────────┘
-      │        │
-      │        └────────────▶  data/bot.db (SQLite)
-      │                              ▲
-      ▼                              │
-┌──────────────────┐                 │
-│  aiohttp (JSON)   │─────────────────┘
-│  src/webapi.py     │  127.0.0.1 only
-└──────────────────┘
-      ▲
-      │  /auth/*  /api/*  /webhooks/*  /health
-      │
-┌──────────────────┐        ┌────────────────────┐
-│      nginx        │◀──────│    Cloudflare       │◀── browser
-│  (droplet)         │        │  CDN + TLS proxy    │
-└──────────────────┘        └────────────────────┘
-      │
-      └── everything else (landing, dashboard, this
-          documentation) is served from static files,
-          never touching the Python process
-
-External services: Cloudflare R2 (GIFs/images, optional) · Polar (payments, via webhook)
+┌─────────────────────────────────────────────────────────────┐
+│                   Python Process (asyncio)                  │
+│                                                             │
+│  ┌───────────────────────┐       ┌───────────────────────┐  │
+│  │   Bot (discord.py)    │──────▶│   Generation Engine   │  │
+│  │     src/cogs/*.py     │       │    Markov + Groq AI   │  │
+│  └───────────────────────┘       └───────────────────────┘  │
+│             │                                │              │
+│             └───────────────┬────────────────┘              │
+│                             ▼                               │
+│                  ┌──────────────────────┐                   │
+│                  │   data/bot.db (WAL)  │◀── SQLite         │
+│                  └──────────────────────┘                   │
+│                             ▲                               │
+│                             │                               │
+│  ┌──────────────────────────┴────────────────────────────┐  │
+│  │             aiohttp Web API (src/webapi.py)           │  │
+│  │               Listens only on 127.0.0.1               │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────▲───────────────────────────────┘
+                              │ proxy_pass /api/* /auth/* /webhooks/*
+                              │
+┌─────────────────────────────┴───────────────────────────────┐
+│                       Nginx on Host                         │
+│   Serves static files directly (/es/*, /en/*, /assets/*)    │
+└─────────────────────────────▲───────────────────────────────┘
+                              │
+┌─────────────────────────────┴───────────────────────────────┐
+│               Cloudflare Edge (CDN + TLS Proxy)             │
+└─────────────────────────────▲───────────────────────────────┘
+                              │ HTTPS
+                           Browser
 </code></pre>
 
-<h2 id="components">Components</h2>
-<h3>Bot and cogs</h3>
-<p>The bot is built as a collection of discord.py <em>cogs</em>, each
-responsible for one area: chat/Markov, gifs, memes, youtube, scheduled
-announcements, premium, general settings, the settings panel, and the
-embed editor's layout buttons. See <a href="/en/documentation/discord">Discord</a>.</p>
-<h3>Generation engine</h3>
-<p>Builds and caches a Markov model per server from the saved corpus,
-with a global limit on concurrent generation/training tasks. See
-<a href="/en/documentation/generation">Generation engine</a>.</p>
-<h3>SQLite</h3>
-<p>A single database (<code>data/bot.db</code>) for configuration,
-corpus, GIFs, sessions, and everything else — no external engine. See
-<a href="/en/documentation/storage">Storage</a>.</p>
-<h3>API + Dashboard</h3>
-<p>The JSON API authenticates by session (encrypted cookie) and authorizes
-every call by checking live, against Discord's own API, that whoever is
-calling administers the server they're asking about. The dashboard is
-plain JS that consumes that API. See <a href="/en/documentation/api">API</a>.</p>
+<h2 id="components">System Components</h2>
+<h3>1. Discord Bot and Cogs</h3>
+<p>The Discord client is organized into specialized <em>cogs</em>. Each cog encapsulates slash commands, event listeners, and background tasks. They are loaded in strict order during bot initialization in <code>src/bot.py</code>. See <a href="/en/documentation/discord">Discord</a>.</p>
 
-<h2 id="request-flow">Request flow</h2>
-<h3>A Discord message</h3>
+<h3>2. Probabilistic Generation Engine</h3>
+<p>A custom first- and second-order Markov chain engine. It compiles statistical models in memory from random samples of the server's corpus, managing global concurrency via asynchronous semaphores. See <a href="/en/documentation/generation">Generation</a>.</p>
+
+<h3>3. SQLite Storage Layer</h3>
+<p>A unified relational database (<code>data/bot.db</code>) running in WAL mode (<em>Write-Ahead Logging</em>) with foreign keys enabled. It stores server configurations, message corpus, GIF catalogs, audit logs, and session revocations. See <a href="/en/documentation/storage">Storage</a>.</p>
+
+<h3>4. Web API and SPA Dashboard</h3>
+<p>A stateless REST API built on aiohttp using Fernet-encrypted cookies marked HttpOnly. All administrative routes re-validate user permissions in real time against official Discord endpoints. The dashboard is a Single Page Application built with modern native JavaScript (ES Modules) without bundlers or compilers. See <a href="/en/documentation/api">API</a>.</p>
+
+<h2 id="data-flow">End-to-End Data Flow</h2>
+<h3>Discord Message Lifecycle</h3>
 <ol>
-  <li>The gateway delivers the <code>on_message</code> event.</li>
-  <li>The channel's effective settings are resolved (overrides on top of the
-  server's).</li>
-  <li>If the channel is enabled for learning, the message is saved to the
-  corpus.</li>
-  <li>Configured triggers are evaluated, and if the message mentions or
-  replies to the bot, or it's time for a spontaneous reply, it's handed
-  off to the generation engine.</li>
-  <li>The engine builds (or reuses from cache) the server's Markov model,
-  generates a response, and post-processes it.</li>
-  <li>The bot sends the response.</li>
+  <li>Discord emits a <code>MESSAGE_CREATE</code> event across the Gateway WebSocket.</li>
+  <li><code>cogs/chat.py</code> receives the event in <code>on_message</code>, filters out bots and unauthorized channels, and computes the channel's effective configuration.</li>
+  <li>If the channel is enabled for learning, text is cleaned (removing mentions, URLs, and markdown artifacts) and saved to the <code>corpus</code> table via <code>src/db.py</code>.</li>
+  <li>If a trigger matches or response criteria are met (direct mention or spontaneous probability), an acquisition request is sent to the global generation semaphore.</li>
+  <li>The Markov engine trains or retrieves the cached in-memory model, generates the response, applies formatting filters, and posts the message via Discord's REST API.</li>
 </ol>
-<h3>A dashboard request</h3>
+
+<h3>Dashboard Request Lifecycle</h3>
 <ol>
-  <li>The browser sends the session cookie (encrypted, with no server-side
-  state beyond a revocation list).</li>
-  <li>Every server-specific endpoint verifies, against Discord's own API and
-  never against anything the client sends, that the session administers
-  that server.</li>
-  <li>The handler reads or writes to SQLite and returns JSON — never HTML.</li>
+  <li>The browser navigates to a dashboard view (e.g., <code>/en/dashboard/123456/chat</code>). Nginx immediately delivers the static HTML shell and ES modules from disk.</li>
+  <li>The frontend issues an authenticated asynchronous fetch to the API (e.g., <code>GET /api/server/123456/chat</code>) sending the encrypted session cookie.</li>
+  <li>Middleware in <code>src/webapi.py</code> decrypts the session, verifies it is absent from the <code>revoked_sessions</code> table, and queries Discord's API to confirm the user possesses <code>ADMINISTRATOR</code> or <code>MANAGE_GUILD</code> on guild <code>123456</code>.</li>
+  <li>With authorization confirmed, the endpoint executes SQLite queries and returns a JSON payload for reactive client-side rendering.</li>
 </ol>
   </main>
 </div>

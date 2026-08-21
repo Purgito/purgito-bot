@@ -333,11 +333,11 @@ input::placeholder { color: var(--text-muted); }
 
 .nav-sep {
   width: 1px;
-  height: 2.5rem;
-  margin-inline: 0.5rem;
-  background: var(--border);
-  transform: rotate(6deg);
+  height: 1.25rem;
+  margin-inline: 0.65rem;
+  background: color-mix(in srgb, var(--slate) 35%, transparent);
   flex: none;
+  border-radius: 1px;
 }
 
 .nav-topgg {
@@ -1364,11 +1364,8 @@ body:has(.doc) .doc { flex: 1; }
    Cuerpo en landing/pages/premium.html, ensamblado por build_docs.py. */
 
 :root {
-  --prem-purple: #a855f7;
-  --prem-purple-soft: #c084fc;
-  --prem-pink: #ec4899;
-  --grad-premium: linear-gradient(135deg, var(--accent-2) 0%, var(--prem-purple-soft) 55%, var(--prem-pink) 100%);
-  --grad-premium-subtle: linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, transparent), color-mix(in srgb, var(--prem-purple) 15%, transparent));
+  --grad-premium: linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 55%, var(--accent-soft) 100%);
+  --grad-premium-subtle: linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, transparent), color-mix(in srgb, var(--accent-soft) 15%, transparent));
 }
 
 .prem-page {
@@ -1523,15 +1520,6 @@ body:has(.prem-page) .prem-page { flex: 1; }
   justify-content: center;
   align-items: center;
 }
-.prem-visual-backdrop {
-  position: absolute;
-  width: 120%;
-  height: 120%;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent) 0%, color-mix(in srgb, var(--prem-purple) 16%, transparent) 45%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
 .prem-mascot-card {
   position: relative;
   z-index: 1;
@@ -1556,76 +1544,6 @@ body:has(.prem-page) .prem-page { flex: 1; }
 }
 .prem-mascot-card:hover .prem-mascot-img {
   transform: translateY(-4px) scale(1.03);
-}
-
-.prem-float-chip {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.5rem 0.85rem;
-  background: color-mix(in srgb, var(--bg) 85%, var(--slate));
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
-  font-size: var(--t-xs);
-  line-height: 1.2;
-  z-index: 2;
-  will-change: transform;
-  animation: prem-float 6s ease-in-out infinite;
-}
-/* El blur es decorativo: si no existe, el fondo opaco conserva contraste y
-   jerarquía sin sumar una ruta específica para ningún navegador. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .prem-float-chip { background: var(--surface-card); }
-}
-.prem-chip-icon { font-size: 1.15rem; flex-shrink: 0; }
-.prem-chip-text { display: flex; flex-direction: column; text-align: left; }
-.prem-chip-text strong { color: var(--text); font-weight: 600; font-family: var(--font-head); font-size: var(--t-xs); }
-.prem-chip-text small { color: var(--text-muted); font-size: var(--t-xxs); }
-
-.prem-chip-top {
-  top: -10px;
-  right: -15px;
-  animation-delay: 0s;
-}
-.prem-chip-mid {
-  bottom: 25%;
-  left: -24px;
-  animation-delay: -2s;
-  border-color: color-mix(in srgb, var(--prem-purple) 40%, var(--border));
-}
-.prem-chip-bot {
-  bottom: -15px;
-  right: 15px;
-  animation-delay: -4s;
-}
-
-@keyframes prem-float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-}
-
-@media (max-width: 480px) {
-  .prem-float-chip {
-    padding: 0.35rem 0.65rem;
-    font-size: 0.7rem;
-  }
-  .prem-chip-mid {
-    left: -8px;
-  }
-  .prem-chip-top {
-    right: -4px;
-  }
-  .prem-chip-bot {
-    right: 4px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .prem-float-chip { animation: none; }
 }
 
 /* ── 2. SECTIONS HEADER ── */
@@ -1688,11 +1606,11 @@ body:has(.prem-page) .prem-page { flex: 1; }
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
 }
 .prem-feat-card--hero {
-  border-color: color-mix(in srgb, var(--prem-purple) 40%, var(--border-card));
-  background: radial-gradient(circle at top right, color-mix(in srgb, var(--prem-purple) 10%, transparent), transparent 70%), var(--surface-card);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-card));
+  background: radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%), var(--surface-card);
 }
 .prem-feat-card--hero:hover {
-  border-color: color-mix(in srgb, var(--prem-purple) 65%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .prem-feat-icon-wrap {
@@ -1708,9 +1626,9 @@ body:has(.prem-page) .prem-page { flex: 1; }
   margin-bottom: 1.25rem;
 }
 .prem-feat-icon-wrap--purple {
-  background: color-mix(in srgb, var(--prem-purple) 15%, var(--surface-raised));
-  border-color: color-mix(in srgb, var(--prem-purple) 35%, transparent);
-  color: var(--prem-purple-soft);
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-2);
 }
 .prem-feat-icon {
   width: 1.5rem;
@@ -1749,9 +1667,9 @@ body:has(.prem-page) .prem-page { flex: 1; }
   font-family: var(--font-mono);
 }
 .prem-feat-badge--exclusive {
-  background: color-mix(in srgb, var(--prem-purple) 18%, transparent);
-  border-color: color-mix(in srgb, var(--prem-purple) 45%, transparent);
-  color: var(--prem-purple-soft);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-2);
 }
 
 /* ── 3. COMPARATIVA TÉCNICA A ANCHO COMPLETO ── */

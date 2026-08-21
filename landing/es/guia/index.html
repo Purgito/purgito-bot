@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guía de Purgito — Cómo funciona el bot — Purgito</title>
 <meta name="description" content="Aprende cómo funciona Purgito, desde el sistema de aprendizaje y Chat hasta GIFs, memes, embeds, YouTube y Premium.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/guia">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/guia">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Términos</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/terminos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Términos del Servicio</span>
+                  <span class="nav-drop-desc">Condiciones de uso y responsabilidad</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/privacidad">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Privacidad</span>
+                  <span class="nav-drop-desc">Tratamiento y protección de datos</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/reembolsos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Reembolso</span>
+                  <span class="nav-drop-desc">Condiciones de prueba y pagos</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -257,6 +310,36 @@
           </a>
         </div>
       </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/terminos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="title">Términos del Servicio</div>
+              <div class="desc">Condiciones de uso y responsabilidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/privacidad">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Política de Privacidad</div>
+              <div class="desc">Tratamiento y protección de datos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/reembolsos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Política de Reembolso</div>
+              <div class="desc">Condiciones de prueba y pagos</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -318,6 +401,10 @@
     <a class="guia-pill" href="#embeds">
       <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
       <span>Embeds</span>
+    </a>
+    <a class="guia-pill" href="#eventos">
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      <span>Eventos</span>
     </a>
     <a class="guia-pill" href="#youtube">
       <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><polygon points="10 15 15 12 10 9 10 15"/></svg>
@@ -861,6 +948,55 @@
     </div>
     <span class="guia-doc-callout-btn">Ver documentación de Discord →</span>
   </a>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── 11. EVENTOS DEL SERVIDOR ───────────────────────────────── -->
+<section class="guia-section" id="eventos">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Eventos del Servidor (Bienvenidas, Despedidas y Boosts)</h2>
+  </div>
+  <p class="guia-lead">
+    Configura mensajes automáticos y totalmente personalizables cuando un miembro entra, abandona o mejora tu servidor con un Boost.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        <span>👋 Bienvenidas</span>
+      </div>
+      <p class="guia-card-p">
+        Saluda a nuevos miembros con mención directa, contador ordinal (<em>"Miembro #1.284"</em>), fecha de creación de cuenta y avatar.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="11"/></svg>
+        <span>🚪 Despedidas</span>
+      </div>
+      <p class="guia-card-p">
+        Despide a miembros que abandonan la comunidad con un mensaje de texto o embed personalizado.
+      </p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>🚀 Boosts</span>
+      </div>
+      <p class="guia-card-p">
+        Agradece al instante las mejoras con variables de nivel de boost, cantidad total y boosts restantes para el próximo nivel.
+      </p>
+    </div>
+  </div>
+
+  <div class="guia-callout">
+    <div class="guia-callout-title">💡 Soporte para 3 modos y variables dinámicas</div>
+    <p>Cada evento puede enviarse como <strong>Mensaje normal</strong>, <strong>Embed clásico</strong> o <strong>Layout V2</strong> con componentes interactivos. Usa el motor de variables <code>{user}</code>, <code>{server_name}</code>, <code>{server_membercount_ordinal}</code> y más, con previsualización realista en tiempo real.</p>
+  </div>
 </section>
 
 <hr class="docs-divider" aria-hidden="true">

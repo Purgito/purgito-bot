@@ -36,6 +36,7 @@ refleje el 100% de cómo se comporta la función ahora mismo.
 | Función | Qué hace |
 |---|---|
 | [Editor de Embeds](/es/documentacion/embeds) 🔧 | Embeds y mensajes con botones interactivos, desde el panel |
+| [Eventos del servidor](/es/documentacion/eventos) 🔧 | Mensajes configurables de bienvenida, despedida y boosts |
 | [Avisos de YouTube](/es/documentacion/youtube) 🔧 | Notifica en tu servidor cuando sale un video nuevo |
 | [Anuncios programados](/es/documentacion/anuncios) 🔧 | Mensajes automáticos a una hora fija o por intervalo |
 

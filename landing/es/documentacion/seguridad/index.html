@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Seguridad — Documentación técnica — Purgito</title>
 <meta name="description" content="Modelo de seguridad de Purgito: OAuth2, sesiones, permisos y límites de uso.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/security">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/seguridad">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Términos</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/terminos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Términos del Servicio</span>
+                  <span class="nav-drop-desc">Condiciones de uso y responsabilidad</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/privacidad">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Privacidad</span>
+                  <span class="nav-drop-desc">Tratamiento y protección de datos</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/reembolsos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Reembolso</span>
+                  <span class="nav-drop-desc">Condiciones de prueba y pagos</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -257,6 +310,36 @@
           </a>
         </div>
       </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/terminos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="title">Términos del Servicio</div>
+              <div class="desc">Condiciones de uso y responsabilidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/privacidad">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Política de Privacidad</div>
+              <div class="desc">Tratamiento y protección de datos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/reembolsos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Política de Reembolso</div>
+              <div class="desc">Condiciones de prueba y pagos</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -290,49 +373,40 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Seguridad</h1>
-<p>Modelo de seguridad de Purgito a nivel conceptual: qué existe y por
-qué, sin los números ni los mecanismos exactos — esta página es pública.</p>
+<p>El modelo de seguridad de Purgito sigue una arquitectura de confianza cero en el cliente (<em>zero-trust client boundary</em>), defensa en profundidad y aislamiento estricto de datos por diseño.</p>
 
-<h2 id="oauth2">OAuth2</h2>
-<p>El login usa el flujo estándar de Discord: la identidad la confirma
-Discord, Purgito nunca ve ni guarda una contraseña. La sesión resultante
-vive cifrada en una cookie del navegador — el servidor no guarda una copia
-de la sesión, solo una lista de qué sesiones fueron cerradas
-explícitamente, para poder invalidarlas aunque la cookie cifrada siga
-existiendo en algún lado. La cookie está restringida a HTTPS, no es
-accesible desde JavaScript y no viaja en navegación cruzada entre sitios
-salvo los casos que el navegador permite por diseño (por eso hay una
-defensa adicional contra ese caso puntual).</p>
+<h2 id="autenticacion-y-sesiones">Autenticación OAuth2 y Cookies Cifradas</h2>
+<p>El flujo de inicio de sesión delega completamente la identidad en Discord mediante OAuth2 (<em>Authorization Code Flow</em>):</p>
+<ul>
+  <li><strong>Sin almacenamiento de credenciales</strong>: Purgito nunca recibe ni procesa contraseñas de usuarios ni tokens directos de Discord.</li>
+  <li><strong>Cifrado simétrico de sesión</strong>: La sesión se encapsula en una cookie cifrada con el algoritmo Fernet (AES-128 en modo CBC con autenticación HMAC-SHA256) utilizando la clave secreta <code>SESSION_SECRET</code>.</li>
+  <li><strong>Atributos de cookie</strong>: La cookie viaja con las banderas <code>HttpOnly</code> (inmune a ataques XSS al ser inaccesible desde JavaScript), <code>Secure</code> (solo transmitida sobre HTTPS) y <code>SameSite=Lax</code> (previene fugas en navegación cruzada entre orígenes).</li>
+  <li><strong>Lista de revocación distribuida</strong>: La tabla <code>revoked_sessions</code> almacena los IDs de sesiones canceladas explícitamente, garantizando que el logout invalide la sesión de forma inmediata aunque la cookie siga existiendo físicamente en el navegador.</li>
+</ul>
 
-<h2 id="permisos">Permisos</h2>
-<p>Ninguna acción sobre un servidor específico se resuelve confiando en
-datos que mande el navegador: cada vez que el dashboard pide algo de un
-servidor, Purgito le pregunta directamente a la API de Discord, con el
-token de quien está logueado, si esa persona administra ese servidor —
-nunca a partir de una lista guardada de antes ni de algo que venga en la
-propia petición. Del lado de Discord, las acciones administrativas del
-bot (comandos de configuración, paneles) verifican el permiso
-<code>Administrar servidor</code> de quien invoca.</p>
+<h2 id="autorizacion-en-tiempo-real">Autorización en Tiempo Real y Cero Confianza</h2>
+<p>Ninguna petición administrativa confía en declaraciones enviadas por el navegador (como IDs en el cuerpo de la petición o encabezados manipulados):</p>
+<ul>
+  <li><strong>Revalidación contra la API de Discord</strong>: Cada vez que un usuario interactúa con un servidor en el dashboard (<code>/api/server/{guild_id}/*</code>), el servidor consulta en vivo los permisos del usuario ante Discord (<code>/users/@me/guilds</code>) utilizando el token de acceso obtenido en el login.</li>
+  <li><strong>Verificación de permisos nativos</strong>: Se exige el permiso <code>Administrar Servidor</code> (<code>MANAGE_GUILD</code>) o <code>Administrador</code> (<code>ADMINISTRATOR</code>). No existen roles ficticios en la base de datos que puedan ser desincronizados.</li>
+  <li><strong>Jerarquía de roles del bot</strong>: En Discord, cualquier acción ejecutada por botones interactivos de Layout V2 (como asignar roles) valida que el rol más alto de Purgito esté posicionado por encima del rol asignado, evitando escaladas de privilegios.</li>
+</ul>
 
-<h2 id="rate-limits">Límites de uso</h2>
-<p>Purgito aplica límites de uso en varias capas independientes: por
-dirección IP en la API pública, por usuario dentro de cada servidor para
-comandos interactivos (generar contenido, invocar memes), y por canal
-dentro de cada servidor para comportamiento autónomo (respuestas
-espontáneas, triggers). Hay además un tope global de cuánta generación de
-texto puede correr en simultáneo, para que ningún servidor sature el
-proceso a costa de los demás. Los valores concretos de esos límites no
-son públicos.</p>
+<h2 id="defensa-en-red-y-ssrf">Protección contra SSRF y Validación de Archivos</h2>
+<p>Cuando el bot descarga imágenes o GIFs desde URLs proporcionadas por usuarios o webhooks:</p>
+<ul>
+  <li><strong>Resolución DNS segura</strong>: Se resuelve la dirección IP de destino antes de establecer la conexión HTTP, bloqueando peticiones hacia subredes privadas (RFC 1918: <code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code>), direcciones de bucle local (<code>127.0.0.1</code>, <code>::1</code>) y direcciones de enlace local o metadatos de proveedores en la nube (ej. <code>169.254.169.254</code>).</li>
+  <li><strong>Inspección de tipo de contenido real</strong>: Los archivos descargados se validan por su cabecera binaria (<em>magic numbers</em>) para asegurar que correspondan a formatos de imagen válidos (PNG, JPEG, GIF, WEBP), descartando archivos ejecutables o scripts camuflados.</li>
+</ul>
 
-<h2 id="modelo-de-seguridad">Modelo de seguridad</h2>
-<p>Los principios generales: aislar los datos de cada servidor por diseño
-del esquema, no confiar en nada que el cliente declare sobre sí mismo sin
-verificarlo contra la fuente (Discord), validar el contenido real de lo
-que se sube en vez de confiar en lo que el cliente dice que es, y
-verificar la firma de cualquier webhook externo antes de procesarlo. La
-superficie pública es intencionalmente chica: la API no renderiza HTML,
-así que buena parte de las clases de vulnerabilidad típicas de una app web
-tradicional no aplican directamente.</p>
+<h2 id="rate-limiting">Límites de Uso y Protección contra Abuso</h2>
+<p>Purgito implementa limitadores de tasa (<em>rate limiters</em>) en múltiples capas independientes:</p>
+<ul>
+  <li><strong>Límite por IP en API pública</strong>: Protege los endpoints <code>/health</code>, <code>/api/status</code> y <code>/auth/*</code> contra escaneos automáticos y ataques de denegación de servicio.</li>
+  <li><strong>Límite por usuario en comandos</strong>: Enfriamientos (<em>cooldowns</em>) en comandos intensivos de Discord (generación de memes, imitación de miembros, refeed de canales).</li>
+  <li><strong>Límite por canal en respuestas espontáneas</strong>: Cadencia mínima obligatoria entre respuestas automáticas en un mismo canal para prevenir saturación del chat.</li>
+  <li><strong>Semáforo de CPU</strong>: Tope global de ejecuciones concurrentes de cadenas de Markov para impedir que un servidor monopolice los recursos del proceso compartido.</li>
+</ul>
   </main>
 </div>
 

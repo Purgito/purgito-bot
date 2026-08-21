@@ -1,36 +1,54 @@
 <h1>Infrastructure</h1>
-<p>Deployment architecture on a single server: nginx at the edge,
-the Python process behind it, and Cloudflare as the CDN and front proxy.</p>
+<p>Purgito operates on an optimized single-node Linux host: an Nginx reverse proxy at the edge, a unified asynchronous Python process managed by systemd, and Cloudflare as the perimeter CDN and security layer.</p>
 
-<h2 id="runtime">Runtime</h2>
-<p>The bot and its API run as a single Python process. The API listens
-only on localhost — never exposed directly to the internet — so nginx is
-the only real entry point.</p>
+<h2 id="runtime">Runtime Environment</h2>
+<p>The Discord bot and its web API run co-located in a single Python 3.11+ process within the same asynchronous event loop (<em>asyncio</em>):</p>
+<ul>
+  <li><strong>systemd Service Management</strong>: The <code>bot-purg.service</code> unit file supervises process lifecycle, handling automatic crash recovery and structured logging to <code>journald</code>.</li>
+  <li><strong>Network Isolation</strong>: The HTTP API (<code>aiohttp</code>) binds strictly to <code>127.0.0.1:WEB_PORT</code> (default: port 8080/8081). No Python socket is exposed directly to the public internet.</li>
+</ul>
 
-<h2 id="nginx">Nginx</h2>
-<p>Nginx splits by route: <code>/auth/*</code>, <code>/api/*</code>,
-<code>/webhooks/*</code>, and <code>/health</code> go to the
-Python process; everything else — the landing page, the dashboard, the legal
-pages, and this documentation — is served directly from static files, never
-touching Python. Since the site has per-language routes (<code>/es/...</code>,
-<code>/en/...</code>), the one route with a dynamic segment (the server ID
-in the dashboard URL) has a dedicated nginx rule; everything else is
-static routes on disk.</p>
+<h2 id="nginx">Nginx Topology</h2>
+<p>Nginx serves as the sole local entry point, cleanly bifurcating static asset delivery from dynamic application routing:</p>
 
-<h2 id="cloudflare">Cloudflare</h2>
-<p>Cloudflare acts as a CDN and reverse proxy layer in front of nginx:
-it handles TLS termination, protects the origin server, and caches the
-site's static content, reducing load on the server.</p>
+<pre><code>Incoming Request (HTTPS)
+           │
+           ▼
+     ┌───────────┐
+     │   Nginx   │
+     └─────┬─────┘
+           │
+     ┌─────┴────────────────────────────────┐
+     │                                      │
+     ▼ Dynamic Routes                       ▼ Static Routes
+/api/*, /auth/*, /webhooks/*, /health       /es/*, /en/*, /assets/*, /style.css
+     │                                      │
+     ▼ proxy_pass                           ▼ try_files
+┌─────────────────────────┐           ┌─────────────────────────┐
+│  Python 127.0.0.1:8080  │           │     Direct from disk    │
+│   aiohttp REST API      │           │     (Zero Python CPU)   │
+└─────────────────────────┘           └─────────────────────────┘
+</code></pre>
 
-<h2 id="deployment">Deployment</h2>
-<p>Deployment is based on syncing the repository: since the static
-site and the documentation are pre-generated and versioned in the
-repository, no build step is required on the server;
-syncing changes with <code>git pull</code> and restarting the
-application service is enough.</p>
+<ul>
+  <li><strong>High-Performance Static Delivery</strong>: All HTML pages (landing, guide, documentation, dashboard), CSS styles, JS scripts, and public images are served directly from the filesystem without consuming application runtime resources.</li>
+  <li><strong>Dashboard Dynamic Segment Routing</strong>: Nginx routes any guild-scoped URL (e.g. <code>/en/dashboard/{id}/*</code>) to the appropriate static dashboard index file, allowing the client-side SPA router to take over.</li>
+  <li><strong>Security and Caching Headers</strong>: Nginx applies strict HTTP security headers (CSP, X-Content-Type-Options, Referrer-Policy) and attaches <code>Cache-Control: public, max-age=31536000, immutable</code> headers to cache-busted asset requests (<code>?v=...</code>).</li>
+</ul>
 
-<h2 id="health-checks">Health checks</h2>
-<p><code>/health</code> is a simple liveness check: it confirms the
-process is running and responding, not that the database or the
-connection to Discord are healthy. It exists for basic monitoring, not as
-a full system diagnostic.</p>
+<h2 id="cloudflare">CDN and Perimeter Security (Cloudflare)</h2>
+<p>Cloudflare sits in front of the origin server as a TLS proxy and content distribution network:</p>
+<ul>
+  <li><strong>TLS 1.3 Termination</strong>: Manages SSL/TLS certificates and client-side encryption handshakes.</li>
+  <li><strong>Edge Caching</strong>: Caches static assets globally across edge data centers, absorbing landing page traffic and eliminating origin server load.</li>
+  <li><strong>DDoS Mitigation &amp; WAF</strong>: Filters malicious traffic and volumetric denial-of-service attacks before packets reach the host Nginx port.</li>
+</ul>
+
+<h2 id="deployment">Continuous Deployment Without Build Steps</h2>
+<p>Purgito's architecture eliminates server-side build steps and compilation overhead:</p>
+<ol>
+  <li>Source code, modular scripts, and pregenerated documentation pages from <code>landing/build_docs.py</code> are versioned directly in Git.</li>
+  <li>Deployments consist of synchronizing repository state via <code>git pull</code>.</li>
+  <li>Documentation integrity is validated via <code>python3 landing/build_docs.py --check</code>.</li>
+  <li>The service is reloaded with <code>systemctl restart bot-purg.service</code>, completing the zero-downtime update in seconds.</li>
+</ol>

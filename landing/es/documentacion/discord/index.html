@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discord — Documentación técnica — Purgito</title>
 <meta name="description" content="Cogs, eventos, permisos e interacciones del bot de Purgito.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/discord">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/discord">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Términos</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/es/terminos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Términos del Servicio</span>
+                  <span class="nav-drop-desc">Condiciones de uso y responsabilidad</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/privacidad">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Privacidad</span>
+                  <span class="nav-drop-desc">Tratamiento y protección de datos</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/es/reembolsos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Política de Reembolso</span>
+                  <span class="nav-drop-desc">Condiciones de prueba y pagos</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -257,6 +310,36 @@
           </a>
         </div>
       </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/es/terminos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="title">Términos del Servicio</div>
+              <div class="desc">Condiciones de uso y responsabilidad</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/privacidad">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Política de Privacidad</div>
+              <div class="desc">Tratamiento y protección de datos</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/es/reembolsos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Política de Reembolso</div>
+              <div class="desc">Condiciones de prueba y pagos</div>
+            </div>
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -290,53 +373,51 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Discord</h1>
-<p>Purgito es un bot de discord.py estructurado como una colección de cogs
-— cada uno con una responsabilidad — cargados al arrancar el proceso.</p>
+<p>Purgito está desarrollado sobre <code>discord.py</code> y estructurado mediante una colección modular de cogs. Cada cog encapsula comandos de aplicación (<em>slash commands</em>), oyentes de eventos del Gateway y rutinas asíncronas periódicas.</p>
 
-<h2 id="bot-y-cogs">Bot y cogs</h2>
-<p>El entrypoint (<code>src/bot.py</code>) carga los cogs en un orden
-deliberado: <code>premium</code> primero, porque expone
-<code>is_premium_guild</code> al resto.</p>
+<h2 id="bot-y-cogs">Estructura del Bot y Cogs</h2>
+<p>El punto de entrada del bot (<code>src/bot.py</code>) inicializa la instancia de <code>commands.Bot</code> con los intents mínimos necesarios: <code>guilds</code>, <code>message_content</code>, <code>emojis_and_stickers</code> y <code>reactions</code>. Los cogs se cargan de forma asíncrona en el método <code>setup_hook</code> en un orden determinado:</p>
+
 <table>
-<tr><th>Cog</th><th>Responsabilidad</th></tr>
-<tr><td><code>premium</code></td><td>Estado premium por servidor, gestionado desde el dashboard.</td></tr>
-<tr><td><code>chat</code></td><td>Corpus, cadenas de Markov y respuestas automáticas.</td></tr>
-<tr><td><code>gifs</code></td><td>Captura y gestión de GIFs: detección en mensajes, subida a R2, galería web.</td></tr>
-<tr><td><code>memes</code></td><td>Memes: comando, generación automática, captura de imágenes con reacción.</td></tr>
-<tr><td><code>youtube</code></td><td>Notificaciones de YouTube por RSS.</td></tr>
-<tr><td><code>anuncios</code></td><td>Mensajes programados a un canal, por intervalo o a hora fija.</td></tr>
-<tr><td><code>general</code></td><td>Comando de ayuda, ping, errores y ciclo de vida de servidores.</td></tr>
-<tr><td><code>settings</code></td><td>Panel unificado de configuración y onboarding al unirse a un servidor.</td></tr>
-<tr><td><code>layout_buttons</code></td><td>Acciones funcionales de los botones del editor de embeds (Layout V2).</td></tr>
+<tr><th>Cog</th><th>Módulo</th><th>Responsabilidad técnica</th></tr>
+<tr><td><code>premium</code></td><td><code>src/cogs/premium.py</code></td><td>Verificación de cuotas y estado Premium (<code>is_premium_guild</code>). Se carga primero para exponer helpers de límites al resto de cogs.</td></tr>
+<tr><td><code>chat</code></td><td><code>src/cogs/chat.py</code></td><td>Captura y limpieza de mensajes para el corpus, evaluación de probabilidad de respuesta, invocación del motor de Markov y manejo de menciones.</td></tr>
+<tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>Detección de GIFs en mensajes, extracción de URLs nativas (Tenor/Giphy), compresión opcional y subida con deduplicación hacia Cloudflare R2.</td></tr>
+<tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>Banco de imágenes del servidor, generación de plantillas de memes, captions mediante Markov o Groq IA, y captura por reacción de emojis.</td></tr>
+<tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>Monitoreo periódico de feeds RSS de canales de YouTube y despacho automatizado de notificaciones a canales de Discord configurados.</td></tr>
+<tr><td><code>anuncios</code></td><td><code>src/cogs/anuncios.py</code></td><td>Planificador de anuncios automatizados: despacha embeds y mensajes a intervalos recurrentes o en horarios fijos con soporte de zonas horarias.</td></tr>
+<tr><td><code>general</code></td><td><code>src/cogs/general.py</code></td><td>Comandos generales (<code>/ping</code>, <code>/ayuda</code>), sincronización global de comandos y gestión del ciclo de vida de servidores.</td></tr>
+<tr><td><code>settings</code></td><td><code>src/cogs/settings.py</code></td><td>Panel interactivo nativo en Discord (vistas, selects, botones) y mensaje de onboarding al unirse a nuevos servidores.</td></tr>
+<tr><td><code>layout_buttons</code></td><td><code>src/cogs/layout_buttons.py</code></td><td>Controlador de componentes interactivos (Layout V2): asignación y remoción de roles, enlaces externos y vistas modales.</td></tr>
+<tr><td><code>events</code></td><td><code>src/cogs/events.py</code></td><td>Eventos del servidor: Bienvenidas, Despedidas y Boosts con resolución de variables dinámicas ({user}, {server_membercount_ordinal}, etc.), soporte para 3 modos de contenido y despacho seguro a canales.</td></tr>
 </table>
 
-<h2 id="eventos">Eventos</h2>
-<p>Además de <code>on_ready</code> (arranque, sincroniza los slash commands
-y levanta la API web), los cogs escuchan los eventos que necesitan:
-<code>on_message</code> (chat, captura de GIFs, captura de memes por
-reacción), <code>on_guild_join</code>/<code>on_guild_remove</code> (ciclo
-de vida — la salida de un servidor programa el borrado diferido de sus
-datos), <code>on_raw_reaction_add</code> (captura de memes) y
-<code>on_guild_channel_update</code>. Los errores de slash commands no
-pasan por el mismo canal que los de comandos con prefijo, así que tienen
-su propio manejador (<code>on_app_command_error</code>), cableado a mano
-en vez de con el decorador estándar.</p>
+<h2 id="ciclo-de-eventos">Ciclo de vida de eventos del Gateway</h2>
+<p>Los cogs se suscriben a los eventos emitidos por el Gateway de Discord (requiriendo <code>intents.members = True</code> para seguimiento de miembros):</p>
 
-<h2 id="permisos">Permisos</h2>
-<p>No hay un sistema de roles propio del bot: todo chequeo de permiso mira
-directamente los permisos nativos de Discord. Las acciones administrativas
-(abrir el panel de configuración, tocar ajustes) verifican que quien
-invoca tenga <code>Administrar servidor</code>. Antes de ejecutar una
-acción que requiere permisos del propio bot — como asignar un rol desde un
-botón de embed — el bot verifica sus propios permisos y la jerarquía de
-roles, no solo los de quien hizo clic.</p>
+<ul>
+  <li><code>on_ready</code>: Se dispara cuando el bot completa la identificación con el Gateway. Sincroniza los comandos slash con Discord y arranca las tareas periódicas de <code>src/tasks.py</code>.</li>
+  <li><code>on_message</code>: Procesamiento del pipeline de mensajes: filtrado de mensajes de bots, validación de canales permitidos/silenciados, inserción en la tabla <code>corpus</code>, evaluación de triggers y generación de respuestas.</li>
+  <li><code>on_member_join</code>: Detecta la entrada de nuevos miembros y despacha el mensaje configurado de Bienvenida.</li>
+  <li><code>on_member_remove</code>: Detecta la salida de miembros y despacha el mensaje configurado de Despedida.</li>
+  <li><code>on_member_update</code>: Detecta de forma idempotente la transición de inicio de boost y despacha el mensaje de agradecimiento.</li>
+  <li><code>on_raw_reaction_add</code>: Captura de reacciones en mensajes para triggers automáticos de emojis y adición de imágenes al banco de memes.</li>
+  <li><code>on_guild_join</code>: Registra el servidor en la base de datos, inicializa la configuración predeterminada y envía el mensaje de bienvenida y guía rápida.</li>
+  <li><code>on_guild_remove</code>: Marca el servidor con marca temporal <code>left_at</code> en la base de datos, iniciando el período de gracia antes del purgado definitivo de datos.</li>
+  <li><code>on_guild_channel_update</code>: Actualiza metadatos y nombres de canales en caché local para mantener sincronizado el dashboard.</li>
+</ul>
 
-<h2 id="interacciones">Interacciones</h2>
-<p>Prácticamente todos los comandos son slash commands; <code>!ping</code>
-es la única excepción con prefijo. Los paneles y menús se construyen con
-vistas de discord.py (botones, selects) y cada vista restringe quién puede
-usarla a quien la abrió — un botón de configuración de otra persona no
-responde si lo tocas vos.</p>
+<h2 id="manejo-de-errores">Manejo de errores e interacciones</h2>
+<p>Los comandos de barra diagonal utilizan el árbol de comandos de Discord (<code>app_commands.CommandTree</code>). Los errores que ocurren en interacciones se capturan a través de un manejador global <code>on_app_command_error</code>:</p>
+
+<ul>
+  <li><code>app_commands.MissingPermissions</code>: Notifica al usuario que carece de los permisos necesarios (ej. <code>Administrar Servidor</code>) mediante un mensaje efímero (solo visible para el autor).</li>
+  <li><code>app_commands.BotMissingPermissions</code>: Informa los permisos específicos que le faltan a Purgito en el canal (ej. <code>Enviar Mensajes</code>, <code>Insertar Enlaces</code>, <code>Adjuntar Archivos</code>).</li>
+  <li><code>app_commands.CommandOnCooldown</code>: Informa el tiempo restante de enfriamiento para evitar spam en comandos intensivos.</li>
+</ul>
+
+<h2 id="permisos-y-seguridad">Modelo de permisos y componentes</h2>
+<p>Purgito delega la autorización en el sistema nativo de permisos de Discord. No mantiene una jerarquía de roles paralela: todas las comprobaciones leen <code>interaction.user.guild_permissions</code>. Para acciones administrativas sobre miembros (como la asignación de roles mediante botones de Layout V2), el bot verifica además que su propio rol más alto en el servidor se encuentre por encima del rol que se pretende otorgar.</p>
   </main>
 </div>
 

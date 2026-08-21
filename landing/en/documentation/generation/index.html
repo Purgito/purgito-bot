@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-YecsnwIBgBP8rkFd5gbcNJdX1AVoYxmBwFMqscc+ZGM='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-BzVGtXkYBtu93xD5HnnIAsHd+VkX90gGy/T4Ov3vZws='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Generation engine — Technical Documentation — Purgito</title>
 <meta name="description" content="How Purgito generates text: Markov chains, corpus, concurrency, and limits.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/generation">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/generacion">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=16ec1d7f">
+<link rel="stylesheet" href="/style.css?v=b7c61ef5">
 </head>
 <body>
 
@@ -158,6 +158,59 @@
           </div>
         </div>
       </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Legal &amp; Terms</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/en/terms">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Terms of Service</span>
+                  <span class="nav-drop-desc">Usage conditions and liability</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/privacy">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Privacy Policy</span>
+                  <span class="nav-drop-desc">Data handling and security</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/en/refunds">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Refund Policy</span>
+                  <span class="nav-drop-desc">Trial conditions and payments</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="nav-right">
@@ -249,10 +302,44 @@
             </div>
           </a>
           <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
-            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Source code and development</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Legal</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/en/terms">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <div>
-              <div class="title">GitHub</div>
-              <div class="desc">Open source</div>
+              <div class="title">Terms of Service</div>
+              <div class="desc">Usage conditions and liability</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/privacy">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Privacy Policy</div>
+              <div class="desc">Data handling and security</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/en/refunds">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Refund Policy</div>
+              <div class="desc">Trial conditions and payments</div>
             </div>
           </a>
         </div>
@@ -289,65 +376,45 @@
   </ul>
 </details>
   <main id="contenido" class="docs-content">
-<h1>Generation engine</h1>
-<p>For chat conversation and replies, Purgito doesn't use an LLM: it generates text with a first-order
-Markov chain, built in-house with no external dependencies, trained on the real message
-corpus of each server (for the meme-caption feature, there's an optional vision integration with Groq that falls back to Markov if it's unavailable).</p>
+<h1>Generation Engine</h1>
+<p>Purgito uses a hybrid generation architecture: a custom first- and second-order probabilistic Markov chain engine for chat conversations, and an optional AI vision integration (Groq) for automatic meme captioning.</p>
 
-<h2 id="markov-engine">Markov engine</h2>
-<p>The model links each word to the ones that followed it in the
-training corpus, and builds a response by walking that chain word by
-word from a start state to an end state, with a length cap
-and retries if the result comes out too short. No third-party
-libraries — it's a deliberately simple, in-house implementation.</p>
+<h2 id="markov-engine">Markov Engine Mechanics</h2>
+<p>The Markov engine (<code>src/markov_engine.py</code>) statistically models word sequence transitions observed in the server's message corpus:</p>
 
-<h2 id="corpus">Corpus</h2>
-<p>Every server has its own corpus: the messages it learns are
-saved as-is (stripped of mentions, URLs, and IDs) in SQLite. A server's
-model is trained on a random sample of its full corpus
-— it isn't limited to the channel where the message originated — and
-requires a minimum number of stored messages before it can generate
-anything; below that minimum, Purgito says so instead of silently failing.</p>
-<p>Which channels feed the corpus is decided by its own allowed
-list: empty means the bot doesn't learn from any channel yet —
-learning is more invasive than replying, so the safe default is not to
-learn. A separate "muted" channel list cuts corpus, reactions, and
-triggers all at once, independently of the allowed list.</p>
-<p>There's also a per-user model, trained only on that
-person's messages, used by the commands that impersonate a specific user.</p>
+<ul>
+  <li><strong>Tokenization and States</strong>: Training text is normalized and split into word tokens while preserving punctuation boundaries. Two transition dictionaries are constructed: a second-order model (word pairs <code>(w1, w2) -&gt; w3</code>) to preserve grammatical flow and complex slang, and a first-order model (<code>w1 -&gt; w2</code>) acting as a fallback when a second-order state reaches a dead end.</li>
+  <li><strong>Sentence Generation</strong>: Chains begin by picking a weighted initial token, advancing through states according to observed transition frequencies, and terminating upon reaching an ending token or the configured length limit (capped at Discord's 2,000 characters limit).</li>
+  <li><strong>Post-processing Filters</strong>: Dangling conjunctions ("and", "or", "but", "of") at sentence endings are trimmed, malformed emoji syntax is stripped, and capitalization and whitespace are adjusted.</li>
+</ul>
 
-<h2 id="pipeline">Generation pipeline</h2>
-<ol>
-  <li>A message arrives; it's discarded if it's from a bot or was already
-  processed (a guard against gateway retries).</li>
-  <li>The channel's effective settings are resolved.</li>
-  <li>If applicable, the message is cleaned and saved to the corpus.</li>
-  <li>Manually configured triggers are evaluated; if one matches, it stops
-  there.</li>
-  <li>If the message mentions or replies to the bot, or it's time for a
-  spontaneous reply per the configured cadence, the response is built:
-  first it checks whether a "special phrase" (fixed, not generated) applies,
-  and if not, it falls back to Markov.</li>
-  <li>The response is post-processed — lowercased, emojis and
-  trailing loose connectors ("and", "or", "but"...) are stripped —
-  and trimmed if it exceeds Discord's length limit before sending.</li>
-</ol>
+<h2 id="corpus">Corpus Management and Ingestion</h2>
+<p>Each server maintains an isolated corpus stored in the SQLite <code>corpus</code> table:</p>
+<ul>
+  <li><strong>Ingestion Sanitization</strong>: Before database insertion, incoming messages pass through regex filters stripping user mentions (<code>&lt;@id&gt;</code>), role mentions (<code>&lt;@&amp;id&gt;</code>), channel links (<code>&lt;#id&gt;</code>), HTTP/HTTPS URLs, and code blocks.</li>
+  <li><strong>Channel Allowlist</strong>: Only channels explicitly marked on the reading allowlist feed the corpus. If a channel is placed on the silenced list, it is ignored entirely for both learning and automatic replies.</li>
+  <li><strong>Per-User Corpus</strong>: Messages are also tagged with the author's <code>user_id</code> in the <code>user_corpus</code> table, enabling dedicated models for commands that mimic specific community members.</li>
+</ul>
 
-<h2 id="concurrency-and-limits">Concurrency and limits</h2>
-<p>A global semaphore limits how many Markov generations/training runs
-run at once across the whole process — it's not per server, it's a shared
-cap so the thread pool doesn't get saturated. Spontaneous messages use
-a non-blocking mode (if there's no room, that generation is skipped instead
-of waiting); replies to mentions do wait their turn. SQLite writes
-share a single process-wide lock — there's no per-server lock — so
-separation between servers comes from the schema (everything indexed by
-<code>guild_id</code>), not from concurrency.</p>
-<p>The corpus has size caps per channel, per user, and per whole
-server (with a free-plan and a Premium value). Once exceeded, the
-oldest is trimmed first; the whole-server cap distributes the space
-proportionally across channels instead of emptying just one. Trimming doesn't
-run on every message — it fires every so many inserts,
-as a background task.</p>
+<h2 id="concurrency">Concurrency Control and Caching</h2>
+<p>Markov model training and sequence generation are CPU-bound operations. To prevent performance degradation across concurrent guilds, Purgito enforces strict resource governance:</p>
+
+<ul>
+  <li><strong>Global Asynchronous Semaphore</strong>: An <code>asyncio.Semaphore</code> limits concurrent model compilation and generation tasks process-wide.</li>
+  <li><strong>Non-blocking Spontaneous Replies</strong>: Spontaneous responses (triggered by conversation activity cadences) attempt non-blocking semaphore acquisition: if slots are saturated, the response is dropped silently to keep the bot responsive. Direct mentions and replies wait in queue.</li>
+  <li><strong>In-Memory LRU Cache</strong>: Compiled transition models are cached in an LRU (<em>Least Recently Used</em>) dictionary per guild and user. Models are invalidated automatically upon cleanup operations (amnesia) or substantial new data ingestion.</li>
+</ul>
+
+<h2 id="trimming">Trimming Policies and Quotas</h2>
+<p>To prevent unbounded database growth, corpus size is constrained by limits configured in <code>limits.env</code>:</p>
+
+<table>
+<tr><th>Quota</th><th>Free Plan</th><th>Premium Plan</th><th>Trimming Behavior</th></tr>
+<tr><td>Messages per channel</td><td>15,000</td><td>50,000</td><td>FIFO: oldest messages in the channel are pruned as new ones arrive.</td></tr>
+<tr><td>Total server messages</td><td>150,000</td><td>500,000</td><td>Proportional trim: when the total limit is reached, messages are removed evenly across all active channels.</td></tr>
+<tr><td>Messages per user</td><td>5,000</td><td>20,000</td><td>FIFO per author.</td></tr>
+</table>
+<p>Trimming routines (<code>trim_corpus</code> and <code>trim_guild_total</code>) run as periodic background tasks rather than on every single message insertion, maximizing disk I/O throughput.</p>
   </main>
 </div>
 

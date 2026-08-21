@@ -19,6 +19,7 @@ import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import { loadYoutube } from '/js/tabs/youtube.js';
 import { loadHistorial } from '/js/tabs/historial.js';
+import { loadEventosTab } from '/js/tabs/eventos.js';
 import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
 } from '/js/embeds/shared-ui.js';
@@ -47,7 +48,11 @@ addStrings({
     'dash.mod.embeds.label': 'Diseñador de Mensajes',
     'dash.mod.embeds.desc': 'Editor visual de embeds clásicos y bloques interactivos Layout V2',
     'dash.mod.updates.label': 'Canal de Novedades',
+    'dash.mod.stats.label': 'Estadísticas',
+    'dash.mod.stats.desc': 'Métricas de uso, memoria del bot, canales y actividad acumulada',
     'dash.mod.updates.desc': 'Canal donde Purgito publica sus anuncios y actualizaciones',
+    'dash.mod.eventos.label': 'Eventos',
+    'dash.mod.eventos.desc': 'Bienvenidas, despedidas y boosts con mensajes totalmente configurables',
     'dash.mod.triggers.label': 'Triggers de canal',
     'dash.mod.triggers.desc': 'Respuestas automáticas por coincidencia de texto o regex',
     'dash.mod.reacciones.label': 'Reacciones automáticas',
@@ -70,6 +75,8 @@ addStrings({
     'dash.cat.utilidades': 'Utilities',
     'dash.mod.inicio.label': 'Home',
     'dash.mod.inicio.desc': "Server overview, Purgito's status, and quick links",
+    'dash.mod.stats.label': 'Stats',
+    'dash.mod.stats.desc': 'Usage metrics, bot memory, channels, and accumulated activity',
     'dash.mod.chat.label': 'Chat settings',
     'dash.mod.chat.desc': 'Behavior, probabilities, channels, and chat limits',
     'dash.mod.estilo.label': 'Customization',
@@ -84,6 +91,8 @@ addStrings({
     'dash.mod.embeds.desc': 'Visual editor for classic embeds and interactive Layout V2 blocks',
     'dash.mod.updates.label': 'Updates Channel',
     'dash.mod.updates.desc': "Channel where Purgito posts its announcements and updates",
+    'dash.mod.eventos.label': 'Events',
+    'dash.mod.eventos.desc': 'Welcome, goodbye, and boost messages with full customization',
     'dash.mod.triggers.label': 'Channel Triggers',
     'dash.mod.triggers.desc': 'Automatic replies matched by text or regex',
     'dash.mod.reacciones.label': 'Automatic Reactions',
@@ -123,6 +132,15 @@ export const MODULES = [
     desc: t('dash.mod.inicio.desc'),
     keywords: ['dashboard', 'resumen', 'estado', 'general', 'servidor', 'inicio'],
     load: loadInicio,
+  },
+  {
+    key: 'stats',
+    cat: 'principal',
+    label: t('dash.mod.stats.label'),
+    icon: 'activity',
+    desc: t('dash.mod.stats.desc'),
+    keywords: ['estadisticas', 'stats', 'metricas', 'mensajes', 'gifs', 'actividad', 'memoria', 'uso', 'contadores'],
+    load: loadStatsModule,
   },
   {
     key: 'chat',
@@ -205,6 +223,15 @@ export const MODULES = [
 
   // Automatización
   {
+    key: 'eventos',
+    cat: 'automatizacion',
+    label: t('dash.mod.eventos.label'),
+    icon: 'sparkle',
+    desc: t('dash.mod.eventos.desc'),
+    keywords: ['eventos', 'bienvenida', 'despedida', 'boost', 'welcome', 'goodbye', 'mensajes', 'automatico', 'servidor'],
+    load: loadEventosTab,
+  },
+  {
     key: 'triggers',
     cat: 'automatizacion',
     label: t('dash.mod.triggers.label'),
@@ -276,10 +303,12 @@ export const MODULES = [
 // Compatibilidad con TABS existentes
 export const TABS = [
   { key: 'inicio', label: t('dash.mod.inicio.label').toUpperCase(), icon: 'home', load: loadInicio },
+  { key: 'stats', label: t('dash.mod.stats.label').toUpperCase(), icon: 'activity', load: loadStatsModule },
   { key: 'chat', label: t('dash.mod.chat.label').toUpperCase(), icon: 'chat', load: loadChatTab },
   { key: 'gifs', label: 'GIFS', icon: 'film', load: loadGifs },
   { key: 'memes', label: 'MEMES', icon: 'image', load: loadMemes },
   { key: 'embeds', label: t('dash.mod.embeds.label').toUpperCase(), icon: 'layout', load: loadEmbeds },
+  { key: 'eventos', label: t('dash.mod.eventos.label').toUpperCase(), icon: 'sparkle', load: loadEventosTab },
   { key: 'premium', label: 'PREMIUM', icon: 'star', load: loadPremium },
   { key: 'youtube', label: 'YOUTUBE', icon: 'youtube', load: loadYoutube },
   { key: 'historial', label: t('dash.mod.historial.label').toUpperCase(), icon: 'history', load: loadHistorial },
@@ -1270,6 +1299,8 @@ addStrings({
     'dash.inicio.qaGifsDesc': 'Gestiona y verifica la colección de GIFs del servidor',
     'dash.inicio.qaTriggersTitle': 'Triggers y Automatización',
     'dash.inicio.qaTriggersDesc': 'Configura respuestas automáticas y frases clave',
+    'dash.inicio.qaStatsTitle': 'Estadísticas y Uso',
+    'dash.inicio.qaStatsDesc': 'Consulta métricas de memoria, canales activos y actividad',
     'dash.inicio.qaHistorialTitle': 'Auditoría',
     'dash.inicio.qaHistorialDesc': 'Revisa el historial de cambios y acciones realizadas',
     'dash.inicio.quickStyleTitle': 'Personalización rápida',
@@ -1281,6 +1312,11 @@ addStrings({
     'dash.inicio.gifsSent': 'GIFs enviados',
     'dash.inicio.totalAccumulated': 'Total histórico acumulado',
     'dash.inicio.messagesSent': 'Mensajes enviados',
+    'dash.stats.title': 'Estadísticas y Uso',
+    'dash.stats.desc': 'Métricas detalladas de memoria, contenido almacenado y actividad acumulada de Purgito en este servidor.',
+    'dash.stats.statusTitle': 'Capacidad y memoria en uso',
+    'dash.stats.activityTitle': 'Actividad histórica',
+    'dash.stats.activityDesc': 'Resumen de actividad acumulada en este servidor desde la llegada de Purgito.',
   },
   en: {
     'dash.inicio.members': '{count} members',
@@ -1316,6 +1352,8 @@ addStrings({
     'dash.inicio.qaGifsDesc': "Manage and review the server's GIF collection",
     'dash.inicio.qaTriggersTitle': 'Triggers and automation',
     'dash.inicio.qaTriggersDesc': 'Set up automatic replies and key phrases',
+    'dash.inicio.qaStatsTitle': 'Stats & Usage',
+    'dash.inicio.qaStatsDesc': 'View memory metrics, active channels, and activity',
     'dash.inicio.qaHistorialTitle': 'Audit log',
     'dash.inicio.qaHistorialDesc': 'Review the change and action history',
     'dash.inicio.quickStyleTitle': 'Quick customization',
@@ -1327,6 +1365,11 @@ addStrings({
     'dash.inicio.gifsSent': 'GIFs sent',
     'dash.inicio.totalAccumulated': 'Historical total',
     'dash.inicio.messagesSent': 'Messages sent',
+    'dash.stats.title': 'Stats and Usage',
+    'dash.stats.desc': 'Detailed metrics on memory, stored content, and accumulated activity of Purgito on this server.',
+    'dash.stats.statusTitle': 'Capacity and memory in use',
+    'dash.stats.activityTitle': 'Historical activity',
+    'dash.stats.activityDesc': 'Summary of accumulated activity on this server since Purgito joined.',
   },
 });
 
@@ -1386,8 +1429,116 @@ async function loadInicio() {
     );
     box.append(serverHero);
 
-    // 2. Estado y Métricas de Purgito
+    // 2. Avisos accionables de cuota (cuando requieren atención del administrador)
     const lims = stats.limits || {};
+    const alcanzados = [
+      [stats.corpus_total, lims.corpus_total, t('dash.inicio.quotaSavedMessages')],
+      [stats.gifs, lims.gifs, t('dash.inicio.quotaGifs')],
+      [stats.frases, lims.frases, t('dash.inicio.quotaFrases')],
+    ].filter(([used, cap]) => cap && used >= cap);
+
+    const cerca = [
+      [stats.corpus_total, lims.corpus_total, t('dash.inicio.quotaSavedMessages')],
+      [stats.gifs, lims.gifs, t('dash.inicio.quotaGifs')],
+      [stats.frases, lims.frases, t('dash.inicio.quotaFrases')],
+    ].filter(([used, cap]) => cap && used >= cap * 0.9 && used < cap);
+
+    if (alcanzados.length) {
+      box.append(el('div', { class: 'stat-quota-box stat-quota-box--full' },
+        el('span', { class: 'stat-quota-icon' }, '⚠️'),
+        el('div', { class: 'stat-quota-text' },
+          t('dash.inicio.quotaFullText', { items: alcanzados.map(c => c[2]).join(' y ') })
+        )
+      ));
+    } else if (cerca.length) {
+      box.append(el('div', { class: 'stat-quota-box stat-quota-box--near' },
+        el('span', { class: 'stat-quota-icon' }, 'ℹ️'),
+        el('div', { class: 'stat-quota-text' },
+          t('dash.inicio.quotaNearText', { items: cerca.map(c => c[2]).join(' y ') })
+        )
+      ));
+    }
+
+    // 3. Acciones rápidas (Quick Actions)
+    const quickActionsGrid = el('div', { class: 'quick-actions-grid' },
+      quickActionCard('chat', t('dash.inicio.qaChatTitle'), t('dash.inicio.qaChatDesc'), () => activate('chat', true)),
+      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => activate('estilo', true)),
+      quickActionCard('layout', t('dash.inicio.qaEmbedsTitle'), t('dash.inicio.qaEmbedsDesc'), () => activate('embeds', true)),
+      quickActionCard('film', t('dash.inicio.qaGifsTitle'), t('dash.inicio.qaGifsDesc'), () => activate('gifs', true)),
+      quickActionCard('zap', t('dash.inicio.qaTriggersTitle'), t('dash.inicio.qaTriggersDesc'), () => activate('triggers', true)),
+      quickActionCard('activity', t('dash.inicio.qaStatsTitle'), t('dash.inicio.qaStatsDesc'), () => activate('stats', true)),
+      quickActionCard('history', t('dash.inicio.qaHistorialTitle'), t('dash.inicio.qaHistorialDesc'), () => activate('historial', true))
+    );
+
+    box.append(formGroup(t('dash.inicio.quickActionsTitle'), quickActionsGrid));
+
+    // 4. Configuración Rápida / Estilo y Actualizaciones
+    const avatar = style.avatar_url || style.current_avatar_url;
+    const nick = style.nick || style.current_nick || 'Purgito';
+
+    const stylePreviewNode = formGroup(t('dash.inicio.quickStyleTitle'),
+      el('div', { class: 'style-card' },
+        el('div', { class: 'style-preview' },
+          avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
+          el('div', {},
+            el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
+            el('div', { class: 'dim' }, t('dash.inicio.previewText'))
+          )
+        ),
+        el('div', { class: 'style-card-actions' },
+          el('button', {
+            class: 'btn btn-secondary',
+            onclick: () => openStyleModal(style),
+          }, t('dash.inicio.editStyle')),
+          el('button', {
+            class: 'btn btn-secondary',
+            onclick: () => activate('estilo', true),
+          }, t('dash.inicio.viewOptions'))
+        )
+      )
+    );
+
+    // Canal de actualizaciones
+    const updatesRow = createUpdatesSection(updates, channels);
+
+    box.append(stylePreviewNode, updatesRow);
+  } catch (e) {
+    if (box) renderError(box, e);
+  }
+}
+
+export async function loadStatsModule() {
+  const box = content();
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
+  const epoch = _loadEpoch;
+
+  try {
+    const [statsRes, channelsRes] = await Promise.allSettled([
+      apiFetch(`/api/server/${GUILD_ID}/stats`),
+      getChannels({ force: true }),
+    ]);
+
+    if (epoch !== _loadEpoch) return;
+    if (!box) return;
+    box.innerHTML = '';
+
+    if (statsRes.status === 'rejected') {
+      renderError(box, statsRes.reason);
+      return;
+    }
+
+    const stats = statsRes.value || {};
+    const channels = channelsRes.status === 'fulfilled' ? (channelsRes.value || []) : [];
+    const lims = stats.limits || {};
+
+    const header = formGroup(t('dash.stats.title'),
+      el('p', { class: 'dim' }, t('dash.stats.desc'))
+    );
+
+    // 1. Métricas de uso y capacidad
     const tiles = el('div', { class: 'stat-grid' },
       statTile('corpus', withCap(stats.corpus_total, lims.corpus_total), t('dash.inicio.statMessages'), t('dash.inicio.statMessagesSub')),
       statTile('film', withCap(stats.gifs, lims.gifs), t('dash.inicio.statGifs'), t('dash.inicio.statGifsSub')),
@@ -1426,53 +1577,12 @@ async function loadInicio() {
       );
     }
 
-    box.append(formGroup(t('dash.inicio.statusTitle'), tiles, quotaNotice));
+    const usageGroup = formGroup(t('dash.stats.statusTitle'), tiles, quotaNotice);
 
-    // 3. Acciones rápidas (Quick Actions)
-    const quickActionsGrid = el('div', { class: 'quick-actions-grid' },
-      quickActionCard('chat', t('dash.inicio.qaChatTitle'), t('dash.inicio.qaChatDesc'), () => activate('chat', true)),
-      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => activate('estilo', true)),
-      quickActionCard('layout', t('dash.inicio.qaEmbedsTitle'), t('dash.inicio.qaEmbedsDesc'), () => activate('embeds', true)),
-      quickActionCard('film', t('dash.inicio.qaGifsTitle'), t('dash.inicio.qaGifsDesc'), () => activate('gifs', true)),
-      quickActionCard('zap', t('dash.inicio.qaTriggersTitle'), t('dash.inicio.qaTriggersDesc'), () => activate('triggers', true)),
-      quickActionCard('history', t('dash.inicio.qaHistorialTitle'), t('dash.inicio.qaHistorialDesc'), () => activate('historial', true))
-    );
-
-    box.append(formGroup(t('dash.inicio.quickActionsTitle'), quickActionsGrid));
-
-    // 4. Configuración Rápida / Estilo y Actualizaciones
-    const avatar = style.avatar_url || style.current_avatar_url;
-    const nick = style.nick || style.current_nick || 'Purgito';
-
-    const stylePreviewNode = formGroup(t('dash.inicio.quickStyleTitle'),
-      el('div', { class: 'style-card' },
-        el('div', { class: 'style-preview' },
-          avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
-          el('div', {},
-            el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
-            el('div', { class: 'dim' }, t('dash.inicio.previewText'))
-          )
-        ),
-        el('div', { class: 'style-card-actions' },
-          el('button', {
-            class: 'btn btn-secondary',
-            onclick: () => openStyleModal(style),
-          }, t('dash.inicio.editStyle')),
-          el('button', {
-            class: 'btn btn-secondary',
-            onclick: () => activate('estilo', true),
-          }, t('dash.inicio.viewOptions'))
-        )
-      )
-    );
-
-    // Canal de actualizaciones
-    const updatesRow = createUpdatesSection(updates, channels);
-
-    // Actividad histórica acumulada
+    // 2. Actividad histórica acumulada
     const counters = stats.counters || {};
-    const activityRow = formGroup(t('dash.inicio.activityTitle'),
-      el('p', { class: 'dim' }, t('dash.inicio.activityDesc')),
+    const activityRow = formGroup(t('dash.stats.activityTitle'),
+      el('p', { class: 'dim' }, t('dash.stats.activityDesc')),
       el('div', { class: 'activity-grid' },
         el('div', { class: 'activity-card' },
           el('div', { class: 'activity-icon-wrap' }, icon('film')),
@@ -1493,7 +1603,7 @@ async function loadInicio() {
       )
     );
 
-    box.append(stylePreviewNode, updatesRow, activityRow);
+    box.append(header, usageGroup, activityRow);
   } catch (e) {
     if (box) renderError(box, e);
   }

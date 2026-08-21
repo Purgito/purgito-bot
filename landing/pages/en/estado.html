@@ -109,111 +109,31 @@
         </div>
       </div>
 
-      <!-- Fila 3: Proceso y Motor de Generación -->
+      <!-- Fila 3: Generation Engine and Tasks -->
       <div class="estado-row" id="rowEngine">
         <div class="estado-row-identity">
           <span id="estadoDotEngine" class="estado-dot is-ok" aria-hidden="true"></span>
           <div class="estado-row-titles">
-            <strong class="estado-row-name">Process and memory</strong>
+            <strong class="estado-row-name">Generation engine and tasks</strong>
             <span id="estadoEngineDetail" class="estado-row-desc">Markov chains, meme generator, and background tasks</span>
           </div>
         </div>
         <div class="estado-row-metrics">
           <div class="estado-stat-col">
-            <span class="estado-stat-label">RSS memory</span>
-            <strong id="estadoEngineMemory" class="estado-stat-num">—</strong>
-          </div>
-          <div class="estado-stat-col">
             <span class="estado-stat-label">Uptime</span>
             <strong id="estadoEngineUptime" class="estado-stat-num">—</strong>
           </div>
-          <span id="estadoEngineBadge" class="status-badge is-ok">Normal</span>
+          <span id="estadoEngineBadge" class="status-badge is-ok">Operational</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 3. Infraestructura -->
-  <section class="estado-section">
-    <div class="estado-section-head">
-      <h2 class="estado-section-title">Infrastructure</h2>
-      <span class="estado-section-sub">Runtime environment and system dependencies</span>
-    </div>
-
-    <div class="estado-grid-infra">
-      <div class="estado-infra-card">
-        <div class="estado-infra-header">
-          <div class="estado-infra-title-wrap">
-            <span id="estadoDotInfraDiscord" class="estado-dot is-ok" aria-hidden="true"></span>
-            <strong class="estado-infra-title">Discord Gateway</strong>
-          </div>
-          <span id="estadoBadgeInfraDiscord" class="status-badge status-badge-sm is-ok">Operational</span>
-        </div>
-        <p class="estado-infra-desc">Direct WebSocket connection to the Discord API v10.</p>
-        <div class="estado-infra-meta">
-          <span class="estado-infra-meta-label">Ping latency</span>
-          <strong id="estadoInfraDiscordLatency" class="estado-infra-meta-value">—</strong>
-        </div>
-      </div>
-
-      <div class="estado-infra-card">
-        <div class="estado-infra-header">
-          <div class="estado-infra-title-wrap">
-            <span id="estadoDotInfraHost" class="estado-dot is-ok" aria-hidden="true"></span>
-            <strong class="estado-infra-title">Oracle Cloud (Host)</strong>
-          </div>
-          <span id="estadoBadgeInfraHost" class="status-badge status-badge-sm is-ok">Operational</span>
-        </div>
-        <p class="estado-infra-desc">Cloud compute instance (Linux x86_64 / ARM).</p>
-        <div class="estado-infra-meta">
-          <span class="estado-infra-meta-label">Process memory</span>
-          <strong id="estadoInfraHostMem" class="estado-infra-meta-value">—</strong>
-        </div>
-      </div>
-
-      <div class="estado-infra-card">
-        <div class="estado-infra-header">
-          <div class="estado-infra-title-wrap">
-            <span id="estadoDotInfraDb" class="estado-dot is-ok" aria-hidden="true"></span>
-            <strong class="estado-infra-title">SQLite database</strong>
-          </div>
-          <span id="estadoBadgeInfraDb" class="status-badge status-badge-sm is-ok">Operational</span>
-        </div>
-        <p class="estado-infra-desc">Local persistent storage for configuration and corpus.</p>
-        <div class="estado-infra-meta">
-          <span class="estado-infra-meta-label">Journal mode</span>
-          <strong class="estado-infra-meta-value">WAL / Active</strong>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 4. Registro de Incidentes / Disponibilidad en Sesión -->
-  <section class="estado-section">
-    <div class="estado-section-head">
-      <h2 class="estado-section-title">Incident log</h2>
-      <span class="estado-section-sub">Availability during the current running session</span>
-    </div>
-
-    <div class="estado-card estado-incident-card" id="estadoIncidentCard">
-      <div class="estado-incident-icon-wrap" id="estadoIncidentIcon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-      </div>
-      <div class="estado-incident-body">
-        <strong id="estadoIncidentTitle" class="estado-incident-title">No incidents reported</strong>
-        <p id="estadoIncidentDesc" class="estado-incident-desc">All of Purgito's services and components have been running without issues since the process last started.</p>
-      </div>
-      <div class="estado-incident-side">
-        <span class="estado-incident-tag" id="estadoIncidentTag">Operational</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- 5. Búsqueda de Servidor Específico -->
+  <!-- 3. Specific Server Check -->
   <section class="estado-section estado-section-search">
     <div class="estado-section-head">
-      <h2 class="estado-section-title">Having trouble on your server?</h2>
-      <p class="estado-section-sub">Check whether Purgito is connected and available on your Discord server using its ID.</p>
+      <h2 class="estado-section-title">Check my server</h2>
+      <p class="estado-section-sub">Verify whether Purgito is connected, responding, and available on your Discord server.</p>
     </div>
 
     <div class="estado-card estado-search-card">
