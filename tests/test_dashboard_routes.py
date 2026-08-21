@@ -985,16 +985,15 @@ def test_dashboard_category_grouped_collapsible_navigation():
     dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
     dash_css = (LANDING / "dash.css").read_text("utf-8")
 
-    # 1. Definición de categorías conceptuales reales (sin anime ni placeholders inventados)
+    # 1. Definición de categorías conceptuales reales (sin categorías artificiales de 1 solo elemento)
     assert "export const CATEGORIES" in dash_js
     assert "export const MODULES" in dash_js
     for cat in [
         "principal",
-        "alertas",
-        "anuncios",
         "automatizacion",
-        "entretenimiento",
-        "utilidades",
+        "mensajes",
+        "contenido",
+        "servidor",
     ]:
         assert f"key: '{cat}'" in dash_js
 
@@ -1006,9 +1005,9 @@ def test_dashboard_category_grouped_collapsible_navigation():
     assert "dash-sidebar-cat-group" in dash_js
     assert "dash-sidebar-cat-header" in dash_js
 
-    # 3. Badges de módulos
+    # 3. Badges de módulos y sección Premium
     assert "badge-premium" in dash_css
-    assert "badge-new" in dash_css
+    assert "dash-sidebar-premium-section" in dash_css
     assert "scrollbar-width: thin" in dash_css
 
 

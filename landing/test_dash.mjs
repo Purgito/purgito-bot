@@ -196,7 +196,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
 // ── Test 1: Estructura de módulos y categorías ─────────────────────────────────
 {
-  assert.ok(CATEGORIES.length >= 6, 'Debe haber al menos 6 categorías');
+  assert.ok(CATEGORIES.length >= 5, 'Debe haber al menos 5 categorías');
   assert.ok(MODULES.length >= 10, 'Debe haber módulos de configuración registrados');
   const inicioMod = MODULES.find(m => m.key === 'inicio');
   assert.ok(inicioMod, 'El módulo inicio debe existir');
@@ -752,7 +752,13 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
     assert.equal(count, 1, `El módulo ${key} solo debe existir una vez en MODULES`);
   }
 
-  // Reacciones automáticas y Frases y Packs deben estar en Automatización
+  // Eventos, Triggers, Reacciones, Frases y YouTube deben estar en Automatización
+  const eventosMod = MODULES.find(m => m.key === 'eventos');
+  assert.equal(eventosMod.cat, 'automatizacion', 'Eventos debe estar en Automatización');
+
+  const youtubeMod = MODULES.find(m => m.key === 'youtube');
+  assert.equal(youtubeMod.cat, 'automatizacion', 'YouTube debe estar en Automatización');
+
   const reaccionesMod = MODULES.find(m => m.key === 'reacciones');
   assert.equal(reaccionesMod.cat, 'automatizacion', 'Reacciones debe estar en Automatización');
 
@@ -765,8 +771,17 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const chatMod = MODULES.find(m => m.key === 'chat');
   assert.equal(chatMod.cat, 'principal', 'Chat debe estar en Principal');
 
+  const embedsMod = MODULES.find(m => m.key === 'embeds');
+  assert.equal(embedsMod.cat, 'mensajes', 'Embeds debe estar en Mensajes');
+
+  const gifsMod = MODULES.find(m => m.key === 'gifs');
+  assert.equal(gifsMod.cat, 'contenido', 'GIFs debe estar en Contenido');
+
+  const canalesMod = MODULES.find(m => m.key === 'canales');
+  assert.equal(canalesMod.cat, 'servidor', 'Canales debe estar en Servidor');
+
   const premiumMod = MODULES.find(m => m.key === 'premium');
-  assert.equal(premiumMod.cat, 'principal', 'Purgito Premium debe estar al final de Principal');
+  assert.ok(premiumMod, 'Purgito Premium debe existir');
 
   console.log('✓ Test 13: Estructura de módulos limpia y sin redundancias');
 }
@@ -1326,6 +1341,87 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.ok(!avatarCdnUrl.includes('/es/https:'), 'URL externa jamás debe ser prefijada con /es/');
 
   console.log('✓ Test 30: Inmutabilidad de URLs de Discord CDN y avatares');
+}
+
+// ── Test 31: Módulo de Eventos del Servidor (rediseño UX/UI) ─────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  const { loadEventosTab } = await import('./js/tabs/eventos.js');
+  assert.equal(typeof loadEventosTab, 'function', 'loadEventosTab debe ser una función exportada');
+
+  const mockEventsData = {
+    events: {
+      welcome: {
+        guild_id: 123456789,
+        event_type: 'welcome',
+        enabled: true,
+        channel_id: 10,
+        content_mode: 'plain_text',
+        message: '¡Bienvenido {user} a {server_name}!',
+        embed_json: null,
+      },
+      goodbye: {
+        guild_id: 123456789,
+        event_type: 'goodbye',
+        enabled: false,
+        channel_id: null,
+        content_mode: 'plain_text',
+        message: 'Hasta luego {user}',
+        embed_json: null,
+      },
+    },
+    variables: [
+      { name: 'user', category: 'user', description: 'Mención del usuario', example: '@Punky', allowed_events: ['welcome', 'goodbye', 'boost'] },
+      { name: 'server_name', category: 'server', description: 'Nombre del servidor', example: 'Mi Servidor', allowed_events: ['welcome', 'goodbye', 'boost'] },
+      { name: 'server_boostlevel', category: 'boost', description: 'Nivel de boost', example: '2', allowed_events: ['boost'] },
+    ],
+  };
+
+  const mockChannels = {
+    channels: [
+      { id: '10', name: 'bienvenidas' },
+      { id: '20', name: 'despedidas' },
+    ],
+  };
+  const mockRoles = { roles: [] };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/events')) return jsonResp(mockEventsData);
+      if (url.includes('/api/server/123456789/channels')) return jsonResp(mockChannels);
+      if (url.includes('/api/server/123456789/roles')) return jsonResp(mockRoles);
+      return jsonResp({});
+    },
+  ];
+
+  await loadEventosTab();
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.match(contentText, /Eventos del servidor/);
+  assert.match(contentText, /Bienvenida/);
+  assert.match(contentText, /Despedida/);
+  assert.match(contentText, /Boost/);
+
+  // Selector compacto con estados
+  assert.match(contentText, /ACTIVO/);
+  assert.match(contentText, /INACTIVO/);
+
+  // Barra mínima
+  assert.match(contentText, /Estado del evento/);
+  assert.match(contentText, /Canal de destino/);
+
+  // Workspace 2 columnas y preview
+  assert.match(contentText, /Modo de contenido/);
+  assert.match(contentText, /Vista previa en vivo/);
+  assert.match(contentText, /Variables disponibles/);
+  assert.match(contentText, /Guardar cambios/);
+  assert.match(contentText, /Enviar prueba/);
+  assert.match(contentText, /Restablecer/);
+
+  console.log('✓ Test 31: Módulo de Eventos del Servidor (rediseño UX/UI verificado)');
 }
 
 console.log('\n========================================');

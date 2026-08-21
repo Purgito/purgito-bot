@@ -1,8 +1,9 @@
 // Módulo de Eventos del Servidor (Bienvenida, Despedida, Boost).
+// Arquitectura visual: Selector de Eventos -> Configuración Mínima -> Workspace (Editor 2-Col + Live Preview).
 
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, spinner, renderError, toast, formGroup, autoGrow, helpIcon, icon,
+  el, spinner, renderError, toast, formGroup, accordionGroup, autoGrow, helpIcon, icon,
 } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
@@ -14,7 +15,7 @@ import {
 } from '/js/embeds/state.js';
 import { renderEmbedsPreview } from '/js/embeds/classic-editor.js';
 import { renderLayoutPreview } from '/js/embeds/layout-editor.js';
-import { colorField, imageField, insertWrap, sendOptionsPanel } from '/js/embeds/shared-ui.js';
+import { colorField, imageField, insertWrap } from '/js/embeds/shared-ui.js';
 
 addStrings({
   es: {
@@ -30,6 +31,9 @@ addStrings({
     'tabsEventos.statusInactive': 'INACTIVO',
     'tabsEventos.statusConfigured': 'Configurado',
     'tabsEventos.statusNotConfigured': 'Sin configurar',
+    'tabsEventos.statusLabel': 'Estado del evento',
+    'tabsEventos.activeState': 'Activado',
+    'tabsEventos.inactiveState': 'Desactivado',
     'tabsEventos.toggleLabel': 'Activar evento',
     'tabsEventos.toggleHelp': 'Si está desactivado, Purgito no enviará ningún mensaje cuando ocurra este evento.',
     'tabsEventos.channelLabel': 'Canal de destino',
@@ -42,23 +46,47 @@ addStrings({
     'tabsEventos.plainTextLabel': 'Contenido del mensaje',
     'tabsEventos.plainTextPlaceholder': '¡Bienvenido {user} a {server_name}! Ya somos {server_membercount} miembros.',
     'tabsEventos.plainTextCounter': '{count} / 2000 caracteres',
+    'tabsEventos.sectionContent': 'Contenido principal',
+    'tabsEventos.sectionAppearance': 'Apariencia y color',
+    'tabsEventos.sectionImages': 'Imágenes y miniaturas',
+    'tabsEventos.sectionAuthor': 'Autor',
+    'tabsEventos.sectionFooter': 'Pie de página',
+    'tabsEventos.sectionFields': 'Campos adicionales (Fields)',
+    'tabsEventos.sectionIdentity': 'Identidad personalizada (Webhook)',
+    'tabsEventos.embedTitleLabel': 'Título del embed',
+    'tabsEventos.embedDescLabel': 'Descripción',
+    'tabsEventos.embedColorLabel': 'Color de la barra lateral',
+    'tabsEventos.embedThumbLabel': 'Miniatura (Thumbnail)',
+    'tabsEventos.embedImageLabel': 'Imagen grande',
+    'tabsEventos.embedAuthorNameLabel': 'Nombre del autor',
+    'tabsEventos.embedAuthorIconLabel': 'Icono del autor',
+    'tabsEventos.embedFooterTextLabel': 'Texto del pie de página',
+    'tabsEventos.embedFooterIconLabel': 'Icono del pie de página',
+    'tabsEventos.webhookUsernameLabel': 'Nombre de usuario personalizado',
+    'tabsEventos.webhookAvatarLabel': 'Avatar personalizado (URL)',
+    'tabsEventos.webhookHelp': 'Permite enviar el mensaje con un nombre y avatar específicos para este evento usando webhooks de Discord.',
+    'tabsEventos.addFieldBtn': '+ Agregar campo',
+    'tabsEventos.fieldNamePlaceholder': 'Nombre del campo',
+    'tabsEventos.fieldValuePlaceholder': 'Valor del campo',
+    'tabsEventos.fieldInlineLabel': 'En línea (inline)',
     'tabsEventos.varsTitle': 'Variables disponibles',
-    'tabsEventos.varsSubtitle': 'Haz clic en cualquier variable para copiarla.',
+    'tabsEventos.varsSubtitle': 'Haz clic en una variable para insertarla en el campo activo o copiarla.',
     'tabsEventos.varsSearchPlaceholder': 'Buscar variables…',
     'tabsEventos.varsCopied': 'Variable {var} copiada al portapapeles',
+    'tabsEventos.varsInserted': 'Variable {var} insertada',
     'tabsEventos.catAll': 'Todas',
     'tabsEventos.catUser': 'Usuario',
     'tabsEventos.catServer': 'Servidor',
     'tabsEventos.catChannel': 'Canal',
     'tabsEventos.catBoost': 'Boost',
     'tabsEventos.catDate': 'Fecha',
-    'tabsEventos.previewTitle': 'Vista previa',
+    'tabsEventos.previewTitle': 'Vista previa en vivo',
     'tabsEventos.previewHeader': 'Purgito',
     'tabsEventos.previewBotTag': 'BOT',
     'tabsEventos.previewToday': 'HOY',
-    'tabsEventos.saveBtn': 'Guardar configuración',
+    'tabsEventos.saveBtn': 'Guardar cambios',
     'tabsEventos.saving': 'Guardando…',
-    'tabsEventos.savedSuccess': 'Configuración de {event} guardada',
+    'tabsEventos.savedSuccess': 'Configuración de {event} guardada correctamente',
     'tabsEventos.testBtn': 'Enviar prueba',
     'tabsEventos.testing': 'Enviando prueba…',
     'tabsEventos.testSuccess': 'Mensaje de prueba enviado al canal',
@@ -84,6 +112,9 @@ addStrings({
     'tabsEventos.statusInactive': 'INACTIVE',
     'tabsEventos.statusConfigured': 'Configured',
     'tabsEventos.statusNotConfigured': 'Not configured',
+    'tabsEventos.statusLabel': 'Event status',
+    'tabsEventos.activeState': 'Enabled',
+    'tabsEventos.inactiveState': 'Disabled',
     'tabsEventos.toggleLabel': 'Enable event',
     'tabsEventos.toggleHelp': 'If disabled, Purgito will not send any message when this event occurs.',
     'tabsEventos.channelLabel': 'Destination channel',
@@ -96,10 +127,34 @@ addStrings({
     'tabsEventos.plainTextLabel': 'Message content',
     'tabsEventos.plainTextPlaceholder': 'Welcome {user} to {server_name}! We are now {server_membercount} members.',
     'tabsEventos.plainTextCounter': '{count} / 2000 characters',
+    'tabsEventos.sectionContent': 'Main content',
+    'tabsEventos.sectionAppearance': 'Appearance & color',
+    'tabsEventos.sectionImages': 'Images & thumbnails',
+    'tabsEventos.sectionAuthor': 'Author',
+    'tabsEventos.sectionFooter': 'Footer',
+    'tabsEventos.sectionFields': 'Additional fields',
+    'tabsEventos.sectionIdentity': 'Custom identity (Webhook)',
+    'tabsEventos.embedTitleLabel': 'Embed title',
+    'tabsEventos.embedDescLabel': 'Description',
+    'tabsEventos.embedColorLabel': 'Sidebar color',
+    'tabsEventos.embedThumbLabel': 'Thumbnail',
+    'tabsEventos.embedImageLabel': 'Large image',
+    'tabsEventos.embedAuthorNameLabel': 'Author name',
+    'tabsEventos.embedAuthorIconLabel': 'Author icon',
+    'tabsEventos.embedFooterTextLabel': 'Footer text',
+    'tabsEventos.embedFooterIconLabel': 'Footer icon',
+    'tabsEventos.webhookUsernameLabel': 'Custom username',
+    'tabsEventos.webhookAvatarLabel': 'Custom avatar (URL)',
+    'tabsEventos.webhookHelp': 'Allows sending the message with a specific custom name and avatar for this event using Discord webhooks.',
+    'tabsEventos.addFieldBtn': '+ Add field',
+    'tabsEventos.fieldNamePlaceholder': 'Field name',
+    'tabsEventos.fieldValuePlaceholder': 'Field value',
+    'tabsEventos.fieldInlineLabel': 'Inline',
     'tabsEventos.varsTitle': 'Available variables',
-    'tabsEventos.varsSubtitle': 'Click any variable to copy it to your clipboard.',
+    'tabsEventos.varsSubtitle': 'Click any variable to insert into active field or copy.',
     'tabsEventos.varsSearchPlaceholder': 'Search variables…',
     'tabsEventos.varsCopied': 'Variable {var} copied to clipboard',
+    'tabsEventos.varsInserted': 'Variable {var} inserted',
     'tabsEventos.catAll': 'All',
     'tabsEventos.catUser': 'User',
     'tabsEventos.catServer': 'Server',
@@ -134,19 +189,19 @@ const EVENT_DEFS = [
 ];
 
 function getMockContext(eventType) {
-  const isEn = (document.documentElement.lang || 'es') === 'en';
+  const isEn = (typeof document !== 'undefined' && document.documentElement && document.documentElement.lang === 'en') || false;
   return {
-    user: '@Usuario de prueba',
+    user: isEn ? '@Test User' : '@Usuario de prueba',
     user_tag: 'usuario_prueba',
     user_name: 'usuario_prueba',
-    user_nick: 'Usuario de prueba',
-    user_displayname: 'Usuario de prueba',
+    user_nick: isEn ? 'Test User' : 'Usuario de prueba',
+    user_displayname: isEn ? 'Test User' : 'Usuario de prueba',
     user_avatar: 'https://cdn.discordapp.com/embed/avatars/1.png',
     user_id: '987654321012345678',
     user_created_at: isEn ? 'January 15, 2022' : '15 de enero de 2022',
     user_joined_at: isEn ? 'August 21, 2026' : '21 de agosto de 2026',
     user_boost_since: eventType === 'boost' ? (isEn ? 'August 21, 2026' : '21 de agosto de 2026') : 'N/A',
-    server_name: 'Mi Servidor',
+    server_name: isEn ? 'Test Server' : 'Mi Servidor',
     server_id: String(GUILD_ID || '123456789012345678'),
     server_membercount: isEn ? '1,284' : '1.284',
     server_membercount_ordinal: isEn ? '#1,284' : '#1.284',
@@ -169,36 +224,44 @@ function getMockContext(eventType) {
 }
 
 function resolvePlaceholders(text, ctx) {
-  if (!text || typeof text !== 'string') return text || '';
+  if (!text || typeof text !== 'string') return text;
   return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, varName) => {
     return ctx[varName] !== undefined ? ctx[varName] : match;
   });
 }
 
 function resolveEmbedForPreview(embed, ctx) {
+  if (!embed || typeof embed !== 'object') return {};
   const e = JSON.parse(JSON.stringify(embed));
   if (e.title) e.title = resolvePlaceholders(e.title, ctx);
   if (e.description) e.description = resolvePlaceholders(e.description, ctx);
   if (e.fields && Array.isArray(e.fields)) {
     for (const f of e.fields) {
-      if (f.name) f.name = resolvePlaceholders(f.name, ctx);
-      if (f.value) f.value = resolvePlaceholders(f.value, ctx);
+      if (f && typeof f === 'object') {
+        if (f.name) f.name = resolvePlaceholders(f.name, ctx);
+        if (f.value) f.value = resolvePlaceholders(f.value, ctx);
+      }
     }
   }
-  if (e.footer) {
+  if (e.footer && typeof e.footer === 'object') {
     if (e.footer.text) e.footer.text = resolvePlaceholders(e.footer.text, ctx);
     if (e.footer.icon_url) e.footer.icon_url = resolvePlaceholders(e.footer.icon_url, ctx);
   }
-  if (e.author) {
+  if (e.author && typeof e.author === 'object') {
     if (e.author.name) e.author.name = resolvePlaceholders(e.author.name, ctx);
     if (e.author.icon_url) e.author.icon_url = resolvePlaceholders(e.author.icon_url, ctx);
   }
-  if (e.thumbnail && e.thumbnail.url) e.thumbnail.url = resolvePlaceholders(e.thumbnail.url, ctx);
-  if (e.image && e.image.url) e.image.url = resolvePlaceholders(e.image.url, ctx);
+  if (e.thumbnail && typeof e.thumbnail === 'object' && e.thumbnail.url) {
+    e.thumbnail.url = resolvePlaceholders(e.thumbnail.url, ctx);
+  }
+  if (e.image && typeof e.image === 'object' && e.image.url) {
+    e.image.url = resolvePlaceholders(e.image.url, ctx);
+  }
   return e;
 }
 
 function resolveBlockForPreview(block, ctx) {
+  if (!block || typeof block !== 'object') return {};
   const b = JSON.parse(JSON.stringify(block));
   if (b.type === 'container' && Array.isArray(b.children)) {
     b.children = b.children.map(c => resolveBlockForPreview(c, ctx));
@@ -206,7 +269,7 @@ function resolveBlockForPreview(block, ctx) {
     b.content = resolvePlaceholders(b.content, ctx);
   } else if (b.type === 'section') {
     if (Array.isArray(b.texts)) b.texts = b.texts.map(tx => resolvePlaceholders(tx, ctx));
-    if (b.accessory) {
+    if (b.accessory && typeof b.accessory === 'object') {
       if (b.accessory.type === 'thumbnail') {
         if (b.accessory.url) b.accessory.url = resolvePlaceholders(b.accessory.url, ctx);
         if (b.accessory.description) b.accessory.description = resolvePlaceholders(b.accessory.description, ctx);
@@ -217,13 +280,17 @@ function resolveBlockForPreview(block, ctx) {
     }
   } else if (b.type === 'media_gallery' && Array.isArray(b.items)) {
     for (const it of b.items) {
-      if (it.url) it.url = resolvePlaceholders(it.url, ctx);
-      if (it.description) it.description = resolvePlaceholders(it.description, ctx);
+      if (it && typeof it === 'object') {
+        if (it.url) it.url = resolvePlaceholders(it.url, ctx);
+        if (it.description) it.description = resolvePlaceholders(it.description, ctx);
+      }
     }
   } else if (b.type === 'action_row' && Array.isArray(b.buttons)) {
     for (const btn of b.buttons) {
-      if (btn.label) btn.label = resolvePlaceholders(btn.label, ctx);
-      if (btn.url) btn.url = resolvePlaceholders(btn.url, ctx);
+      if (btn && typeof btn === 'object') {
+        if (btn.label) btn.label = resolvePlaceholders(btn.label, ctx);
+        if (btn.url) btn.url = resolvePlaceholders(btn.url, ctx);
+      }
     }
   }
   return b;
@@ -257,6 +324,9 @@ function renderEventosShell(container, initialData, channels, roles) {
   const serverEvents = initialData.events || {};
   const allVariables = initialData.variables || [];
 
+  // Track focused input for smart variable insertion
+  let lastActiveInput = null;
+
   // Header
   const header = el('div', { class: 'tab-header' },
     el('h1', {}, el('span', { class: 'nav-icon' }, icon('sparkle')), t('tabsEventos.title')),
@@ -265,7 +335,7 @@ function renderEventosShell(container, initialData, channels, roles) {
 
   // Cards selector for the 3 events
   const cardsWrap = el('div', { class: 'event-cards-grid' });
-  const detailWrap = el('div', { class: 'event-detail-card card' });
+  const detailWrap = el('div', { class: 'event-workspace' });
 
   function refreshCards() {
     cardsWrap.innerHTML = '';
@@ -276,9 +346,11 @@ function renderEventosShell(container, initialData, channels, roles) {
         ? channels.find(c => String(c.id) === String(evConfig.channel_id))
         : null;
 
-      const card = el('div', {
+      const card = el('button', {
+        type: 'button',
         class: 'event-nav-card' + (def.key === activeEventKey ? ' active' : ''),
         onclick: () => {
+          if (activeEventKey === def.key) return;
           activeEventKey = def.key;
           refreshCards();
           renderEventDetail();
@@ -290,7 +362,7 @@ function renderEventosShell(container, initialData, channels, roles) {
             el('strong', {}, t(def.titleKey))
           ),
           el('span', { class: 'badge ' + (isEnabled ? 'badge-ok' : 'badge-dim') },
-            isEnabled ? t('tabsEventos.statusActive') : t('tabsEventos.statusInactive')
+            isEnabled ? `● ${t('tabsEventos.statusActive')}` : `○ ${t('tabsEventos.statusInactive')}`
           )
         ),
         el('p', { class: 'event-nav-card-desc dim' }, t(def.descKey)),
@@ -305,6 +377,8 @@ function renderEventosShell(container, initialData, channels, roles) {
 
   function renderEventDetail() {
     detailWrap.innerHTML = '';
+    lastActiveInput = null;
+
     const def = EVENT_DEFS.find(d => d.key === activeEventKey);
     const evConfig = serverEvents[activeEventKey] || {
       enabled: false,
@@ -320,72 +394,87 @@ function renderEventosShell(container, initialData, channels, roles) {
     let selectedChannelId = evConfig.channel_id ? String(evConfig.channel_id) : '';
     let currentMode = evConfig.content_mode || 'plain_text';
     let currentMessage = evConfig.message || '';
+    let customUsername = '';
+    let customAvatarUrl = '';
 
-    // Embed/Layout state representation
-    let localEmbedDoc = null;
-    let localLayoutDoc = null;
+    // Embed and Layout state
+    let localEmbedDoc = blankDoc();
+    let localLayoutDoc = blankLayoutDoc();
 
     if (currentMode === 'classic_embed' && evConfig.embed_json) {
       try {
         const parsed = JSON.parse(evConfig.embed_json);
         const list = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
-        localEmbedDoc = blankDoc();
+        if (parsed && !Array.isArray(parsed) && parsed.send_options) {
+          customUsername = parsed.send_options.username || '';
+          customAvatarUrl = parsed.send_options.avatar_url || '';
+        }
         localEmbedDoc.embeds = list.map(e => ({ ...e }));
       } catch (e) {
         localEmbedDoc = blankDoc();
       }
-    } else {
-      localEmbedDoc = blankDoc();
     }
 
     if (currentMode === 'layout_v2' && evConfig.embed_json) {
       try {
         const parsed = JSON.parse(evConfig.embed_json);
-        localLayoutDoc = blankLayoutDoc();
+        if (parsed && parsed.send_options) {
+          customUsername = parsed.send_options.username || '';
+          customAvatarUrl = parsed.send_options.avatar_url || '';
+        }
         localLayoutDoc.blocks = (parsed.blocks || []).map(apiToBlock);
       } catch (e) {
         localLayoutDoc = blankLayoutDoc();
       }
-    } else {
-      localLayoutDoc = blankLayoutDoc();
     }
 
-    // Detail Header
-    const detailHead = el('div', { class: 'event-detail-header' },
-      el('div', { class: 'event-detail-title-group' },
-        el('h2', {}, t(def.titleKey)),
-        el('p', { class: 'dim' }, t(def.descKey))
-      )
-    );
+    // Ensure embed object exists
+    if (!localEmbedDoc.embeds.length) {
+      localEmbedDoc.embeds.push(blankEmbed());
+    }
+    const embedState = localEmbedDoc.embeds[0];
 
-    // Toggle switch
+    // 1. MINIMAL CONFIG BAR (Horizontal bar: Active Toggle + Channel Selector)
     const toggleChk = el('input', {
       type: 'checkbox',
       checked: isEnabled,
       onchange: () => {
         isEnabled = toggleChk.checked;
+        statusText.textContent = isEnabled ? `● ${t('tabsEventos.activeState')}` : `○ ${t('tabsEventos.inactiveState')}`;
+        statusText.className = 'status-indicator ' + (isEnabled ? 'active' : 'inactive');
         updatePreview();
       },
     });
 
-    const toggleRow = el('div', { class: 'form-group' },
-      el('label', { class: 'toggle' },
-        toggleChk,
-        el('span', { class: 'toggle-label' }, t('tabsEventos.toggleLabel'))
-      ),
-      helpIcon(t('tabsEventos.toggleHelp'))
+    const statusText = el('span', { class: 'status-indicator ' + (isEnabled ? 'active' : 'inactive') },
+      isEnabled ? `● ${t('tabsEventos.activeState')}` : `○ ${t('tabsEventos.inactiveState')}`
     );
 
-    // Channel Selector
+    const toggleWrap = el('label', { class: 'toggle event-status-toggle' },
+      toggleChk,
+      el('span', { class: 'toggle-label' }, t('tabsEventos.toggleLabel')),
+      statusText
+    );
+
     const channelSel = channelSelect(channels, selectedChannelId, t('tabsEventos.channelSelectPlaceholder'));
     channelSel.onchange = () => {
       selectedChannelId = channelSel.value;
       updatePreview();
     };
 
-    const channelRow = formGroup(t('tabsEventos.channelLabel'), channelSel, t('tabsEventos.channelHelp'));
+    const minimalBar = el('div', { class: 'event-minimal-bar card' },
+      el('div', { class: 'minimal-bar-item' },
+        el('div', { class: 'minimal-bar-label' }, t('tabsEventos.statusLabel'), helpIcon(t('tabsEventos.toggleHelp'))),
+        toggleWrap
+      ),
+      el('div', { class: 'minimal-bar-divider' }),
+      el('div', { class: 'minimal-bar-item minimal-bar-channel' },
+        el('div', { class: 'minimal-bar-label' }, t('tabsEventos.channelLabel'), helpIcon(t('tabsEventos.channelHelp'))),
+        channelSel
+      )
+    );
 
-    // Mode Selector (Pills)
+    // 2. WORKSPACE 2-COLUMN GRID (Left: Mode + Editor + Variables + Actions; Right: Sticky Preview)
     const modes = [
       { key: 'plain_text', label: t('tabsEventos.modePlainText'), icon: 'chat' },
       { key: 'classic_embed', label: t('tabsEventos.modeClassicEmbed'), icon: 'layout' },
@@ -394,7 +483,7 @@ function renderEventosShell(container, initialData, channels, roles) {
 
     const modePills = el('div', { class: 'event-mode-pills' });
     const editorContainer = el('div', { class: 'event-editor-container' });
-    const previewContainer = el('div', { class: 'event-preview-container' });
+    const previewContainer = el('div', { class: 'event-preview-pane' });
 
     function renderModeSelector() {
       modePills.innerHTML = '';
@@ -403,6 +492,7 @@ function renderEventosShell(container, initialData, channels, roles) {
           type: 'button',
           class: 'mode-pill' + (currentMode === m.key ? ' active' : ''),
           onclick: () => {
+            if (currentMode === m.key) return;
             currentMode = m.key;
             renderModeSelector();
             renderEditorArea();
@@ -416,10 +506,11 @@ function renderEventosShell(container, initialData, channels, roles) {
       }
     }
 
-    // Live preview update function
+    // Live preview updater
     function updatePreview() {
       previewContainer.innerHTML = '';
       const ctx = getMockContext(activeEventKey);
+
       if (selectedChannelId) {
         const ch = channels.find(c => String(c.id) === String(selectedChannelId));
         if (ch) {
@@ -429,11 +520,14 @@ function renderEventosShell(container, initialData, channels, roles) {
         }
       }
 
-      // Discord message wrapper
+      // Custom identity in preview
+      const previewAuthorName = customUsername ? resolvePlaceholders(customUsername, ctx) : t('tabsEventos.previewHeader');
+      const previewAvatarUrl = customAvatarUrl ? resolvePlaceholders(customAvatarUrl, ctx) : '/assets/icon.png';
+
       const msgHeader = el('div', { class: 'd-msg-header' },
-        el('img', { src: '/assets/icon.png', alt: t('tabsEventos.botAvatarAlt'), class: 'd-msg-avatar' }),
+        el('img', { src: previewAvatarUrl, alt: t('tabsEventos.botAvatarAlt'), class: 'd-msg-avatar' }),
         el('div', { class: 'd-msg-meta' },
-          el('span', { class: 'd-msg-author' }, t('tabsEventos.previewHeader')),
+          el('span', { class: 'd-msg-author' }, previewAuthorName),
           el('span', { class: 'd-msg-bot' }, t('tabsEventos.previewBotTag')),
           el('span', { class: 'd-msg-time' }, t('tabsEventos.previewToday'))
         )
@@ -455,16 +549,21 @@ function renderEventosShell(container, initialData, channels, roles) {
         msgBody.append(renderLayoutPreview(resolvedBlocks));
       }
 
-      const discordMessage = el('div', { class: 'd-message' }, msgHeader, msgBody);
-      previewContainer.append(
-        el('div', { class: 'preview-title-bar' },
-          el('strong', {}, t('tabsEventos.previewTitle'))
+      const discordCard = el('div', { class: 'd-message-card' },
+        el('div', { class: 'd-message-top' },
+          el('div', { class: 'd-message-channel-tag' },
+            icon('chat'),
+            el('span', {}, ctx.channel || '#bienvenidas')
+          ),
+          el('span', { class: 'preview-badge dim' }, t('tabsEventos.previewTitle'))
         ),
-        discordMessage
+        el('div', { class: 'd-message' }, msgHeader, msgBody)
       );
+
+      previewContainer.append(discordCard);
     }
 
-    // Editor Area Render
+    // Render Editor Content
     function renderEditorArea() {
       editorContainer.innerHTML = '';
 
@@ -480,7 +579,11 @@ function renderEventosShell(container, initialData, channels, roles) {
           t('tabsEventos.plainTextCounter', { count: currentMessage.length })
         );
 
+        const registerActive = () => { lastActiveInput = txtArea; };
+        txtArea.onfocus = registerActive;
+        txtArea.onclick = registerActive;
         txtArea.oninput = () => {
+          registerActive();
           currentMessage = txtArea.value;
           autoGrow(txtArea);
           counter.textContent = t('tabsEventos.plainTextCounter', { count: currentMessage.length });
@@ -489,24 +592,27 @@ function renderEventosShell(container, initialData, channels, roles) {
         };
 
         const group = el('div', { class: 'form-group' },
-          el('label', {}, t('tabsEventos.plainTextLabel')),
+          el('label', { class: 'form-label' }, t('tabsEventos.plainTextLabel')),
           txtArea,
           counter
         );
 
         editorContainer.append(group);
       } else if (currentMode === 'classic_embed') {
-        // Embed editor fields
-        const s = localEmbedDoc.embeds[0] || blankEmbed();
-        localEmbedDoc.embeds[0] = s;
+        const s = embedState;
 
-        function boundInput(key, placeholder, isArea = false) {
+        function boundInput(key, placeholder, isArea = false, maxL = null) {
           const input = el(isArea ? 'textarea' : 'input', {
             class: 'form-control' + (isArea ? ' autogrow' : ''),
             placeholder,
+            maxlength: maxL ? String(maxL) : null,
           });
           input.value = s[key] || '';
+          const registerActive = () => { lastActiveInput = input; };
+          input.onfocus = registerActive;
+          input.onclick = registerActive;
           input.oninput = () => {
+            registerActive();
             s[key] = input.value;
             if (isArea) autoGrow(input);
             updatePreview();
@@ -514,34 +620,161 @@ function renderEventosShell(container, initialData, channels, roles) {
           return input;
         }
 
-        const titleInput = boundInput('title', '¡Bienvenido {user}!');
-        const descInput = boundInput('description', 'Nos alegra tenerte en {server_name}', true);
-
-        const thumbWrap = imageField(s, 'thumbnail', () => updatePreview());
-        const imgWrap = imageField(s, 'image', () => updatePreview());
-        const colorWrap = colorField(s, 'color', () => updatePreview());
-
-        const authorName = boundInput('author_name', '{server_name}');
-        const authorIcon = imageField(s, 'author_icon_url', () => updatePreview());
-
-        const footerText = boundInput('footer_text', 'Miembro #{server_membercount}');
-        const footerIcon = imageField(s, 'footer_icon_url', () => updatePreview());
-
-        const embedBox = el('div', { class: 'event-embed-editor' },
-          formGroup('Título del embed', titleInput),
-          formGroup('Descripción del embed', descInput),
-          formGroup('Color de la barra lateral', colorWrap),
-          formGroup('Miniatura (Thumbnail)', thumbWrap),
-          formGroup('Imagen grande', imgWrap),
-          formGroup('Autor (Nombre)', authorName),
-          formGroup('Autor (Icono)', authorIcon),
-          formGroup('Pie de página (Texto)', footerText),
-          formGroup('Pie de página (Icono)', footerIcon)
+        // 1. Contenido principal
+        const titleInp = boundInput('title', '¡Bienvenido {user}!', false, EMBED_LIMITS.title);
+        const descInp = boundInput('description', 'Nos alegra tenerte en {server_name}', true, EMBED_LIMITS.description);
+        const contentSec = accordionGroup(t('tabsEventos.sectionContent'), true,
+          formGroup(t('tabsEventos.embedTitleLabel'), titleInp),
+          formGroup(t('tabsEventos.embedDescLabel'), descInp)
         );
 
-        editorContainer.append(embedBox);
+        // 2. Apariencia
+        const colorWrap = colorField(s, 'color', () => updatePreview());
+        const appearanceSec = accordionGroup(t('tabsEventos.sectionAppearance'), false,
+          formGroup(t('tabsEventos.embedColorLabel'), colorWrap)
+        );
+
+        // 3. Imágenes
+        const thumbWrap = imageField(s, 'thumbnail', () => updatePreview(), { gif: true });
+        const imgWrap = imageField(s, 'image', () => updatePreview(), { gif: true });
+        const imagesSec = accordionGroup(t('tabsEventos.sectionImages'), false,
+          formGroup(t('tabsEventos.embedThumbLabel'), thumbWrap),
+          formGroup(t('tabsEventos.embedImageLabel'), imgWrap)
+        );
+
+        // 4. Autor
+        const authorName = boundInput('author_name', '{server_name}', false, EMBED_LIMITS.author);
+        const authorIcon = imageField(s, 'author_icon_url', () => updatePreview());
+        const authorSec = accordionGroup(t('tabsEventos.sectionAuthor'), false,
+          formGroup(t('tabsEventos.embedAuthorNameLabel'), authorName),
+          formGroup(t('tabsEventos.embedAuthorIconLabel'), authorIcon)
+        );
+
+        // 5. Pie de página
+        const footerText = boundInput('footer_text', 'Miembro #{server_membercount}', false, EMBED_LIMITS.footer);
+        const footerIcon = imageField(s, 'footer_icon_url', () => updatePreview());
+        const footerSec = accordionGroup(t('tabsEventos.sectionFooter'), false,
+          formGroup(t('tabsEventos.embedFooterTextLabel'), footerText),
+          formGroup(t('tabsEventos.embedFooterIconLabel'), footerIcon)
+        );
+
+        // 6. Campos adicionales (Fields)
+        const fieldsListWrap = el('div', { class: 'embed-fields-container' });
+        s.fields = s.fields || [];
+
+        function renderFields() {
+          fieldsListWrap.innerHTML = '';
+          s.fields.forEach((f, idx) => {
+            const fName = el('input', {
+              class: 'form-control',
+              placeholder: t('tabsEventos.fieldNamePlaceholder'),
+              value: f.name || '',
+              maxlength: String(EMBED_LIMITS.fieldName),
+            });
+            fName.onfocus = () => { lastActiveInput = fName; };
+            fName.oninput = () => {
+              lastActiveInput = fName;
+              f.name = fName.value;
+              updatePreview();
+            };
+
+            const fVal = el('input', {
+              class: 'form-control',
+              placeholder: t('tabsEventos.fieldValuePlaceholder'),
+              value: f.value || '',
+              maxlength: String(EMBED_LIMITS.fieldValue),
+            });
+            fVal.onfocus = () => { lastActiveInput = fVal; };
+            fVal.oninput = () => {
+              lastActiveInput = fVal;
+              f.value = fVal.value;
+              updatePreview();
+            };
+
+            const inlineChk = el('input', {
+              type: 'checkbox',
+              checked: !!f.inline,
+              onchange: () => {
+                f.inline = inlineChk.checked;
+                updatePreview();
+              },
+            });
+
+            const delBtn = el('button', {
+              type: 'button',
+              class: 'btn btn-secondary btn-xs',
+              title: 'Eliminar campo',
+              onclick: () => {
+                s.fields.splice(idx, 1);
+                renderFields();
+                updatePreview();
+              },
+            }, '✕');
+
+            const row = el('div', { class: 'embed-field-item' },
+              el('div', { class: 'field-inputs' }, fName, fVal),
+              el('div', { class: 'field-controls' },
+                el('label', { class: 'toggle toggle-xs' }, inlineChk, t('tabsEventos.fieldInlineLabel')),
+                delBtn
+              )
+            );
+            fieldsListWrap.append(row);
+          });
+        }
+
+        const addFieldBtn = el('button', {
+          type: 'button',
+          class: 'btn btn-secondary btn-sm',
+          onclick: () => {
+            if (s.fields.length >= EMBED_LIMITS.maxFields) {
+              toast(`Máximo ${EMBED_LIMITS.maxFields} campos`, 'warn');
+              return;
+            }
+            s.fields.push({ name: '', value: '', inline: false });
+            renderFields();
+            updatePreview();
+          },
+        }, t('tabsEventos.addFieldBtn'));
+
+        renderFields();
+        const fieldsSec = accordionGroup(t('tabsEventos.sectionFields'), false,
+          fieldsListWrap,
+          el('div', { style: 'margin-top: 10px;' }, addFieldBtn)
+        );
+
+        // 7. Identidad personalizada (Webhook)
+        const customUserInp = el('input', {
+          class: 'form-control',
+          placeholder: 'Bot de {server_name}',
+          value: customUsername,
+        });
+        customUserInp.onfocus = () => { lastActiveInput = customUserInp; };
+        customUserInp.oninput = () => {
+          lastActiveInput = customUserInp;
+          customUsername = customUserInp.value;
+          updatePreview();
+        };
+
+        const customAvatarInp = el('input', {
+          class: 'form-control',
+          placeholder: 'https://ejemplo.com/avatar.png o {server_icon}',
+          value: customAvatarUrl,
+        });
+        customAvatarInp.onfocus = () => { lastActiveInput = customAvatarInp; };
+        customAvatarInp.oninput = () => {
+          lastActiveInput = customAvatarInp;
+          customAvatarUrl = customAvatarInp.value;
+          updatePreview();
+        };
+
+        const identitySec = accordionGroup(t('tabsEventos.sectionIdentity'), false,
+          el('p', { class: 'dim form-hint', style: 'margin-top:0' }, t('tabsEventos.webhookHelp')),
+          formGroup(t('tabsEventos.webhookUsernameLabel'), customUserInp),
+          formGroup(t('tabsEventos.webhookAvatarLabel'), customAvatarInp)
+        );
+
+        editorContainer.append(contentSec, appearanceSec, imagesSec, authorSec, footerSec, fieldsSec, identitySec);
       } else if (currentMode === 'layout_v2') {
-        // Layout V2 Simple Block Builder
         const blocksList = el('div', { class: 'layout-blocks-list' });
 
         function refreshLayoutBlocks() {
@@ -565,7 +798,9 @@ function renderEventosShell(container, initialData, channels, roles) {
             if (b.type === 'text') {
               const ta = el('textarea', { class: 'form-control autogrow' });
               ta.value = b.content || '';
+              ta.onfocus = () => { lastActiveInput = ta; };
               ta.oninput = () => {
+                lastActiveInput = ta;
                 b.content = ta.value;
                 autoGrow(ta);
                 updatePreview();
@@ -574,7 +809,9 @@ function renderEventosShell(container, initialData, channels, roles) {
             } else if (b.type === 'section') {
               const ta = el('textarea', { class: 'form-control autogrow' });
               ta.value = (b.texts && b.texts[0]) || '';
+              ta.onfocus = () => { lastActiveInput = ta; };
               ta.oninput = () => {
+                lastActiveInput = ta;
                 b.texts = [ta.value];
                 autoGrow(ta);
                 updatePreview();
@@ -582,18 +819,22 @@ function renderEventosShell(container, initialData, channels, roles) {
               blockRow.append(formGroup('Texto', ta));
               if (b.accessory && b.accessory.type === 'button') {
                 const lbl = el('input', { class: 'form-control', value: b.accessory.label || '', placeholder: 'Texto del botón' });
-                lbl.oninput = () => { b.accessory.label = lbl.value; updatePreview(); };
+                lbl.onfocus = () => { lastActiveInput = lbl; };
+                lbl.oninput = () => { lastActiveInput = lbl; b.accessory.label = lbl.value; updatePreview(); };
                 const url = el('input', { class: 'form-control', value: b.accessory.url || '', placeholder: 'https://...' });
-                url.oninput = () => { b.accessory.url = url.value; updatePreview(); };
+                url.onfocus = () => { lastActiveInput = url; };
+                url.oninput = () => { lastActiveInput = url; b.accessory.url = url.value; updatePreview(); };
                 blockRow.append(formGroup('Botón enlace', el('div', { class: 'grid-2' }, lbl, url)));
               }
             } else if (b.type === 'action_row') {
               const btnsWrap = el('div', { class: 'action-row-buttons' });
-              (b.buttons || []).forEach((btn, bIdx) => {
+              (b.buttons || []).forEach((btn) => {
                 const lbl = el('input', { class: 'form-control', value: btn.label || '', placeholder: 'Etiqueta' });
-                lbl.oninput = () => { btn.label = lbl.value; updatePreview(); };
+                lbl.onfocus = () => { lastActiveInput = lbl; };
+                lbl.oninput = () => { lastActiveInput = lbl; btn.label = lbl.value; updatePreview(); };
                 const url = el('input', { class: 'form-control', value: btn.url || '', placeholder: 'https://...' });
-                url.oninput = () => { btn.url = url.value; updatePreview(); };
+                url.onfocus = () => { lastActiveInput = url; };
+                url.oninput = () => { lastActiveInput = url; btn.url = url.value; updatePreview(); };
                 btnsWrap.append(el('div', { class: 'btn-row-item' }, lbl, url));
               });
               blockRow.append(btnsWrap);
@@ -636,20 +877,54 @@ function renderEventosShell(container, initialData, channels, roles) {
         }
 
         refreshLayoutBlocks();
-        editorContainer.append(blocksList, addBlockBtns);
+
+        // Identidad personalizada para Layout V2
+        const customUserInp = el('input', {
+          class: 'form-control',
+          placeholder: 'Bot de {server_name}',
+          value: customUsername,
+        });
+        customUserInp.onfocus = () => { lastActiveInput = customUserInp; };
+        customUserInp.oninput = () => {
+          lastActiveInput = customUserInp;
+          customUsername = customUserInp.value;
+          updatePreview();
+        };
+
+        const customAvatarInp = el('input', {
+          class: 'form-control',
+          placeholder: 'https://ejemplo.com/avatar.png o {server_icon}',
+          value: customAvatarUrl,
+        });
+        customAvatarInp.onfocus = () => { lastActiveInput = customAvatarInp; };
+        customAvatarInp.oninput = () => {
+          lastActiveInput = customAvatarInp;
+          customAvatarUrl = customAvatarInp.value;
+          updatePreview();
+        };
+
+        const identitySec = accordionGroup(t('tabsEventos.sectionIdentity'), false,
+          el('p', { class: 'dim form-hint', style: 'margin-top:0' }, t('tabsEventos.webhookHelp')),
+          formGroup(t('tabsEventos.webhookUsernameLabel'), customUserInp),
+          formGroup(t('tabsEventos.webhookAvatarLabel'), customAvatarInp)
+        );
+
+        editorContainer.append(blocksList, addBlockBtns, identitySec);
       }
     }
 
-    // Variables Panel
-    const varsCard = el('div', { class: 'event-variables-panel' },
+    // 3. AUXILIARY VARIABLES TOOL (Smart insert + copy + category filters + search)
+    const varsCard = el('div', { class: 'event-vars-aux' },
       el('div', { class: 'vars-panel-header' },
-        el('strong', {}, t('tabsEventos.varsTitle')),
-        el('p', { class: 'dim' }, t('tabsEventos.varsSubtitle'))
+        el('div', { class: 'vars-panel-title' },
+          el('strong', {}, t('tabsEventos.varsTitle')),
+          el('span', { class: 'dim text-xs' }, t('tabsEventos.varsSubtitle'))
+        )
       )
     );
 
     const searchInput = el('input', {
-      type: 'text',
+      type: 'search',
       class: 'form-control vars-search',
       placeholder: t('tabsEventos.varsSearchPlaceholder'),
     });
@@ -685,6 +960,30 @@ function renderEventosShell(container, initialData, channels, roles) {
       }
     }
 
+    function insertOrCopyVariable(placeholderTag) {
+      if (lastActiveInput && document.body.contains(lastActiveInput)) {
+        try {
+          const start = lastActiveInput.selectionStart ?? lastActiveInput.value.length;
+          const end = lastActiveInput.selectionEnd ?? lastActiveInput.value.length;
+          const val = lastActiveInput.value || '';
+          lastActiveInput.value = val.slice(0, start) + placeholderTag + val.slice(end);
+          lastActiveInput.selectionStart = lastActiveInput.selectionEnd = start + placeholderTag.length;
+          lastActiveInput.focus();
+          lastActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
+          toast(t('tabsEventos.varsInserted', { var: placeholderTag }), 'ok');
+          return;
+        } catch (e) {
+          // fallback to clipboard
+        }
+      }
+
+      navigator.clipboard.writeText(placeholderTag).then(() => {
+        toast(t('tabsEventos.varsCopied', { var: placeholderTag }), 'ok');
+      }).catch(() => {
+        toast(placeholderTag, 'ok');
+      });
+    }
+
     function renderVariablesList() {
       varsList.innerHTML = '';
       const filtered = allVariables.filter(v => {
@@ -701,20 +1000,14 @@ function renderEventosShell(container, initialData, channels, roles) {
 
       for (const v of filtered) {
         const placeholderTag = `{${v.name}}`;
-        const item = el('div', {
-          class: 'var-card',
-          onclick: () => {
-            navigator.clipboard.writeText(placeholderTag).then(() => {
-              toast(t('tabsEventos.varsCopied', { var: placeholderTag }), 'ok');
-            });
-          },
+        const item = el('button', {
+          type: 'button',
+          class: 'var-chip',
+          title: `Insertar ${placeholderTag}`,
+          onclick: () => insertOrCopyVariable(placeholderTag),
         },
-          el('div', { class: 'var-card-head' },
-            el('code', { class: 'var-tag' }, placeholderTag),
-            el('span', { class: 'var-copy-icon' }, icon('sparkle'))
-          ),
-          el('p', { class: 'var-desc' }, v.description),
-          el('p', { class: 'var-example dim' }, `${t('tabsEventos.varExample')} ${v.example}`)
+          el('span', { class: 'var-tag' }, placeholderTag),
+          el('span', { class: 'var-desc' }, v.description || '')
         );
         varsList.append(item);
       }
@@ -727,10 +1020,9 @@ function renderEventosShell(container, initialData, channels, roles) {
 
     renderCategoryTabs();
     renderVariablesList();
-
     varsCard.append(searchInput, categoryTabs, varsList);
 
-    // Action Buttons
+    // 4. ACTIONS TOOLBAR (Sticky/Pinned at bottom)
     const saveBtn = el('button', {
       type: 'button',
       class: 'btn btn-primary',
@@ -747,12 +1039,18 @@ function renderEventosShell(container, initialData, channels, roles) {
             channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
             content_mode: currentMode,
           };
+          const sendOpts = (customUsername.trim() || customAvatarUrl.trim())
+            ? { username: customUsername.trim(), avatar_url: customAvatarUrl.trim() }
+            : null;
+
           if (currentMode === 'plain_text') {
             payload.message = currentMessage;
           } else if (currentMode === 'classic_embed') {
             payload.embeds = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+            if (sendOpts) payload.send_options = sendOpts;
           } else if (currentMode === 'layout_v2') {
             payload.layout = { blocks: localLayoutDoc.blocks };
+            if (sendOpts) payload.send_options = sendOpts;
           }
 
           const res = await apiFetch(`/api/server/${GUILD_ID}/events/${activeEventKey}`, {
@@ -787,12 +1085,18 @@ function renderEventosShell(container, initialData, channels, roles) {
             channel_id: parseInt(selectedChannelId, 10),
             content_mode: currentMode,
           };
+          const sendOpts = (customUsername.trim() || customAvatarUrl.trim())
+            ? { username: customUsername.trim(), avatar_url: customAvatarUrl.trim() }
+            : null;
+
           if (currentMode === 'plain_text') {
             payload.message = currentMessage;
           } else if (currentMode === 'classic_embed') {
             payload.embeds = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
+            if (sendOpts) payload.send_options = sendOpts;
           } else if (currentMode === 'layout_v2') {
             payload.layout = { blocks: localLayoutDoc.blocks };
+            if (sendOpts) payload.send_options = sendOpts;
           }
 
           await apiFetch(`/api/server/${GUILD_ID}/events/${activeEventKey}/test`, {
@@ -812,7 +1116,7 @@ function renderEventosShell(container, initialData, channels, roles) {
 
     const resetBtn = el('button', {
       type: 'button',
-      class: 'btn btn-danger',
+      class: 'btn btn-secondary btn-danger-soft',
       onclick: async () => {
         if (!confirm(t('tabsEventos.resetConfirm', { event: t(def.titleKey) }))) return;
         try {
@@ -827,7 +1131,7 @@ function renderEventosShell(container, initialData, channels, roles) {
       },
     }, t('tabsEventos.resetBtn'));
 
-    const actionsRow = el('div', { class: 'event-actions-row' },
+    const actionsRow = el('div', { class: 'event-actions-bar' },
       el('div', { class: 'left-actions' }, saveBtn, testBtn),
       resetBtn
     );
@@ -837,21 +1141,23 @@ function renderEventosShell(container, initialData, channels, roles) {
     renderEditorArea();
     updatePreview();
 
-    // Assemble detail view
-    const mainCols = el('div', { class: 'event-editor-layout' },
-      el('div', { class: 'editor-col' },
-        toggleRow,
-        channelRow,
-        formGroup(t('tabsEventos.contentModeLabel'), modePills),
+    // Assemble 2-column layout
+    const workspaceGrid = el('div', { class: 'event-workspace-grid' },
+      el('div', { class: 'event-editor-pane' },
+        el('div', { class: 'form-group' },
+          el('label', { class: 'form-label' }, t('tabsEventos.contentModeLabel')),
+          modePills
+        ),
         editorContainer,
-        varsCard
+        varsCard,
+        actionsRow
       ),
-      el('div', { class: 'preview-col' },
+      el('div', { class: 'event-preview-pane-wrap' },
         previewContainer
       )
     );
 
-    detailWrap.append(detailHead, mainCols, actionsRow);
+    detailWrap.append(minimalBar, workspaceGrid);
   }
 
   refreshCards();
