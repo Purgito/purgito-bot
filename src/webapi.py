@@ -114,6 +114,7 @@ from db import (
     delete_gif_url_by_id,
     delete_recent_corpus,
     embed_template_limit,
+    extract_buttons,
     extract_send_options,
     frase_pack_limit,
     frases_limit,
@@ -122,6 +123,7 @@ from db import (
     get_chat_settings,
     get_audit_log_users,
     get_counters,
+    get_embed_template,
     get_effective_chat_settings,
     get_effective_frase_pool,
     get_gif_by_id,
@@ -131,6 +133,7 @@ from db import (
     get_scheduled_announcements_quota,
     get_server_event,
     get_shared_embed,
+    get_templates_usage_map,
     get_updates_channel,
     gifs_limit,
     is_channel_ignored,
@@ -3619,41 +3622,57 @@ async def _api_embeds_share_get(request: web.Request) -> web.Response:
     return web.json_response(json.loads(payload))
 
 
-def _template_row_to_json(t: dict) -> dict:
+def _template_row_to_json(t: dict, used_by: list[str] | None = None) -> dict:
     content_mode = t.get("content_mode") or "classic_embed"
     out = {
         "id": t["id"],
         "name": t["name"],
         "content_mode": content_mode,
+        "message": t.get("message"),
         # None si la plantilla no guarda opciones de envío (el caso común).
         "send_options": extract_send_options(t["embed_json"]),
+        "used_by": used_by or [],
         "created_at": t["created_at"],
         "updated_at": t["updated_at"],
     }
     if content_mode == "layout_v2":
         out["layout"] = json.loads(t["embed_json"])
+    elif content_mode == "plain_text":
+        out["embeds"] = []
     else:
-        # Siempre una lista, incluso para plantillas viejas guardadas como dict
-        # suelto (normalize_embeds_json las envuelve al leer).
+        # classic_embed / composite. Siempre una lista, incluso para plantillas
+        # viejas guardadas como dict suelto (normalize_embeds_json las envuelve).
         out["embeds"] = normalize_embeds_json(t["embed_json"])
+        out["buttons"] = extract_buttons(t["embed_json"]) or []
     return out
 
 
 @guild_api
 async def _api_embed_templates_get(request: web.Request, guild_id: int) -> web.Response:
     templates = await list_embed_templates(guild_id)
+    usage = await get_templates_usage_map(guild_id)
     return web.json_response(
         {
-            "templates": [_template_row_to_json(t) for t in templates],
+            "templates": [
+                _template_row_to_json(t, usage.get(t["id"])) for t in templates
+            ],
             "total": len(templates),
             "limit": embed_template_limit(guild_id),
         }
     )
 
 
-def _template_body(data: dict | None) -> tuple[str, str, str] | web.Response:
-    """Valida el body común de POST/PUT de plantillas: (name, json, content_mode)
-    o una respuesta de error."""
+def _template_body(
+    data: dict | None,
+) -> tuple[str, str, str, str | None] | web.Response:
+    """Valida el body de POST/PUT de plantillas: (name, embed_json, content_mode,
+    message) o una respuesta de error. embed_json nunca es None (columna NOT
+    NULL) — se guarda '[]' cuando el modo no usa embeds.
+
+    'plain_text' y 'composite' se validan acá mismo (mismo criterio que
+    _api_server_event_put, sin restricción de variables por tipo de evento
+    porque una plantilla no está atada a uno). 'classic_embed'/'layout_v2'
+    delegan en _extract_content, que además comparte /embeds/schedule."""
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
     name = str(data.get("name") or "").strip()[:100]
@@ -3661,10 +3680,61 @@ def _template_body(data: dict | None) -> tuple[str, str, str] | web.Response:
         return web.json_response(
             {"error": "la plantilla necesita un nombre"}, status=400
         )
+
+    content_mode = data.get("content_mode") or "classic_embed"
+
+    if content_mode == "plain_text":
+        message = data.get("message") or ""
+        if not isinstance(message, str):
+            return web.json_response(
+                {"error": "el mensaje debe ser texto"}, status=400
+            )
+        if len(message) > 2000:
+            return web.json_response(
+                {"error": "el mensaje no puede superar los 2000 caracteres"},
+                status=400,
+            )
+        return name, "[]", "plain_text", message
+
+    if content_mode == "composite":
+        message = data.get("message") or ""
+        embeds = data.get("embeds")
+        buttons = data.get("buttons")
+        options = sanitize_send_options(data.get("send_options"))
+
+        if not isinstance(message, str):
+            return web.json_response(
+                {"error": "el mensaje debe ser texto"}, status=400
+            )
+        if len(message) > 2000:
+            return web.json_response(
+                {"error": "el mensaje no puede superar los 2000 caracteres"},
+                status=400,
+            )
+
+        has_embeds = bool(embeds and isinstance(embeds, list) and len(embeds) > 0)
+        has_buttons = bool(buttons and isinstance(buttons, list) and len(buttons) > 0)
+
+        payload_dict: dict = {}
+        if has_embeds:
+            embed_err = validate_embeds_payload(embeds)
+            if embed_err:
+                return web.json_response({"error": embed_err}, status=400)
+            payload_dict["embeds"] = embeds
+        if has_buttons:
+            payload_dict["buttons"] = buttons
+        if options:
+            opts_err = validate_send_options(options)
+            if opts_err:
+                return web.json_response({"error": opts_err}, status=400)
+            payload_dict["send_options"] = options
+
+        return name, json.dumps(payload_dict) if payload_dict else "[]", "composite", message
+
     content_mode, payload, _preview, err = _extract_content(data)
     if err:
         return web.json_response({"error": err}, status=400)
-    return name, payload, content_mode
+    return name, payload, content_mode, None
 
 
 @guild_api
@@ -3674,8 +3744,8 @@ async def _api_embed_templates_post(
     parsed = _template_body(await _json_body(request))
     if isinstance(parsed, web.Response):
         return parsed
-    name, payload, content_mode = parsed
-    new_id = await add_embed_template(guild_id, name, payload, content_mode)
+    name, payload, content_mode, message = parsed
+    new_id = await add_embed_template(guild_id, name, payload, content_mode, message)
     if new_id is None:
         return web.json_response(
             {
@@ -3695,9 +3765,9 @@ async def _api_embed_template_put(request: web.Request, guild_id: int) -> web.Re
     parsed = _template_body(await _json_body(request))
     if isinstance(parsed, web.Response):
         return parsed
-    name, payload, content_mode = parsed
+    name, payload, content_mode, message = parsed
     updated = await update_embed_template(
-        template_id, guild_id, name, payload, content_mode
+        template_id, guild_id, name, payload, content_mode, message
     )
     if not updated:
         return web.json_response({"error": "plantilla no encontrada"}, status=404)
@@ -3712,6 +3782,18 @@ async def _api_embed_template_delete(
     template_id = _to_int(request.match_info.get("template_id"))
     if template_id is None:
         return web.json_response({"error": "template_id inválido"}, status=400)
+    # No se borra en silencio una plantilla que un evento sigue usando — el
+    # evento quedaría con una referencia colgante sin que nadie se entere.
+    usage = await get_templates_usage_map(guild_id)
+    used_by = usage.get(template_id)
+    if used_by:
+        return web.json_response(
+            {
+                "error": f"esta plantilla está en uso por: {', '.join(used_by)} — desvincúlala antes de borrarla",
+                "used_by": used_by,
+            },
+            status=409,
+        )
     deleted = await delete_embed_template(template_id, guild_id)
     if deleted:
         await _log_audit(
@@ -3796,6 +3878,49 @@ async def _api_server_event_put(
                     {"error": "el bot no tiene permiso de enviar mensajes en ese canal"},
                     status=403,
                 )
+
+    raw_template_id = data.get("template_id")
+    template_id = _to_int(raw_template_id) if raw_template_id is not None else None
+
+    if template_id is not None:
+        # Modo "referencia a plantilla": el contenido lo valida/guarda la
+        # plantilla en su propio POST/PUT, acá solo se verifica pertenencia al
+        # guild (mismo chequeo IDOR que get_embed_template ya hace). El
+        # contenido inline previo (si lo había) se conserva sin tocar por si
+        # el evento se desvincula de la plantilla más adelante.
+        tpl = await get_embed_template(template_id, guild_id)
+        if tpl is None:
+            return web.json_response(
+                {"error": "plantilla no encontrada"}, status=400
+            )
+        prev = await get_server_event(guild_id, event_type, resolve_template=False)
+        prev_enabled = prev.get("enabled", False) if prev else False
+        event = await set_server_event(
+            guild_id=guild_id,
+            event_type=event_type,
+            enabled=enabled,
+            channel_id=channel_id,
+            content_mode=(prev.get("content_mode") if prev else None) or "plain_text",
+            message=prev.get("message") if prev else None,
+            embed_json=prev.get("embed_json") if prev else None,
+            template_id=template_id,
+        )
+        await _log_audit(
+            request,
+            guild_id,
+            f"events.{event_type}.update",
+            detail=f"template_id={template_id}, channel={channel_id}",
+        )
+        if prev_enabled != enabled:
+            action_name = (
+                f"events.{event_type}.enabled"
+                if enabled
+                else f"events.{event_type}.disabled"
+            )
+            await _log_audit(
+                request, guild_id, action_name, detail=f"channel={channel_id}"
+            )
+        return web.json_response({"saved": True, "event": event})
 
     content_mode = data.get("content_mode") or "plain_text"
     if content_mode not in ("plain_text", "classic_embed", "layout_v2", "composite"):
@@ -4009,7 +4134,31 @@ async def _api_server_event_test(
 
     if data:
         channel_id = _to_int(data.get("channel_id"))
-        if data.get("content_mode"):
+        raw_test_template_id = data.get("template_id")
+        if raw_test_template_id is not None:
+            # Permite probar una plantilla recién elegida en el selector antes
+            # de guardar el evento — mismo contenido que vería dispatch al
+            # resolver template_id, sin esperar al submit.
+            test_template_id = _to_int(raw_test_template_id)
+            tpl = (
+                await get_embed_template(test_template_id, guild_id)
+                if test_template_id is not None
+                else None
+            )
+            if tpl is None:
+                return web.json_response(
+                    {"error": "plantilla no encontrada"}, status=400
+                )
+            content_override = {
+                "guild_id": guild_id,
+                "event_type": event_type,
+                "enabled": True,
+                "channel_id": channel_id,
+                "content_mode": tpl["content_mode"],
+                "message": tpl["message"],
+                "embed_json": tpl["embed_json"],
+            }
+        elif data.get("content_mode"):
             content_mode = data.get("content_mode")
             message = data.get("message")
             embed_json = None

@@ -737,7 +737,10 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert "dash-mobile-nav-toggle" in dash_js
     assert "dash-mobile-nav-current" in dash_js
 
-    # Iconos coherentes en todas las 8 secciones principales
+    # Iconos coherentes en todas las 8 secciones principales. MODULES (no la
+    # antigua TABS, eliminada por dead code) usa un objeto multilínea por
+    # entrada, así que key/icon no comparten línea — se busca el icon dentro
+    # del mismo objeto (antes del próximo "key:").
     dom_js = (LANDING / "js" / "core" / "dom.js").read_text("utf-8")
     for key, icon_name in [
         ("inicio", "home"),
@@ -749,8 +752,17 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
         ("youtube", "youtube"),
         ("historial", "history"),
     ]:
-        assert f"key: '{key}', label:" in dash_js
-        assert f"icon: '{icon_name}'" in dash_js
+        pattern = re.compile(
+            r"key:\s*'"
+            + re.escape(key)
+            + r"'.*?icon:\s*'"
+            + re.escape(icon_name)
+            + r"'",
+            re.S,
+        )
+        assert pattern.search(dash_js), (
+            f"{key} debería usar el icono {icon_name} en MODULES"
+        )
         assert f"{icon_name}:" in dom_js
 
     # CSS Sticky, layout fluido progresivo, modo foco / rail colapsable y responsive

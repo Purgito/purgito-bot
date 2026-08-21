@@ -5,8 +5,11 @@ import pytest
 
 import db
 from db import (
+    add_embed_template,
+    delete_embed_template,
     delete_server_event,
     get_server_event,
+    get_templates_usage_map,
     is_boost_processed,
     list_server_events,
     purge_guild_data,
@@ -188,5 +191,51 @@ def test_purge_guild_data_clears_channel_webhooks_and_events(memory_db):
         assert await get_server_event(guild_id, "welcome") is None
         assert await get_channel_webhook(guild_id, channel_id) is None
         assert await is_boost_processed(guild_id, 123, "2026-08-21T10:00:00") is False
+
+    asyncio.run(_test())
+
+
+def test_event_resolves_content_from_linked_template(memory_db):
+    async def _test():
+        guild_id = 555
+
+        tpl_id = await add_embed_template(
+            guild_id, "Bienvenida clásica", "[]", "plain_text", message="Hola {user}!"
+        )
+
+        await set_server_event(
+            guild_id=guild_id,
+            event_type="welcome",
+            enabled=True,
+            channel_id=111,
+            content_mode="plain_text",
+            message="contenido inline viejo, no debería usarse",
+            embed_json=None,
+            template_id=tpl_id,
+        )
+
+        resolved = await get_server_event(guild_id, "welcome")
+        assert resolved["template_id"] == tpl_id
+        assert resolved["content_mode"] == "plain_text"
+        assert resolved["message"] == "Hola {user}!"
+        assert resolved["template_name"] == "Bienvenida clásica"
+
+        # Sin resolver, el contenido inline original sigue intacto (no se
+        # pierde si más adelante se desvincula la plantilla).
+        raw = await get_server_event(guild_id, "welcome", resolve_template=False)
+        assert raw["message"] == "contenido inline viejo, no debería usarse"
+
+        usage = await get_templates_usage_map(guild_id)
+        assert usage[tpl_id] == ["welcome"]
+
+        # No se puede saber si un template está en uso sin este mapa: por eso
+        # existe. El borrado bloqueado por uso se prueba en la capa API.
+
+        # Referencia colgante: si se borra la plantilla, el evento queda sin
+        # contenido enviable en vez de reusar el inline viejo.
+        await delete_embed_template(tpl_id, guild_id)
+        resolved_after_delete = await get_server_event(guild_id, "welcome")
+        assert resolved_after_delete["template_missing"] is True
+        assert resolved_after_delete["message"] is None
 
     asyncio.run(_test())

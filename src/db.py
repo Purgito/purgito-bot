@@ -266,6 +266,7 @@ CREATE TABLE IF NOT EXISTS embed_templates (
     name TEXT NOT NULL,
     embed_json TEXT NOT NULL,
     content_mode TEXT NOT NULL DEFAULT 'classic_embed',
+    message TEXT DEFAULT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -643,6 +644,7 @@ CREATE TABLE IF NOT EXISTS server_events (
     content_mode TEXT NOT NULL DEFAULT 'plain_text',
     message TEXT,
     embed_json TEXT,
+    template_id INTEGER DEFAULT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(guild_id, event_type)
@@ -806,6 +808,25 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna delete_after_seconds ya existe en scheduled_announcements")
+    # Separación Eventos/Plantillas: un evento puede referenciar una plantilla en
+    # vez de guardar su propio contenido. template_id NULL = comportamiento legacy
+    # sin cambios (contenido inline en message/embed_json, como siempre).
+    try:
+        await _db.execute(
+            "ALTER TABLE server_events ADD COLUMN template_id INTEGER DEFAULT NULL"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna template_id ya existe en server_events")
+    # embed_templates gana su propia columna message para poder guardar
+    # plantillas de texto plano, igual que ya soporta server_events.
+    try:
+        await _db.execute(
+            "ALTER TABLE embed_templates ADD COLUMN message TEXT DEFAULT NULL"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna message ya existe en embed_templates")
     # Override por canal del tunable nuevo (Fase 3): igual que el resto de
     # channel_settings, nullable y sin default -- NULL siempre significa "sin
     # override acá", nunca "cero".
@@ -3206,6 +3227,22 @@ def extract_send_options(raw: str | None) -> dict | None:
     return None
 
 
+def extract_buttons(raw: str | None) -> list[dict] | None:
+    """Botones (modo 'composite') guardados dentro de embed_json bajo la clave
+    "buttons" al tope del dict. None si no hay — mismo patrón que
+    extract_send_options."""
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if isinstance(data, dict):
+        buttons = data.get("buttons")
+        return buttons if isinstance(buttons, list) else None
+    return None
+
+
 def embed_template_limit(guild_id: int | None) -> int:
     """Máximo de plantillas de embed guardables según plan del guild."""
     return _limit_for_guild(
@@ -3218,12 +3255,19 @@ def embed_template_limit(guild_id: int | None) -> int:
 
 
 async def add_embed_template(
-    guild_id: int, name: str, embed_json: str, content_mode: str = "classic_embed"
+    guild_id: int,
+    name: str,
+    embed_json: str,
+    content_mode: str = "classic_embed",
+    message: str | None = None,
 ) -> int | None:
-    """Guarda una plantilla de embed. Devuelve el id insertado, o None si el
+    """Guarda una plantilla de mensaje. Devuelve el id insertado, o None si el
     guild ya llegó al límite (mismo criterio que anuncios: se rechaza el alta,
-    no se evicta la plantilla más vieja). content_mode distingue embeds
-    clásicos ('classic_embed') de layouts Components V2 ('layout_v2')."""
+    no se evicta la plantilla más vieja). content_mode distingue texto plano
+    ('plain_text'), embeds clásicos ('classic_embed'), layouts Components V2
+    ('layout_v2') y texto+embed+botones ('composite') — mismo contrato que
+    server_events. embed_json nunca es NULL (columna NOT NULL): para
+    'plain_text' se guarda '[]'."""
     max_templates = embed_template_limit(guild_id)
     db = await get_db()
     async with _db_lock:
@@ -3234,9 +3278,9 @@ async def add_embed_template(
         if row and int(row[0]) >= max_templates:
             return None
         cursor = await db.execute(
-            "INSERT INTO embed_templates (guild_id, name, embed_json, content_mode) "
-            "VALUES (?, ?, ?, ?)",
-            (guild_id, name, embed_json, content_mode),
+            "INSERT INTO embed_templates (guild_id, name, embed_json, content_mode, message) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, name, embed_json, content_mode, message),
         )
         await db.commit()
         return cursor.lastrowid
@@ -3245,7 +3289,7 @@ async def add_embed_template(
 async def list_embed_templates(guild_id: int) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT id, name, embed_json, content_mode, created_at, updated_at "
+        "SELECT id, name, embed_json, content_mode, message, created_at, updated_at "
         "FROM embed_templates WHERE guild_id=? ORDER BY id",
         (guild_id,),
     ) as cursor:
@@ -3256,8 +3300,9 @@ async def list_embed_templates(guild_id: int) -> list[dict]:
             "name": r[1],
             "embed_json": r[2],
             "content_mode": r[3],
-            "created_at": r[4],
-            "updated_at": r[5],
+            "message": r[4],
+            "created_at": r[5],
+            "updated_at": r[6],
         }
         for r in rows
     ]
@@ -3268,7 +3313,7 @@ async def get_embed_template(template_id: int, guild_id: int) -> dict | None:
     sin él, un guild podría leer/borrar plantillas de otro por IDOR."""
     db = await get_db()
     async with db.execute(
-        "SELECT id, name, embed_json, content_mode, created_at, updated_at "
+        "SELECT id, name, embed_json, content_mode, message, created_at, updated_at "
         "FROM embed_templates WHERE id=? AND guild_id=?",
         (template_id, guild_id),
     ) as cursor:
@@ -3280,8 +3325,9 @@ async def get_embed_template(template_id: int, guild_id: int) -> dict | None:
         "name": row[1],
         "embed_json": row[2],
         "content_mode": row[3],
-        "created_at": row[4],
-        "updated_at": row[5],
+        "message": row[4],
+        "created_at": row[5],
+        "updated_at": row[6],
     }
 
 
@@ -3291,13 +3337,14 @@ async def update_embed_template(
     name: str,
     embed_json: str,
     content_mode: str = "classic_embed",
+    message: str | None = None,
 ) -> bool:
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "UPDATE embed_templates SET name=?, embed_json=?, content_mode=?, "
+            "UPDATE embed_templates SET name=?, embed_json=?, content_mode=?, message=?, "
             "updated_at=datetime('now') WHERE id=? AND guild_id=?",
-            (name, embed_json, content_mode, template_id, guild_id),
+            (name, embed_json, content_mode, message, template_id, guild_id),
         )
         updated = cursor.rowcount > 0
         await db.commit()
@@ -3319,19 +3366,29 @@ async def delete_embed_template(template_id: int, guild_id: int) -> bool:
 # ─── Eventos del servidor (Bienvenida, Despedida, Boost) ───────────────────
 
 
-async def get_server_event(guild_id: int, event_type: str) -> dict | None:
-    """Devuelve la configuración de un evento para un servidor o None si no existe."""
+async def get_server_event(
+    guild_id: int, event_type: str, resolve_template: bool = True
+) -> dict | None:
+    """Devuelve la configuración de un evento para un servidor o None si no existe.
+
+    Si el evento referencia una plantilla (template_id) y resolve_template es
+    True (default), el contenido efectivo (content_mode/message/embed_json) se
+    sobreescribe con el de la plantilla — enabled/channel_id/template_id siguen
+    siendo del evento. Si la plantilla fue borrada (referencia colgante), el
+    evento queda sin contenido enviable (template_missing=True) en vez de
+    reusar contenido inline viejo que ya no debería aplicar.
+    """
     db = await get_db()
     async with db.execute(
         "SELECT id, guild_id, event_type, enabled, channel_id, content_mode, "
-        "message, embed_json, created_at, updated_at "
+        "message, embed_json, template_id, created_at, updated_at "
         "FROM server_events WHERE guild_id=? AND event_type=?",
         (guild_id, event_type),
     ) as cursor:
         r = await cursor.fetchone()
     if not r:
         return None
-    return {
+    ev = {
         "id": r[0],
         "guild_id": r[1],
         "event_type": r[2],
@@ -3340,9 +3397,23 @@ async def get_server_event(guild_id: int, event_type: str) -> dict | None:
         "content_mode": r[5],
         "message": r[6],
         "embed_json": r[7],
-        "created_at": r[8],
-        "updated_at": r[9],
+        "template_id": r[8],
+        "created_at": r[9],
+        "updated_at": r[10],
     }
+    if resolve_template and ev["template_id"] is not None:
+        tpl = await get_embed_template(ev["template_id"], guild_id)
+        if tpl is None:
+            ev["content_mode"] = None
+            ev["message"] = None
+            ev["embed_json"] = None
+            ev["template_missing"] = True
+        else:
+            ev["content_mode"] = tpl["content_mode"]
+            ev["message"] = tpl["message"]
+            ev["embed_json"] = tpl["embed_json"]
+            ev["template_name"] = tpl["name"]
+    return ev
 
 
 async def list_server_events(guild_id: int) -> dict[str, dict]:
@@ -3350,7 +3421,7 @@ async def list_server_events(guild_id: int) -> dict[str, dict]:
     db = await get_db()
     async with db.execute(
         "SELECT id, guild_id, event_type, enabled, channel_id, content_mode, "
-        "message, embed_json, created_at, updated_at "
+        "message, embed_json, template_id, created_at, updated_at "
         "FROM server_events WHERE guild_id=?",
         (guild_id,),
     ) as cursor:
@@ -3366,10 +3437,28 @@ async def list_server_events(guild_id: int) -> dict[str, dict]:
             "content_mode": r[5],
             "message": r[6],
             "embed_json": r[7],
-            "created_at": r[8],
-            "updated_at": r[9],
+            "template_id": r[8],
+            "created_at": r[9],
+            "updated_at": r[10],
         }
     return res
+
+
+async def get_templates_usage_map(guild_id: int) -> dict[int, list[str]]:
+    """Mapa {template_id: [event_type, ...]} para mostrar "Usada por" en la
+    lista de plantillas. Solo cubre server_events — es la única tabla que hoy
+    referencia embed_templates."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT template_id, event_type FROM server_events "
+        "WHERE guild_id=? AND template_id IS NOT NULL",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    usage: dict[int, list[str]] = {}
+    for template_id, event_type in rows:
+        usage.setdefault(template_id, []).append(event_type)
+    return usage
 
 
 async def set_server_event(
@@ -3380,20 +3469,29 @@ async def set_server_event(
     content_mode: str,
     message: str | None = None,
     embed_json: str | None = None,
+    template_id: int | None = None,
 ) -> dict:
-    """Inserta o actualiza la configuración de un evento para un servidor."""
+    """Inserta o actualiza la configuración de un evento para un servidor.
+
+    template_id no None = el evento pasa a modo "referencia a plantilla":
+    content_mode/message/embed_json inline se guardan igual (por si se quita
+    la referencia más adelante no se pierde lo último editado a mano), pero
+    get_server_event() los pisa con el contenido de la plantilla mientras
+    template_id siga seteado.
+    """
     db = await get_db()
     async with _db_lock:
         await db.execute(
             "INSERT INTO server_events (guild_id, event_type, enabled, channel_id, "
-            "content_mode, message, embed_json, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now')) "
+            "content_mode, message, embed_json, template_id, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now')) "
             "ON CONFLICT(guild_id, event_type) DO UPDATE SET "
             "enabled=excluded.enabled, "
             "channel_id=excluded.channel_id, "
             "content_mode=excluded.content_mode, "
             "message=excluded.message, "
             "embed_json=excluded.embed_json, "
+            "template_id=excluded.template_id, "
             "updated_at=datetime('now')",
             (
                 guild_id,
@@ -3403,10 +3501,11 @@ async def set_server_event(
                 content_mode,
                 message,
                 embed_json,
+                template_id,
             ),
         )
         await db.commit()
-    ev = await get_server_event(guild_id, event_type)
+    ev = await get_server_event(guild_id, event_type, resolve_template=False)
     return ev or {}
 
 

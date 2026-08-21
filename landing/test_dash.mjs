@@ -1362,11 +1362,13 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   setupDOM();
   setGuildId('123456789');
 
-  const { loadWelcomeTab, loadGoodbyeTab, loadBoostTab, loadEventosTab } = await import('./js/tabs/eventos.js');
+  const { loadWelcomeTab, loadGoodbyeTab, loadBoostTab } = await import('./js/tabs/eventos.js');
   assert.equal(typeof loadWelcomeTab, 'function', 'loadWelcomeTab debe ser una función exportada');
   assert.equal(typeof loadGoodbyeTab, 'function', 'loadGoodbyeTab debe ser una función exportada');
   assert.equal(typeof loadBoostTab, 'function', 'loadBoostTab debe ser una función exportada');
 
+  // Bienvenidas: legacy inline (mensaje guardado directo, sin plantilla) ->
+  // debe mostrar el aviso de migración, no un editor de mensaje.
   const mockEventsData = {
     events: {
       welcome: {
@@ -1377,31 +1379,40 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
         content_mode: 'plain_text',
         message: '¡Bienvenido {user} a {server_name}!',
         embed_json: null,
+        template_id: null,
       },
       goodbye: {
         guild_id: 123456789,
         event_type: 'goodbye',
         enabled: false,
         channel_id: 20,
-        content_mode: 'plain_text',
-        message: 'Hasta luego {user}',
+        content_mode: null,
+        message: null,
         embed_json: null,
+        template_id: 5,
       },
       boost: {
         guild_id: 123456789,
         event_type: 'boost',
-        enabled: true,
-        channel_id: 10,
-        content_mode: 'plain_text',
-        message: '¡Gracias {user} por el boost a {server_name}!',
+        enabled: false,
+        channel_id: null,
+        content_mode: null,
+        message: null,
         embed_json: null,
+        template_id: null,
       },
     },
     variables: [
       { name: 'user', category: 'user', description: 'Mención del usuario', example: '@Punky', allowed_events: ['welcome', 'goodbye', 'boost'] },
-      { name: 'server_name', category: 'server', description: 'Nombre del servidor', example: 'Mi Servidor', allowed_events: ['welcome', 'goodbye', 'boost'] },
-      { name: 'server_boostlevel', category: 'boost', description: 'Nivel de boost', example: '2', allowed_events: ['boost'] },
     ],
+  };
+
+  const mockTemplatesData = {
+    templates: [
+      { id: 5, name: 'Hasta siempre', content_mode: 'plain_text', message: 'Chau {user}', used_by: ['goodbye'] },
+    ],
+    total: 1,
+    limit: 20,
   };
 
   const mockChannels = {
@@ -1415,56 +1426,52 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   fetchHandlers = [
     (url) => {
       if (url.includes('/api/server/123456789/events')) return jsonResp(mockEventsData);
+      if (url.includes('/api/server/123456789/embeds/templates')) return jsonResp(mockTemplatesData);
       if (url.includes('/api/server/123456789/channels')) return jsonResp(mockChannels);
       if (url.includes('/api/server/123456789/roles')) return jsonResp(mockRoles);
       return jsonResp({});
     },
   ];
 
-  // 1. Carga de Bienvenidas
+  // 1. Bienvenidas: sin plantilla, con contenido legacy inline -> aviso de migración
   await loadWelcomeTab();
   await new Promise(r => setTimeout(r, 50));
 
   let contentText = elementsById.catContent.text();
   assert.match(contentText, /Bienvenidas/);
-  assert.match(contentText, /Configura el mensaje que Purgito enviará cuando un nuevo miembro entre en tu servidor/);
   assert.match(contentText, /Activar bienvenida/);
   assert.match(contentText, /Canal de bienvenida/);
-  assert.match(contentText, /Contenido del mensaje/);
-  assert.match(contentText, /Vista previa en vivo/);
-  assert.match(contentText, /Variables disponibles/);
+  assert.match(contentText, /Plantilla/);
+  assert.match(contentText, /Convertir en plantilla/, 'contenido legacy inline debe ofrecer migrar a plantilla');
   assert.match(contentText, /Guardar cambios/);
   assert.match(contentText, /Enviar prueba/);
   assert.match(contentText, /Restablecer/);
-  // NO debe contener los selectores/tabs de otros eventos
-  assert.doesNotMatch(contentText, /Despedida.*Boost.*Bienvenida/);
-  // Variables: debe tener {user} pero NO {server_boostlevel}
-  assert.match(contentText, /\{user\}/);
-  assert.doesNotMatch(contentText, /\{server_boostlevel\}/);
+  // El editor de mensaje/embed ya no vive acá — eso es responsabilidad de Plantillas.
+  assert.doesNotMatch(contentText, /Vista previa en vivo/);
+  assert.doesNotMatch(contentText, /Variables disponibles/);
 
-  // 2. Carga de Despedidas (Aislamiento de estado)
+  // 2. Despedidas: ya tiene plantilla asignada -> se ve seleccionada, sin aviso legacy
   await loadGoodbyeTab();
   await new Promise(r => setTimeout(r, 50));
 
   contentText = elementsById.catContent.text();
   assert.match(contentText, /Despedidas/);
-  assert.match(contentText, /Configura el mensaje que Purgito enviará cuando un miembro abandone tu servidor/);
   assert.match(contentText, /Activar despedida/);
   assert.match(contentText, /Canal de despedida/);
-  assert.doesNotMatch(contentText, /\{server_boostlevel\}/);
+  assert.match(contentText, /Hasta siempre/, 'la plantilla vinculada debe aparecer seleccionada en el desplegable');
+  assert.doesNotMatch(contentText, /Convertir en plantilla/, 'sin contenido inline no corresponde el aviso legacy');
 
-  // 3. Carga de Boosts (Variables exclusivas de Boost)
+  // 3. Boosts: sin activar, sin plantilla -> hint de "todavía no tenés plantillas" no aplica (hay 1 global), pero sin selección
   await loadBoostTab();
   await new Promise(r => setTimeout(r, 50));
 
   contentText = elementsById.catContent.text();
   assert.match(contentText, /Boosts/);
-  assert.match(contentText, /Configura el mensaje que Purgito enviará cuando alguien apoye tu servidor con un boost/);
   assert.match(contentText, /Activar mensaje de boost/);
   assert.match(contentText, /Canal de boosts/);
-  assert.match(contentText, /\{server_boostlevel\}/);
+  assert.match(contentText, /Desactivad[oa]/, 'boost está deshabilitado en el mock, el badge debe reflejarlo');
 
-  console.log('✓ Test 31: Módulos dedicados e independientes de Bienvenidas, Despedidas y Boosts (UX refactorizado)');
+  console.log('✓ Test 31: Bienvenidas/Despedidas/Boosts como configuradores delgados (Eventos vs Plantillas)');
 }
 
 // ── Test 32: Módulo de Gestión de Anuncios Programados ───────────────────────

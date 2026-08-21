@@ -87,6 +87,9 @@ addStrings({
     'embedsShared.confirmDeleteTemplate': '¿Eliminar la plantilla "{name}"?',
     'embedsShared.templateDeleted': 'Plantilla eliminada',
     'embedsShared.delete': 'Eliminar',
+    'embedsShared.editTemplate': 'Editar',
+    'embedsShared.createTemplate': '+ Crear plantilla',
+    'embedsShared.usedByPrefix': 'Usada por: ',
     'embedsShared.embedLoadedFromShare': 'Embed cargado desde un link compartido',
     'embedsShared.shareExpiredOrMissing': 'Este link ya expiró o no existe',
   },
@@ -152,6 +155,9 @@ addStrings({
     'embedsShared.confirmDeleteTemplate': 'Delete the template "{name}"?',
     'embedsShared.templateDeleted': 'Template deleted',
     'embedsShared.delete': 'Delete',
+    'embedsShared.editTemplate': 'Edit',
+    'embedsShared.createTemplate': '+ Create template',
+    'embedsShared.usedByPrefix': 'Used by: ',
     'embedsShared.embedLoadedFromShare': 'Embed loaded from a shared link',
     'embedsShared.shareExpiredOrMissing': "This link expired or doesn't exist",
   },
@@ -833,12 +839,27 @@ export async function renderEmbedEditor(box) {
   else renderClassicEditor(inner, channels, roles);
 }
 
+const EVENT_TYPE_LABEL_KEYS = {
+  welcome: 'dash.mod.welcome.label',
+  goodbye: 'dash.mod.goodbye.label',
+  boost: 'dash.mod.boost.label',
+};
+
 export async function renderEmbedTemplates(box) {
   box.append(spinner());
   let data;
   try { data = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`); }
   catch (e) { renderError(box, e); return; }
   box.innerHTML = '';
+
+  const createBtn = el('button', {
+    class: 'btn btn-primary btn-sm',
+    style: 'margin-bottom: 12px;',
+    onclick: () => {
+      import('/js/tabs/plantillas.js').then(({ loadTemplateEditor }) => loadTemplateEditor(null));
+    },
+  }, t('embedsShared.createTemplate'));
+  box.append(createBtn);
 
   box.append(el('p', { class: 'dim gif-stats' },
     el('strong', { class: 'stat-num' }, String(data.total)), t('embedsShared.templatesUsedSuffix', { limit: data.limit })));
@@ -854,30 +875,45 @@ export async function renderEmbedTemplates(box) {
     const embeds = tpl.embeds || [];
     const first = embeds.find(x => x && Object.keys(x).length) || {};
     const color = colorToHex(first.color) || '#8B6EF5';
-    const badge = isLayout
+    const modeBadge = isLayout
       ? el('span', { class: 'badge badge-premium' }, t('embedsShared.badgeLayout'))
       : (embeds.length > 1 ? el('span', { class: 'badge' }, t('embedsShared.embedsCountBadge', { count: embeds.length })) : null);
-    const snippet = isLayout ? layoutSnippet(tpl.layout) : templateSnippet(embeds);
+    const usedBy = tpl.used_by || [];
+    const usedByBadge = usedBy.length
+      ? el('span', { class: 'badge badge-ok' }, t('embedsShared.usedByPrefix') + usedBy.map(et => t(EVENT_TYPE_LABEL_KEYS[et] || et)).join(', '))
+      : null;
+    const snippet = isLayout ? layoutSnippet(tpl.layout) : (tpl.content_mode === 'plain_text' ? (tpl.message || '') : templateSnippet(embeds));
     // Payload que reusa el "Renombrar" (PUT exige revalidar todo el contenido;
-    // send_options viaja de vuelta para no perderse en el re-guardado).
-    const renameBody = (name) => isLayout
-      ? { name, content_mode: 'layout_v2', layout: tpl.layout, send_options: tpl.send_options || undefined }
-      : { name, embeds, send_options: tpl.send_options || undefined };
+    // hay que preservar el resto del contenido tal cual, sin importar el modo).
+    const renameBody = (name) => {
+      if (isLayout) return { name, content_mode: 'layout_v2', layout: tpl.layout, send_options: tpl.send_options || undefined };
+      if (tpl.content_mode === 'plain_text') return { name, content_mode: 'plain_text', message: tpl.message };
+      if (tpl.content_mode === 'composite') return { name, content_mode: 'composite', message: tpl.message, embeds, buttons: tpl.buttons, send_options: tpl.send_options || undefined };
+      return { name, content_mode: 'classic_embed', embeds, send_options: tpl.send_options || undefined };
+    };
+    const editAction = isLayout
+      ? el('button', {
+          class: 'btn btn-secondary btn-sm',
+          onclick: () => {
+            setEmbedMode('layout'); setLayoutDoc(docFromLayout(tpl.layout, tpl.id, tpl.name, tpl.send_options));
+            setEmbedTab('editor'); loadEmbeds();
+          },
+        }, t('embedsShared.loadInEditor'))
+      : el('button', {
+          class: 'btn btn-secondary btn-sm',
+          onclick: () => {
+            import('/js/tabs/plantillas.js').then(({ loadTemplateEditor }) => loadTemplateEditor(tpl.id));
+          },
+        }, t('embedsShared.editTemplate'));
     list.append(el('li', {},
       el('span', {},
         el('span', { class: 'tpl-dot', style: 'background:' + color }), ' ',
         el('strong', {}, tpl.name),
-        badge,
+        modeBadge,
+        usedByBadge,
         ' — ',
         el('span', { class: 'dim' }, snippet.slice(0, 60))),
-      el('button', {
-        class: 'btn btn-secondary btn-sm',
-        onclick: () => {
-          if (isLayout) { setEmbedMode('layout'); setLayoutDoc(docFromLayout(tpl.layout, tpl.id, tpl.name, tpl.send_options)); }
-          else { setEmbedMode('classic'); setEmbedDoc(docFromEmbeds(embeds, tpl.id, tpl.name, tpl.send_options)); }
-          setEmbedTab('editor'); loadEmbeds();
-        },
-      }, t('embedsShared.loadInEditor')),
+      editAction,
       el('button', {
         class: 'btn btn-secondary btn-sm',
         onclick: async () => {

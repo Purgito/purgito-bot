@@ -67,9 +67,14 @@ class ServerEvents(commands.Cog):
         Devuelve (True, None) si se envió correctamente, o (False, "motivo") si falló.
         """
         try:
+            # get_server_event ya resuelve template_id -> contenido de la
+            # plantilla (ver db.py); acá no hace falta ninguna rama nueva.
             config = content_override or await get_server_event(guild.id, event_type)
             if not config:
                 return False, "Evento no configurado"
+
+            if config.get("template_missing"):
+                return False, "La plantilla asociada a este evento ya no existe"
 
             if not is_test and not config.get("enabled"):
                 return False, "Evento desactivado"

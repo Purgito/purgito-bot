@@ -19,7 +19,7 @@ import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import { loadYoutube } from '/js/tabs/youtube.js';
 import { loadHistorial } from '/js/tabs/historial.js';
-import { loadWelcomeTab, loadGoodbyeTab, loadBoostTab, loadEventosTab } from '/js/tabs/eventos.js';
+import { loadWelcomeTab, loadGoodbyeTab, loadBoostTab } from '/js/tabs/eventos.js';
 import { loadAnunciosTab } from '/js/tabs/anuncios.js';
 import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
@@ -30,6 +30,7 @@ addStrings({
   es: {
     'dash.cat.principal': 'Principal',
     'dash.cat.anuncios': 'Anuncios',
+    'dash.cat.plantillas': 'Plantillas',
     'dash.cat.automatizacion': 'Automatización',
     'dash.cat.contenido': 'Contenido',
     'dash.cat.servidor': 'Servidor',
@@ -63,8 +64,8 @@ addStrings({
     'dash.mod.frases.label': 'Frases y Packs',
     'dash.mod.frases.desc': 'Frases personalizadas y paquetes temáticos organizados por canal',
     'dash.mod.youtube.desc': 'Avisos automáticos de nuevos videos en canales de YouTube',
-    'dash.mod.embeds.label': 'Diseñador de Mensajes',
-    'dash.mod.embeds.desc': 'Editor visual de embeds clásicos y bloques interactivos Layout V2',
+    'dash.mod.embeds.label': 'Plantillas',
+    'dash.mod.embeds.desc': 'Crea y edita mensajes reutilizables: texto, embeds y bloques Layout V2. Bienvenidas, Despedidas y Boosts los usan.',
     'dash.mod.gifs.desc': 'Galería de GIFs del servidor para respuestas y comandos',
     'dash.mod.memes.desc': 'Generación automática de memes y plantillas',
     'dash.mod.canales.label': 'Canales y Permisos',
@@ -75,6 +76,7 @@ addStrings({
   en: {
     'dash.cat.principal': 'Main',
     'dash.cat.anuncios': 'Announcements',
+    'dash.cat.plantillas': 'Templates',
     'dash.cat.automatizacion': 'Automation',
     'dash.cat.contenido': 'Content',
     'dash.cat.servidor': 'Server',
@@ -108,8 +110,8 @@ addStrings({
     'dash.mod.frases.label': 'Phrases and Packs',
     'dash.mod.frases.desc': 'Custom phrases and themed packs organized by channel',
     'dash.mod.youtube.desc': 'Automatic alerts for new videos on YouTube channels',
-    'dash.mod.embeds.label': 'Message Designer',
-    'dash.mod.embeds.desc': 'Visual editor for classic embeds and interactive Layout V2 blocks',
+    'dash.mod.embeds.label': 'Templates',
+    'dash.mod.embeds.desc': 'Create and edit reusable messages: text, embeds, and Layout V2 blocks. Welcome, Goodbye, and Boosts use them.',
     'dash.mod.gifs.desc': "The server's GIF gallery for replies and commands",
     'dash.mod.memes.desc': 'Automatic meme generation and templates',
     'dash.mod.canales.label': 'Channels and Permissions',
@@ -127,6 +129,7 @@ addStrings({
 export const CATEGORIES = [
   { key: 'principal', label: t('dash.cat.principal'), icon: 'home' },
   { key: 'anuncios', label: t('dash.cat.anuncios'), icon: 'megaphone' },
+  { key: 'plantillas', label: t('dash.cat.plantillas'), icon: 'layout' },
   { key: 'automatizacion', label: t('dash.cat.automatizacion'), icon: 'zap' },
   { key: 'contenido', label: t('dash.cat.contenido'), icon: 'film' },
   { key: 'servidor', label: t('dash.cat.servidor'), icon: 'sliders' },
@@ -236,6 +239,17 @@ export const MODULES = [
     load: loadUpdatesModule,
   },
 
+  // Plantillas
+  {
+    key: 'embeds',
+    cat: 'plantillas',
+    label: t('dash.mod.embeds.label'),
+    icon: 'layout',
+    desc: t('dash.mod.embeds.desc'),
+    keywords: ['plantillas', 'embeds', 'templates', 'mensajes', 'editor', 'disenador', 'botones'],
+    load: loadEmbeds,
+  },
+
   // Automatización
   {
     key: 'triggers',
@@ -326,25 +340,6 @@ export const MODULES = [
     keywords: ['premium', 'suscripcion', 'polar', 'planes', 'limites', 'cupo', '50000'],
     load: loadPremium,
   },
-];
-
-// Compatibilidad con TABS existentes
-export const TABS = [
-  { key: 'inicio', label: t('dash.mod.inicio.label').toUpperCase(), icon: 'home', load: loadInicio },
-  { key: 'stats', label: t('dash.mod.stats.label').toUpperCase(), icon: 'activity', load: loadStatsModule },
-  { key: 'chat', label: t('dash.mod.chat.label').toUpperCase(), icon: 'chat', load: loadChatTab },
-  { key: 'welcome', label: t('dash.mod.welcome.label').toUpperCase(), icon: 'logIn', load: loadWelcomeTab },
-  { key: 'goodbye', label: t('dash.mod.goodbye.label').toUpperCase(), icon: 'logOut', load: loadGoodbyeTab },
-  { key: 'boost', label: t('dash.mod.boost.label').toUpperCase(), icon: 'star', load: loadBoostTab },
-  { key: 'anuncios', label: t('dash.mod.anuncios.label').toUpperCase(), icon: 'megaphone', load: loadAnunciosTab },
-  { key: 'updates', label: t('dash.mod.updates.label').toUpperCase(), icon: 'bell', load: loadUpdatesModule },
-  { key: 'gifs', label: 'GIFS', icon: 'film', load: loadGifs },
-  { key: 'memes', label: 'MEMES', icon: 'image', load: loadMemes },
-  { key: 'embeds', label: t('dash.mod.embeds.label').toUpperCase(), icon: 'layout', load: loadEmbeds },
-  { key: 'eventos', label: 'EVENTOS', icon: 'sparkle', load: loadEventosTab },
-  { key: 'premium', label: 'PREMIUM', icon: 'star', load: loadPremium },
-  { key: 'youtube', label: 'YOUTUBE', icon: 'youtube', load: loadYoutube },
-  { key: 'historial', label: t('dash.mod.historial.label').toUpperCase(), icon: 'history', load: loadHistorial },
 ];
 
 const SIDEBAR_COLLAPSED_KEY = 'purgito_dash_sidebar_collapsed';

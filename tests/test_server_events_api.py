@@ -357,3 +357,87 @@ def test_server_events_api_put_validates_send_options_placeholders(memory_db):
         assert resp.status == 200
 
     asyncio.run(_test())
+
+
+class FakeTemplateRequest:
+    """Igual que FakeRequest pero con match_info de plantillas (sin event_type)."""
+
+    def __init__(self, guild_id=_GUILD, template_id=None, body=None):
+        self._body = body
+        self.match_info = {"guild_id": str(guild_id)}
+        if template_id is not None:
+            self.match_info["template_id"] = str(template_id)
+        self.headers = {"X-Forwarded-For": "1.2.3.4"}
+        self.remote = "1.2.3.4"
+
+    async def json(self):
+        if self._body is None:
+            raise ValueError("sin body")
+        return self._body
+
+
+def test_event_put_with_template_id_links_and_resolves(memory_db):
+    async def _test():
+        create_resp = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(body={"name": "Bienvenida", "content_mode": "plain_text", "message": "Hola {user}"})
+        )
+        assert create_resp.status == 200
+        template_id = json.loads(create_resp.text)["id"]
+
+        put_resp = await webapi._api_server_event_put(FakeRequest(
+            event_type="welcome",
+            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": template_id},
+        ))
+        assert put_resp.status == 200
+        saved = json.loads(put_resp.text)["event"]
+        assert saved["template_id"] == template_id
+
+        get_resp = await webapi._api_server_event_get(FakeRequest(event_type="welcome"))
+        resolved = json.loads(get_resp.text)["event"]
+        assert resolved["content_mode"] == "plain_text"
+        assert resolved["message"] == "Hola {user}"
+
+        # template_id inexistente -> 400, no crea referencia colgante
+        bad_resp = await webapi._api_server_event_put(FakeRequest(
+            event_type="goodbye",
+            body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": 999999},
+        ))
+        assert bad_resp.status == 400
+
+    asyncio.run(_test())
+
+
+def test_template_delete_blocked_while_in_use(memory_db):
+    async def _test():
+        create_resp = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(body={"name": "Gracias por boostear", "content_mode": "plain_text", "message": "Gracias {user}"})
+        )
+        template_id = json.loads(create_resp.text)["id"]
+
+        await webapi._api_server_event_put(FakeRequest(
+            event_type="boost",
+            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": template_id},
+        ))
+
+        list_resp = await webapi._api_embed_templates_get(FakeTemplateRequest())
+        tpl = json.loads(list_resp.text)["templates"][0]
+        assert tpl["used_by"] == ["boost"]
+
+        delete_resp = await webapi._api_embed_template_delete(
+            FakeTemplateRequest(template_id=template_id)
+        )
+        assert delete_resp.status == 409
+        assert "boost" in json.loads(delete_resp.text)["error"]
+
+        # Al desvincular el evento, ahora sí se puede borrar.
+        await webapi._api_server_event_put(FakeRequest(
+            event_type="boost",
+            body={"enabled": False, "channel_id": _CHANNEL_ID, "content_mode": "plain_text", "message": ""},
+        ))
+        delete_resp2 = await webapi._api_embed_template_delete(
+            FakeTemplateRequest(template_id=template_id)
+        )
+        assert delete_resp2.status == 200
+        assert json.loads(delete_resp2.text)["deleted"] is True
+
+    asyncio.run(_test())
