@@ -1357,13 +1357,15 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 30: Inmutabilidad de URLs de Discord CDN y avatares');
 }
 
-// ── Test 31: Módulo de Eventos del Servidor (rediseño UX/UI) ─────────────────
+// ── Test 31: Módulos dedicados e independientes de Bienvenidas, Despedidas y Boosts ──
 {
   setupDOM();
   setGuildId('123456789');
 
-  const { loadEventosTab } = await import('./js/tabs/eventos.js');
-  assert.equal(typeof loadEventosTab, 'function', 'loadEventosTab debe ser una función exportada');
+  const { loadWelcomeTab, loadGoodbyeTab, loadBoostTab, loadEventosTab } = await import('./js/tabs/eventos.js');
+  assert.equal(typeof loadWelcomeTab, 'function', 'loadWelcomeTab debe ser una función exportada');
+  assert.equal(typeof loadGoodbyeTab, 'function', 'loadGoodbyeTab debe ser una función exportada');
+  assert.equal(typeof loadBoostTab, 'function', 'loadBoostTab debe ser una función exportada');
 
   const mockEventsData = {
     events: {
@@ -1380,9 +1382,18 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
         guild_id: 123456789,
         event_type: 'goodbye',
         enabled: false,
-        channel_id: null,
+        channel_id: 20,
         content_mode: 'plain_text',
         message: 'Hasta luego {user}',
+        embed_json: null,
+      },
+      boost: {
+        guild_id: 123456789,
+        event_type: 'boost',
+        enabled: true,
+        channel_id: 10,
+        content_mode: 'plain_text',
+        message: '¡Gracias {user} por el boost a {server_name}!',
         embed_json: null,
       },
     },
@@ -1410,32 +1421,50 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
     },
   ];
 
-  await loadEventosTab();
+  // 1. Carga de Bienvenidas
+  await loadWelcomeTab();
   await new Promise(r => setTimeout(r, 50));
 
-  const contentText = elementsById.catContent.text();
-  assert.match(contentText, /Eventos del servidor/);
-  assert.match(contentText, /Bienvenida/);
-  assert.match(contentText, /Despedida/);
-  assert.match(contentText, /Boost/);
-
-  // Selector compacto con estados
-  assert.match(contentText, /ACTIVO/);
-  assert.match(contentText, /INACTIVO/);
-
-  // Barra mínima
-  assert.match(contentText, /Estado del evento/);
-  assert.match(contentText, /Canal de destino/);
-
-  // Workspace 2 columnas y preview
-  assert.match(contentText, /Modo de contenido/);
+  let contentText = elementsById.catContent.text();
+  assert.match(contentText, /Bienvenidas/);
+  assert.match(contentText, /Configura el mensaje que Purgito enviará cuando un nuevo miembro entre en tu servidor/);
+  assert.match(contentText, /Activar bienvenida/);
+  assert.match(contentText, /Canal de bienvenida/);
+  assert.match(contentText, /Contenido del mensaje/);
   assert.match(contentText, /Vista previa en vivo/);
   assert.match(contentText, /Variables disponibles/);
   assert.match(contentText, /Guardar cambios/);
   assert.match(contentText, /Enviar prueba/);
   assert.match(contentText, /Restablecer/);
+  // NO debe contener los selectores/tabs de otros eventos
+  assert.doesNotMatch(contentText, /Despedida.*Boost.*Bienvenida/);
+  // Variables: debe tener {user} pero NO {server_boostlevel}
+  assert.match(contentText, /\{user\}/);
+  assert.doesNotMatch(contentText, /\{server_boostlevel\}/);
 
-  console.log('✓ Test 31: Módulo de Eventos del Servidor (rediseño UX/UI verificado)');
+  // 2. Carga de Despedidas (Aislamiento de estado)
+  await loadGoodbyeTab();
+  await new Promise(r => setTimeout(r, 50));
+
+  contentText = elementsById.catContent.text();
+  assert.match(contentText, /Despedidas/);
+  assert.match(contentText, /Configura el mensaje que Purgito enviará cuando un miembro abandone tu servidor/);
+  assert.match(contentText, /Activar despedida/);
+  assert.match(contentText, /Canal de despedida/);
+  assert.doesNotMatch(contentText, /\{server_boostlevel\}/);
+
+  // 3. Carga de Boosts (Variables exclusivas de Boost)
+  await loadBoostTab();
+  await new Promise(r => setTimeout(r, 50));
+
+  contentText = elementsById.catContent.text();
+  assert.match(contentText, /Boosts/);
+  assert.match(contentText, /Configura el mensaje que Purgito enviará cuando alguien apoye tu servidor con un boost/);
+  assert.match(contentText, /Activar mensaje de boost/);
+  assert.match(contentText, /Canal de boosts/);
+  assert.match(contentText, /\{server_boostlevel\}/);
+
+  console.log('✓ Test 31: Módulos dedicados e independientes de Bienvenidas, Despedidas y Boosts (UX refactorizado)');
 }
 
 // ── Test 32: Módulo de Gestión de Anuncios Programados ───────────────────────

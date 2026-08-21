@@ -5429,34 +5429,58 @@ h1 {
   font-size: 12px;
 }
 
-/* Auxiliary Variables Tool */
-.event-vars-aux {
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
+/* Dedicated Event Page Sections */
+.event-editor-pane {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 20px;
 }
 
-.vars-panel-title {
+.event-section-card {
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 14px;
 }
 
-.vars-panel-title strong {
-  font-size: 14px;
+.event-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-section-card .section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--text-main);
 }
 
-.vars-search {
-  padding: 6px 10px;
-  font-size: 13px;
+.event-content-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.vars-category-tabs {
+/* Auxiliary Variables Tool */
+.event-variables-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.var-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.var-category-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -5485,13 +5509,33 @@ h1 {
   color: #fff;
 }
 
-.vars-grid {
+.var-chips-grid-compact {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
-  max-height: 200px;
+  max-height: 180px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.var-chip-compact {
+  background: var(--surface-bg, #12141a);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.var-chip-compact:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg, #12141a));
 }
 
 .var-chip {
