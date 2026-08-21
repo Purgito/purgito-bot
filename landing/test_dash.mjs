@@ -752,10 +752,23 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
     assert.equal(count, 1, `El módulo ${key} solo debe existir una vez en MODULES`);
   }
 
-  // Eventos, Triggers, Reacciones, Frases y YouTube deben estar en Automatización
-  const eventosMod = MODULES.find(m => m.key === 'eventos');
-  assert.equal(eventosMod.cat, 'automatizacion', 'Eventos debe estar en Automatización');
+  // Bienvenidas, Despedidas, Boosts, Anuncios y Updates deben estar en Anuncios
+  const welcomeMod = MODULES.find(m => m.key === 'welcome');
+  assert.equal(welcomeMod.cat, 'anuncios', 'Bienvenidas debe estar en Anuncios');
 
+  const goodbyeMod = MODULES.find(m => m.key === 'goodbye');
+  assert.equal(goodbyeMod.cat, 'anuncios', 'Despedidas debe estar en Anuncios');
+
+  const boostMod = MODULES.find(m => m.key === 'boost');
+  assert.equal(boostMod.cat, 'anuncios', 'Boosts debe estar en Anuncios');
+
+  const anunciosMod = MODULES.find(m => m.key === 'anuncios');
+  assert.equal(anunciosMod.cat, 'anuncios', 'Anuncios debe estar en Anuncios');
+
+  const updatesMod = MODULES.find(m => m.key === 'updates');
+  assert.equal(updatesMod.cat, 'anuncios', 'Updates debe estar en Anuncios');
+
+  // Triggers, Reacciones, Frases y YouTube deben estar en Automatización
   const youtubeMod = MODULES.find(m => m.key === 'youtube');
   assert.equal(youtubeMod.cat, 'automatizacion', 'YouTube debe estar en Automatización');
 
@@ -770,9 +783,6 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   const chatMod = MODULES.find(m => m.key === 'chat');
   assert.equal(chatMod.cat, 'principal', 'Chat debe estar en Principal');
-
-  const embedsMod = MODULES.find(m => m.key === 'embeds');
-  assert.equal(embedsMod.cat, 'mensajes', 'Embeds debe estar en Mensajes');
 
   const gifsMod = MODULES.find(m => m.key === 'gifs');
   assert.equal(gifsMod.cat, 'contenido', 'GIFs debe estar en Contenido');
@@ -1322,7 +1332,11 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 // ── Test 29: Activación de pestañas del dashboard en ambos idiomas ─────────────
 {
   const { getDashboardUrl } = await import('./js/core/config.js');
-  const tabs = ['inicio', 'stats', 'chat', 'gifs', 'historial', 'premium', 'youtube', 'embeds', 'memes', 'triggers', 'reacciones', 'frases', 'canales', 'amnesia', 'updates'];
+  const tabs = [
+    'inicio', 'stats', 'chat', 'welcome', 'goodbye', 'boost', 'anuncios',
+    'updates', 'gifs', 'memes', 'triggers', 'reacciones', 'frases',
+    'canales', 'amnesia', 'historial', 'premium', 'youtube', 'embeds'
+  ];
   for (const t of tabs) {
     assert.equal(getDashboardUrl('123', t, null, 'en'), `/en/dashboard/123/${t}`);
     assert.equal(getDashboardUrl('123', t, null, 'es'), `/es/dashboard/123/${t}`);
@@ -1422,6 +1436,70 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(contentText, /Restablecer/);
 
   console.log('✓ Test 31: Módulo de Eventos del Servidor (rediseño UX/UI verificado)');
+}
+
+// ── Test 32: Módulo de Gestión de Anuncios Programados ───────────────────────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  const { loadAnunciosTab } = await import('./js/tabs/anuncios.js');
+  assert.equal(typeof loadAnunciosTab, 'function', 'loadAnunciosTab debe ser una función exportada');
+
+  const mockAnunciosData = {
+    announcements: [
+      {
+        id: 1,
+        channel_id: 10,
+        message: '¡No olviden revisar las reglas del servidor!',
+        mode: 'interval',
+        interval_minutes: 30,
+        hour: null,
+        minute: null,
+        last_sent_at: '2026-08-21 12:00:00',
+        content_mode: 'plain_text',
+        embed_json: null,
+        delete_after_seconds: 60,
+      },
+    ],
+    count: 1,
+    max: 3,
+    is_premium: false,
+  };
+
+  const mockChannels = {
+    channels: [
+      { id: '10', name: 'general' },
+      { id: '20', name: 'anuncios' },
+    ],
+  };
+  const mockRoles = { roles: [] };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/anuncios')) return jsonResp(mockAnunciosData);
+      if (url.includes('/api/server/123456789/channels')) return jsonResp(mockChannels);
+      if (url.includes('/api/server/123456789/roles')) return jsonResp(mockRoles);
+      return jsonResp({});
+    },
+  ];
+
+  await loadAnunciosTab();
+  await new Promise(r => setTimeout(r, 50));
+
+  const contentText = elementsById.catContent.text();
+  assert.match(contentText, /Anuncios/);
+  assert.match(contentText, /Automatiza mensajes para mantener informado tu servidor/);
+  assert.match(contentText, /Crear anuncio/);
+  assert.match(contentText, /1 \/ 3 anuncios utilizados/);
+  assert.match(contentText, /Activo/);
+  assert.match(contentText, /Cada 30 minutos/);
+  assert.match(contentText, /#anuncios/);
+  assert.match(contentText, /Auto-borrado: 60s/);
+  assert.match(contentText, /Editar/);
+  assert.match(contentText, /Eliminar/);
+
+  console.log('✓ Test 32: Módulo de Gestión de Anuncios Programados verificado');
 }
 
 console.log('\n========================================');

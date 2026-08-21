@@ -19,7 +19,8 @@ import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import { loadYoutube } from '/js/tabs/youtube.js';
 import { loadHistorial } from '/js/tabs/historial.js';
-import { loadEventosTab } from '/js/tabs/eventos.js';
+import { loadWelcomeTab, loadGoodbyeTab, loadBoostTab, loadEventosTab } from '/js/tabs/eventos.js';
+import { loadAnunciosTab } from '/js/tabs/anuncios.js';
 import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
 } from '/js/embeds/shared-ui.js';
@@ -28,8 +29,8 @@ import { t, addStrings } from '/js/core/i18n.js';
 addStrings({
   es: {
     'dash.cat.principal': 'Principal',
+    'dash.cat.anuncios': 'Anuncios',
     'dash.cat.automatizacion': 'Automatización',
-    'dash.cat.mensajes': 'Mensajes',
     'dash.cat.contenido': 'Contenido',
     'dash.cat.servidor': 'Servidor',
     'dash.mod.inicio.label': 'Inicio',
@@ -45,8 +46,16 @@ addStrings({
     'dash.mod.historial.label': 'Auditoría',
     'dash.mod.historial.desc': 'Registro de cambios y auditoría de acciones realizadas',
     'dash.mod.premium.desc': 'Memoria ampliada a 50.000 mensajes, 4.000 GIFs y soporte prioritario',
-    'dash.mod.eventos.label': 'Eventos',
-    'dash.mod.eventos.desc': 'Bienvenidas, despedidas y boosts con mensajes totalmente configurables',
+    'dash.mod.welcome.label': 'Bienvenidas',
+    'dash.mod.welcome.desc': 'Mensajes automáticos al unirse nuevos miembros al servidor',
+    'dash.mod.goodbye.label': 'Despedidas',
+    'dash.mod.goodbye.desc': 'Mensajes automáticos cuando un miembro abandona el servidor',
+    'dash.mod.boost.label': 'Boosts',
+    'dash.mod.boost.desc': 'Mensajes de celebración y agradecimiento por mejoras al servidor',
+    'dash.mod.anuncios.label': 'Anuncios',
+    'dash.mod.anuncios.desc': 'Publicaciones automáticas programadas por intervalo u hora fija',
+    'dash.mod.updates.label': 'Canal de Novedades',
+    'dash.mod.updates.desc': 'Canal donde Purgito publica sus novedades y actualizaciones',
     'dash.mod.triggers.label': 'Triggers de canal',
     'dash.mod.triggers.desc': 'Respuestas automáticas por coincidencia de texto o regex',
     'dash.mod.reacciones.label': 'Reacciones automáticas',
@@ -56,8 +65,6 @@ addStrings({
     'dash.mod.youtube.desc': 'Avisos automáticos de nuevos videos en canales de YouTube',
     'dash.mod.embeds.label': 'Diseñador de Mensajes',
     'dash.mod.embeds.desc': 'Editor visual de embeds clásicos y bloques interactivos Layout V2',
-    'dash.mod.updates.label': 'Canal de Novedades',
-    'dash.mod.updates.desc': 'Canal donde Purgito publica sus anuncios y actualizaciones',
     'dash.mod.gifs.desc': 'Galería de GIFs del servidor para respuestas y comandos',
     'dash.mod.memes.desc': 'Generación automática de memes y plantillas',
     'dash.mod.canales.label': 'Canales y Permisos',
@@ -67,8 +74,8 @@ addStrings({
   },
   en: {
     'dash.cat.principal': 'Main',
+    'dash.cat.anuncios': 'Announcements',
     'dash.cat.automatizacion': 'Automation',
-    'dash.cat.mensajes': 'Messages',
     'dash.cat.contenido': 'Content',
     'dash.cat.servidor': 'Server',
     'dash.mod.inicio.label': 'Home',
@@ -84,8 +91,16 @@ addStrings({
     'dash.mod.historial.label': 'Audit log',
     'dash.mod.historial.desc': 'Log of changes and audit trail of actions taken',
     'dash.mod.premium.desc': 'Extended memory up to 50,000 messages, 4,000 GIFs, and priority support',
-    'dash.mod.eventos.label': 'Events',
-    'dash.mod.eventos.desc': 'Welcome, goodbye, and boost messages with full customization',
+    'dash.mod.welcome.label': 'Welcome',
+    'dash.mod.welcome.desc': 'Automatic messages when new members join the server',
+    'dash.mod.goodbye.label': 'Goodbye',
+    'dash.mod.goodbye.desc': 'Automatic messages when a member leaves the server',
+    'dash.mod.boost.label': 'Boosts',
+    'dash.mod.boost.desc': 'Celebration messages when a member boosts the server',
+    'dash.mod.anuncios.label': 'Announcements',
+    'dash.mod.anuncios.desc': 'Automatic scheduled posts by interval or daily fixed time',
+    'dash.mod.updates.label': 'Updates Channel',
+    'dash.mod.updates.desc': "Channel where Purgito posts its announcements and updates",
     'dash.mod.triggers.label': 'Channel Triggers',
     'dash.mod.triggers.desc': 'Automatic replies matched by text or regex',
     'dash.mod.reacciones.label': 'Automatic Reactions',
@@ -95,8 +110,6 @@ addStrings({
     'dash.mod.youtube.desc': 'Automatic alerts for new videos on YouTube channels',
     'dash.mod.embeds.label': 'Message Designer',
     'dash.mod.embeds.desc': 'Visual editor for classic embeds and interactive Layout V2 blocks',
-    'dash.mod.updates.label': 'Updates Channel',
-    'dash.mod.updates.desc': "Channel where Purgito posts its announcements and updates",
     'dash.mod.gifs.desc': "The server's GIF gallery for replies and commands",
     'dash.mod.memes.desc': 'Automatic meme generation and templates',
     'dash.mod.canales.label': 'Channels and Permissions',
@@ -113,8 +126,8 @@ addStrings({
 
 export const CATEGORIES = [
   { key: 'principal', label: t('dash.cat.principal'), icon: 'home' },
+  { key: 'anuncios', label: t('dash.cat.anuncios'), icon: 'megaphone' },
   { key: 'automatizacion', label: t('dash.cat.automatizacion'), icon: 'zap' },
-  { key: 'mensajes', label: t('dash.cat.mensajes'), icon: 'layout' },
   { key: 'contenido', label: t('dash.cat.contenido'), icon: 'film' },
   { key: 'servidor', label: t('dash.cat.servidor'), icon: 'sliders' },
 ];
@@ -176,16 +189,54 @@ export const MODULES = [
     load: loadHistorial,
   },
 
-  // Automatización
+  // Anuncios
   {
-    key: 'eventos',
-    cat: 'automatizacion',
-    label: t('dash.mod.eventos.label'),
-    icon: 'sparkle',
-    desc: t('dash.mod.eventos.desc'),
-    keywords: ['eventos', 'bienvenida', 'despedida', 'boost', 'welcome', 'goodbye', 'mensajes', 'automatico', 'servidor'],
-    load: loadEventosTab,
+    key: 'welcome',
+    cat: 'anuncios',
+    label: t('dash.mod.welcome.label'),
+    icon: 'logIn',
+    desc: t('dash.mod.welcome.desc'),
+    keywords: ['bienvenidas', 'welcome', 'bienvenida', 'saludo', 'nuevo', 'miembro', 'entradas'],
+    load: loadWelcomeTab,
   },
+  {
+    key: 'goodbye',
+    cat: 'anuncios',
+    label: t('dash.mod.goodbye.label'),
+    icon: 'logOut',
+    desc: t('dash.mod.goodbye.desc'),
+    keywords: ['despedidas', 'goodbye', 'despedida', 'salidas', 'abandono'],
+    load: loadGoodbyeTab,
+  },
+  {
+    key: 'boost',
+    cat: 'anuncios',
+    label: t('dash.mod.boost.label'),
+    icon: 'star',
+    desc: t('dash.mod.boost.desc'),
+    keywords: ['boosts', 'boost', 'mejora', 'agradecimiento', 'servidor', 'nitro'],
+    load: loadBoostTab,
+  },
+  {
+    key: 'anuncios',
+    cat: 'anuncios',
+    label: t('dash.mod.anuncios.label'),
+    icon: 'megaphone',
+    desc: t('dash.mod.anuncios.desc'),
+    keywords: ['anuncios', 'programados', 'intervalo', 'diario', 'cadencia', 'mensajes', 'publicaciones', 'automatico', 'auto-delete'],
+    load: loadAnunciosTab,
+  },
+  {
+    key: 'updates',
+    cat: 'anuncios',
+    label: t('dash.mod.updates.label'),
+    icon: 'bell',
+    desc: t('dash.mod.updates.desc'),
+    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal', 'updates'],
+    load: loadUpdatesModule,
+  },
+
+  // Automatización
   {
     key: 'triggers',
     cat: 'automatizacion',
@@ -221,26 +272,6 @@ export const MODULES = [
     desc: t('dash.mod.youtube.desc'),
     keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
     load: loadYoutube,
-  },
-
-  // Mensajes
-  {
-    key: 'embeds',
-    cat: 'mensajes',
-    label: t('dash.mod.embeds.label'),
-    icon: 'layout',
-    desc: t('dash.mod.embeds.desc'),
-    keywords: ['embeds', 'anuncios', 'mensajes', 'diseñador', 'plantillas', 'layout', 'botones'],
-    load: loadEmbeds,
-  },
-  {
-    key: 'updates',
-    cat: 'mensajes',
-    label: t('dash.mod.updates.label'),
-    icon: 'bell',
-    desc: t('dash.mod.updates.desc'),
-    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal'],
-    load: loadUpdatesModule,
   },
 
   // Contenido
@@ -302,10 +333,15 @@ export const TABS = [
   { key: 'inicio', label: t('dash.mod.inicio.label').toUpperCase(), icon: 'home', load: loadInicio },
   { key: 'stats', label: t('dash.mod.stats.label').toUpperCase(), icon: 'activity', load: loadStatsModule },
   { key: 'chat', label: t('dash.mod.chat.label').toUpperCase(), icon: 'chat', load: loadChatTab },
+  { key: 'welcome', label: t('dash.mod.welcome.label').toUpperCase(), icon: 'logIn', load: loadWelcomeTab },
+  { key: 'goodbye', label: t('dash.mod.goodbye.label').toUpperCase(), icon: 'logOut', load: loadGoodbyeTab },
+  { key: 'boost', label: t('dash.mod.boost.label').toUpperCase(), icon: 'star', load: loadBoostTab },
+  { key: 'anuncios', label: t('dash.mod.anuncios.label').toUpperCase(), icon: 'megaphone', load: loadAnunciosTab },
+  { key: 'updates', label: t('dash.mod.updates.label').toUpperCase(), icon: 'bell', load: loadUpdatesModule },
   { key: 'gifs', label: 'GIFS', icon: 'film', load: loadGifs },
   { key: 'memes', label: 'MEMES', icon: 'image', load: loadMemes },
   { key: 'embeds', label: t('dash.mod.embeds.label').toUpperCase(), icon: 'layout', load: loadEmbeds },
-  { key: 'eventos', label: t('dash.mod.eventos.label').toUpperCase(), icon: 'sparkle', load: loadEventosTab },
+  { key: 'eventos', label: 'EVENTOS', icon: 'sparkle', load: loadEventosTab },
   { key: 'premium', label: 'PREMIUM', icon: 'star', load: loadPremium },
   { key: 'youtube', label: 'YOUTUBE', icon: 'youtube', load: loadYoutube },
   { key: 'historial', label: t('dash.mod.historial.label').toUpperCase(), icon: 'history', load: loadHistorial },

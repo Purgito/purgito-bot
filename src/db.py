@@ -3031,6 +3031,94 @@ async def list_scheduled_announcements(guild_id: int) -> list[dict]:
     ]
 
 
+async def get_scheduled_announcement(guild_id: int, announcement_id: int) -> dict | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, channel_id, message, mode, interval_minutes, hour, minute, "
+        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds "
+        "FROM scheduled_announcements WHERE guild_id=? AND id=?",
+        (guild_id, announcement_id),
+    ) as cursor:
+        r = await cursor.fetchone()
+    if not r:
+        return None
+    return {
+        "id": r[0],
+        "channel_id": r[1],
+        "message": r[2],
+        "mode": r[3],
+        "interval_minutes": r[4],
+        "hour": r[5],
+        "minute": r[6],
+        "last_sent_at": r[7],
+        "created_by": r[8],
+        "created_at": r[9],
+        "embed_json": r[10],
+        "content_mode": r[11],
+        "delete_after_seconds": r[12],
+    }
+
+
+async def update_scheduled_announcement(
+    guild_id: int,
+    announcement_id: int,
+    channel_id: int,
+    message: str,
+    mode: str,
+    interval_minutes: int | None = None,
+    hour: int | None = None,
+    minute: int | None = None,
+    embed_json: str | None = None,
+    content_mode: str = "classic_embed",
+    delete_after_seconds: int | None = None,
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE scheduled_announcements SET "
+            "channel_id=?, message=?, mode=?, interval_minutes=?, hour=?, minute=?, "
+            "embed_json=?, content_mode=?, delete_after_seconds=? "
+            "WHERE guild_id=? AND id=?",
+            (
+                channel_id,
+                message,
+                mode,
+                interval_minutes,
+                hour,
+                minute,
+                embed_json,
+                content_mode,
+                delete_after_seconds,
+                guild_id,
+                announcement_id,
+            ),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
+async def get_scheduled_announcements_quota(guild_id: int) -> tuple[int, int, bool]:
+    from cogs.premium import is_premium_guild
+
+    is_premium = is_premium_guild(guild_id)
+    max_announcements = _limit_for_guild(
+        guild_id,
+        "MAX_ANNOUNCEMENTS_PER_GUILD_FREE",
+        "MAX_ANNOUNCEMENTS_PER_GUILD_PREMIUM",
+        3,
+        10,
+    )
+    db = await get_db()
+    async with db.execute(
+        "SELECT COUNT(*) FROM scheduled_announcements WHERE guild_id=?",
+        (guild_id,),
+    ) as cur:
+        row = await cur.fetchone()
+    count = int(row[0]) if row else 0
+    return count, max_announcements, is_premium
+
+
 async def get_due_scheduled_announcements() -> list[dict]:
     """Anuncios listos para enviarse. El modo interval se resuelve en SQL;
     el modo daily se evalúa acá en Python contra la timezone configurada,

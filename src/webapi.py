@@ -127,6 +127,8 @@ from db import (
     get_gif_by_id,
     get_gif_by_url,
     get_random_gif_candidates,
+    get_scheduled_announcement,
+    get_scheduled_announcements_quota,
     get_server_event,
     get_shared_embed,
     get_updates_channel,
@@ -139,6 +141,7 @@ from db import (
     list_channel_triggers,
     list_corpus_channels,
     list_embed_templates,
+    list_scheduled_announcements,
     list_server_events,
     list_excluded_users,
     list_exempt_channels,
@@ -165,6 +168,7 @@ from db import (
     remove_frase_channel,
     remove_mention_channel,
     remove_reaction_from_pool,
+    remove_scheduled_announcement,
     remove_spontaneous_channel,
     remove_user_exclusion,
     remove_youtube_sub_by_id,
@@ -178,6 +182,7 @@ from db import (
     set_server_event,
     set_updates_channel,
     set_user_exclusion,
+    update_scheduled_announcement,
     set_youtube_mention_role_by_id,
     toggle_server_event,
     unassign_pack_from_channel,
@@ -3270,6 +3275,12 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
             {"error": "mode debe ser 'interval' o 'daily'"}, status=400
         )
 
+    delete_after = _to_int(data.get("delete_after_seconds"))
+    if delete_after is not None and not (1 <= delete_after <= 86400):
+        return web.json_response(
+            {"error": "delete_after_seconds debe estar entre 1 y 86400"}, status=400
+        )
+
     session = await get_session(request)
     new_id = await add_scheduled_announcement(
         guild_id,
@@ -3282,6 +3293,7 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         minute=minute,
         embed_json=payload,
         content_mode=content_mode,
+        delete_after_seconds=delete_after,
     )
     if new_id is None:
         return web.json_response(
@@ -3297,6 +3309,252 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         detail=f"channel_id={channel.id} mode={mode}",
     )
     return web.json_response({"id": new_id})
+
+
+@guild_api
+async def _api_anuncios_get(request: web.Request, guild_id: int) -> web.Response:
+    announcements = await list_scheduled_announcements(guild_id)
+    count, max_limit, is_premium = await get_scheduled_announcements_quota(guild_id)
+    return web.json_response(
+        {
+            "announcements": announcements,
+            "count": count,
+            "max": max_limit,
+            "is_premium": is_premium,
+        }
+    )
+
+
+@guild_api
+async def _api_anuncio_get(request: web.Request, guild_id: int) -> web.Response:
+    announcement_id = _to_int(request.match_info.get("announcement_id"))
+    if announcement_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    announcement = await get_scheduled_announcement(guild_id, announcement_id)
+    if not announcement:
+        return web.json_response({"error": "anuncio no encontrado"}, status=404)
+    return web.json_response({"announcement": announcement})
+
+
+@guild_api
+async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+
+    content_mode = data.get("content_mode") or "plain_text"
+    if content_mode == "plain_text":
+        message = (data.get("message") or "").strip()
+        if not message:
+            return web.json_response(
+                {"error": "el mensaje no puede estar vacío"}, status=400
+            )
+        if len(message) > 2000:
+            return web.json_response(
+                {"error": "el mensaje no puede superar 2000 caracteres"}, status=400
+            )
+        payload = None
+        preview = message[:60]
+    else:
+        content_mode, payload, preview, err = _extract_content(data)
+        if err:
+            return web.json_response({"error": err}, status=400)
+        message = preview
+
+    channel, denied = _embed_target_channel(
+        request, guild_id, _to_int(data.get("channel_id"))
+    )
+    if denied is not None:
+        return denied
+
+    if content_mode == "layout_v2":
+        layout = data["layout"]
+        denied = await _reject_unassignable_roles(request, guild_id, layout)
+        if denied is not None:
+            return denied
+        assignments = assign_button_custom_ids(layout)
+        await _register_role_buttons(request.app["bot"], guild_id, assignments)
+        payload = json.dumps(layout)
+
+    mode = data.get("mode")
+    interval_minutes = hour = minute = None
+    if mode == "interval":
+        interval_minutes = _to_int(data.get("interval_minutes"))
+        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
+            return web.json_response(
+                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
+            )
+    elif mode == "daily":
+        hour = _to_int(data.get("hour"))
+        minute = _to_int(data.get("minute"))
+        if (
+            hour is None
+            or minute is None
+            or not (0 <= hour <= 23 and 0 <= minute <= 59)
+        ):
+            return web.json_response(
+                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
+            )
+    else:
+        return web.json_response(
+            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
+        )
+
+    delete_after = _to_int(data.get("delete_after_seconds"))
+    if delete_after is not None and not (1 <= delete_after <= 86400):
+        return web.json_response(
+            {"error": "delete_after_seconds debe estar entre 1 y 86400"}, status=400
+        )
+
+    session = await get_session(request)
+    new_id = await add_scheduled_announcement(
+        guild_id,
+        channel.id,
+        message,
+        mode,
+        int(session["user_id"]),
+        interval_minutes=interval_minutes,
+        hour=hour,
+        minute=minute,
+        embed_json=payload,
+        content_mode=content_mode,
+        delete_after_seconds=delete_after,
+    )
+    if new_id is None:
+        return web.json_response(
+            {"error": "Has alcanzado el máximo de anuncios para este servidor."},
+            status=409,
+        )
+    await _log_audit(
+        request,
+        guild_id,
+        "anuncios.create",
+        detail=f"id={new_id} channel_id={channel.id} mode={mode}",
+    )
+    announcement = await get_scheduled_announcement(guild_id, new_id)
+    return web.json_response({"id": new_id, "announcement": announcement}, status=201)
+
+
+@guild_api
+async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
+    announcement_id = _to_int(request.match_info.get("announcement_id"))
+    if announcement_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+
+    existing = await get_scheduled_announcement(guild_id, announcement_id)
+    if not existing:
+        return web.json_response({"error": "anuncio no encontrado"}, status=404)
+
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+
+    content_mode = data.get("content_mode") or "plain_text"
+    if content_mode == "plain_text":
+        message = (data.get("message") or "").strip()
+        if not message:
+            return web.json_response(
+                {"error": "el mensaje no puede estar vacío"}, status=400
+            )
+        if len(message) > 2000:
+            return web.json_response(
+                {"error": "el mensaje no puede superar 2000 caracteres"}, status=400
+            )
+        payload = None
+        preview = message[:60]
+    else:
+        content_mode, payload, preview, err = _extract_content(data)
+        if err:
+            return web.json_response({"error": err}, status=400)
+        message = preview
+
+    channel, denied = _embed_target_channel(
+        request, guild_id, _to_int(data.get("channel_id"))
+    )
+    if denied is not None:
+        return denied
+
+    if content_mode == "layout_v2":
+        layout = data["layout"]
+        denied = await _reject_unassignable_roles(request, guild_id, layout)
+        if denied is not None:
+            return denied
+        assignments = assign_button_custom_ids(layout)
+        await _register_role_buttons(request.app["bot"], guild_id, assignments)
+        payload = json.dumps(layout)
+
+    mode = data.get("mode")
+    interval_minutes = hour = minute = None
+    if mode == "interval":
+        interval_minutes = _to_int(data.get("interval_minutes"))
+        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
+            return web.json_response(
+                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
+            )
+    elif mode == "daily":
+        hour = _to_int(data.get("hour"))
+        minute = _to_int(data.get("minute"))
+        if (
+            hour is None
+            or minute is None
+            or not (0 <= hour <= 23 and 0 <= minute <= 59)
+        ):
+            return web.json_response(
+                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
+            )
+    else:
+        return web.json_response(
+            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
+        )
+
+    delete_after = _to_int(data.get("delete_after_seconds"))
+    if delete_after is not None and not (1 <= delete_after <= 86400):
+        return web.json_response(
+            {"error": "delete_after_seconds debe estar entre 1 y 86400"}, status=400
+        )
+
+    ok = await update_scheduled_announcement(
+        guild_id,
+        announcement_id,
+        channel.id,
+        message,
+        mode,
+        interval_minutes=interval_minutes,
+        hour=hour,
+        minute=minute,
+        embed_json=payload,
+        content_mode=content_mode,
+        delete_after_seconds=delete_after,
+    )
+    if not ok:
+        return web.json_response(
+            {"error": "no se pudo actualizar el anuncio"}, status=500
+        )
+
+    await _log_audit(
+        request,
+        guild_id,
+        "anuncios.update",
+        detail=f"id={announcement_id} channel_id={channel.id} mode={mode}",
+    )
+    announcement = await get_scheduled_announcement(guild_id, announcement_id)
+    return web.json_response({"updated": True, "announcement": announcement})
+
+
+@guild_api
+async def _api_anuncio_delete(request: web.Request, guild_id: int) -> web.Response:
+    announcement_id = _to_int(request.match_info.get("announcement_id"))
+    if announcement_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+
+    removed = await remove_scheduled_announcement(guild_id, announcement_id)
+    if not removed:
+        return web.json_response({"error": "anuncio no encontrado"}, status=404)
+
+    await _log_audit(
+        request, guild_id, "anuncios.delete", detail=f"id={announcement_id}"
+    )
+    return web.json_response({"deleted": True})
 
 
 # ---------------- Embeds compartidos por link ----------------
@@ -4944,6 +5202,13 @@ async def start_web_server(bot: commands.Bot) -> None:
         )
         app.router.add_delete(
             f"{base}/embeds/templates/{{template_id}}", _api_embed_template_delete
+        )
+        app.router.add_get(f"{base}/anuncios", _api_anuncios_get)
+        app.router.add_post(f"{base}/anuncios", _api_anuncios_post)
+        app.router.add_get(f"{base}/anuncios/{{announcement_id}}", _api_anuncio_get)
+        app.router.add_put(f"{base}/anuncios/{{announcement_id}}", _api_anuncio_put)
+        app.router.add_delete(
+            f"{base}/anuncios/{{announcement_id}}", _api_anuncio_delete
         )
         app.router.add_get(f"{base}/events", _api_server_events_get)
         app.router.add_get(f"{base}/events/{{event_type}}", _api_server_event_get)

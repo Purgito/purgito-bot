@@ -296,7 +296,19 @@ function resolveBlockForPreview(block, ctx) {
   return b;
 }
 
-export async function loadEventosTab() {
+export async function loadWelcomeTab() {
+  return loadEventosTab('welcome');
+}
+
+export async function loadGoodbyeTab() {
+  return loadEventosTab('goodbye');
+}
+
+export async function loadBoostTab() {
+  return loadEventosTab('boost');
+}
+
+export async function loadEventosTab(initialEventKey = 'welcome') {
   const myGuild = GUILD_ID;
   const box = content();
   box.innerHTML = '';
@@ -310,17 +322,17 @@ export async function loadEventosTab() {
     ]);
 
     if (myGuild !== GUILD_ID) return;
-    renderEventosShell(box, eventsData, channels, roles);
+    renderEventosShell(box, eventsData, channels, roles, initialEventKey);
   } catch (err) {
     if (myGuild !== GUILD_ID) return;
     renderError(box, err);
   }
 }
 
-function renderEventosShell(container, initialData, channels, roles) {
+function renderEventosShell(container, initialData, channels, roles, initialEventKey = 'welcome') {
   container.innerHTML = '';
 
-  let activeEventKey = 'welcome';
+  let activeEventKey = initialEventKey || 'welcome';
   const serverEvents = initialData.events || {};
   const allVariables = initialData.variables || [];
 

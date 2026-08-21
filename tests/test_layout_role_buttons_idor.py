@@ -231,14 +231,14 @@ def test_botones_anidados_en_container_tambien_se_revisan(guild_normal):
     assert resp is not None and resp.status == 403
 
 
-def test_los_dos_endpoints_que_acunan_custom_id_pasan_por_el_chequeo():
-    """Enviar y programar mintean custom_id por caminos distintos; si mañana
-    aparece un tercero, este test avisa."""
+def test_los_endpoints_que_acunan_custom_id_pasan_por_el_chequeo():
+    """Enviar, programar y endpoints de anuncios (post y put) mintean custom_id por
+    caminos distintos; todos deben pasar por _reject_unassignable_roles."""
     src = (
         __import__("pathlib").Path(__file__).resolve().parent.parent / "src/webapi.py"
     ).read_text(encoding="utf-8")
     acunados = src.count("assign_button_custom_ids(layout)")
     chequeos = src.count("_reject_unassignable_roles(")
     # -1 por la definición de la función.
-    assert acunados == 2
+    assert acunados == 4
     assert chequeos - 1 == acunados

@@ -5706,3 +5706,240 @@ h1 {
   width: 28px;
 }
 
+/* ---------- Módulo de Gestión de Anuncios ---------- */
+
+.tab-header-with-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.tab-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quota-upgrade-card {
+  margin-bottom: 20px;
+  background: color-mix(in srgb, #f59e0b 8%, var(--surface-card));
+  border-color: color-mix(in srgb, #f59e0b 30%, transparent);
+}
+
+.upgrade-card-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.upgrade-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f59e0b;
+}
+
+.empty-state-card {
+  padding: 40px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.empty-icon-wrap {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.empty-icon-wrap svg {
+  width: 28px;
+  height: 28px;
+}
+
+.anuncios-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.anuncio-manage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.anuncio-manage-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  transform: translateY(-2px);
+}
+
+.anuncio-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.anuncio-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.anuncio-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.anuncio-type-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.anuncio-title-text {
+  font-size: 15px;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anuncio-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.anuncio-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.anuncio-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.meta-item svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-dim);
+}
+
+.meta-error {
+  color: var(--danger, #ef4444);
+}
+
+.meta-error svg {
+  color: var(--danger, #ef4444);
+}
+
+.anuncio-last-sent {
+  margin-top: 2px;
+  color: var(--text-dim);
+}
+
+.anuncio-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+/* Anuncio Editor 2-Col Layout */
+.anuncio-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .anuncio-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.anuncio-editor-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.anuncio-section-card {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.anuncio-section-card .section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.anuncio-preview-pane-wrap {
+  position: relative;
+}
+
+.anuncio-preview-pane {
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.template-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+
