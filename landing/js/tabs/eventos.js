@@ -140,6 +140,10 @@ addStrings({
     'tabsEventos.eventDisabledNotice': 'La bienvenida está desactivada. Actívala arriba para enviar mensajes automáticamente.',
     'tabsEventos.eventDisabledNoticeGoodbye': 'Las despedidas están desactivadas. Actívalas arriba para enviar mensajes automáticamente.',
     'tabsEventos.eventDisabledNoticeBoost': 'Los mensajes de boost están desactivados. Actívalos arriba para enviar mensajes automáticamente.',
+    'tabsEventos.legacyDualNoticeText': 'Esta configuración también tiene un mensaje de texto guardado.',
+    'tabsEventos.legacyDualNoticeEmbed': 'Esta configuración también tiene un embed guardado.',
+    'tabsEventos.legacyDualSwitchText': 'Ver mensaje',
+    'tabsEventos.legacyDualSwitchEmbed': 'Ver embed',
   },
   en: {
     // Welcome
@@ -263,6 +267,10 @@ addStrings({
     'tabsEventos.eventDisabledNotice': 'Welcome is disabled. Enable it above to automatically send messages.',
     'tabsEventos.eventDisabledNoticeGoodbye': 'Goodbyes are disabled. Enable it above to automatically send messages.',
     'tabsEventos.eventDisabledNoticeBoost': 'Boost messages are disabled. Enable it above to automatically send messages.',
+    'tabsEventos.legacyDualNoticeText': 'This configuration also has a saved text message.',
+    'tabsEventos.legacyDualNoticeEmbed': 'This configuration also has a saved embed.',
+    'tabsEventos.legacyDualSwitchText': 'View message',
+    'tabsEventos.legacyDualSwitchEmbed': 'View embed',
   },
 });
 
@@ -490,10 +498,14 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
   let buttons = [];
 
   // State: Component enablement
-  let isMessageEnabled = true;
-  let isEmbedEnabled = false;
+  // format reemplaza a los antiguos isMessageEnabled/isEmbedEnabled independientes:
+  // Texto y Embed pasan a ser mutuamente excluyentes para configuraciones nuevas.
+  let format = 'text';
   let isLayoutV2 = savedMode === 'layout_v2';
   let isButtonsEnabled = false;
+  // true solo si una configuración legacy 'composite' tiene AMBOS mensaje y embed
+  // con contenido real: el que no se ve activo no se pierde hasta que se guarde.
+  let hasLegacyDual = false;
 
   let localEmbedDoc = blankDoc();
   let localLayoutDoc = blankLayoutDoc();
@@ -529,22 +541,28 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     }
   }
 
-  // Setup initial toggles based on saved data
+  // Setup initial format based on saved data
+  const hasRealText = Boolean(evConfig.message && evConfig.message.trim());
+  const hasRealEmbed = Boolean(localEmbedDoc.embeds.some(e => e.title || e.description || e.image || e.thumbnail || (e.fields && e.fields.length)));
+
   if (savedMode === 'classic_embed') {
-    isEmbedEnabled = true;
-    isMessageEnabled = Boolean(evConfig.message && evConfig.message.trim());
+    format = 'embed';
   } else if (savedMode === 'composite') {
-    isMessageEnabled = Boolean(evConfig.message && evConfig.message.trim());
-    isEmbedEnabled = Boolean(localEmbedDoc.embeds.some(e => e.title || e.description || e.image || e.thumbnail || (e.fields && e.fields.length)));
-    if (!isMessageEnabled && !isEmbedEnabled) isMessageEnabled = true;
+    if (hasRealText && hasRealEmbed) {
+      // Legacy real: ambos formatos tienen contenido. Se muestra Embed por
+      // defecto y se avisa que el mensaje de texto sigue ahí, sin tocarlo.
+      format = 'embed';
+      hasLegacyDual = true;
+    } else if (hasRealEmbed) {
+      format = 'embed';
+    } else {
+      format = 'text';
+    }
   } else if (savedMode === 'layout_v2') {
     isLayoutV2 = true;
-    isMessageEnabled = false;
-    isEmbedEnabled = false;
   } else {
     // plain_text
-    isMessageEnabled = true;
-    isEmbedEnabled = false;
+    format = 'text';
   }
 
   isButtonsEnabled = buttons.length > 0;
@@ -800,26 +818,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
     }
   }
 
-  function renderContentBuilder() {
-    contentCard.innerHTML = '';
-
-    if (isLayoutV2) {
-      renderLayoutV2Section();
-      return;
-    }
-
-    // SECTION A: MENSAJE DE TEXTO
-    const msgToggleChk = el('input', {
-      type: 'checkbox',
-      checked: isMessageEnabled,
-      onchange: () => {
-        isMessageEnabled = msgToggleChk.checked;
-        msgBodyWrap.style.display = isMessageEnabled ? 'flex' : 'none';
-        msgSection.className = 'event-builder-section' + (isMessageEnabled ? ' is-active' : ' is-collapsed');
-        updateLivePreview();
-      },
-    });
-
+  function buildMessageEditor() {
     const msgTxt = el('textarea', {
       class: 'form-control autogrow event-message-textarea',
       rows: 3,
@@ -879,43 +878,18 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       charCounter
     );
 
-    const msgBodyWrap = el('div', {
-      class: 'event-builder-section-body',
-      style: isMessageEnabled ? 'display: flex;' : 'display: none;',
-    },
-      msgTxt,
-      msgFooterBar
-    );
-
-    const msgSection = el('div', {
-      class: 'event-builder-section' + (isMessageEnabled ? ' is-active' : ' is-collapsed'),
-    },
+    return el('div', { class: 'event-builder-section is-active' },
       el('div', { class: 'event-builder-section-head' },
         el('div', { class: 'event-builder-section-title' },
           icon('chat'),
-          el('strong', {}, t('tabsEventos.secMessage')),
-          el('span', { class: 'dim text-xs' }, t('tabsEventos.plainTextLabel'))
-        ),
-        el('label', { class: 'toggle toggle-sm' },
-          msgToggleChk,
-          el('span', { class: 'toggle-label' }, isMessageEnabled ? t('tabsEventos.statusActive') : t('tabsEventos.statusInactive'))
+          el('strong', {}, t('tabsEventos.secMessage'))
         )
       ),
-      msgBodyWrap
+      el('div', { class: 'event-builder-section-body' }, msgTxt, msgFooterBar)
     );
+  }
 
-    // SECTION B: EMBED DE DISCORD
-    const embedToggleChk = el('input', {
-      type: 'checkbox',
-      checked: isEmbedEnabled,
-      onchange: () => {
-        isEmbedEnabled = embedToggleChk.checked;
-        embedBodyWrap.style.display = isEmbedEnabled ? 'flex' : 'none';
-        embedSection.className = 'event-builder-section' + (isEmbedEnabled ? ' is-active' : ' is-collapsed');
-        updateLivePreview();
-      },
-    });
-
+  function buildEmbedEditor() {
     const s = embedState;
 
     function boundInput(key, placeholder, isArea = false, maxL = null) {
@@ -1118,41 +1092,106 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       }, icon('star'), t('tabsEventos.saveTemplate'))
     );
 
-    const embedBodyWrap = el('div', {
-      class: 'event-builder-section-body event-embed-body',
-      style: isEmbedEnabled ? 'display: flex;' : 'display: none;',
-    },
-      embedTitleRow,
-      embedDescRow,
-      colorRow,
-      imagesRow,
-      authorRow,
-      footerRow,
-      el('div', { class: 'form-group-compact' },
-        el('div', { class: 'field-label-row' },
-          el('label', {}, t('tabsEventos.sectionFields')),
-          addFieldBtn
-        ),
-        fieldsListWrap
-      ),
-      templateActions
-    );
-
-    const embedSection = el('div', {
-      class: 'event-builder-section' + (isEmbedEnabled ? ' is-active' : ' is-collapsed'),
-    },
+    return el('div', { class: 'event-builder-section is-active' },
       el('div', { class: 'event-builder-section-head' },
         el('div', { class: 'event-builder-section-title' },
           icon('layout'),
-          el('strong', {}, t('tabsEventos.secEmbed')),
-          el('span', { class: 'dim text-xs' }, 'Tarjeta visual estructurada')
-        ),
-        el('label', { class: 'toggle toggle-sm' },
-          embedToggleChk,
-          el('span', { class: 'toggle-label' }, isEmbedEnabled ? t('tabsEventos.statusActive') : t('tabsEventos.statusInactive'))
+          el('strong', {}, t('tabsEventos.secEmbed'))
         )
       ),
-      embedBodyWrap
+      el('div', { class: 'event-builder-section-body event-embed-body' },
+        embedTitleRow,
+        embedDescRow,
+        colorRow,
+        imagesRow,
+        authorRow,
+        footerRow,
+        el('div', { class: 'form-group-compact' },
+          el('div', { class: 'field-label-row' },
+            el('label', {}, t('tabsEventos.sectionFields')),
+            addFieldBtn
+          ),
+          fieldsListWrap
+        ),
+        templateActions
+      )
+    );
+  }
+
+  function renderContentBuilder() {
+    contentCard.innerHTML = '';
+
+    if (isLayoutV2) {
+      renderLayoutV2Section();
+      return;
+    }
+
+    // SELECTOR DE FORMATO: Texto | Embed (mutuamente excluyente)
+    const formatModes = [
+      { key: 'text', label: t('tabsEventos.modePlainText'), icon: 'chat' },
+      { key: 'embed', label: t('tabsEventos.modeClassicEmbed'), icon: 'layout' },
+    ];
+
+    const pillsWrap = el('div', { class: 'event-mode-pills' });
+    const formatBodyWrap = el('div', { class: 'event-format-body' });
+    const legacyNoticeWrap = el('div', { class: 'event-legacy-notice-wrap' });
+
+    function renderLegacyNotice() {
+      legacyNoticeWrap.innerHTML = '';
+      if (!hasLegacyDual) return;
+      const otherIsText = format === 'embed';
+      legacyNoticeWrap.append(
+        el('div', { class: 'event-legacy-notice' },
+          icon('info'),
+          el('span', {}, otherIsText ? t('tabsEventos.legacyDualNoticeText') : t('tabsEventos.legacyDualNoticeEmbed')),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-secondary btn-xs',
+            onclick: () => {
+              format = otherIsText ? 'text' : 'embed';
+              renderPills();
+              renderFormatBody();
+              renderLegacyNotice();
+              updateLivePreview();
+            },
+          }, otherIsText ? t('tabsEventos.legacyDualSwitchText') : t('tabsEventos.legacyDualSwitchEmbed'))
+        )
+      );
+    }
+
+    function renderPills() {
+      pillsWrap.innerHTML = '';
+      for (const m of formatModes) {
+        pillsWrap.append(el('button', {
+          type: 'button',
+          class: 'mode-pill' + (format === m.key ? ' active' : ''),
+          onclick: () => {
+            if (format === m.key) return;
+            format = m.key;
+            renderPills();
+            renderFormatBody();
+            renderLegacyNotice();
+            updateLivePreview();
+          },
+        },
+          el('span', { class: 'mode-pill-icon' }, icon(m.icon)),
+          m.label
+        ));
+      }
+    }
+
+    function renderFormatBody() {
+      formatBodyWrap.innerHTML = '';
+      formatBodyWrap.append(format === 'embed' ? buildEmbedEditor() : buildMessageEditor());
+    }
+
+    renderPills();
+    renderFormatBody();
+    renderLegacyNotice();
+
+    const formatSelectorRow = el('div', { class: 'event-format-selector' },
+      el('label', { class: 'event-field-label' }, t('tabsEventos.contentModeLabel')),
+      pillsWrap
     );
 
     // SECTION C: BOTONES INTERACTIVOS
@@ -1331,7 +1370,7 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       )
     );
 
-    contentCard.append(msgSection, embedSection, buttonsSection, advancedSection);
+    contentCard.append(formatSelectorRow, legacyNoticeWrap, formatBodyWrap, buttonsSection, advancedSection);
     syncBodyVisibility();
   }
 
@@ -1486,8 +1525,8 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
           if (sendOpts) payload.send_options = sendOpts;
         } else {
           const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
-          const hasText = isMessageEnabled && Boolean(currentMessage.trim());
-          const hasEmbed = isEmbedEnabled && rawDicts.length > 0;
+          const hasText = format === 'text' && Boolean(currentMessage.trim());
+          const hasEmbed = format === 'embed' && rawDicts.length > 0;
           const hasBtns = isButtonsEnabled && buttons.length > 0;
 
           if (hasText && !hasEmbed && !hasBtns && !sendOpts) {
@@ -1509,8 +1548,8 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
               enabled: isEnabled,
               channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
               content_mode: 'composite',
-              message: isMessageEnabled ? currentMessage : '',
-              embeds: isEmbedEnabled ? rawDicts : [],
+              message: format === 'text' ? currentMessage : '',
+              embeds: format === 'embed' ? rawDicts : [],
               buttons: isButtonsEnabled ? buttons : [],
             };
             if (sendOpts) payload.send_options = sendOpts;
@@ -1557,8 +1596,8 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
           testBody = {
             channel_id: selectedChannelId ? parseInt(selectedChannelId, 10) : null,
             content_mode: 'composite',
-            message: isMessageEnabled ? currentMessage : '',
-            embeds: isEmbedEnabled ? rawDicts : [],
+            message: format === 'text' ? currentMessage : '',
+            embeds: format === 'embed' ? rawDicts : [],
             buttons: isButtonsEnabled ? buttons : [],
           };
           if (sendOpts) testBody.send_options = sendOpts;
@@ -1642,14 +1681,14 @@ function renderDedicatedEventView(container, eventType, initialData, channels, r
       hasPreviewContent = true;
     } else {
       // 1. Text message
-      if (isMessageEnabled && currentMessage.trim()) {
+      if (format === 'text' && currentMessage.trim()) {
         const resolved = resolvePlaceholders(currentMessage, ctx);
         msgBody.append(el('div', { class: 'd-msg-text' }, ...mdToNodes(resolved)));
         hasPreviewContent = true;
       }
 
       // 2. Embed
-      if (isEmbedEnabled) {
+      if (format === 'embed') {
         const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
         if (rawDicts.length > 0) {
           const resolvedEmbeds = rawDicts.map(e => resolveEmbedForPreview(e, ctx));

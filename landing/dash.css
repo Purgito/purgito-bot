@@ -5343,6 +5343,42 @@ h1 {
   flex-shrink: 0;
 }
 
+/* Selector de formato Texto | Embed, arriba del editor de contenido */
+.event-format-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.event-legacy-notice-wrap:empty {
+  display: none;
+}
+
+.event-legacy-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.event-legacy-notice svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.event-legacy-notice > span {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Workspace 2-Col Layout */
 .event-workspace-grid {
   display: grid;
@@ -5648,6 +5684,51 @@ h1 {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+/* Selector de formato tipo pill (Texto | Embed | ...), un pill activo a la vez.
+   Compartido por eventos.js y anuncios.js. */
+.event-mode-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-pill:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  color: var(--text-main);
+}
+
+.mode-pill.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-card));
+  border-color: var(--accent);
+  color: var(--accent-2, var(--accent));
+}
+
+.mode-pill-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mode-pill-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Compact Forms in Embed */
