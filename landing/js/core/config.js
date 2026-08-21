@@ -15,9 +15,45 @@
 export const LANGS = ['es', 'en', 'ru', 'ja', 'de'];
 
 /** Idioma del prefijo de ruta; español si la URL no trae uno conocido. */
-export function currentLocale() {
-  const seg = location.pathname.split('/')[1];
-  return LANGS.includes(seg) ? seg : 'es';
+export function currentLocale(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  const m = pathname.match(/^\/(es|en|ru|ja|de)(?:\/|$)/);
+  return m ? m[1] : 'es';
+}
+
+/** Extrae el ID del servidor (guild_id) desde cualquier URL de dashboard. */
+export function parseGuildId(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  const m = pathname.match(/\/dashboard\/(\d{1,25})(?:\/|$)/);
+  return m ? m[1] : '';
+}
+
+/** Construye la URL canónica de un módulo del dashboard para un servidor. */
+export function getDashboardUrl(guildId, tab = 'inicio', plan = null, locale = currentLocale()) {
+  const cleanId = String(guildId || '').trim();
+  const cleanTab = tab || 'inicio';
+  const loc = LANGS.includes(locale) ? locale : 'es';
+  const query = plan ? `?plan=${encodeURIComponent(plan)}` : '';
+  return `/${loc}/dashboard/${cleanId}/${cleanTab}${query}`;
+}
+
+/** Construye la URL canónica del perfil o una de sus sub-pestañas. */
+export function getPerfilUrl(subTab = 'servidores', locale = currentLocale(), query = '') {
+  const loc = LANGS.includes(locale) ? locale : 'es';
+  const path = (!subTab || subTab === 'perfil') ? '' : `/${subTab.replace(/^\//, '')}`;
+  const q = query ? (query.startsWith('?') ? query : `?${query}`) : '';
+  return `/${loc}/perfil${path}${q}`;
+}
+
+/** Construye la URL del endpoint de login preservando locale y retorno. */
+export function getLoginUrl(returnTo = null, locale = currentLocale()) {
+  const loc = LANGS.includes(locale) ? locale : 'es';
+  let target = '';
+  if (typeof returnTo === 'string') {
+    target = returnTo;
+  } else if (returnTo !== false && typeof location !== 'undefined') {
+    target = location.pathname + location.search;
+  }
+  const fromParam = target && target !== '/' && target !== `/${loc}` && target !== `/${loc}/` ? `&from=${encodeURIComponent(target)}` : '';
+  return `/auth/login?locale=${loc}${fromParam}`;
 }
 
 /** Número formateado según el idioma de la URL, no fijo a 'es'. */
@@ -38,8 +74,8 @@ export function formatDateTime(date) {
 
 // Solo dígitos: un id inventado a mano en la barra de direcciones muere acá y
 // no llega a armar URLs de API.
-const rawGuild = location.pathname.split('/')[3] || '';
-export let GUILD_ID = /^\d{1,25}$/.test(rawGuild) ? rawGuild : '';
+const rawGuild = parseGuildId();
+export let GUILD_ID = rawGuild;
 
 /** Actualiza el ID del servidor activo (binding vivo para los módulos importadores). */
 export function setGuildId(v) {

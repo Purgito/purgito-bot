@@ -918,18 +918,14 @@ def test_server_card_dashboard_canonical_href_and_routing():
     dash_js = (LANDING / "js" / "dash.js").read_text("utf-8")
     deploy_md = (ROOT / "DEPLOY.md").read_text("utf-8")
 
-    # 1. serverCard genera /${locale}/dashboard/${g.id}/inicio como destino canónico
+    # 1. serverCard genera la URL usando el helper centralizado getDashboardUrl
     assert (
-        "const dashboardHref = `/${locale}/dashboard/${g.id}${plan ? `/premium?plan=${plan}` : '/inicio'}`;"
+        "const dashboardHref = getDashboardUrl(g.id, plan ? 'premium' : 'inicio', plan, locale);"
         in perfil_js
     )
 
-    # 2. initDash normaliza cualquier acceso raíz a la sub-pestaña activa (por defecto /inicio)
-    assert "!location.pathname.split('/')[4]" in dash_js
-    assert (
-        "history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);"
-        in dash_js
-    )
+    # 2. initDash normaliza cualquier acceso raíz a la sub-pestaña activa
+    assert "history.replaceState({}, '', getDashboardUrl(GUILD_ID, tab));" in dash_js
 
     # 3. DEPLOY.md documenta la regex que captura tanto /dashboard como /dashboard/*
     assert "location ~ ^/(es|en|ru|ja|de)/dashboard(/.*)?$ {" in deploy_md

@@ -289,8 +289,9 @@ function svgIcon(paths) {
     a.href = DASHBOARD;
   });
 
-  // El locale viaja para volver a purgito.app/es tras el callback, no a la raíz.
-  var LOGIN = PANEL + '/auth/login?from=landing&locale=' + LOC;
+  // El locale y destino viajan para volver a la página original tras el callback.
+  var returnPath = typeof location !== 'undefined' && location.pathname !== '/' ? location.pathname + location.search : '/' + LOC + '/perfil/servidores';
+  var LOGIN = PANEL + '/auth/login?from=' + encodeURIComponent(returnPath) + '&locale=' + LOC;
 
   /* "Subscribirse" de /es/premium: sin sesión manda a login, con sesión al
      selector de servidores. Conserva el plan elegido hasta el panel, donde el

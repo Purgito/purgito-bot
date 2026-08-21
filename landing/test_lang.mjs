@@ -72,9 +72,15 @@ assert.equal(hrefFor('/en/documentation/development', 'es'), '/es/documentacion/
 
 // Slugs que se mantienen iguales en los dos idiomas: el selector conserva el
 // resto tal cual, sin necesitar una entrada en el mapa.
-for (const same of ['guia', 'premium', 'estado', 'dashboard', 'perfil/servidores', 'perfil/conexiones', 'perfil/facturacion']) {
+for (const same of ['guia', 'premium', 'estado', 'dashboard', 'perfil', 'perfil/servidores', 'perfil/conexiones', 'perfil/facturacion']) {
   assert.equal(hrefFor(`/es/${same}`, 'en'), `/en/${same}`, `slug idéntico roto: ${same}`);
   assert.equal(hrefFor(`/en/${same}`, 'es'), `/es/${same}`, `slug idéntico roto (vuelta): ${same}`);
+}
+
+// Deep links de dashboard (módulos por servidor)
+for (const tab of ['inicio', 'chat', 'gifs', 'historial', 'premium', 'youtube', 'embeds']) {
+  assert.equal(hrefFor(`/en/dashboard/123456789/${tab}`, 'es'), `/es/dashboard/123456789/${tab}`, `dashboard tab roto: ${tab}`);
+  assert.equal(hrefFor(`/es/dashboard/123456789/${tab}`, 'en'), `/en/dashboard/123456789/${tab}`, `dashboard tab roto (vuelta): ${tab}`);
 }
 
 // El mapeo tiene que ser reversible en ambos sentidos (auditado también en

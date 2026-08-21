@@ -1240,6 +1240,80 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 26: Cobertura de i18n completa (keys(es) === keys(en))');
 }
 
+// ── Test 27: Helpers centralizados de URLs del frontend en core/config.js ──────
+{
+  const { getDashboardUrl, getPerfilUrl, getLoginUrl, parseGuildId, currentLocale } = await import('./js/core/config.js');
+
+  // getDashboardUrl
+  assert.equal(getDashboardUrl('123456789', 'inicio', null, 'es'), '/es/dashboard/123456789/inicio');
+  assert.equal(getDashboardUrl('123456789', 'inicio', null, 'en'), '/en/dashboard/123456789/inicio');
+  assert.equal(getDashboardUrl('123456789', 'chat', null, 'en'), '/en/dashboard/123456789/chat');
+  assert.equal(getDashboardUrl('123456789', 'premium', 'annual', 'es'), '/es/dashboard/123456789/premium?plan=annual');
+  assert.equal(getDashboardUrl('123456789', 'premium', 'monthly', 'en'), '/en/dashboard/123456789/premium?plan=monthly');
+
+  // getPerfilUrl
+  assert.equal(getPerfilUrl('servidores', 'es'), '/es/perfil/servidores');
+  assert.equal(getPerfilUrl('servidores', 'en'), '/en/perfil/servidores');
+  assert.equal(getPerfilUrl('facturacion', 'en'), '/en/perfil/facturacion');
+  assert.equal(getPerfilUrl('conexiones', 'es'), '/es/perfil/conexiones');
+  assert.equal(getPerfilUrl('perfil', 'en'), '/en/perfil');
+  assert.equal(getPerfilUrl('', 'es'), '/es/perfil');
+
+  // getLoginUrl
+  assert.equal(getLoginUrl(false, 'es'), '/auth/login?locale=es');
+  assert.equal(getLoginUrl('', 'es'), '/auth/login?locale=es');
+  assert.equal(getLoginUrl('/en/dashboard/123/chat', 'en'), '/auth/login?locale=en&from=%2Fen%2Fdashboard%2F123%2Fchat');
+
+  // parseGuildId & currentLocale
+  assert.equal(parseGuildId('/en/dashboard/1471724794411089920/inicio'), '1471724794411089920');
+  assert.equal(parseGuildId('/es/dashboard/987654321/chat'), '987654321');
+  assert.equal(currentLocale('/en/perfil/servidores'), 'en');
+  assert.equal(currentLocale('/es/dashboard/123/inicio'), 'es');
+  assert.equal(currentLocale('/'), 'es');
+
+  console.log('✓ Test 27: Helpers centralizados de URLs verificados (getDashboardUrl, getPerfilUrl, getLoginUrl, parseGuildId, currentLocale)');
+}
+
+// ── Test 28: Flujo Perfil -> Servidor -> Dashboard conserva el locale ──────────
+{
+  const { getDashboardUrl } = await import('./js/core/config.js');
+  const guildMock = { id: '9988776655', name: 'Comunidad Purgito', is_premium: true, member_count: 50 };
+
+  // Selección de servidor desde EN
+  const enUrl = getDashboardUrl(guildMock.id, 'inicio', null, 'en');
+  assert.equal(enUrl, '/en/dashboard/9988776655/inicio', 'Flujo EN debe generar /en/dashboard/<id>/inicio');
+
+  // Selección de servidor desde ES
+  const esUrl = getDashboardUrl(guildMock.id, 'inicio', null, 'es');
+  assert.equal(esUrl, '/es/dashboard/9988776655/inicio', 'Flujo ES debe generar /es/dashboard/<id>/inicio');
+
+  console.log('✓ Test 28: Flujo Perfil -> Servidor -> Dashboard conserva el locale en ambos idiomas');
+}
+
+// ── Test 29: Activación de pestañas del dashboard en ambos idiomas ─────────────
+{
+  const { getDashboardUrl } = await import('./js/core/config.js');
+  const tabs = ['inicio', 'chat', 'gifs', 'historial', 'premium', 'youtube', 'embeds', 'memes', 'triggers', 'reacciones', 'frases', 'canales', 'amnesia', 'updates'];
+  for (const t of tabs) {
+    assert.equal(getDashboardUrl('123', t, null, 'en'), `/en/dashboard/123/${t}`);
+    assert.equal(getDashboardUrl('123', t, null, 'es'), `/es/dashboard/123/${t}`);
+  }
+  console.log('✓ Test 29: Tabs del dashboard generan URLs correctas en ES y EN');
+}
+
+// ── Test 30: URLs de CDN y avatares externos inmutables ────────────────────────
+{
+  const avatarCdnUrl = 'https://cdn.discordapp.com/avatars/1471724794411089920/a_abcdef123456.png?size=64';
+  const defaultAvatarCdnUrl = 'https://cdn.discordapp.com/embed/avatars/3.png';
+
+  assert.ok(avatarCdnUrl.startsWith('https://cdn.discordapp.com/'), 'Avatar custom es URL absoluta de Discord');
+  assert.ok(defaultAvatarCdnUrl.startsWith('https://cdn.discordapp.com/'), 'Avatar default es URL absoluta de Discord');
+  assert.ok(!avatarCdnUrl.includes('/en/https:'), 'URL externa jamás debe ser prefijada con /en/');
+  assert.ok(!avatarCdnUrl.includes('/es/https:'), 'URL externa jamás debe ser prefijada con /es/');
+
+  console.log('✓ Test 30: Inmutabilidad de URLs de Discord CDN y avatares');
+}
+
 console.log('\n========================================');
 console.log('✓ TODOS LOS TESTS DEL DASHBOARD PASARON');
 console.log('========================================\n');

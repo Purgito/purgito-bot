@@ -1,6 +1,6 @@
 import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, toast } from '/js/core/dom.js';
-import { GUILD_ID } from '/js/core/config.js';
+import { GUILD_ID, getDashboardUrl } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 import { watchTasks } from '/js/core/tasks.js';
 import { t, addStrings } from '../core/i18n.js';
@@ -185,7 +185,7 @@ function autoRemovedNote(count) {
     count === 1
       ? t('tabsGifs.autoRemovedSingle')
       : t('tabsGifs.autoRemovedPlural', { count }),
-    el('a', { href: `/es/dashboard/${GUILD_ID}/historial` }, t('tabsGifs.autoRemovedLink')),
+    el('a', { href: getDashboardUrl(GUILD_ID, 'historial') }, t('tabsGifs.autoRemovedLink')),
     '.');
 }
 

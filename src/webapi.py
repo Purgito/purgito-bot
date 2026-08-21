@@ -28,6 +28,7 @@ import json
 import logging
 import math
 import random
+import re
 import secrets
 import time
 from datetime import datetime
@@ -3323,10 +3324,15 @@ async def _api_embeds_share(request: web.Request, guild_id: int) -> web.Response
             status=429,
         )
     share_id, expires_at = result
+    locale = request.query.get("locale")
+    if not locale or locale not in ("es", "en", "ru", "ja", "de"):
+        referer = request.headers.get("Referer", "")
+        m = re.search(r"/(es|en|ru|ja|de)/", referer)
+        locale = m.group(1) if m else "es"
     return web.json_response(
         {
             "share_id": share_id,
-            "url": f"{LANDING_URL}/es/perfil?share={share_id}",
+            "url": f"{LANDING_URL}/{locale}/perfil?share={share_id}",
             "expires_at": expires_at,
         }
     )
@@ -3730,12 +3736,27 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
     # elegir un guild. Solo conserva los dos planes conocidos y un locale de
     # la lista soportada; así el destino post-login nunca acepta una URL que
     # venga libremente del navegador.
-    plan = request.query.get("plan")
-    locale = request.query.get("locale", "es")
-    if plan in ("monthly", "annual") and locale in ("es", "en", "ru", "ja", "de"):
+    q = getattr(request, "query", {})
+    plan = q.get("plan") if isinstance(q, dict) or hasattr(q, "get") else None
+    locale = q.get("locale", "es") if isinstance(q, dict) or hasattr(q, "get") else "es"
+    if locale not in ("es", "en", "ru", "ja", "de"):
+        locale = "es"
+    from_target = (
+        (q.get("from") or q.get("return_to"))
+        if isinstance(q, dict) or hasattr(q, "get")
+        else None
+    )
+    if plan in ("monthly", "annual"):
         session["auth_return_to"] = f"/{locale}/perfil/servidores?plan={plan}"
+    elif (
+        from_target
+        and from_target.startswith("/")
+        and not from_target.startswith("//")
+        and from_target != "landing"
+    ):
+        session["auth_return_to"] = from_target
     else:
-        session.pop("auth_return_to", None)
+        session["auth_return_to"] = f"/{locale}/perfil/servidores"
     params = urlencode(
         {
             "client_id": DISCORD_CLIENT_ID,
@@ -3810,9 +3831,9 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     # Precarga el cache: /users/@me/guilds tiene rate limit estricto por token
     # (~1 req/s) y sin esto el primer request autenticado recibiría 429.
     _user_guilds_cache[user["id"]] = (time.monotonic() + _GUILDS_CACHE_TTL, manage)
-    # Si llegó desde el selector de Premium, vuelve a elegir el servidor con
-    # el ciclo ya validado. Cualquier otro login conserva el destino general.
-    raise web.HTTPFound(session.pop("auth_return_to", LANDING_URL))
+    # Si llegó desde el selector de Premium o una página previa, vuelve a su destino con
+    # el idioma preservado. Cualquier otro login vuelve a /perfil/servidores.
+    raise web.HTTPFound(session.pop("auth_return_to", "/es/perfil/servidores"))
 
 
 async def _revoke_discord_token(request: web.Request, access_token: str) -> None:
@@ -3853,8 +3874,12 @@ async def _auth_logout(request: web.Request) -> web.StreamResponse:
     access_token = session.get("access_token")
     if access_token:
         await _revoke_discord_token(request, access_token)
+    q = getattr(request, "query", {})
+    locale = q.get("locale", "es") if isinstance(q, dict) or hasattr(q, "get") else "es"
+    if locale not in ("es", "en", "ru", "ja", "de"):
+        locale = "es"
     session.invalidate()
-    raise web.HTTPFound(LANDING_URL)
+    raise web.HTTPFound(f"/{locale}/")
 
 
 async def _api_me(request: web.Request) -> web.Response:

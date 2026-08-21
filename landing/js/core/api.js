@@ -1,4 +1,4 @@
-// Fetch al API del panel + traducción de códigos HTTP a mensajes humanos.
+import { getLoginUrl } from './config.js';
 
 export async function apiFetch(url, options = {}) {
   const opts = { credentials: 'include', ...options };
@@ -13,7 +13,7 @@ export async function apiFetch(url, options = {}) {
     throw new Error('No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.');
   }
   if (r.status === 401) {
-    location.href = '/auth/login';
+    location.href = getLoginUrl();
     throw new Error('Sesión expirada.');
   }
   const data = await r.json().catch(() => ({}));

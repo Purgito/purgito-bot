@@ -10,7 +10,10 @@ import {
   el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
   confirmDelBtn, helpIcon, accordionGroup,
 } from '/js/core/dom.js';
-import { GUILD_ID, setGuildId, clearGuildCaches, currentLocale } from '/js/core/config.js';
+import {
+  GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
+  getDashboardUrl, getPerfilUrl, getLoginUrl, parseGuildId,
+} from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, roleSelect, content } from '/js/panel-shell.js';
 import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
@@ -326,8 +329,9 @@ export function toggleSidebarCollapse() {
 }
 
 function currentTab() {
-  const seg = location.pathname.split('/')[4] || 'inicio';
-  return MODULES.some(m => m.key === seg) ? seg : 'inicio';
+  const m = location.pathname.match(/\/dashboard\/\d{1,25}\/([a-zA-Z0-9_-]+)/);
+  const seg = m ? m[1] : (location.pathname.split('/')[4] || 'inicio');
+  return MODULES.some(mod => mod.key === seg) ? seg : 'inicio';
 }
 
 // ---------------- PERSISTENCIA DE CATEGORÍAS EN SIDEBAR ----------------
@@ -560,7 +564,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       ),
       listContainer,
       el('div', { class: 'server-dropdown-footer' },
-        el('a', { class: 'server-dropdown-manage-link', href: `/${currentLocale()}/perfil/servidores` },
+        el('a', { class: 'server-dropdown-manage-link', href: getPerfilUrl('servidores') },
           t('dash.serverPicker.manageAll')
         )
       )
@@ -880,7 +884,7 @@ export function renderSidebar(activeTab) {
       const tabLink = el('a', {
         class: 'dash-tab' + (isTabActive ? ' active' : ''),
         'data-key': m.key,
-        href: `/${currentLocale()}/dashboard/${GUILD_ID}/${m.key}`,
+        href: getDashboardUrl(GUILD_ID, m.key),
         'aria-current': isTabActive ? 'page' : null,
         title: m.label,
         onclick: (ev) => {
@@ -925,10 +929,8 @@ export function renderTopBar(guild) {
   if (!head) return;
   head.innerHTML = '';
 
-  const loc = currentLocale();
-
   const titleNode = el('div', { class: 'dash-topbar' },
-    el('a', { class: 'dash-back-link', href: `/${loc}/perfil/servidores` },
+    el('a', { class: 'dash-back-link', href: getPerfilUrl('servidores') },
       icon('arrowLeft'),
       el('span', {}, t('dash.topbar.servers'))
     ),
@@ -994,7 +996,7 @@ export async function selectGuild(newGuildId) {
   _loadEpoch++;
 
   const curTab = currentTab();
-  history.pushState({}, '', `/${currentLocale()}/dashboard/${newGuildId}/${curTab}`);
+  history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
 
   const data = await fetchUserGuilds();
   const configured = (data && data.configured) || [];
@@ -1014,7 +1016,7 @@ export function activate(key, push) {
   renderSidebar(key);
 
   if (push) {
-    history.pushState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${key}`);
+    history.pushState({}, '', getDashboardUrl(GUILD_ID, key));
   }
 
   if (key === 'inicio') {
@@ -1045,10 +1047,10 @@ export async function initDash() {
       const data = await fetchUserGuilds();
       const configured = (data && data.configured) || [];
       if (configured.length > 0) {
-        location.replace(`/${currentLocale()}/dashboard/${configured[0].id}/inicio`);
+        location.replace(getDashboardUrl(configured[0].id, 'inicio'));
         return;
       }
-      location.replace(`/${currentLocale()}/perfil/servidores`);
+      location.replace(getPerfilUrl('servidores'));
       return;
     } catch (e) {
       if (box) {
@@ -1073,7 +1075,7 @@ export async function initDash() {
 
     if (!g) {
       const avail = available.find(x => x.id === GUILD_ID);
-      const back = el('a', { class: 'dash-back', href: `/${currentLocale()}/perfil/servidores` },
+      const back = el('a', { class: 'dash-back', href: getPerfilUrl('servidores') },
         el('span', { class: 'dash-back-arrow', 'aria-hidden': 'true' }, '←'), t('dash.init.backToServers'));
       if (head) {
         head.innerHTML = '';
@@ -1090,7 +1092,7 @@ export async function initDash() {
               el('p', { class: 'dim', style: 'margin: 6px 0 16px; font-size: 14px;' }, t('dash.init.notInstalled')),
               el('div', { style: 'display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;' },
                 el('a', { class: 'btn btn-primary', href: avail.invite_url || `https://discord.com/oauth2/authorize?client_id=1471724794411089920&guild_id=${avail.id}&scope=bot%20applications.commands&permissions=8`, target: '_blank', rel: 'noopener' }, t('dash.init.invite')),
-                el('a', { class: 'btn btn-secondary', href: `/${currentLocale()}/perfil/servidores` }, t('dash.init.viewMyServers'))
+                el('a', { class: 'btn btn-secondary', href: getPerfilUrl('servidores') }, t('dash.init.viewMyServers'))
               )
             )
           ));
@@ -1113,8 +1115,9 @@ export async function initDash() {
     } else {
       const tab = currentTab();
       activate(tab, false);
-      if (!location.pathname.split('/')[4]) {
-        history.replaceState({}, '', `/${currentLocale()}/dashboard/${GUILD_ID}/${tab}`);
+      const m = location.pathname.match(/\/dashboard\/\d{1,25}\/([a-zA-Z0-9_-]+)/);
+      if (!m) {
+        history.replaceState({}, '', getDashboardUrl(GUILD_ID, tab));
       }
     }
   } catch (e) {
@@ -1126,7 +1129,7 @@ export async function initDash() {
 }
 
 window.onpopstate = async () => {
-  const rawGuild = location.pathname.split('/')[3] || '';
+  const rawGuild = parseGuildId();
   if (rawGuild && rawGuild !== GUILD_ID) {
     setGuildId(rawGuild);
     clearGuildCaches();

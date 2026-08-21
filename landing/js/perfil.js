@@ -8,7 +8,7 @@
 
 import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, guildIcon, toast } from '/js/core/dom.js';
-import { currentLocale, formatDate } from '/js/core/config.js';
+import { currentLocale, formatDate, getDashboardUrl, getPerfilUrl, getLoginUrl } from '/js/core/config.js';
 import { t, addStrings } from './core/i18n.js';
 
 addStrings({
@@ -183,7 +183,7 @@ function header(me, tab, locale) {
     el('nav', { class: 'pf-tabs', 'aria-label': t('perfil.tabsAriaLabel') },
       TABS.map(tTab => el('a', {
         class: 'pf-tab' + (tTab.key === tab ? ' active' : ''),
-        href: `/${locale}/perfil${tTab.path}`,
+        href: getPerfilUrl(tTab.key, locale),
         'aria-current': tTab.key === tab ? 'page' : null,
       }, t(`perfil.tabs.${tTab.key}`) || tTab.label))));
 }
@@ -208,7 +208,7 @@ async function tabPerfil(box, me, locale) {
       el('div', { class: 'pf-stat-card' },
         el('div', { class: 'pf-stat-header' },
           el('span', { class: 'pf-stat-label' }, t('perfil.managedServers')),
-          el('a', { class: 'pf-stat-link', href: `/${locale}/perfil/servidores` }, t('perfil.viewServers'))),
+          el('a', { class: 'pf-stat-link', href: getPerfilUrl('servidores', locale) }, t('perfil.viewServers'))),
         el('div', { class: 'pf-stat-val' }, String(configuredCount)),
         el('div', { class: 'pf-stat-sub dim' },
           totalManageable > configuredCount
@@ -270,7 +270,7 @@ function selectedPremiumPlan() {
 }
 
 function serverCard(g, configured, locale, plan) {
-  const dashboardHref = `/${locale}/dashboard/${g.id}${plan ? `/premium?plan=${plan}` : '/inicio'}`;
+  const dashboardHref = getDashboardUrl(g.id, plan ? 'premium' : 'inicio', plan, locale);
   return el('div', { class: 'card' },
     guildIcon(g),
     el('div', { class: 'card-info' },
@@ -454,7 +454,7 @@ export async function initPerfil() {
   const params = new URLSearchParams(location.search);
   // Compatibilidad: si entran a /es/perfil con ?plan=... o ?share=..., redirigir a servidores
   if (!location.pathname.includes('/servidores') && !location.pathname.includes('/conexiones') && !location.pathname.includes('/facturacion') && (params.has('plan') || params.has('share'))) {
-    location.replace(`/${locale}/perfil/servidores${location.search}`);
+    location.replace(getPerfilUrl('servidores', locale, location.search));
     return;
   }
 
@@ -468,7 +468,7 @@ export async function initPerfil() {
   // /api/me responde 200 con logged_in:false en vez de 401 (así el navbar no
   // ensucia la consola), así que el redirect a login se decide acá.
   if (me && me.logged_in === false) {
-    location.href = '/auth/login';
+    location.href = getLoginUrl();
     return;
   }
   main.append(header(me, tab, locale));
