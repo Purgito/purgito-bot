@@ -20,6 +20,7 @@ hay que correrlo después de tocar esos archivos, no solo docs/*.md. El
 `--check` de CI falla si quedaron desincronizados.
 """
 
+import base64
 import functools
 import hashlib
 import html
@@ -844,7 +845,64 @@ def parse(md):
     return title.strip(), date.group(1).strip() if date else "", render(intro), sections
 
 
+# ── importmap y cache-busting de módulos ────────────────────────────────────
+
+
+@functools.cache
+def js_files():
+    """(hash del árbol, rutas de landing/js/**.js) — un solo hash para todos.
+
+    Tocar cualquier módulo invalida el árbol entero: es algo más de caché
+    tirada a la basura, a cambio de un mapa estable y un diff mínimo. Son
+    ~130 KB en total, no vale la pena afinarlo por archivo.
+    """
+    files = sorted((LANDING / "js").rglob("*.js"))
+    digest = hashlib.sha256(
+        b"".join(
+            p.relative_to(LANDING).as_posix().encode() + p.read_bytes() for p in files
+        )
+    ).hexdigest()[:8]
+    return digest, files
+
+
+def import_map():
+    """`<script type="importmap">` que le pone ?v= a cada módulo de landing/js/.
+
+    Sin esto el cache-busting del dashboard quedaría a medias: el `?v=` del
+    <script> de entrada no se propaga a lo que ese módulo importa, y Cloudflare
+    (4 h de caché para .js) seguiría sirviendo los módulos internos viejos
+    después de un deploy — el bug clásico de "actualicé y no cambió nada".
+
+    Las claves son las mismas rutas absolutas que usan los `import` de
+    landing/js/, así que el mapa es una sustitución 1:1: sin bare specifiers
+    ni scopes, y los módulos siguen funcionando si el mapa no se aplica.
+    """
+    digest, files = js_files()
+    entries = {
+        "/" + p.relative_to(LANDING).as_posix(): "/%s?v=%s"
+        % (p.relative_to(LANDING).as_posix(), digest)
+        for p in files
+    }
+    return '<script type="importmap">\n%s\n</script>\n' % json.dumps(
+        {"imports": entries}, indent=2, ensure_ascii=False
+    )
+
+
+def import_map_hash() -> str:
+    """Calcula el hash SHA-256 del contenido exacto del `<script type="importmap">`
+    para autorizarlo en la directiva script-src de la CSP sin usar 'unsafe-inline'."""
+    imap = import_map()
+    start = imap.find(">") + 1
+    end = imap.rfind("</script>")
+    script_content = imap[start:end]
+    digest = base64.b64encode(
+        hashlib.sha256(script_content.encode("utf-8")).digest()
+    ).decode("ascii")
+    return f"sha256-{digest}"
+
+
 # ── página ───────────────────────────────────────────────────────────────────
+
 
 # Cubre lo que el sitio realmente carga: fonts.googleapis.com/gstatic.com
 # (@import de fuentes en style.css), tenor.com (iframe de preview de GIFs en
@@ -853,27 +911,33 @@ def parse(md):
 # el bucket R2 configurado por env var). El primer hash cubre el único
 # inline handler que hay en todo el sitio (onerror="this.remove()" en los
 # <img> del navbar/botones de invitar); el segundo cubre el <script> inline
-# de redirect de idioma que solo vive en index.html (tiene que ir en el
-# <head>, antes de pintar nada, así que no puede ser /script.js externo) --
-# ambos sin abrir 'unsafe-inline'. meta http-equiv NO soporta
+# de redirect de idioma que solo vive en index.html; el tercero cubre el
+# <script type="importmap"> inline que usan dashboard, perfil y estado --
+# todos autorizados por hash exacto sin abrir 'unsafe-inline'. meta http-equiv NO soporta
 # frame-ancestors/sandbox/report-uri -- la protección contra clickjacking
 # para estas páginas va por X-Frame-Options: DENY, que sí pone nginx como
 # cabecera real (ver DEPLOY.md); no hay una CSP con frame-ancestors a nivel
 # nginx (a propósito: se pisaría con esta CSP y con la de la API, ver el
 # comentario del add_header en DEPLOY.md).
-LANDING_CSP = (
-    "default-src 'self'; "
-    "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' "
-    "'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio='; "
-    "style-src 'self' https://fonts.googleapis.com; "
-    "font-src 'self' https://fonts.gstatic.com; "
-    "img-src 'self' https: data:; "
-    "frame-src https://tenor.com; "
-    "connect-src 'self'; "
-    "object-src 'none'; "
-    "base-uri 'self'; "
-    "form-action 'self'"
-)
+def compute_landing_csp() -> str:
+    imap_hash = import_map_hash()
+    return (
+        "default-src 'self'; "
+        "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' "
+        "'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' "
+        f"'{imap_hash}'; "
+        "style-src 'self' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' https: data:; "
+        "frame-src https://tenor.com; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
+
+
+LANDING_CSP = compute_landing_csp()
 
 SHELL = (
     """<!DOCTYPE html>
@@ -1094,46 +1158,6 @@ def build_html_page(page, nav, footer, lang="es"):
     )
 
 
-@functools.cache
-def js_files():
-    """(hash del árbol, rutas de landing/js/**.js) — un solo hash para todos.
-
-    Tocar cualquier módulo invalida el árbol entero: es algo más de caché
-    tirada a la basura, a cambio de un mapa estable y un diff mínimo. Son
-    ~130 KB en total, no vale la pena afinarlo por archivo.
-    """
-    files = sorted((LANDING / "js").rglob("*.js"))
-    digest = hashlib.sha256(
-        b"".join(
-            p.relative_to(LANDING).as_posix().encode() + p.read_bytes() for p in files
-        )
-    ).hexdigest()[:8]
-    return digest, files
-
-
-def import_map():
-    """`<script type="importmap">` que le pone ?v= a cada módulo de landing/js/.
-
-    Sin esto el cache-busting del dashboard quedaría a medias: el `?v=` del
-    <script> de entrada no se propaga a lo que ese módulo importa, y Cloudflare
-    (4 h de caché para .js) seguiría sirviendo los módulos internos viejos
-    después de un deploy — el bug clásico de "actualicé y no cambió nada".
-
-    Las claves son las mismas rutas absolutas que usan los `import` de
-    landing/js/, así que el mapa es una sustitución 1:1: sin bare specifiers
-    ni scopes, y los módulos siguen funcionando si el mapa no se aplica.
-    """
-    digest, files = js_files()
-    entries = {
-        "/" + p.relative_to(LANDING).as_posix(): "/%s?v=%s"
-        % (p.relative_to(LANDING).as_posix(), digest)
-        for p in files
-    }
-    return '<script type="importmap">\n%s\n</script>\n' % json.dumps(
-        {"imports": entries}, indent=2, ensure_ascii=False
-    )
-
-
 # ── cache-busting ────────────────────────────────────────────────────────────
 
 # Cloudflare cachea .css/.js 4 h por default (el HTML no), así que un deploy
@@ -1162,6 +1186,11 @@ def stamp(page_html):
     page_html = re.sub(
         r"(https://purgito\.app/assets/og-purgito\.png)(?:\?v=[0-9a-f]+)?",
         f"https://purgito.app/assets/og-purgito.png?v={og_digest}",
+        page_html,
+    )
+    page_html = re.sub(
+        r'<meta http-equiv="Content-Security-Policy" content="[^"]*">',
+        f'<meta http-equiv="Content-Security-Policy" content="{LANDING_CSP}">',
         page_html,
     )
     return page_html

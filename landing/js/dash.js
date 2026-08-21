@@ -976,7 +976,7 @@ addStrings({
     'dash.init.notInstalled': 'Purgito todavía no está instalado en este servidor.',
     'dash.init.invite': 'Invitar a Purgito',
     'dash.init.viewMyServers': 'Ver mis servidores',
-    'dash.init.notFound': 'No encontramos ese servidor entre los que administras.',
+    'dash.init.notFound': 'No puedes administrar este servidor con esta cuenta o no fue encontrado.',
   },
   en: {
     'dash.init.switchingServer': 'Switching servers…',
@@ -984,7 +984,7 @@ addStrings({
     'dash.init.notInstalled': "Purgito isn't installed on this server yet.",
     'dash.init.invite': 'Invite Purgito',
     'dash.init.viewMyServers': 'View my servers',
-    'dash.init.notFound': "We couldn't find that server among the ones you manage.",
+    'dash.init.notFound': 'You cannot manage this server with this account or it was not found.',
   },
 });
 
@@ -1097,7 +1097,10 @@ export async function initDash() {
             )
           ));
         } else {
-          box.append(emptyState(t('dash.init.notFound')));
+          box.append(el('div', { class: 'empty-state', style: 'max-width: 540px; margin: 40px auto; text-align: center;' },
+            el('p', { style: 'font-size: 16px; margin-bottom: 16px;' }, t('dash.init.notFound')),
+            el('a', { class: 'btn btn-secondary', href: getPerfilUrl('servidores') }, t('dash.init.viewMyServers'))
+          ));
         }
       }
       return;

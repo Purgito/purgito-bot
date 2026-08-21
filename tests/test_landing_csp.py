@@ -89,3 +89,28 @@ def test_el_no_setea_style_por_setattribute():
     assert "node.style.cssText = v" in dom_js
     assert "setAttribute('style'" not in dom_js
     assert 'setAttribute("style"' not in dom_js
+
+
+def test_el_hash_cubre_el_importmap_inline_del_dashboard():
+    """El importmap inline de dashboard/perfil/estado debe estar cubierto por la CSP
+    mediante su hash exacto para que los navegadores no bloqueen los módulos ES6."""
+    for path in [
+        LANDING / "es" / "dashboard" / "index.html",
+        LANDING / "en" / "dashboard" / "index.html",
+        LANDING / "es" / "perfil" / "servidores" / "index.html",
+        LANDING / "en" / "perfil" / "servidores" / "index.html",
+    ]:
+        html = path.read_text("utf-8")
+        assert '<script type="importmap">' in html
+        m = re.search(r'<script type="importmap">(.*?)</script>', html, re.S)
+        assert m, f"no se encontró importmap en {path}"
+        script_content = m.group(1)
+        digest = base64.b64encode(
+            hashlib.sha256(script_content.encode("utf-8")).digest()
+        ).decode("ascii")
+        assert f"sha256-{digest}" in build_docs.LANDING_CSP, (
+            f"El hash del importmap en {path} no está en LANDING_CSP"
+        )
+        assert f"sha256-{digest}" in html, (
+            f"El hash del importmap no está en el meta CSP de {path}"
+        )

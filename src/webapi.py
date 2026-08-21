@@ -3723,8 +3723,18 @@ def _resolve_layout_files(
 def _avatar_url(user: dict) -> str:
     avatar = user.get("avatar")
     if avatar:
-        return f"https://cdn.discordapp.com/avatars/{user['id']}/{avatar}.png?size=64"
-    index = (int(user["id"]) >> 22) % 6
+        return f"https://cdn.discordapp.com/avatars/{user['id']}/{avatar}.png?size=128"
+    discriminator = user.get("discriminator", "0")
+    if discriminator and discriminator != "0":
+        try:
+            index = int(discriminator) % 5
+        except (ValueError, TypeError):
+            index = 0
+    else:
+        try:
+            index = (int(user["id"]) >> 22) % 6
+        except (ValueError, TypeError, KeyError):
+            index = 0
     return f"https://cdn.discordapp.com/embed/avatars/{index}.png"
 
 
@@ -3893,13 +3903,21 @@ async def _api_me(request: web.Request) -> web.Response:
     session = await get_session(request)
     body = {"logged_in": False}
     if await _session_logged_in(session):
+        avatar_url = session.get("avatar_url")
+        if not avatar_url and session.get("user_id"):
+            try:
+                uid = int(session["user_id"])
+                index = (uid >> 22) % 6
+                avatar_url = f"https://cdn.discordapp.com/embed/avatars/{index}.png"
+            except Exception:
+                avatar_url = ""
         body = {
             "logged_in": True,
             # El id es el snowflake de Discord: la cabecera del perfil saca de
             # ahí la fecha de creación de la cuenta, sin pedir nada más.
             "user_id": session.get("user_id", ""),
             "name": session.get("username", ""),
-            "avatar_url": session.get("avatar_url", ""),
+            "avatar_url": avatar_url or "",
             "email": session.get("email", ""),
         }
     # no-store obligatorio: la respuesta es por usuario y delante hay Cloudflare.

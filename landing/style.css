@@ -825,6 +825,33 @@ body.no-scroll {
   transform: rotate(180deg);
 }
 .auth-avatar { width: 1.5rem; height: 1.5rem; border-radius: 6px; flex: none; }
+.auth-avatar-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.75rem;
+  user-select: none;
+}
+.auth-menu-head .auth-avatar-initial,
+.auth-avatar-lg.auth-avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 8px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.15rem;
+  flex: none;
+  user-select: none;
+}
 .auth-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 640px) { .auth-name { display: none; } }
 

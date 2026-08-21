@@ -108,8 +108,20 @@ export function renderError(box, e) {
 }
 
 export function guildIcon(g) {
-  if (g.icon_url) return el('img', { class: 'guild-icon', src: g.icon_url, alt: '' });
-  return el('div', { class: 'guild-icon guild-initial' }, (g.name || '?').trim().charAt(0).toUpperCase());
+  const initial = el('div', { class: 'guild-icon guild-initial' }, (g.name || '?').trim().charAt(0).toUpperCase());
+  if (!g.icon_url) return initial;
+  const img = el('img', { class: 'guild-icon', src: g.icon_url, alt: '' });
+  img.onerror = () => { img.replaceWith(initial); };
+  return img;
+}
+
+export function userAvatar(u, sizeClass = 'pf-avatar-lg') {
+  const initialText = (u.name || u.username || '?').trim().charAt(0).toUpperCase();
+  const initial = el('div', { class: `${sizeClass} ${sizeClass}-initial` }, initialText);
+  if (!u.avatar_url) return initial;
+  const img = el('img', { class: sizeClass, src: u.avatar_url, alt: u.name || u.username || '' });
+  img.onerror = () => { img.replaceWith(initial); };
+  return img;
 }
 
 export function delBtn(box, fn, reload) {

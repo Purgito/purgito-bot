@@ -7,7 +7,7 @@
 // páginas ya no se renderizan por request.
 
 import { apiFetch } from '/js/core/api.js';
-import { el, spinner, emptyState, renderError, guildIcon, toast } from '/js/core/dom.js';
+import { el, spinner, emptyState, renderError, guildIcon, userAvatar, toast } from '/js/core/dom.js';
 import { currentLocale, formatDate, getDashboardUrl, getPerfilUrl, getLoginUrl } from '/js/core/config.js';
 import { t, addStrings } from './core/i18n.js';
 
@@ -176,7 +176,7 @@ function header(me, tab, locale) {
 
   return el('section', { class: 'pf-head' },
     el('div', { class: 'pf-hero' },
-      me.avatar_url ? el('img', { class: 'pf-avatar-lg', src: me.avatar_url, alt: me.name || '' }) : null,
+      userAvatar(me, 'pf-avatar-lg'),
       el('div', { class: 'pf-hero-info' },
         el('h1', { class: 'pf-hero-name' }, me.name || t('perfil.defaultName')),
         meta)),

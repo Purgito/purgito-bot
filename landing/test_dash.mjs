@@ -316,7 +316,8 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   const contentText = elementsById.catContent.text();
   assert.ok(contentText.length > 0, 'No debe quedar en blanco');
-  assert.match(contentText, /No encontramos ese servidor entre los que administras/);
+  assert.match(contentText, /No puedes administrar este servidor con esta cuenta/);
+  assert.match(contentText, /Ver mis servidores/);
 
   console.log('✓ Test 4: Empty state visible para servidores no encontrados o sin permisos');
 }

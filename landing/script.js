@@ -342,14 +342,24 @@ function svgIcon(paths) {
     btn.className = 'auth-btn';
     btn.setAttribute('aria-haspopup', 'true');
     btn.setAttribute('aria-expanded', 'false');
-    btn.setAttribute('aria-label', t('accountMenu') + (data.name || t('user')));
-
+    var initialChar = (data.name || t('user') || '?').trim().charAt(0).toUpperCase();
     if (data.avatar_url) {
       var img = document.createElement('img');
       img.className = 'auth-avatar';
       img.src = data.avatar_url;
       img.alt = '';
+      img.onerror = function () {
+        var fb = document.createElement('div');
+        fb.className = 'auth-avatar auth-avatar-initial';
+        fb.textContent = initialChar;
+        img.replaceWith(fb);
+      };
       btn.appendChild(img);
+    } else {
+      var fb = document.createElement('div');
+      fb.className = 'auth-avatar auth-avatar-initial';
+      fb.textContent = initialChar;
+      btn.appendChild(fb);
     }
     var name = document.createElement('span');
     name.className = 'auth-name';
@@ -374,7 +384,18 @@ function svgIcon(paths) {
       var big = document.createElement('img');
       big.src = data.avatar_url;
       big.alt = '';
+      big.onerror = function () {
+        var fbBig = document.createElement('div');
+        fbBig.className = 'auth-avatar-lg auth-avatar-initial';
+        fbBig.textContent = initialChar;
+        big.replaceWith(fbBig);
+      };
       head.appendChild(big);
+    } else {
+      var fbBig = document.createElement('div');
+      fbBig.className = 'auth-avatar-lg auth-avatar-initial';
+      fbBig.textContent = initialChar;
+      head.appendChild(fbBig);
     }
     var ident = document.createElement('div');
     var nick = document.createElement('p');
