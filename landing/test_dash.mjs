@@ -33,13 +33,21 @@ class FakeElement extends Node {
     this._html = '';
     this.style = {};
     this.attributes = { ...attrs };
+    if (attrs.id) elementsById[attrs.id] = this;
   }
-  setAttribute(k, v) { this.attributes[k] = String(v); }
+  setAttribute(k, v) {
+    this.attributes[k] = String(v);
+    if (k === 'id') elementsById[v] = this;
+  }
   getAttribute(k) { return this.attributes[k]; }
-  removeAttribute(k) { delete this.attributes[k]; }
+  removeAttribute(k) {
+    if (k === 'id' && this.attributes.id) delete elementsById[this.attributes.id];
+    delete this.attributes[k];
+  }
   append(...nodes) { this.children.push(...nodes.filter(Boolean)); }
   prepend(...nodes) { this.children.unshift(...nodes.filter(Boolean)); }
   remove() {
+    if (this.attributes.id) delete elementsById[this.attributes.id];
     this.children = [];
     this._html = '';
   }
@@ -47,6 +55,11 @@ class FakeElement extends Node {
   blur() {}
   addEventListener() {}
   removeEventListener() {}
+  dispatchEvent(e) {
+    if (e && e.type && typeof this[`on${e.type}`] === 'function') {
+      this[`on${e.type}`](e);
+    }
+  }
   click() { if (typeof this.onclick === 'function') this.onclick(); }
   closest(sel) {
     if (sel.startsWith('.')) {
@@ -70,19 +83,28 @@ class FakeElement extends Node {
     }
     return out;
   }
-  querySelector(sel) {
-    if (sel.startsWith('.')) {
-      const cls = sel.slice(1);
-      const res = this.findByClass(cls);
-      return res.length ? res[0] : null;
+  findByTag(tag) {
+    const out = [];
+    for (const c of this.children) {
+      if (!(c instanceof FakeElement)) continue;
+      if (c.tagName && c.tagName.toLowerCase() === tag.toLowerCase()) out.push(c);
+      out.push(...c.findByTag(tag));
     }
-    return null;
+    return out;
+  }
+  querySelector(sel) {
+    const all = this.querySelectorAll(sel);
+    return all.length ? all[0] : null;
   }
   querySelectorAll(sel) {
     if (sel.startsWith('.')) {
       return this.findByClass(sel.slice(1));
     }
-    return [];
+    if (sel.includes('.')) {
+      const [tag, cls] = sel.split('.');
+      return this.findByTag(tag).filter(e => e.hasClass(cls));
+    }
+    return this.findByTag(sel);
   }
   get classList() {
     return {
@@ -1573,7 +1595,98 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(longContentText, /Canal no disponible/);
   assert.match(longContentText, /Todos los días · 08:00/);
   assert.match(longContentText, /2026-08-21 12:00:34/);
-  assert.match(longContentText, /Embed clásico/);
+  // Verificar que NO hay badges de embeds legacy
+  assert.doesNotMatch(longContentText, /Embed clásico/);
+  assert.doesNotMatch(longContentText, /Layout V2/);
+
+  // ── Test del nuevo editor de Anuncios ──────────────────────────────
+  // 1. Abrir editor de creación
+  const createBtns = elementsById.catContent.querySelectorAll('.btn-primary');
+  const createBtn = createBtns.find(b => b.text().includes('Crear anuncio'));
+  assert.ok(createBtn, 'Debe existir el botón Crear anuncio');
+  createBtn.click();
+
+  const editorText = elementsById.catContent.text();
+  assert.match(editorText, /Nuevo anuncio programado/);
+  assert.match(editorText, /Canal de destino/);
+  assert.match(editorText, /Tipo de programación/);
+  assert.match(editorText, /Cada cierto tiempo/);
+  assert.match(editorText, /A una hora fija/);
+  assert.match(editorText, /Mensaje/);
+  assert.match(editorText, /Insertar variable/);
+  assert.match(editorText, /Vista previa/);
+  assert.match(editorText, /Purgito/);
+  assert.match(editorText, /BOT/);
+  assert.match(editorText, /HOY/);
+  assert.match(editorText, /Opciones avanzadas/);
+  assert.match(editorText, /Guardar anuncio/);
+  assert.match(editorText, /Cancelar/);
+
+  // Verificar que NO existen conceptos de embed ni layout
+  assert.doesNotMatch(editorText, /Modo de contenido/);
+  assert.doesNotMatch(editorText, /Embed clásico/);
+  assert.doesNotMatch(editorText, /Layout V2/);
+  assert.doesNotMatch(editorText, /Título del embed/);
+  assert.doesNotMatch(editorText, /Color de barra lateral/);
+  assert.doesNotMatch(editorText, /Miniatura/);
+  assert.doesNotMatch(editorText, /Identidad personalizada/);
+
+  // 2. Probar inserción de variable
+  const insertVarBtn = elementsById.catContent.querySelectorAll('button').find(b => b.text().includes('Insertar variable'));
+  assert.ok(insertVarBtn, 'Debe existir el botón Insertar variable');
+  insertVarBtn.click();
+
+  const varModal = document.getElementById('purg-variables-modal-backdrop');
+  assert.ok(varModal, 'El modal de variables debe abrirse en el DOM');
+  assert.match(varModal.text(), /Variables disponibles/);
+  assert.match(varModal.text(), /server_name/);
+  assert.match(varModal.text(), /server_membercount/);
+  assert.match(varModal.text(), /channel/);
+  assert.match(varModal.text(), /date/);
+
+  // Click en chip de variable {server_name}
+  const serverNameChip = varModal.querySelectorAll('button.var-chip-compact').find(b => b.text().includes('server_name'));
+  assert.ok(serverNameChip, 'Debe existir el chip de server_name');
+  serverNameChip.click();
+
+  const textarea = elementsById.catContent.querySelector('textarea.anuncio-textarea');
+  assert.ok(textarea, 'Debe existir el textarea de mensaje');
+  assert.match(textarea.value, /\{server_name\}/);
+
+  // 3. Probar envío del nuevo contrato plain_text
+  let capturedPayload = null;
+  fetchHandlers = [
+    (url, opts) => {
+      if (url.includes('/api/server/123456789/anuncios') && opts && opts.method === 'POST') {
+        capturedPayload = JSON.parse(opts.body);
+        return jsonResp({
+          id: 3,
+          announcement: {
+            id: 3,
+            channel_id: '10',
+            message: capturedPayload.message,
+            mode: capturedPayload.mode,
+            interval_minutes: capturedPayload.interval_minutes,
+            delete_after_seconds: null,
+          },
+        }, 201);
+      }
+      return jsonResp({});
+    },
+  ];
+
+  const saveBtn = elementsById.catContent.querySelectorAll('.btn-primary').find(b => b.text().includes('Guardar anuncio'));
+  assert.ok(saveBtn, 'Debe existir el botón Guardar anuncio');
+  await saveBtn.onclick();
+
+  assert.ok(capturedPayload, 'Debe haberse enviado la petición POST');
+  assert.equal(capturedPayload.channel_id, '10');
+  assert.equal(capturedPayload.mode, 'interval');
+  assert.match(capturedPayload.message, /\{server_name\}/);
+  assert.equal(capturedPayload.content_mode, undefined, 'No debe enviarse content_mode');
+  assert.equal(capturedPayload.embeds, undefined, 'No debe enviarse embeds');
+  assert.equal(capturedPayload.layout, undefined, 'No debe enviarse layout');
+  assert.equal(capturedPayload.send_options, undefined, 'No debe enviarse send_options');
 
   console.log('✓ Test 32: Módulo de Gestión de Anuncios Programados verificado');
 }

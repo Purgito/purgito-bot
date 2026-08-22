@@ -6155,49 +6155,52 @@ h1 {
   box-sizing: border-box;
 }
 
-/* Anuncio Editor 2-Col Layout */
-.anuncio-workspace-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
-  gap: 24px;
-  align-items: start;
+/* Anuncio Editor Nuevo - Formulario compacto y jerárquico */
+.tab-header-editor {
+  margin-bottom: 16px;
 }
 
-@media (max-width: 960px) {
-  .anuncio-workspace-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.anuncio-editor-pane {
+.anuncio-editor-card {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+  max-width: 760px;
+  padding: 22px 24px;
 }
 
-.anuncio-section-card {
-  padding: 18px 20px;
+.anuncio-cfg-block {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
-.anuncio-section-card .section-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-main);
+.anuncio-schedule-controls {
+  margin-top: 10px;
 }
 
-.anuncio-preview-pane-wrap {
-  position: relative;
+.anuncio-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.anuncio-preview-pane {
-  position: sticky;
-  top: 80px;
-  max-height: calc(100vh - 100px);
-  overflow-y: auto;
+.anuncio-input-prefix,
+.anuncio-input-suffix {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.anuncio-interval-input,
+.anuncio-autodelete-input {
+  width: 110px;
+  text-align: center;
+}
+
+.anuncio-time-input {
+  width: 140px;
+  text-align: center;
 }
 
 .preset-chips {
@@ -6207,12 +6210,39 @@ h1 {
   margin-top: 8px;
 }
 
-.template-action-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 12px;
+.preset-chips .category-tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.anuncio-textarea {
+  min-height: 110px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.anuncio-preview-box {
+  margin-top: 2px;
+}
+
+.anuncio-discord-card {
+  background: #313338;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  box-shadow: none;
+}
+
+.anuncio-advanced-details {
+  background: color-mix(in srgb, var(--surface-card) 60%, var(--surface-bg, #12141a));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.anuncio-autodelete-body {
+  padding-top: 4px;
 }
 
 /* ---------- Sección Variables en Embeds ---------- */

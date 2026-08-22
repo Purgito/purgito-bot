@@ -17,7 +17,7 @@ from typing import Any
 
 import discord
 
-EVENT_TYPES = ("welcome", "goodbye", "boost")
+EVENT_TYPES = ("welcome", "goodbye", "boost", "announcement")
 
 # Discord boost tiers requirements
 BOOST_TIER_REQUIREMENTS = {
@@ -172,7 +172,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_name": {
         "name": "server_name",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Nombre del servidor de Discord.",
         "description_en": "Name of the Discord server.",
         "example": "Mi Servidor",
@@ -180,7 +180,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_id": {
         "name": "server_id",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "ID numérico de Discord del servidor.",
         "description_en": "Discord numerical server ID.",
         "example": "987654321098765432",
@@ -188,7 +188,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_membercount": {
         "name": "server_membercount",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Cantidad total de miembros del servidor.",
         "description_en": "Total member count of the server.",
         "example": "1.284",
@@ -196,7 +196,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_membercount_ordinal": {
         "name": "server_membercount_ordinal",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Número de miembro ordinal (ej. #1.284).",
         "description_en": "Ordinal member count number (e.g. #1,284).",
         "example": "#1.284",
@@ -204,7 +204,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_icon": {
         "name": "server_icon",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "URL del icono del servidor.",
         "description_en": "URL of the server icon.",
         "example": "https://cdn.discordapp.com/icons/987654321/icon.png",
@@ -212,7 +212,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_owner": {
         "name": "server_owner",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Nombre del dueño del servidor.",
         "description_en": "Name of the server owner.",
         "example": "Owner",
@@ -220,7 +220,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_owner_id": {
         "name": "server_owner_id",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "ID numérico del dueño del servidor.",
         "description_en": "Numerical ID of the server owner.",
         "example": "111222333444555666",
@@ -228,7 +228,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_created_at": {
         "name": "server_created_at",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Fecha de creación del servidor.",
         "description_en": "Server creation date.",
         "example": "10 de marzo de 2020",
@@ -236,7 +236,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_rolecount": {
         "name": "server_rolecount",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Cantidad de roles creados en el servidor.",
         "description_en": "Total number of roles in the server.",
         "example": "42",
@@ -244,7 +244,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_channelcount": {
         "name": "server_channelcount",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Cantidad total de canales del servidor.",
         "description_en": "Total number of channels in the server.",
         "example": "28",
@@ -252,7 +252,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_boostlevel": {
         "name": "server_boostlevel",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Nivel de boost del servidor (0, 1, 2 o 3).",
         "description_en": "Server boost level (0, 1, 2, or 3).",
         "example": "2",
@@ -260,7 +260,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "server_boostcount": {
         "name": "server_boostcount",
         "category": "server",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Cantidad total de mejoras (boosts) del servidor.",
         "description_en": "Total number of boosts on the server.",
         "example": "9",
@@ -269,7 +269,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "channel": {
         "name": "channel",
         "category": "channel",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Mención del canal donde se envía el mensaje.",
         "description_en": "Mention of the destination channel.",
         "example": "#general",
@@ -277,7 +277,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "channel_name": {
         "name": "channel_name",
         "category": "channel",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Nombre del canal donde se envía el mensaje.",
         "description_en": "Name of the destination channel.",
         "example": "general",
@@ -285,7 +285,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "channel_id": {
         "name": "channel_id",
         "category": "channel",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "ID numérico del canal.",
         "description_en": "Numerical channel ID.",
         "example": "555666777888999000",
@@ -319,7 +319,7 @@ PLACEHOLDER_DEFINITIONS: dict[str, dict[str, Any]] = {
     "date": {
         "name": "date",
         "category": "date",
-        "allowed_events": {"welcome", "goodbye", "boost"},
+        "allowed_events": {"welcome", "goodbye", "boost", "announcement"},
         "description_es": "Fecha actual del evento.",
         "description_en": "Current date of the event.",
         "example": "21 de agosto de 2026",
@@ -996,3 +996,81 @@ def build_event_context(
     }
 
     return ctx
+
+
+def build_announcement_context(
+    guild: discord.Guild,
+    channel: discord.abc.GuildChannel | None = None,
+    locale: str = "es",
+) -> dict[str, str]:
+    """Construye el diccionario de variables con datos reales de Discord para anuncios programados.
+
+    Un anuncio no tiene un usuario disparándolo, por lo que únicamente resuelve
+    variables de servidor, canal y fecha en tiempo de ejecución.
+    """
+    now = datetime.now(timezone.utc)
+    date_str = format_localized_date(now, locale=locale)
+
+    # Datos del servidor
+    server_name = getattr(guild, "name", "") or "Servidor"
+    server_id = str(getattr(guild, "id", ""))
+    m_count = getattr(guild, "member_count", None) or (
+        len(guild.members) if getattr(guild, "members", None) else 1
+    )
+    formatted_member_count = format_number(m_count, locale=locale)
+    ordinal_member_count = f"#{formatted_member_count}"
+
+    icon = getattr(guild, "icon", None)
+    server_icon = str(icon.url) if icon and getattr(icon, "url", None) else ""
+    owner_name = ""
+    owner_id = str(getattr(guild, "owner_id", ""))
+    owner = getattr(guild, "owner", None)
+    if owner:
+        owner_name = getattr(owner, "display_name", None) or getattr(owner, "name", "")
+    elif owner_id:
+        owner_name = f"User {owner_id}"
+
+    created_at = getattr(guild, "created_at", None)
+    server_created = (
+        format_localized_date(created_at, locale=locale) if created_at else "N/A"
+    )
+    roles = getattr(guild, "roles", None)
+    role_count = str(len(roles)) if roles is not None else "0"
+    channels = getattr(guild, "channels", None)
+    channel_count = str(len(channels)) if channels is not None else "0"
+    boost_level = str(getattr(guild, "premium_tier", 0) or 0)
+    boost_count = str(getattr(guild, "premium_subscription_count", 0) or 0)
+
+    # Datos de canal
+    channel_mention = ""
+    channel_name = ""
+    channel_id = ""
+    if channel:
+        channel_mention = getattr(channel, "mention", f"<#{channel.id}>")
+        channel_name = getattr(channel, "name", "")
+        channel_id = str(getattr(channel, "id", ""))
+
+    ctx: dict[str, str] = {
+        # Servidor
+        "server_name": server_name,
+        "server_id": server_id,
+        "server_membercount": formatted_member_count,
+        "server_membercount_ordinal": ordinal_member_count,
+        "server_icon": server_icon,
+        "server_owner": owner_name,
+        "server_owner_id": owner_id,
+        "server_created_at": server_created,
+        "server_rolecount": role_count,
+        "server_channelcount": channel_count,
+        "server_boostlevel": boost_level,
+        "server_boostcount": boost_count,
+        # Canal
+        "channel": channel_mention,
+        "channel_name": channel_name,
+        "channel_id": channel_id,
+        # Fecha
+        "date": date_str,
+    }
+
+    return ctx
+

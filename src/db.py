@@ -2959,7 +2959,7 @@ async def add_scheduled_announcement(
     hour: int | None = None,
     minute: int | None = None,
     embed_json: str | None = None,
-    content_mode: str = "classic_embed",
+    content_mode: str = "plain_text",
     delete_after_seconds: int | None = None,
 ) -> int | None:
     """Crea un anuncio programado. Devuelve el id insertado, o None si el guild
@@ -2973,6 +2973,8 @@ async def add_scheduled_announcement(
     delete_after_seconds None = el mensaje enviado queda (comportamiento
     clásico); con valor, el loop de anuncios lo pasa como delete_after de
     discord.py."""
+    if content_mode == "plain_text" and embed_json:
+        content_mode = "classic_embed"
     max_announcements = _limit_for_guild(
         guild_id,
         "MAX_ANNOUNCEMENTS_PER_GUILD_FREE",
@@ -3090,9 +3092,11 @@ async def update_scheduled_announcement(
     hour: int | None = None,
     minute: int | None = None,
     embed_json: str | None = None,
-    content_mode: str = "classic_embed",
+    content_mode: str = "plain_text",
     delete_after_seconds: int | None = None,
 ) -> bool:
+    if content_mode == "plain_text" and embed_json:
+        content_mode = "classic_embed"
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(

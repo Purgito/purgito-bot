@@ -1,12 +1,16 @@
 import asyncio
+import datetime
 import json
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
 
 import db
 import webapi
+from cogs.anuncios import Anuncios
+from placeholders import build_announcement_context, resolve_placeholders
 
 _GUILD = 12345
 _GUILD_2 = 67890
@@ -83,7 +87,7 @@ def test_db_scheduled_announcements_crud_and_quota(memory_db):
         assert max_limit == 3
         assert not is_prem
 
-        # Crear anuncio por intervalo
+        # Crear anuncio por intervalo (default plain_text)
         a1_id = await db.add_scheduled_announcement(
             guild_id=_GUILD,
             channel_id=_CHANNEL_ID,
@@ -103,20 +107,17 @@ def test_db_scheduled_announcements_crud_and_quota(memory_db):
         assert a1["mode"] == "interval"
         assert a1["interval_minutes"] == 30
         assert a1["delete_after_seconds"] == 60
-        assert a1["content_mode"] == "classic_embed"
+        assert a1["content_mode"] == "plain_text"
 
-        # Actualizar anuncio a modo daily con Layout V2
-        layout_json = json.dumps({"blocks": [{"type": "text", "content": "Layout Text"}]})
+        # Actualizar anuncio a modo daily
         updated = await db.update_scheduled_announcement(
             guild_id=_GUILD,
             announcement_id=a1_id,
             channel_id=_CHANNEL_ID,
-            message="Layout Preview",
+            message="Mensaje actualizado",
             mode="daily",
             hour=14,
             minute=30,
-            embed_json=layout_json,
-            content_mode="layout_v2",
             delete_after_seconds=120,
         )
         assert updated is True
@@ -126,8 +127,7 @@ def test_db_scheduled_announcements_crud_and_quota(memory_db):
         assert a1_updated["mode"] == "daily"
         assert a1_updated["hour"] == 14
         assert a1_updated["minute"] == 30
-        assert a1_updated["content_mode"] == "layout_v2"
-        assert a1_updated["embed_json"] == layout_json
+        assert a1_updated["message"] == "Mensaje actualizado"
         assert a1_updated["delete_after_seconds"] == 120
 
         # Aislamiento entre guilds en DB
@@ -151,14 +151,18 @@ def test_api_anuncios_get_and_post_plain_text(memory_db):
         assert data["announcements"] == []
         assert data["count"] == 0
         assert data["max"] == 3
+        assert "variables" in data
+        var_names = [v["name"] for v in data["variables"]]
+        assert "server_name" in var_names
+        assert "channel" in var_names
+        assert "user" not in var_names
 
-        # POST Anuncio de texto plano por intervalo
+        # POST Anuncio de texto plano por intervalo sin campos de embed
         post_body = {
             "channel_id": _CHANNEL_ID,
             "mode": "interval",
             "interval_minutes": 60,
-            "content_mode": "plain_text",
-            "message": "¡Recuerda leer las reglas!",
+            "message": "¡Recuerda leer las reglas en {channel} de {server_name}!",
             "delete_after_seconds": 300,
         }
         req_post = FakeRequest(guild_id=_GUILD, body=post_body)
@@ -167,31 +171,22 @@ def test_api_anuncios_get_and_post_plain_text(memory_db):
         post_res = json.loads(resp_post.text)
         ann_id = post_res["id"]
         assert ann_id is not None
-        assert post_res["announcement"]["message"] == "¡Recuerda leer las reglas!"
+        assert post_res["announcement"]["message"] == "¡Recuerda leer las reglas en {channel} de {server_name}!"
         assert post_res["announcement"]["delete_after_seconds"] == 300
+        assert post_res["announcement"]["content_mode"] == "plain_text"
 
     asyncio.run(_test())
 
 
-def test_api_anuncios_post_classic_embed_and_daily(memory_db):
+def test_api_anuncios_post_daily_and_get_item(memory_db):
     async def _test():
         post_body = {
             "channel_id": _CHANNEL_ID,
             "mode": "daily",
             "hour": 8,
             "minute": 15,
-            "content_mode": "classic_embed",
-            "embeds": [
-                {
-                    "title": "Buenos Días",
-                    "description": "Que tengan un gran día hoy.",
-                    "color": 0x3498DB,
-                }
-            ],
-            "send_options": {
-                "username": "Anunciador Oficial",
-                "avatar_url": "https://example.com/avatar.png",
-            },
+            "message": "Buenos días a todos los miembros de {server_name}. Hoy somos {server_membercount}.",
+            "delete_after_seconds": 60,
         }
         req_post = FakeRequest(guild_id=_GUILD, body=post_body)
         resp_post = await webapi._api_anuncios_post(req_post)
@@ -208,10 +203,9 @@ def test_api_anuncios_post_classic_embed_and_daily(memory_db):
         assert ann["mode"] == "daily"
         assert ann["hour"] == 8
         assert ann["minute"] == 15
-        assert ann["content_mode"] == "classic_embed"
-        embed_parsed = json.loads(ann["embed_json"])
-        assert embed_parsed["embeds"][0]["title"] == "Buenos Días"
-        assert embed_parsed["send_options"]["username"] == "Anunciador Oficial"
+        assert ann["content_mode"] == "plain_text"
+        assert ann["message"] == "Buenos días a todos los miembros de {server_name}. Hoy somos {server_membercount}."
+        assert "variables" in item_res
 
     asyncio.run(_test())
 
@@ -223,8 +217,7 @@ def test_api_anuncios_put_and_delete(memory_db):
             "channel_id": _CHANNEL_ID,
             "mode": "interval",
             "interval_minutes": 15,
-            "content_mode": "plain_text",
-            "message": "Original",
+            "message": "Original sin variables",
         }
         req_post = FakeRequest(guild_id=_GUILD, body=post_body)
         resp_post = await webapi._api_anuncios_post(req_post)
@@ -235,8 +228,7 @@ def test_api_anuncios_put_and_delete(memory_db):
             "channel_id": _CHANNEL_ID,
             "mode": "interval",
             "interval_minutes": 45,
-            "content_mode": "plain_text",
-            "message": "Actualizado",
+            "message": "Actualizado para {server_name}",
             "delete_after_seconds": 180,
         }
         req_put = FakeRequest(guild_id=_GUILD, announcement_id=ann_id, body=put_body)
@@ -244,7 +236,7 @@ def test_api_anuncios_put_and_delete(memory_db):
         assert resp_put.status == 200
         put_res = json.loads(resp_put.text)
         assert put_res["updated"] is True
-        assert put_res["announcement"]["message"] == "Actualizado"
+        assert put_res["announcement"]["message"] == "Actualizado para {server_name}"
         assert put_res["announcement"]["interval_minutes"] == 45
         assert put_res["announcement"]["delete_after_seconds"] == 180
 
@@ -270,7 +262,6 @@ def test_api_anuncios_validation_errors(memory_db):
                 "channel_id": _CHANNEL_ID,
                 "mode": "interval",
                 "interval_minutes": 2,
-                "content_mode": "plain_text",
                 "message": "Test",
             },
         )
@@ -278,7 +269,21 @@ def test_api_anuncios_validation_errors(memory_db):
         assert resp.status == 400
         assert "interval_minutes" in json.loads(resp.text)["error"]
 
-        # Hora inválida
+        # Intervalo fuera de rango (>1440)
+        bad_interval_high = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "interval",
+                "interval_minutes": 2000,
+                "message": "Test",
+            },
+        )
+        resp_high = await webapi._api_anuncios_post(bad_interval_high)
+        assert resp_high.status == 400
+        assert "interval_minutes" in json.loads(resp_high.text)["error"]
+
+        # Hora inválida (>23)
         bad_hour_req = FakeRequest(
             guild_id=_GUILD,
             body={
@@ -286,13 +291,41 @@ def test_api_anuncios_validation_errors(memory_db):
                 "mode": "daily",
                 "hour": 25,
                 "minute": 0,
-                "content_mode": "plain_text",
                 "message": "Test",
             },
         )
         resp = await webapi._api_anuncios_post(bad_hour_req)
         assert resp.status == 400
         assert "hora inválida" in json.loads(resp.text)["error"]
+
+        # Minuto inválido (>59)
+        bad_minute_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "daily",
+                "hour": 12,
+                "minute": 75,
+                "message": "Test",
+            },
+        )
+        resp = await webapi._api_anuncios_post(bad_minute_req)
+        assert resp.status == 400
+        assert "hora inválida" in json.loads(resp.text)["error"]
+
+        # Mensaje vacío
+        empty_msg_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "interval",
+                "interval_minutes": 30,
+                "message": "   ",
+            },
+        )
+        resp = await webapi._api_anuncios_post(empty_msg_req)
+        assert resp.status == 400
+        assert "vacío" in json.loads(resp.text)["error"]
 
         # Delete after inválido
         bad_del_req = FakeRequest(
@@ -301,7 +334,6 @@ def test_api_anuncios_validation_errors(memory_db):
                 "channel_id": _CHANNEL_ID,
                 "mode": "interval",
                 "interval_minutes": 30,
-                "content_mode": "plain_text",
                 "message": "Test",
                 "delete_after_seconds": 999999,
             },
@@ -310,4 +342,199 @@ def test_api_anuncios_validation_errors(memory_db):
         assert resp.status == 400
         assert "delete_after_seconds" in json.loads(resp.text)["error"]
 
+        # Canal inexistente
+        bad_channel_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": 9999999,
+                "mode": "interval",
+                "interval_minutes": 30,
+                "message": "Test",
+            },
+        )
+        resp = await webapi._api_anuncios_post(bad_channel_req)
+        assert resp.status == 400
+        assert "el canal no existe" in json.loads(resp.text)["error"]
+
     asyncio.run(_test())
+
+
+def test_api_anuncios_variables_validation(memory_db):
+    async def _test():
+        # Variable desconocida rechazada con 400
+        bad_var_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "interval",
+                "interval_minutes": 30,
+                "message": "Hola {variable_inexistente}",
+            },
+        )
+        resp = await webapi._api_anuncios_post(bad_var_req)
+        assert resp.status == 400
+        assert "Variable desconocida" in json.loads(resp.text)["error"]
+
+        # Variable de usuario rechazada con 400 en contexto de anuncio
+        user_var_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "interval",
+                "interval_minutes": 30,
+                "message": "Bienvenido {user_name} a nuestro servidor",
+            },
+        )
+        resp_user = await webapi._api_anuncios_post(user_var_req)
+        assert resp_user.status == 400
+        assert "no está disponible" in json.loads(resp_user.text)["error"]
+
+        # Variable {user} rechazada con 400
+        user_mention_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "daily",
+                "hour": 10,
+                "minute": 0,
+                "message": "Hola {user}",
+            },
+        )
+        resp_mention = await webapi._api_anuncios_post(user_mention_req)
+        assert resp_mention.status == 400
+        assert "no está disponible" in json.loads(resp_mention.text)["error"]
+
+    asyncio.run(_test())
+
+
+def test_api_anuncios_quota_limit(memory_db):
+    async def _test():
+        for i in range(3):
+            req = FakeRequest(
+                guild_id=_GUILD,
+                body={
+                    "channel_id": _CHANNEL_ID,
+                    "mode": "interval",
+                    "interval_minutes": 30 + i,
+                    "message": f"Anuncio {i}",
+                },
+            )
+            resp = await webapi._api_anuncios_post(req)
+            assert resp.status == 201
+
+        # Cuarto anuncio excede límite de 3 (free)
+        req_over = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "interval",
+                "interval_minutes": 60,
+                "message": "Anuncio 4 excedido",
+            },
+        )
+        resp_over = await webapi._api_anuncios_post(req_over)
+        assert resp_over.status == 409
+        assert "máximo de anuncios" in json.loads(resp_over.text)["error"]
+
+    asyncio.run(_test())
+
+
+def test_anuncios_runtime_resolution_and_delivery(memory_db):
+    """Verifica que DB (raw template) -> build_announcement_context -> resolve_placeholders -> channel.send()
+
+    resuelve variables con datos actuales (ej. member_count) al momento del envío.
+    """
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = _CHANNEL_ID
+    fake_channel.name = "general"
+    fake_channel.mention = "<#555>"
+    perms = MagicMock()
+    perms.send_messages = True
+    fake_channel.permissions_for = MagicMock(return_value=perms)
+    fake_channel.send = AsyncMock()
+
+    fake_guild = MagicMock(spec=discord.Guild)
+    fake_guild.id = _GUILD
+    fake_guild.name = "Servidor Increíble"
+    fake_guild.member_count = 1420
+    fake_guild.members = [MagicMock()]
+    fake_guild.created_at = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    fake_guild.roles = [MagicMock(), MagicMock()]
+    fake_guild.channels = [fake_channel]
+    fake_guild.premium_tier = 2
+    fake_guild.premium_subscription_count = 7
+    fake_guild.icon = None
+    fake_guild.owner = None
+    fake_guild.owner_id = 111
+
+    fake_channel.guild = fake_guild
+
+    fake_bot = MagicMock()
+    fake_bot.get_channel.return_value = fake_channel
+
+    # Guardar anuncio con template sin resolver en DB
+    raw_template = "¡Bienvenidos a {server_name}! Canal: {channel_name}. Miembros actuales: {server_membercount}."
+    asyncio.run(
+        db.add_scheduled_announcement(
+            guild_id=_GUILD,
+            channel_id=_CHANNEL_ID,
+            message=raw_template,
+            mode="interval",
+            created_by=int(_USER_ID),
+            interval_minutes=30,
+        )
+    )
+
+    # Verificar que en DB se guardó el raw string sin resolver
+    ann = asyncio.run(db.get_scheduled_announcement(_GUILD, 1))
+    assert ann["message"] == raw_template
+
+    # Ejecutar loop de anuncios
+    cog = Anuncios(fake_bot)
+    asyncio.run(cog.check_announcements.coro(cog))
+
+    # Verificar que channel.send fue llamado con las variables resueltas
+    fake_channel.send.assert_awaited_once()
+    sent_msg = fake_channel.send.await_args[0][0]
+    assert sent_msg == "¡Bienvenidos a Servidor Increíble! Canal: general. Miembros actuales: 1.420."
+
+
+def test_anuncios_legacy_embed_runtime_resilience(memory_db):
+    """Verifica que anuncios históricos guardados con embed_json se envíen sin romper el loop."""
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = _CHANNEL_ID
+    perms = MagicMock()
+    perms.send_messages = True
+    perms.embed_links = True
+    fake_channel.permissions_for = MagicMock(return_value=perms)
+    fake_channel.send = AsyncMock()
+
+    fake_guild = MagicMock(spec=discord.Guild)
+    fake_guild.id = _GUILD
+    fake_channel.guild = fake_guild
+
+    fake_bot = MagicMock()
+    fake_bot.get_channel.return_value = fake_channel
+
+    legacy_embed = json.dumps([{"title": "Legacy Embed", "description": "Contenido antiguo"}])
+    asyncio.run(
+        db.add_scheduled_announcement(
+            guild_id=_GUILD,
+            channel_id=_CHANNEL_ID,
+            message="Snippet legacy",
+            mode="interval",
+            created_by=int(_USER_ID),
+            interval_minutes=30,
+            embed_json=legacy_embed,
+            content_mode="classic_embed",
+        )
+    )
+
+    cog = Anuncios(fake_bot)
+    asyncio.run(cog.check_announcements.coro(cog))
+
+    # El loop debió despachar embeds usando la compatibilidad legacy
+    fake_channel.send.assert_awaited_once()
+    kwargs = fake_channel.send.await_args[1]
+    assert "embeds" in kwargs
+    assert kwargs["embeds"][0].title == "Legacy Embed"

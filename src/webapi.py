@@ -199,8 +199,10 @@ import i18n
 from placeholders import (
     EVENT_TYPES,
     _is_valid_http_url,
+    extract_variables_from_text,
     get_available_placeholders,
     validate_content_variables,
+    validate_variables,
 )
 from layout_v2 import (
     MAX_FILENAME_LEN,
@@ -3412,12 +3414,15 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
 async def _api_anuncios_get(request: web.Request, guild_id: int) -> web.Response:
     announcements = await list_scheduled_announcements(guild_id)
     count, max_limit, is_premium = await get_scheduled_announcements_quota(guild_id)
+    locale = await i18n.guild_locale(guild_id)
+    variables = get_available_placeholders("announcement", locale=locale)
     return web.json_response(
         {
             "announcements": announcements,
             "count": count,
             "max": max_limit,
             "is_premium": is_premium,
+            "variables": variables,
         }
     )
 
@@ -3430,7 +3435,9 @@ async def _api_anuncio_get(request: web.Request, guild_id: int) -> web.Response:
     announcement = await get_scheduled_announcement(guild_id, announcement_id)
     if not announcement:
         return web.json_response({"error": "anuncio no encontrado"}, status=404)
-    return web.json_response({"announcement": announcement})
+    locale = await i18n.guild_locale(guild_id)
+    variables = get_available_placeholders("announcement", locale=locale)
+    return web.json_response({"announcement": announcement, "variables": variables})
 
 
 @guild_api
@@ -3439,39 +3446,28 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
 
-    content_mode = data.get("content_mode") or "plain_text"
-    if content_mode == "plain_text":
-        message = (data.get("message") or "").strip()
-        if not message:
-            return web.json_response(
-                {"error": "el mensaje no puede estar vacío"}, status=400
-            )
-        if len(message) > 2000:
-            return web.json_response(
-                {"error": "el mensaje no puede superar 2000 caracteres"}, status=400
-            )
-        payload = None
-        preview = message[:60]
-    else:
-        content_mode, payload, preview, err = _extract_content(data)
-        if err:
-            return web.json_response({"error": err}, status=400)
-        message = preview
+    message = (data.get("message") or "").strip()
+    if not message:
+        return web.json_response(
+            {"error": "el mensaje no puede estar vacío"}, status=400
+        )
+    if len(message) > 2000:
+        return web.json_response(
+            {"error": "el mensaje no puede superar 2000 caracteres"}, status=400
+        )
 
-    channel, denied = await _embed_target_channel(
-        request, guild_id, _to_int(data.get("channel_id"))
+    # Validar placeholders en el mensaje para el contexto de anuncios
+    locale = await i18n.guild_locale(guild_id)
+    vars_found = extract_variables_from_text(message)
+    var_errors = validate_variables(vars_found, "announcement", locale=locale)
+    if var_errors:
+        return web.json_response({"error": var_errors[0]}, status=400)
+
+    channel, denied = await _resolve_target_channel(
+        request, guild_id, _to_int(data.get("channel_id")), require_embeds=False
     )
     if denied is not None:
         return denied
-
-    if content_mode == "layout_v2":
-        layout = data["layout"]
-        denied = await _reject_unassignable_roles(request, guild_id, layout)
-        if denied is not None:
-            return denied
-        assignments = assign_button_custom_ids(layout)
-        await _register_role_buttons(request.app["bot"], guild_id, assignments)
-        payload = json.dumps(layout)
 
     mode = data.get("mode")
     interval_minutes = hour = minute = None
@@ -3513,8 +3509,8 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
         interval_minutes=interval_minutes,
         hour=hour,
         minute=minute,
-        embed_json=payload,
-        content_mode=content_mode,
+        embed_json=None,
+        content_mode="plain_text",
         delete_after_seconds=delete_after,
     )
     if new_id is None:
@@ -3546,39 +3542,28 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
 
-    content_mode = data.get("content_mode") or "plain_text"
-    if content_mode == "plain_text":
-        message = (data.get("message") or "").strip()
-        if not message:
-            return web.json_response(
-                {"error": "el mensaje no puede estar vacío"}, status=400
-            )
-        if len(message) > 2000:
-            return web.json_response(
-                {"error": "el mensaje no puede superar 2000 caracteres"}, status=400
-            )
-        payload = None
-        preview = message[:60]
-    else:
-        content_mode, payload, preview, err = _extract_content(data)
-        if err:
-            return web.json_response({"error": err}, status=400)
-        message = preview
+    message = (data.get("message") or "").strip()
+    if not message:
+        return web.json_response(
+            {"error": "el mensaje no puede estar vacío"}, status=400
+        )
+    if len(message) > 2000:
+        return web.json_response(
+            {"error": "el mensaje no puede superar 2000 caracteres"}, status=400
+        )
 
-    channel, denied = await _embed_target_channel(
-        request, guild_id, _to_int(data.get("channel_id"))
+    # Validar placeholders en el mensaje para el contexto de anuncios
+    locale = await i18n.guild_locale(guild_id)
+    vars_found = extract_variables_from_text(message)
+    var_errors = validate_variables(vars_found, "announcement", locale=locale)
+    if var_errors:
+        return web.json_response({"error": var_errors[0]}, status=400)
+
+    channel, denied = await _resolve_target_channel(
+        request, guild_id, _to_int(data.get("channel_id")), require_embeds=False
     )
     if denied is not None:
         return denied
-
-    if content_mode == "layout_v2":
-        layout = data["layout"]
-        denied = await _reject_unassignable_roles(request, guild_id, layout)
-        if denied is not None:
-            return denied
-        assignments = assign_button_custom_ids(layout)
-        await _register_role_buttons(request.app["bot"], guild_id, assignments)
-        payload = json.dumps(layout)
 
     mode = data.get("mode")
     interval_minutes = hour = minute = None
@@ -3619,8 +3604,8 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
         interval_minutes=interval_minutes,
         hour=hour,
         minute=minute,
-        embed_json=payload,
-        content_mode=content_mode,
+        embed_json=None,
+        content_mode="plain_text",
         delete_after_seconds=delete_after,
     )
     if not ok:

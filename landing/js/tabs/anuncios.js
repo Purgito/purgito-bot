@@ -1,21 +1,14 @@
 // Módulo de Gestión de Anuncios Programados de Purgito.
-// Centro de administración de publicaciones automáticas por intervalo u hora fija diaria.
+// Programador de mensajes de texto con resolución dinámica de variables.
 
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, spinner, renderError, toast, formGroup, accordionGroup, autoGrow, helpIcon, icon, emptyState,
+  el, spinner, renderError, toast, autoGrow, icon,
 } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
-import { getChannels, getRoles, channelSelect, content } from '/js/panel-shell.js';
+import { getChannels, channelSelect, content } from '/js/panel-shell.js';
 import { mdToNodes } from '/js/core/markdown.js';
 import { t, addStrings } from '/js/core/i18n.js';
-import {
-  blankDoc, blankEmbed, embedDict, EMBED_LIMITS,
-  blankLayoutDoc, newBlock, apiToBlock,
-} from '/js/embeds/state.js';
-import { renderEmbedsPreview } from '/js/embeds/classic-editor.js';
-import { renderLayoutPreview } from '/js/embeds/layout-editor.js';
-import { colorField, imageField } from '/js/embeds/shared-ui.js';
 
 addStrings({
   es: {
@@ -34,6 +27,7 @@ addStrings({
     'tabsAnuncios.cadenceDaily': 'Todos los días · {time}',
     'tabsAnuncios.channelMissing': '⚠ Canal no disponible',
     'tabsAnuncios.noPerms': '⚠ Purgito no puede publicar aquí',
+    'tabsAnuncios.noPermsWarning': '⚠ Purgito no tiene permiso para enviar mensajes en ese canal.',
     'tabsAnuncios.autoDeleteBadge': '⏱ Auto-borrado: {seconds}s',
     'tabsAnuncios.lastSent': 'Último envío:',
     'tabsAnuncios.neverSent': 'Aún no enviado',
@@ -44,70 +38,41 @@ addStrings({
     'tabsAnuncios.backToList': '← Volver a la lista de anuncios',
     'tabsAnuncios.createTitle': 'Nuevo anuncio programado',
     'tabsAnuncios.editTitle': 'Editar anuncio',
-    'tabsAnuncios.secWhereWhen': '1. Dónde y Cuándo',
     'tabsAnuncios.channelLabel': 'Canal de destino',
-    'tabsAnuncios.channelHelp': 'Canal donde se publicará el anuncio automáticamente.',
     'tabsAnuncios.channelSelectPlaceholder': 'Elige un canal…',
     'tabsAnuncios.cadenceLabel': 'Tipo de programación',
     'tabsAnuncios.modeInterval': 'Cada cierto tiempo',
     'tabsAnuncios.modeDaily': 'A una hora fija',
-    'tabsAnuncios.intervalInputLabel': 'Intervalo (minutos)',
+    'tabsAnuncios.intervalInputLabel': 'Enviar cada',
+    'tabsAnuncios.intervalMinutesUnit': 'minutos',
     'tabsAnuncios.intervalHint': 'Se enviará cada {minutes} minutos.',
-    'tabsAnuncios.timeInputLabel': 'Hora de envío (HH:MM)',
+    'tabsAnuncios.timeInputLabel': 'Enviar todos los días a las',
     'tabsAnuncios.timeHint': 'Se enviará todos los días a las {time}.',
-    'tabsAnuncios.secContent': '2. Contenido del anuncio',
-    'tabsAnuncios.contentModeLabel': 'Modo de contenido',
-    'tabsAnuncios.modePlainText': 'Mensaje normal',
-    'tabsAnuncios.modeClassicEmbed': 'Embed clásico',
-    'tabsAnuncios.modeLayoutV2': 'Layout V2',
-    'tabsAnuncios.plainTextLabel': 'Mensaje de texto',
-    'tabsAnuncios.plainTextPlaceholder': 'Escribe el mensaje que se publicará automáticamente…',
-    'tabsAnuncios.plainTextCounter': '{count} / 2000 caracteres',
-    'tabsAnuncios.secAdvanced': '3. Opciones avanzadas',
-    'tabsAnuncios.autoDeleteLabel': 'Eliminar automáticamente (Auto-delete)',
-    'tabsAnuncios.autoDeleteHelp': 'Borra el mensaje publicado después de transcurrido el tiempo configurado.',
-    'tabsAnuncios.autoDeleteSeconds': 'Segundos antes de borrar (1 - 86400)',
-    'tabsAnuncios.autoDeleteHint': 'El anuncio se eliminará automáticamente después de {seconds} segundos.',
-    'tabsAnuncios.sectionContent': 'Contenido principal',
-    'tabsAnuncios.sectionAppearance': 'Apariencia y color',
-    'tabsAnuncios.sectionImages': 'Imágenes y miniaturas',
-    'tabsAnuncios.sectionAuthor': 'Autor',
-    'tabsAnuncios.sectionFooter': 'Pie de página',
-    'tabsAnuncios.sectionFields': 'Campos adicionales',
-    'tabsAnuncios.sectionIdentity': 'Identidad personalizada (Webhook)',
-    'tabsAnuncios.embedTitleLabel': 'Título del embed',
-    'tabsAnuncios.embedDescLabel': 'Descripción',
-    'tabsAnuncios.embedColorLabel': 'Color de barra lateral',
-    'tabsAnuncios.embedThumbLabel': 'Miniatura (Thumbnail)',
-    'tabsAnuncios.embedImageLabel': 'Imagen grande',
-    'tabsAnuncios.embedAuthorNameLabel': 'Nombre del autor',
-    'tabsAnuncios.embedAuthorIconLabel': 'Icono del autor',
-    'tabsAnuncios.embedFooterTextLabel': 'Texto de pie de página',
-    'tabsAnuncios.embedFooterIconLabel': 'Icono de pie de página',
-    'tabsAnuncios.webhookUsernameLabel': 'Nombre de usuario personalizado',
-    'tabsAnuncios.webhookAvatarLabel': 'Avatar personalizado (URL)',
-    'tabsAnuncios.webhookHelp': 'Envía el anuncio con un nombre y avatar específicos usando webhooks de Discord.',
-    'tabsAnuncios.addFieldBtn': '+ Agregar campo',
-    'tabsAnuncios.fieldNamePlaceholder': 'Nombre',
-    'tabsAnuncios.fieldValuePlaceholder': 'Valor',
-    'tabsAnuncios.fieldInlineLabel': 'En línea',
-    'tabsAnuncios.previewTitle': 'Vista previa en vivo',
+    'tabsAnuncios.messageLabel': 'Mensaje',
+    'tabsAnuncios.messagePlaceholder': 'Escribe el mensaje que Purgito publicará automáticamente…',
+    'tabsAnuncios.messageCounter': '{count} / 2000',
+    'tabsAnuncios.insertVarBtn': 'Insertar variable',
+    'tabsAnuncios.varsTitle': 'Variables disponibles',
+    'tabsAnuncios.varsSubtitle': 'Haz clic en una variable para insertarla en la posición del cursor.',
+    'tabsAnuncios.varsSearchPlaceholder': 'Buscar variables…',
+    'tabsAnuncios.varExample': 'Ejemplo:',
+    'tabsAnuncios.varsCopied': 'Variable {var} copiada al portapapeles',
+    'tabsAnuncios.varsInserted': 'Variable {var} insertada',
+    'tabsAnuncios.previewTitle': 'Vista previa',
     'tabsAnuncios.previewHeader': 'Purgito',
     'tabsAnuncios.previewBotTag': 'BOT',
     'tabsAnuncios.previewToday': 'HOY',
+    'tabsAnuncios.advancedOptions': 'Opciones avanzadas',
+    'tabsAnuncios.autoDeleteLabel': 'Auto-borrar el mensaje',
+    'tabsAnuncios.autoDeleteAfter': 'Después de',
+    'tabsAnuncios.autoDeleteSecondsUnit': 'segundos',
+    'tabsAnuncios.autoDeleteHint': 'El anuncio se eliminará automáticamente después de {seconds} segundos.',
     'tabsAnuncios.saveBtn': 'Guardar anuncio',
     'tabsAnuncios.saving': 'Guardando…',
     'tabsAnuncios.savedSuccess': 'Anuncio guardado correctamente',
     'tabsAnuncios.cancelBtn': 'Cancelar',
     'tabsAnuncios.noChannelSelected': 'Debes seleccionar un canal para el anuncio',
-    'tabsAnuncios.emptyContent': 'El contenido del anuncio no puede estar vacío',
-    'tabsAnuncios.templatesBtn': 'Plantillas',
-    'tabsAnuncios.loadTemplate': 'Cargar plantilla',
-    'tabsAnuncios.saveTemplate': 'Guardar como plantilla',
-    'tabsAnuncios.templatePrompt': 'Nombre de la plantilla:',
-    'tabsAnuncios.templateSaved': 'Plantilla guardada',
-    'tabsAnuncios.templateLoaded': 'Plantilla cargada',
-    'tabsAnuncios.noTemplates': 'No hay plantillas guardadas',
+    'tabsAnuncios.emptyMessage': 'El mensaje del anuncio no puede estar vacío',
   },
   en: {
     'tabsAnuncios.title': 'Announcements',
@@ -125,6 +90,7 @@ addStrings({
     'tabsAnuncios.cadenceDaily': 'Every day · {time}',
     'tabsAnuncios.channelMissing': '⚠ Channel unavailable',
     'tabsAnuncios.noPerms': '⚠ Purgito cannot post here',
+    'tabsAnuncios.noPermsWarning': '⚠ Purgito does not have permission to send messages in this channel.',
     'tabsAnuncios.autoDeleteBadge': '⏱ Auto-delete: {seconds}s',
     'tabsAnuncios.lastSent': 'Last sent:',
     'tabsAnuncios.neverSent': 'Never sent yet',
@@ -135,72 +101,89 @@ addStrings({
     'tabsAnuncios.backToList': '← Back to announcements list',
     'tabsAnuncios.createTitle': 'New scheduled announcement',
     'tabsAnuncios.editTitle': 'Edit announcement',
-    'tabsAnuncios.secWhereWhen': '1. Where and When',
     'tabsAnuncios.channelLabel': 'Destination channel',
-    'tabsAnuncios.channelHelp': 'Channel where the announcement will be posted automatically.',
     'tabsAnuncios.channelSelectPlaceholder': 'Choose a channel…',
     'tabsAnuncios.cadenceLabel': 'Schedule type',
     'tabsAnuncios.modeInterval': 'Every interval',
     'tabsAnuncios.modeDaily': 'Daily at a fixed time',
-    'tabsAnuncios.intervalInputLabel': 'Interval (minutes)',
+    'tabsAnuncios.intervalInputLabel': 'Send every',
+    'tabsAnuncios.intervalMinutesUnit': 'minutes',
     'tabsAnuncios.intervalHint': 'Will be sent every {minutes} minutes.',
-    'tabsAnuncios.timeInputLabel': 'Send time (HH:MM)',
+    'tabsAnuncios.timeInputLabel': 'Send every day at',
     'tabsAnuncios.timeHint': 'Will be sent every day at {time}.',
-    'tabsAnuncios.secContent': '2. Announcement content',
-    'tabsAnuncios.contentModeLabel': 'Content mode',
-    'tabsAnuncios.modePlainText': 'Normal message',
-    'tabsAnuncios.modeClassicEmbed': 'Classic embed',
-    'tabsAnuncios.modeLayoutV2': 'Layout V2',
-    'tabsAnuncios.plainTextLabel': 'Text message',
-    'tabsAnuncios.plainTextPlaceholder': 'Write the message that will be automatically published…',
-    'tabsAnuncios.plainTextCounter': '{count} / 2000 characters',
-    'tabsAnuncios.secAdvanced': '3. Advanced options',
-    'tabsAnuncios.autoDeleteLabel': 'Auto-delete message',
-    'tabsAnuncios.autoDeleteHelp': 'Deletes the published message automatically after the specified time.',
-    'tabsAnuncios.autoDeleteSeconds': 'Seconds before delete (1 - 86400)',
-    'tabsAnuncios.autoDeleteHint': 'The announcement will be deleted automatically after {seconds} seconds.',
-    'tabsAnuncios.sectionContent': 'Main content',
-    'tabsAnuncios.sectionAppearance': 'Appearance & color',
-    'tabsAnuncios.sectionImages': 'Images & thumbnails',
-    'tabsAnuncios.sectionAuthor': 'Author',
-    'tabsAnuncios.sectionFooter': 'Footer',
-    'tabsAnuncios.sectionFields': 'Additional fields',
-    'tabsAnuncios.sectionIdentity': 'Custom identity (Webhook)',
-    'tabsAnuncios.embedTitleLabel': 'Embed title',
-    'tabsAnuncios.embedDescLabel': 'Description',
-    'tabsAnuncios.embedColorLabel': 'Sidebar color',
-    'tabsAnuncios.embedThumbLabel': 'Thumbnail',
-    'tabsAnuncios.embedImageLabel': 'Large image',
-    'tabsAnuncios.embedAuthorNameLabel': 'Author name',
-    'tabsAnuncios.embedAuthorIconLabel': 'Author icon',
-    'tabsAnuncios.embedFooterTextLabel': 'Footer text',
-    'tabsAnuncios.embedFooterIconLabel': 'Footer icon',
-    'tabsAnuncios.webhookUsernameLabel': 'Custom username',
-    'tabsAnuncios.webhookAvatarLabel': 'Custom avatar (URL)',
-    'tabsAnuncios.webhookHelp': 'Send the announcement with a custom name and avatar using Discord webhooks.',
-    'tabsAnuncios.addFieldBtn': '+ Add field',
-    'tabsAnuncios.fieldNamePlaceholder': 'Name',
-    'tabsAnuncios.fieldValuePlaceholder': 'Value',
-    'tabsAnuncios.fieldInlineLabel': 'Inline',
-    'tabsAnuncios.previewTitle': 'Live preview',
+    'tabsAnuncios.messageLabel': 'Message',
+    'tabsAnuncios.messagePlaceholder': 'Write the message that Purgito will automatically publish…',
+    'tabsAnuncios.messageCounter': '{count} / 2000',
+    'tabsAnuncios.insertVarBtn': 'Insert variable',
+    'tabsAnuncios.varsTitle': 'Available variables',
+    'tabsAnuncios.varsSubtitle': 'Click any variable to insert it at cursor position.',
+    'tabsAnuncios.varsSearchPlaceholder': 'Search variables…',
+    'tabsAnuncios.varExample': 'Example:',
+    'tabsAnuncios.varsCopied': 'Variable {var} copied to clipboard',
+    'tabsAnuncios.varsInserted': 'Variable {var} inserted',
+    'tabsAnuncios.previewTitle': 'Preview',
     'tabsAnuncios.previewHeader': 'Purgito',
     'tabsAnuncios.previewBotTag': 'BOT',
     'tabsAnuncios.previewToday': 'TODAY',
+    'tabsAnuncios.advancedOptions': 'Advanced options',
+    'tabsAnuncios.autoDeleteLabel': 'Auto-delete message',
+    'tabsAnuncios.autoDeleteAfter': 'After',
+    'tabsAnuncios.autoDeleteSecondsUnit': 'seconds',
+    'tabsAnuncios.autoDeleteHint': 'The announcement will be deleted automatically after {seconds} seconds.',
     'tabsAnuncios.saveBtn': 'Save announcement',
     'tabsAnuncios.saving': 'Saving…',
     'tabsAnuncios.savedSuccess': 'Announcement saved successfully',
     'tabsAnuncios.cancelBtn': 'Cancel',
     'tabsAnuncios.noChannelSelected': 'You must select a destination channel',
-    'tabsAnuncios.emptyContent': 'Announcement content cannot be empty',
-    'tabsAnuncios.templatesBtn': 'Templates',
-    'tabsAnuncios.loadTemplate': 'Load template',
-    'tabsAnuncios.saveTemplate': 'Save as template',
-    'tabsAnuncios.templatePrompt': 'Template name:',
-    'tabsAnuncios.templateSaved': 'Template saved',
-    'tabsAnuncios.templateLoaded': 'Template loaded',
-    'tabsAnuncios.noTemplates': 'No templates saved',
+    'tabsAnuncios.emptyMessage': 'Announcement message cannot be empty',
   },
 });
+
+const DEFAULT_ANNOUNCEMENT_VARIABLES = [
+  { name: 'server_name', category: 'server', description: 'Nombre del servidor de Discord.', example: 'Mi Servidor' },
+  { name: 'server_id', category: 'server', description: 'ID numérico de Discord del servidor.', example: '123456789012345678' },
+  { name: 'server_membercount', category: 'server', description: 'Cantidad total de miembros del servidor.', example: '1.284' },
+  { name: 'server_membercount_ordinal', category: 'server', description: 'Número de miembro ordinal (ej. #1.284).', example: '#1.284' },
+  { name: 'server_icon', category: 'server', description: 'URL del icono del servidor.', example: 'https://cdn.discordapp.com/icons/icon.png' },
+  { name: 'server_owner', category: 'server', description: 'Nombre del dueño del servidor.', example: 'Owner' },
+  { name: 'server_owner_id', category: 'server', description: 'ID numérico del dueño del servidor.', example: '111222333444555666' },
+  { name: 'server_created_at', category: 'server', description: 'Fecha de creación del servidor.', example: '10 de marzo de 2020' },
+  { name: 'server_rolecount', category: 'server', description: 'Cantidad de roles creados en el servidor.', example: '42' },
+  { name: 'server_channelcount', category: 'server', description: 'Cantidad total de canales del servidor.', example: '28' },
+  { name: 'server_boostlevel', category: 'server', description: 'Nivel de boost del servidor (0, 1, 2 o 3).', example: '2' },
+  { name: 'server_boostcount', category: 'server', description: 'Cantidad total de mejoras (boosts) del servidor.', example: '9' },
+  { name: 'channel', category: 'channel', description: 'Mención del canal donde se envía el mensaje.', example: '#general' },
+  { name: 'channel_name', category: 'channel', description: 'Nombre del canal donde se envía el mensaje.', example: 'general' },
+  { name: 'channel_id', category: 'channel', description: 'ID numérico del canal.', example: '555666777888999000' },
+  { name: 'date', category: 'date', description: 'Fecha actual del evento.', example: '21 de agosto de 2026' },
+];
+
+function resolvePreviewText(text, channelName) {
+  if (!text) return '';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+  const map = {
+    server_name: 'Mi Servidor',
+    server_id: '123456789012345678',
+    server_membercount: '1.284',
+    server_membercount_ordinal: '#1.284',
+    server_icon: 'https://cdn.discordapp.com/embed/avatars/0.png',
+    server_owner: 'Owner',
+    server_owner_id: '111222333444555666',
+    server_created_at: '10 de marzo de 2020',
+    server_rolecount: '25',
+    server_channelcount: '18',
+    server_boostlevel: '1',
+    server_boostcount: '4',
+    channel: channelName ? (channelName.startsWith('#') ? channelName : '#' + channelName) : '#general',
+    channel_name: channelName ? channelName.replace(/^#/, '') : 'general',
+    channel_id: '555666777888999000',
+    date: dateStr,
+  };
+  return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    return map[key] !== undefined ? map[key] : match;
+  });
+}
 
 export async function loadAnunciosTab() {
   const myGuild = GUILD_ID;
@@ -209,29 +192,32 @@ export async function loadAnunciosTab() {
   box.append(spinner());
 
   try {
-    const [anunciosData, channels, roles] = await Promise.all([
+    const [anunciosData, channelsData] = await Promise.all([
       apiFetch(`/api/server/${GUILD_ID}/anuncios`),
       getChannels(),
-      getRoles(),
     ]);
 
     if (myGuild !== GUILD_ID) return;
-    renderAnunciosManager(box, anunciosData, channels, roles);
+    const channels = Array.isArray(channelsData) ? channelsData : (channelsData.channels || []);
+    renderAnunciosManager(box, anunciosData, channels);
   } catch (err) {
     if (myGuild !== GUILD_ID) return;
     renderError(box, err);
   }
 }
 
-function renderAnunciosManager(container, initialData, channels, roles) {
+function renderAnunciosManager(container, initialData, channels) {
   container.innerHTML = '';
 
   let currentView = 'list'; // 'list' | 'editor'
   let editingAnnouncement = null;
   let announcementsList = initialData.announcements || [];
-  let quotaCount = initialData.count || announcementsList.length;
+  let quotaCount = initialData.count !== undefined ? initialData.count : announcementsList.length;
   let quotaMax = initialData.max || 3;
   let isPremium = !!initialData.is_premium;
+  const availableVariables = initialData.variables && initialData.variables.length
+    ? initialData.variables
+    : DEFAULT_ANNOUNCEMENT_VARIABLES;
 
   const shellWrap = el('div', { class: 'anuncios-manager-shell' });
   container.append(shellWrap);
@@ -249,7 +235,6 @@ function renderAnunciosManager(container, initialData, channels, roles) {
   // LIST VIEW
   // ----------------------------------------------------
   function renderList() {
-    // Header
     const limitReached = quotaCount >= quotaMax;
 
     const quotaBadge = el('span', {
@@ -300,6 +285,7 @@ function renderAnunciosManager(container, initialData, channels, roles) {
         el('button', {
           type: 'button',
           class: 'btn btn-primary',
+          disabled: limitReached,
           onclick: () => {
             editingAnnouncement = null;
             currentView = 'editor';
@@ -329,28 +315,15 @@ function renderAnunciosManager(container, initialData, channels, roles) {
         cadenceText = t('tabsAnuncios.cadenceDaily', { time: `${hh}:${mm}` });
       }
 
-      // Mode label & icon
-      let modeLabel = t('tabsAnuncios.modePlainText');
-      let typeIconName = 'chat';
-      if (ann.content_mode === 'classic_embed') {
-        modeLabel = t('tabsAnuncios.modeClassicEmbed');
-        typeIconName = 'layout';
-      } else if (ann.content_mode === 'layout_v2') {
-        modeLabel = t('tabsAnuncios.modeLayoutV2');
-        typeIconName = 'sparkle';
-      }
-
-      // Title or snippet
+      // Title or snippet - 1 line preview
       let titleSnippet = ann.message || '';
-      if (ann.embed_json) {
+      if (!titleSnippet && ann.embed_json) {
         try {
           const parsed = JSON.parse(ann.embed_json);
-          if (Array.isArray(parsed) && parsed[0] && parsed[0].title) {
-            titleSnippet = parsed[0].title;
-          } else if (parsed && parsed.embeds && parsed.embeds[0] && parsed.embeds[0].title) {
-            titleSnippet = parsed.embeds[0].title;
-          } else if (parsed && parsed.embeds && parsed.embeds[0] && parsed.embeds[0].description) {
-            titleSnippet = parsed.embeds[0].description;
+          if (Array.isArray(parsed) && parsed[0] && (parsed[0].title || parsed[0].description)) {
+            titleSnippet = parsed[0].title || parsed[0].description;
+          } else if (parsed && parsed.embeds && parsed.embeds[0] && (parsed.embeds[0].title || parsed.embeds[0].description)) {
+            titleSnippet = parsed.embeds[0].title || parsed.embeds[0].description;
           } else if (parsed && Array.isArray(parsed.blocks) && parsed.blocks[0]) {
             const b = parsed.blocks[0];
             titleSnippet = b.title || b.content || b.text || '';
@@ -365,12 +338,11 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       const card = el('div', { class: 'anuncio-manage-card card' },
         el('div', { class: 'anuncio-card-header' },
           el('div', { class: 'anuncio-card-title', title: titleSnippet },
-            el('span', { class: 'anuncio-type-icon' }, icon(typeIconName)),
+            el('span', { class: 'anuncio-type-icon' }, icon('chat')),
             el('strong', { class: 'anuncio-title-text' }, titleSnippet)
           ),
           el('div', { class: 'anuncio-card-badges' },
-            el('span', { class: 'badge badge-ok' }, `● ${t('tabsAnuncios.statusActive')}`),
-            el('span', { class: 'badge badge-dim' }, modeLabel)
+            el('span', { class: 'badge badge-ok' }, `● ${t('tabsAnuncios.statusActive')}`)
           )
         ),
         el('div', { class: 'anuncio-card-body' },
@@ -436,59 +408,34 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       channel_id: channels.length ? channels[0].id : '',
       mode: 'interval',
       interval_minutes: 30,
-      hour: 9,
+      hour: 8,
       minute: 0,
-      content_mode: 'plain_text',
       message: '',
-      embed_json: null,
       delete_after_seconds: null,
     };
 
     let selectedChannelId = ann.channel_id ? String(ann.channel_id) : (channels.length ? String(channels[0].id) : '');
     let scheduleMode = ann.mode || 'interval';
     let intervalMinutes = ann.interval_minutes || 30;
-    let dailyHour = ann.hour !== undefined && ann.hour !== null ? ann.hour : 9;
+    let dailyHour = ann.hour !== undefined && ann.hour !== null ? ann.hour : 8;
     let dailyMinute = ann.minute !== undefined && ann.minute !== null ? ann.minute : 0;
-    let contentMode = ann.content_mode || 'plain_text';
     let textMessage = ann.message || '';
+    if (!textMessage && ann.embed_json) {
+      try {
+        const parsed = JSON.parse(ann.embed_json);
+        if (Array.isArray(parsed) && parsed[0]) {
+          textMessage = parsed[0].description || parsed[0].title || '';
+        } else if (parsed && parsed.embeds && parsed.embeds[0]) {
+          textMessage = parsed.embeds[0].description || parsed.embeds[0].title || '';
+        } else if (parsed && Array.isArray(parsed.blocks) && parsed.blocks[0]) {
+          textMessage = parsed.blocks[0].content || parsed.blocks[0].text || '';
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
     let enableAutoDelete = !!ann.delete_after_seconds;
     let autoDeleteSeconds = ann.delete_after_seconds || 60;
-    let customUsername = '';
-    let customAvatarUrl = '';
-
-    // Docs for Embed / Layout
-    let localEmbedDoc = blankDoc();
-    let localLayoutDoc = blankLayoutDoc();
-
-    if (contentMode === 'classic_embed' && ann.embed_json) {
-      try {
-        const parsed = JSON.parse(ann.embed_json);
-        const list = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
-        if (parsed && !Array.isArray(parsed) && parsed.send_options) {
-          customUsername = parsed.send_options.username || '';
-          customAvatarUrl = parsed.send_options.avatar_url || '';
-        }
-        localEmbedDoc.embeds = list.map(e => ({ ...e }));
-      } catch (e) {
-        localEmbedDoc = blankDoc();
-      }
-    }
-
-    if (contentMode === 'layout_v2' && ann.embed_json) {
-      try {
-        const parsed = JSON.parse(ann.embed_json);
-        if (parsed && parsed.send_options) {
-          customUsername = parsed.send_options.username || '';
-          customAvatarUrl = parsed.send_options.avatar_url || '';
-        }
-        localLayoutDoc.blocks = (parsed.blocks || []).map(apiToBlock);
-      } catch (e) {
-        localLayoutDoc = blankLayoutDoc();
-      }
-    }
-
-    if (!localEmbedDoc.embeds.length) localEmbedDoc.embeds.push(blankEmbed());
-    const embedState = localEmbedDoc.embeds[0];
 
     // Navigation Header
     const backBtn = el('button', {
@@ -500,7 +447,7 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       },
     }, t('tabsAnuncios.backToList'));
 
-    const header = el('div', { class: 'tab-header' },
+    const header = el('div', { class: 'tab-header tab-header-editor' },
       backBtn,
       el('h1', { style: 'margin-top: 10px;' },
         el('span', { class: 'nav-icon' }, icon('layout')),
@@ -508,61 +455,31 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       )
     );
 
-    // Form Panes
-    const editorPane = el('div', { class: 'anuncio-editor-pane' });
-    const previewPane = el('div', { class: 'anuncio-preview-pane' });
-
-    // Live preview function
-    function updatePreview() {
-      previewPane.innerHTML = '';
-
-      const ch = channels.find(c => String(c.id) === String(selectedChannelId));
-      const channelName = ch ? '#' + ch.name : '#general';
-
-      const previewAuthorName = customUsername || t('tabsAnuncios.previewHeader');
-      const previewAvatarUrl = customAvatarUrl || '/assets/icon.png';
-
-      const msgHeader = el('div', { class: 'd-msg-header' },
-        el('img', { src: previewAvatarUrl, alt: 'Purgito', class: 'd-msg-avatar' }),
-        el('div', { class: 'd-msg-meta' },
-          el('span', { class: 'd-msg-author' }, previewAuthorName),
-          el('span', { class: 'd-msg-bot' }, t('tabsAnuncios.previewBotTag')),
-          el('span', { class: 'd-msg-time' }, t('tabsAnuncios.previewToday'))
-        )
-      );
-
-      const msgBody = el('div', { class: 'd-msg-body' });
-
-      if (contentMode === 'plain_text') {
-        msgBody.append(el('div', { class: 'd-msg-text' }, ...mdToNodes(textMessage || '')));
-      } else if (contentMode === 'classic_embed') {
-        const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
-        msgBody.append(renderEmbedsPreview(rawDicts));
-      } else if (contentMode === 'layout_v2') {
-        msgBody.append(renderLayoutPreview(localLayoutDoc.blocks));
-      }
-
-      const discordCard = el('div', { class: 'd-message-card' },
-        el('div', { class: 'd-message-top' },
-          el('div', { class: 'd-message-channel-tag' },
-            icon('chat'),
-            el('span', {}, channelName)
-          ),
-          el('span', { class: 'preview-badge dim' }, t('tabsAnuncios.previewTitle'))
-        ),
-        el('div', { class: 'd-message' }, msgHeader, msgBody)
-      );
-
-      previewPane.append(discordCard);
-    }
-
-    // 1. DÓNDE Y CUÁNDO (Programación)
+    // ── A. Destino (Canal) ───────────────────────────────────────────
     const channelSel = channelSelect(channels, selectedChannelId, t('tabsAnuncios.channelSelectPlaceholder'));
+    const channelWarning = el('p', {
+      class: 'form-error-msg',
+      style: 'display: none; margin: 4px 0 0 0;',
+    }, t('tabsAnuncios.noPermsWarning'));
+
+    function checkChannelPerms() {
+      const ch = channels.find(c => String(c.id) === String(selectedChannelId));
+      channelWarning.style.display = (ch && ch.can_send === false) ? 'block' : 'none';
+    }
     channelSel.onchange = () => {
       selectedChannelId = channelSel.value;
+      checkChannelPerms();
       updatePreview();
     };
+    checkChannelPerms();
 
+    const channelBlock = el('div', { class: 'cfg-block anuncio-cfg-block' },
+      el('label', { class: 'cfg-field-label' }, icon('chat'), t('tabsAnuncios.channelLabel')),
+      channelSel,
+      channelWarning
+    );
+
+    // ── B. Programación ──────────────────────────────────────────────
     const intervalPill = el('button', {
       type: 'button',
       class: 'mode-pill' + (scheduleMode === 'interval' ? ' active' : ''),
@@ -581,7 +498,7 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       },
     }, t('tabsAnuncios.modeDaily'));
 
-    const scheduleControlsWrap = el('div', { class: 'schedule-controls-wrap' });
+    const scheduleControlsWrap = el('div', { class: 'anuncio-schedule-controls' });
 
     function refreshScheduleControls() {
       intervalPill.className = 'mode-pill' + (scheduleMode === 'interval' ? ' active' : '');
@@ -593,10 +510,10 @@ function renderAnunciosManager(container, initialData, channels, roles) {
           type: 'number',
           min: '5',
           max: '1440',
-          class: 'form-control',
+          class: 'form-control anuncio-interval-input',
           value: String(intervalMinutes),
         });
-        const hint = el('p', { class: 'dim text-sm' },
+        const hint = el('p', { class: 'dim text-sm', style: 'margin: 6px 0 0 0;' },
           t('tabsAnuncios.intervalHint', { minutes: intervalMinutes })
         );
 
@@ -610,27 +527,33 @@ function renderAnunciosManager(container, initialData, channels, roles) {
         const presetChips = el('div', { class: 'preset-chips' },
           ...presets.map(m => el('button', {
             type: 'button',
-            class: 'category-tab-btn',
-            onclick: () => {
+            class: 'category-tab-btn' + (intervalMinutes === m ? ' active' : ''),
+            onclick: (e) => {
               intervalMinutes = m;
               intervalInp.value = String(m);
               hint.textContent = t('tabsAnuncios.intervalHint', { minutes: m });
+              presetChips.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+              if (e && e.currentTarget) e.currentTarget.classList.add('active');
             },
           }, m >= 60 ? `${m / 60}h` : `${m}m`))
         );
 
-        scheduleControlsWrap.append(
-          formGroup(t('tabsAnuncios.intervalInputLabel'), intervalInp, presetChips, hint)
+        const inputRow = el('div', { class: 'anuncio-input-row' },
+          el('span', { class: 'anuncio-input-prefix' }, t('tabsAnuncios.intervalInputLabel')),
+          intervalInp,
+          el('span', { class: 'anuncio-input-suffix' }, t('tabsAnuncios.intervalMinutesUnit'))
         );
+
+        scheduleControlsWrap.append(inputRow, presetChips, hint);
       } else {
         const hh = String(dailyHour).padStart(2, '0');
         const mm = String(dailyMinute).padStart(2, '0');
         const timeInp = el('input', {
           type: 'time',
-          class: 'form-control',
+          class: 'form-control anuncio-time-input',
           value: `${hh}:${mm}`,
         });
-        const hint = el('p', { class: 'dim text-sm' },
+        const hint = el('p', { class: 'dim text-sm', style: 'margin: 6px 0 0 0;' },
           t('tabsAnuncios.timeHint', { time: `${hh}:${mm}` })
         );
 
@@ -643,392 +566,186 @@ function renderAnunciosManager(container, initialData, channels, roles) {
           }
         };
 
-        scheduleControlsWrap.append(
-          formGroup(t('tabsAnuncios.timeInputLabel'), timeInp, hint)
+        const inputRow = el('div', { class: 'anuncio-input-row' },
+          el('span', { class: 'anuncio-input-prefix' }, t('tabsAnuncios.timeInputLabel')),
+          timeInp
         );
+
+        scheduleControlsWrap.append(inputRow, hint);
       }
     }
 
     refreshScheduleControls();
 
-    const whereWhenSec = el('div', { class: 'card anuncio-section-card' },
-      el('h3', { class: 'section-title' }, t('tabsAnuncios.secWhereWhen')),
-      formGroup(t('tabsAnuncios.channelLabel'), channelSel),
-      formGroup(t('tabsAnuncios.cadenceLabel'),
-        el('div', { class: 'event-mode-pills' }, intervalPill, dailyPill),
-        scheduleControlsWrap
-      )
+    const scheduleBlock = el('div', { class: 'cfg-block anuncio-cfg-block' },
+      el('label', { class: 'cfg-field-label' }, icon('history'), t('tabsAnuncios.cadenceLabel')),
+      el('div', { class: 'event-mode-pills' }, intervalPill, dailyPill),
+      scheduleControlsWrap
     );
 
-    // 2. CONTENIDO
-    const contentModes = [
-      { key: 'plain_text', label: t('tabsAnuncios.modePlainText'), icon: 'chat' },
-      { key: 'classic_embed', label: t('tabsAnuncios.modeClassicEmbed'), icon: 'layout' },
-      { key: 'layout_v2', label: t('tabsAnuncios.modeLayoutV2'), icon: 'sparkle' },
-    ];
+    // ── C. Mensaje ───────────────────────────────────────────────────
+    const msgTxt = el('textarea', {
+      class: 'form-control autogrow event-message-textarea anuncio-textarea',
+      rows: 4,
+      placeholder: t('tabsAnuncios.messagePlaceholder'),
+    });
+    msgTxt.value = textMessage;
 
-    const contentModePills = el('div', { class: 'event-mode-pills' });
-    const contentEditorWrap = el('div', { class: 'anuncio-content-editor-wrap' });
-
-    function renderContentModeSelector() {
-      contentModePills.innerHTML = '';
-      for (const m of contentModes) {
-        const pill = el('button', {
-          type: 'button',
-          class: 'mode-pill' + (contentMode === m.key ? ' active' : ''),
-          onclick: () => {
-            if (contentMode === m.key) return;
-            contentMode = m.key;
-            renderContentModeSelector();
-            renderContentEditor();
-            updatePreview();
-          },
-        },
-          el('span', { class: 'mode-pill-icon' }, icon(m.icon)),
-          m.label
-        );
-        contentModePills.append(pill);
-      }
-    }
-
-    function renderContentEditor() {
-      contentEditorWrap.innerHTML = '';
-
-      if (contentMode === 'plain_text') {
-        const txtArea = el('textarea', {
-          class: 'form-control autogrow',
-          rows: 4,
-          placeholder: t('tabsAnuncios.plainTextPlaceholder'),
-        });
-        txtArea.value = textMessage;
-
-        const counter = el('div', { class: 'char-counter' },
-          t('tabsAnuncios.plainTextCounter', { count: textMessage.length })
-        );
-
-        txtArea.oninput = () => {
-          textMessage = txtArea.value;
-          autoGrow(txtArea);
-          counter.textContent = t('tabsAnuncios.plainTextCounter', { count: textMessage.length });
-          counter.className = 'char-counter' + (textMessage.length > 2000 ? ' over' : '');
-          updatePreview();
-        };
-
-        contentEditorWrap.append(
-          formGroup(t('tabsAnuncios.plainTextLabel'), txtArea, counter)
-        );
-      } else if (contentMode === 'classic_embed') {
-        const s = embedState;
-
-        function boundInput(key, placeholder, isArea = false, maxL = null) {
-          const input = el(isArea ? 'textarea' : 'input', {
-            class: 'form-control' + (isArea ? ' autogrow' : ''),
-            placeholder,
-            maxlength: maxL ? String(maxL) : null,
-          });
-          input.value = s[key] || '';
-          input.oninput = () => {
-            s[key] = input.value;
-            if (isArea) autoGrow(input);
-            updatePreview();
-          };
-          return input;
-        }
-
-        // Templates bar
-        const templateBar = el('div', { class: 'template-action-bar' },
-          el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-xs',
-            onclick: async () => {
-              try {
-                const res = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`);
-                const templates = res.templates || [];
-                if (!templates.length) {
-                  toast(t('tabsAnuncios.noTemplates'), 'info');
-                  return;
-                }
-                const chosen = prompt(
-                  `Elige una plantilla:\n` + templates.map((t, idx) => `${idx + 1}. ${t.name}`).join('\n')
-                );
-                const idx = parseInt(chosen, 10) - 1;
-                if (!isNaN(idx) && templates[idx]) {
-                  const tmpl = templates[idx];
-                  const parsed = JSON.parse(tmpl.embed_json);
-                  const embeds = Array.isArray(parsed) ? parsed : (parsed.embeds || []);
-                  if (embeds.length) {
-                    Object.assign(s, embeds[0]);
-                    renderContentEditor();
-                    updatePreview();
-                    toast(t('tabsAnuncios.templateLoaded'), 'ok');
-                  }
-                }
-              } catch (e) {
-                toast(e.message || 'Error', 'err');
-              }
-            },
-          }, icon('layout'), t('tabsAnuncios.loadTemplate')),
-          el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-xs',
-            onclick: async () => {
-              const name = (prompt(t('tabsAnuncios.templatePrompt')) || '').trim();
-              if (!name) return;
-              try {
-                const rawDicts = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
-                await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, {
-                  method: 'POST',
-                  body: JSON.stringify({ name, embeds: rawDicts }),
-                });
-                toast(t('tabsAnuncios.templateSaved'), 'ok');
-              } catch (e) {
-                toast(e.message || 'Error', 'err');
-              }
-            },
-          }, icon('star'), t('tabsAnuncios.saveTemplate'))
-        );
-
-        // Sections
-        const contentSec = accordionGroup(t('tabsAnuncios.sectionContent'), true,
-          formGroup(t('tabsAnuncios.embedTitleLabel'), boundInput('title', 'Título del anuncio', false, EMBED_LIMITS.title)),
-          formGroup(t('tabsAnuncios.embedDescLabel'), boundInput('description', 'Descripción del anuncio…', true, EMBED_LIMITS.description))
-        );
-
-        const appearanceSec = accordionGroup(t('tabsAnuncios.sectionAppearance'), false,
-          formGroup(t('tabsAnuncios.embedColorLabel'), colorField(s, 'color', () => updatePreview()))
-        );
-
-        const imagesSec = accordionGroup(t('tabsAnuncios.sectionImages'), false,
-          formGroup(t('tabsAnuncios.embedThumbLabel'), imageField(s, 'thumbnail', () => updatePreview(), { gif: true })),
-          formGroup(t('tabsAnuncios.embedImageLabel'), imageField(s, 'image', () => updatePreview(), { gif: true }))
-        );
-
-        const authorSec = accordionGroup(t('tabsAnuncios.sectionAuthor'), false,
-          formGroup(t('tabsAnuncios.embedAuthorNameLabel'), boundInput('author_name', 'Autor del anuncio', false, EMBED_LIMITS.author)),
-          formGroup(t('tabsAnuncios.embedAuthorIconLabel'), imageField(s, 'author_icon_url', () => updatePreview()))
-        );
-
-        const footerSec = accordionGroup(t('tabsAnuncios.sectionFooter'), false,
-          formGroup(t('tabsAnuncios.embedFooterTextLabel'), boundInput('footer_text', 'Pie de página del anuncio', false, EMBED_LIMITS.footer)),
-          formGroup(t('tabsAnuncios.embedFooterIconLabel'), imageField(s, 'footer_icon_url', () => updatePreview()))
-        );
-
-        // Fields
-        const fieldsListWrap = el('div', { class: 'embed-fields-container' });
-        s.fields = s.fields || [];
-
-        function renderFields() {
-          fieldsListWrap.innerHTML = '';
-          s.fields.forEach((f, idx) => {
-            const fName = el('input', {
-              class: 'form-control',
-              placeholder: t('tabsAnuncios.fieldNamePlaceholder'),
-              value: f.name || '',
-              maxlength: String(EMBED_LIMITS.fieldName),
-            });
-            fName.oninput = () => { f.name = fName.value; updatePreview(); };
-
-            const fVal = el('input', {
-              class: 'form-control',
-              placeholder: t('tabsAnuncios.fieldValuePlaceholder'),
-              value: f.value || '',
-              maxlength: String(EMBED_LIMITS.fieldValue),
-            });
-            fVal.oninput = () => { f.value = fVal.value; updatePreview(); };
-
-            const inlineChk = el('input', {
-              type: 'checkbox',
-              checked: !!f.inline,
-              onchange: () => { f.inline = inlineChk.checked; updatePreview(); },
-            });
-
-            const delBtn = el('button', {
-              type: 'button',
-              class: 'btn btn-secondary btn-xs',
-              onclick: () => { s.fields.splice(idx, 1); renderFields(); updatePreview(); },
-            }, '✕');
-
-            const row = el('div', { class: 'embed-field-item' },
-              el('div', { class: 'field-inputs' }, fName, fVal),
-              el('div', { class: 'field-controls' },
-                el('label', { class: 'toggle toggle-xs' }, inlineChk, t('tabsAnuncios.fieldInlineLabel')),
-                delBtn
-              )
-            );
-            fieldsListWrap.append(row);
-          });
-        }
-
-        const addFieldBtn = el('button', {
-          type: 'button',
-          class: 'btn btn-secondary btn-sm',
-          onclick: () => {
-            if (s.fields.length >= EMBED_LIMITS.maxFields) {
-              toast(`Máximo ${EMBED_LIMITS.maxFields} campos`, 'warn');
-              return;
-            }
-            s.fields.push({ name: '', value: '', inline: false });
-            renderFields();
-            updatePreview();
-          },
-        }, t('tabsAnuncios.addFieldBtn'));
-
-        renderFields();
-        const fieldsSec = accordionGroup(t('tabsAnuncios.sectionFields'), false,
-          fieldsListWrap,
-          el('div', { style: 'margin-top: 10px;' }, addFieldBtn)
-        );
-
-        // Webhook Identity
-        const customUserInp = el('input', {
-          class: 'form-control',
-          placeholder: 'Nombre personalizado',
-          value: customUsername,
-        });
-        customUserInp.oninput = () => { customUsername = customUserInp.value; updatePreview(); };
-
-        const customAvatarInp = el('input', {
-          class: 'form-control',
-          placeholder: 'https://ejemplo.com/avatar.png',
-          value: customAvatarUrl,
-        });
-        customAvatarInp.oninput = () => { customAvatarUrl = customAvatarInp.value; updatePreview(); };
-
-        const identitySec = accordionGroup(t('tabsAnuncios.sectionIdentity'), false,
-          el('p', { class: 'dim form-hint', style: 'margin-top:0' }, t('tabsAnuncios.webhookHelp')),
-          formGroup(t('tabsAnuncios.webhookUsernameLabel'), customUserInp),
-          formGroup(t('tabsAnuncios.webhookAvatarLabel'), customAvatarInp)
-        );
-
-        contentEditorWrap.append(templateBar, contentSec, appearanceSec, imagesSec, authorSec, footerSec, fieldsSec, identitySec);
-      } else if (contentMode === 'layout_v2') {
-        const blocksList = el('div', { class: 'layout-blocks-list' });
-
-        function refreshLayoutBlocks() {
-          blocksList.innerHTML = '';
-          localLayoutDoc.blocks.forEach((b, idx) => {
-            const blockRow = el('div', { class: 'layout-block-card' },
-              el('div', { class: 'layout-block-head' },
-                el('strong', {}, `${b.type.toUpperCase()}`),
-                el('button', {
-                  type: 'button',
-                  class: 'btn btn-danger btn-xs',
-                  onclick: () => {
-                    localLayoutDoc.blocks.splice(idx, 1);
-                    refreshLayoutBlocks();
-                    updatePreview();
-                  },
-                }, '✕')
-              )
-            );
-
-            if (b.type === 'text') {
-              const ta = el('textarea', { class: 'form-control autogrow' });
-              ta.value = b.content || '';
-              ta.oninput = () => { b.content = ta.value; autoGrow(ta); updatePreview(); };
-              blockRow.append(ta);
-            } else if (b.type === 'section') {
-              const ta = el('textarea', { class: 'form-control autogrow' });
-              ta.value = (b.texts && b.texts[0]) || '';
-              ta.oninput = () => { b.texts = [ta.value]; autoGrow(ta); updatePreview(); };
-              blockRow.append(formGroup('Texto', ta));
-              if (b.accessory && b.accessory.type === 'button') {
-                const lbl = el('input', { class: 'form-control', value: b.accessory.label || '', placeholder: 'Etiqueta del botón' });
-                lbl.oninput = () => { b.accessory.label = lbl.value; updatePreview(); };
-                const url = el('input', { class: 'form-control', value: b.accessory.url || '', placeholder: 'https://...' });
-                url.oninput = () => { b.accessory.url = url.value; updatePreview(); };
-                blockRow.append(formGroup('Botón de enlace', el('div', { class: 'grid-2' }, lbl, url)));
-              }
-            } else if (b.type === 'action_row') {
-              const btnsWrap = el('div', { class: 'action-row-buttons' });
-              (b.buttons || []).forEach((btn) => {
-                const lbl = el('input', { class: 'form-control', value: btn.label || '', placeholder: 'Etiqueta' });
-                lbl.oninput = () => { btn.label = lbl.value; updatePreview(); };
-                const url = el('input', { class: 'form-control', value: btn.url || '', placeholder: 'https://...' });
-                url.oninput = () => { btn.url = url.value; updatePreview(); };
-                btnsWrap.append(el('div', { class: 'btn-row-item' }, lbl, url));
-              });
-              blockRow.append(btnsWrap);
-            }
-            blocksList.append(blockRow);
-          });
-        }
-
-        const addBlockBtns = el('div', { class: 'layout-add-btns' },
-          el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-sm',
-            onclick: () => { localLayoutDoc.blocks.push(newBlock('text')); refreshLayoutBlocks(); updatePreview(); },
-          }, '+ Texto'),
-          el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-sm',
-            onclick: () => {
-              const sec = newBlock('section');
-              sec.accessory = { type: 'button', style: 'link', label: 'Enlace', url: 'https://discord.com' };
-              localLayoutDoc.blocks.push(sec);
-              refreshLayoutBlocks();
-              updatePreview();
-            },
-          }, '+ Sección con Botón'),
-          el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-sm',
-            onclick: () => {
-              const row = newBlock('action_row');
-              localLayoutDoc.blocks.push(row);
-              refreshLayoutBlocks();
-              updatePreview();
-            },
-          }, '+ Fila de Botones')
-        );
-
-        if (!localLayoutDoc.blocks.length) {
-          localLayoutDoc.blocks.push({ type: 'text', content: 'Anuncio importante en el servidor' });
-        }
-
-        refreshLayoutBlocks();
-
-        const customUserInp = el('input', {
-          class: 'form-control',
-          placeholder: 'Nombre personalizado',
-          value: customUsername,
-        });
-        customUserInp.oninput = () => { customUsername = customUserInp.value; updatePreview(); };
-
-        const customAvatarInp = el('input', {
-          class: 'form-control',
-          placeholder: 'https://ejemplo.com/avatar.png',
-          value: customAvatarUrl,
-        });
-        customAvatarInp.oninput = () => { customAvatarUrl = customAvatarInp.value; updatePreview(); };
-
-        const identitySec = accordionGroup(t('tabsAnuncios.sectionIdentity'), false,
-          el('p', { class: 'dim form-hint', style: 'margin-top:0' }, t('tabsAnuncios.webhookHelp')),
-          formGroup(t('tabsAnuncios.webhookUsernameLabel'), customUserInp),
-          formGroup(t('tabsAnuncios.webhookAvatarLabel'), customAvatarInp)
-        );
-
-        contentEditorWrap.append(blocksList, addBlockBtns, identitySec);
-      }
-    }
-
-    renderContentModeSelector();
-    renderContentEditor();
-
-    const contentSecCard = el('div', { class: 'card anuncio-section-card' },
-      el('h3', { class: 'section-title' }, t('tabsAnuncios.secContent')),
-      formGroup(t('tabsAnuncios.contentModeLabel'), contentModePills),
-      contentEditorWrap
+    const charCounter = el('span', { class: 'char-counter' },
+      t('tabsAnuncios.messageCounter', { count: textMessage.length })
     );
 
-    // 3. OPCIONES AVANZADAS (Auto-delete)
+    function updateCounter() {
+      charCounter.textContent = t('tabsAnuncios.messageCounter', { count: textMessage.length });
+      charCounter.className = 'char-counter' + (textMessage.length > 2000 ? ' over' : '');
+    }
+
+    msgTxt.oninput = () => {
+      textMessage = msgTxt.value;
+      autoGrow(msgTxt);
+      updateCounter();
+      updatePreview();
+    };
+
+    // Modal de variables
+    function openVariablesModal(targetInput) {
+      const existingModal = document.getElementById('purg-variables-modal-backdrop');
+      if (existingModal) existingModal.remove();
+      const target = targetInput || msgTxt;
+
+      const searchInput = el('input', {
+        type: 'search',
+        class: 'form-control form-control-sm var-modal-search',
+        placeholder: t('tabsAnuncios.varsSearchPlaceholder'),
+        autofocus: true,
+      });
+      const chipsGrid = el('div', { class: 'var-modal-grid' });
+
+      function renderChips() {
+        chipsGrid.innerHTML = '';
+        const q = searchInput.value.toLowerCase().trim();
+        const filtered = availableVariables.filter(v =>
+          !q || v.name.toLowerCase().includes(q) || (v.description || '').toLowerCase().includes(q)
+        );
+        for (const v of filtered) {
+          const varTag = `{${v.name}}`;
+          chipsGrid.append(el('button', {
+            type: 'button',
+            class: 'var-chip-compact',
+            title: `${v.description || ''} (${t('tabsAnuncios.varExample')} ${v.example || ''})`,
+            onclick: () => {
+              if (target && typeof target.value === 'string') {
+                const start = target.selectionStart ?? target.value.length;
+                const end = target.selectionEnd ?? target.value.length;
+                target.value = target.value.slice(0, start) + varTag + target.value.slice(end);
+                target.selectionStart = target.selectionEnd = start + varTag.length;
+                if (typeof target.dispatchEvent === 'function' && typeof Event !== 'undefined') {
+                  try { target.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+                }
+                if (typeof target.oninput === 'function') {
+                  target.oninput();
+                }
+                target.focus();
+                toast(t('tabsAnuncios.varsInserted', { var: varTag }), 'ok');
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(varTag);
+                toast(t('tabsAnuncios.varsCopied', { var: varTag }), 'ok');
+              }
+              closeModal();
+            },
+          }, el('code', { class: 'var-tag' }, varTag), el('span', { class: 'var-desc' }, v.description || '')));
+        }
+      }
+      searchInput.oninput = renderChips;
+      renderChips();
+
+      function closeModal() {
+        document.removeEventListener('keydown', onKey);
+        backdrop.remove();
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') closeModal();
+      }
+      document.addEventListener('keydown', onKey);
+
+      const modalBox = el('div', { class: 'purg-variables-modal' },
+        el('div', { class: 'var-modal-header' },
+          el('div', { class: 'var-modal-title' }, icon('sparkle'), el('strong', {}, t('tabsAnuncios.varsTitle'))),
+          el('button', { type: 'button', class: 'modal-close-btn', onclick: closeModal }, '✕')
+        ),
+        el('p', { class: 'dim text-xs', style: 'margin:0 0 10px 0;' }, t('tabsAnuncios.varsSubtitle')),
+        searchInput, chipsGrid
+      );
+      const backdrop = el('div', {
+        id: 'purg-variables-modal-backdrop',
+        class: 'purg-modal-backdrop',
+        onclick: (e) => { if (e.target === backdrop) closeModal(); },
+      }, modalBox);
+      document.body.append(backdrop);
+      setTimeout(() => searchInput.focus(), 30);
+    }
+
+    const insertVarBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-secondary btn-xs btn-more-vars',
+      onclick: () => openVariablesModal(msgTxt),
+    }, icon('sparkle'), t('tabsAnuncios.insertVarBtn'));
+
+    const textareaBar = el('div', { class: 'event-textarea-bar' },
+      el('div', { class: 'event-textarea-bar-left' }, insertVarBtn),
+      charCounter
+    );
+
+    const messageBlock = el('div', { class: 'cfg-block anuncio-cfg-block' },
+      el('label', { class: 'cfg-field-label' }, icon('chat'), t('tabsAnuncios.messageLabel')),
+      msgTxt,
+      textareaBar
+    );
+
+    // ── D. Preview Compacto ──────────────────────────────────────────
+    const previewContainer = el('div', { class: 'anuncio-preview-box' });
+
+    function updatePreview() {
+      previewContainer.innerHTML = '';
+
+      const ch = channels.find(c => String(c.id) === String(selectedChannelId));
+      const channelName = ch ? '#' + ch.name : '#general';
+      const resolvedText = resolvePreviewText(textMessage || '', channelName);
+
+      const msgHeader = el('div', { class: 'd-msg-header' },
+        el('img', { src: '/assets/icon.png', alt: 'Purgito', class: 'd-msg-avatar' }),
+        el('div', { class: 'd-msg-meta' },
+          el('span', { class: 'd-msg-author' }, t('tabsAnuncios.previewHeader')),
+          el('span', { class: 'd-msg-bot' }, t('tabsAnuncios.previewBotTag')),
+          el('span', { class: 'd-msg-time' }, t('tabsAnuncios.previewToday'))
+        )
+      );
+
+      const msgBody = el('div', { class: 'd-msg-body' },
+        el('div', { class: 'd-msg-text' }, ...mdToNodes(resolvedText))
+      );
+
+      const discordCard = el('div', { class: 'd-message-card anuncio-discord-card' },
+        el('div', { class: 'd-message-top' },
+          el('div', { class: 'd-message-channel-tag' },
+            icon('chat'),
+            el('span', {}, channelName)
+          ),
+          el('span', { class: 'preview-badge dim' }, t('tabsAnuncios.previewTitle'))
+        ),
+        el('div', { class: 'd-message' }, msgHeader, msgBody)
+      );
+
+      previewContainer.append(discordCard);
+    }
+
+    // ── E. Opciones avanzadas (Auto-delete) ───────────────────────────
     const autoDeleteChk = el('input', {
       type: 'checkbox',
       checked: enableAutoDelete,
       onchange: () => {
         enableAutoDelete = autoDeleteChk.checked;
-        autoDeleteInputWrap.style.display = enableAutoDelete ? 'block' : 'none';
+        autoDeleteBody.style.display = enableAutoDelete ? 'block' : 'none';
       },
     });
 
@@ -1036,11 +753,11 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       type: 'number',
       min: '1',
       max: '86400',
-      class: 'form-control',
+      class: 'form-control anuncio-autodelete-input',
       value: String(autoDeleteSeconds),
     });
 
-    const autoDeleteHint = el('p', { class: 'dim text-sm' },
+    const autoDeleteHint = el('p', { class: 'dim text-sm', style: 'margin: 6px 0 0 0;' },
       t('tabsAnuncios.autoDeleteHint', { seconds: autoDeleteSeconds })
     );
 
@@ -1054,38 +771,60 @@ function renderAnunciosManager(container, initialData, channels, roles) {
     const autoDeleteChips = el('div', { class: 'preset-chips' },
       ...autoDeletePresets.map(s => el('button', {
         type: 'button',
-        class: 'category-tab-btn',
-        onclick: () => {
+        class: 'category-tab-btn' + (autoDeleteSeconds === s ? ' active' : ''),
+        onclick: (e) => {
           autoDeleteSeconds = s;
           autoDeleteSecsInp.value = String(s);
           autoDeleteHint.textContent = t('tabsAnuncios.autoDeleteHint', { seconds: s });
+          autoDeleteChips.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+          if (e && e.currentTarget) e.currentTarget.classList.add('active');
         },
       }, s >= 3600 ? `${s / 3600}h` : (s >= 60 ? `${s / 60}m` : `${s}s`)))
     );
 
-    const autoDeleteInputWrap = el('div', {
+    const autoDeleteBody = el('div', {
+      class: 'anuncio-autodelete-body',
       style: enableAutoDelete ? 'display:block; margin-top:10px;' : 'display:none; margin-top:10px;',
     },
-      formGroup(t('tabsAnuncios.autoDeleteSeconds'), autoDeleteSecsInp, autoDeleteChips, autoDeleteHint)
-    );
-
-    const advancedSecCard = el('div', { class: 'card anuncio-section-card' },
-      el('h3', { class: 'section-title' }, t('tabsAnuncios.secAdvanced')),
-      el('label', { class: 'toggle' },
-        autoDeleteChk,
-        el('span', { class: 'toggle-label' }, t('tabsAnuncios.autoDeleteLabel')),
-        helpIcon(t('tabsAnuncios.autoDeleteHelp'))
+      el('div', { class: 'anuncio-input-row' },
+        el('span', { class: 'anuncio-input-prefix' }, t('tabsAnuncios.autoDeleteAfter')),
+        autoDeleteSecsInp,
+        el('span', { class: 'anuncio-input-suffix' }, t('tabsAnuncios.autoDeleteSecondsUnit'))
       ),
-      autoDeleteInputWrap
+      autoDeleteChips,
+      autoDeleteHint
     );
 
-    // Actions Toolbar
+    const advancedAccordion = el('details', { class: 'event-advanced-accordion anuncio-advanced-details' },
+      el('summary', { class: 'event-advanced-summary' },
+        el('div', { class: 'event-advanced-summary-title' },
+          icon('sliders'),
+          el('strong', {}, t('tabsAnuncios.advancedOptions'))
+        ),
+        el('span', { class: 'dim text-xs' }, '▾')
+      ),
+      el('div', { class: 'event-advanced-body' },
+        el('label', { class: 'toggle toggle-sm' },
+          autoDeleteChk,
+          el('span', { class: 'toggle-label' }, t('tabsAnuncios.autoDeleteLabel'))
+        ),
+        autoDeleteBody
+      )
+    );
+
+    // ── F. Acciones ──────────────────────────────────────────────────
     const saveBtn = el('button', {
       type: 'button',
       class: 'btn btn-primary',
       onclick: async () => {
         if (!selectedChannelId) {
           toast(t('tabsAnuncios.noChannelSelected'), 'err');
+          return;
+        }
+
+        const cleanMsg = textMessage.trim();
+        if (!cleanMsg) {
+          toast(t('tabsAnuncios.emptyMessage'), 'err');
           return;
         }
 
@@ -1096,7 +835,7 @@ function renderAnunciosManager(container, initialData, channels, roles) {
           const payload = {
             channel_id: selectedChannelId,
             mode: scheduleMode,
-            content_mode: contentMode,
+            message: cleanMsg,
             delete_after_seconds: enableAutoDelete ? autoDeleteSeconds : null,
           };
 
@@ -1105,26 +844,6 @@ function renderAnunciosManager(container, initialData, channels, roles) {
           } else {
             payload.hour = dailyHour;
             payload.minute = dailyMinute;
-          }
-
-          const sendOpts = (customUsername.trim() || customAvatarUrl.trim())
-            ? { username: customUsername.trim(), avatar_url: customAvatarUrl.trim() }
-            : null;
-
-          if (contentMode === 'plain_text') {
-            if (!textMessage.trim()) {
-              toast(t('tabsAnuncios.emptyContent'), 'err');
-              saveBtn.disabled = false;
-              saveBtn.textContent = t('tabsAnuncios.saveBtn');
-              return;
-            }
-            payload.message = textMessage.trim();
-          } else if (contentMode === 'classic_embed') {
-            payload.embeds = localEmbedDoc.embeds.map(embedDict).filter(d => Object.keys(d).length);
-            if (sendOpts) payload.send_options = sendOpts;
-          } else if (contentMode === 'layout_v2') {
-            payload.layout = { blocks: localLayoutDoc.blocks };
-            if (sendOpts) payload.send_options = sendOpts;
           }
 
           if (isEditing) {
@@ -1171,16 +890,19 @@ function renderAnunciosManager(container, initialData, channels, roles) {
       el('div', { class: 'left-actions' }, saveBtn, cancelBtn)
     );
 
-    editorPane.append(whereWhenSec, contentSecCard, advancedSecCard, actionsRow);
+    // Assembly Form
+    const editorCard = el('div', { class: 'card anuncio-editor-card' },
+      channelBlock,
+      scheduleBlock,
+      messageBlock,
+      previewContainer,
+      advancedAccordion,
+      actionsRow
+    );
 
     updatePreview();
 
-    const workspaceGrid = el('div', { class: 'anuncio-workspace-grid' },
-      editorPane,
-      el('div', { class: 'anuncio-preview-pane-wrap' }, previewPane)
-    );
-
-    shellWrap.append(header, workspaceGrid);
+    shellWrap.append(header, editorCard);
   }
 
   refresh();

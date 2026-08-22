@@ -22,6 +22,8 @@ from db import (
 )
 from layout_v2 import build_layout_view
 from message_options import send_kwargs, wants_custom_identity
+from placeholders import build_announcement_context, resolve_placeholders
+from i18n import guild_locale
 from webhook_identity import send_via_webhook
 
 log = logging.getLogger(__name__)
@@ -118,7 +120,15 @@ class Anuncios(commands.Cog):
                     else:
                         msg = await channel.send(embeds=embeds, **delete_kwarg, **extra)
                 else:
-                    msg = await channel.send(item["message"], **delete_kwarg)
+                    locale = await guild_locale(item["guild_id"])
+                    ctx = build_announcement_context(
+                        channel.guild, channel=channel, locale=locale
+                    )
+                    raw_msg = item.get("message") or ""
+                    final_msg = resolve_placeholders(raw_msg, ctx)
+                    if not final_msg.strip():
+                        return
+                    msg = await channel.send(final_msg, **delete_kwarg)
             except Exception:
                 log.exception("Error enviando anuncio programado %s", item["id"])
                 return
