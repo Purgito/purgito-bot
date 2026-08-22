@@ -1535,6 +1535,46 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(contentText, /Editar/);
   assert.match(contentText, /Eliminar/);
 
+  // Test with long multi-line message (simulating the user's scenario)
+  const longMsgData = {
+    announcements: [
+      {
+        id: 2,
+        channel_id: null,
+        message: '¡Buenos días Penitentes!\nQue el alba os depare ventura y que vuestras plegarias sean escuchadas en esta jornada de penitencia y devoción interminable...',
+        mode: 'daily',
+        hour: 8,
+        minute: 0,
+        last_sent_at: '2026-08-21 12:00:34',
+        content_mode: 'classic_embed',
+        embed_json: JSON.stringify({ embeds: [{ title: '¡Buenos días Penitentes! Que el alba os depare ventura y que vuestras plegarias sean escuchadas en esta jornada de penitencia y devoción...' }] }),
+        delete_after_seconds: null,
+      },
+    ],
+    count: 1,
+    max: 3,
+    is_premium: false,
+  };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/server/123456789/anuncios')) return jsonResp(longMsgData);
+      if (url.includes('/api/server/123456789/channels')) return jsonResp(mockChannels);
+      if (url.includes('/api/server/123456789/roles')) return jsonResp(mockRoles);
+      return jsonResp({});
+    },
+  ];
+
+  await loadAnunciosTab();
+  await new Promise(r => setTimeout(r, 50));
+
+  const longContentText = elementsById.catContent.text();
+  assert.match(longContentText, /¡Buenos días Penitentes!/);
+  assert.match(longContentText, /Canal no disponible/);
+  assert.match(longContentText, /Todos los días · 08:00/);
+  assert.match(longContentText, /2026-08-21 12:00:34/);
+  assert.match(longContentText, /Embed clásico/);
+
   console.log('✓ Test 32: Módulo de Gestión de Anuncios Programados verificado');
 }
 

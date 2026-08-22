@@ -308,6 +308,16 @@ textarea { width: 100%; min-height: 70px; resize: vertical; }
   border-color: color-mix(in srgb, var(--text-muted) 35%, transparent);
   color: var(--text-muted);
 }
+.badge-ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  color: var(--success);
+}
+.badge-warn {
+  background: color-mix(in srgb, var(--premium) 14%, transparent);
+  border-color: color-mix(in srgb, var(--premium) 35%, transparent);
+  color: var(--premium);
+}
 
 /* ---------- Iconos de interfaz ---------- */
 
@@ -6001,17 +6011,25 @@ h1 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+  width: 100%;
 }
 
 .anuncio-manage-card {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  text-align: left;
   gap: 14px;
   padding: 18px 20px;
   background: var(--surface-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  transition: all 0.2s ease;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  transition: border-color var(--transition), transform var(--dur-fast) var(--ease);
 }
 
 .anuncio-manage-card:hover {
@@ -6021,16 +6039,22 @@ h1 {
 
 .anuncio-card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .anuncio-card-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex: 1 1 0%;
   min-width: 0;
+  overflow: hidden;
 }
 
 .anuncio-type-icon {
@@ -6039,19 +6063,27 @@ h1 {
   justify-content: center;
   color: var(--accent);
   flex-shrink: 0;
+  width: 20px;
+  height: 20px;
 }
 
 .anuncio-type-icon svg {
   width: 18px;
   height: 18px;
+  display: block;
 }
 
 .anuncio-title-text {
   font-size: 15px;
-  color: var(--text-main);
+  font-weight: 600;
+  color: var(--text-main, var(--text));
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
 }
 
 .anuncio-card-badges {
@@ -6059,12 +6091,20 @@ h1 {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.anuncio-card-badges .badge {
+  margin-left: 0;
+  flex-shrink: 0;
 }
 
 .anuncio-card-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .anuncio-meta-row {
@@ -6072,6 +6112,8 @@ h1 {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .meta-item {
@@ -6109,6 +6151,8 @@ h1 {
   padding-top: 12px;
   border-top: 1px solid var(--border);
   margin-top: auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Anuncio Editor 2-Col Layout */

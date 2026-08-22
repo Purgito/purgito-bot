@@ -329,10 +329,16 @@ function renderAnunciosManager(container, initialData, channels, roles) {
         cadenceText = t('tabsAnuncios.cadenceDaily', { time: `${hh}:${mm}` });
       }
 
-      // Mode label
+      // Mode label & icon
       let modeLabel = t('tabsAnuncios.modePlainText');
-      if (ann.content_mode === 'classic_embed') modeLabel = t('tabsAnuncios.modeClassicEmbed');
-      else if (ann.content_mode === 'layout_v2') modeLabel = t('tabsAnuncios.modeLayoutV2');
+      let typeIconName = 'chat';
+      if (ann.content_mode === 'classic_embed') {
+        modeLabel = t('tabsAnuncios.modeClassicEmbed');
+        typeIconName = 'layout';
+      } else if (ann.content_mode === 'layout_v2') {
+        modeLabel = t('tabsAnuncios.modeLayoutV2');
+        typeIconName = 'sparkle';
+      }
 
       // Title or snippet
       let titleSnippet = ann.message || '';
@@ -343,17 +349,23 @@ function renderAnunciosManager(container, initialData, channels, roles) {
             titleSnippet = parsed[0].title;
           } else if (parsed && parsed.embeds && parsed.embeds[0] && parsed.embeds[0].title) {
             titleSnippet = parsed.embeds[0].title;
+          } else if (parsed && parsed.embeds && parsed.embeds[0] && parsed.embeds[0].description) {
+            titleSnippet = parsed.embeds[0].description;
+          } else if (parsed && Array.isArray(parsed.blocks) && parsed.blocks[0]) {
+            const b = parsed.blocks[0];
+            titleSnippet = b.title || b.content || b.text || '';
           }
         } catch (e) {
           // ignore
         }
       }
       if (!titleSnippet) titleSnippet = `Anuncio #${ann.id}`;
+      titleSnippet = titleSnippet.replace(/\s+/g, ' ').trim();
 
       const card = el('div', { class: 'anuncio-manage-card card' },
         el('div', { class: 'anuncio-card-header' },
-          el('div', { class: 'anuncio-card-title' },
-            el('span', { class: 'anuncio-type-icon' }, icon('layout')),
+          el('div', { class: 'anuncio-card-title', title: titleSnippet },
+            el('span', { class: 'anuncio-type-icon' }, icon(typeIconName)),
             el('strong', { class: 'anuncio-title-text' }, titleSnippet)
           ),
           el('div', { class: 'anuncio-card-badges' },
