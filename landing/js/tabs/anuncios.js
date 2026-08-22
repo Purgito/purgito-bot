@@ -38,16 +38,19 @@ addStrings({
     'tabsAnuncios.backToList': '← Volver a la lista de anuncios',
     'tabsAnuncios.createTitle': 'Nuevo anuncio programado',
     'tabsAnuncios.editTitle': 'Editar anuncio',
+    'tabsAnuncios.sectionSchedule': 'Programación',
     'tabsAnuncios.channelLabel': 'Canal de destino',
     'tabsAnuncios.channelSelectPlaceholder': 'Elige un canal…',
+    'tabsAnuncios.sendLabel': 'Enviar',
     'tabsAnuncios.cadenceLabel': 'Tipo de programación',
     'tabsAnuncios.modeInterval': 'Cada cierto tiempo',
     'tabsAnuncios.modeDaily': 'A una hora fija',
-    'tabsAnuncios.intervalInputLabel': 'Enviar cada',
+    'tabsAnuncios.intervalInputLabel': 'Cada',
     'tabsAnuncios.intervalMinutesUnit': 'minutos',
     'tabsAnuncios.intervalHint': 'Se enviará cada {minutes} minutos.',
-    'tabsAnuncios.timeInputLabel': 'Enviar todos los días a las',
+    'tabsAnuncios.timeInputLabel': 'Todos los días a las',
     'tabsAnuncios.timeHint': 'Se enviará todos los días a las {time}.',
+    'tabsAnuncios.sectionMessage': 'Mensaje',
     'tabsAnuncios.messageLabel': 'Mensaje',
     'tabsAnuncios.messagePlaceholder': 'Escribe el mensaje que Purgito publicará automáticamente…',
     'tabsAnuncios.messageCounter': '{count} / 2000',
@@ -58,11 +61,13 @@ addStrings({
     'tabsAnuncios.varExample': 'Ejemplo:',
     'tabsAnuncios.varsCopied': 'Variable {var} copiada al portapapeles',
     'tabsAnuncios.varsInserted': 'Variable {var} insertada',
+    'tabsAnuncios.sectionPreview': 'Vista previa',
     'tabsAnuncios.previewTitle': 'Vista previa',
     'tabsAnuncios.previewHeader': 'Purgito',
     'tabsAnuncios.previewBotTag': 'BOT',
     'tabsAnuncios.previewToday': 'HOY',
-    'tabsAnuncios.advancedOptions': 'Opciones avanzadas',
+    'tabsAnuncios.sectionOptions': 'Opciones',
+    'tabsAnuncios.advancedOptions': 'Opciones',
     'tabsAnuncios.autoDeleteLabel': 'Auto-borrar el mensaje',
     'tabsAnuncios.autoDeleteAfter': 'Después de',
     'tabsAnuncios.autoDeleteSecondsUnit': 'segundos',
@@ -101,16 +106,19 @@ addStrings({
     'tabsAnuncios.backToList': '← Back to announcements list',
     'tabsAnuncios.createTitle': 'New scheduled announcement',
     'tabsAnuncios.editTitle': 'Edit announcement',
+    'tabsAnuncios.sectionSchedule': 'Schedule',
     'tabsAnuncios.channelLabel': 'Destination channel',
     'tabsAnuncios.channelSelectPlaceholder': 'Choose a channel…',
+    'tabsAnuncios.sendLabel': 'Send',
     'tabsAnuncios.cadenceLabel': 'Schedule type',
     'tabsAnuncios.modeInterval': 'Every interval',
     'tabsAnuncios.modeDaily': 'Daily at a fixed time',
-    'tabsAnuncios.intervalInputLabel': 'Send every',
+    'tabsAnuncios.intervalInputLabel': 'Every',
     'tabsAnuncios.intervalMinutesUnit': 'minutes',
     'tabsAnuncios.intervalHint': 'Will be sent every {minutes} minutes.',
-    'tabsAnuncios.timeInputLabel': 'Send every day at',
+    'tabsAnuncios.timeInputLabel': 'Every day at',
     'tabsAnuncios.timeHint': 'Will be sent every day at {time}.',
+    'tabsAnuncios.sectionMessage': 'Message',
     'tabsAnuncios.messageLabel': 'Message',
     'tabsAnuncios.messagePlaceholder': 'Write the message that Purgito will automatically publish…',
     'tabsAnuncios.messageCounter': '{count} / 2000',
@@ -121,11 +129,13 @@ addStrings({
     'tabsAnuncios.varExample': 'Example:',
     'tabsAnuncios.varsCopied': 'Variable {var} copied to clipboard',
     'tabsAnuncios.varsInserted': 'Variable {var} inserted',
+    'tabsAnuncios.sectionPreview': 'Preview',
     'tabsAnuncios.previewTitle': 'Preview',
     'tabsAnuncios.previewHeader': 'Purgito',
     'tabsAnuncios.previewBotTag': 'BOT',
     'tabsAnuncios.previewToday': 'TODAY',
-    'tabsAnuncios.advancedOptions': 'Advanced options',
+    'tabsAnuncios.sectionOptions': 'Options',
+    'tabsAnuncios.advancedOptions': 'Options',
     'tabsAnuncios.autoDeleteLabel': 'Auto-delete message',
     'tabsAnuncios.autoDeleteAfter': 'After',
     'tabsAnuncios.autoDeleteSecondsUnit': 'seconds',
@@ -455,7 +465,7 @@ function renderAnunciosManager(container, initialData, channels) {
       )
     );
 
-    // ── A. Destino (Canal) ───────────────────────────────────────────
+    // ── 1. Sección: Programación (Canal + Cuándo agrupados sin divisores) ──
     const channelSel = channelSelect(channels, selectedChannelId, t('tabsAnuncios.channelSelectPlaceholder'));
     const channelWarning = el('p', {
       class: 'form-error-msg',
@@ -473,13 +483,12 @@ function renderAnunciosManager(container, initialData, channels) {
     };
     checkChannelPerms();
 
-    const channelBlock = el('div', { class: 'cfg-block anuncio-cfg-block' },
-      el('label', { class: 'cfg-field-label' }, icon('chat'), t('tabsAnuncios.channelLabel')),
+    const channelGroup = el('div', { class: 'anuncio-field-group' },
+      el('label', { class: 'anuncio-field-label' }, t('tabsAnuncios.channelLabel')),
       channelSel,
       channelWarning
     );
 
-    // ── B. Programación ──────────────────────────────────────────────
     const intervalPill = el('button', {
       type: 'button',
       class: 'mode-pill' + (scheduleMode === 'interval' ? ' active' : ''),
@@ -513,30 +522,38 @@ function renderAnunciosManager(container, initialData, channels) {
           class: 'form-control anuncio-interval-input',
           value: String(intervalMinutes),
         });
-        const hint = el('p', { class: 'dim text-sm', style: 'margin: 6px 0 0 0;' },
+        const hint = el('p', { class: 'dim text-sm anuncio-field-hint' },
           t('tabsAnuncios.intervalHint', { minutes: intervalMinutes })
         );
+
+        const presets = [15, 30, 60, 120, 360, 720, 1440];
+        const presetChips = el('div', { class: 'preset-chips' });
+
+        function updateChipsActive() {
+          presetChips.querySelectorAll('button').forEach((btn, idx) => {
+            btn.classList.toggle('active', presets[idx] === intervalMinutes);
+          });
+        }
+
+        presets.forEach(m => {
+          presetChips.append(el('button', {
+            type: 'button',
+            class: 'category-tab-btn' + (intervalMinutes === m ? ' active' : ''),
+            onclick: () => {
+              intervalMinutes = m;
+              intervalInp.value = String(m);
+              hint.textContent = t('tabsAnuncios.intervalHint', { minutes: m });
+              updateChipsActive();
+            },
+          }, m >= 60 ? `${m / 60}h` : `${m}m`));
+        });
 
         intervalInp.oninput = () => {
           const val = parseInt(intervalInp.value, 10);
           if (!isNaN(val)) intervalMinutes = val;
           hint.textContent = t('tabsAnuncios.intervalHint', { minutes: intervalMinutes });
+          updateChipsActive();
         };
-
-        const presets = [15, 30, 60, 120, 360, 720, 1440];
-        const presetChips = el('div', { class: 'preset-chips' },
-          ...presets.map(m => el('button', {
-            type: 'button',
-            class: 'category-tab-btn' + (intervalMinutes === m ? ' active' : ''),
-            onclick: (e) => {
-              intervalMinutes = m;
-              intervalInp.value = String(m);
-              hint.textContent = t('tabsAnuncios.intervalHint', { minutes: m });
-              presetChips.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-              if (e && e.currentTarget) e.currentTarget.classList.add('active');
-            },
-          }, m >= 60 ? `${m / 60}h` : `${m}m`))
-        );
 
         const inputRow = el('div', { class: 'anuncio-input-row' },
           el('span', { class: 'anuncio-input-prefix' }, t('tabsAnuncios.intervalInputLabel')),
@@ -553,7 +570,7 @@ function renderAnunciosManager(container, initialData, channels) {
           class: 'form-control anuncio-time-input',
           value: `${hh}:${mm}`,
         });
-        const hint = el('p', { class: 'dim text-sm', style: 'margin: 6px 0 0 0;' },
+        const hint = el('p', { class: 'dim text-sm anuncio-field-hint' },
           t('tabsAnuncios.timeHint', { time: `${hh}:${mm}` })
         );
 
@@ -577,17 +594,27 @@ function renderAnunciosManager(container, initialData, channels) {
 
     refreshScheduleControls();
 
-    const scheduleBlock = el('div', { class: 'cfg-block anuncio-cfg-block' },
-      el('label', { class: 'cfg-field-label' }, icon('history'), t('tabsAnuncios.cadenceLabel')),
+    const sendGroup = el('div', { class: 'anuncio-field-group' },
+      el('label', { class: 'anuncio-field-label' }, t('tabsAnuncios.sendLabel')),
       el('div', { class: 'event-mode-pills' }, intervalPill, dailyPill),
       scheduleControlsWrap
     );
 
-    // ── C. Mensaje ───────────────────────────────────────────────────
+    const scheduleSection = el('div', { class: 'anuncio-section' },
+      el('div', { class: 'anuncio-section-header' },
+        el('span', { class: 'anuncio-section-title' }, icon('clock'), t('tabsAnuncios.sectionSchedule'))
+      ),
+      el('div', { class: 'anuncio-section-fields' },
+        channelGroup,
+        sendGroup
+      )
+    );
+
+    // ── 2. Sección: Mensaje (Elemento dominante, amplio y cómodo) ─────
     const msgTxt = el('textarea', {
-      class: 'form-control autogrow event-message-textarea anuncio-textarea',
-      rows: 4,
+      class: 'form-control autogrow anuncio-textarea',
       placeholder: t('tabsAnuncios.messagePlaceholder'),
+      spellcheck: 'false',
     });
     msgTxt.value = textMessage;
 
@@ -691,63 +718,38 @@ function renderAnunciosManager(container, initialData, channels) {
       onclick: () => openVariablesModal(msgTxt),
     }, icon('sparkle'), t('tabsAnuncios.insertVarBtn'));
 
-    const textareaBar = el('div', { class: 'event-textarea-bar' },
-      el('div', { class: 'event-textarea-bar-left' }, insertVarBtn),
+    const textareaBar = el('div', { class: 'anuncio-textarea-bottom-bar' },
+      insertVarBtn,
       charCounter
     );
 
-    const messageBlock = el('div', { class: 'cfg-block anuncio-cfg-block' },
-      el('label', { class: 'cfg-field-label' }, icon('chat'), t('tabsAnuncios.messageLabel')),
-      msgTxt,
-      textareaBar
+    const messageSection = el('div', { class: 'anuncio-section' },
+      el('div', { class: 'anuncio-section-header' },
+        el('span', { class: 'anuncio-section-title' }, icon('chat'), t('tabsAnuncios.sectionMessage'))
+      ),
+      el('div', { class: 'anuncio-textarea-wrap' },
+        msgTxt,
+        textareaBar
+      )
     );
 
-    // ── D. Preview Compacto ──────────────────────────────────────────
-    const previewContainer = el('div', { class: 'anuncio-preview-box' });
-
-    function updatePreview() {
-      previewContainer.innerHTML = '';
-
-      const ch = channels.find(c => String(c.id) === String(selectedChannelId));
-      const channelName = ch ? '#' + ch.name : '#general';
-      const resolvedText = resolvePreviewText(textMessage || '', channelName);
-
-      const msgHeader = el('div', { class: 'd-msg-header' },
-        el('img', { src: '/assets/icon.png', alt: 'Purgito', class: 'd-msg-avatar' }),
-        el('div', { class: 'd-msg-meta' },
-          el('span', { class: 'd-msg-author' }, t('tabsAnuncios.previewHeader')),
-          el('span', { class: 'd-msg-bot' }, t('tabsAnuncios.previewBotTag')),
-          el('span', { class: 'd-msg-time' }, t('tabsAnuncios.previewToday'))
-        )
-      );
-
-      const msgBody = el('div', { class: 'd-msg-body' },
-        el('div', { class: 'd-msg-text' }, ...mdToNodes(resolvedText))
-      );
-
-      const discordCard = el('div', { class: 'd-message-card anuncio-discord-card' },
-        el('div', { class: 'd-message-top' },
-          el('div', { class: 'd-message-channel-tag' },
-            icon('chat'),
-            el('span', {}, channelName)
-          ),
-          el('span', { class: 'preview-badge dim' }, t('tabsAnuncios.previewTitle'))
-        ),
-        el('div', { class: 'd-message' }, msgHeader, msgBody)
-      );
-
-      previewContainer.append(discordCard);
-    }
-
-    // ── E. Opciones avanzadas (Auto-delete) ───────────────────────────
-    const autoDeleteChk = el('input', {
+    // ── 3. Sección: Opciones (Switch deslizante visible directamente) ──
+    const autoDeleteToggleInput = el('input', {
       type: 'checkbox',
       checked: enableAutoDelete,
       onchange: () => {
-        enableAutoDelete = autoDeleteChk.checked;
-        autoDeleteBody.style.display = enableAutoDelete ? 'block' : 'none';
+        enableAutoDelete = autoDeleteToggleInput.checked;
+        updateAutoDeleteVisibility();
       },
     });
+
+    const autoDeleteSwitch = el('label', {
+      class: 'switch-toggle',
+      'aria-label': t('tabsAnuncios.autoDeleteLabel'),
+    },
+      autoDeleteToggleInput,
+      el('span', { class: 'switch-slider' })
+    );
 
     const autoDeleteSecsInp = el('input', {
       type: 'number',
@@ -757,34 +759,41 @@ function renderAnunciosManager(container, initialData, channels) {
       value: String(autoDeleteSeconds),
     });
 
-    const autoDeleteHint = el('p', { class: 'dim text-sm', style: 'margin: 6px 0 0 0;' },
+    const autoDeleteHint = el('p', { class: 'dim text-sm anuncio-field-hint' },
       t('tabsAnuncios.autoDeleteHint', { seconds: autoDeleteSeconds })
     );
+
+    const autoDeletePresets = [30, 60, 300, 600, 3600, 86400];
+    const autoDeleteChips = el('div', { class: 'preset-chips' });
+
+    function updateAutoDeleteChips() {
+      autoDeleteChips.querySelectorAll('button').forEach((btn, idx) => {
+        btn.classList.toggle('active', autoDeletePresets[idx] === autoDeleteSeconds);
+      });
+    }
+
+    autoDeletePresets.forEach(s => {
+      autoDeleteChips.append(el('button', {
+        type: 'button',
+        class: 'category-tab-btn' + (autoDeleteSeconds === s ? ' active' : ''),
+        onclick: () => {
+          autoDeleteSeconds = s;
+          autoDeleteSecsInp.value = String(s);
+          autoDeleteHint.textContent = t('tabsAnuncios.autoDeleteHint', { seconds: s });
+          updateAutoDeleteChips();
+        },
+      }, s >= 3600 ? `${s / 3600}h` : (s >= 60 ? `${s / 60}m` : `${s}s`)));
+    });
 
     autoDeleteSecsInp.oninput = () => {
       const val = parseInt(autoDeleteSecsInp.value, 10);
       if (!isNaN(val)) autoDeleteSeconds = val;
       autoDeleteHint.textContent = t('tabsAnuncios.autoDeleteHint', { seconds: autoDeleteSeconds });
+      updateAutoDeleteChips();
     };
 
-    const autoDeletePresets = [30, 60, 300, 600, 3600, 86400];
-    const autoDeleteChips = el('div', { class: 'preset-chips' },
-      ...autoDeletePresets.map(s => el('button', {
-        type: 'button',
-        class: 'category-tab-btn' + (autoDeleteSeconds === s ? ' active' : ''),
-        onclick: (e) => {
-          autoDeleteSeconds = s;
-          autoDeleteSecsInp.value = String(s);
-          autoDeleteHint.textContent = t('tabsAnuncios.autoDeleteHint', { seconds: s });
-          autoDeleteChips.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-          if (e && e.currentTarget) e.currentTarget.classList.add('active');
-        },
-      }, s >= 3600 ? `${s / 3600}h` : (s >= 60 ? `${s / 60}m` : `${s}s`)))
-    );
-
-    const autoDeleteBody = el('div', {
-      class: 'anuncio-autodelete-body',
-      style: enableAutoDelete ? 'display:block; margin-top:10px;' : 'display:none; margin-top:10px;',
+    const autoDeleteExpand = el('div', {
+      class: 'anuncio-autodelete-expand' + (enableAutoDelete ? ' is-visible' : ''),
     },
       el('div', { class: 'anuncio-input-row' },
         el('span', { class: 'anuncio-input-prefix' }, t('tabsAnuncios.autoDeleteAfter')),
@@ -795,24 +804,28 @@ function renderAnunciosManager(container, initialData, channels) {
       autoDeleteHint
     );
 
-    const advancedAccordion = el('details', { class: 'event-advanced-accordion anuncio-advanced-details' },
-      el('summary', { class: 'event-advanced-summary' },
-        el('div', { class: 'event-advanced-summary-title' },
-          icon('sliders'),
-          el('strong', {}, t('tabsAnuncios.advancedOptions'))
-        ),
-        el('span', { class: 'dim text-xs' }, '▾')
+    function updateAutoDeleteVisibility() {
+      if (enableAutoDelete) {
+        autoDeleteExpand.classList.add('is-visible');
+      } else {
+        autoDeleteExpand.classList.remove('is-visible');
+      }
+    }
+
+    const optionsSection = el('div', { class: 'anuncio-section' },
+      el('div', { class: 'anuncio-section-header' },
+        el('span', { class: 'anuncio-section-title' }, icon('sliders'), t('tabsAnuncios.sectionOptions'))
       ),
-      el('div', { class: 'event-advanced-body' },
-        el('label', { class: 'toggle toggle-sm' },
-          autoDeleteChk,
-          el('span', { class: 'toggle-label' }, t('tabsAnuncios.autoDeleteLabel'))
+      el('div', { class: 'anuncio-options-content' },
+        el('div', { class: 'anuncio-switch-row' },
+          el('span', { class: 'anuncio-switch-label' }, t('tabsAnuncios.autoDeleteLabel')),
+          autoDeleteSwitch
         ),
-        autoDeleteBody
+        autoDeleteExpand
       )
     );
 
-    // ── F. Acciones ──────────────────────────────────────────────────
+    // ── 4. Acciones (Guardar / Cancelar) ─────────────────────────────
     const saveBtn = el('button', {
       type: 'button',
       class: 'btn btn-primary',
@@ -886,23 +899,81 @@ function renderAnunciosManager(container, initialData, channels) {
       },
     }, t('tabsAnuncios.cancelBtn'));
 
-    const actionsRow = el('div', { class: 'event-actions-bar' },
-      el('div', { class: 'left-actions' }, saveBtn, cancelBtn)
+    const actionsBar = el('div', { class: 'anuncio-actions-bar' },
+      saveBtn,
+      cancelBtn
     );
 
-    // Assembly Form
-    const editorCard = el('div', { class: 'card anuncio-editor-card' },
-      channelBlock,
-      scheduleBlock,
-      messageBlock,
-      previewContainer,
-      advancedAccordion,
-      actionsRow
+    // ── 5. Vista Previa (Columna derecha sticky en desktop) ──────────
+    const previewContainer = el('div', { class: 'anuncio-preview-box' });
+
+    function updatePreview() {
+      previewContainer.innerHTML = '';
+
+      const ch = channels.find(c => String(c.id) === String(selectedChannelId));
+      const channelName = ch ? '#' + ch.name : '#general';
+      const resolvedText = resolvePreviewText(textMessage || '', channelName);
+
+      const msgHeader = el('div', { class: 'd-msg-header' },
+        el('img', { src: '/assets/icon.png', alt: 'Purgito', class: 'd-msg-avatar' }),
+        el('div', { class: 'd-msg-meta' },
+          el('span', { class: 'd-msg-author' }, t('tabsAnuncios.previewHeader')),
+          el('span', { class: 'd-msg-bot' }, t('tabsAnuncios.previewBotTag')),
+          el('span', { class: 'd-msg-time' }, t('tabsAnuncios.previewToday'))
+        )
+      );
+
+      const msgBodyNodes = resolvedText
+        ? mdToNodes(resolvedText)
+        : [el('span', { class: 'd-msg-placeholder' }, t('tabsAnuncios.messagePlaceholder'))];
+
+      const msgBody = el('div', { class: 'd-msg-body' },
+        el('div', { class: 'd-msg-text' }, ...msgBodyNodes)
+      );
+
+      const discordCard = el('div', { class: 'd-message-card anuncio-discord-card' },
+        el('div', { class: 'd-message-top' },
+          el('div', { class: 'd-message-channel-tag' },
+            icon('chat'),
+            el('span', {}, channelName)
+          ),
+          el('span', { class: 'preview-badge dim' }, t('tabsAnuncios.previewTitle'))
+        ),
+        el('div', { class: 'd-message' }, msgHeader, msgBody)
+      );
+
+      previewContainer.append(discordCard);
+    }
+
+    const previewCol = el('div', { class: 'anuncio-preview-col' },
+      el('div', { class: 'anuncio-preview-sticky' },
+        el('div', { class: 'anuncio-section-header' },
+          el('span', { class: 'anuncio-section-title' }, icon('layout'), t('tabsAnuncios.sectionPreview'))
+        ),
+        previewContainer
+      )
+    );
+
+    // ── 6. Montaje del layout de 2 columnas ──────────────────────────
+    const formCol = el('div', { class: 'anuncio-form-col card' },
+      scheduleSection,
+      messageSection,
+      optionsSection,
+      actionsBar
+    );
+
+    const editorLayout = el('div', { class: 'anuncio-editor-layout' },
+      formCol,
+      previewCol
     );
 
     updatePreview();
+    updateCounter();
 
-    shellWrap.append(header, editorCard);
+    shellWrap.append(header, editorLayout);
+    setTimeout(() => {
+      autoGrow(msgTxt);
+    }, 0);
   }
 
   refresh();

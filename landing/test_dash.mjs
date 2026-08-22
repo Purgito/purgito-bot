@@ -1608,8 +1608,9 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
 
   const editorText = elementsById.catContent.text();
   assert.match(editorText, /Nuevo anuncio programado/);
+  assert.match(editorText, /Programación/);
   assert.match(editorText, /Canal de destino/);
-  assert.match(editorText, /Tipo de programación/);
+  assert.match(editorText, /Enviar/);
   assert.match(editorText, /Cada cierto tiempo/);
   assert.match(editorText, /A una hora fija/);
   assert.match(editorText, /Mensaje/);
@@ -1618,9 +1619,22 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(editorText, /Purgito/);
   assert.match(editorText, /BOT/);
   assert.match(editorText, /HOY/);
-  assert.match(editorText, /Opciones avanzadas/);
+  assert.match(editorText, /Opciones/);
+  assert.match(editorText, /Auto-borrar el mensaje/);
   assert.match(editorText, /Guardar anuncio/);
   assert.match(editorText, /Cancelar/);
+
+  // Verificar layout de dos columnas y switch deslizante
+  const layout = elementsById.catContent.querySelector('.anuncio-editor-layout');
+  assert.ok(layout, 'Debe existir el contenedor del layout de 2 columnas (.anuncio-editor-layout)');
+  const formCol = elementsById.catContent.querySelector('.anuncio-form-col');
+  assert.ok(formCol, 'Debe existir la columna principal del formulario (.anuncio-form-col)');
+  const previewCol = elementsById.catContent.querySelector('.anuncio-preview-col');
+  assert.ok(previewCol, 'Debe existir la columna de preview (.anuncio-preview-col)');
+  const toggleSwitch = elementsById.catContent.querySelector('.switch-toggle');
+  assert.ok(toggleSwitch, 'Debe existir el interruptor deslizante (.switch-toggle)');
+  const sliderKnob = elementsById.catContent.querySelector('.switch-slider');
+  assert.ok(sliderKnob, 'Debe existir el slider del interruptor (.switch-slider)');
 
   // Verificar que NO existen conceptos de embed ni layout
   assert.doesNotMatch(editorText, /Modo de contenido/);
