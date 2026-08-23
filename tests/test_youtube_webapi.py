@@ -134,6 +134,28 @@ def test_post_happy_path_resolves_name_and_saves(memory_db):
     assert subs[0]["last_video_id"] == "VIDEOID123"
 
 
+def test_post_with_handle_saves_canonical_uc_id_to_database(memory_db, monkeypatch):
+    async def fake_resolve_handle(channel_id):
+        return {
+            "id": "UCcanonical12345678901",
+            "name": "Canal Canónico",
+            "latest_video_id": "VID999",
+        }
+
+    monkeypatch.setattr(webapi, "resolve_youtube_channel", fake_resolve_handle)
+    req = FakeRequest(body={"channel_id": "@handleprueba", "discord_channel_id": "555"})
+
+    resp = _run(webapi._api_youtube_post, req)
+
+    assert resp.status == 200
+    assert _json(resp)["added"] is True
+    subs = asyncio.run(db.list_youtube_subs(_GUILD))
+    assert len(subs) == 1
+    assert subs[0]["youtube_channel_id"] == "UCcanonical12345678901"
+    assert subs[0]["youtube_channel_name"] == "Canal Canónico"
+    assert subs[0]["last_video_id"] == "VID999"
+
+
 def test_post_duplicate_subscription_returns_added_false(memory_db):
     req = FakeRequest(body={"channel_id": "UCxxx", "discord_channel_id": "555"})
     _run(webapi._api_youtube_post, req)

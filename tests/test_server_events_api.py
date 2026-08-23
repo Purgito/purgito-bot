@@ -235,7 +235,6 @@ def test_server_events_api_put_embed_and_layout(memory_db):
     asyncio.run(_test())
 
 
-
 def test_server_events_api_delete(memory_db):
     async def _test():
         # Setup an event
@@ -289,6 +288,7 @@ def test_server_events_api_test_endpoint(memory_db):
 
 def test_server_events_api_test_endpoint_rate_limit(memory_db):
     """SEC-04: El endpoint /test aplica rate limiting y rechaza ráfagas con HTTP 429."""
+
     async def _test():
         fake_cog = MagicMock()
         fake_cog.dispatch_server_event = AsyncMock(return_value=(True, None))
@@ -330,6 +330,7 @@ def test_server_events_api_test_endpoint_rate_limit(memory_db):
 
 def test_server_events_api_put_validates_send_options_placeholders(memory_db):
     """SEC-05: Las variables en send_options se validan con el catálogo del evento."""
+
     async def _test():
         # 1. Variable desconocida en send_options.username -> 400
         bad_body = {
@@ -380,15 +381,27 @@ class FakeTemplateRequest:
 def test_event_put_with_template_id_links_and_resolves(memory_db):
     async def _test():
         create_resp = await webapi._api_embed_templates_post(
-            FakeTemplateRequest(body={"name": "Bienvenida", "content_mode": "plain_text", "message": "Hola {user}"})
+            FakeTemplateRequest(
+                body={
+                    "name": "Bienvenida",
+                    "content_mode": "plain_text",
+                    "message": "Hola {user}",
+                }
+            )
         )
         assert create_resp.status == 200
         template_id = json.loads(create_resp.text)["id"]
 
-        put_resp = await webapi._api_server_event_put(FakeRequest(
-            event_type="welcome",
-            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": template_id},
-        ))
+        put_resp = await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="welcome",
+                body={
+                    "enabled": True,
+                    "channel_id": _CHANNEL_ID,
+                    "template_id": template_id,
+                },
+            )
+        )
         assert put_resp.status == 200
         saved = json.loads(put_resp.text)["event"]
         assert saved["template_id"] == template_id
@@ -399,10 +412,16 @@ def test_event_put_with_template_id_links_and_resolves(memory_db):
         assert resolved["message"] == "Hola {user}"
 
         # template_id inexistente -> 400, no crea referencia colgante
-        bad_resp = await webapi._api_server_event_put(FakeRequest(
-            event_type="goodbye",
-            body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": 999999},
-        ))
+        bad_resp = await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="goodbye",
+                body={
+                    "enabled": False,
+                    "channel_id": _CHANNEL_ID,
+                    "template_id": 999999,
+                },
+            )
+        )
         assert bad_resp.status == 400
 
     asyncio.run(_test())
@@ -411,14 +430,26 @@ def test_event_put_with_template_id_links_and_resolves(memory_db):
 def test_template_delete_blocked_while_in_use(memory_db):
     async def _test():
         create_resp = await webapi._api_embed_templates_post(
-            FakeTemplateRequest(body={"name": "Gracias por boostear", "content_mode": "plain_text", "message": "Gracias {user}"})
+            FakeTemplateRequest(
+                body={
+                    "name": "Gracias por boostear",
+                    "content_mode": "plain_text",
+                    "message": "Gracias {user}",
+                }
+            )
         )
         template_id = json.loads(create_resp.text)["id"]
 
-        await webapi._api_server_event_put(FakeRequest(
-            event_type="boost",
-            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": template_id},
-        ))
+        await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="boost",
+                body={
+                    "enabled": True,
+                    "channel_id": _CHANNEL_ID,
+                    "template_id": template_id,
+                },
+            )
+        )
 
         list_resp = await webapi._api_embed_templates_get(FakeTemplateRequest())
         tpl = json.loads(list_resp.text)["templates"][0]
@@ -431,10 +462,12 @@ def test_template_delete_blocked_while_in_use(memory_db):
         assert "boost" in json.loads(delete_resp.text)["error"]
 
         # Al desvincular el evento, ahora sí se puede borrar.
-        await webapi._api_server_event_put(FakeRequest(
-            event_type="boost",
-            body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": None},
-        ))
+        await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="boost",
+                body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": None},
+            )
+        )
         delete_resp2 = await webapi._api_embed_template_delete(
             FakeTemplateRequest(template_id=template_id)
         )
@@ -446,25 +479,44 @@ def test_template_delete_blocked_while_in_use(memory_db):
 
 def test_server_events_save_and_switch_templates_cycle(memory_db):
     """Prueba el ciclo completo de guardar, cambiar plantilla y desvincular para welcome, goodbye y boost."""
+
     async def _test():
         # Crear Plantilla A
         res_a = await webapi._api_embed_templates_post(
-            FakeTemplateRequest(body={"name": "Plantilla A", "content_mode": "plain_text", "message": "Mensaje A {user}"})
+            FakeTemplateRequest(
+                body={
+                    "name": "Plantilla A",
+                    "content_mode": "plain_text",
+                    "message": "Mensaje A {user}",
+                }
+            )
         )
         tpl_a_id = json.loads(res_a.text)["id"]
 
         # Crear Plantilla B
         res_b = await webapi._api_embed_templates_post(
-            FakeTemplateRequest(body={"name": "Plantilla B", "content_mode": "plain_text", "message": "Mensaje B {user}"})
+            FakeTemplateRequest(
+                body={
+                    "name": "Plantilla B",
+                    "content_mode": "plain_text",
+                    "message": "Mensaje B {user}",
+                }
+            )
         )
         tpl_b_id = json.loads(res_b.text)["id"]
 
         for ev_type in ("welcome", "goodbye", "boost"):
             # 1. Guardar con Plantilla A
-            put_a = await webapi._api_server_event_put(FakeRequest(
-                event_type=ev_type,
-                body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": tpl_a_id},
-            ))
+            put_a = await webapi._api_server_event_put(
+                FakeRequest(
+                    event_type=ev_type,
+                    body={
+                        "enabled": True,
+                        "channel_id": _CHANNEL_ID,
+                        "template_id": tpl_a_id,
+                    },
+                )
+            )
             assert put_a.status == 200
             assert json.loads(put_a.text)["event"]["template_id"] == tpl_a_id
 
@@ -476,10 +528,16 @@ def test_server_events_save_and_switch_templates_cycle(memory_db):
             assert ev_a["template_name"] == "Plantilla A"
 
             # 3. Cambiar a Plantilla B
-            put_b = await webapi._api_server_event_put(FakeRequest(
-                event_type=ev_type,
-                body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": tpl_b_id},
-            ))
+            put_b = await webapi._api_server_event_put(
+                FakeRequest(
+                    event_type=ev_type,
+                    body={
+                        "enabled": True,
+                        "channel_id": _CHANNEL_ID,
+                        "template_id": tpl_b_id,
+                    },
+                )
+            )
             assert put_b.status == 200
             assert json.loads(put_b.text)["event"]["template_id"] == tpl_b_id
 
@@ -491,15 +549,23 @@ def test_server_events_save_and_switch_templates_cycle(memory_db):
             assert ev_b["template_name"] == "Plantilla B"
 
             # 5. Desvincular plantilla (template_id = None) y desactivar
-            put_none = await webapi._api_server_event_put(FakeRequest(
-                event_type=ev_type,
-                body={"enabled": False, "channel_id": _CHANNEL_ID, "template_id": None},
-            ))
+            put_none = await webapi._api_server_event_put(
+                FakeRequest(
+                    event_type=ev_type,
+                    body={
+                        "enabled": False,
+                        "channel_id": _CHANNEL_ID,
+                        "template_id": None,
+                    },
+                )
+            )
             assert put_none.status == 200
             assert json.loads(put_none.text)["event"]["template_id"] is None
 
             # 6. Recargar y verificar que no tiene plantilla
-            get_none = await webapi._api_server_event_get(FakeRequest(event_type=ev_type))
+            get_none = await webapi._api_server_event_get(
+                FakeRequest(event_type=ev_type)
+            )
             ev_none = json.loads(get_none.text)["event"]
             assert ev_none["template_id"] is None
             assert ev_none["enabled"] is False
@@ -509,11 +575,14 @@ def test_server_events_save_and_switch_templates_cycle(memory_db):
 
 def test_server_events_enable_without_template_rejected_if_no_legacy(memory_db):
     """Activar un evento sin plantilla ni contenido previo es rechazado con error claro."""
+
     async def _test():
-        resp = await webapi._api_server_event_put(FakeRequest(
-            event_type="welcome",
-            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": None},
-        ))
+        resp = await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="welcome",
+                body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": None},
+            )
+        )
         assert resp.status == 400
         data = json.loads(resp.text)
         assert "debes seleccionar una plantilla" in data["error"]
@@ -523,23 +592,28 @@ def test_server_events_enable_without_template_rejected_if_no_legacy(memory_db):
 
 def test_server_events_enable_preserves_legacy_inline_when_unlinked(memory_db):
     """Un evento antiguo con mensaje inline puede reactivarse sin template_id y conserva su mensaje."""
+
     async def _test():
         # Configurar evento en formato legacy
-        await webapi._api_server_event_put(FakeRequest(
-            event_type="goodbye",
-            body={
-                "enabled": True,
-                "channel_id": _CHANNEL_ID,
-                "content_mode": "plain_text",
-                "message": "Hasta luego {user}",
-            },
-        ))
+        await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="goodbye",
+                body={
+                    "enabled": True,
+                    "channel_id": _CHANNEL_ID,
+                    "content_mode": "plain_text",
+                    "message": "Hasta luego {user}",
+                },
+            )
+        )
 
         # Actualizar desde el configurador cambiando solo canal y enabled
-        resp = await webapi._api_server_event_put(FakeRequest(
-            event_type="goodbye",
-            body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": None},
-        ))
+        resp = await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="goodbye",
+                body={"enabled": True, "channel_id": _CHANNEL_ID, "template_id": None},
+            )
+        )
         assert resp.status == 200
         ev = json.loads(resp.text)["event"]
         assert ev["enabled"] is True
@@ -549,7 +623,9 @@ def test_server_events_enable_preserves_legacy_inline_when_unlinked(memory_db):
     asyncio.run(_test())
 
 
-def test_server_events_snowflake_channel_id_preserved_and_resolved(memory_db, monkeypatch):
+def test_server_events_snowflake_channel_id_preserved_and_resolved(
+    memory_db, monkeypatch
+):
     """Verifica que un Snowflake de 19 dígitos (> 2^53) se procese sin pérdida de precisión."""
     snowflake_channel_id = 1345678901234567895
 
@@ -572,15 +648,27 @@ def test_server_events_snowflake_channel_id_preserved_and_resolved(memory_db, mo
 
     async def _test():
         tpl_res = await webapi._api_embed_templates_post(
-            FakeTemplateRequest(body={"name": "Bienvenida Snowflake", "content_mode": "plain_text", "message": "Hola {user}"})
+            FakeTemplateRequest(
+                body={
+                    "name": "Bienvenida Snowflake",
+                    "content_mode": "plain_text",
+                    "message": "Hola {user}",
+                }
+            )
         )
         tpl_id = json.loads(tpl_res.text)["id"]
 
         # Guardar pasando snowflake como string
-        put_resp = await webapi._api_server_event_put(FakeRequest(
-            event_type="welcome",
-            body={"enabled": True, "channel_id": str(snowflake_channel_id), "template_id": tpl_id},
-        ))
+        put_resp = await webapi._api_server_event_put(
+            FakeRequest(
+                event_type="welcome",
+                body={
+                    "enabled": True,
+                    "channel_id": str(snowflake_channel_id),
+                    "template_id": tpl_id,
+                },
+            )
+        )
         assert put_resp.status == 200
         saved_ev = json.loads(put_resp.text)["event"]
         assert saved_ev["channel_id"] == snowflake_channel_id
@@ -638,58 +726,81 @@ def test_server_events_channel_fallback_to_fetch_channel(memory_db, monkeypatch)
 
 def test_server_events_composite_button_validation(memory_db):
     """Valida límites y seguridad de botones en plantillas y eventos composite."""
+
     async def _test():
         # 1. URL maliciosa (javascript:) rechazada
-        bad_url_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
-            body={
-                "name": "Malicious Button",
-                "content_mode": "composite",
-                "message": "Test",
-                "buttons": [{"label": "Click", "style": "link", "url": "javascript:alert(1)"}],
-            }
-        ))
+        bad_url_resp = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(
+                body={
+                    "name": "Malicious Button",
+                    "content_mode": "composite",
+                    "message": "Test",
+                    "buttons": [
+                        {
+                            "label": "Click",
+                            "style": "link",
+                            "url": "javascript:alert(1)",
+                        }
+                    ],
+                }
+            )
+        )
         assert bad_url_resp.status == 400
         assert "http" in json.loads(bad_url_resp.text)["error"]
 
         # 2. Más de 5 botones rechazado
-        too_many_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
-            body={
-                "name": "Too Many Buttons",
-                "content_mode": "composite",
-                "message": "Test",
-                "buttons": [
-                    {"label": f"B{i}", "style": "link", "url": "https://example.com"}
-                    for i in range(6)
-                ],
-            }
-        ))
+        too_many_resp = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(
+                body={
+                    "name": "Too Many Buttons",
+                    "content_mode": "composite",
+                    "message": "Test",
+                    "buttons": [
+                        {
+                            "label": f"B{i}",
+                            "style": "link",
+                            "url": "https://example.com",
+                        }
+                        for i in range(6)
+                    ],
+                }
+            )
+        )
         assert too_many_resp.status == 400
         assert "más de 5 botones" in json.loads(too_many_resp.text)["error"]
 
         # 3. Botón de rol sin role_id rechazado
-        no_role_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
-            body={
-                "name": "Missing Role ID",
-                "content_mode": "composite",
-                "message": "Test",
-                "buttons": [{"label": "Rol", "style": "role", "role_id": None}],
-            }
-        ))
+        no_role_resp = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(
+                body={
+                    "name": "Missing Role ID",
+                    "content_mode": "composite",
+                    "message": "Test",
+                    "buttons": [{"label": "Rol", "style": "role", "role_id": None}],
+                }
+            )
+        )
         assert no_role_resp.status == 400
         assert "rol asignado" in json.loads(no_role_resp.text)["error"]
 
         # 4. Botones válidos aceptados
-        ok_resp = await webapi._api_embed_templates_post(FakeTemplateRequest(
-            body={
-                "name": "Valid Buttons",
-                "content_mode": "composite",
-                "message": "Test {user}",
-                "buttons": [
-                    {"label": "Web", "style": "link", "url": "https://purgito.app"},
-                    {"label": "Rol VIP", "style": "role", "role_id": 999999999999999999},
-                ],
-            }
-        ))
+        ok_resp = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(
+                body={
+                    "name": "Valid Buttons",
+                    "content_mode": "composite",
+                    "message": "Test {user}",
+                    "buttons": [
+                        {"label": "Web", "style": "link", "url": "https://purgito.app"},
+                        {
+                            "label": "Rol VIP",
+                            "style": "role",
+                            "role_id": 999999999999999999,
+                        },
+                    ],
+                }
+            )
+        )
         assert ok_resp.status == 200
 
     asyncio.run(_test())
@@ -697,23 +808,30 @@ def test_server_events_composite_button_validation(memory_db):
 
 def test_cross_server_template_idor_blocked(memory_db):
     """Un servidor no puede asignar ni acceder a una plantilla de otro servidor."""
+
     async def _test():
         # Crear plantilla en Servidor 1 (guild_id = _GUILD = 123)
-        res1 = await webapi._api_embed_templates_post(FakeTemplateRequest(
-            guild_id=123,
-            body={"name": "Plantilla Guild 123", "content_mode": "plain_text", "message": "Guild 123 {user}"},
-        ))
+        res1 = await webapi._api_embed_templates_post(
+            FakeTemplateRequest(
+                guild_id=123,
+                body={
+                    "name": "Plantilla Guild 123",
+                    "content_mode": "plain_text",
+                    "message": "Guild 123 {user}",
+                },
+            )
+        )
         tpl_id = json.loads(res1.text)["id"]
 
         # Intentar asignar la plantilla en Servidor 2 (guild_id = 999)
-        put_idor = await webapi._api_server_event_put(FakeRequest(
-            guild_id=999,
-            event_type="welcome",
-            body={"enabled": False, "channel_id": None, "template_id": tpl_id},
-        ))
+        put_idor = await webapi._api_server_event_put(
+            FakeRequest(
+                guild_id=999,
+                event_type="welcome",
+                body={"enabled": False, "channel_id": None, "template_id": tpl_id},
+            )
+        )
         assert put_idor.status == 400
         assert "plantilla no encontrada" in json.loads(put_idor.text)["error"]
 
     asyncio.run(_test())
-
-

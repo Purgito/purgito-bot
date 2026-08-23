@@ -45,7 +45,7 @@ desde `tests/`.
 ## Directorios clave
 
 - `src/cogs/` — comandos y features del bot (chat, gifs, memes, youtube,
-  premium, anuncios, layout_buttons)
+  rss, premium, anuncios, layout_buttons)
 - `src/webapi.py` — API JSON; ver zonas protegidas abajo
 - `landing/` — sitio estático (index.html, style.css, script.js)
 - `landing/pages/` — cuerpos escritos a mano; `build_docs.py` les pega el

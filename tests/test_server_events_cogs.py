@@ -127,7 +127,10 @@ def test_on_member_remove_and_goodbye(memory_db):
 
         assert channel.send.called
         sent_msg = channel.send.call_args[0][0]
-        assert "Hasta luego leaver, gracias por haber estado en Purgito Community." in sent_msg
+        assert (
+            "Hasta luego leaver, gracias por haber estado en Purgito Community."
+            in sent_msg
+        )
 
     asyncio.run(_test())
 
@@ -182,7 +185,10 @@ def test_on_member_update_boost_transition_and_idempotency(memory_db):
         await cog.on_member_update(before, after)
         assert channel.send.called
         sent_msg = channel.send.call_args[0][0]
-        assert "🚀 ¡Muchas gracias <@555> por el boost a Purgito Community! Nivel: 2." in sent_msg
+        assert (
+            "🚀 ¡Muchas gracias <@555> por el boost a Purgito Community! Nivel: 2."
+            in sent_msg
+        )
 
         # 2. Repeated event for the same boost (should NOT duplicate)
         channel.send.reset_mock()
@@ -249,9 +255,7 @@ def test_dispatch_event_embed_and_layout(memory_db):
         assert call_kwargs["embeds"][0].description == "A Purgito Community"
 
         # Layout V2
-        layout_json = (
-            '{"blocks": [{"type": "text", "content": "Bienvenido {user} a {server_name}!"}]}'
-        )
+        layout_json = '{"blocks": [{"type": "text", "content": "Bienvenido {user} a {server_name}!"}]}'
         await db.set_server_event(
             guild_id=_GUILD_ID,
             event_type="welcome",
@@ -269,8 +273,12 @@ def test_dispatch_event_embed_and_layout(memory_db):
         call_kwargs = channel.send.call_args[1]
         # Composite Mode (Message + Embed + Buttons)
         composite_payload = {
-            "embeds": [{"title": "Bienvenido {user_name}!", "description": "A {server_name}"}],
-            "buttons": [{"label": "Reglas", "url": "https://example.com/rules", "style": "link"}],
+            "embeds": [
+                {"title": "Bienvenido {user_name}!", "description": "A {server_name}"}
+            ],
+            "buttons": [
+                {"label": "Reglas", "url": "https://example.com/rules", "style": "link"}
+            ],
         }
         await db.set_server_event(
             guild_id=_GUILD_ID,
@@ -296,9 +304,9 @@ def test_dispatch_event_embed_and_layout(memory_db):
     asyncio.run(_test())
 
 
-
 def test_boost_100_concurrent_updates_exact_one_message(memory_db):
     """SEC-01: 100 corrutinas on_member_update concurrentes resultan en exactamente 1 mensaje enviado."""
+
     async def _test():
         bot = MagicMock()
         bot.user = MagicMock(id=999)
@@ -357,7 +365,9 @@ def test_boost_100_concurrent_updates_exact_one_message(memory_db):
         assert channel.send.call_count == 0
 
         # Si el usuario deja de boostear y luego vuelve a boostear con nueva fecha B:
-        boost_time_b = datetime.datetime(2026, 9, 1, 12, 0, tzinfo=datetime.timezone.utc)
+        boost_time_b = datetime.datetime(
+            2026, 9, 1, 12, 0, tzinfo=datetime.timezone.utc
+        )
         after_b = MagicMock(spec=discord.Member)
         after_b.id = 888
         after_b.name = "concurrent_booster"
@@ -374,6 +384,7 @@ def test_boost_100_concurrent_updates_exact_one_message(memory_db):
 
 def test_server_icon_none_thumbnail_empty_url_sanitized(memory_db):
     """SEC-02: Servidor sin icono no genera {'url': ''} en thumbnail ni en author/footer."""
+
     async def _test():
         bot = MagicMock()
         bot.user = MagicMock(id=999)
@@ -434,11 +445,13 @@ def test_server_icon_none_thumbnail_empty_url_sanitized(memory_db):
         assert embed_sent.footer.text == "Footer text"
 
     import json
+
     asyncio.run(_test())
 
 
 def test_thread_channel_support_and_webhook_identity(memory_db, monkeypatch):
     """SEC-03: Soporte para hilos (Threads) con y sin identidad personalizada."""
+
     async def _test():
         bot = MagicMock()
         bot.user = MagicMock(id=999)
@@ -508,6 +521,7 @@ def test_thread_channel_support_and_webhook_identity(memory_db, monkeypatch):
         )
 
         from cogs.events import send_via_webhook as mock_send_via_webhook
+
         ok, err = await cog.dispatch_server_event("welcome", guild, member)
         assert ok is True
         assert mock_send_via_webhook.called
@@ -518,16 +532,19 @@ def test_thread_channel_support_and_webhook_identity(memory_db, monkeypatch):
         # 3. Thread archivado devuelve error seguro
         thread.archived = True
         import webhook_identity
+
         with pytest.raises(webhook_identity.WebhookIdentityError) as exc_info:
             await webhook_identity.resolve_channel_webhook(bot, _GUILD_ID, thread)
         assert "archivado" in str(exc_info.value)
 
     import json
+
     asyncio.run(_test())
 
 
 def test_post_resolution_overflow_rejection(memory_db):
     """SEC-09: Si al resolver variables se superan los límites de Discord, rechazar con error explícito sin truncar."""
+
     async def _test():
         bot = MagicMock()
         bot.user = MagicMock(id=999)
@@ -588,4 +605,5 @@ def test_post_resolution_overflow_rejection(memory_db):
         assert not channel.send.called
 
     import json
+
     asyncio.run(_test())

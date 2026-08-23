@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-q3YIN69XVqFnjErPkFFKpkk81KrOk2JbHHeMmHFCy+M='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-ZBHNkFrVssvJL7R0uh2CiIpDc+UG1UTNYat85WOdesQ='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>API — Technical Documentation — Purgito</title>
 <meta name="description" content="Authentication, sessions, endpoints, and webhooks of Purgito&#x27;s API.">
@@ -429,7 +429,8 @@
   <li><code>GET/PUT/DELETE /api/server/{id}/events/{event_type}</code>: Query, configure (plain text, classic embed, Layout V2), and reset Welcome, Goodbye, and Boost server events with the placeholder engine.</li>
   <li><code>POST /api/server/{id}/events/{event_type}/test</code>: Send a test event message with resolved placeholders to the configured channel.</li>
   <li><code>GET/POST/DELETE /api/server/{id}/anuncios</code>: Automated announcement scheduling and management.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/youtube</code>: YouTube channel feed subscriptions and alert destinations.</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/youtube</code>: YouTube channel feed subscriptions and alert destinations.</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/rss</code>: Generic RSS/Atom feed subscriptions and alert destinations.</li>
   <li><code>POST /api/server/{id}/amnesia</code>: Purges messages and style learned within the last 24 hours.</li>
   <li><code>GET /api/server/{id}/audit</code>: Audit log recording actions taken via the dashboard.</li>
 </ul>

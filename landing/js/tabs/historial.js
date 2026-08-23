@@ -72,6 +72,10 @@ addStrings({
     'tabsHistorial.action.youtube.add': 'Agregó una suscripción de YouTube',
     'tabsHistorial.action.youtube.remove': 'Eliminó una suscripción de YouTube',
     'tabsHistorial.action.youtube.update_mention_role': 'Cambió el rol de mención de YouTube',
+    'tabsHistorial.action.rss.add': 'Agregó un feed RSS',
+    'tabsHistorial.action.rss.remove': 'Eliminó un feed RSS',
+    'tabsHistorial.action.rss.update_mention_role': 'Cambió el rol de mención de RSS',
+    'tabsHistorial.optRss': 'RSS / Feeds',
     'tabsHistorial.emptyState': 'Todavía no hay cambios registrados en este servidor.',
     'tabsHistorial.searchPlaceholder': 'Buscar cambios por texto, usuario o acción…',
     'tabsHistorial.searchAria': 'Buscar cambios',
@@ -187,6 +191,10 @@ addStrings({
     'tabsHistorial.action.youtube.add': 'Added a YouTube subscription',
     'tabsHistorial.action.youtube.remove': 'Removed a YouTube subscription',
     'tabsHistorial.action.youtube.update_mention_role': 'Changed the YouTube mention role',
+    'tabsHistorial.action.rss.add': 'Added an RSS feed',
+    'tabsHistorial.action.rss.remove': 'Removed an RSS feed',
+    'tabsHistorial.action.rss.update_mention_role': 'Changed the RSS mention role',
+    'tabsHistorial.optRss': 'RSS / Feeds',
     'tabsHistorial.emptyState': 'No changes recorded on this server yet.',
     'tabsHistorial.searchPlaceholder': 'Search changes by text, user, or action…',
     'tabsHistorial.searchAria': 'Search changes',
@@ -293,6 +301,9 @@ const ACTION_LABELS = {
   'youtube.add': t('tabsHistorial.action.youtube.add'),
   'youtube.remove': t('tabsHistorial.action.youtube.remove'),
   'youtube.update_mention_role': t('tabsHistorial.action.youtube.update_mention_role'),
+  'rss.add': t('tabsHistorial.action.rss.add'),
+  'rss.remove': t('tabsHistorial.action.rss.remove'),
+  'rss.update_mention_role': t('tabsHistorial.action.rss.update_mention_role'),
 };
 
 function actionLabel(action) {
@@ -303,6 +314,7 @@ function getActionIcon(action) {
   if (action.startsWith('gifs.')) return 'film';
   if (action.startsWith('embed')) return 'layout';
   if (action.startsWith('youtube.')) return 'youtube';
+  if (action.startsWith('rss.')) return 'rss';
   if (action.startsWith('frase') || action.startsWith('triggers.') || action.startsWith('reactions.')) return 'chat';
   if (action.startsWith('style.')) return 'image';
   return 'history';
@@ -484,7 +496,8 @@ export async function loadHistorial() {
         el('option', { value: 'embed' }, t('tabsHistorial.optEmbeds'))
       ),
       el('optgroup', { label: t('tabsHistorial.groupIntegrations') },
-        el('option', { value: 'youtube.' }, t('tabsHistorial.optYoutube'))
+        el('option', { value: 'youtube.' }, t('tabsHistorial.optYoutube')),
+        el('option', { value: 'rss.' }, t('tabsHistorial.optRss'))
       ),
       el('optgroup', { label: t('tabsHistorial.groupGeneral') },
         el('option', { value: 'style.' }, t('tabsHistorial.optStyle'))

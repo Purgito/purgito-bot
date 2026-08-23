@@ -2,7 +2,6 @@ import datetime
 from unittest.mock import MagicMock
 
 import discord
-import pytest
 
 from placeholders import (
     build_event_context,
@@ -14,7 +13,6 @@ from placeholders import (
     get_preview_context,
     resolve_content_placeholders,
     resolve_placeholders,
-    validate_content_variables,
     validate_variables,
 )
 
@@ -41,9 +39,7 @@ def test_extract_variables_from_text():
 
 def test_extract_variables_from_content():
     # Plain text
-    assert extract_variables_from_content(
-        "plain_text", "Hola {user}"
-    ) == {"user"}
+    assert extract_variables_from_content("plain_text", "Hola {user}") == {"user"}
     assert extract_variables_from_content(
         "plain_text", {"message": "Hola {server_name}"}
     ) == {"server_name"}
@@ -110,9 +106,7 @@ def test_validate_variables():
     assert "Variable desconocida: `{noexiste}`" in errors[0]
 
     # Incompatible variable (boost variable in welcome)
-    errors = validate_variables(
-        {"server_nextboostlevel", "user"}, "welcome"
-    )
+    errors = validate_variables({"server_nextboostlevel", "user"}, "welcome")
     assert len(errors) == 1
     assert "no está disponible para el evento 'welcome'" in errors[0]
 
@@ -171,12 +165,12 @@ def test_resolve_content_placeholders_embed_and_layout():
         "thumbnail": {"url": "{user_avatar}"},
         "fields": [{"name": "Miembros", "value": "{server_membercount}"}],
     }
-    resolved_embeds = resolve_content_placeholders(
-        "classic_embed", [embed], context
-    )
+    resolved_embeds = resolve_content_placeholders("classic_embed", [embed], context)
     assert resolved_embeds[0]["title"] == "Bienvenido Isa!"
     assert resolved_embeds[0]["description"] == "Entraste a Purgito Server"
-    assert resolved_embeds[0]["thumbnail"]["url"] == "https://cdn.discord.com/avatar.png"
+    assert (
+        resolved_embeds[0]["thumbnail"]["url"] == "https://cdn.discord.com/avatar.png"
+    )
     assert resolved_embeds[0]["fields"][0]["value"] == "1.284"
 
     # Layout V2
@@ -199,13 +193,14 @@ def test_resolve_content_placeholders_embed_and_layout():
             }
         ]
     }
-    resolved_layout = resolve_content_placeholders(
-        "layout_v2", layout, context
-    )
+    resolved_layout = resolve_content_placeholders("layout_v2", layout, context)
     container_children = resolved_layout["blocks"][0]["children"]
     assert container_children[0]["content"] == "Bienvenido <@123>!"
     assert container_children[1]["texts"][0] == "Servidor: Purgito Server"
-    assert container_children[1]["accessory"]["url"] == "https://cdn.discord.com/avatar.png"
+    assert (
+        container_children[1]["accessory"]["url"]
+        == "https://cdn.discord.com/avatar.png"
+    )
     assert container_children[1]["accessory"]["description"] == "Avatar de Isa"
 
 
@@ -254,9 +249,7 @@ def test_build_event_context():
     channel.name = "llegadas"
     channel.mention = "<#444>"
 
-    ctx = build_event_context(
-        "welcome", guild, member, channel=channel, locale="es"
-    )
+    ctx = build_event_context("welcome", guild, member, channel=channel, locale="es")
     assert ctx["user"] == "<@777>"
     assert ctx["user_name"] == "punky"
     assert ctx["user_nick"] == "Punky Nick"
@@ -276,8 +269,31 @@ def test_build_event_context():
 
 def test_date_fallbacks_no_booster_returns_na():
     """SEC-06: Un usuario sin boost o sin fecha de ingreso devuelve N/A en lugar de la fecha de hoy."""
-    guild = MagicMock(spec=discord.Guild, id=1, name="G", member_count=10, premium_tier=0, premium_subscription_count=0, roles=[], channels=[], owner=None, owner_id=1, created_at=None, icon=None)
-    member = MagicMock(spec=discord.Member, id=2, name="u", mention="<@2>", display_name="u", nick=None, created_at=None, joined_at=None, premium_since=None)
+    guild = MagicMock(
+        spec=discord.Guild,
+        id=1,
+        name="G",
+        member_count=10,
+        premium_tier=0,
+        premium_subscription_count=0,
+        roles=[],
+        channels=[],
+        owner=None,
+        owner_id=1,
+        created_at=None,
+        icon=None,
+    )
+    member = MagicMock(
+        spec=discord.Member,
+        id=2,
+        name="u",
+        mention="<@2>",
+        display_name="u",
+        nick=None,
+        created_at=None,
+        joined_at=None,
+        premium_since=None,
+    )
 
     ctx = build_event_context("welcome", guild, member, locale="es")
     assert ctx["user_boost_since"] == "N/A"
@@ -302,7 +318,10 @@ def test_resolve_corrupt_structures_safe():
             None,
             123,
             {"type": "section", "texts": [None, 456, "Hello {user}"]},
-            {"type": "media_gallery", "items": [None, {"url": "http://example.com/img.png"}]},
+            {
+                "type": "media_gallery",
+                "items": [None, {"url": "http://example.com/img.png"}],
+            },
         ]
     }
     res_layout = resolve_content_placeholders("layout_v2", corrupt_layout, ctx)

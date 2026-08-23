@@ -19,9 +19,7 @@ from db import (
     add_button_action,
     extract_send_options,
     get_server_event,
-    is_boost_processed,
     normalize_embeds_json,
-    record_member_boost,
     try_record_member_boost,
 )
 from embeds_core import validate_embeds_payload
@@ -94,7 +92,9 @@ class ServerEvents(commands.Cog):
                 except Exception:
                     channel = None
 
-            if not channel or not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            if not channel or not isinstance(
+                channel, (discord.TextChannel, discord.Thread)
+            ):
                 return False, "Canal destino no encontrado o no es de texto"
 
             if getattr(channel, "guild", None) and channel.guild.id != guild.id:
@@ -104,10 +104,15 @@ class ServerEvents(commands.Cog):
             if me:
                 perms = channel.permissions_for(me)
                 if not perms.send_messages:
-                    return False, "Purgito no tiene permiso para enviar mensajes en ese canal"
+                    return (
+                        False,
+                        "Purgito no tiene permiso para enviar mensajes en ese canal",
+                    )
 
             locale = await i18n.guild_locale(guild.id)
-            if mock_context or (is_test and (not member or isinstance(member, discord.User))):
+            if mock_context or (
+                is_test and (not member or isinstance(member, discord.User))
+            ):
                 ctx = get_preview_context(event_type, guild=guild, locale=locale)
             else:
                 ctx = build_event_context(
@@ -127,12 +132,18 @@ class ServerEvents(commands.Cog):
                     return False, "Mensaje de texto vacío"
                 final_msg = resolve_placeholders(raw_msg, ctx)
                 if len(final_msg) > 2000:
-                    return False, "El mensaje excede el límite de 2000 caracteres de Discord tras resolver variables"
+                    return (
+                        False,
+                        "El mensaje excede el límite de 2000 caracteres de Discord tras resolver variables",
+                    )
                 await channel.send(final_msg)
 
             elif content_mode == "classic_embed":
                 if me and not channel.permissions_for(me).embed_links:
-                    return False, "Purgito no tiene permiso para incrustar enlaces (embeds) en ese canal"
+                    return (
+                        False,
+                        "Purgito no tiene permiso para incrustar enlaces (embeds) en ese canal",
+                    )
 
                 raw_embed_json = config.get("embed_json")
                 if not raw_embed_json:
@@ -149,23 +160,28 @@ class ServerEvents(commands.Cog):
                 ]
                 val_err = validate_embeds_payload(resolved_embed_dicts)
                 if val_err:
-                    return False, f"El embed excede los límites de Discord tras resolver variables: {val_err}"
+                    return (
+                        False,
+                        f"El embed excede los límites de Discord tras resolver variables: {val_err}",
+                    )
 
-                embeds = [
-                    discord.Embed.from_dict(e)
-                    for e in resolved_embed_dicts
-                    if e
-                ]
+                embeds = [discord.Embed.from_dict(e) for e in resolved_embed_dicts if e]
                 if not embeds:
                     return False, "Lista de embeds vacía tras resolver variables"
 
                 if wants_custom_identity(options):
                     raw_user = options.get("username", "")
                     raw_avatar = options.get("avatar_url", "")
-                    res_user = resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    res_user = (
+                        resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    )
                     if len(res_user) > 80:
                         res_user = res_user[:80]
-                    res_avatar = resolve_placeholders(raw_avatar, ctx).strip() if raw_avatar else ""
+                    res_avatar = (
+                        resolve_placeholders(raw_avatar, ctx).strip()
+                        if raw_avatar
+                        else ""
+                    )
                     if res_avatar and not _is_valid_http_url(res_avatar):
                         res_avatar = ""
 
@@ -183,7 +199,10 @@ class ServerEvents(commands.Cog):
 
             elif content_mode == "layout_v2":
                 if me and not channel.permissions_for(me).embed_links:
-                    return False, "Purgito no tiene permiso para incrustar componentes Layout V2 en ese canal"
+                    return (
+                        False,
+                        "Purgito no tiene permiso para incrustar componentes Layout V2 en ese canal",
+                    )
 
                 raw_embed_json = config.get("embed_json")
                 if not raw_embed_json:
@@ -202,7 +221,10 @@ class ServerEvents(commands.Cog):
 
                 val_err = validate_layout_v2_payload(resolved_layout)
                 if val_err:
-                    return False, f"El layout excede los límites de Discord tras resolver variables: {val_err}"
+                    return (
+                        False,
+                        f"El layout excede los límites de Discord tras resolver variables: {val_err}",
+                    )
 
                 options = extract_send_options(raw_embed_json)
                 extra = send_kwargs(options)
@@ -233,10 +255,16 @@ class ServerEvents(commands.Cog):
                 if wants_custom_identity(options):
                     raw_user = options.get("username", "")
                     raw_avatar = options.get("avatar_url", "")
-                    res_user = resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    res_user = (
+                        resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    )
                     if len(res_user) > 80:
                         res_user = res_user[:80]
-                    res_avatar = resolve_placeholders(raw_avatar, ctx).strip() if raw_avatar else ""
+                    res_avatar = (
+                        resolve_placeholders(raw_avatar, ctx).strip()
+                        if raw_avatar
+                        else ""
+                    )
                     if res_avatar and not _is_valid_http_url(res_avatar):
                         res_avatar = ""
 
@@ -254,9 +282,14 @@ class ServerEvents(commands.Cog):
 
             elif content_mode == "composite":
                 raw_msg = config.get("message") or ""
-                final_msg = resolve_placeholders(raw_msg, ctx) if raw_msg.strip() else None
+                final_msg = (
+                    resolve_placeholders(raw_msg, ctx) if raw_msg.strip() else None
+                )
                 if final_msg and len(final_msg) > 2000:
-                    return False, "El mensaje excede el límite de 2000 caracteres de Discord tras resolver variables"
+                    return (
+                        False,
+                        "El mensaje excede el límite de 2000 caracteres de Discord tras resolver variables",
+                    )
 
                 embeds = None
                 raw_embed_json = config.get("embed_json")
@@ -267,13 +300,21 @@ class ServerEvents(commands.Cog):
                     embed_dicts = normalize_embeds_json(raw_embed_json)
                     if embed_dicts:
                         if me and not channel.permissions_for(me).embed_links:
-                            return False, "Purgito no tiene permiso para incrustar enlaces (embeds) en ese canal"
+                            return (
+                                False,
+                                "Purgito no tiene permiso para incrustar enlaces (embeds) en ese canal",
+                            )
                         resolved_embed_dicts = [
-                            _resolve_embed(e, ctx) for e in embed_dicts if isinstance(e, dict)
+                            _resolve_embed(e, ctx)
+                            for e in embed_dicts
+                            if isinstance(e, dict)
                         ]
                         val_err = validate_embeds_payload(resolved_embed_dicts)
                         if val_err:
-                            return False, f"El embed excede los límites de Discord tras resolver variables: {val_err}"
+                            return (
+                                False,
+                                f"El embed excede los límites de Discord tras resolver variables: {val_err}",
+                            )
                         embeds = [
                             discord.Embed.from_dict(e)
                             for e in resolved_embed_dicts
@@ -283,41 +324,78 @@ class ServerEvents(commands.Cog):
 
                     # Extract buttons
                     try:
-                        parsed_raw = json.loads(raw_embed_json) if isinstance(raw_embed_json, str) else raw_embed_json
-                        buttons_data = parsed_raw.get("buttons") if isinstance(parsed_raw, dict) else None
+                        parsed_raw = (
+                            json.loads(raw_embed_json)
+                            if isinstance(raw_embed_json, str)
+                            else raw_embed_json
+                        )
+                        buttons_data = (
+                            parsed_raw.get("buttons")
+                            if isinstance(parsed_raw, dict)
+                            else None
+                        )
                     except Exception:
                         buttons_data = None
 
-                    if buttons_data and isinstance(buttons_data, list) and len(buttons_data) > 0:
+                    if (
+                        buttons_data
+                        and isinstance(buttons_data, list)
+                        and len(buttons_data) > 0
+                    ):
                         view = discord.ui.View()
                         role_rows = []
                         for b in buttons_data[:5]:
                             if not isinstance(b, dict):
                                 continue
-                            b_label = resolve_placeholders(b.get("label", ""), ctx)[:80] or "Enlace"
+                            b_label = (
+                                resolve_placeholders(b.get("label", ""), ctx)[:80]
+                                or "Enlace"
+                            )
                             b_url = resolve_placeholders(b.get("url", ""), ctx)
                             b_style = b.get("style", "link")
                             if b_style == "link" or b_url:
                                 if _is_valid_http_url(b_url):
-                                    view.add_item(discord.ui.Button(label=b_label, url=b_url, style=discord.ButtonStyle.link))
+                                    view.add_item(
+                                        discord.ui.Button(
+                                            label=b_label,
+                                            url=b_url,
+                                            style=discord.ButtonStyle.link,
+                                        )
+                                    )
                             elif b_style == "role" and b.get("role_id"):
                                 try:
                                     role_id = int(b.get("role_id"))
                                 except (ValueError, TypeError):
                                     continue
-                                color_style = BUTTON_COLORS.get(b.get("color"), discord.ButtonStyle.secondary)
-                                custom_id = b.get("custom_id") or f"{ROLE_TOGGLE_PREFIX}{uuid.uuid4().hex[:12]}"
-                                view.add_item(discord.ui.Button(label=b_label, style=color_style, custom_id=custom_id))
+                                color_style = BUTTON_COLORS.get(
+                                    b.get("color"), discord.ButtonStyle.secondary
+                                )
+                                custom_id = (
+                                    b.get("custom_id")
+                                    or f"{ROLE_TOGGLE_PREFIX}{uuid.uuid4().hex[:12]}"
+                                )
+                                view.add_item(
+                                    discord.ui.Button(
+                                        label=b_label,
+                                        style=color_style,
+                                        custom_id=custom_id,
+                                    )
+                                )
                                 action_data = json.dumps({"role_id": role_id})
-                                await add_button_action(custom_id, guild.id, "role_toggle", action_data)
-                                role_rows.append({
-                                    "custom_id": custom_id,
-                                    "guild_id": guild.id,
-                                    "action_type": "role_toggle",
-                                    "action_data": action_data,
-                                })
+                                await add_button_action(
+                                    custom_id, guild.id, "role_toggle", action_data
+                                )
+                                role_rows.append(
+                                    {
+                                        "custom_id": custom_id,
+                                        "guild_id": guild.id,
+                                        "action_type": "role_toggle",
+                                        "action_data": action_data,
+                                    }
+                                )
                         if role_rows:
                             from cogs.layout_buttons import register_button_actions
+
                             await register_button_actions(self.bot, role_rows)
 
                 if not final_msg and not embeds and not view:
@@ -335,10 +413,16 @@ class ServerEvents(commands.Cog):
                 if wants_custom_identity(options):
                     raw_user = options.get("username", "")
                     raw_avatar = options.get("avatar_url", "")
-                    res_user = resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    res_user = (
+                        resolve_placeholders(raw_user, ctx).strip() if raw_user else ""
+                    )
                     if len(res_user) > 80:
                         res_user = res_user[:80]
-                    res_avatar = resolve_placeholders(raw_avatar, ctx).strip() if raw_avatar else ""
+                    res_avatar = (
+                        resolve_placeholders(raw_avatar, ctx).strip()
+                        if raw_avatar
+                        else ""
+                    )
                     if res_avatar and not _is_valid_http_url(res_avatar):
                         res_avatar = ""
 
@@ -421,7 +505,9 @@ class ServerEvents(commands.Cog):
         # Detecta transición de "no boosteaba" a "empieza a boostear"
         if before.premium_since is None and after.premium_since is not None:
             premium_since_iso = after.premium_since.isoformat()
-            won = await try_record_member_boost(after.guild.id, after.id, premium_since_iso)
+            won = await try_record_member_boost(
+                after.guild.id, after.id, premium_since_iso
+            )
             if not won:
                 return
             await self.dispatch_server_event(

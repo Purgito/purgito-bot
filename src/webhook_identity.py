@@ -88,9 +88,13 @@ async def resolve_channel_webhook(
             row["webhook_id"], row["webhook_token"], client=bot
         )
 
-    existing = await _find_existing_webhook(target_channel, bot.user.id if bot.user else 0)
+    existing = await _find_existing_webhook(
+        target_channel, bot.user.id if bot.user else 0
+    )
     if existing is not None:
-        await db.set_channel_webhook(guild_id, target_channel.id, existing.id, existing.token)
+        await db.set_channel_webhook(
+            guild_id, target_channel.id, existing.id, existing.token
+        )
         return discord.Webhook.partial(existing.id, existing.token, client=bot)
 
     try:
@@ -141,7 +145,11 @@ async def send_via_webhook(
     try:
         return await webhook.send(wait=True, **kwargs)
     except discord.NotFound:
-        target_id = channel.parent.id if isinstance(channel, discord.Thread) and channel.parent else channel.id
+        target_id = (
+            channel.parent.id
+            if isinstance(channel, discord.Thread) and channel.parent
+            else channel.id
+        )
         await db.delete_channel_webhook(guild_id, target_id)
         raise WebhookIdentityError(
             "El webhook de este canal ya no existe en Discord (probablemente "

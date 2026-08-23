@@ -339,9 +339,7 @@ def get_available_placeholders(
             if event_type not in data["allowed_events"]:
                 continue
         desc = (
-            data.get("description_en")
-            if locale == "en"
-            else data.get("description_es")
+            data.get("description_en") if locale == "en" else data.get("description_es")
         )
         results.append(
             {
@@ -643,9 +641,7 @@ def _resolve_block(block: Any, context: dict[str, str]) -> dict:
     if b_type == "container":
         if "children" in b and isinstance(b["children"], list):
             b["children"] = [
-                _resolve_block(c, context)
-                for c in b["children"]
-                if isinstance(c, dict)
+                _resolve_block(c, context) for c in b["children"] if isinstance(c, dict)
             ]
     elif b_type == "text":
         if "content" in b and isinstance(b["content"], str):
@@ -687,7 +683,9 @@ def _resolve_block(block: Any, context: dict[str, str]) -> dict:
                     if _is_valid_http_url(res_url):
                         it_copy = copy.deepcopy(it)
                         it_copy["url"] = res_url
-                        if "description" in it_copy and isinstance(it_copy["description"], str):
+                        if "description" in it_copy and isinstance(
+                            it_copy["description"], str
+                        ):
                             it_copy["description"] = resolve_placeholders(
                                 it_copy["description"], context
                             )
@@ -743,14 +741,20 @@ def resolve_content_placeholders(
             if "message" in res and isinstance(res["message"], str):
                 res["message"] = resolve_placeholders(res["message"], context)
             if "embeds" in res and isinstance(res["embeds"], list):
-                res["embeds"] = [_resolve_embed(e, context) for e in res["embeds"] if isinstance(e, dict)]
+                res["embeds"] = [
+                    _resolve_embed(e, context)
+                    for e in res["embeds"]
+                    if isinstance(e, dict)
+                ]
             if "buttons" in res and isinstance(res["buttons"], list):
                 valid_btns = []
                 for btn in res["buttons"]:
                     if isinstance(btn, dict):
                         b_copy = copy.deepcopy(btn)
                         if "label" in b_copy and isinstance(b_copy["label"], str):
-                            b_copy["label"] = resolve_placeholders(b_copy["label"], context)
+                            b_copy["label"] = resolve_placeholders(
+                                b_copy["label"], context
+                            )
                         if "url" in b_copy and isinstance(b_copy["url"], str):
                             res_url = resolve_placeholders(b_copy["url"], context)
                             if _is_valid_http_url(res_url):
@@ -777,9 +781,7 @@ def get_preview_context(
 
     server_name = guild.name if guild else "Servidor de prueba"
     server_id = str(guild.id) if guild else "123456789012345678"
-    member_count = (
-        guild.member_count if (guild and guild.member_count) else 1284
-    )
+    member_count = guild.member_count if (guild and guild.member_count) else 1284
     formatted_member_count = format_number(member_count, locale=locale)
     ordinal_member_count = f"#{formatted_member_count}"
 
@@ -789,7 +791,9 @@ def get_preview_context(
         else "https://cdn.discordapp.com/embed/avatars/0.png"
     )
     owner_name = "Owner"
-    owner_id = str(guild.owner_id) if (guild and guild.owner_id) else "111222333444555666"
+    owner_id = (
+        str(guild.owner_id) if (guild and guild.owner_id) else "111222333444555666"
+    )
     if guild and guild.owner:
         owner_name = guild.owner.display_name or guild.owner.name
 
@@ -926,7 +930,11 @@ def build_event_context(
     if member:
         user_mention = member.mention
         user_name = member.name
-        user_tag = f"@{member.name}" if hasattr(member, "discriminator") and member.discriminator == "0" else str(member)
+        user_tag = (
+            f"@{member.name}"
+            if hasattr(member, "discriminator") and member.discriminator == "0"
+            else str(member)
+        )
         user_id = str(member.id)
         user_avatar = (
             str(member.display_avatar.url)
@@ -1073,4 +1081,3 @@ def build_announcement_context(
     }
 
     return ctx
-

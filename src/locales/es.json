@@ -59,7 +59,7 @@
   "settings.youtube.remove_placeholder": "Eliminar una suscripción…",
   "settings.youtube.btn_add": "Agregar canal",
   "settings.youtube.add_modal_title": "Agregar canal de YouTube",
-  "settings.youtube.add_modal_field": "ID del canal de YouTube (empieza con UC...)",
+  "settings.youtube.add_modal_field": "ID, @handle o URL del canal de YouTube",
   "settings.youtube.add_channel_placeholder": "Elige el canal de Discord destino…",
   "settings.youtube.add_pending_hint": "Elige abajo el canal de Discord donde se avisarán los videos nuevos.",
   "settings.youtube.add_invalid": "No se pudo obtener información del canal. Verifica el ID.",
@@ -236,6 +236,7 @@
   "chat.corpus_info.needs_more": "Se necesitan al menos 50 mensajes para generar respuestas variadas.",
 
   "youtube.new_video": "📺 **{author}** subió un video nuevo!\n**{title}**\n{url}",
+  "rss.new_item": "📰 **{feed_title}** publicó una nueva entrada:\n**{title}**\n{url}",
 
   "api.errors.access_denied": "acceso denegado",
   "api.errors.image_storage_not_configured": "almacenamiento de imágenes no configurado",

@@ -45,6 +45,7 @@ EXTENSIONS = [
     "cogs.gifs",
     "cogs.memes",
     "cogs.youtube",
+    "cogs.rss",
     "cogs.anuncios",
     "cogs.general",
     "cogs.settings",

@@ -18,6 +18,7 @@ import { getChannels, getRoles, channelSelect, roleSelect, content } from '/js/p
 import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import { loadYoutube } from '/js/tabs/youtube.js';
+import { loadRss } from '/js/tabs/rss.js';
 import { loadHistorial } from '/js/tabs/historial.js';
 import { loadWelcomeTab, loadGoodbyeTab, loadBoostTab } from '/js/tabs/eventos.js';
 import { loadAnunciosTab } from '/js/tabs/anuncios.js';
@@ -64,6 +65,7 @@ addStrings({
     'dash.mod.frases.label': 'Frases y Packs',
     'dash.mod.frases.desc': 'Frases personalizadas y paquetes temáticos organizados por canal',
     'dash.mod.youtube.desc': 'Avisos automáticos de nuevos videos en canales de YouTube',
+    'dash.mod.rss.desc': 'Avisos automáticos de nuevas entradas en blogs y sitios web con feed',
     'dash.mod.embeds.label': 'Embeds',
     'dash.mod.embeds.desc': 'Crea y edita mensajes reutilizables: texto, embeds y bloques Layout V2. Bienvenidas, Despedidas y Boosts los usan.',
     'dash.mod.gifs.desc': 'Galería de GIFs del servidor para respuestas y comandos',
@@ -110,6 +112,7 @@ addStrings({
     'dash.mod.frases.label': 'Phrases and Packs',
     'dash.mod.frases.desc': 'Custom phrases and themed packs organized by channel',
     'dash.mod.youtube.desc': 'Automatic alerts for new videos on YouTube channels',
+    'dash.mod.rss.desc': 'Automatic alerts for new posts on blogs and websites with a feed',
     'dash.mod.embeds.label': 'Embeds',
     'dash.mod.embeds.desc': 'Create and edit reusable messages: text, embeds, and Layout V2 blocks. Welcome, Goodbye, and Boosts use them.',
     'dash.mod.gifs.desc': "The server's GIF gallery for replies and commands",
@@ -286,6 +289,15 @@ export const MODULES = [
     desc: t('dash.mod.youtube.desc'),
     keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
     load: loadYoutube,
+  },
+  {
+    key: 'rss',
+    cat: 'automatizacion',
+    label: 'RSS / Feeds',
+    icon: 'rss',
+    desc: t('dash.mod.rss.desc'),
+    keywords: ['rss', 'atom', 'feeds', 'noticias', 'blogs', 'articulos', 'alertas'],
+    load: loadRss,
   },
 
   // Contenido

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-q3YIN69XVqFnjErPkFFKpkk81KrOk2JbHHeMmHFCy+M='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-ZBHNkFrVssvJL7R0uh2CiIpDc+UG1UTNYat85WOdesQ='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discord — Documentación técnica — Purgito</title>
 <meta name="description" content="Cogs, eventos, permisos e interacciones del bot de Purgito.">
@@ -385,6 +385,7 @@
 <tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>Detección de GIFs en mensajes, extracción de URLs nativas (Tenor/Giphy), compresión opcional y subida con deduplicación hacia Cloudflare R2.</td></tr>
 <tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>Banco de imágenes del servidor, generación de plantillas de memes, captions mediante Markov o Groq IA, y captura por reacción de emojis.</td></tr>
 <tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>Monitoreo periódico de feeds RSS de canales de YouTube y despacho automatizado de notificaciones a canales de Discord configurados.</td></tr>
+<tr><td><code>rss</code></td><td><code>src/cogs/rss.py</code></td><td>Monitoreo periódico de feeds RSS/Atom genéricos y despacho automatizado de notificaciones a canales de Discord configurados.</td></tr>
 <tr><td><code>anuncios</code></td><td><code>src/cogs/anuncios.py</code></td><td>Planificador de anuncios automatizados: despacha embeds y mensajes a intervalos recurrentes o en horarios fijos con soporte de zonas horarias.</td></tr>
 <tr><td><code>general</code></td><td><code>src/cogs/general.py</code></td><td>Comandos generales (<code>/ping</code>, <code>/ayuda</code>), sincronización global de comandos y gestión del ciclo de vida de servidores.</td></tr>
 <tr><td><code>settings</code></td><td><code>src/cogs/settings.py</code></td><td>Panel interactivo nativo en Discord (vistas, selects, botones) y mensaje de onboarding al unirse a nuevos servidores.</td></tr>

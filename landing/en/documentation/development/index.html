@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-q3YIN69XVqFnjErPkFFKpkk81KrOk2JbHHeMmHFCy+M='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-ZBHNkFrVssvJL7R0uh2CiIpDc+UG1UTNYat85WOdesQ='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Development — Technical Documentation — Purgito</title>
 <meta name="description" content="Purgito&#x27;s project structure, local environment, and tests.">
@@ -388,7 +388,7 @@
   <li><code>src/markov_engine.py</code> — Custom probabilistic first- and second-order Markov chain implementation.</li>
   <li><code>src/r2.py</code> — S3-compatible client for Cloudflare R2, media deduplication via SHA-256 and perceptual hashing.</li>
   <li><code>src/tasks.py</code> — Scheduled coroutines (grace period guild purges, audit log cleanup, and recurring dispatches).</li>
-  <li><code>src/cogs/</code> — Discord cogs organized by feature (chat, gifs, memes, youtube, premium, anuncios, settings, layout_buttons).</li>
+  <li><code>src/cogs/</code> — Discord cogs organized by feature (chat, gifs, memes, youtube, rss, premium, anuncios, settings, layout_buttons).</li>
   <li><code>landing/</code> — Static frontend: source HTML bodies (<code>landing/pages/</code>), CSS stylesheets (<code>landing/style.css</code>, <code>landing/dash.css</code>), and modular JavaScript (<code>landing/js/</code>).</li>
   <li><code>landing/build_docs.py</code> — Page builder script compiling static pages, injecting shared layout shells, and generating cache-busting hashes.</li>
   <li><code>tests/</code> — Automated test suite with <code>pytest</code> and frontend tests with Node.js.</li>

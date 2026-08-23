@@ -13,7 +13,7 @@ from discord.ext import commands
 import generation
 import i18n
 from cogs.premium import is_premium_guild
-from cogs.youtube import get_latest_video
+from cogs.youtube import resolve_youtube_channel
 from config import PANEL_URL, get_dashboard_url
 from db import (
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
@@ -636,23 +636,26 @@ class YouTubeCategory(SettingsCategory):
             )
 
             async def on_dest_channel(interaction: discord.Interaction):
-                video = await get_latest_video(pending_channel)
+                resolved = await resolve_youtube_channel(pending_channel)
                 panel.yt_pending_channel = None
-                if video is None:
+                if resolved is None:
                     panel.yt_add_error = True
                     await panel.refresh(interaction)
                     return
-                channel_name = video["author"] or pending_channel
+                canonical_channel_id = resolved.get("id") or pending_channel
+                channel_name = resolved["name"] or canonical_channel_id
                 added = await add_youtube_sub(
                     panel.guild.id,
                     interaction.channel.id if interaction.channel else 0,
-                    pending_channel,
+                    canonical_channel_id,
                     channel_name,
                     dest_select.values[0].id,
                 )
-                if added:
+                if added and resolved["latest_video_id"]:
                     await update_last_video_id(
-                        panel.guild.id, pending_channel, video["id"]
+                        panel.guild.id,
+                        canonical_channel_id,
+                        resolved["latest_video_id"],
                     )
                 await panel.refresh(interaction)
 

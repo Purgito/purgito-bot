@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import json
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -10,7 +9,6 @@ import pytest
 import db
 import webapi
 from cogs.anuncios import Anuncios
-from placeholders import build_announcement_context, resolve_placeholders
 
 _GUILD = 12345
 _GUILD_2 = 67890
@@ -171,7 +169,10 @@ def test_api_anuncios_get_and_post_plain_text(memory_db):
         post_res = json.loads(resp_post.text)
         ann_id = post_res["id"]
         assert ann_id is not None
-        assert post_res["announcement"]["message"] == "¡Recuerda leer las reglas en {channel} de {server_name}!"
+        assert (
+            post_res["announcement"]["message"]
+            == "¡Recuerda leer las reglas en {channel} de {server_name}!"
+        )
         assert post_res["announcement"]["delete_after_seconds"] == 300
         assert post_res["announcement"]["content_mode"] == "plain_text"
 
@@ -204,7 +205,10 @@ def test_api_anuncios_post_daily_and_get_item(memory_db):
         assert ann["hour"] == 8
         assert ann["minute"] == 15
         assert ann["content_mode"] == "plain_text"
-        assert ann["message"] == "Buenos días a todos los miembros de {server_name}. Hoy somos {server_membercount}."
+        assert (
+            ann["message"]
+            == "Buenos días a todos los miembros de {server_name}. Hoy somos {server_membercount}."
+        )
         assert "variables" in item_res
 
     asyncio.run(_test())
@@ -496,7 +500,10 @@ def test_anuncios_runtime_resolution_and_delivery(memory_db):
     # Verificar que channel.send fue llamado con las variables resueltas
     fake_channel.send.assert_awaited_once()
     sent_msg = fake_channel.send.await_args[0][0]
-    assert sent_msg == "¡Bienvenidos a Servidor Increíble! Canal: general. Miembros actuales: 1.420."
+    assert (
+        sent_msg
+        == "¡Bienvenidos a Servidor Increíble! Canal: general. Miembros actuales: 1.420."
+    )
 
 
 def test_anuncios_legacy_embed_runtime_resilience(memory_db):
@@ -516,7 +523,9 @@ def test_anuncios_legacy_embed_runtime_resilience(memory_db):
     fake_bot = MagicMock()
     fake_bot.get_channel.return_value = fake_channel
 
-    legacy_embed = json.dumps([{"title": "Legacy Embed", "description": "Contenido antiguo"}])
+    legacy_embed = json.dumps(
+        [{"title": "Legacy Embed", "description": "Contenido antiguo"}]
+    )
     asyncio.run(
         db.add_scheduled_announcement(
             guild_id=_GUILD,

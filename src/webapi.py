@@ -73,6 +73,7 @@ from config import (
 from cogs.chat import simulate_message
 from cogs.gifs import HEALTH_CHECK_BATCH, resolve_tenor_gif_url, run_gif_health_check
 from cogs.premium import is_premium_guild, set_premium, unset_premium
+from cogs.rss import resolve_rss_feed
 from cogs.updates import check_updates_channel_permissions
 from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
@@ -92,6 +93,7 @@ from db import (
     add_frase_pack,
     add_mention_channel,
     add_reaction_to_pool,
+    add_rss_sub,
     add_scheduled_announcement,
     add_shared_embed,
     add_spontaneous_channel,
@@ -159,6 +161,7 @@ from db import (
     list_pack_channels,
     list_premium_subscriptions_by_purchaser,
     list_reaction_pool,
+    list_rss_subs,
     list_spontaneous_channels,
     list_uploaded_images,
     list_youtube_subs,
@@ -171,6 +174,7 @@ from db import (
     remove_frase_channel,
     remove_mention_channel,
     remove_reaction_from_pool,
+    remove_rss_sub_by_id,
     remove_scheduled_announcement,
     remove_spontaneous_channel,
     remove_user_exclusion,
@@ -182,16 +186,17 @@ from db import (
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
+    set_rss_mention_role_by_id,
     set_server_event,
     set_updates_channel,
     set_user_exclusion,
     update_scheduled_announcement,
     set_youtube_mention_role_by_id,
-    toggle_server_event,
     unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
     update_frase_especial,
+    update_last_item_id,
     update_last_video_id,
     upsert_premium_subscription,
 )
@@ -2749,6 +2754,7 @@ async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response
             {"error": "No se pudo obtener información del canal. Verifica el ID."},
             status=400,
         )
+    channel_id = resolved.get("id") or channel_id
     channel_name = resolved["name"] or channel_id
     added = await add_youtube_sub(
         guild_id, discord_channel_id, channel_id, channel_name, discord_channel_id
@@ -2797,6 +2803,95 @@ async def _api_youtube_patch(request: web.Request, guild_id: int) -> web.Respons
             request,
             guild_id,
             "youtube.update_mention_role",
+            detail=f"sub_id={sub_id} role_id={role_id}",
+        )
+    return web.json_response({"updated": updated})
+
+
+# ---------------- API: RSS / Feeds ----------------
+
+
+def _rss_sub_json(guild, s: dict) -> dict:
+    return {
+        "id": s["id"],
+        "feed_url": s["feed_url"],
+        "feed_title": s["feed_title"],
+        "discord_channel_id": str(s["discord_channel_id"]),
+        "discord_channel_name": _channel_name(guild, s["discord_channel_id"]),
+        "mention_role_id": str(s["mention_role_id"]) if s["mention_role_id"] else None,
+        "last_error": s["last_error"],
+    }
+
+
+@guild_api
+async def _api_rss_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    subs = await list_rss_subs(guild_id)
+    return web.json_response({"subscriptions": [_rss_sub_json(guild, s) for s in subs]})
+
+
+@guild_api
+async def _api_rss_post(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_post, ip, 5):
+        return web.json_response({"error": "rate limit"}, status=429)
+    data = await _json_body(request)
+    feed_url = (data.get("feed_url") or "").strip() if data else ""
+    discord_channel_id = _to_int(data.get("discord_channel_id")) if data else None
+    if not feed_url or discord_channel_id is None:
+        return web.json_response(
+            {"error": "feed_url y discord_channel_id son obligatorios"}, status=400
+        )
+    resolved = await resolve_rss_feed(feed_url)
+    if resolved is None:
+        return web.json_response(
+            {"error": "No se pudo obtener información del feed. Verifica la URL."},
+            status=400,
+        )
+    feed_title = resolved["title"] or feed_url
+    added = await add_rss_sub(guild_id, feed_url, feed_title, discord_channel_id)
+    if added:
+        if resolved["latest_item_id"]:
+            await update_last_item_id(guild_id, feed_url, resolved["latest_item_id"])
+        await _log_audit(request, guild_id, "rss.add", detail=feed_title)
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_rss_delete(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_delete, ip, 3):
+        return web.json_response({"error": "rate limit"}, status=429)
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    removed = await remove_rss_sub_by_id(guild_id, sub_id)
+    if removed:
+        await _log_audit(request, guild_id, "rss.remove", detail=f"sub_id={sub_id}")
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_rss_patch(request: web.Request, guild_id: int) -> web.Response:
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None or "mention_role_id" not in data:
+        return web.json_response(
+            {"error": "mention_role_id es obligatorio"}, status=400
+        )
+    role_id = None
+    if data["mention_role_id"] is not None:
+        role_id = _to_int(data["mention_role_id"])
+        if role_id is None:
+            return web.json_response({"error": "mention_role_id inválido"}, status=400)
+    updated = await set_rss_mention_role_by_id(guild_id, sub_id, role_id)
+    if updated:
+        await _log_audit(
+            request,
+            guild_id,
+            "rss.update_mention_role",
             detail=f"sub_id={sub_id} role_id={role_id}",
         )
     return web.json_response({"updated": updated})
@@ -3194,11 +3289,7 @@ async def _resolve_target_channel(
         return None, web.json_response(
             {"error": "el canal no existe en este servidor"}, status=400
         )
-    me = (
-        guild.me
-        if guild
-        else None
-    ) or (
+    me = (guild.me if guild else None) or (
         guild.get_member(request.app["bot"].user.id)
         if guild and request.app.get("bot") and request.app["bot"].user
         else None
@@ -3215,7 +3306,9 @@ async def _resolve_target_channel(
     return channel, None
 
 
-async def _embed_target_channel(request: web.Request, guild_id: int, channel_id: int | None):
+async def _embed_target_channel(
+    request: web.Request, guild_id: int, channel_id: int | None
+):
     """(canal, None) si el canal es del guild y el bot puede mandar embeds ahí;
     si no, (None, respuesta de error)."""
     return await _resolve_target_channel(
@@ -3765,9 +3858,7 @@ def _template_body(
     if content_mode == "plain_text":
         message = data.get("message") or ""
         if not isinstance(message, str):
-            return web.json_response(
-                {"error": "el mensaje debe ser texto"}, status=400
-            )
+            return web.json_response({"error": "el mensaje debe ser texto"}, status=400)
         if len(message) > 2000:
             return web.json_response(
                 {"error": "el mensaje no puede superar los 2000 caracteres"},
@@ -3782,9 +3873,7 @@ def _template_body(
         options = sanitize_send_options(data.get("send_options"))
 
         if not isinstance(message, str):
-            return web.json_response(
-                {"error": "el mensaje debe ser texto"}, status=400
-            )
+            return web.json_response({"error": "el mensaje debe ser texto"}, status=400)
         if len(message) > 2000:
             return web.json_response(
                 {"error": "el mensaje no puede superar los 2000 caracteres"},
@@ -3811,7 +3900,12 @@ def _template_body(
                 return web.json_response({"error": opts_err}, status=400)
             payload_dict["send_options"] = options
 
-        return name, json.dumps(payload_dict) if payload_dict else "[]", "composite", message
+        return (
+            name,
+            json.dumps(payload_dict) if payload_dict else "[]",
+            "composite",
+            message,
+        )
 
     content_mode, payload, _preview, err = _extract_content(data)
     if err:
@@ -3891,9 +3985,7 @@ async def _api_embed_template_delete(
 
 
 @guild_api
-async def _api_server_events_get(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_server_events_get(request: web.Request, guild_id: int) -> web.Response:
     locale = await i18n.guild_locale(guild_id)
     events = await list_server_events(guild_id)
     variables = get_available_placeholders(locale=locale)
@@ -3906,9 +3998,7 @@ async def _api_server_events_get(
 
 
 @guild_api
-async def _api_server_event_get(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_server_event_get(request: web.Request, guild_id: int) -> web.Response:
     event_type = request.match_info.get("event_type", "").lower()
     if event_type not in EVENT_TYPES:
         return web.json_response({"error": "tipo de evento inválido"}, status=400)
@@ -3924,9 +4014,7 @@ async def _api_server_event_get(
 
 
 @guild_api
-async def _api_server_event_put(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_server_event_put(request: web.Request, guild_id: int) -> web.Response:
     event_type = request.match_info.get("event_type", "").lower()
     if event_type not in EVENT_TYPES:
         return web.json_response({"error": "tipo de evento inválido"}, status=400)
@@ -3963,9 +4051,7 @@ async def _api_server_event_put(
         # el evento se desvincula de la plantilla más adelante.
         tpl = await get_embed_template(template_id, guild_id)
         if tpl is None:
-            return web.json_response(
-                {"error": "plantilla no encontrada"}, status=400
-            )
+            return web.json_response({"error": "plantilla no encontrada"}, status=400)
         prev = await get_server_event(guild_id, event_type, resolve_template=False)
         prev_enabled = prev.get("enabled", False) if prev else False
         event = await set_server_event(
@@ -3999,7 +4085,14 @@ async def _api_server_event_put(
     # o si se trata de una actualización del configurador (desvincular plantilla o guardar sin plantilla).
     has_inline_payload = any(
         k in data
-        for k in ("content_mode", "message", "embeds", "layout", "buttons", "send_options")
+        for k in (
+            "content_mode",
+            "message",
+            "embeds",
+            "layout",
+            "buttons",
+            "send_options",
+        )
     )
 
     if not has_inline_payload:
@@ -4062,9 +4155,7 @@ async def _api_server_event_put(
     if content_mode == "plain_text":
         message = data.get("message") or ""
         if not isinstance(message, str):
-            return web.json_response(
-                {"error": "el mensaje debe ser texto"}, status=400
-            )
+            return web.json_response({"error": "el mensaje debe ser texto"}, status=400)
         if len(message) > 2000:
             return web.json_response(
                 {"error": "el mensaje no puede superar los 2000 caracteres"},
@@ -4072,7 +4163,9 @@ async def _api_server_event_put(
             )
         if enabled and not message.strip():
             return web.json_response(
-                {"error": "el mensaje de texto no puede estar vacío si el evento está activo"},
+                {
+                    "error": "el mensaje de texto no puede estar vacío si el evento está activo"
+                },
                 status=400,
             )
         var_errors = validate_content_variables(
@@ -4146,9 +4239,7 @@ async def _api_server_event_put(
         options = sanitize_send_options(data.get("send_options"))
 
         if not isinstance(message, str):
-            return web.json_response(
-                {"error": "el mensaje debe ser texto"}, status=400
-            )
+            return web.json_response({"error": "el mensaje debe ser texto"}, status=400)
         if len(message) > 2000:
             return web.json_response(
                 {"error": "el mensaje no puede superar los 2000 caracteres"},
@@ -4161,7 +4252,9 @@ async def _api_server_event_put(
 
         if enabled and not (has_text or has_embeds or has_buttons):
             return web.json_response(
-                {"error": "debes configurar al menos un mensaje de texto o embed si el evento está activo"},
+                {
+                    "error": "debes configurar al menos un mensaje de texto o embed si el evento está activo"
+                },
                 status=400,
             )
 
@@ -4196,7 +4289,10 @@ async def _api_server_event_put(
             if opts_err:
                 return web.json_response({"error": opts_err}, status=400)
             var_errors = validate_content_variables(
-                "classic_embed", {"embeds": [], "send_options": options}, event_type, locale=locale
+                "classic_embed",
+                {"embeds": [], "send_options": options},
+                event_type,
+                locale=locale,
             )
             if var_errors:
                 return web.json_response({"error": var_errors[0]}, status=400)
@@ -4231,17 +4327,13 @@ async def _api_server_event_put(
             if enabled
             else f"events.{event_type}.disabled"
         )
-        await _log_audit(
-            request, guild_id, action_name, detail=f"channel={channel_id}"
-        )
+        await _log_audit(request, guild_id, action_name, detail=f"channel={channel_id}")
 
     return web.json_response({"saved": True, "event": event})
 
 
 @guild_api
-async def _api_server_event_test(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_server_event_test(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_post, ip, 5):
         return web.json_response(
@@ -4390,18 +4482,14 @@ async def _api_server_event_test(
 
 
 @guild_api
-async def _api_server_event_delete(
-    request: web.Request, guild_id: int
-) -> web.Response:
+async def _api_server_event_delete(request: web.Request, guild_id: int) -> web.Response:
     event_type = request.match_info.get("event_type", "").lower()
     if event_type not in EVENT_TYPES:
         return web.json_response({"error": "tipo de evento inválido"}, status=400)
 
     deleted = await delete_server_event(guild_id, event_type)
     if deleted:
-        await _log_audit(
-            request, guild_id, f"events.{event_type}.delete", detail=""
-        )
+        await _log_audit(request, guild_id, f"events.{event_type}.delete", detail="")
     return web.json_response({"deleted": deleted})
 
 
@@ -5553,6 +5641,10 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/youtube", _api_youtube_post)
         app.router.add_delete(f"{base}/youtube/{{sub_id}}", _api_youtube_delete)
         app.router.add_patch(f"{base}/youtube/{{sub_id}}", _api_youtube_patch)
+        app.router.add_get(f"{base}/rss", _api_rss_get)
+        app.router.add_post(f"{base}/rss", _api_rss_post)
+        app.router.add_delete(f"{base}/rss/{{sub_id}}", _api_rss_delete)
+        app.router.add_patch(f"{base}/rss/{{sub_id}}", _api_rss_patch)
         app.router.add_post(f"{base}/embeds/send", _api_embeds_send)
         app.router.add_post(f"{base}/embeds/share", _api_embeds_share)
         app.router.add_post(f"{base}/embeds/schedule", _api_embeds_schedule)
@@ -5584,9 +5676,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(
             f"{base}/events/{{event_type}}/test", _api_server_event_test
         )
-        app.router.add_delete(
-            f"{base}/events/{{event_type}}", _api_server_event_delete
-        )
+        app.router.add_delete(f"{base}/events/{{event_type}}", _api_server_event_delete)
         app.router.add_get(f"{base}/premium", _api_premium_get)
         app.router.add_post(f"{base}/premium/checkout", _api_premium_checkout)
         app.router.add_get("/api/guilds/{guild_id}/audit", _api_audit_log_get)

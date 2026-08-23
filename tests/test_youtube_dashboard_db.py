@@ -142,7 +142,12 @@ _ENTRY = """
 
 class _FakeResp:
     def __init__(self, content, status=200):
-        self.content = content
+        if isinstance(content, str):
+            self.content = content.encode("utf-8")
+            self.text = content
+        else:
+            self.content = content
+            self.text = content.decode("utf-8", errors="replace")
         self._status = status
         self.status_code = status
 
@@ -158,7 +163,11 @@ def test_resolve_youtube_channel_with_videos_returns_name_and_latest_id(monkeypa
         lambda *a, **k: _FakeResp(_feed_xml(_ENTRY)),
     )
     resolved = asyncio.run(youtube_mod.resolve_youtube_channel(_YT_ID))
-    assert resolved == {"name": "Canal de prueba", "latest_video_id": "VIDEOID123"}
+    assert resolved == {
+        "id": _YT_ID,
+        "name": "Canal de prueba",
+        "latest_video_id": "VIDEOID123",
+    }
 
 
 def test_resolve_youtube_channel_valid_but_no_videos_allows_generic_save(monkeypatch):
@@ -170,7 +179,99 @@ def test_resolve_youtube_channel_valid_but_no_videos_allows_generic_save(monkeyp
         lambda *a, **k: _FakeResp(_feed_xml()),
     )
     resolved = asyncio.run(youtube_mod.resolve_youtube_channel(_YT_ID))
-    assert resolved == {"name": None, "latest_video_id": None}
+    assert resolved == {"id": _YT_ID, "name": None, "latest_video_id": None}
+
+
+def test_resolve_youtube_channel_with_handle_resolves(monkeypatch):
+    """Un @handle válido resuelve primero a su ID UC... vía la página del canal
+    y luego valida el RSS."""
+    handle_html = (
+        f'<html><head><meta itemprop="channelId" content="{_YT_ID}"></head></html>'
+    )
+
+    def fake_get(url, *a, **k):
+        if "youtube.com/@" in url:
+            return _FakeResp(handle_html)
+        if "feeds/videos.xml" in url:
+            return _FakeResp(_feed_xml(_ENTRY))
+        return _FakeResp(b"", status=404)
+
+    monkeypatch.setattr(youtube_mod.requests, "get", fake_get)
+    resolved = asyncio.run(youtube_mod.resolve_youtube_channel("@canalprueba"))
+    assert resolved == {
+        "id": _YT_ID,
+        "name": "Canal de prueba",
+        "latest_video_id": "VIDEOID123",
+    }
+
+
+def test_resolve_youtube_channel_with_full_url_resolves(monkeypatch):
+    """Una URL completa con @handle o parámetros resuelve correctamente."""
+    handle_html = f'<div>"channelId":"{_YT_ID}"</div>'
+
+    def fake_get(url, *a, **k):
+        if "youtube.com/@" in url:
+            return _FakeResp(handle_html)
+        if "feeds/videos.xml" in url:
+            return _FakeResp(_feed_xml(_ENTRY))
+        return _FakeResp(b"", status=404)
+
+    monkeypatch.setattr(youtube_mod.requests, "get", fake_get)
+    resolved = asyncio.run(
+        youtube_mod.resolve_youtube_channel(
+            "https://www.youtube.com/@canalprueba/videos?si=123"
+        )
+    )
+    assert resolved == {
+        "id": _YT_ID,
+        "name": "Canal de prueba",
+        "latest_video_id": "VIDEOID123",
+    }
+
+
+def test_resolve_youtube_channel_raw_uc_id_does_not_fetch_handle_page(monkeypatch):
+    """Un ID UC... crudo NO debe realizar requests a la página de @handle,
+    solo llama a _fetch_feed para consultar el RSS."""
+    urls_called = []
+
+    def fake_get(url, *a, **k):
+        urls_called.append(url)
+        return _FakeResp(_feed_xml(_ENTRY))
+
+    monkeypatch.setattr(youtube_mod.requests, "get", fake_get)
+    resolved = asyncio.run(youtube_mod.resolve_youtube_channel(_YT_ID))
+
+    assert resolved == {
+        "id": _YT_ID,
+        "name": "Canal de prueba",
+        "latest_video_id": "VIDEOID123",
+    }
+    assert len(urls_called) == 1
+    assert "feeds/videos.xml" in urls_called[0]
+    assert "@" not in urls_called[0]
+
+
+def test_resolve_youtube_channel_nonexistent_handle_returns_none(monkeypatch):
+    """Un handle inexistente que devuelve 404 o sin channelId debe retornar None
+    sin lanzar excepciones."""
+    monkeypatch.setattr(
+        youtube_mod.requests,
+        "get",
+        lambda *a, **k: _FakeResp(b"Not found", status=404),
+    )
+    assert asyncio.run(youtube_mod.resolve_youtube_channel("@inexistente")) is None
+
+
+def test_resolve_youtube_channel_handle_timeout_or_network_error_returns_none(
+    monkeypatch,
+):
+    """Timeout o error de red al resolver el handle devuelve None sin crashear."""
+
+    def boom(*a, **k):
+        raise youtube_mod.requests.Timeout("connection timed out")
+
+    monkeypatch.setattr(youtube_mod.requests, "get", boom)
+    assert asyncio.run(youtube_mod.resolve_youtube_channel("@canal_lento")) is None
 
 
 def test_resolve_youtube_channel_returns_none_on_http_error(monkeypatch):

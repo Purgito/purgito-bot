@@ -202,6 +202,18 @@ CREATE TABLE IF NOT EXISTS youtube_subscriptions (
     UNIQUE(guild_id, youtube_channel_id)
 );
 
+CREATE TABLE IF NOT EXISTS rss_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    feed_url TEXT NOT NULL,
+    feed_title TEXT NOT NULL,
+    last_item_id TEXT,
+    discord_channel_id INTEGER NOT NULL,
+    mention_role_id INTEGER,
+    last_error TEXT,
+    UNIQUE(guild_id, feed_url)
+);
+
 CREATE TABLE IF NOT EXISTS user_corpus (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER NOT NULL,
@@ -2255,6 +2267,159 @@ async def set_youtube_mention_role_by_id(
     return updated
 
 
+# ---------- Suscripciones RSS/Atom genéricas ----------
+
+RSS_ERROR_NO_PERMISSION = "sin_permiso"
+RSS_ERROR_CHANNEL_NOT_FOUND = "canal_no_encontrado"
+RSS_ERROR_FEED_NOT_FOUND = "feed_no_encontrado"
+
+
+async def add_rss_sub(
+    guild_id: int,
+    feed_url: str,
+    feed_title: str,
+    discord_channel_id: int,
+    mention_role_id: int | None = None,
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO rss_subscriptions "
+            "(guild_id, feed_url, feed_title, discord_channel_id, mention_role_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                guild_id,
+                feed_url,
+                feed_title,
+                discord_channel_id,
+                mention_role_id,
+            ),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_rss_sub(guild_id: int, feed_url: str) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM rss_subscriptions WHERE guild_id=? AND feed_url=?",
+            (guild_id, feed_url),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_rss_subs(guild_id: int) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, feed_url, feed_title, last_item_id, discord_channel_id, mention_role_id, last_error "
+        "FROM rss_subscriptions WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "guild_id": r[1],
+            "feed_url": r[2],
+            "feed_title": r[3],
+            "last_item_id": r[4],
+            "discord_channel_id": r[5],
+            "mention_role_id": r[6],
+            "last_error": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def get_all_rss_subs() -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, feed_url, feed_title, last_item_id, discord_channel_id, mention_role_id, last_error "
+        "FROM rss_subscriptions"
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "guild_id": r[1],
+            "feed_url": r[2],
+            "feed_title": r[3],
+            "last_item_id": r[4],
+            "discord_channel_id": r[5],
+            "mention_role_id": r[6],
+            "last_error": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def update_last_item_id(guild_id: int, feed_url: str, item_id: str) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE rss_subscriptions SET last_item_id=? WHERE guild_id=? AND feed_url=?",
+            (item_id, guild_id, feed_url),
+        )
+        await db.commit()
+
+
+async def set_rss_sub_error(guild_id: int, feed_url: str, error: str | None) -> None:
+    """Marca (o limpia, con error=None) el estado roto de una suscripción RSS:
+    RSS_ERROR_NO_PERMISSION, RSS_ERROR_CHANNEL_NOT_FOUND o
+    RSS_ERROR_FEED_NOT_FOUND."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE rss_subscriptions SET last_error=? WHERE guild_id=? AND feed_url=?",
+            (error, guild_id, feed_url),
+        )
+        await db.commit()
+
+
+async def set_rss_mention_role(
+    guild_id: int, feed_url: str, role_id: int | None
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE rss_subscriptions SET mention_role_id=? WHERE guild_id=? AND feed_url=?",
+            (role_id, guild_id, feed_url),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
+async def remove_rss_sub_by_id(guild_id: int, sub_id: int) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM rss_subscriptions WHERE guild_id=? AND id=?",
+            (guild_id, sub_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def set_rss_mention_role_by_id(
+    guild_id: int, sub_id: int, role_id: int | None
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE rss_subscriptions SET mention_role_id=? WHERE guild_id=? AND id=?",
+            (role_id, guild_id, sub_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
 async def save_user_message(
     guild_id: int,
     author_id: int,
@@ -3054,7 +3219,9 @@ async def list_scheduled_announcements(guild_id: int) -> list[dict]:
     ]
 
 
-async def get_scheduled_announcement(guild_id: int, announcement_id: int) -> dict | None:
+async def get_scheduled_announcement(
+    guild_id: int, announcement_id: int
+) -> dict | None:
     db = await get_db()
     async with db.execute(
         "SELECT id, channel_id, message, mode, interval_minutes, hour, minute, "
@@ -3587,7 +3754,6 @@ async def record_member_boost(
             (guild_id, user_id, premium_since_iso),
         )
         await db.commit()
-
 
 
 # ─── Galería de imágenes ya subidas (reuso entre sesiones/plantillas) ───────
@@ -5190,6 +5356,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "corpus_gifs",
         "corpus_images",
         "youtube_subscriptions",
+        "rss_subscriptions",
         "ignored_channels",
         "meme_schedule",
         "scheduled_announcements",

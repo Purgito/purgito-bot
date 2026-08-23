@@ -176,6 +176,7 @@ def test_purge_guild_data_clears_channel_webhooks_and_events(memory_db):
 
         # 2. Crear member_boost_record
         from db import try_record_member_boost
+
         await try_record_member_boost(guild_id, 123, "2026-08-21T10:00:00")
 
         # 3. Crear channel_webhook

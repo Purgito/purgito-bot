@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-q3YIN69XVqFnjErPkFFKpkk81KrOk2JbHHeMmHFCy+M='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-ZBHNkFrVssvJL7R0uh2CiIpDc+UG1UTNYat85WOdesQ='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Desarrollo — Documentación técnica — Purgito</title>
 <meta name="description" content="Estructura del proyecto, entorno local y tests de Purgito.">
@@ -384,7 +384,7 @@
   <li><code>src/markov_engine.py</code> — Implementación del motor probabilístico de cadenas de Markov de orden 1 y 2.</li>
   <li><code>src/r2.py</code> — Cliente S3 compatible para Cloudflare R2, deduplicación de medios por hash SHA-256 y hashing perceptivo.</li>
   <li><code>src/tasks.py</code> — Tareas programadas periódicas (purga diferida de servidores, expiración de auditoría y despachos).</li>
-  <li><code>src/cogs/</code> — Cogs de Discord organizados por funcionalidad (chat, gifs, memes, youtube, premium, anuncios, settings, layout_buttons).</li>
+  <li><code>src/cogs/</code> — Cogs de Discord organizados por funcionalidad (chat, gifs, memes, youtube, rss, premium, anuncios, settings, layout_buttons).</li>
   <li><code>landing/</code> — Frontend estático: páginas HTML (<code>landing/pages/</code>), estilos CSS (<code>landing/style.css</code>, <code>landing/dash.css</code>) y JavaScript modular (<code>landing/js/</code>).</li>
   <li><code>landing/build_docs.py</code> — Script de compilación de páginas HTML, inyección de layout común y cálculo de hashes de cache-busting.</li>
   <li><code>tests/</code> — Suite de pruebas automatizadas con <code>pytest</code> y pruebas de frontend con Node.js.</li>

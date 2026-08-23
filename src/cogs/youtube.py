@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from urllib.parse import quote
 
 import discord
@@ -21,10 +22,100 @@ from i18n import guild_locale, t
 
 log = logging.getLogger(__name__)
 
+# User-Agent de navegador para resolver @handles: YouTube responde con
+# HTML/JSON completo con el channelId embebido, sin consumir cuota de la API.
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+_CHANNEL_ID_RE = re.compile(r"^UC[\w-]{22}$")
+
 
 class YouTubeFeedNotFound(Exception):
     """El RSS del canal devolvió 404: canal borrado o channel_id inválido,
     a diferencia de un error transitorio (500, timeout) que sí se reintenta."""
+
+
+async def _resolve_handle_to_channel_id(raw: str) -> str | None:
+    """Resuelve un input arbitrario (ID crudo UC..., @handle o URL completa de
+    YouTube) al channel_id canónico (UC... de 24 caracteres).
+
+    Si el input ya tiene formato UC..., se devuelve directamente sin requests
+    extra. Para @handles y URLs se descarga la página del canal en un hilo
+    separado para extraer el channelId embebido.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return None
+
+    # 1. ID canónico directo: evita una petición innecesaria en el caso más común.
+    if _CHANNEL_ID_RE.match(s):
+        return s
+
+    # 2. URL directa con /channel/UC...: extrae el ID sin necesidad de fetch.
+    m_chan = re.search(r"[/?&]channel/(UC[\w-]{22})(?:[/?&]|$)", s)
+    if m_chan:
+        return m_chan.group(1)
+
+    # 3. Construcción de URL destino según el formato del input.
+    m_handle_url = re.search(r"youtube\.com/@([A-Za-z0-9_.-]+)", s)
+    if m_handle_url:
+        target_url = f"https://www.youtube.com/@{quote(m_handle_url.group(1), safe='')}"
+    elif s.startswith("@"):
+        handle = s[1:].split("/")[0].split("?")[0].strip()
+        if not handle:
+            return None
+        target_url = f"https://www.youtube.com/@{quote(handle, safe='')}"
+    elif re.search(r"youtube\.com/(?:c|user)/([A-Za-z0-9_.-]+)", s):
+        m_custom = re.search(r"youtube\.com/((?:c|user)/[A-Za-z0-9_.-]+)", s)
+        target_url = f"https://www.youtube.com/{m_custom.group(1)}"
+    elif s.startswith("http://") or s.startswith("https://") or "youtube.com" in s:
+        target_url = (
+            s
+            if (s.startswith("http://") or s.startswith("https://"))
+            else f"https://{s}"
+        )
+    else:
+        # Handle / nombre sin arroba (ej: "MrBeast")
+        handle = s.split("/")[0].split("?")[0].strip()
+        if not handle:
+            return None
+        target_url = f"https://www.youtube.com/@{quote(handle, safe='')}"
+
+    def _fetch():
+        resp = requests.get(target_url, headers=_BROWSER_HEADERS, timeout=10)
+        resp.raise_for_status()
+        return resp.text
+
+    try:
+        html_text = await asyncio.to_thread(_fetch)
+    except Exception as e:
+        log.warning("No se pudo resolver canal YouTube %s: %s", raw, e)
+        return None
+
+    # YouTube incluye el channelId en el HTML inicial ("channelId":"UC...", meta tags, etc.).
+    match = re.search(r'"channelId":"(UC[\w-]{22})"', html_text)
+    if not match:
+        match = re.search(r'itemprop="channelId"\s+content="(UC[\w-]{22})"', html_text)
+    if not match:
+        match = re.search(r'itemprop="identifier"\s+content="(UC[\w-]{22})"', html_text)
+    if not match:
+        match = re.search(
+            r'href="https://www\.youtube\.com/channel/(UC[\w-]{22})"', html_text
+        )
+    if not match:
+        match = re.search(r'"externalId":"(UC[\w-]{22})"', html_text)
+
+    if match:
+        return match.group(1)
+
+    log.warning("No se encontró channelId en la página de YouTube para %s", raw)
+    return None
 
 
 async def _fetch_feed(youtube_channel_id: str):
@@ -74,10 +165,12 @@ async def get_latest_video(youtube_channel_id: str) -> dict | None:
 
 
 async def resolve_youtube_channel(youtube_channel_id: str) -> dict | None:
-    """Valida que el canal exista (el RSS responde) y devuelve su nombre y
-    último video, para dar de alta una suscripción nueva (dashboard web y
-    /settings). None significa que el RSS no resolvió -- canal inexistente o
-    error de red -- y el alta debe rechazarse.
+    """Valida que el canal exista (el RSS responde) y devuelve su id canónico,
+    nombre y último video, para dar de alta una suscripción nueva (dashboard web
+    y /settings). None significa que el canal o RSS no resolvió -- canal
+    inexistente o error de red -- y el alta debe rechazarse.
+
+    Acepta IDs de canal crudos (UC...), @handles y URLs completas.
 
     A diferencia de get_latest_video, un canal real pero sin videos subidos
     todavía NO es un error acá: se puede dar de alta igual (con nombre
@@ -85,20 +178,28 @@ async def resolve_youtube_channel(youtube_channel_id: str) -> dict | None:
     sin video. get_latest_video sigue devolviendo None en ese caso porque ahí
     "sin entradas" significa correctamente "nada nuevo que avisar".
     """
+    channel_id = await _resolve_handle_to_channel_id(youtube_channel_id)
+    if not channel_id:
+        return None
+
     try:
-        feed = await _fetch_feed(youtube_channel_id)
+        feed = await _fetch_feed(channel_id)
     except Exception:
-        log.exception("Error resolviendo canal YouTube %s", youtube_channel_id)
+        log.exception("Error resolviendo canal YouTube %s", channel_id)
         return None
     if not feed.entries:
         log.info(
             "Canal YouTube %s parece válido pero todavía no tiene videos",
-            youtube_channel_id,
+            channel_id,
         )
-        return {"name": None, "latest_video_id": None}
+        return {"id": channel_id, "name": None, "latest_video_id": None}
     entry = feed.entries[0]
     video_id = getattr(entry, "yt_videoid", None) or entry.get("id", "").split(":")[-1]
-    return {"name": entry.get("author") or None, "latest_video_id": video_id or None}
+    return {
+        "id": channel_id,
+        "name": entry.get("author") or None,
+        "latest_video_id": video_id or None,
+    }
 
 
 class YouTube(commands.Cog):
