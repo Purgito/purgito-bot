@@ -102,6 +102,8 @@ html { background: var(--bg); scroll-behavior: smooth; overflow-x: clip; }
 body {
   min-height: 100vh;
   min-height: 100svh;
+  display: flex;
+  flex-direction: column;
   overflow-x: clip;
   font-family: var(--font-body);
   font-size: var(--t-md);
@@ -1190,7 +1192,16 @@ body.no-scroll {
 .cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }
 
 /* ══════════════════ FOOTER ══════════════════ */
-.footer { padding-bottom: 2rem; }
+.footer {
+  width: 100%;
+  margin-top: auto;
+  background: var(--surface-card);
+  border-top: 1px solid var(--border-card);
+  padding: 2.5rem 0 2rem;
+}
+@media (min-width: 768px) {
+  .footer { padding: 3rem 0 2rem; }
+}
 .foot-inner { max-width: var(--wrap); }
 
 .foot-cols {
@@ -1292,9 +1303,6 @@ body.no-scroll {
 /* Wash del hero recortado: acá no hay hero de 100dvh que acompañar. */
 .bg-short { height: 26rem; }
 
-/* Reembolsos es muy corto: sin esto el footer queda flotando a media página. */
-body:has(.doc) { display: flex; flex-direction: column; }
-body:has(.doc) .doc { flex: 1; }
 
 .doc {
   max-width: 56rem;          /* prosa legible; --wrap (88rem) es para el grid */
@@ -1373,8 +1381,6 @@ body:has(.doc) .doc { flex: 1; }
   padding-bottom: var(--gap-section);
   overflow-x: hidden;
 }
-body:has(.prem-page) { display: flex; flex-direction: column; }
-body:has(.prem-page) .prem-page { flex: 1; }
 
 /* ── 1. HERO ── */
 .prem-hero {
@@ -2087,8 +2093,6 @@ body:has(.prem-page) .prem-page { flex: 1; }
   padding-top: 3.5rem;
   padding-bottom: 5rem;
 }
-body:has(.estado) { display: flex; flex-direction: column; }
-body:has(.estado) .estado { flex: 1; }
 
 .estado-head {
   margin-bottom: 1.75rem;
