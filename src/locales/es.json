@@ -209,6 +209,8 @@
   "layout_buttons.role_removed": "Se te quitó el rol {role}.",
   "layout_buttons.role_assigned": "Se te asignó el rol {role}.",
   "layout_buttons.role_change_forbidden": "No se pudo cambiar el rol: permisos insuficientes.",
+  "layout_buttons.modal_submitted": "Tu respuesta fue enviada.",
+  "layout_buttons.modal_response_title": "Respuesta de formulario: {title}",
 
   "chat.generate_cooldown": "Espera {seconds}s antes de generar de nuevo.",
   "chat.cannot_determine_channel": "No puedo determinar el canal.",

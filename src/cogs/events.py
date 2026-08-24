@@ -25,6 +25,7 @@ from db import (
 from embeds_core import validate_embeds_payload
 from layout_v2 import (
     BUTTON_COLORS,
+    MODAL_TRIGGER_PREFIX,
     ROLE_TOGGLE_PREFIX,
     assign_button_custom_ids,
     build_layout_view,
@@ -229,22 +230,34 @@ class ServerEvents(commands.Cog):
                 options = extract_send_options(raw_embed_json)
                 extra = send_kwargs(options)
 
-                # Si el layout tiene botones de rol nuevos, registrarlos
+                # Si el layout tiene botones interactivos nuevos, registrarlos
                 assignments = assign_button_custom_ids(resolved_layout)
                 if assignments:
                     from cogs.layout_buttons import register_button_actions
 
                     rows = []
                     for a in assignments:
-                        action_data = json.dumps({"role_id": a["role_id"]})
+                        action_type = a.get("action_type", "role_toggle")
+                        if action_type == "role_toggle":
+                            action_data = json.dumps({"role_id": a["role_id"]})
+                        elif action_type == "open_modal":
+                            action_data = json.dumps(
+                                {
+                                    "title": a.get("modal_title", "Formulario"),
+                                    "fields": a.get("modal_fields", []),
+                                    "response_message": a.get("response_message", ""),
+                                }
+                            )
+                        else:
+                            continue
                         await add_button_action(
-                            a["custom_id"], guild.id, "role_toggle", action_data
+                            a["custom_id"], guild.id, action_type, action_data
                         )
                         rows.append(
                             {
                                 "custom_id": a["custom_id"],
                                 "guild_id": guild.id,
-                                "action_type": "role_toggle",
+                                "action_type": action_type,
                                 "action_data": action_data,
                             }
                         )
@@ -390,6 +403,48 @@ class ServerEvents(commands.Cog):
                                         "custom_id": custom_id,
                                         "guild_id": guild.id,
                                         "action_type": "role_toggle",
+                                        "action_data": action_data,
+                                    }
+                                )
+                            elif b_style == "modal":
+                                modal_title = (
+                                    b.get("modal_title") or b_label or "Formulario"
+                                ).strip()[:45]
+                                color_style = BUTTON_COLORS.get(
+                                    b.get("color"),
+                                    discord.ButtonStyle.secondary,
+                                )
+                                custom_id = (
+                                    b.get("custom_id")
+                                    or f"{MODAL_TRIGGER_PREFIX}{uuid.uuid4().hex[:12]}"
+                                )
+                                view.add_item(
+                                    discord.ui.Button(
+                                        label=b_label,
+                                        style=color_style,
+                                        custom_id=custom_id,
+                                    )
+                                )
+                                action_data = json.dumps(
+                                    {
+                                        "title": modal_title,
+                                        "fields": b.get("modal_fields", []),
+                                        "response_message": b.get(
+                                            "response_message", ""
+                                        ),
+                                    }
+                                )
+                                await add_button_action(
+                                    custom_id,
+                                    guild.id,
+                                    "open_modal",
+                                    action_data,
+                                )
+                                role_rows.append(
+                                    {
+                                        "custom_id": custom_id,
+                                        "guild_id": guild.id,
+                                        "action_type": "open_modal",
                                         "action_data": action_data,
                                     }
                                 )

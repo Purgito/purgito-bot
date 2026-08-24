@@ -209,6 +209,8 @@
   "layout_buttons.role_removed": "The {role} role was removed from you.",
   "layout_buttons.role_assigned": "You were given the {role} role.",
   "layout_buttons.role_change_forbidden": "Couldn't change the role: insufficient permissions.",
+  "layout_buttons.modal_submitted": "Your response has been submitted.",
+  "layout_buttons.modal_response_title": "Form response: {title}",
 
   "chat.generate_cooldown": "Wait {seconds}s before generating again.",
   "chat.cannot_determine_channel": "I can't determine the channel.",

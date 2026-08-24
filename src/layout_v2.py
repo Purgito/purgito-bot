@@ -45,6 +45,7 @@ import discord
 # reconocerlos sin colisionar con custom_ids de otros cogs (ej.
 # purgito_setup_btn de bienvenida).
 ROLE_TOGGLE_PREFIX = "purgito_role_toggle_"
+MODAL_TRIGGER_PREFIX = "purgito_modal_trigger_"
 
 MAX_COMPONENTS = 40  # total de componentes por mensaje (incluye anidados)
 MAX_TEXT_TOTAL = 4000  # suma de caracteres de TODOS los TextDisplay del layout
@@ -147,7 +148,59 @@ def _validate_button(btn) -> str | None:
         if color not in BUTTON_COLORS:
             return "color de botón inválido"
         return None
-    return "tipo de botón no soportado (usa 'link' o 'role')"
+    if style == "modal":
+        color = btn.get("color", "secondary")
+        if color not in BUTTON_COLORS:
+            return "color de botón inválido"
+        modal_title = str(
+            btn.get("modal_title")
+            if btn.get("modal_title") is not None
+            else btn.get("title", "")
+        ).strip()
+        if not modal_title:
+            return "un botón de modal necesita un título para el formulario"
+        if len(modal_title) > 45:
+            return "el título del modal supera los 45 caracteres"
+        fields = (
+            btn.get("modal_fields")
+            if btn.get("modal_fields") is not None
+            else btn.get("fields")
+        )
+        if fields is not None:
+            if not isinstance(fields, list) or not (1 <= len(fields) <= 5):
+                return "un modal debe tener entre 1 y 5 campos"
+            for f in fields:
+                if not isinstance(f, dict):
+                    return "campo de modal inválido"
+                flabel = str(f.get("label") or "").strip()
+                if not flabel:
+                    return "cada campo del modal necesita una etiqueta"
+                if len(flabel) > 45:
+                    return "la etiqueta de un campo supera los 45 caracteres"
+                fstyle = f.get("style", "short")
+                if fstyle not in ("short", "paragraph"):
+                    return (
+                        "estilo de campo de modal inválido (usa 'short' o 'paragraph')"
+                    )
+                placeholder = f.get("placeholder")
+                if placeholder and len(str(placeholder)) > 100:
+                    return "el placeholder de un campo supera los 100 caracteres"
+        dest = btn.get("destination")
+        if dest is not None:
+            if not isinstance(dest, dict):
+                return "el destino del modal es inválido"
+            dtype = dest.get("type", "dm_confirmation")
+            if dtype not in ("channel", "dm_confirmation"):
+                return "tipo de destino de modal no soportado"
+            if dtype == "channel":
+                cid = dest.get("channel_id")
+                if cid is None or not (
+                    isinstance(cid, int)
+                    or (isinstance(cid, str) and cid.strip().isdigit())
+                ):
+                    return "el destino de tipo canal necesita un canal válido"
+        return None
+    return "tipo de botón no soportado (usa 'link', 'role' o 'modal')"
 
 
 def _validate_accessory(acc, state) -> str | None:
@@ -289,10 +342,10 @@ def iter_buttons(blocks):
 
 
 def assign_button_custom_ids(layout: dict) -> list[dict]:
-    """Genera un custom_id para cada botón de rol que todavía no tenga uno
-    (mutando el layout in place) y devuelve solo las asignaciones NUEVAS como
-    [{"custom_id", "role_id"}], para que el caller las persista en
-    layout_button_actions y registre la vista en vivo.
+    """Genera un custom_id para cada botón interactivo (rol o modal) que todavía
+    no tenga uno (mutando el layout in place) y devuelve solo las asignaciones
+    NUEVAS, para que el caller las persista en layout_button_actions y registre la
+    vista en vivo.
 
     Los botones link no reciben custom_id (no despachan interacción). Es
     idempotente: un botón que ya trae custom_id (ej. un anuncio programado que
@@ -300,10 +353,42 @@ def assign_button_custom_ids(layout: dict) -> list[dict]:
     apuntando al mismo mapeo en sucesivos envíos periódicos."""
     assigned = []
     for btn in iter_buttons(layout.get("blocks", []) or []):
-        if btn.get("style") == "role" and not btn.get("custom_id"):
+        style = btn.get("style")
+        if style == "role" and not btn.get("custom_id"):
             cid = f"{ROLE_TOGGLE_PREFIX}{uuid.uuid4().hex}"
             btn["custom_id"] = cid
-            assigned.append({"custom_id": cid, "role_id": int(btn["role_id"])})
+            assigned.append(
+                {
+                    "custom_id": cid,
+                    "action_type": "role_toggle",
+                    "role_id": int(btn["role_id"]),
+                }
+            )
+        elif style == "modal" and not btn.get("custom_id"):
+            cid = f"{MODAL_TRIGGER_PREFIX}{uuid.uuid4().hex}"
+            btn["custom_id"] = cid
+            m_title = (
+                btn.get("modal_title")
+                or btn.get("title")
+                or btn.get("label")
+                or "Formulario"
+            ).strip()[:45]
+            m_fields = (
+                btn.get("modal_fields")
+                if btn.get("modal_fields") is not None
+                else btn.get("fields")
+            )
+            m_dest = btn.get("destination") or {"type": "dm_confirmation"}
+            assigned.append(
+                {
+                    "custom_id": cid,
+                    "action_type": "open_modal",
+                    "modal_title": m_title,
+                    "modal_fields": m_fields or [],
+                    "destination": m_dest,
+                    "response_message": btn.get("response_message") or "",
+                }
+            )
     return assigned
 
 
@@ -311,7 +396,7 @@ def assign_button_custom_ids(layout: dict) -> list[dict]:
 
 
 def _build_button(btn) -> discord.ui.Button:
-    if btn.get("style") == "role":
+    if btn.get("style") in ("role", "modal"):
         # Sin callback local: el click lo despacha la vista persistente
         # genérica registrada por cogs/layout_buttons.py, que matchea por
         # custom_id sin importar qué objeto de View lo envió originalmente.

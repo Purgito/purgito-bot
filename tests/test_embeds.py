@@ -953,12 +953,26 @@ def test_unknown_button_style_rejected():
             {
                 "type": "action_row",
                 "buttons": [
-                    {"style": "modal", "label": "x"},
+                    {"style": "unknown_style", "label": "x"},
                 ],
             }
         ]
     }
     assert validate_layout_v2_payload(layout) is not None
+
+
+def test_modal_button_style_accepted():
+    layout = {
+        "blocks": [
+            {
+                "type": "action_row",
+                "buttons": [
+                    {"style": "modal", "label": "Abrir", "modal_title": "Formulario"},
+                ],
+            }
+        ]
+    }
+    assert validate_layout_v2_payload(layout) is None
 
 
 # ─── Color de botón de rol (Fase 4) ───────────────────────────────────────────

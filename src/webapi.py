@@ -3049,7 +3049,7 @@ def validate_buttons_payload(buttons: Any) -> str | None:
         if len(label) > 80:
             return f"Botón {i + 1}: la etiqueta no puede superar los 80 caracteres"
         b_style = b.get("style", "link")
-        if b_style not in ("link", "role"):
+        if b_style not in ("link", "role", "modal"):
             return f"Botón {i + 1}: estilo '{b_style}' no soportado"
         if b_style == "link":
             url = str(b.get("url") or "").strip()
@@ -3061,6 +3061,51 @@ def validate_buttons_payload(buttons: Any) -> str | None:
             role_id = _to_int(b.get("role_id"))
             if not role_id:
                 return f"Botón {i + 1}: los botones de rol necesitan un rol asignado"
+        elif b_style == "modal":
+            modal_title = str(
+                b.get("modal_title")
+                if b.get("modal_title") is not None
+                else b.get("title", "")
+            ).strip()
+            if not modal_title:
+                return f"Botón {i + 1}: los botones de modal necesitan un título"
+            if len(modal_title) > 45:
+                return f"Botón {i + 1}: el título del modal supera los 45 caracteres"
+            fields = (
+                b.get("modal_fields")
+                if b.get("modal_fields") is not None
+                else b.get("fields")
+            )
+            if fields is not None:
+                if not isinstance(fields, list) or not (1 <= len(fields) <= 5):
+                    return f"Botón {i + 1}: un modal debe tener entre 1 y 5 campos"
+                for fi, f in enumerate(fields):
+                    if not isinstance(f, dict):
+                        return f"Botón {i + 1}, Campo {fi + 1}: estructura inválida"
+                    flabel = str(f.get("label") or "").strip()
+                    if not flabel:
+                        return f"Botón {i + 1}, Campo {fi + 1}: la etiqueta no puede estar vacía"
+                    if len(flabel) > 45:
+                        return f"Botón {i + 1}, Campo {fi + 1}: la etiqueta no puede superar los 45 caracteres"
+                    fstyle = f.get("style", "short")
+                    if fstyle not in ("short", "paragraph"):
+                        return f"Botón {i + 1}, Campo {fi + 1}: estilo inválido (usa 'short' o 'paragraph')"
+                    if f.get("placeholder") and len(str(f.get("placeholder"))) > 100:
+                        return f"Botón {i + 1}, Campo {fi + 1}: el placeholder no puede superar los 100 caracteres"
+            dest = b.get("destination")
+            if dest is not None:
+                if not isinstance(dest, dict):
+                    return f"Botón {i + 1}: el destino del modal es inválido"
+                dtype = dest.get("type", "dm_confirmation")
+                if dtype not in ("channel", "dm_confirmation"):
+                    return f"Botón {i + 1}: tipo de destino de modal no soportado"
+                if dtype == "channel":
+                    cid = dest.get("channel_id")
+                    if cid is None or not (
+                        isinstance(cid, int)
+                        or (isinstance(cid, str) and cid.strip().isdigit())
+                    ):
+                        return f"Botón {i + 1}: el destino de tipo canal necesita un canal válido"
     return None
 
 
@@ -3147,24 +3192,37 @@ def _extract_content(data: dict) -> tuple[str, str, str, str | None]:
 
 
 async def _register_role_buttons(bot, guild_id: int, assignments: list[dict]) -> None:
-    """Persiste el mapeo custom_id -> rol (layout_button_actions) y registra
+    """Persiste el mapeo custom_id -> acción (layout_button_actions) y registra
     los botones nuevos como vista persistente EN VIVO, para que funcionen sin
     esperar el próximo reinicio del bot. `assignments` sale de
-    layout_v2.assign_button_custom_ids (vacío si el layout no tiene botones de
-    rol nuevos, en cuyo caso esto no hace nada)."""
+    layout_v2.assign_button_custom_ids (vacío si el layout no tiene botones
+    interactivos nuevos, en cuyo caso esto no hace nada)."""
     if not assignments:
         return
     from cogs.layout_buttons import register_button_actions
 
     rows = []
     for a in assignments:
-        action_data = json.dumps({"role_id": a["role_id"]})
-        await add_button_action(a["custom_id"], guild_id, "role_toggle", action_data)
+        action_type = a.get("action_type", "role_toggle")
+        if action_type == "role_toggle":
+            action_data = json.dumps({"role_id": a["role_id"]})
+        elif action_type == "open_modal":
+            action_data = json.dumps(
+                {
+                    "title": a.get("modal_title", "Formulario"),
+                    "fields": a.get("modal_fields", []),
+                    "destination": a.get("destination") or {"type": "dm_confirmation"},
+                    "response_message": a.get("response_message", ""),
+                }
+            )
+        else:
+            continue
+        await add_button_action(a["custom_id"], guild_id, action_type, action_data)
         rows.append(
             {
                 "custom_id": a["custom_id"],
                 "guild_id": guild_id,
-                "action_type": "role_toggle",
+                "action_type": action_type,
                 "action_data": action_data,
             }
         )

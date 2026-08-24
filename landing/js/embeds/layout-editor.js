@@ -39,13 +39,27 @@ addStrings({
     'embedsLayout.duplicateBlock': 'Duplicar bloque',
     'embedsLayout.linkOption': 'Enlace',
     'embedsLayout.assignRoleOption': 'Asignar rol',
+    'embedsLayout.openModalOption': 'Abrir modal',
     'embedsLayout.buttonTextPlaceholder': 'Texto del botón',
     'embedsLayout.chooseRolePlaceholder': 'Elegir rol…',
+    'embedsLayout.modalTitlePlaceholder': 'Título del modal (máx 45)',
+    'embedsLayout.modalFieldsLabel': 'Campos del formulario (máx. 5):',
+    'embedsLayout.addField': '+ Campo',
+    'embedsLayout.fieldLabelPlaceholder': 'Etiqueta del campo (máx. 45)',
+    'embedsLayout.fieldPlaceholderPlaceholder': 'Placeholder (opcional)',
+    'embedsLayout.fieldStyleShort': 'Texto corto',
+    'embedsLayout.fieldStyleParagraph': 'Párrafo',
+    'embedsLayout.fieldRequired': 'Requerido',
+    'embedsLayout.modalDestinationLabel': 'Destino:',
+    'embedsLayout.destDmConfirmation': 'Solo confirmación efímera',
+    'embedsLayout.destChannel': 'Enviar a canal de administración',
+    'embedsLayout.chooseDestinationChannel': 'Elegir canal de destino…',
     'embedsLayout.colorGray': 'Gris',
     'embedsLayout.colorBlurple': 'Blurple',
     'embedsLayout.colorGreen': 'Verde',
     'embedsLayout.colorRed': 'Rojo',
     'embedsLayout.assignRoleHelp': '"Asignar rol" alterna: si quien clickea no tiene el rol se lo da, si ya lo tiene se lo quita.',
+    'embedsLayout.openModalHelp': '"Abrir modal" abre un formulario emergente en Discord cuando el usuario hace clic.',
     'embedsLayout.textMarkdownPlaceholder': 'Texto (markdown de Discord)',
     'embedsLayout.smallSpaceOption': 'Espacio chico',
     'embedsLayout.largeSpaceOption': 'Espacio grande',
@@ -71,6 +85,7 @@ addStrings({
     'embedsLayout.previewEmptyHint': 'Agrega bloques para ver tu mensaje',
     'embedsLayout.buttonFallbackLabel': 'botón',
     'embedsLayout.roleTag': 'ROL',
+    'embedsLayout.modalTag': 'MODAL',
     'embedsLayout.noFilePlaceholder': '(sin archivo)',
     'embedsLayout.v2Warning': 'Los layouts V2 no pueden combinar con embeds clásicos en el mismo mensaje — es una limitación de Discord, no del panel.',
     'embedsLayout.draftRecovered': 'Recuperamos tu borrador anterior',
@@ -117,13 +132,27 @@ addStrings({
     'embedsLayout.duplicateBlock': 'Duplicate block',
     'embedsLayout.linkOption': 'Link',
     'embedsLayout.assignRoleOption': 'Assign role',
+    'embedsLayout.openModalOption': 'Open modal',
     'embedsLayout.buttonTextPlaceholder': 'Button text',
     'embedsLayout.chooseRolePlaceholder': 'Choose role…',
+    'embedsLayout.modalTitlePlaceholder': 'Modal title (max 45)',
+    'embedsLayout.modalFieldsLabel': 'Form fields (max 5):',
+    'embedsLayout.addField': '+ Field',
+    'embedsLayout.fieldLabelPlaceholder': 'Field label (max 45)',
+    'embedsLayout.fieldPlaceholderPlaceholder': 'Placeholder (optional)',
+    'embedsLayout.fieldStyleShort': 'Short text',
+    'embedsLayout.fieldStyleParagraph': 'Paragraph',
+    'embedsLayout.fieldRequired': 'Required',
+    'embedsLayout.modalDestinationLabel': 'Destination:',
+    'embedsLayout.destDmConfirmation': 'Ephemeral confirmation only',
+    'embedsLayout.destChannel': 'Send to admin channel',
+    'embedsLayout.chooseDestinationChannel': 'Choose destination channel…',
     'embedsLayout.colorGray': 'Gray',
     'embedsLayout.colorBlurple': 'Blurple',
     'embedsLayout.colorGreen': 'Green',
     'embedsLayout.colorRed': 'Red',
     'embedsLayout.assignRoleHelp': '"Assign role" toggles it: if the clicker doesn\'t have the role they get it, if they already have it they lose it.',
+    'embedsLayout.openModalHelp': '"Open modal" displays an interactive pop-up form in Discord when clicked.',
     'embedsLayout.textMarkdownPlaceholder': 'Text (Discord markdown)',
     'embedsLayout.smallSpaceOption': 'Small spacing',
     'embedsLayout.largeSpaceOption': 'Large spacing',
@@ -149,6 +178,7 @@ addStrings({
     'embedsLayout.previewEmptyHint': 'Add blocks to see your message',
     'embedsLayout.buttonFallbackLabel': 'button',
     'embedsLayout.roleTag': 'ROLE',
+    'embedsLayout.modalTag': 'MODAL',
     'embedsLayout.noFilePlaceholder': '(no file)',
     'embedsLayout.v2Warning': 'V2 layouts can\'t be combined with classic embeds in the same message — that\'s a Discord limitation, not the panel\'s.',
     'embedsLayout.draftRecovered': 'We recovered your previous draft',
@@ -181,7 +211,7 @@ addStrings({
 });
 
 // Lista editable de bloques (recursiva: un container tiene su propia lista).
-export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
+export function renderBlocks(listEl, blocks, inContainer, onChange, roles, channels) {
   listEl.innerHTML = '';
   // Token propio de esta lista (distinto en cada render): el drag & drop de
   // abajo lo usa para que soltar un bloque solo reordene dentro de la MISMA
@@ -194,7 +224,7 @@ export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
   const typeCounts = {};
   blocks.forEach((b, i) => {
     typeCounts[b.type] = (typeCounts[b.type] || 0) + 1;
-    listEl.append(renderBlockCard(listEl, blocks, i, typeCounts[b.type], inContainer, onChange, roles, listToken));
+    listEl.append(renderBlockCard(listEl, blocks, i, typeCounts[b.type], inContainer, onChange, roles, listToken, channels));
   });
   // Outline recién iniciado: invitar a agregar el primer bloque en vez de una
   // lista vacía sin indicación.
@@ -219,7 +249,7 @@ export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
       title: atFileMax
         ? t('embedsLayout.maxFilesTooltip', { limit: LAYOUT_MAX_FILES })
         : atMax ? t('embedsLayout.maxComponentsTooltip', { limit: LAYOUT_MAX_COMPONENTS }) : null,
-      onclick: () => { blocks.push(newBlock(blockType)); renderBlocks(listEl, blocks, inContainer, onChange, roles); onChange(); },
+      onclick: () => { blocks.push(newBlock(blockType)); renderBlocks(listEl, blocks, inContainer, onChange, roles, channels); onChange(); },
     }, label));
   }
   listEl.append(adder);
@@ -229,12 +259,12 @@ export function renderBlocks(listEl, blocks, inContainer, onChange, roles) {
 // el dataTransfer, junto al índice — ver comentario del token en renderBlocks.
 const LV2_DRAG_TYPE = 'application/x-purgito-blocklist';
 
-export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChange, roles, listToken) {
+export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChange, roles, listToken, channels) {
   const b = blocks[i];
-  function rerender() { renderBlocks(listEl, blocks, inContainer, onChange, roles); onChange(); }
+  function rerender() { renderBlocks(listEl, blocks, inContainer, onChange, roles, channels); onChange(); }
   const warn = blockWarning(b);
   const summary = blockSummary(b);
-  const body = el('div', { class: 'layout-block-body' }, renderBlockForm(b, onChange, roles));
+  const body = el('div', { class: 'layout-block-body' }, renderBlockForm(b, onChange, roles, channels));
   if (b._collapsed) body.style.display = 'none';
   const toggle = el('button', {
     class: 'btn btn-secondary btn-sm',
@@ -306,9 +336,18 @@ export function renderBlockCard(listEl, blocks, i, typeNum, inContainer, onChang
   return card;
 }
 
-// Campos de un botón: selector Enlace/Asignar rol + los inputs correspondientes.
-export function buttonStyleFields(bt, onChange, roles) {
-  const styleSel = el('select', {}, el('option', { value: 'link' }, t('embedsLayout.linkOption')), el('option', { value: 'role' }, t('embedsLayout.assignRoleOption')));
+// Campos de un botón: selector Enlace/Asignar rol/Abrir modal + los inputs correspondientes.
+export function buttonStyleFields(bt, onChange, roles, channels) {
+  if (!bt.modal_fields) bt.modal_fields = [{ label: '', style: 'short', required: true, placeholder: '' }];
+  if (!bt.destination) bt.destination = { type: 'dm_confirmation', channel_id: '' };
+
+  const wrap = el('div', { class: 'layout-btn-wrapper', style: 'width:100%;' });
+  const row = el('div', { class: 'add-row layout-btn-fields' });
+
+  const styleSel = el('select', {},
+    el('option', { value: 'link' }, t('embedsLayout.linkOption')),
+    el('option', { value: 'role' }, t('embedsLayout.assignRoleOption')),
+    el('option', { value: 'modal' }, t('embedsLayout.openModalOption')));
   styleSel.value = bt.style || 'link';
   const label = el('input', { type: 'text', placeholder: t('embedsLayout.buttonTextPlaceholder'), maxlength: '80', value: bt.label });
   label.oninput = () => { bt.label = label.value; onChange(); };
@@ -316,7 +355,9 @@ export function buttonStyleFields(bt, onChange, roles) {
   urlInput.oninput = () => { bt.url = urlInput.value; onChange(); };
   const roleSel = roleSelect(roles, bt.role_id, t('embedsLayout.chooseRolePlaceholder'));
   roleSel.onchange = () => { bt.role_id = roleSel.value; onChange(); };
-  // Color (Fase 4): solo para botones de rol -- uno de link siempre es el
+  const modalTitleInput = el('input', { type: 'text', placeholder: t('embedsLayout.modalTitlePlaceholder'), maxlength: '45', value: bt.modal_title || '' });
+  modalTitleInput.oninput = () => { bt.modal_title = modalTitleInput.value; onChange(); };
+  // Color (Fase 4): para botones de rol o modal -- uno de link siempre es el
   // mismo gris con ícono en Discord, no se puede recolorear.
   const colorSel = el('select', {},
     el('option', { value: 'secondary' }, t('embedsLayout.colorGray')),
@@ -325,19 +366,108 @@ export function buttonStyleFields(bt, onChange, roles) {
     el('option', { value: 'danger' }, t('embedsLayout.colorRed')));
   colorSel.value = bt.color || 'secondary';
   colorSel.onchange = () => { bt.color = colorSel.value; onChange(); };
+  const roleHelpEl = helpIcon(t('embedsLayout.assignRoleHelp'));
+  const modalHelpEl = helpIcon(t('embedsLayout.openModalHelp'));
+
+  row.append(styleSel, label, urlInput, roleSel, modalTitleInput, colorSel, roleHelpEl, modalHelpEl);
+
+  const modalBox = el('div', { class: 'layout-modal-config', style: 'margin-top:8px; padding:10px; background:rgba(255,255,255,0.03); border-radius:6px; border:1px solid rgba(255,255,255,0.08);' });
+
+  function renderModalConfig() {
+    modalBox.innerHTML = '';
+
+    // Destino
+    const destRow = el('div', { class: 'add-row', style: 'margin-bottom:10px; align-items:center;' });
+    const destLabel = el('span', { style: 'font-weight:600; font-size:12px; min-width:80px;' }, t('embedsLayout.modalDestinationLabel'));
+    const destTypeSel = el('select', {},
+      el('option', { value: 'dm_confirmation' }, t('embedsLayout.destDmConfirmation')),
+      el('option', { value: 'channel' }, t('embedsLayout.destChannel')));
+    destTypeSel.value = bt.destination && bt.destination.type === 'channel' ? 'channel' : 'dm_confirmation';
+
+    const destChSel = channelSelect(channels, bt.destination ? bt.destination.channel_id : '', t('embedsLayout.chooseDestinationChannel'));
+    destChSel.style.display = destTypeSel.value === 'channel' ? '' : 'none';
+
+    destTypeSel.onchange = () => {
+      if (!bt.destination) bt.destination = {};
+      bt.destination.type = destTypeSel.value;
+      destChSel.style.display = destTypeSel.value === 'channel' ? '' : 'none';
+      onChange();
+    };
+    destChSel.onchange = () => {
+      if (!bt.destination) bt.destination = { type: 'channel' };
+      bt.destination.channel_id = destChSel.value;
+      onChange();
+    };
+    destRow.append(destLabel, destTypeSel, destChSel);
+    modalBox.append(destRow);
+
+    // Campos del formulario
+    const fieldsTitle = el('div', { style: 'font-weight:600; font-size:12px; margin-bottom:6px;' }, t('embedsLayout.modalFieldsLabel'));
+    modalBox.append(fieldsTitle);
+
+    const fieldsList = el('div', {});
+    (bt.modal_fields || []).forEach((f, fIdx) => {
+      const fRow = el('div', { class: 'add-row layout-modal-field-row', style: 'margin-bottom:6px; align-items:center;' });
+      const fLabel = el('input', { type: 'text', placeholder: t('embedsLayout.fieldLabelPlaceholder'), maxlength: '45', value: f.label || '', style: 'flex:2; min-width:120px;' });
+      fLabel.oninput = () => { f.label = fLabel.value; onChange(); };
+
+      const fStyle = el('select', { style: 'flex:1; min-width:90px;' },
+        el('option', { value: 'short' }, t('embedsLayout.fieldStyleShort')),
+        el('option', { value: 'paragraph' }, t('embedsLayout.fieldStyleParagraph')));
+      fStyle.value = f.style || 'short';
+      fStyle.onchange = () => { f.style = fStyle.value; onChange(); };
+
+      const reqChk = el('input', { type: 'checkbox', checked: f.required !== false });
+      reqChk.onchange = () => { f.required = reqChk.checked; onChange(); };
+      const reqLabel = el('label', { class: 'toggle', style: 'font-size:12px; white-space:nowrap;' }, reqChk, t('embedsLayout.fieldRequired'));
+
+      const fPlaceholder = el('input', { type: 'text', placeholder: t('embedsLayout.fieldPlaceholderPlaceholder'), maxlength: '100', value: f.placeholder || '', style: 'flex:2; min-width:120px;' });
+      fPlaceholder.oninput = () => { f.placeholder = fPlaceholder.value; onChange(); };
+
+      const delBtn = (bt.modal_fields.length > 1)
+        ? el('button', { class: 'btn btn-danger btn-sm', onclick: () => { bt.modal_fields.splice(fIdx, 1); renderModalConfig(); onChange(); } }, '✗')
+        : null;
+
+      fRow.append(fLabel, fStyle, reqLabel, fPlaceholder);
+      if (delBtn) fRow.append(delBtn);
+      fieldsList.append(fRow);
+    });
+    modalBox.append(fieldsList);
+
+    const addFieldBtn = el('button', {
+      class: 'btn btn-secondary btn-sm',
+      disabled: (bt.modal_fields && bt.modal_fields.length >= 5) || null,
+      onclick: () => {
+        if (!bt.modal_fields) bt.modal_fields = [];
+        if (bt.modal_fields.length < 5) {
+          bt.modal_fields.push({ label: '', style: 'short', required: true, placeholder: '' });
+          renderModalConfig();
+          onChange();
+        }
+      },
+    }, t('embedsLayout.addField'));
+    modalBox.append(addFieldBtn);
+  }
+
   function sync() {
     const isRole = styleSel.value === 'role';
-    urlInput.style.display = isRole ? 'none' : '';
+    const isModal = styleSel.value === 'modal';
+    urlInput.style.display = (!isRole && !isModal) ? '' : 'none';
     roleSel.style.display = isRole ? '' : 'none';
-    colorSel.style.display = isRole ? '' : 'none';
+    modalTitleInput.style.display = isModal ? '' : 'none';
+    colorSel.style.display = (isRole || isModal) ? '' : 'none';
+    roleHelpEl.style.display = isRole ? '' : 'none';
+    modalHelpEl.style.display = isModal ? '' : 'none';
+    modalBox.style.display = isModal ? '' : 'none';
+    if (isModal) renderModalConfig();
   }
   styleSel.onchange = () => { bt.style = styleSel.value; sync(); onChange(); };
   sync();
-  return el('div', { class: 'add-row layout-btn-fields' }, styleSel, label, urlInput, roleSel, colorSel,
-    helpIcon(t('embedsLayout.assignRoleHelp')));
+  wrap.append(row, modalBox);
+  return wrap;
 }
 
-export function renderBlockForm(b, onChange, roles) {
+export function renderBlockForm(b, onChange, roles, channels) {
   if (b.type === 'text') {
     const ta = el('textarea', { class: 'autogrow', placeholder: t('embedsLayout.textMarkdownPlaceholder') });
     ta.value = b.content;
@@ -375,7 +505,7 @@ export function renderBlockForm(b, onChange, roles) {
       box.innerHTML = '';
       b.buttons.forEach((bt, idx) => {
         box.append(el('div', { class: 'layout-btn-row' },
-          buttonStyleFields(bt, onChange, roles),
+          buttonStyleFields(bt, onChange, roles, channels),
           el('button', { class: 'btn btn-danger btn-sm', onclick: () => { b.buttons.splice(idx, 1); renderBtns(); onChange(); } }, '✗')));
       });
       box.append(el('button', { class: 'btn btn-secondary btn-sm', disabled: b.buttons.length >= 5 || null, onclick: () => { b.buttons.push({ style: 'link', label: '', url: '', role_id: '', color: 'secondary' }); renderBtns(); onChange(); } }, t('embedsLayout.addButton')));
@@ -407,7 +537,7 @@ export function renderBlockForm(b, onChange, roles) {
         desc.oninput = () => { b.accessory.description = desc.value; onChange(); };
         accBox.append(el('div', { class: 'add-row' }, imageField(b.accessory, 'url', onChange), desc));
       } else {
-        accBox.append(buttonStyleFields(b.accessory, onChange, roles));
+        accBox.append(buttonStyleFields(b.accessory, onChange, roles, channels));
       }
     }
     accType.onchange = () => { b.accessory.type = accType.value; renderAcc(); onChange(); };
@@ -471,7 +601,7 @@ export function renderBlockForm(b, onChange, roles) {
     helpIcon(t('embedsLayout.accentBarHelp')),
     colorField(b, 'accent_color', onChange)));
   const nested = el('div', { class: 'layout-nested' });
-  renderBlocks(nested, b.children, true, onChange, roles);
+  renderBlocks(nested, b.children, true, onChange, roles, channels);
   box.append(nested);
   return box;
 }
@@ -484,14 +614,17 @@ export function renderLayoutPreview(blocks) {
   return wrap;
 }
 
-// Botón del preview: los de "asignar rol" llevan una etiqueta de texto (sin
-// emoji, mismo criterio del resto del panel) para distinguirlos de un link.
+// Botón del preview: los de "asignar rol" o "abrir modal" llevan una etiqueta de texto
+// (sin emoji, mismo criterio del resto del panel) para distinguirlos de un link.
 export function lv2Button(bt) {
-  // Color real de Discord (Fase 4) solo para botones de rol -- uno de link
+  // Color real de Discord (Fase 4) para botones de rol o modal -- uno de link
   // siempre se ve igual (gris + ícono), Discord no lo deja recolorear.
-  const colorClass = bt.style === 'role' ? ` lv2-btn-${bt.color || 'secondary'}` : '';
+  const colorClass = (bt.style === 'role' || bt.style === 'modal') ? ` lv2-btn-${bt.color || 'secondary'}` : '';
+  let tag = null;
+  if (bt.style === 'role') tag = el('span', { class: 'lv2-btn-tag' }, t('embedsLayout.roleTag'));
+  else if (bt.style === 'modal') tag = el('span', { class: 'lv2-btn-tag' }, t('embedsLayout.modalTag'));
   return el('span', { class: 'lv2-btn' + colorClass },
-    bt.label || t('embedsLayout.buttonFallbackLabel'), bt.style === 'role' ? el('span', { class: 'lv2-btn-tag' }, t('embedsLayout.roleTag')) : null);
+    bt.label || t('embedsLayout.buttonFallbackLabel'), tag);
 }
 
 export function renderPreviewBlock(b) {
@@ -563,7 +696,7 @@ export function renderLayoutEditor(box, channels, roles) {
   }
 
   const blocksList = el('div', { class: 'layout-list' });
-  renderBlocks(blocksList, doc.blocks, false, updatePreview, roles);
+  renderBlocks(blocksList, doc.blocks, false, updatePreview, roles, channels);
 
   // destino + modo de envío (persistidos en el doc), misma UX que el clásico.
   const chSel = channelSelect(channels, doc.channelId, t('embedsLayout.channelPlaceholder'));

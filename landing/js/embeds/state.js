@@ -36,6 +36,10 @@ addStrings({
     'embedsState.buttonNoText': 'Botón sin texto',
     'embedsState.buttonNoUrl': 'Botón sin URL válida',
     'embedsState.buttonNoRole': 'Botón sin rol elegido',
+    'embedsState.buttonNoModalTitle': 'Botón sin título de formulario',
+    'embedsState.buttonNoModalFields': 'Botón sin campos configurados',
+    'embedsState.buttonFieldNoLabel': 'Campo de formulario sin etiqueta',
+    'embedsState.buttonNoModalChannel': 'Botón sin canal de destino configurado',
     'embedsState.textEmpty': 'Texto vacío',
     'embedsState.sectionNoText': 'Sección sin texto',
     'embedsState.thumbnailNoImage': 'Miniatura sin imagen',
@@ -75,6 +79,10 @@ addStrings({
     'embedsState.buttonNoText': 'Button with no text',
     'embedsState.buttonNoUrl': 'Button with no valid URL',
     'embedsState.buttonNoRole': 'Button with no role chosen',
+    'embedsState.buttonNoModalTitle': 'Modal button with no form title',
+    'embedsState.buttonNoModalFields': 'Modal button with no fields configured',
+    'embedsState.buttonFieldNoLabel': 'Form field with no label',
+    'embedsState.buttonNoModalChannel': 'Modal button with no destination channel configured',
     'embedsState.textEmpty': 'Empty text',
     'embedsState.sectionNoText': 'Section with no text',
     'embedsState.thumbnailNoImage': 'Thumbnail with no image',
@@ -338,14 +346,36 @@ export function colorToHex(c) {
   return typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c.trim()) ? c.trim() : null;
 }
 
-// Estado de un botón del editor -> dict API. Botones "role" nunca llevan
-// custom_id desde el frontend — lo asigna el backend recién al enviar/programar.
+// Estado de un botón del editor -> dict API. Botones "role" y "modal" nunca
+// llevan custom_id desde el frontend — lo asigna el backend recién al enviar/programar.
 export function buttonToApi(bt) {
   if (bt.style === 'role') {
-    // color (Fase 4): solo tiene sentido en botones de rol — Discord no deja
-    // recolorear uno de link, siempre es el mismo gris con ícono.
+    // color (Fase 4): solo tiene sentido en botones de rol o modal — Discord no
+    // deja recolorear uno de link, siempre es el mismo gris con ícono.
     return {
       style: 'role', label: bt.label, role_id: bt.role_id ? String(bt.role_id) : null,
+      color: bt.color || 'secondary',
+    };
+  }
+  if (bt.style === 'modal') {
+    const fields = (bt.modal_fields || []).map(f => {
+      const field = {
+        label: (f.label || '').trim(),
+        style: f.style === 'paragraph' ? 'paragraph' : 'short',
+        required: f.required !== false,
+      };
+      if (f.placeholder && f.placeholder.trim()) field.placeholder = f.placeholder.trim();
+      if (f.max_length) field.max_length = Number(f.max_length);
+      return field;
+    });
+    return {
+      style: 'modal',
+      label: bt.label,
+      modal_title: (bt.modal_title || '').trim(),
+      modal_fields: fields,
+      destination: bt.destination && bt.destination.type === 'channel' && bt.destination.channel_id
+        ? { type: 'channel', channel_id: Number(bt.destination.channel_id) }
+        : { type: 'dm_confirmation' },
       color: bt.color || 'secondary',
     };
   }
@@ -353,9 +383,28 @@ export function buttonToApi(bt) {
 }
 
 export function buttonFromApi(bt) {
+  const fields = (bt.modal_fields || bt.fields || []).map(f => ({
+    label: f.label || '',
+    style: f.style === 'paragraph' ? 'paragraph' : 'short',
+    required: f.required !== false,
+    placeholder: f.placeholder || '',
+    max_length: f.max_length || null,
+  }));
+  let dest = { type: 'dm_confirmation', channel_id: '' };
+  if (bt.destination && typeof bt.destination === 'object') {
+    dest = {
+      type: bt.destination.type === 'channel' ? 'channel' : 'dm_confirmation',
+      channel_id: bt.destination.channel_id != null ? String(bt.destination.channel_id) : '',
+    };
+  }
   return {
-    style: bt.style === 'role' ? 'role' : 'link', label: bt.label || '', url: bt.url || '',
-    role_id: bt.role_id != null ? String(bt.role_id) : '', color: bt.color || 'secondary',
+    style: bt.style === 'role' ? 'role' : bt.style === 'modal' ? 'modal' : 'link',
+    label: bt.label || '', url: bt.url || '',
+    role_id: bt.role_id != null ? String(bt.role_id) : '',
+    modal_title: bt.modal_title || bt.title || '',
+    modal_fields: fields.length ? fields : [{ label: '', style: 'short', required: true, placeholder: '' }],
+    destination: dest,
+    color: bt.color || 'secondary',
   };
 }
 
@@ -443,6 +492,12 @@ export function btnWarn(bt) {
   if (!bt.label.trim()) return t('embedsState.buttonNoText');
   if (bt.style === 'link' && !/^https?:\/\//.test((bt.url || '').trim())) return t('embedsState.buttonNoUrl');
   if (bt.style === 'role' && !bt.role_id) return t('embedsState.buttonNoRole');
+  if (bt.style === 'modal') {
+    if (!bt.modal_title || !bt.modal_title.trim()) return t('embedsState.buttonNoModalTitle');
+    if (!bt.modal_fields || !bt.modal_fields.length) return t('embedsState.buttonNoModalFields');
+    if (bt.modal_fields.some(f => !f.label || !f.label.trim())) return t('embedsState.buttonFieldNoLabel');
+    if (bt.destination && bt.destination.type === 'channel' && !bt.destination.channel_id) return t('embedsState.buttonNoModalChannel');
+  }
   return null;
 }
 
