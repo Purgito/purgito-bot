@@ -450,7 +450,8 @@ def test_get_live_gif_single_unreachable_does_not_delete(memory_db, monkeypatch)
 
 def test_get_live_gif_returns_ok_candidate(memory_db, monkeypatch):
     async def run():
-        await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        for i in range(10):
+            await _insert_gif(memory_db, _GUILD, f"https://example.com/{i}.gif")
 
         async def _fake_bytes(*a, **k):
             return b"GIF89a-bytes-validos"
@@ -467,7 +468,22 @@ def test_get_live_gif_returns_ok_candidate(memory_db, monkeypatch):
 
 def test_get_live_gif_deletes_only_after_three_confirmed_dead(memory_db, monkeypatch):
     async def run():
-        gid = await _insert_gif(memory_db, _GUILD, "https://example.com/a.gif")
+        gids = [
+            await _insert_gif(memory_db, _GUILD, f"https://example.com/{i}.gif")
+            for i in range(10)
+        ]
+        gid = gids[0]
+        async def fake_candidates(*a, **k):
+            return [
+                {
+                    "id": gid,
+                    "url": "https://example.com/0.gif",
+                    "media_url": None,
+                    "content_hash": None,
+                }
+            ]
+
+        monkeypatch.setattr(gifs_mod, "get_random_gif_candidates", fake_candidates)
         monkeypatch.setattr(r2, "check_gif_url_health", lambda *a, **k: "dead")
 
         async def _none_bytes(*a, **k):
@@ -600,6 +616,12 @@ def test_get_live_gif_ignores_png_media_url_and_uses_original_url(
     """Si una fila histórica tiene media_url='...png', get_live_gif NO debe enviar el .png."""
 
     async def run():
+        # Insertar 9 GIFs de relleno para cumplir el umbral mínimo
+        for i in range(9):
+            await memory_db.execute(
+                "INSERT INTO corpus_gifs (guild_id, url, media_url) VALUES (?, ?, ?)",
+                (_GUILD, f"https://tenor.com/view/dummy-{i}", None),
+            )
         # Insertar GIF con media_url apuntando a un PNG de miniatura
         await memory_db.execute(
             "INSERT INTO corpus_gifs (guild_id, url, media_url) "
@@ -607,6 +629,18 @@ def test_get_live_gif_ignores_png_media_url_and_uses_original_url(
             (_GUILD,),
         )
         await memory_db.commit()
+
+        async def fake_candidates(*a, **k):
+            return [
+                {
+                    "id": 10,
+                    "url": "https://tenor.com/view/funny-cat-123",
+                    "media_url": "https://media.tenor.com/x.png",
+                    "content_hash": None,
+                }
+            ]
+
+        monkeypatch.setattr(gifs_mod, "get_random_gif_candidates", fake_candidates)
 
         fetched_urls = []
 

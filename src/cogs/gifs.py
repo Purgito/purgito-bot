@@ -44,6 +44,8 @@ ALLOWED_GIF_HOSTS = (
     "media.discordapp.net",
 )
 
+MIN_GIFS_PER_GUILD = 10
+
 
 def _gif_host(url: str) -> str:
     try:
@@ -436,11 +438,19 @@ async def get_live_gif(
     bytes GIF87a/GIF89a, y devuelve un discord.File listo para ser enviado como
     attachment.
 
+    Requiere al menos MIN_GIFS_PER_GUILD GIFs guardados en el servidor antes de
+    permitir respuestas automáticas con GIF, evitando repetición constante con
+    pocos GIFs.
+
     Si un candidato falla:
     - 404/410 o contenido corrupto/no-GIF: suma al streak 'dead' (se auto-borra a los 3 seguidos).
     - Timeout puntual o caída de red: registra 'unreachable' sin acumular strikes.
     - Continúa con el siguiente candidato disponible hasta agotar `attempts`.
     """
+    total = await count_gif_urls(guild_id)
+    if total < MIN_GIFS_PER_GUILD:
+        return None
+
     candidates = await get_random_gif_candidates(guild_id, limit=attempts)
     for gif in candidates:
         gif_id = gif["id"]

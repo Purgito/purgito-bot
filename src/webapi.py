@@ -71,7 +71,12 @@ from config import (
     get_invite_url,
 )
 from cogs.chat import simulate_message
-from cogs.gifs import HEALTH_CHECK_BATCH, resolve_tenor_gif_url, run_gif_health_check
+from cogs.gifs import (
+    HEALTH_CHECK_BATCH,
+    MIN_GIFS_PER_GUILD,
+    resolve_tenor_gif_url,
+    run_gif_health_check,
+)
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.rss import resolve_rss_feed
 from cogs.updates import check_updates_channel_permissions
@@ -1184,7 +1189,11 @@ async def _api_chat_playground_post(
     # 1. Roll para GIF espontáneo
     is_gif_result = False
     simulated_gif = None
-    if gif_total > 0 and gif_prob > 0 and random.random() < gif_prob:
+    if (
+        gif_total >= MIN_GIFS_PER_GUILD
+        and gif_prob > 0
+        and random.random() < gif_prob
+    ):
         gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
         if gif_candidates:
             media_url = gif_candidates[0].get("media_url")
@@ -1286,10 +1295,14 @@ async def _api_chat_playground_post(
             "id": "gifs",
             "label": "Respuestas con GIF",
             "passed": (
-                settings.get("gif_response_probability", 0) > 0 and gif_total > 0
+                settings.get("gif_response_probability", 0) > 0
+                and gif_total >= MIN_GIFS_PER_GUILD
             ),
             "detail": f"{gif_total} GIFs en catálogo ({int(settings.get('gif_response_probability', 0) * 100)}% prob.)."
-            if (settings.get("gif_response_probability", 0) > 0 and gif_total > 0)
+            if (
+                settings.get("gif_response_probability", 0) > 0
+                and gif_total >= MIN_GIFS_PER_GUILD
+            )
             else (
                 f"{gif_total} GIFs guardados con 0% de prob."
                 if gif_total > 0

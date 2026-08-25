@@ -503,7 +503,7 @@ def test_simulacion_gif_excluye_mensaje_y_reaccion(fake_guild, monkeypatch):
         return [{"media_url": "https://media.giphy.com/media/test/cat.gif"}]
 
     async def fake_count_gifs(guild_id):
-        return 3
+        return 10
 
     monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
@@ -612,7 +612,7 @@ def test_simulaciones_consecutivas_son_independientes(fake_guild, monkeypatch):
         return [{"media_url": "https://media.giphy.com/media/test/first.gif"}]
 
     async def fake_count_gifs(guild_id):
-        return 5
+        return 10
 
     async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
         return {
@@ -640,3 +640,41 @@ def test_simulaciones_consecutivas_son_independientes(fake_guild, monkeypatch):
     assert data2["result_type"] == "message"
     assert data2["text"] == "Segundo intento es mensaje"
     assert data2["gif_url"] is None
+
+
+def test_simulacion_con_menos_de_10_gifs_nunca_entrega_gif(fake_guild, monkeypatch):
+    """Verifica que el simulador respete el piso de 10 GIFs: con 0, 1 o 9 GIFs, nunca devuelve GIF."""
+    for count in [0, 1, 9]:
+        async def fake_settings(guild_id, channel_id):
+            return {
+                "enabled": True,
+                "gif_response_probability": 1.0,
+                "reaction_probability": 0.0,
+                "frase_probability": 0.0,
+            }
+
+        async def fake_gif_candidates(guild_id, limit=1):
+            return [{"media_url": "https://media.giphy.com/media/test/cat.gif"}]
+
+        async def fake_count_gifs(guild_id, current_count=count):
+            return current_count
+
+        async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+            return {
+                "would_respond": True,
+                "reason": "markov",
+                "text": "Texto Markov de respaldo",
+            }
+
+        monkeypatch.setattr(webapi, "get_effective_chat_settings", fake_settings)
+        monkeypatch.setattr(webapi, "count_gif_urls", fake_count_gifs)
+        monkeypatch.setattr(webapi, "get_random_gif_candidates", fake_gif_candidates)
+        monkeypatch.setattr(webapi.random, "random", lambda: 0.0)
+        monkeypatch.setattr(webapi, "simulate_message", fake_simulate)
+
+        resp = _run(FakeRequest(body={"channel_id": "10"}))
+        assert resp.status == 200
+        data = _json(resp)
+        assert data["result_type"] == "message"
+        assert data["gif_url"] is None
+        assert data["text"] == "Texto Markov de respaldo"

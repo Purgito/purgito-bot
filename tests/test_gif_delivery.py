@@ -235,8 +235,9 @@ def test_gif_cache_avoids_duplicate_network_calls(monkeypatch):
 
 def test_get_live_gif_from_tenor_returns_discord_file(memory_db, monkeypatch):
     async def run():
-        # Guardar GIF de Tenor en DB
-        await db.save_gif_url(_GUILD, "https://media1.tenor.com/m/123/funny.gif")
+        # Guardar GIFs de Tenor en DB (mínimo MIN_GIFS_PER_GUILD)
+        for i in range(gifs_mod.MIN_GIFS_PER_GUILD):
+            await db.save_gif_url(_GUILD, f"https://media1.tenor.com/m/{i}/funny.gif")
 
         async def fake_fetch(url, **kwargs):
             return _VALID_GIF_BYTES
@@ -253,13 +254,14 @@ def test_get_live_gif_from_tenor_returns_discord_file(memory_db, monkeypatch):
 
 def test_get_live_gif_from_r2_storage(memory_db, monkeypatch):
     async def run():
-        # Guardar GIF con content_hash (subido a R2)
-        content_hash = "f" * 64
-        await db.save_gif_url(
-            _GUILD,
-            f"https://cdn.example.com/gifs/ff/{content_hash}.gif",
-            content_hash=content_hash,
-        )
+        # Guardar GIFs con content_hash (subido a R2) (mínimo MIN_GIFS_PER_GUILD)
+        for i in range(gifs_mod.MIN_GIFS_PER_GUILD):
+            content_hash = f"{i:x}" * 64
+            await db.save_gif_url(
+                _GUILD,
+                f"https://cdn.example.com/gifs/{content_hash[:2]}/{content_hash}.gif",
+                content_hash=content_hash,
+            )
 
         monkeypatch.setattr(r2, "available", lambda: True)
         monkeypatch.setattr(r2, "get_object_bytes_sync", lambda key: _VALID_GIF_BYTES)
@@ -452,6 +454,328 @@ def test_chat_forbidden_attachment_falls_back_to_text_cleanly(memory_db, monkeyp
         assert len(msg.replies) == 1
         assert msg.replies[0]["content"] == "texto fallback de markov"
         assert "tenor.com" not in str(msg.replies[0]["content"])
+
+    asyncio.run(run())
+
+
+# ─── Tests del requisito MIN_GIFS_PER_GUILD ──────────────────────────────────
+
+
+def test_min_gifs_threshold_ladder(memory_db, monkeypatch):
+    """Verifica que get_live_gif respete estrictamente el umbral mínimo de GIFs:
+    0 GIFs  -> None
+    1 GIF   -> None
+    9 GIFs  -> None
+    10 GIFs -> discord.File
+    11+ GIFs-> discord.File
+    """
+
+    async def run():
+        async def fake_fetch(url, **kwargs):
+            return _VALID_GIF_BYTES
+
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", fake_fetch)
+
+        # 0 GIFs
+        assert await db.count_gif_urls(_GUILD) == 0
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+
+        # 1 GIF
+        await db.save_gif_url(_GUILD, "https://media.tenor.com/m/0/gif0.gif")
+        assert await db.count_gif_urls(_GUILD) == 1
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+
+        # 2 a 8 GIFs (total 8)
+        for i in range(1, 8):
+            await db.save_gif_url(_GUILD, f"https://media.tenor.com/m/{i}/gif{i}.gif")
+        assert await db.count_gif_urls(_GUILD) == 8
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+
+        # 9 GIFs
+        await db.save_gif_url(_GUILD, "https://media.tenor.com/m/8/gif8.gif")
+        assert await db.count_gif_urls(_GUILD) == 9
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+
+        # 10 GIFs -> Alcanza el mínimo exactamente, entrega GIF
+        await db.save_gif_url(_GUILD, "https://media.tenor.com/m/9/gif9.gif")
+        assert await db.count_gif_urls(_GUILD) == 10
+        file_10 = await gifs_mod.get_live_gif(_GUILD, attempts=1)
+        assert isinstance(file_10, discord.File)
+        assert file_10.filename == "purgito.gif"
+        assert file_10.fp.read() == _VALID_GIF_BYTES
+
+        # 11 GIFs -> Supera el mínimo, sigue entregando GIF
+        await db.save_gif_url(_GUILD, "https://media.tenor.com/m/10/gif10.gif")
+        assert await db.count_gif_urls(_GUILD) == 11
+        file_11 = await gifs_mod.get_live_gif(_GUILD, attempts=1)
+        assert isinstance(file_11, discord.File)
+        assert file_11.filename == "purgito.gif"
+        assert file_11.fp.read() == _VALID_GIF_BYTES
+
+    asyncio.run(run())
+
+
+def test_chat_spontaneous_below_min_gifs_threshold_falls_back_to_text(
+    memory_db, monkeypatch
+):
+    """En generación espontánea con probabilidad de GIF = 1.0 pero menos de 10 GIFs,
+    Purgito no debe enviar GIF y debe generar respuesta de texto normalmente."""
+
+    async def run():
+        chat_mod._muted_reply_cooldowns.clear()
+        chat_mod._recent_message_ids.clear()
+        chat_mod._spontaneous_cooldowns.clear()
+
+        # Solo 3 GIFs en la base de datos (< 10)
+        for i in range(3):
+            await db.save_gif_url(_GUILD, f"https://media.tenor.com/m/{i}/g.gif")
+
+        async def fake_effective(guild_id, channel_id):
+            return {
+                "enabled": True,
+                "channel_id": None,
+                "mention_rate_limit": 0,
+                "auto_generate_every": 1,
+                "auto_generate_probability": 1.0,
+                "reaction_probability": 0.0,
+                "gif_response_probability": 1.0,
+                "frase_probability": 0.0,
+            }
+
+        bumped = []
+
+        async def track_bump(guild_id, name):
+            bumped.append(name)
+
+        monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_effective)
+        monkeypatch.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
+        monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_true())
+        monkeypatch.setattr(
+            chat_mod, "list_spontaneous_channels", lambda *a: _async_list()
+        )
+        monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "_check_spontaneous_cooldown", lambda *a: True)
+        monkeypatch.setattr(
+            chat_mod.generation, "note_message_for_auto_generate", lambda *a, **k: True
+        )
+        monkeypatch.setattr(chat_mod, "bump_counter", track_bump)
+
+        async def fake_gen(guild_id, channel_id, **kwargs):
+            return "texto generado de markov", False
+
+        monkeypatch.setattr(chat_mod.generation, "generate_response", fake_gen)
+
+        bot = SimpleNamespace(user=SimpleNamespace(id=9999))
+        chat_cog = Chat(bot)
+
+        msg = FakeMessage(content="hola gente", channel_id=10, guild_id=_GUILD)
+        msg.raw_mentions = []
+
+        await chat_cog.on_message(msg)
+
+        assert len(msg.channel.sent_messages) == 1
+        sent = msg.channel.sent_messages[0]
+        assert sent["file"] is None
+        assert sent["content"] == "texto generado de markov"
+        assert "mensajes_enviados" in bumped
+        assert "gifs_enviados" not in bumped
+
+    asyncio.run(run())
+
+
+def test_chat_mention_below_min_gifs_threshold_falls_back_to_text(
+    memory_db, monkeypatch
+):
+    """En respuesta a mención con probabilidad de GIF = 1.0 pero menos de 10 GIFs,
+    Purgito no debe responder con GIF y debe generar texto normalmente."""
+
+    async def run():
+        chat_mod._muted_reply_cooldowns.clear()
+        chat_mod._recent_message_ids.clear()
+        chat_mod._spontaneous_cooldowns.clear()
+
+        # Solo 5 GIFs en la base de datos (< 10)
+        for i in range(5):
+            await db.save_gif_url(_GUILD, f"https://media.tenor.com/m/{i}/g.gif")
+
+        async def fake_effective(guild_id, channel_id):
+            return {
+                "enabled": True,
+                "channel_id": None,
+                "mention_rate_limit": 0,
+                "auto_generate_every": 15,
+                "auto_generate_probability": 0.6,
+                "reaction_probability": 0.0,
+                "gif_response_probability": 1.0,
+                "frase_probability": 0.0,
+            }
+
+        bumped = []
+
+        async def track_bump(guild_id, name):
+            bumped.append(name)
+
+        monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_effective)
+        monkeypatch.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
+        monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_true())
+        monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "bump_counter", track_bump)
+
+        async def fake_gen(guild_id, channel_id, **kwargs):
+            return "respuesta de texto a la mención", False
+
+        monkeypatch.setattr(chat_mod.generation, "generate_response", fake_gen)
+
+        bot = SimpleNamespace(user=SimpleNamespace(id=9999))
+        chat_cog = Chat(bot)
+
+        msg = FakeMessage(content="hola <@9999>", channel_id=10, guild_id=_GUILD)
+        msg.raw_mentions = [9999]
+
+        await chat_cog.on_message(msg)
+
+        assert len(msg.replies) == 1
+        reply = msg.replies[0]
+        assert reply["file"] is None
+        assert reply["content"] == "respuesta de texto a la mención"
+        assert "mensajes_enviados" in bumped
+        assert "gifs_enviados" not in bumped
+
+    asyncio.run(run())
+
+
+def test_gif_collection_continues_when_below_min_threshold(memory_db, monkeypatch):
+    """La recopilación y guardado de GIFs debe funcionar normalmente aunque haya < 10.
+    En cuanto se guarda el 10mo GIF, get_live_gif comienza a responder inmediatamente."""
+
+    async def run():
+        async def fake_fetch(url, **kwargs):
+            return _VALID_GIF_BYTES
+
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", fake_fetch)
+
+        # 1. Guardar 9 GIFs mediante save_gif_candidates simulando mensajes
+        for i in range(9):
+            fake_msg = SimpleNamespace(
+                content=f"Mira este gif: https://tenor.com/view/cat-meme-{i}",
+                attachments=[],
+            )
+            saved = await gifs_mod.save_gif_candidates(_GUILD, fake_msg)
+            assert saved == 1
+
+        assert await db.count_gif_urls(_GUILD) == 9
+        # Con 9 todavía no se puede entregar GIF
+        assert await gifs_mod.get_live_gif(_GUILD, attempts=1) is None
+
+        # 2. Guardar el 10mo GIF
+        msg_10 = SimpleNamespace(
+            content="El décimo https://tenor.com/view/cat-meme-9",
+            attachments=[],
+        )
+        saved_10 = await gifs_mod.save_gif_candidates(_GUILD, msg_10)
+        assert saved_10 == 1
+        assert await db.count_gif_urls(_GUILD) == 10
+
+        # Ahora que llegó a 10, la entrega funciona automáticamente
+        delivered = await gifs_mod.get_live_gif(_GUILD, attempts=1)
+        assert isinstance(delivered, discord.File)
+        assert delivered.filename == "purgito.gif"
+
+    asyncio.run(run())
+
+
+def test_multi_guild_isolation_threshold(memory_db, monkeypatch):
+    """Un servidor con pocos GIFs (<10) no afecta a otro servidor con suficientes GIFs (>=10)."""
+
+    async def run():
+        guild_small = 111
+        guild_large = 222
+
+        async def fake_fetch(url, **kwargs):
+            return _VALID_GIF_BYTES
+
+        monkeypatch.setattr(gifs_mod, "fetch_gif_bytes", fake_fetch)
+
+        # Guild A: 3 GIFs
+        for i in range(3):
+            await db.save_gif_url(
+                guild_small, f"https://media.tenor.com/m/a{i}/gif.gif"
+            )
+
+        # Guild B: 12 GIFs
+        for i in range(12):
+            await db.save_gif_url(
+                guild_large, f"https://media.tenor.com/m/b{i}/gif.gif"
+            )
+
+        assert await db.count_gif_urls(guild_small) == 3
+        assert await db.count_gif_urls(guild_large) == 12
+
+        # Guild A devuelve None
+        assert await gifs_mod.get_live_gif(guild_small, attempts=1) is None
+
+        # Guild B entrega GIF con éxito
+        result_b = await gifs_mod.get_live_gif(guild_large, attempts=1)
+        assert isinstance(result_b, discord.File)
+        assert result_b.filename == "purgito.gif"
+
+    asyncio.run(run())
+
+
+def test_manual_gif_commands_unaffected_by_threshold(memory_db, monkeypatch):
+    """Los comandos / acciones manuales para agregar o gestionar GIFs funcionan sin importar
+    si el guild tiene < 10 GIFs."""
+
+    async def run():
+        from cogs.gifs import Gifs
+        import cogs.premium as premium_mod
+
+        # Configurar guild premium para permitir /gif_add
+        monkeypatch.setattr(premium_mod, "is_premium_guild", lambda gid: True)
+        monkeypatch.setattr(gifs_mod, "has_admin_permission", lambda inter: True)
+
+        bot = SimpleNamespace()
+        cog = Gifs(bot)
+
+        # Guild tiene solo 2 GIFs
+        for i in range(2):
+            await db.save_gif_url(_GUILD, f"https://media.tenor.com/m/{i}/g.gif")
+        assert await db.count_gif_urls(_GUILD) == 2
+
+        # Simular interacción de /gif_add
+        responses = []
+
+        class FakeInteraction:
+            guild = SimpleNamespace(id=_GUILD)
+            guild_id = _GUILD
+            user = SimpleNamespace(id=1, guild_permissions=SimpleNamespace(administrator=True))
+
+            class response:
+                @staticmethod
+                async def defer(ephemeral=True):
+                    pass
+
+                @staticmethod
+                async def send_message(content, ephemeral=True):
+                    responses.append(content)
+
+            class followup:
+                @staticmethod
+                async def send(content, ephemeral=True):
+                    responses.append(content)
+
+        interaction = FakeInteraction()
+        await cog.gif_add.callback(
+            cog, interaction, "https://tenor.com/view/nuevo-gif-manual-12345"
+        )
+
+        assert len(responses) == 1
+        assert "3" in responses[0]  # Total reportado = 3
+        assert await db.count_gif_urls(_GUILD) == 3
 
     asyncio.run(run())
 
