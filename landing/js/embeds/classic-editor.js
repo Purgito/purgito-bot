@@ -6,7 +6,7 @@ import {
   el, autoGrow, showFormAlert, accordionGroup, formGroup, previewEmpty, toast, helpIcon,
 } from '/js/core/dom.js';
 import {
-  previewImg, mdToNodes, beginPreviewRender, endPreviewRender, discordTimestampText,
+  previewImg, mdToNodes, beginPreviewRender, endPreviewRender, embedFooterTimestampText,
 } from '/js/core/markdown.js';
 import {
   blankDoc, blankEmbed, blankSendOpts, embedDict, embedChars, EMBED_LIMITS,
@@ -176,7 +176,7 @@ export function renderEmbedPreview(e) {
   if (e.thumbnail) body.append(el('div', { class: 'd-embed-thumb' }, previewImg({ src: e.thumbnail.url, alt: '' })));
   if (e.image) body.append(el('div', { class: 'd-embed-image' }, previewImg({ src: e.image.url, alt: '' })));
   if (e.footer || e.timestamp) {
-    const bits = [e.footer && e.footer.text, e.timestamp && discordTimestampText(new Date(e.timestamp), 'f')]
+    const bits = [e.footer && e.footer.text, e.timestamp && embedFooterTimestampText(new Date(e.timestamp))]
       .filter(Boolean);
     body.append(el('div', { class: 'd-embed-footer' },
       e.footer && e.footer.icon_url ? previewImg({ src: e.footer.icon_url, alt: '' }) : null,

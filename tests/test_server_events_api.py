@@ -671,13 +671,17 @@ def test_server_events_snowflake_channel_id_preserved_and_resolved(
         )
         assert put_resp.status == 200
         saved_ev = json.loads(put_resp.text)["event"]
-        assert saved_ev["channel_id"] == snowflake_channel_id
+        # channel_id vuelve como string (igual que el resto de los snowflakes
+        # de la API): un int de 19 dígitos pierde precisión al parsearse como
+        # Number en JS (float64), así que el valor exacto solo sobrevive el
+        # viaje de ida y vuelta por JSON si se serializa como string.
+        assert saved_ev["channel_id"] == str(snowflake_channel_id)
 
         # Recargar y verificar exactitud del Snowflake
         get_resp = await webapi._api_server_event_get(FakeRequest(event_type="welcome"))
         assert get_resp.status == 200
         ev = json.loads(get_resp.text)["event"]
-        assert ev["channel_id"] == snowflake_channel_id
+        assert ev["channel_id"] == str(snowflake_channel_id)
 
     asyncio.run(_test())
 

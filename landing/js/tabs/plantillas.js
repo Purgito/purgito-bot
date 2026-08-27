@@ -19,6 +19,9 @@ import { getRoles, content } from '/js/panel-shell.js';
 import { t, addStrings } from '/js/core/i18n.js';
 import { EMBED_LIMITS } from '/js/embeds/state.js';
 import { colorField, imageField } from '/js/embeds/shared-ui.js';
+import { renderEmbedPreview } from '/js/embeds/classic-editor.js';
+import { lv2Button } from '/js/embeds/layout-editor.js';
+import { mdToNodes, beginPreviewRender, endPreviewRender } from '/js/core/markdown.js';
 
 addStrings({
   es: {
@@ -32,6 +35,10 @@ addStrings({
     'tabsPlantillas.savedSuccess': 'Plantilla guardada',
     'tabsPlantillas.cancelBtn': 'Cancelar',
     'tabsPlantillas.emptyContentError': 'Escribí un mensaje o configurá un embed antes de guardar',
+    'tabsPlantillas.previewSectionLabel': 'Vista previa',
+    'tabsPlantillas.previewBotTag': 'BOT',
+    'tabsPlantillas.previewToday': 'HOY',
+    'tabsPlantillas.previewEmptyHint': 'Escribí un mensaje o configurá un embed para ver cómo queda',
   },
   en: {
     'tabsPlantillas.titleNew': 'New template',
@@ -44,6 +51,10 @@ addStrings({
     'tabsPlantillas.savedSuccess': 'Template saved',
     'tabsPlantillas.cancelBtn': 'Cancel',
     'tabsPlantillas.emptyContentError': 'Write a message or set up an embed before saving',
+    'tabsPlantillas.previewSectionLabel': 'Preview',
+    'tabsPlantillas.previewBotTag': 'BOT',
+    'tabsPlantillas.previewToday': 'TODAY',
+    'tabsPlantillas.previewEmptyHint': 'Write a message or set up an embed to see how it looks',
   },
 });
 
@@ -66,6 +77,48 @@ function embedPayloadFromState(s) {
     .filter(f => f.name.trim() && f.value.trim())
     .map(f => ({ name: f.name.trim(), value: f.value.trim(), inline: !!f.inline }));
   if (fields.length) e.fields = fields;
+  return e;
+}
+
+// El Preview no llama al backend (igual que el editor multi-embed de "Crear /
+// Enviar"), así que las variables {tag} se resuelven acá con el `example` que
+// ya trae cada una desde /api/server/:id/events (mismo dato que el modal de
+// Variables) — sin eso, el preview mostraba las llaves crudas en vez de un
+// valor de ejemplo.
+function buildPreviewVarMap(allVariables) {
+  const map = {};
+  for (const v of allVariables || []) {
+    if (v && v.example !== undefined) map[v.name] = v.example;
+  }
+  return map;
+}
+
+function resolvePreviewVars(text, varMap) {
+  if (!text) return text;
+  return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => (
+    Object.prototype.hasOwnProperty.call(varMap, key) ? varMap[key] : match
+  ));
+}
+
+// Mismo embed que se guardaría, pero con las variables ya resueltas a su
+// valor de ejemplo para el Preview (títulos/textos/urls de ícono incluidos:
+// un ícono con `{server_icon}` sin resolver se ve como imagen rota).
+function previewEmbedPayload(s, varMap) {
+  const e = embedPayloadFromState(s);
+  const rv = (v) => resolvePreviewVars(v, varMap);
+  if (e.title) e.title = rv(e.title);
+  if (e.description) e.description = rv(e.description);
+  if (e.author) {
+    e.author = { ...e.author, name: rv(e.author.name) };
+    if (e.author.icon_url) e.author.icon_url = rv(e.author.icon_url);
+  }
+  if (e.footer) {
+    e.footer = { ...e.footer, text: rv(e.footer.text) };
+    if (e.footer.icon_url) e.footer.icon_url = rv(e.footer.icon_url);
+  }
+  if (e.thumbnail) e.thumbnail = { url: rv(e.thumbnail.url) };
+  if (e.image) e.image = { url: rv(e.image.url) };
+  if (e.fields) e.fields = e.fields.map(f => ({ ...f, name: rv(f.name), value: rv(f.value) }));
   return e;
 }
 
@@ -145,6 +198,49 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
   let buttons = existing && Array.isArray(existing.buttons) ? existing.buttons.map(b => ({ ...b })) : [];
   let isLayoutTemplate = existing ? existing.content_mode === 'layout_v2' : false;
 
+  // ── Preview en vivo (sticky, columna derecha) ───────────────────────────
+  // Mismos componentes visuales que ya existen (mensaje: Anuncios; embed: el
+  // editor multi-embed de "Crear / Enviar"; botones: Layout V2) — sin volver
+  // a inventar el estilo acá. Las variables se resuelven con el `example` de
+  // cada una (mismo dato que ya trae el modal de Variables).
+  const previewVarMap = buildPreviewVarMap(allVariables);
+  const previewContainer = el('div', { class: 'd-message-card' });
+  function updatePreview() {
+    previewContainer.innerHTML = '';
+    const topRow = el('div', { class: 'd-message-top' },
+      el('div', { class: 'd-message-channel-tag' }, icon('sparkle'), el('span', {}, name.trim() || t('tabsPlantillas.titleNew'))),
+      el('span', { class: 'preview-badge dim' }, t('tabsPlantillas.previewSectionLabel')));
+
+    const msgHeader = el('div', { class: 'd-msg-header' },
+      el('img', { src: '/assets/icon.png', alt: 'Purgito', class: 'd-msg-avatar' }),
+      el('div', { class: 'd-msg-meta' },
+        el('span', { class: 'd-msg-author' }, 'Purgito'),
+        el('span', { class: 'd-msg-bot' }, t('tabsPlantillas.previewBotTag')),
+        el('span', { class: 'd-msg-time' }, t('tabsPlantillas.previewToday'))));
+
+    let bodyContent;
+    if (format === 'text') {
+      const resolved = resolvePreviewVars(currentMessage, previewVarMap) || '';
+      bodyContent = resolved.trim()
+        ? el('div', { class: 'd-msg-text' }, ...mdToNodes(resolved))
+        : el('span', { class: 'd-msg-placeholder' }, t('tabsPlantillas.previewEmptyHint'));
+    } else {
+      const payload = previewEmbedPayload(embedState, previewVarMap);
+      beginPreviewRender();
+      bodyContent = renderEmbedPreview(payload);
+      endPreviewRender();
+    }
+    const msgBody = el('div', { class: 'd-msg-body' }, bodyContent);
+
+    if (buttons.length) {
+      const row = el('div', { class: 'lv2-row', style: 'margin-top: 10px;' });
+      for (const b of buttons) row.append(lv2Button(b));
+      msgBody.append(row);
+    }
+
+    previewContainer.append(topRow, el('div', { class: 'd-message' }, msgHeader, msgBody));
+  }
+
   let lastActiveInput = null;
   function registerInputFocus(node) {
     node.addEventListener('focus', () => { lastActiveInput = node; });
@@ -218,7 +314,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
   const nameInput = el('input', {
     class: 'form-control', placeholder: t('tabsPlantillas.namePlaceholder'), value: name, maxlength: '100',
   });
-  nameInput.oninput = () => { name = nameInput.value; };
+  nameInput.oninput = () => { name = nameInput.value; updatePreview(); };
 
   const nameBlock = el('div', { class: 'cfg-block' },
     el('label', { class: 'cfg-field-label' }, t('tabsPlantillas.nameLabel')),
@@ -238,6 +334,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
       autoGrow(msgTxt);
       charCounter.textContent = t('tabsEventos.plainTextCounter', { count: currentMessage.length });
       charCounter.className = 'char-counter' + (currentMessage.length > 2000 ? ' over' : '');
+      updatePreview();
     };
     const moreVarsBtn = el('button', {
       type: 'button', class: 'btn btn-secondary btn-xs btn-more-vars', onclick: () => openVariablesModal(msgTxt),
@@ -255,7 +352,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
       const inp = el(isArea ? 'textarea' : 'input', { class: 'form-control' + (isArea ? ' autogrow' : ''), placeholder, maxlength: maxL ? String(maxL) : null });
       inp.value = s[key] || '';
       registerInputFocus(inp);
-      inp.oninput = () => { s[key] = inp.value; if (isArea) autoGrow(inp); };
+      inp.oninput = () => { s[key] = inp.value; if (isArea) autoGrow(inp); updatePreview(); };
       return inp;
     }
 
@@ -264,7 +361,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
 
     const authorRow = el('div', { class: 'grid-2' },
       el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedAuthorNameLabel')), boundInput('author_name', 'Nombre del autor', false, EMBED_LIMITS.author)),
-      el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedAuthorIconLabel')), imageField(s, 'author_icon_url', () => {}))
+      el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedAuthorIconLabel')), imageField(s, 'author_icon_url', updatePreview))
     );
     const embedTitleRow = el('div', { class: 'form-group-compact' },
       el('div', { class: 'field-label-row' }, el('label', {}, t('tabsEventos.embedTitleLabel')), el('button', { type: 'button', class: 'btn-inline-var', onclick: () => openVariablesModal(titleInput) }, icon('sparkle'), '{ }')),
@@ -282,12 +379,12 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
       s.fields.forEach((f, idx) => {
         const fName = el('input', { class: 'form-control form-control-sm', placeholder: t('tabsEventos.fieldNamePlaceholder'), value: f.name || '', maxlength: String(EMBED_LIMITS.fieldName) });
         registerInputFocus(fName);
-        fName.oninput = () => { f.name = fName.value; };
+        fName.oninput = () => { f.name = fName.value; updatePreview(); };
         const fVal = el('input', { class: 'form-control form-control-sm', placeholder: t('tabsEventos.fieldValuePlaceholder'), value: f.value || '', maxlength: String(EMBED_LIMITS.fieldValue) });
         registerInputFocus(fVal);
-        fVal.oninput = () => { f.value = fVal.value; };
-        const inlineChk = el('input', { type: 'checkbox', checked: !!f.inline, onchange: () => { f.inline = inlineChk.checked; } });
-        const delBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-xs btn-field-del', onclick: () => { s.fields.splice(idx, 1); renderFields(); } }, '✕');
+        fVal.oninput = () => { f.value = fVal.value; updatePreview(); };
+        const inlineChk = el('input', { type: 'checkbox', checked: !!f.inline, onchange: () => { f.inline = inlineChk.checked; updatePreview(); } });
+        const delBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-xs btn-field-del', onclick: () => { s.fields.splice(idx, 1); renderFields(); updatePreview(); } }, '✕');
         fieldsListWrap.append(el('div', { class: 'embed-field-item-compact' },
           el('div', { class: 'field-inputs-compact' }, fName, fVal),
           el('label', { class: 'toggle toggle-xs' }, inlineChk, t('tabsEventos.fieldInlineLabel')),
@@ -301,20 +398,21 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
         if (s.fields.length >= EMBED_LIMITS.fields) { toast(`Máximo ${EMBED_LIMITS.fields} campos`, 'warn'); return; }
         s.fields.push({ name: '', value: '', inline: false });
         renderFields();
+        updatePreview();
       },
     }, t('tabsEventos.addFieldBtn'));
     renderFields();
 
-    const imageRow = el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedImageLabel')), imageField(s, 'image', () => {}, { gif: true }));
+    const imageRow = el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedImageLabel')), imageField(s, 'image', updatePreview, { gif: true }));
     const footerTextRow = el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedFooterTextLabel')), boundInput('footer_text', 'Pie de página', false, EMBED_LIMITS.footer));
 
     const moreOptionsDetails = el('details', { class: 'event-advanced-accordion' },
       el('summary', { class: 'event-advanced-summary' }, el('div', { class: 'event-advanced-summary-title' }, t('tabsEventos.embedMoreOptions'))),
       el('div', { class: 'event-advanced-body' },
-        el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedColorLabel')), colorField(s, 'color', () => {})),
+        el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedColorLabel')), colorField(s, 'color', updatePreview)),
         el('div', { class: 'grid-2', style: 'margin-top: 10px;' },
-          el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedThumbLabel')), imageField(s, 'thumbnail', () => {}, { gif: true })),
-          el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedFooterIconLabel')), imageField(s, 'footer_icon_url', () => {}))
+          el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedThumbLabel')), imageField(s, 'thumbnail', updatePreview, { gif: true })),
+          el('div', { class: 'form-group-compact' }, el('label', {}, t('tabsEventos.embedFooterIconLabel')), imageField(s, 'footer_icon_url', updatePreview))
         )
       )
     );
@@ -337,7 +435,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
     ]) {
       pillsWrap.append(el('button', {
         type: 'button', class: 'mode-pill' + (format === m.key ? ' active' : ''),
-        onclick: () => { if (format === m.key) return; format = m.key; renderPills(); renderFormatBody(); },
+        onclick: () => { if (format === m.key) return; format = m.key; renderPills(); renderFormatBody(); updatePreview(); },
       }, el('span', { class: 'mode-pill-icon' }, icon(m.i)), m.label));
     }
   }
@@ -360,7 +458,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
     buttons.forEach((btn, idx) => {
       const lblInp = el('input', { class: 'form-control form-control-sm', placeholder: t('tabsEventos.buttonLabelPlaceholder'), value: btn.label || '', maxlength: '80' });
       registerInputFocus(lblInp);
-      lblInp.oninput = () => { btn.label = lblInp.value; };
+      lblInp.oninput = () => { btn.label = lblInp.value; updatePreview(); };
 
       const typeSel = el('select', { class: 'form-control form-control-sm' },
         el('option', { value: 'link', selected: btn.style !== 'role' }, t('tabsEventos.buttonTypeLink')),
@@ -374,7 +472,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
         el('option', { value: '' }, 'Selecciona un rol…'),
         ...roles.map(r => el('option', { value: String(r.id), selected: String(btn.role_id) === String(r.id) }, r.name))
       );
-      roleSel.onchange = () => { btn.role_id = roleSel.value || null; };
+      roleSel.onchange = () => { btn.role_id = roleSel.value || null; updatePreview(); };
 
       const colorSel = el('select', { class: 'form-control form-control-sm', style: btn.style === 'role' ? 'display:block;' : 'display:none;' },
         el('option', { value: 'secondary', selected: btn.color === 'secondary' }, t('tabsEventos.buttonColorSecondary')),
@@ -382,16 +480,17 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
         el('option', { value: 'success', selected: btn.color === 'success' }, t('tabsEventos.buttonColorSuccess')),
         el('option', { value: 'danger', selected: btn.color === 'danger' }, t('tabsEventos.buttonColorDanger'))
       );
-      colorSel.onchange = () => { btn.color = colorSel.value; };
+      colorSel.onchange = () => { btn.color = colorSel.value; updatePreview(); };
 
       typeSel.onchange = () => {
         btn.style = typeSel.value;
         urlInp.style.display = btn.style === 'role' ? 'none' : 'block';
         roleSel.style.display = btn.style === 'role' ? 'block' : 'none';
         colorSel.style.display = btn.style === 'role' ? 'block' : 'none';
+        updatePreview();
       };
 
-      const delBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-xs btn-field-del', onclick: () => { buttons.splice(idx, 1); renderButtonsEditor(); } }, '✕');
+      const delBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-xs btn-field-del', onclick: () => { buttons.splice(idx, 1); renderButtonsEditor(); updatePreview(); } }, '✕');
 
       buttonsListWrap.append(el('div', { class: 'event-button-item' }, el('div', { class: 'event-button-grid' }, lblInp, typeSel, urlInp, roleSel, colorSel, delBtn)));
     });
@@ -402,6 +501,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
       if (buttons.length >= 5) { toast('Máximo 5 botones por fila', 'warn'); return; }
       buttons.push({ label: 'Enlace', style: 'link', url: 'https://discord.com' });
       renderButtonsEditor();
+      updatePreview();
     },
   }, t('tabsEventos.addButton'));
   renderButtonsEditor();
@@ -480,5 +580,18 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
     el('div', { class: 'cfg-head-row' }, el('div', { class: 'cfg-head-title' }, el('h1', {}, existing ? t('tabsPlantillas.titleEdit') : t('tabsPlantillas.titleNew'))))
   );
 
-  container.append(el('div', { class: 'card cfg-card' }, headBlock), contentCard, actionsBar);
+  const formCol = el('div', { style: 'display: flex; flex-direction: column; gap: 16px; min-width: 0;' },
+    el('div', { class: 'card cfg-card' }, headBlock), contentCard, actionsBar);
+
+  const previewCol = el('div', { class: 'anuncio-preview-col' },
+    el('div', { class: 'anuncio-preview-sticky' },
+      el('div', { class: 'anuncio-section-header' },
+        el('span', { class: 'anuncio-section-title' }, icon('layout'), t('tabsPlantillas.previewSectionLabel'))
+      ),
+      el('div', { class: 'anuncio-preview-box' }, previewContainer)
+    )
+  );
+
+  updatePreview();
+  container.append(el('div', { class: 'anuncio-editor-layout' }, formCol, previewCol));
 }
