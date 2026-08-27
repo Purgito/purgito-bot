@@ -558,6 +558,21 @@ def _to_int(value) -> int | None:
         return None
 
 
+def _with_str_channel_id(row: dict | None) -> dict | None:
+    """channel_id sale de SQLite como int de Python; json_response lo serializa
+    como número JSON. Los snowflakes de Discord superan 2^53, así que JS lo
+    redondea al parsear (Number pierde precisión) y el front termina
+    comparando un ID que no es el real — se ve como "canal no disponible" en
+    selects que sí tienen ese canal (eventos del servidor, anuncios
+    programados). El resto de los endpoints ya devuelven channel_id como str
+    por esto mismo; acá se aplica igual sin duplicar el resto del dict."""
+    if row is None:
+        return None
+    if row.get("channel_id") is not None:
+        row = {**row, "channel_id": str(row["channel_id"])}
+    return row
+
+
 def _bot_guild(request: web.Request, guild_id: int):
     return request.app["bot"].get_guild(guild_id)
 
@@ -3577,6 +3592,7 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
 @guild_api
 async def _api_anuncios_get(request: web.Request, guild_id: int) -> web.Response:
     announcements = await list_scheduled_announcements(guild_id)
+    announcements = [_with_str_channel_id(a) for a in announcements]
     count, max_limit, is_premium = await get_scheduled_announcements_quota(guild_id)
     locale = await i18n.guild_locale(guild_id)
     variables = get_available_placeholders("announcement", locale=locale)
@@ -3601,7 +3617,9 @@ async def _api_anuncio_get(request: web.Request, guild_id: int) -> web.Response:
         return web.json_response({"error": "anuncio no encontrado"}, status=404)
     locale = await i18n.guild_locale(guild_id)
     variables = get_available_placeholders("announcement", locale=locale)
-    return web.json_response({"announcement": announcement, "variables": variables})
+    return web.json_response(
+        {"announcement": _with_str_channel_id(announcement), "variables": variables}
+    )
 
 
 @guild_api
@@ -3689,7 +3707,9 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
         detail=f"id={new_id} channel_id={channel.id} mode={mode}",
     )
     announcement = await get_scheduled_announcement(guild_id, new_id)
-    return web.json_response({"id": new_id, "announcement": announcement}, status=201)
+    return web.json_response(
+        {"id": new_id, "announcement": _with_str_channel_id(announcement)}, status=201
+    )
 
 
 @guild_api
@@ -3784,7 +3804,9 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
         detail=f"id={announcement_id} channel_id={channel.id} mode={mode}",
     )
     announcement = await get_scheduled_announcement(guild_id, announcement_id)
-    return web.json_response({"updated": True, "announcement": announcement})
+    return web.json_response(
+        {"updated": True, "announcement": _with_str_channel_id(announcement)}
+    )
 
 
 @guild_api
@@ -4059,6 +4081,7 @@ async def _api_embed_template_delete(
 async def _api_server_events_get(request: web.Request, guild_id: int) -> web.Response:
     locale = await i18n.guild_locale(guild_id)
     events = await list_server_events(guild_id)
+    events = {k: _with_str_channel_id(v) for k, v in events.items()}
     variables = get_available_placeholders(locale=locale)
     return web.json_response(
         {
@@ -4075,6 +4098,7 @@ async def _api_server_event_get(request: web.Request, guild_id: int) -> web.Resp
         return web.json_response({"error": "tipo de evento inválido"}, status=400)
     locale = await i18n.guild_locale(guild_id)
     event = await get_server_event(guild_id, event_type)
+    event = _with_str_channel_id(event)
     variables = get_available_placeholders(event_type, locale=locale)
     return web.json_response(
         {
@@ -4150,7 +4174,7 @@ async def _api_server_event_put(request: web.Request, guild_id: int) -> web.Resp
             await _log_audit(
                 request, guild_id, action_name, detail=f"channel={channel_id}"
             )
-        return web.json_response({"saved": True, "event": event})
+        return web.json_response({"saved": True, "event": _with_str_channel_id(event)})
 
     # Si no se pasó template_id, verificar si se envió contenido inline (legacy)
     # o si se trata de una actualización del configurador (desvincular plantilla o guardar sin plantilla).
@@ -4210,7 +4234,7 @@ async def _api_server_event_put(request: web.Request, guild_id: int) -> web.Resp
             await _log_audit(
                 request, guild_id, action_name, detail=f"channel={channel_id}"
             )
-        return web.json_response({"saved": True, "event": event})
+        return web.json_response({"saved": True, "event": _with_str_channel_id(event)})
 
     content_mode = data.get("content_mode") or "plain_text"
     if content_mode not in ("plain_text", "classic_embed", "layout_v2", "composite"):
@@ -4400,7 +4424,7 @@ async def _api_server_event_put(request: web.Request, guild_id: int) -> web.Resp
         )
         await _log_audit(request, guild_id, action_name, detail=f"channel={channel_id}")
 
-    return web.json_response({"saved": True, "event": event})
+    return web.json_response({"saved": True, "event": _with_str_channel_id(event)})
 
 
 @guild_api

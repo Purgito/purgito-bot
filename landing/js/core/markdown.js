@@ -64,6 +64,16 @@ export function discordTimestampText(date, style) {
   return new Intl.DateTimeFormat('es', opts).format(date);
 }
 
+// Formato del reloj+fecha nativo del footer de un embed (campo `timestamp`
+// del embed, no una mención <t:...>). Discord siempre lo muestra corto
+// (dateStyle/timeStyle 'short', ej. "21/8/26 16:43"), a diferencia de la
+// mención <t:...:f> que sí usa fecha larga — reusar discordTimestampText(…,
+// 'f') acá hacía que el Preview mostrara una fecha mucho más verbosa que el
+// embed real.
+export function embedFooterTimestampText(date) {
+  return new Intl.DateTimeFormat('es', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
 // Solo esquemas seguros son clickeables; una URL rara (p.ej. "javascript:")
 // se muestra igual con el estilo de link pero sin href, para no correr JS
 // arbitrario desde una plantilla pegada/importada.
