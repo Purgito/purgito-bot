@@ -18,8 +18,13 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Pineada: "pip install ruff" sin versión agarra la última en PyPI en
+      # el momento del run, así que un release de ruff que cambie las reglas
+      # default (pasó en la 0.16, sumó I/RUF/PYI al set por defecto) rompe
+      # el lint sin que nadie haya tocado una línea de código. Actualizar a
+      # mano cuando se audite el código nuevo contra la versión nueva.
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.15.8
 
       - name: Check style
         run: ruff check .
@@ -37,13 +42,27 @@ jobs:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      # fetch-depth 0: gitleaks-action escanea el historial completo, no solo
+      # fetch-depth 0: gitleaks escanea el historial completo, no solo
       # el último commit.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+      # Se corre el binario de gitleaks directo en vez de gitleaks-action:
+      # la action pasó a exigir un GITLEAKS_LICENSE pago para repos de
+      # organización (Purgito lo es) — ver github.com/gitleaks/gitleaks-action
+      # § "-Announcement". El binario en sí sigue siendo open source y no
+      # tiene ese gate. Versión y checksum pineados a mano; actualizar
+      # ambos juntos desde github.com/gitleaks/gitleaks/releases.
+      - name: Instalar gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 755 gitleaks /usr/local/bin/gitleaks
+
+      - name: Escanear secretos
+        run: gitleaks git --config .gitleaks.toml -v .

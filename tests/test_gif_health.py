@@ -473,6 +473,7 @@ def test_get_live_gif_deletes_only_after_three_confirmed_dead(memory_db, monkeyp
             for i in range(10)
         ]
         gid = gids[0]
+
         async def fake_candidates(*a, **k):
             return [
                 {
