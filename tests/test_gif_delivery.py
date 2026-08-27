@@ -752,7 +752,9 @@ def test_manual_gif_commands_unaffected_by_threshold(memory_db, monkeypatch):
         class FakeInteraction:
             guild = SimpleNamespace(id=_GUILD)
             guild_id = _GUILD
-            user = SimpleNamespace(id=1, guild_permissions=SimpleNamespace(administrator=True))
+            user = SimpleNamespace(
+                id=1, guild_permissions=SimpleNamespace(administrator=True)
+            )
 
             class response:
                 @staticmethod

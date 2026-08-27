@@ -645,6 +645,7 @@ def test_simulaciones_consecutivas_son_independientes(fake_guild, monkeypatch):
 def test_simulacion_con_menos_de_10_gifs_nunca_entrega_gif(fake_guild, monkeypatch):
     """Verifica que el simulador respete el piso de 10 GIFs: con 0, 1 o 9 GIFs, nunca devuelve GIF."""
     for count in [0, 1, 9]:
+
         async def fake_settings(guild_id, channel_id):
             return {
                 "enabled": True,
@@ -659,7 +660,9 @@ def test_simulacion_con_menos_de_10_gifs_nunca_entrega_gif(fake_guild, monkeypat
         async def fake_count_gifs(guild_id, current_count=count):
             return current_count
 
-        async def fake_simulate(guild_id, channel_id, content, *, author, channel, guild):
+        async def fake_simulate(
+            guild_id, channel_id, content, *, author, channel, guild
+        ):
             return {
                 "would_respond": True,
                 "reason": "markov",

@@ -1204,11 +1204,7 @@ async def _api_chat_playground_post(
     # 1. Roll para GIF espontáneo
     is_gif_result = False
     simulated_gif = None
-    if (
-        gif_total >= MIN_GIFS_PER_GUILD
-        and gif_prob > 0
-        and random.random() < gif_prob
-    ):
+    if gif_total >= MIN_GIFS_PER_GUILD and gif_prob > 0 and random.random() < gif_prob:
         gif_candidates = await get_random_gif_candidates(guild_id, limit=1)
         if gif_candidates:
             media_url = gif_candidates[0].get("media_url")
