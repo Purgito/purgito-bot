@@ -2297,7 +2297,9 @@ async def _api_frases_post(request: web.Request, guild_id: int) -> web.Response:
     )
     if added is None:
         return web.json_response(
-            {"error": "límite de frases alcanzado — elimina una antes de agregar otra"},
+            {
+                "error": "límite de frases alcanzado, o ya existe una frase idéntica en ese pool"
+            },
             status=409,
         )
     if added:
@@ -2356,6 +2358,10 @@ async def _api_frases_patch(request: web.Request, guild_id: int) -> web.Response
         pack_id=pack_id,
         update_pack=update_pack,
     )
+    if updated is None:
+        return web.json_response(
+            {"error": "ya existe una frase idéntica en ese pool"}, status=409
+        )
     if updated:
         if frase_text is not None:
             await _log_audit(
