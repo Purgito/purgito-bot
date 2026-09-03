@@ -383,6 +383,87 @@ def test_texto_vacio_devuelve_false_no_none(temp_db):
     assert asyncio.run(db.add_frase_especial(1, 1, "u", "   ")) is False
 
 
+# ─── Frase exacta duplicada en el mismo pool ─────────────────────────────────
+
+
+def test_frase_exacta_duplicada_en_el_mismo_pool_se_rechaza(temp_db):
+    async def run():
+        primero = await db.add_frase_especial(1, 1, "u", "feliz navidad")
+        segundo = await db.add_frase_especial(1, 2, "otro", "feliz navidad")
+        frases = await db.list_frases_especiales(1)
+        return primero, segundo, frases
+
+    primero, segundo, frases = asyncio.run(run())
+    assert primero is True
+    assert segundo is None
+    assert len(frases) == 1
+
+
+def test_frase_no_exacta_no_se_confunde_con_duplicada(temp_db):
+    """La comparación es exacta, no case-insensitive ni por similitud."""
+
+    async def run():
+        primero = await db.add_frase_especial(1, 1, "u", "Feliz Navidad")
+        segundo = await db.add_frase_especial(1, 1, "u", "feliz navidad")
+        return primero, segundo
+
+    primero, segundo = asyncio.run(run())
+    assert primero is True
+    assert segundo is True
+
+
+def test_misma_frase_en_pools_distintos_no_choca(temp_db):
+    """Un pack y el pool default son pools distintos: la misma frase puede
+    convivir en cada uno sin considerarse duplicada."""
+
+    async def run():
+        pack_id = await db.add_frase_pack(1, "Navidad")
+        default = await db.add_frase_especial(1, 1, "u", "feliz navidad")
+        del_pack = await db.add_frase_especial(
+            1, 1, "u", "feliz navidad", pack_id=pack_id
+        )
+        return default, del_pack
+
+    default, del_pack = asyncio.run(run())
+    assert default is True
+    assert del_pack is True
+
+
+def test_misma_frase_en_guilds_distintos_no_choca(temp_db):
+    async def run():
+        uno = await db.add_frase_especial(1, 1, "u", "feliz navidad")
+        dos = await db.add_frase_especial(2, 1, "u", "feliz navidad")
+        return uno, dos
+
+    uno, dos = asyncio.run(run())
+    assert uno is True
+    assert dos is True
+
+
+def test_editar_una_frase_para_que_coincida_con_otra_del_mismo_pool_se_rechaza(
+    temp_db,
+):
+    async def run():
+        await db.add_frase_especial(1, 1, "u", "una")
+        await db.add_frase_especial(1, 1, "u", "dos")
+        frase_id = (await db.list_frases_especiales(1))[1]["id"]
+        return await db.update_frase_especial(1, frase_id, frase="una")
+
+    assert asyncio.run(run()) is None
+
+
+def test_editar_una_frase_sin_cambiar_el_texto_no_choca_consigo_misma(temp_db):
+    """id!=? en la comparación: guardar el mismo texto sin tocarlo (o editar
+    solo el pack) no debe autorrechazarse por matchear su propia fila."""
+
+    async def run():
+        await db.add_frase_especial(1, 1, "u", "una")
+        frase_id = (await db.list_frases_especiales(1))[0]["id"]
+        return await db.update_frase_especial(1, frase_id, frase="una")
+
+    assert asyncio.run(run()) is True
+
+
 # ─── purge_guild_data ────────────────────────────────────────────────────────
 
 

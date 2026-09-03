@@ -4200,9 +4200,12 @@ async def add_frase_especial(
     pack_id: int | None = None,
 ) -> bool | None:
     """Guarda una frase especial. None si el guild ya llegó al límite de
-    frases_limit (mismo criterio que add_embed_template); False si el texto
-    está vacío. pack_id=None (default) la deja en el pool default del
-    servidor -- ver el comentario en frase_packs sobre esa semántica.
+    frases_limit (mismo criterio que add_embed_template) o si el texto es
+    idéntico, palabra por palabra, a una frase que ya está en ese mismo pool
+    (mismo pack_id -- comparación exacta, no case-insensitive ni por
+    similitud); False si el texto está vacío. pack_id=None (default) la deja
+    en el pool default del servidor -- ver el comentario en frase_packs
+    sobre esa semántica.
 
     Recortada a 2000 caracteres (el máximo real de un mensaje de Discord):
     sin tope, una frase gigante dispara chunk_message() y el bot manda
@@ -4213,6 +4216,13 @@ async def add_frase_especial(
     max_frases = frases_limit(guild_id)
     db = await get_db()
     async with _db_lock:
+        async with db.execute(
+            "SELECT 1 FROM frases_especiales WHERE guild_id=? AND pack_id IS ? "
+            "AND frase=?",
+            (guild_id, pack_id, text),
+        ) as cur:
+            if await cur.fetchone():
+                return None
         async with db.execute(
             "SELECT COUNT(*) FROM frases_especiales WHERE guild_id=?", (guild_id,)
         ) as cur:
@@ -4298,20 +4308,24 @@ async def update_frase_especial(
     frase: str | None = None,
     pack_id: int | None = None,
     update_pack: bool = False,
-) -> bool:
+) -> bool | None:
     """Actualiza el texto y/o el pack de una frase especial existente.
 
     Valida que la frase pertenezca a guild_id y que pack_id (si se especifica)
-    también pertenezca a este guild (evita IDOR).
-    """
+    también pertenezca a este guild (evita IDOR). None si el nuevo texto
+    coincide exacto con otra frase que ya está en el pool de destino (mismo
+    pack_id, contando el pack nuevo si también se está reasignando) --
+    mismo criterio de comparación exacta que add_frase_especial."""
     db = await get_db()
     async with _db_lock:
         async with db.execute(
-            "SELECT 1 FROM frases_especiales WHERE guild_id=? AND id=?",
+            "SELECT pack_id FROM frases_especiales WHERE guild_id=? AND id=?",
             (guild_id, frase_id),
         ) as cur:
-            if not await cur.fetchone():
+            row = await cur.fetchone()
+            if not row:
                 return False
+        current_pack_id = row[0]
 
         cols: list[str] = []
         params: list[object] = []
@@ -4320,6 +4334,14 @@ async def update_frase_especial(
             text = clean_admin_text(frase)[:2000]
             if not text:
                 return False
+            target_pack_id = pack_id if update_pack else current_pack_id
+            async with db.execute(
+                "SELECT 1 FROM frases_especiales WHERE guild_id=? AND pack_id IS ? "
+                "AND frase=? AND id!=?",
+                (guild_id, target_pack_id, text, frase_id),
+            ) as cur:
+                if await cur.fetchone():
+                    return None
             cols.append("frase=?")
             params.append(text)
 
