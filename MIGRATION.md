@@ -62,6 +62,13 @@ which gifsicle || echo "falta instalar gifsicle"
 cp -r /ruta/a/migracion-backup/data ./data
 cp /ruta/a/migracion-backup/.env .env
 test -f .env && echo "OK: .env es un archivo" || echo "MAL -- revisar"
+
+# Confirmar que los flags de migración de una sola vez viajaron junto con
+# bot.db -- si faltan, el próximo arranque del bot puede volver a correr un
+# DELETE FROM corpus_images (ver docs/PORTABILITY.md § 2). deploy/preflight_check.sh
+# (sección 6) hace este mismo chequeo, pero confirmalo también acá antes de
+# arrancar el bot por primera vez en el servidor nuevo:
+ls data/.images_wiped_v2 data/.chat_channels_split_v1
 ```
 
 Si no hay backup de la instancia vieja (se perdió sin aviso, como Oracle) y

@@ -139,6 +139,36 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
+section "6. Flags de migración de datos (data/)"
+
+DB_FILE="$REPO_DIR/data/bot.db"
+FLAG_IMAGES="$REPO_DIR/data/.images_wiped_v2"
+FLAG_SPLIT="$REPO_DIR/data/.chat_channels_split_v1"
+
+if [ ! -f "$DB_FILE" ]; then
+    skip "flags de migración" "todavía no existe data/bot.db (instalación nueva, nada que verificar)"
+else
+    missing_flags=()
+    [ -f "$FLAG_IMAGES" ] || missing_flags+=(".images_wiped_v2")
+    [ -f "$FLAG_SPLIT" ] || missing_flags+=(".chat_channels_split_v1")
+
+    if [ "${#missing_flags[@]}" -eq 0 ]; then
+        ok "data/bot.db tiene sus flags de migración al lado (.images_wiped_v2, .chat_channels_split_v1)"
+    else
+        bad "data/bot.db existe pero falta(n): ${missing_flags[*]} (ver docs/PORTABILITY.md § 2)"
+        echo "       Si este bot.db viene de un backup/restore de otro servidor (migración,"
+        echo "       recuperación de desastre), el próximo arranque del bot puede volver a"
+        echo "       correr una migración de una sola vez que se creía ya aplicada -- en"
+        echo "       particular, .images_wiped_v2 ausente dispara un DELETE FROM corpus_images"
+        echo "       de nuevo, sin preguntar. Copiá esos dos archivos junto con bot.db antes de"
+        echo "       arrancar el bot."
+        echo "       Si en cambio esto es una instalación nueva de cero (bot.db recién creado,"
+        echo "       sin guilds ni corpus todavía), es esperado y no hay nada que perder --"
+        echo "       podés ignorar este ❌ con confianza en ese caso puntual."
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────
 echo
 echo "── Resumen ──"
 echo "  $PASS pasaron, $FAIL fallaron, $SKIP omitidos"

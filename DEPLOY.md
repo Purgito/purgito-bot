@@ -82,9 +82,14 @@ explicación, ver `MIGRATION.md`.
       deshabilitado: faltan variables obligatorias ...` y cualquiera que
       intente loguearse al panel se encuentra con un 404 sin explicación.
       Si el servidor nuevo debe tener dashboard, las tres son obligatorias.
-- [ ] Restaurar `data/bot.db` (y el resto de `data/`, no solo el `.db` —
-      ver `docs/PORTABILITY.md` § flags de migración) desde el backup de la
-      instancia vieja.
+- [ ] Restaurar `data/bot.db` **y también** `data/.images_wiped_v2` +
+      `data/.chat_channels_split_v1` desde el backup de la instancia vieja
+      -- no son opcionales. Son flags de migración de una sola vez que
+      viven sueltos al lado de `bot.db`, no adentro (`sqlite3 .backup`
+      solo copia el `.db`). Si `.images_wiped_v2` falta, el próximo
+      arranque del bot vuelve a correr `DELETE FROM corpus_images` sin
+      preguntar (ver `docs/PORTABILITY.md` § 2).
+      `deploy/preflight_check.sh` (sección 6) lo verifica solo.
 
 **systemd (sección 7):**
 
