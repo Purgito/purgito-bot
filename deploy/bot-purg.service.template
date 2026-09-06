@@ -1,0 +1,84 @@
+# Plantilla del unit de systemd de Purgito. NO copiar este archivo
+# directamente a /etc/systemd/system/ -- tiene placeholders sin resolver.
+# Generar el .service real con:
+#
+#   deploy/render_service.sh <usuario> </ruta/al/checkout> > /tmp/bot-purg.service
+#   sudo cp /tmp/bot-purg.service /etc/systemd/system/bot-purg.service
+#   sudo systemctl daemon-reload && sudo systemctl restart bot-purg
+#
+# O por variables de entorno (mismo resultado):
+#   DEPLOY_USER=ubuntu DEPLOY_PATH=/home/ubuntu/purgito-bot deploy/render_service.sh > /tmp/bot-purg.service
+#
+# Ver DEPLOY.md § "Configurar systemd" para el procedimiento completo.
+#
+# ⚠️ Sandboxing deshabilitado a propósito -- ver nota antes de [Service].
+
+[Unit]
+Description=Bot Discord PURG4TORY
+After=network-online.target
+Wants=network-online.target
+# Sin límite de intentos: el bot debe volver solo aunque el problema persista
+# (p. ej. caída de red larga). RestartSec espacia los reintentos para que el
+# loop no sea agresivo.
+StartLimitIntervalSec=0
+
+# ── ProtectHome + ReadOnlyPaths/ReadWritePaths: por qué NO están abajo ──
+# Combinación probada y descartada durante la migración Oracle→AWS
+# (2026-09-05): con ProtectSystem=strict + ProtectHome=true +
+# ReadOnlyPaths=<checkout> + ReadWritePaths=<checkout>/data activados, el
+# servicio fallaba con status=203/EXEC en systemd real (Ubuntu 26.04) aunque
+# el mismo binario corría perfecto a mano (`sudo -u <usuario>
+# .venv/bin/python --version` funcionaba). No se identificó la causa exacta
+# de la interacción -- puede ser el venv resolviendo símlinks fuera del
+# ReadOnlyPaths, o el propio ProtectHome interfiriendo con algo que
+# ExecStart necesita leer del $HOME del usuario (variables, caché de pip,
+# etc.) antes de que el proceso pueda ni arrancar. Si en algún momento se
+# quiere retomar esta investigación (o simplemente probar nuevamente en el
+# servidor actual): descomentar las 4 líneas de abajo, `daemon-reload` +
+# `restart`, y mirar `journalctl -u bot-purg -f` de inmediato. Si vuelve a
+# fallar con 203/EXEC, confirmar con `sudo -u <usuario> <checkout>/.venv/bin/python
+# -c "print(1)"` corrido a mano que el intérprete sigue andando fuera de
+# systemd (para descartar que el problema sea otra cosa), y documentar el
+# resultado acá antes de volver a sacarlas.
+#
+#   ProtectSystem=strict
+#   ProtectHome=true
+#   ReadOnlyPaths={{DEPLOY_PATH}}
+#   ReadWritePaths={{DEPLOY_PATH}}/data
+
+[Service]
+Type=simple
+User={{DEPLOY_USER}}
+WorkingDirectory={{DEPLOY_PATH}}
+ExecStart={{DEPLOY_PATH}}/.venv/bin/python src/bot.py
+Restart=on-failure
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+# ── Sandboxing ────────────────────────────────────────────────────
+# Estas directivas SÍ están confirmadas como seguras en Oracle Linux 9 y en
+# Ubuntu 26.04 (no tocan /home, no restringen el filesystem del checkout).
+# El proceso solo necesita escribir bajo data/ (bot.db, bot.log, flags de
+# migración -- ver DATA_DIR en db.py y _LOG_PATH en bot.py) y leer el resto
+# del checkout + su propio venv. gifsicle corre por stdin/stdout (ver
+# optimize_gif_bytes en r2.py), sin archivos temporales.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+# El bot no necesita ningún capability de root (no abre puertos <1024, no
+# cambia de usuario, no monta nada): arranca sin ninguno.
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

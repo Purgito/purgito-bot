@@ -125,36 +125,55 @@ identifica primero qué de esto se vería afectado y dilo antes de proceder.
 
 ## Deploy — es manual, no hay CI/CD
 
+El servidor de producción **no es fijo**: corrió en un droplet Oracle Linux
+hasta que Oracle reclamó esa instancia sin aviso al vencer el Free Trial
+(2026-09-05); desde entonces corre en un EC2 de AWS (Ubuntu). El free tier
+de esa cuenta AWS también vence (6 meses desde su creación) — otra
+migración de servidor no es un caso raro, es esperable. Por eso DEPLOY.md
+está escrito para ser agnóstico de distro donde corresponde (Oracle
+Linux/`dnf`/SELinux vs. Ubuntu/`apt`, marcado explícitamente en cada
+sección) en vez de asumir un servidor específico. Si te toca migrar: `git
+log`/`git blame` acá y en DEPLOY.md no van a decirte cuál es el servidor
+actual — preguntá o revisá `MIGRATION.md` y el checklist al principio de
+DEPLOY.md.
+
 ```bash
-ssh opc@<droplet>
-cd purgito-bot && git pull
+ssh <usuario>@<servidor>
+cd <ruta-del-checkout> && git pull
 sudo systemctl restart bot-purg
 ```
 
 La config de nginx vive FUERA de este repo, en
-`/etc/nginx/conf.d/purgito.conf` en el droplet (Oracle Linux — no usa
-`sites-enabled`). Un solo server block cubre `purgito.app` +
-`www.purgito.app` y distingue **por ruta**: `/auth/*`, `/api/*`,
-`/webhooks/*` y `/health` proxean a esta app en el puerto 8080; todo lo
-demás sale estático de `/var/www/purgito-landing` (symlink a `landing/`
-dentro del clon real, confirmado 2026-08-12 — no una copia separada: un
+`/etc/nginx/conf.d/purgito.conf` en el servidor (tanto Oracle Linux como
+Ubuntu/Debian cargan `conf.d/*.conf` por default, sin `sites-enabled`). Un
+solo server block cubre `purgito.app` + `www.purgito.app` y distingue **por
+ruta**: `/auth/*`, `/api/*`, `/webhooks/*` y `/health` proxean a esta app en
+el puerto 8080; todo lo demás sale estático de `/var/www/purgito-landing`
+(symlink a `landing/` dentro del clon real — no una copia separada: un
 `git pull` alcanza para publicar cambios de la landing, sin paso de sync
 aparte). Cloudflare está delante de todo — si algo
 "no cambia" después de un deploy, sospecha primero de caché antes de
 asumir que el código está mal.
 
-**Pendiente en el droplet:** `/<lang>/dashboard/:id` es la única ruta del
-sitio con un segmento dinámico y necesita un `location` por regex
+`/<lang>/dashboard/:id` es la única ruta del sitio con un segmento
+dinámico y necesita un `location` por regex
 (`^/(es|en|ru|ja|de)/dashboard(/.*)?$`) con `try_files … /$1/dashboard/index.html`
 (está en DEPLOY.md, generalizado a los 5 idiomas el 2026-08-09 para que un
 idioma nuevo con dashboard propio no rompa en silencio). Sin agregarlo, esa
 URL sirve la homepage. `/es/perfil*` no lo necesita: son carpetas reales.
+`/es/` pelado es otro caso especial — necesita su propio `location = /es/`
+(sin redirect, ver DEPLOY.md § Configurar nginx) porque `es/` existe como
+directorio real pero sin `index.html` propio.
 
-`DEPLOY.md` ya no contradice esto: se actualizó a Oracle Linux + `conf.d` y
-detalla los tres server blocks. Ruta real del clon confirmada en el droplet
-(2026-08-12): `/home/opc/purgito-bot`, corriendo como `opc` — no como el
-usuario dedicado `bot-purg` que documenta `deploy/bot-purg.service` (esa
-migración quedó pendiente, ver DEPLOY.md § "Migrar a un usuario dedicado").
+El unit de systemd **no vive commiteado con una ruta fija**:
+`deploy/bot-purg.service.template` tiene placeholders
+(`{{DEPLOY_USER}}`, `{{DEPLOY_PATH}}`) y se resuelve con
+`deploy/render_service.sh <usuario> <ruta>` antes de copiarlo a
+`/etc/systemd/system/`. El usuario dedicado `bot-purg` que ese template
+documenta como opción de hardening nunca se creó en ningún servidor real
+(corre como el usuario con sudo, `opc`/`ubuntu`) — ver DEPLOY.md § "Migrar
+a un usuario dedicado". `deploy/preflight_check.sh` valida `.env`,
+dependencias, systemd y nginx después de cualquier deploy nuevo.
 
 ## Voz y copy
 
