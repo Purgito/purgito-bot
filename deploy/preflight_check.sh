@@ -106,12 +106,20 @@ if ! which curl >/dev/null 2>&1; then
 else
     check_http() {
         local path="$1" want="$2"
-        local code
-        code="$(curl -s -o /dev/null -w "%{http_code}" -H "Host: $HEALTH_HOST" "http://localhost${path}" 2>/dev/null)"
+        local code attempt
+        # 3 intentos con 1s de espera entre medio -- correr esto justo
+        # después de un restart (systemctl restart + nginx todavía
+        # arrancando el upstream) puede dar un 000/502 transitorio que no
+        # es un fallo real, solo timing.
+        for attempt in 1 2 3; do
+            code="$(curl -s -o /dev/null -w "%{http_code}" -H "Host: $HEALTH_HOST" "http://localhost${path}" 2>/dev/null)"
+            [ "$code" = "$want" ] && break
+            [ "$attempt" -lt 3 ] && sleep 1
+        done
         if [ "$code" = "$want" ]; then
             ok "$path -> $code"
         else
-            bad "$path -> $code (esperado $want)"
+            bad "$path -> $code (esperado $want, tras 3 intentos)"
         fi
     }
     check_http "/health" "200"
@@ -127,13 +135,15 @@ if [ ! -d "$NGINX_CONF_DIR" ]; then
 else
     # Autolinking al copiar URLs con "www." desde un visor de markdown puede
     # dejar restos tipo [www.purgito.app](http://www.purgito.app) pegados en
-    # server_name -- ya pasó dos veces. Un .conf válido no debería tener
-    # corchetes en ningún lado.
-    matches="$(grep -rnHE '\[|\]' "$NGINX_CONF_DIR"/*.conf 2>/dev/null)"
+    # server_name -- ya pasó dos veces. NO se puede buscar "cualquier
+    # corchete" -- `listen [::]:80;` (IPv6) es sintaxis nginx legítima y
+    # daba falso positivo. Se busca específicamente la firma de un link
+    # markdown pegado: "](http" o "](https".
+    matches="$(grep -rnHE '\]\(https?' "$NGINX_CONF_DIR"/*.conf 2>/dev/null)"
     if [ -z "$matches" ]; then
-        ok "sin corchetes sueltos en $NGINX_CONF_DIR/*.conf"
+        ok "sin restos de autolinking (\"](http...\") en $NGINX_CONF_DIR/*.conf"
     else
-        bad "corchetes encontrados en config de nginx (restos de autolinking al copiar URLs):"
+        bad "restos de autolinking encontrados en config de nginx (link markdown pegado al copiar una URL):"
         echo "$matches" | sed 's/^/       /'
     fi
 fi
