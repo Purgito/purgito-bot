@@ -21,7 +21,8 @@ de videos nuevos de YouTube.
 
 ```bash
 # Tests — usar el venv: pytest NO está en requirements.txt y el Python del
-# sistema no tiene las dependencias (falla al importar aiosqlite).
+# sistema no tiene las dependencias (falla al importar aiosqlite). Corre en
+# CI (.github/workflows/ci.yml).
 .venv/bin/python -m pytest tests -q
 
 # Lint y formato — corre en CI (.github/workflows/ci.yml).
