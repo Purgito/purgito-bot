@@ -492,7 +492,7 @@ def upload_gif_sync(url: str) -> GifUpload | None:
                 url, headers=headers, timeout=15, stream=True, allow_redirects=False
             )
         if resp.status_code != 200:
-            log.error("HTTP %s al descargar GIF para R2: %s", resp.status_code, url)
+            log.warning("HTTP %s al descargar GIF para R2: %s", resp.status_code, url)
             return None
         cl = resp.headers.get("Content-Length")
         if cl and int(cl) > max_bytes:
