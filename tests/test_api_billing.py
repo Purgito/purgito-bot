@@ -286,7 +286,7 @@ def test_api_me_guilds_marca_is_permanent_para_guilds_exentos(temp_db, monkeypat
     assert conf["is_permanent"] is True
 
 
-def test_api_premium_get_ya_no_expone_note(monkeypatch):
+def test_api_premium_get_ya_no_expone_note(monkeypatch, temp_db):
     async def fake_get_session(request):
         return {"user_id": "42"}
 
@@ -306,4 +306,4 @@ def test_api_premium_get_ya_no_expone_note(monkeypatch):
     resp = asyncio.run(webapi._api_premium_get(Req()))
     data = json.loads(resp.body)
 
-    assert data == {"premium": True}
+    assert data == {"premium": True, "payment_issue": False}

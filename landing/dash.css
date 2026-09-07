@@ -920,6 +920,14 @@ h1 {
 .premium-note-body p:last-child {
   margin-bottom: 0;
 }
+/* Ámbar ya usado para --premium (ver badge-warn): mismo tono de "atención"
+   en vez de sumar un color nuevo a la paleta para este único aviso. */
+.premium-note--warning {
+  border-color: color-mix(in srgb, var(--premium) 35%, transparent);
+}
+.premium-note--warning .nav-icon {
+  color: var(--premium);
+}
 
 .gif-grid {
   display: grid;

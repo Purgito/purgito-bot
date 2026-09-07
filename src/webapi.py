@@ -135,6 +135,7 @@ from db import (
     get_effective_frase_pool,
     get_gif_by_id,
     get_gif_by_url,
+    get_premium_subscription,
     get_random_gif_candidates,
     get_scheduled_announcement,
     get_scheduled_announcements_quota,
@@ -250,6 +251,18 @@ _rate_auth_callback: LRUDict = LRUDict(512)
 # mismo event loop. Límite generoso a propósito -- no debe interferir con
 # reintentos legítimos de Polar tras una falla transitoria.
 _rate_webhook_polar: LRUDict = LRUDict(512)
+# Red de seguridad genérica para @guild_api: de los ~80 endpoints bajo este
+# decorador, solo un puñado (amnesia, uploads, checkout, etc.) tenía su
+# propio _rate_ok puntual -- el resto nunca se auditó sistemáticamente
+# (AUDITORIA_SEGURIDAD.md §6). Este límite vive en el wrapper mismo, así que
+# cubre a todos sin tocar cada handler uno por uno; solo aplica a los
+# métodos que mutan estado o disparan trabajo (GET queda afuera, son
+# lecturas baratas ya protegidas por sesión+permiso de guild, y varias se
+# repiten seguido al cargar el dashboard). 60/min es a propósito más laxo
+# que cualquier límite específico ya existente (el más alto es 20): nunca
+# se dispara antes que uno puntual, solo cubre lo que no tenía ninguno.
+_rate_guild_api_write: LRUDict = LRUDict(1024)
+_GUILD_API_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # user_id -> (expira_monotonic, [guilds con manage_guild]) — cache para no
 # golpear a Discord en cada request.
 _user_guilds_cache: LRUDict = LRUDict(256)
@@ -507,6 +520,15 @@ def guild_api(handler):
             return web.json_response(
                 {"error": "el bot no está en ese servidor"}, status=404
             )
+        if getattr(request, "method", "GET") in _GUILD_API_WRITE_METHODS:
+            # user_id, no IP: ya hay sesión válida acá, y es más preciso que
+            # la IP (varios admins detrás del mismo NAT no comparten cupo,
+            # y una IP que rota no lo resetea).
+            key = str(session.get("user_id") or _client_ip(request))
+            if not _rate_ok(_rate_guild_api_write, key, 60):
+                return web.json_response(
+                    {"error": "demasiadas solicitudes"}, status=429
+                )
         return await handler(request, guild_id)
 
     return wrapper
@@ -5138,8 +5160,22 @@ async def _api_premium_get(request: web.Request, guild_id: int) -> web.Response:
 
     A propósito no incluye plan/nota/fechas de facturación: eso es privado
     de quien compró la suscripción, no de todo admin del servidor. Ver
-    /api/me/billing."""
-    return web.json_response({"premium": is_premium_guild(guild_id)})
+    /api/me/billing.
+
+    payment_issue sí se expone acá, a diferencia del resto de la
+    facturación: "el pago está fallando" no es un dato privado de quien
+    paga, es información operativa que cualquier admin necesita para poder
+    actuar -- avisarle al comprador, o que pague de otro método -- antes de
+    que el premium desaparezca de golpe cuando Polar termine de reintentar
+    y revoque la suscripción (AUDITORIA_SEGURIDAD.md §6, identificado y sin
+    implementar hasta ahora). El status "past_due" ya se guardaba en
+    premium_subscriptions desde que llega el webhook subscription.updated;
+    acá solo se lee y se traduce a un booleano, sin tocar _webhook_polar."""
+    sub = await get_premium_subscription(guild_id)
+    payment_issue = bool(sub and sub.get("status") == "past_due")
+    return web.json_response(
+        {"premium": is_premium_guild(guild_id), "payment_issue": payment_issue}
+    )
 
 
 @guild_api

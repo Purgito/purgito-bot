@@ -1628,6 +1628,23 @@ async def release_gif_reference(content_hash: str | None, url: str | None = None
     content_hash None = GIF de tenor/giphy (no ocupa storage, delete_url es
     no-op) o fila anterior a la deduplicación (key propia por guild, 1:1 con
     el objeto): en ambos casos alcanza con el borrado por URL de siempre.
+
+    El decremento y el borrado físico van en DOS pasadas por _db_lock, no
+    una sola: si la fila de gif_objects se borrara ya en la primera pasada
+    (como pasaba antes de este fix), quedaba una ventana entre soltar el
+    lock y el r2.delete_key de abajo donde otra referencia al mismo
+    content_hash -- alguien vuelve a compartir el mismo GIF -- podía
+    "resucitar" la referencia vía _retain_gif_object (INSERT ... ON
+    CONFLICT) sin encontrar conflicto (la fila ya no estaba) y crear una
+    fila nueva con ref_count=1 apuntando a la MISMA key que este borrado
+    estaba a punto de eliminar físicamente: el guardado nuevo terminaba
+    apuntando a un objeto borrado. La segunda pasada (DELETE condicionado a
+    ref_count<=0, justo antes de tocar R2) es el chequeo atómico: si algo
+    incrementó el ref_count mientras tanto, la fila sigue existiendo con
+    ref_count>0 y este DELETE no borra nada, así que el objeto físico nunca
+    se toca. Queda una ventana residual del tamaño de un único await entre
+    esta segunda pasada y que r2.delete_key termine -- cerrarla del todo
+    necesitaría un lease sobre el objeto de R2, que no existe hoy.
     """
     if not content_hash:
         if url:
@@ -1645,14 +1662,19 @@ async def release_gif_reference(content_hash: str | None, url: str | None = None
             (content_hash,),
         ) as cur:
             row = await cur.fetchone()
-        if not row or row[1] > 0:
-            await db.commit()
-            return
-        r2_key = row[0]
-        await db.execute(
-            "DELETE FROM gif_objects WHERE content_hash=?", (content_hash,)
-        )
         await db.commit()
+    if not row or row[1] > 0:
+        return
+    r2_key = row[0]
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM gif_objects WHERE content_hash=? AND ref_count <= 0",
+            (content_hash,),
+        )
+        confirmed = cursor.rowcount > 0
+        await db.commit()
+    if not confirmed:
+        return
     await r2.delete_key(r2_key)
 
 
