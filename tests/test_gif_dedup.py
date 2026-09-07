@@ -12,6 +12,7 @@ monkeypatch de r2, sin tocar data/bot.db ni el bucket real.
 """
 
 import asyncio
+import json
 
 import aiosqlite
 import pytest
@@ -612,42 +613,52 @@ def test_wipe_gifs_only_deletes_objects_no_one_else_uses(memory_db, deleted_keys
     asyncio.run(run())
 
 
-def test_save_gif_url_persists_phash_for_new_object(memory_db, deleted_keys):
+_FP_ABC = r2.GifFingerprint(
+    frame_count=1, width=16, height=16, duration_ms=100, phashes=("abc123",)
+)
+
+
+def test_save_gif_url_persists_fingerprint_for_new_object(memory_db, deleted_keys):
     async def run():
-        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, "abc123")
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, _FP_ABC)
         async with memory_db.execute(
-            "SELECT phash FROM gif_objects WHERE content_hash=?", (_HASH,)
+            "SELECT frame_count, width, height, duration_ms, phashes "
+            "FROM gif_objects WHERE content_hash=?",
+            (_HASH,),
         ) as cur:
             row = await cur.fetchone()
-        assert row[0] == "abc123"
+        assert tuple(row[:4]) == (1, 16, 16, 100)
+        assert json.loads(row[4]) == ["abc123"]
 
     asyncio.run(run())
 
 
-def test_save_gif_url_does_not_overwrite_phash_on_repeat_reference(
+def test_save_gif_url_does_not_overwrite_fingerprint_on_repeat_reference(
     memory_db, deleted_keys
 ):
     """Otro guild referenciando el mismo objeto (ON CONFLICT) no debe pisar
-    el phash ya calculado con None."""
+    el fingerprint ya calculado con None."""
 
     async def run():
-        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, "abc123")
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, _FP_ABC)
         await db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100, None)
         async with memory_db.execute(
-            "SELECT phash FROM gif_objects WHERE content_hash=?", (_HASH,)
+            "SELECT phashes FROM gif_objects WHERE content_hash=?", (_HASH,)
         ) as cur:
             row = await cur.fetchone()
-        assert row[0] == "abc123"
+        assert json.loads(row[0]) == ["abc123"]
 
     asyncio.run(run())
 
 
-def test_get_all_gif_phashes_skips_objects_without_phash(memory_db, deleted_keys):
+def test_get_all_gif_fingerprints_skips_objects_without_fingerprint(
+    memory_db, deleted_keys
+):
     async def run():
-        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, "abc123")
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100, _FP_ABC)
         await db.save_gif_url(_GUILD_A, _url(_OTHER_HASH), _OTHER_HASH, 50, None)
-        rows = await db.get_all_gif_phashes()
-        assert rows == [(_HASH, r2.gif_key(_HASH), "abc123")]
+        rows = await db.get_all_gif_fingerprints()
+        assert rows == [(_HASH, r2.gif_key(_HASH), _FP_ABC)]
 
     asyncio.run(run())
 
@@ -674,41 +685,138 @@ def test_eviction_releases_reference(memory_db, deleted_keys, monkeypatch):
 # ---------- r2: phash perceptual ----------
 
 
-def _make_gif_bytes(color) -> bytes:
+def _make_gif_bytes(color, extra_frames=None, duration=100) -> bytes:
+    """GIF de 1 o más frames. `color` es el primer frame; `extra_frames`
+    (lista de colores) agrega frames adicionales con la misma duración."""
     import io
 
     from PIL import Image
 
+    frames = [Image.new("RGB", (16, 16), color=color)]
+    for c in extra_frames or []:
+        frames.append(Image.new("RGB", (16, 16), color=c))
     buf = io.BytesIO()
-    Image.new("RGB", (16, 16), color=color).save(buf, format="GIF")
+    if len(frames) == 1:
+        frames[0].save(buf, format="GIF")
+    else:
+        frames[0].save(
+            buf,
+            format="GIF",
+            save_all=True,
+            append_images=frames[1:],
+            duration=duration,
+            loop=0,
+        )
     return buf.getvalue()
 
 
-def test_compute_phash_returns_hex_string_for_valid_gif():
-    phash = r2.compute_phash(_make_gif_bytes((255, 0, 0)))
-    assert phash is not None
-    assert len(phash) == 16
-    int(phash, 16)  # es hex válido
+def _fp(phashes=("0" * 16,), frame_count=1, width=16, height=16, duration_ms=100):
+    return r2.GifFingerprint(
+        frame_count=frame_count,
+        width=width,
+        height=height,
+        duration_ms=duration_ms,
+        phashes=phashes,
+    )
 
 
-def test_compute_phash_degrades_to_none_on_corrupt_bytes():
-    assert r2.compute_phash(b"no soy un gif") is None
+def test_compute_gif_fingerprint_returns_full_fingerprint_for_single_frame_gif():
+    fp = r2.compute_gif_fingerprint(_make_gif_bytes((255, 0, 0)))
+    assert fp is not None
+    assert fp.frame_count == 1
+    assert (fp.width, fp.height) == (16, 16)
+    assert len(fp.phashes) == 1
+    assert len(fp.phashes[0]) == 16
+    int(fp.phashes[0], 16)  # es hex válido
 
 
-def test_compute_phash_enforces_decompression_bomb_cap_regardless_of_prior_state():
+def test_compute_gif_fingerprint_samples_first_middle_last_frame():
+    data = _make_gif_bytes(
+        (255, 0, 0), extra_frames=[(0, 255, 0), (0, 0, 255), (10, 10, 10)]
+    )
+    fp = r2.compute_gif_fingerprint(data)
+    assert fp.frame_count == 4
+    assert fp.duration_ms == 400  # 4 frames x 100ms
+    assert len(fp.phashes) == 3  # índices únicos entre {0, 4//2, 4-1} = {0, 2, 3}
+
+
+def test_compute_gif_fingerprint_degrades_to_none_on_corrupt_bytes():
+    assert r2.compute_gif_fingerprint(b"no soy un gif") is None
+
+
+def test_compute_gif_fingerprint_enforces_decompression_bomb_cap_regardless_of_prior_state():
     """No puede depender de que meme_generator.py ya se haya importado antes
-    en el proceso para tener el límite puesto -- compute_phash tiene que
-    fijar su propio Image.MAX_IMAGE_PIXELS cada vez que corre, sin importar
-    en qué estado esté al entrar."""
+    en el proceso para tener el límite puesto -- compute_gif_fingerprint
+    tiene que fijar su propio Image.MAX_IMAGE_PIXELS cada vez que corre, sin
+    importar en qué estado esté al entrar."""
     from PIL import Image
 
     original = Image.MAX_IMAGE_PIXELS
     try:
         Image.MAX_IMAGE_PIXELS = None  # simula que nadie lo fijó todavía
-        r2.compute_phash(_make_gif_bytes((1, 2, 3)))
+        r2.compute_gif_fingerprint(_make_gif_bytes((1, 2, 3)))
         assert Image.MAX_IMAGE_PIXELS == 15_000_000
     finally:
         Image.MAX_IMAGE_PIXELS = original
+
+
+# ---------- r2: criterio de casi-duplicado (fingerprint_distance) -----------
+#
+# _H0/_H1 difieren en 1 bit (dentro de cualquier umbral razonable); _H_FAR
+# difiere en los 64 bits (fuera de cualquier umbral razonable). Estos tests
+# aíslan cada señal del fingerprint por separado, sin pasar por el pipeline
+# completo de subida -- ver más abajo los de integración con upload_gif_sync.
+
+_H0 = "0" * 16
+_H1 = "1" + "0" * 15
+_H_FAR = "f" * 16
+
+
+def test_fingerprint_distance_matches_identical_fingerprints():
+    a = _fp(phashes=(_H0,))
+    assert r2.fingerprint_distance(a, a, max_distance=4) == 0
+
+
+def test_fingerprint_distance_accepts_close_hash_within_threshold():
+    a = _fp(phashes=(_H0,))
+    b = _fp(phashes=(_H1,))
+    assert r2.fingerprint_distance(a, b, max_distance=4) == 1
+
+
+def test_fingerprint_distance_rejects_hash_beyond_threshold_even_with_same_structure():
+    a = _fp(phashes=(_H0,))
+    b = _fp(phashes=(_H_FAR,))
+    assert r2.fingerprint_distance(a, b, max_distance=4) is None
+
+
+def test_fingerprint_distance_rejects_different_frame_count_even_with_identical_hash():
+    """El caso real que causaba el bug: dos GIFs de contenido distinto
+    podían compartir un dHash de primer frame parecido. Con el fingerprint
+    completo, una cantidad de frames distinta (es una animación distinta)
+    tiene que bloquear el match aunque el hash muestreado sea idéntico."""
+    a = _fp(phashes=(_H0,), frame_count=1)
+    b = _fp(phashes=(_H0,), frame_count=5)
+    assert r2.fingerprint_distance(a, b, max_distance=4) is None
+
+
+def test_fingerprint_distance_rejects_different_aspect_ratio_even_with_identical_hash():
+    a = _fp(phashes=(_H0,), width=16, height=16)
+    b = _fp(phashes=(_H0,), width=32, height=16)
+    assert r2.fingerprint_distance(a, b, max_distance=4) is None
+
+
+def test_fingerprint_distance_rejects_very_different_duration_even_with_identical_hash():
+    a = _fp(phashes=(_H0,), duration_ms=100)
+    b = _fp(phashes=(_H0,), duration_ms=1000)
+    assert r2.fingerprint_distance(a, b, max_distance=4) is None
+
+
+def test_fingerprint_distance_requires_all_sampled_frames_to_match():
+    """No alcanza con que el primer frame sea parecido: todos los puntos
+    muestreados (primero/medio/último) tienen que estar dentro del umbral."""
+    a = _fp(phashes=(_H0, _H0, _H0), frame_count=4)
+    b = _fp(phashes=(_H0, _H0, _H_FAR), frame_count=4)
+    assert r2.fingerprint_distance(a, b, max_distance=4) is None
 
 
 class _FakeUploadClient:
@@ -746,20 +854,43 @@ def _patch_upload(monkeypatch, client, content):
     monkeypatch.setattr(r2, "optimize_gif_bytes", lambda data: data)
 
 
-def test_upload_with_exact_match_does_not_compute_phash(monkeypatch):
+def _seed_gif_object(conn, content_hash, fingerprint):
+    async def seed():
+        await conn.execute(
+            "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, "
+            "frame_count, width, height, duration_ms, phashes) "
+            "VALUES (?, ?, 1, 10, ?, ?, ?, ?, ?)",
+            (
+                content_hash,
+                r2.gif_key(content_hash),
+                fingerprint.frame_count,
+                fingerprint.width,
+                fingerprint.height,
+                fingerprint.duration_ms,
+                json.dumps(list(fingerprint.phashes)),
+            ),
+        )
+        await conn.commit()
+
+    asyncio.run(seed())
+
+
+def test_upload_with_exact_match_does_not_compute_fingerprint(monkeypatch):
     client = _FakeUploadClient(exists=True)
     _patch_upload(monkeypatch, client, _make_gif_bytes((0, 255, 0)))
     called = []
-    monkeypatch.setattr(r2, "compute_phash", lambda data: called.append(1) or "x")
+    monkeypatch.setattr(
+        r2, "compute_gif_fingerprint", lambda data: called.append(1) or None
+    )
 
     up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
 
     assert called == []
-    assert up.phash is None
+    assert up.fingerprint is None
     assert client.puts == []
 
 
-def test_upload_without_any_match_uploads_normally_and_keeps_its_own_phash(
+def test_upload_without_any_match_uploads_normally_and_keeps_its_own_fingerprint(
     memory_db, monkeypatch
 ):
     client = _FakeUploadClient(exists=False)
@@ -769,27 +900,19 @@ def test_upload_without_any_match_uploads_normally_and_keeps_its_own_phash(
     up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
 
     assert client.puts == [r2.gif_key(up.content_hash)]
-    assert up.phash == r2.compute_phash(data)
+    assert up.fingerprint == r2.compute_gif_fingerprint(data)
 
 
 def test_upload_with_perceptual_match_reuses_existing_object_without_uploading(
     memory_db, monkeypatch
 ):
     """Mismo meme, bytes distintos: no hay match exacto por content_hash pero
-    sí por phash -- no debe subir un objeto nuevo a R2."""
+    sí por fingerprint (misma estructura + dHash parecido) -- no debe subir
+    un objeto nuevo a R2."""
     data = _make_gif_bytes((10, 10, 10))
-    phash = r2.compute_phash(data)
+    fingerprint = r2.compute_gif_fingerprint(data)
     existing_hash = "c" * 64
-
-    async def seed():
-        await memory_db.execute(
-            "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, phash) "
-            "VALUES (?, ?, 1, 10, ?)",
-            (existing_hash, r2.gif_key(existing_hash), phash),
-        )
-        await memory_db.commit()
-
-    asyncio.run(seed())
+    _seed_gif_object(memory_db, existing_hash, fingerprint)
 
     client = _FakeUploadClient(exists=False)
     _patch_upload(monkeypatch, client, data)
@@ -806,18 +929,12 @@ def test_upload_ignores_perceptual_matches_beyond_the_configured_distance(
 ):
     data = _make_gif_bytes((200, 0, 200))
     existing_hash = "d" * 64
-
-    async def seed():
-        # Un phash completamente distinto: no debe matchear.
-        await memory_db.execute(
-            "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, phash) "
-            "VALUES (?, ?, 1, 10, ?)",
-            (existing_hash, r2.gif_key(existing_hash), "0" * 16),
-        )
-        await memory_db.commit()
-
-    asyncio.run(seed())
-    monkeypatch.setattr(r2, "compute_phash", lambda d: "f" * 16)
+    # Misma estructura, pero un dHash completamente distinto: no debe matchear.
+    real_fp = r2.compute_gif_fingerprint(data)
+    _seed_gif_object(memory_db, existing_hash, real_fp._replace(phashes=(_H0,)))
+    monkeypatch.setattr(
+        r2, "compute_gif_fingerprint", lambda d: real_fp._replace(phashes=(_H_FAR,))
+    )
 
     client = _FakeUploadClient(exists=False)
     _patch_upload(monkeypatch, client, data)
@@ -826,6 +943,33 @@ def test_upload_ignores_perceptual_matches_beyond_the_configured_distance(
 
     assert up.content_hash != existing_hash
     assert client.puts == [r2.gif_key(up.content_hash)]
+
+
+def test_upload_never_reuses_object_with_identical_hash_but_different_structure(
+    memory_db, monkeypatch
+):
+    """Regresión directa del bug real: un GIF ajeno ya guardado (de otro
+    servidor) que por casualidad comparte un dHash de primer frame parecido
+    NO puede reusarse si su estructura (cantidad de frames, aspect ratio,
+    duración) es distinta -- eso ya no es "el mismo meme recomprimido", es
+    contenido distinto, y confundirlos es exactamente lo que llevaba a que
+    un servidor terminara sirviendo el GIF de otro."""
+    data = _make_gif_bytes((77, 88, 99))
+    real_fp = r2.compute_gif_fingerprint(data)
+    existing_hash = "e" * 64
+    # Mismo phash que compute_gif_fingerprint va a devolver más abajo, pero
+    # el cuádruple de frames: una animación distinta de verdad.
+    ajeno_fp = real_fp._replace(frame_count=real_fp.frame_count * 4)
+    _seed_gif_object(memory_db, existing_hash, ajeno_fp)
+    monkeypatch.setattr(r2, "compute_gif_fingerprint", lambda d: real_fp)
+
+    client = _FakeUploadClient(exists=False)
+    _patch_upload(monkeypatch, client, data)
+
+    up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
+
+    assert up.content_hash != existing_hash  # nunca reusa el objeto ajeno
+    assert client.puts == [r2.gif_key(up.content_hash)]  # sube su propio contenido
 
 
 # ---------- Cache-Control (Sección 7, cierre de pendientes) ----------

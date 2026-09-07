@@ -173,6 +173,11 @@ CREATE TABLE IF NOT EXISTS gif_objects (
     ref_count INTEGER NOT NULL DEFAULT 0,
     size_bytes INTEGER NOT NULL DEFAULT 0,
     phash TEXT,
+    frame_count INTEGER,
+    width INTEGER,
+    height INTEGER,
+    duration_ms INTEGER,
+    phashes TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -738,6 +743,38 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna phash ya existe en gif_objects")
+    # frame_count/width/height/duration_ms/phashes reemplazan a `phash` (que
+    # queda sin usarse, columna huérfana) como criterio de casi-duplicado:
+    # un solo dHash del primer frame podía confundir GIFs de contenido
+    # distinto que compartieran un fotograma inicial parecido -- ver
+    # r2.GifFingerprint y r2._closest_fingerprint_match. Cuatro columnas
+    # sueltas en vez de un blob para poder filtrar por ellas en SQL antes de
+    # deserializar `phashes` (JSON de la lista de dHash muestreados).
+    try:
+        await _db.execute("ALTER TABLE gif_objects ADD COLUMN frame_count INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna frame_count ya existe en gif_objects")
+    try:
+        await _db.execute("ALTER TABLE gif_objects ADD COLUMN width INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna width ya existe en gif_objects")
+    try:
+        await _db.execute("ALTER TABLE gif_objects ADD COLUMN height INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna height ya existe en gif_objects")
+    try:
+        await _db.execute("ALTER TABLE gif_objects ADD COLUMN duration_ms INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna duration_ms ya existe en gif_objects")
+    try:
+        await _db.execute("ALTER TABLE gif_objects ADD COLUMN phashes TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna phashes ya existe en gif_objects")
     try:
         # Limpieza retroactiva: si quedaron filas con media_url apuntando a miniaturas .png
         # (antiguo comportamiento de oEmbed de Tenor), se resetean a NULL para que
@@ -1511,31 +1548,74 @@ async def wipe_corpus(guild_id: int) -> None:
 
 
 async def _retain_gif_object(
-    db, content_hash: str, r2_key: str, size_bytes: int, phash: str | None = None
+    db,
+    content_hash: str,
+    r2_key: str,
+    size_bytes: int,
+    fingerprint: "r2.GifFingerprint | None" = None,
 ):
     """Suma una referencia al objeto de R2. Llamar con _db_lock ya tomado.
 
-    phash solo se graba en la fila nueva: el ON CONFLICT no lo toca, así que
-    una referencia repetida a un objeto existente no le pisa el phash ya
-    calculado (por ejemplo por el backfill).
+    fingerprint solo se graba en la fila nueva: el ON CONFLICT no lo toca,
+    así que una referencia repetida a un objeto existente no le pisa el
+    fingerprint ya calculado (por ejemplo por el backfill).
     """
     await db.execute(
-        "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, phash) "
-        "VALUES (?, ?, 1, ?, ?) "
+        "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, "
+        "frame_count, width, height, duration_ms, phashes) "
+        "VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(content_hash) DO UPDATE SET ref_count = ref_count + 1",
-        (content_hash, r2_key, size_bytes, phash),
+        (
+            content_hash,
+            r2_key,
+            size_bytes,
+            fingerprint.frame_count if fingerprint else None,
+            fingerprint.width if fingerprint else None,
+            fingerprint.height if fingerprint else None,
+            fingerprint.duration_ms if fingerprint else None,
+            json.dumps(list(fingerprint.phashes)) if fingerprint else None,
+        ),
     )
 
 
-async def get_all_gif_phashes() -> list[tuple[str, str, str]]:
-    """(content_hash, r2_key, phash) de los objetos que ya tienen phash
-    calculado. La usa r2.py para el matching perceptual antes de subir un
-    GIF nuevo -- ver upload_gif_sync."""
+async def get_all_gif_fingerprints() -> list[tuple[str, str, "r2.GifFingerprint"]]:
+    """(content_hash, r2_key, fingerprint) de los objetos que ya tienen un
+    fingerprint completo calculado. La usa r2.py para el matching antes de
+    subir un GIF nuevo -- ver upload_gif_bytes_sync."""
     db = await get_db()
     async with db.execute(
-        "SELECT content_hash, r2_key, phash FROM gif_objects WHERE phash IS NOT NULL"
+        "SELECT content_hash, r2_key, frame_count, width, height, duration_ms, phashes "
+        "FROM gif_objects WHERE phashes IS NOT NULL"
     ) as cursor:
-        return [tuple(row) for row in await cursor.fetchall()]
+        rows = await cursor.fetchall()
+    out = []
+    for (
+        content_hash,
+        r2_key,
+        frame_count,
+        width,
+        height,
+        duration_ms,
+        phashes_json,
+    ) in rows:
+        try:
+            phashes = tuple(json.loads(phashes_json))
+        except (TypeError, ValueError):
+            continue
+        out.append(
+            (
+                content_hash,
+                r2_key,
+                r2.GifFingerprint(
+                    frame_count=frame_count,
+                    width=width,
+                    height=height,
+                    duration_ms=duration_ms,
+                    phashes=phashes,
+                ),
+            )
+        )
+    return out
 
 
 async def release_gif_reference(content_hash: str | None, url: str | None = None):
@@ -1651,7 +1731,7 @@ async def save_gif_url(
     url: str,
     content_hash: str | None = None,
     size_bytes: int = 0,
-    phash: str | None = None,
+    fingerprint: "r2.GifFingerprint | None" = None,
 ) -> tuple[bool, int | None]:
     """Devuelve (inserted, evicted_id). evicted_id es el id del GIF más viejo
     desalojado por haber llegado al límite del guild, o None si no hubo desalojo.
@@ -1714,7 +1794,7 @@ async def save_gif_url(
         # este GIF, la referencia que le corresponde ya está contada.
         if inserted and content_hash:
             await _retain_gif_object(
-                db, content_hash, r2.gif_key(content_hash), size_bytes, phash
+                db, content_hash, r2.gif_key(content_hash), size_bytes, fingerprint
             )
         await db.commit()
     if evicted_id is not None:
