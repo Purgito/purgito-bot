@@ -84,6 +84,25 @@ else
     bad "$VENV_PY no existe o no es ejecutable -- correr: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 fi
 
+# src/config.py arma ANNOUNCEMENTS_TIMEZONE con zoneinfo.ZoneInfo() al nivel
+# de módulo -- si el sistema no tiene los datos de esa zona horaria (tzdata),
+# el import de config.py revienta con ZoneInfoNotFoundError y el bot no
+# arranca, antes de que exista logging que lo explique. Ubuntu y Oracle Linux
+# traen tzdata por defecto, pero una imagen mínima o un container no
+# necesariamente -- ver docs/PORTABILITY.md sobre "containers" como posible
+# cambio de arquitectura futuro.
+TZ_VALUE="$(grep -E '^ANNOUNCEMENTS_TIMEZONE=' "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d= -f2-)"
+TZ_VALUE="${TZ_VALUE:-America/Santiago}"
+if [ -x "$VENV_PY" ]; then
+    if "$VENV_PY" -c "from zoneinfo import ZoneInfo; ZoneInfo('$TZ_VALUE')" >/dev/null 2>&1; then
+        ok "tzdata tiene la zona horaria '$TZ_VALUE' (ANNOUNCEMENTS_TIMEZONE)"
+    else
+        bad "falta tzdata para '$TZ_VALUE' (ANNOUNCEMENTS_TIMEZONE) -- src/config.py no importa sin esto, el bot no arranca. Instalar el paquete tzdata del sistema (o 'pip install tzdata' en el venv)"
+    fi
+else
+    skip "tzdata para '$TZ_VALUE' (ANNOUNCEMENTS_TIMEZONE)" "no hay venv todavía para probar con zoneinfo"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
 section "3. systemd"
 
