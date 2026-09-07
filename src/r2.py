@@ -40,6 +40,28 @@ GIF_TOO_LARGE = ""
 _CACHE_CONTROL = "public, max-age=1209600, immutable"
 
 
+class GifFingerprint(NamedTuple):
+    """Huella estructural completa de un GIF, para detectar casi-duplicados
+    (mismo meme reposteado con distinta compresión/recorte) sin arriesgar
+    falsos positivos entre GIFs de contenido distinto.
+
+    frame_count/width/height/duration_ms son señales baratas que descartan
+    la enorme mayoría de los no-duplicados antes de mirar el contenido
+    visual -- dos animaciones distintas casi nunca comparten las cuatro a
+    la vez. `phashes` son los dHash (hex) de hasta 3 frames muestreados
+    (primero, medio, último): comparar varios puntos de la animación, no
+    solo el primero, es lo que evita que dos GIFs distintos con un
+    fotograma inicial parecido (mismo template de meme, mismo thumbnail de
+    video) se confundan entre sí -- ver _closest_fingerprint_match.
+    """
+
+    frame_count: int
+    width: int
+    height: int
+    duration_ms: int
+    phashes: tuple[str, ...]
+
+
 class GifUpload(NamedTuple):
     """Resultado de subir un GIF a R2.
 
@@ -47,15 +69,15 @@ class GifUpload(NamedTuple):
     `content_hash` es el sha256 de los bytes que efectivamente se subieron:
     es la identidad del objeto en el bucket y lo que usa db.gif_objects para
     contar referencias.
-    `phash` es el dHash perceptual de los bytes locales, calculado solo
-    cuando no hubo match exacto (ver upload_gif_sync); el caller lo pasa a
-    db.save_gif_url para que quede guardado si el objeto es nuevo de verdad.
+    `fingerprint` es la huella perceptual de los bytes locales, calculada
+    solo cuando no hubo match exacto (ver upload_gif_sync); el caller lo pasa
+    a db.save_gif_url para que quede guardado si el objeto es nuevo de verdad.
     """
 
     url: str
     content_hash: str = ""
     size_bytes: int = 0
-    phash: str | None = None
+    fingerprint: GifFingerprint | None = None
 
 
 # Prefijo exclusivo de los GIFs content-addressed. Las imágenes de memes y las
@@ -194,12 +216,22 @@ def _object_exists(client, key: str) -> bool:
         return False
 
 
-def compute_phash(data: bytes) -> str | None:
-    """dHash perceptual del primer frame del GIF, para detectar casi-duplicados
-    (mismo meme, distinta compresión/recorte/origen -- ver
-    _closest_phash_match). Degrada con gracia: si Pillow no puede decodificar
-    el archivo, un GIF sin phash simplemente no participa en el matching, no
-    debe impedir que se guarde."""
+# Tolerancias de las señales estructurales baratas (frame_count, aspect
+# ratio, duración) que tienen que coincidir ANTES de siquiera mirar el
+# contenido visual -- ver _fingerprints_compatible. No son configurables:
+# ensancharlas reabre la puerta a fusionar contenido distinto entre
+# servidores, que es exactamente lo que este esquema existe para impedir.
+_ASPECT_RATIO_TOLERANCE = 0.02
+_DURATION_TOLERANCE = 0.10
+
+
+def compute_gif_fingerprint(data: bytes) -> GifFingerprint | None:
+    """Huella estructural completa del GIF (frame_count, dimensiones,
+    duración total y dHash de varios frames muestreados), para detectar
+    casi-duplicados sin arriesgar falsos positivos -- ver
+    _closest_fingerprint_match. Degrada con gracia: si Pillow no puede
+    decodificar el archivo, un GIF sin fingerprint simplemente no participa
+    en el matching, no debe impedir que se guarde."""
     try:
         from PIL import Image
         import imagehash
@@ -217,42 +249,117 @@ def compute_phash(data: bytes) -> str | None:
         # un GIF -- sin esto, Image.open() prueba cualquier formato que
         # Pillow sepa leer (TIFF, ICO, EPS, etc.) contra esos bytes.
         with Image.open(io.BytesIO(data), formats=("GIF",)) as img:
-            return str(imagehash.dhash(img))
+            width, height = img.size
+            frame_count = int(img.n_frames)
+            if frame_count < 1:
+                return None
+            duration_ms = 0
+            for i in range(frame_count):
+                img.seek(i)
+                duration_ms += int(img.info.get("duration", 0) or 0)
+            # Primero, medio y último -- de menor a mayor cantidad de frames
+            # únicos según el largo real de la animación (1, 2 o 3 índices).
+            sample_indices = sorted({0, frame_count // 2, frame_count - 1})
+            phashes = []
+            for idx in sample_indices:
+                img.seek(idx)
+                phashes.append(str(imagehash.dhash(img.convert("RGB"))))
+        return GifFingerprint(
+            frame_count=frame_count,
+            width=width,
+            height=height,
+            duration_ms=duration_ms,
+            phashes=tuple(phashes),
+        )
     except Exception:
-        log.debug("No se pudo calcular el phash del GIF", exc_info=True)
+        log.debug("No se pudo calcular el fingerprint del GIF", exc_info=True)
         return None
 
 
 def _phash_max_distance() -> int:
-    return _env_int("GIF_PHASH_MAX_DISTANCE", 6)
+    return _env_int("GIF_PHASH_MAX_DISTANCE", 4)
 
 
-def _closest_phash_match(phash: str, max_distance: int) -> tuple[str, str] | None:
-    """(content_hash, r2_key) del objeto existente más parecido dentro de
-    max_distance, o None si ninguno califica."""
+def _fingerprints_compatible(a: GifFingerprint, b: GifFingerprint) -> bool:
+    """Filtro barato ANTES de comparar contenido visual: dos animaciones
+    distintas casi nunca coinciden en frame_count, aspect ratio y duración
+    total a la vez, así que exigir las tres reduce drásticamente el espacio
+    de candidatos que llegan a la comparación por dHash (y con eso, la
+    chance de una coincidencia accidental)."""
+    if a.frame_count != b.frame_count or len(a.phashes) != len(b.phashes):
+        return False
+    if a.width <= 0 or a.height <= 0 or b.width <= 0 or b.height <= 0:
+        return False
+    ratio_a = a.width / a.height
+    ratio_b = b.width / b.height
+    if abs(ratio_a - ratio_b) / ratio_a > _ASPECT_RATIO_TOLERANCE:
+        return False
+    longest_duration = max(a.duration_ms, b.duration_ms, 1)
+    if abs(a.duration_ms - b.duration_ms) / longest_duration > _DURATION_TOLERANCE:
+        return False
+    return True
+
+
+def fingerprint_distance(
+    a: GifFingerprint, b: GifFingerprint, max_distance: int
+) -> int | None:
+    """Distancia total entre dos fingerprints si califican como
+    casi-duplicado, o None si no.
+
+    Calificar exige pasar _fingerprints_compatible (misma duración/forma/
+    cantidad de frames) Y que los dHash coincidan de a pares (primero con
+    primero, medio con medio, último con último) con TODOS por debajo de
+    max_distance -- no alcanza con que uno de los frames muestreados sea
+    parecido, tienen que serlo todos. Esa combinación (estructura idéntica +
+    contenido visual idéntico en varios puntos de la animación) es
+    deliberadamente exigente: la única forma barata de garantizar que nunca
+    se confunden dos GIFs de contenido distinto.
+
+    Único lugar donde vive este criterio -- lo comparten el matching en
+    caliente (_closest_fingerprint_match, contra un solo candidato a la vez)
+    y el clustering offline (scripts/backfill_gif_phashes.py, todos contra
+    todos) para que nunca puedan divergir en qué cuenta como "el mismo GIF".
+    """
+    if not _fingerprints_compatible(a, b):
+        return None
     import imagehash
 
+    total = 0
+    for hash_a, hash_b in zip(a.phashes, b.phashes):
+        try:
+            dist = imagehash.hex_to_hash(hash_a) - imagehash.hex_to_hash(hash_b)
+        except Exception:
+            return None
+        if dist > max_distance:
+            return None
+        total += dist
+    return total
+
+
+def _closest_fingerprint_match(
+    fingerprint: GifFingerprint, max_distance: int
+) -> tuple[str, str] | None:
+    """(content_hash, r2_key) del objeto existente más parecido dentro de
+    max_distance (ver fingerprint_distance), o None si ninguno califica."""
     import db  # import diferido: evita import circular (db.py importa r2)
 
     try:
-        candidates = asyncio.run(db.get_all_gif_phashes())
+        candidates = asyncio.run(db.get_all_gif_fingerprints())
     except Exception:
         log.warning(
-            "No se pudieron consultar los phashes existentes de gif_objects",
+            "No se pudieron consultar los fingerprints existentes de gif_objects",
             exc_info=True,
         )
         return None
 
-    target = imagehash.hex_to_hash(phash)
     best: tuple[str, str] | None = None
-    best_dist = max_distance + 1
-    for content_hash, r2_key, other_phash in candidates:
-        try:
-            dist = target - imagehash.hex_to_hash(other_phash)
-        except Exception:
+    best_total_dist: int | None = None
+    for content_hash, r2_key, other in candidates:
+        total_dist = fingerprint_distance(fingerprint, other, max_distance)
+        if total_dist is None:
             continue
-        if dist <= max_distance and dist < best_dist:
-            best, best_dist = (content_hash, r2_key), dist
+        if best is None or total_dist < best_total_dist:
+            best, best_total_dist = (content_hash, r2_key), total_dist
     return best
 
 
@@ -417,7 +524,7 @@ def upload_gif_sync(url: str) -> GifUpload | None:
 
 
 def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
-    """Optimiza bytes de GIF con gifsicle, calcula sha256 y phash,
+    """Optimiza bytes de GIF con gifsicle, calcula sha256 y fingerprint,
     y los sube a R2 si no existe ya un objeto con ese contenido o similar.
     Retorna un GifUpload, GifUpload(GIF_TOO_LARGE) si supera el límite, o None en error."""
     client = get_client()
@@ -432,18 +539,18 @@ def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
         data = optimize_gif_bytes(data)
         content_hash = hashlib.sha256(data).hexdigest()
         key = gif_key(content_hash)
-        phash = None
+        fingerprint = None
         # Subir dos veces el mismo contenido a la misma key es inofensivo
         # (bytes idénticos), así que el head_object es solo para ahorrarse la
         # subida en el caso común de un repost, no un candado de concurrencia.
         if not _object_exists(client, key):
-            phash = compute_phash(data)
-            if phash:
-                match = _closest_phash_match(phash, _phash_max_distance())
+            fingerprint = compute_gif_fingerprint(data)
+            if fingerprint:
+                match = _closest_fingerprint_match(fingerprint, _phash_max_distance())
                 if match:
                     match_hash, match_key = match
                     log.info(
-                        "GIF casi-duplicado detectado (phash): %s reusa el objeto %s",
+                        "GIF casi-duplicado detectado (fingerprint): %s reusa el objeto %s",
                         content_hash,
                         match_hash,
                     )
@@ -458,7 +565,7 @@ def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
                 CacheControl=_CACHE_CONTROL,
             )
         return GifUpload(
-            f"{public_url().rstrip('/')}/{key}", content_hash, len(data), phash
+            f"{public_url().rstrip('/')}/{key}", content_hash, len(data), fingerprint
         )
     except Exception:
         log.exception("Error subiendo bytes de GIF a R2")

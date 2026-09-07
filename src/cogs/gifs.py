@@ -137,7 +137,7 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
                 # Se valida el host real: el regex matchea el dominio como
                 # substring y dejaría pasar "https://evil.com/?tenor.com".
                 host = _gif_host(url)
-                content_hash, size_bytes, phash = None, 0, None
+                content_hash, size_bytes, fingerprint = None, 0, None
                 if host == "cdn.discordapp.com":
                     up = await _upload_gif_throttled(url)
                     if not up or up.url == r2.GIF_TOO_LARGE:
@@ -145,11 +145,11 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
                         # link crudo de cdn.discordapp.com está firmado y
                         # expira, así que quedaría roto en el corpus.
                         continue
-                    url, content_hash, size_bytes, phash = up
+                    url, content_hash, size_bytes, fingerprint = up
                 elif not _is_gif_site(host):
                     continue
                 inserted, _ = await save_gif_url(
-                    guild_id, url, content_hash, size_bytes, phash
+                    guild_id, url, content_hash, size_bytes, fingerprint
                 )
                 if inserted:
                     saved += 1
@@ -163,14 +163,14 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
         ):
             try:
                 url = attachment.url
-                content_hash, size_bytes, phash = None, 0, None
+                content_hash, size_bytes, fingerprint = None, 0, None
                 if "cdn.discordapp.com" in url:
                     up = await _upload_gif_throttled(url)
                     if not up or up.url == r2.GIF_TOO_LARGE:
                         continue
-                    url, content_hash, size_bytes, phash = up
+                    url, content_hash, size_bytes, fingerprint = up
                 inserted, _ = await save_gif_url(
-                    guild_id, url, content_hash, size_bytes, phash
+                    guild_id, url, content_hash, size_bytes, fingerprint
                 )
                 if inserted:
                     saved += 1
@@ -423,7 +423,7 @@ async def _promote_gif_to_r2(gif_id: int, guild_id: int, data: bytes) -> None:
                     up.content_hash,
                     r2.gif_key(up.content_hash),
                     up.size_bytes,
-                    up.phash,
+                    up.fingerprint,
                 )
                 await db_conn.commit()
     except Exception:
@@ -693,7 +693,7 @@ class Gifs(commands.Cog):
 
         url = url.strip()
         host = _gif_host(url)
-        content_hash, size_bytes, phash = None, 0, None
+        content_hash, size_bytes, fingerprint = None, 0, None
         if host == "cdn.discordapp.com":
             up = await _upload_gif_throttled(url)
             if up and up.url == r2.GIF_TOO_LARGE:
@@ -702,7 +702,7 @@ class Gifs(commands.Cog):
             if not up:
                 await interaction.followup.send(t("gifs.add.upload_failed", locale))
                 return
-            final_url, content_hash, size_bytes, phash = up
+            final_url, content_hash, size_bytes, fingerprint = up
         elif _is_gif_site(host):
             final_url = url
         else:
@@ -710,7 +710,7 @@ class Gifs(commands.Cog):
             return
 
         inserted, _ = await save_gif_url(
-            interaction.guild.id, final_url, content_hash, size_bytes, phash
+            interaction.guild.id, final_url, content_hash, size_bytes, fingerprint
         )
         total = await count_gif_urls(interaction.guild.id)
         if inserted:

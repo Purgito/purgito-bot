@@ -1,10 +1,11 @@
 """Auditoría sección Dependencias/supply chain, ronda 2: los dos puntos que
 decodifican bytes no confiables con Pillow (meme_generator.is_valid_image,
 alimentado por adjuntos de Discord con extensión falseable, y
-r2.compute_phash, alimentado por contenido de una URL de host confiable pero
-no de contenido garantizado) restringen `Image.open(..., formats=...)` al
-allowlist real en vez de dejar que Pillow pruebe cualquier decoder que sepa
-leer (TIFF, ICO, EPS -- puede shellear a Ghostscript --, etc.).
+r2.compute_gif_fingerprint, alimentado por contenido de una URL de host
+confiable pero no de contenido garantizado) restringen
+`Image.open(..., formats=...)` al allowlist real en vez de dejar que Pillow
+pruebe cualquier decoder que sepa leer (TIFF, ICO, EPS -- puede shellear a
+Ghostscript --, etc.).
 """
 
 import io
@@ -37,9 +38,9 @@ def test_is_valid_image_rechaza_contenido_no_imagen():
     assert meme_generator.is_valid_image(b"no es una imagen") is False
 
 
-def test_compute_phash_acepta_gif():
-    assert r2.compute_phash(_encode("GIF", mode="P")) is not None
+def test_compute_gif_fingerprint_acepta_gif():
+    assert r2.compute_gif_fingerprint(_encode("GIF", mode="P")) is not None
 
 
-def test_compute_phash_rechaza_un_formato_real_pero_no_gif():
-    assert r2.compute_phash(_encode("PNG")) is None
+def test_compute_gif_fingerprint_rechaza_un_formato_real_pero_no_gif():
+    assert r2.compute_gif_fingerprint(_encode("PNG")) is None

@@ -897,10 +897,16 @@ python scripts/backfill_gif_phashes.py           # backfill de phashes + reporte
 ```
 
 Revisar a ojo el reporte de clusters antes de fusionar nada: `GIF_PHASH_MAX_DISTANCE`
-(limits.env, default 6) es un punto de partida conservador y puede necesitar
-ajuste — un umbral mal calibrado fusiona memes que en realidad son distintos.
-Si algún cluster no convence, subir o bajar el valor en limits.env, hacer
-`git commit`, y volver a correr el dry-run hasta que el reporte se vea bien.
+(limits.env, default 4) es la distancia por frame muestreado, pero no es el único
+criterio — dos objetos también tienen que coincidir en cantidad de frames,
+aspect ratio y duración total (ver r2.GifFingerprint) antes de calificar como
+el mismo meme. Aun así puede necesitar ajuste — un umbral mal calibrado
+fusiona memes que en realidad son distintos. Si algún cluster no convence,
+subir o bajar el valor en limits.env, hacer `git commit`, y volver a correr
+el dry-run hasta que el reporte se vea bien. El reporte marca aparte los
+pares unidos solo por transitividad (no calificaron entre sí, los unió un
+tercer objeto puente) — con incompatibles > 0 conviene mirar ese cluster con
+más cuidado antes de fusionar.
 
 ```bash
 python scripts/backfill_gif_phashes.py --apply   # recién ahora fusiona
@@ -908,10 +914,44 @@ python scripts/backfill_gif_phashes.py --apply   # recién ahora fusiona
 sudo systemctl start bot-purg
 ```
 
-El backfill de phashes (llenar la columna `phash` de `gif_objects`) se escribe
-siempre, tenga o no `--apply` el resto — es aditivo, no borra ni fusiona nada.
-Es idempotente: en la segunda corrida los objetos ya tienen phash y los
-clusters ya fusionados no vuelven a aparecer.
+El backfill de fingerprints (llenar frame_count/width/height/duration_ms/phashes
+de `gif_objects`) se escribe siempre, tenga o no `--apply` el resto — es
+aditivo, no borra ni fusiona nada. Es idempotente: en la segunda corrida los
+objetos ya tienen fingerprint y los clusters ya fusionados no vuelven a
+aparecer.
+
+### Auditar GIFs cuyo contenido quedó compartido entre servidores
+
+Antes del fix que introdujo `r2.GifFingerprint` (comparar cantidad de
+frames, aspect ratio y duración además del dHash, y solo del propio
+candidato — nunca cruzando servidores a ciegas con un único hash laxo), un
+falso positivo del matching perceptual podía dejar a un servidor sirviendo
+el GIF que en realidad había subido otro. `scripts/audit_cross_guild_gifs.py`
+detecta los `content_hash` de `gif_objects` referenciados por más de un
+`guild_id` en `corpus_gifs`:
+
+```bash
+python scripts/audit_cross_guild_gifs.py                      # reporta todos los casos
+python scripts/audit_cross_guild_gifs.py --content-hash HASH  # detalle de uno solo
+```
+
+Importante: el reporte no distingue contaminación de dedup exacto legítimo
+(dos servidores reposteando de buena fe el mismo archivo byte a byte es el
+comportamiento normal de `gif_objects`) — revisar cada caso a mano, con los
+logs del bot como señal más fuerte (buscar `"GIF casi-duplicado detectado"`
+en los logs de antes del fix; un `content_hash` que aparece ahí sí pasó por
+matching perceptual). Recién con eso confirmado:
+
+```bash
+python scripts/audit_cross_guild_gifs.py --apply --content-hash HASH --keep-guild ID
+```
+
+Borra las filas de `corpus_gifs` de ese `content_hash` en todo servidor que
+no sea `--keep-guild`, uno a la vez — nunca un barrido masivo. No hay forma
+de recuperar el GIF que un servidor afectado quiso guardar originalmente
+(nunca llegó a subirse a R2, y el link de Discord ya expiró): lo único que
+hace es dejar de servirle contenido ajeno. Ese servidor vuelve a tener su
+propio GIF recién cuando alguien lo vuelva a postear.
 
 Nunca toca objetos referenciados por `corpus_images` (las imágenes de memes
 también pueden ser `.gif`), ni los huérfanos, que solo informa.
