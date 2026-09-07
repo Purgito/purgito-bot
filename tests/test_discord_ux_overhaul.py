@@ -31,12 +31,17 @@ _USER_ADMIN = 123
 _USER_NON_ADMIN = 456
 
 
+async def _open_memory_db() -> aiosqlite.Connection:
+    conn = await aiosqlite.connect(":memory:")
+    await conn.executescript(db.SCHEMA)
+    await conn.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
+    await conn.commit()
+    return conn
+
+
 @pytest.fixture
 def memory_db(monkeypatch):
-    conn = asyncio.run(aiosqlite.connect(":memory:"))
-    asyncio.run(conn.executescript(db.SCHEMA))
-    asyncio.run(conn.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER"))
-    asyncio.run(conn.commit())
+    conn = asyncio.run(_open_memory_db())
     monkeypatch.setattr(db, "_db", conn)
     yield conn
     asyncio.run(conn.close())

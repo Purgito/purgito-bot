@@ -1,10 +1,10 @@
 """El escaneo de secretos en CI (.github/workflows/ci.yml + .gitleaks.toml)
 no tiene forma de correrse en pytest (necesita el binario de gitleaks y el
 historial de git completo), así que estos tests solo verifican que la config
-está bien armada: el job existe con lo que gitleaks-action necesita para
-escanear todo el historial, y la excepción de referencias/ es un TOML válido
-que de verdad cubre el archivo que la motivó (ver CLAUDE.md sobre esa
-carpeta).
+está bien armada: el job existe con lo necesario para instalar el binario de
+gitleaks pineado y escanear todo el historial con .gitleaks.toml, y la
+excepción de referencias/ es un TOML válido que de verdad cubre el archivo
+que la motivó (ver CLAUDE.md sobre esa carpeta).
 """
 
 import re
@@ -16,9 +16,9 @@ CI = (ROOT / ".github" / "workflows" / "ci.yml").read_text("utf-8")
 
 
 def test_el_job_de_gitleaks_existe_y_escanea_todo_el_historial():
-    assert "gitleaks/gitleaks-action" in CI
     assert "fetch-depth: 0" in CI
-    assert "GITLEAKS_CONFIG: .gitleaks.toml" in CI
+    assert "GITLEAKS_VERSION" in CI
+    assert "gitleaks git --config .gitleaks.toml" in CI
 
 
 def test_gitleaksconfig_es_toml_valido_y_extiende_el_default():

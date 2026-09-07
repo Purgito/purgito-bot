@@ -85,12 +85,16 @@ def test_health_ok_on_200_with_valid_content_type(monkeypatch):
 
 
 def test_health_dead_on_404(monkeypatch):
+    # HEAD no devuelve 200 -> check_gif_url_health reintenta con GET antes de
+    # decidir; sin mockear el GET, el fallback hace un request real.
     monkeypatch.setattr(r2.requests, "head", lambda *a, **k: _FakeResp(404))
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp(404))
     assert r2.check_gif_url_health("https://example.com/gone.gif") == "dead"
 
 
 def test_health_dead_on_410(monkeypatch):
     monkeypatch.setattr(r2.requests, "head", lambda *a, **k: _FakeResp(410))
+    monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp(410))
     assert r2.check_gif_url_health("https://example.com/gone.gif") == "dead"
 
 
