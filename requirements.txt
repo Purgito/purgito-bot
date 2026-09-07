@@ -16,5 +16,5 @@ aiohttp-session[secure]==2.12.1
 # pinea todo con == y esta toca cifrado de sesión: sin el pin acá, un
 # `pip install` nuevo resuelve la versión que sea que el extra permita en
 # ese momento en vez de la que se auditó.
-cryptography==50.0.0
+cryptography==50.0.1
 polar-sdk==0.31.7
