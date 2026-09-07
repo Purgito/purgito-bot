@@ -34,10 +34,12 @@ _H1 = "1" + "0" * 15
 _H_FAR = "f" * 16
 
 
-def _fp(phashes=(_H0,), frame_count=1, width=16, height=16, duration_ms=100):
+def _fp(phashes=(_H0, _H0), frame_count=2, width=16, height=16, duration_ms=100):
     """Fingerprint de prueba. Con los defaults, dos llamadas con distinto
     `phashes` son estructuralmente compatibles entre sí -- para probar
-    incompatibilidad, variar frame_count/width/height/duration_ms."""
+    incompatibilidad, variar frame_count/width/height/duration_ms.
+    frame_count=2 (no 1): un GIF de un solo frame nunca califica para
+    matching perceptual (ver r2._fingerprints_compatible)."""
     return r2.GifFingerprint(
         frame_count=frame_count,
         width=width,
@@ -225,8 +227,20 @@ def test_objects_with_close_hash_but_different_structure_are_not_clustered():
     dHash parecido (o hasta idéntico) no alcanza si la estructura difiere
     -- acá, cantidad de frames distinta."""
     objs = [
+        ("a" * 64, "k1", _fp(phashes=(_H0, _H0), frame_count=2)),
+        ("b" * 64, "k2", _fp(phashes=(_H0, _H0, _H0), frame_count=6)),
+    ]
+    assert bf.cluster_by_fingerprint(objs, max_distance=6) == []
+
+
+def test_single_frame_objects_never_cluster_even_with_identical_phash():
+    """Un GIF de un solo frame (imagen estática) nunca entra a un cluster,
+    ni siquiera contra un phash idéntico -- ver
+    r2._fingerprints_compatible. El offline tiene que respetar la misma
+    regla que el matching en caliente."""
+    objs = [
         ("a" * 64, "k1", _fp(phashes=(_H0,), frame_count=1)),
-        ("b" * 64, "k2", _fp(phashes=(_H0,), frame_count=5)),
+        ("b" * 64, "k2", _fp(phashes=(_H0,), frame_count=1)),
     ]
     assert bf.cluster_by_fingerprint(objs, max_distance=6) == []
 

@@ -710,7 +710,14 @@ def _make_gif_bytes(color, extra_frames=None, duration=100) -> bytes:
     return buf.getvalue()
 
 
-def _fp(phashes=("0" * 16,), frame_count=1, width=16, height=16, duration_ms=100):
+def _fp(
+    phashes=("0" * 16, "0" * 16), frame_count=2, width=16, height=16, duration_ms=100
+):
+    """Default con frame_count=2 (no 1): un GIF de un solo frame nunca
+    califica para matching perceptual (ver _fingerprints_compatible), así
+    que un default de 1 frame haría que cualquier test que no lo mencione
+    explícitamente pase por casualidad, sin ejercitar el resto de las
+    señales del fingerprint."""
     return r2.GifFingerprint(
         frame_count=frame_count,
         width=width,
@@ -773,19 +780,19 @@ _H_FAR = "f" * 16
 
 
 def test_fingerprint_distance_matches_identical_fingerprints():
-    a = _fp(phashes=(_H0,))
+    a = _fp(phashes=(_H0, _H0))
     assert r2.fingerprint_distance(a, a, max_distance=4) == 0
 
 
 def test_fingerprint_distance_accepts_close_hash_within_threshold():
-    a = _fp(phashes=(_H0,))
-    b = _fp(phashes=(_H1,))
+    a = _fp(phashes=(_H0, _H0))
+    b = _fp(phashes=(_H1, _H0))
     assert r2.fingerprint_distance(a, b, max_distance=4) == 1
 
 
 def test_fingerprint_distance_rejects_hash_beyond_threshold_even_with_same_structure():
-    a = _fp(phashes=(_H0,))
-    b = _fp(phashes=(_H_FAR,))
+    a = _fp(phashes=(_H0, _H0))
+    b = _fp(phashes=(_H_FAR, _H0))
     assert r2.fingerprint_distance(a, b, max_distance=4) is None
 
 
@@ -794,20 +801,20 @@ def test_fingerprint_distance_rejects_different_frame_count_even_with_identical_
     podían compartir un dHash de primer frame parecido. Con el fingerprint
     completo, una cantidad de frames distinta (es una animación distinta)
     tiene que bloquear el match aunque el hash muestreado sea idéntico."""
-    a = _fp(phashes=(_H0,), frame_count=1)
-    b = _fp(phashes=(_H0,), frame_count=5)
+    a = _fp(phashes=(_H0, _H0), frame_count=2)
+    b = _fp(phashes=(_H0, _H0, _H0), frame_count=6)
     assert r2.fingerprint_distance(a, b, max_distance=4) is None
 
 
 def test_fingerprint_distance_rejects_different_aspect_ratio_even_with_identical_hash():
-    a = _fp(phashes=(_H0,), width=16, height=16)
-    b = _fp(phashes=(_H0,), width=32, height=16)
+    a = _fp(phashes=(_H0, _H0), width=16, height=16)
+    b = _fp(phashes=(_H0, _H0), width=32, height=16)
     assert r2.fingerprint_distance(a, b, max_distance=4) is None
 
 
 def test_fingerprint_distance_rejects_very_different_duration_even_with_identical_hash():
-    a = _fp(phashes=(_H0,), duration_ms=100)
-    b = _fp(phashes=(_H0,), duration_ms=1000)
+    a = _fp(phashes=(_H0, _H0), duration_ms=100)
+    b = _fp(phashes=(_H0, _H0), duration_ms=1000)
     assert r2.fingerprint_distance(a, b, max_distance=4) is None
 
 
@@ -817,6 +824,18 @@ def test_fingerprint_distance_requires_all_sampled_frames_to_match():
     a = _fp(phashes=(_H0, _H0, _H0), frame_count=4)
     b = _fp(phashes=(_H0, _H0, _H_FAR), frame_count=4)
     assert r2.fingerprint_distance(a, b, max_distance=4) is None
+
+
+def test_fingerprint_distance_rejects_single_frame_gifs_even_when_identical():
+    """Un GIF de un solo frame (imagen estática) nunca califica para
+    matching perceptual, ni siquiera contra una copia idéntica de sí mismo:
+    con frame_count=1 no hay "medio" ni "último" frame que muestrear, y
+    duration_ms es 0 para prácticamente cualquier estático -- las dos
+    señales que hacen fuerte a este esquema para GIFs animados no
+    discriminan nada acá. Sin esta regla, quedaría reducido a un solo dHash
+    con un umbral laxo: el mismo esquema viejo que causó el bug real."""
+    a = _fp(phashes=(_H0,), frame_count=1)
+    assert r2.fingerprint_distance(a, a, max_distance=4) is None
 
 
 class _FakeUploadClient:
@@ -906,10 +925,13 @@ def test_upload_without_any_match_uploads_normally_and_keeps_its_own_fingerprint
 def test_upload_with_perceptual_match_reuses_existing_object_without_uploading(
     memory_db, monkeypatch
 ):
-    """Mismo meme, bytes distintos: no hay match exacto por content_hash pero
-    sí por fingerprint (misma estructura + dHash parecido) -- no debe subir
-    un objeto nuevo a R2."""
-    data = _make_gif_bytes((10, 10, 10))
+    """Mismo meme animado, bytes distintos: no hay match exacto por
+    content_hash pero sí por fingerprint (misma estructura + dHash parecido)
+    -- no debe subir un objeto nuevo a R2. Multi-frame a propósito: un GIF de
+    un solo frame nunca califica para matching perceptual (ver
+    _fingerprints_compatible), así que probar el camino "sí matchea" con uno
+    de esos daría un falso verde por la razón equivocada."""
+    data = _make_gif_bytes((10, 10, 10), extra_frames=[(20, 20, 20)])
     fingerprint = r2.compute_gif_fingerprint(data)
     existing_hash = "c" * 64
     _seed_gif_object(memory_db, existing_hash, fingerprint)
@@ -927,14 +949,13 @@ def test_upload_with_perceptual_match_reuses_existing_object_without_uploading(
 def test_upload_ignores_perceptual_matches_beyond_the_configured_distance(
     memory_db, monkeypatch
 ):
-    data = _make_gif_bytes((200, 0, 200))
+    data = _make_gif_bytes((200, 0, 200), extra_frames=[(0, 200, 200)])
     existing_hash = "d" * 64
-    # Misma estructura, pero un dHash completamente distinto: no debe matchear.
     real_fp = r2.compute_gif_fingerprint(data)
-    _seed_gif_object(memory_db, existing_hash, real_fp._replace(phashes=(_H0,)))
-    monkeypatch.setattr(
-        r2, "compute_gif_fingerprint", lambda d: real_fp._replace(phashes=(_H_FAR,))
-    )
+    # Misma estructura, pero un dHash completamente distinto en cada frame
+    # muestreado: no debe matchear.
+    far_phashes = tuple(_H_FAR for _ in real_fp.phashes)
+    _seed_gif_object(memory_db, existing_hash, real_fp._replace(phashes=far_phashes))
 
     client = _FakeUploadClient(exists=False)
     _patch_upload(monkeypatch, client, data)
@@ -953,13 +974,18 @@ def test_upload_never_reuses_object_with_identical_hash_but_different_structure(
     NO puede reusarse si su estructura (cantidad de frames, aspect ratio,
     duración) es distinta -- eso ya no es "el mismo meme recomprimido", es
     contenido distinto, y confundirlos es exactamente lo que llevaba a que
-    un servidor terminara sirviendo el GIF de otro."""
-    data = _make_gif_bytes((77, 88, 99))
+    un servidor terminara sirviendo el GIF de otro. Ambos lados con más de
+    un frame, para aislar la variable "frame_count distinto" de la regla
+    aparte de "1 frame nunca matchea"."""
+    data = _make_gif_bytes((77, 88, 99), extra_frames=[(11, 22, 33)])
     real_fp = r2.compute_gif_fingerprint(data)
     existing_hash = "e" * 64
     # Mismo phash que compute_gif_fingerprint va a devolver más abajo, pero
     # el cuádruple de frames: una animación distinta de verdad.
-    ajeno_fp = real_fp._replace(frame_count=real_fp.frame_count * 4)
+    ajeno_fp = real_fp._replace(
+        frame_count=real_fp.frame_count * 4,
+        phashes=real_fp.phashes * 2,  # longitud distinta también, a propósito
+    )
     _seed_gif_object(memory_db, existing_hash, ajeno_fp)
     monkeypatch.setattr(r2, "compute_gif_fingerprint", lambda d: real_fp)
 
