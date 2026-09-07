@@ -285,7 +285,18 @@ def _fingerprints_compatible(a: GifFingerprint, b: GifFingerprint) -> bool:
     distintas casi nunca coinciden en frame_count, aspect ratio y duración
     total a la vez, así que exigir las tres reduce drásticamente el espacio
     de candidatos que llegan a la comparación por dHash (y con eso, la
-    chance de una coincidencia accidental)."""
+    chance de una coincidencia accidental).
+
+    Un GIF de un solo frame (imagen estática) nunca califica para matching
+    perceptual, sin excepción: con frame_count=1 no hay "medio" ni "último"
+    frame que muestrear (los tres índices colapsan al mismo), y duration_ms
+    es 0 para prácticamente cualquier estático -- las dos señales que hacen
+    fuerte a este esquema para GIFs animados no discriminan nada acá, y
+    quedaría reducido a un solo dHash con un umbral laxo, exactamente el
+    esquema viejo que causó el bug real. Dos estáticos solo se consideran
+    "el mismo" si son bit a bit idénticos (dedup exacto por content_hash)."""
+    if a.frame_count == 1 or b.frame_count == 1:
+        return False
     if a.frame_count != b.frame_count or len(a.phashes) != len(b.phashes):
         return False
     if a.width <= 0 or a.height <= 0 or b.width <= 0 or b.height <= 0:

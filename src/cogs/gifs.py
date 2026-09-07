@@ -107,7 +107,7 @@ _GIF_CACHE = _LRUGifCache(128)
 
 
 # r2.upload_gif_sync es caro (descarga hasta MAX_GIF_DOWNLOAD_BYTES, gifsicle,
-# sha256, phash) y corre en el thread pool default de asyncio -- compartido
+# sha256, fingerprint perceptual) y corre en el thread pool default de asyncio -- compartido
 # con la generación de Markov, memes y todo lo demás del proceso. Sin tope,
 # cualquier miembro (no hace falta ser admin: on_message dispara esto para
 # TODO mensaje) podía postear GIFs de cdn.discordapp.com en ráfaga y saturar
