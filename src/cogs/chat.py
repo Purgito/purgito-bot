@@ -837,6 +837,13 @@ class Chat(commands.Cog):
                                 chunk, allowed_mentions=_SAFE_MENTIONS
                             )
                         await bump_counter(message.guild.id, "mensajes_enviados")
+                except (discord.Forbidden, discord.HTTPException) as e:
+                    log.warning(
+                        "No se pudo mandar la respuesta automática en canal %s (guild %s): %s",
+                        message.channel.id,
+                        message.guild.id,
+                        e,
+                    )
                 except Exception:
                     log.exception("Error en generación automática de respuesta")
             return
