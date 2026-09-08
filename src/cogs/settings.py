@@ -16,6 +16,8 @@ from cogs.premium import is_premium_guild
 from cogs.youtube import resolve_youtube_channel
 from config import PANEL_URL, get_dashboard_url
 from db import (
+    MEME_SCHEDULE_ERROR_EMPTY_CORPUS,
+    MEME_SCHEDULE_ERROR_NO_POOL_IMAGES,
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
     add_corpus_channel,
@@ -749,15 +751,23 @@ class MemesCategory(SettingsCategory):
         schedules = await list_meme_schedules(panel.guild.id)
         body = t("settings.memes.body", panel.locale)
         if schedules:
-            body += "\n\n" + "\n".join(
-                f"• <#{s['channel_id']}> — "
-                + t(
+            lines = []
+            for s in schedules:
+                line = f"• <#{s['channel_id']}> — " + t(
                     "settings.memes.entry",
                     panel.locale,
                     hours=s["interval_minutes"] // 60,
                 )
-                for s in schedules
-            )
+                if s["last_error"] == MEME_SCHEDULE_ERROR_NO_POOL_IMAGES:
+                    line += "\n  ⚠️ " + t(
+                        "settings.memes.error_no_pool_images", panel.locale
+                    )
+                elif s["last_error"] == MEME_SCHEDULE_ERROR_EMPTY_CORPUS:
+                    line += "\n  ⚠️ " + t(
+                        "settings.memes.error_empty_corpus", panel.locale
+                    )
+                lines.append(line)
+            body += "\n\n" + "\n".join(lines)
         else:
             body += "\n\n" + t("settings.memes.none", panel.locale)
         if getattr(panel, "memes_pending_interval", None):

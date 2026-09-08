@@ -902,6 +902,15 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna channel_id ya existe en user_corpus")
+    # Mismo patrón que youtube_subscriptions.last_error: auto_meme_task
+    # saltaba un canal en silencio cada 10 min si no había imágenes en el
+    # pool o el corpus estaba vacío (AUDITORIA_UX.md #8) -- esto guarda esa
+    # transición para avisar una sola vez, no en cada corrida.
+    try:
+        await _db.execute("ALTER TABLE meme_schedule ADD COLUMN last_error TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna last_error ya existe en meme_schedule")
     await _db.commit()
     flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
     if not os.path.exists(flag_path):
@@ -3183,12 +3192,18 @@ async def remove_meme_schedule(guild_id: int, channel_id: int) -> bool:
 async def list_meme_schedules(guild_id: int) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT channel_id, interval_minutes, last_posted_at FROM meme_schedule WHERE guild_id=? ORDER BY channel_id",
+        "SELECT channel_id, interval_minutes, last_posted_at, last_error "
+        "FROM meme_schedule WHERE guild_id=? ORDER BY channel_id",
         (guild_id,),
     ) as cursor:
         rows = await cursor.fetchall()
     return [
-        {"channel_id": r[0], "interval_minutes": r[1], "last_posted_at": r[2]}
+        {
+            "channel_id": r[0],
+            "interval_minutes": r[1],
+            "last_posted_at": r[2],
+            "last_error": r[3],
+        }
         for r in rows
     ]
 
@@ -3196,13 +3211,19 @@ async def list_meme_schedules(guild_id: int) -> list[dict]:
 async def get_due_meme_schedules() -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT guild_id, channel_id, interval_minutes FROM meme_schedule "
+        "SELECT guild_id, channel_id, interval_minutes, last_error FROM meme_schedule "
         "WHERE last_posted_at IS NULL "
         "   OR datetime(last_posted_at, '+' || interval_minutes || ' minutes') <= datetime('now')"
     ) as cursor:
         rows = await cursor.fetchall()
     return [
-        {"guild_id": r[0], "channel_id": r[1], "interval_minutes": r[2]} for r in rows
+        {
+            "guild_id": r[0],
+            "channel_id": r[1],
+            "interval_minutes": r[2],
+            "last_error": r[3],
+        }
+        for r in rows
     ]
 
 
@@ -3212,6 +3233,26 @@ async def update_meme_last_posted(guild_id: int, channel_id: int) -> None:
         await db.execute(
             "UPDATE meme_schedule SET last_posted_at = datetime('now') WHERE guild_id=? AND channel_id=?",
             (guild_id, channel_id),
+        )
+        await db.commit()
+
+
+MEME_SCHEDULE_ERROR_NO_POOL_IMAGES = "sin_imagenes"
+MEME_SCHEDULE_ERROR_EMPTY_CORPUS = "corpus_vacio"
+
+
+async def set_meme_schedule_error(
+    guild_id: int, channel_id: int, error: str | None
+) -> None:
+    """Marca (o limpia, con error=None) por qué auto_meme_task viene
+    salteando este canal: MEME_SCHEDULE_ERROR_NO_POOL_IMAGES o
+    MEME_SCHEDULE_ERROR_EMPTY_CORPUS. Mismo patrón que
+    set_youtube_sub_error -- ver cogs/memes.py.auto_meme_task."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE meme_schedule SET last_error=? WHERE guild_id=? AND channel_id=?",
+            (error, guild_id, channel_id),
         )
         await db.commit()
 

@@ -16,12 +16,15 @@ import r2
 from cogs.premium import is_premium_guild, premium_required_message
 from config import BOT_TRIGGER_NAME, GROQ_API_KEY, GROQ_GUILD_COOLDOWN, MEME_MAX_BYTES
 from db import (
+    MEME_SCHEDULE_ERROR_EMPTY_CORPUS,
+    MEME_SCHEDULE_ERROR_NO_POOL_IMAGES,
     delete_image_url,
     get_corpus_messages_filtered,
     get_due_meme_schedules,
     get_random_image_url_excluding,
     is_user_excluded_from_interaction,
     save_image_url,
+    set_meme_schedule_error,
     update_meme_last_posted,
 )
 from generation import build_markov_model
@@ -237,6 +240,21 @@ async def _generate_caption(
         if model and not model.is_empty:
             caption = await asyncio.to_thread(_try_short_sentence, model)
     return caption
+
+
+async def _warn_auto_meme_blocked(
+    channel: discord.TextChannel, guild_id: int, key: str
+) -> None:
+    """Publica una vez en el canal por qué los memes automáticos no están
+    saliendo -- antes auto_meme_task saltaba el canal en silencio cada 10
+    min sin que nada le dijera al admin cuál de los dos requisitos falta
+    (AUDITORIA_UX.md #8). set_meme_schedule_error en el caller evita que
+    esto se repita mientras el motivo siga siendo el mismo."""
+    try:
+        locale = await guild_locale(guild_id)
+        await channel.send(t(key, locale))
+    except (discord.Forbidden, discord.HTTPException):
+        log.debug("No se pudo avisar que los memes automáticos están bloqueados")
 
 
 async def handle_meme_command(message: discord.Message) -> None:
@@ -514,6 +532,8 @@ class Memes(commands.Cog):
                     continue
 
                 guild_id = schedule["guild_id"]
+                channel_id = schedule["channel_id"]
+                last_error = schedule.get("last_error")
                 if not is_premium_guild(guild_id):
                     continue
 
@@ -523,6 +543,13 @@ class Memes(commands.Cog):
                         "auto_meme: sin imágenes válidas en pool para guild %s",
                         guild_id,
                     )
+                    if last_error != MEME_SCHEDULE_ERROR_NO_POOL_IMAGES:
+                        await _warn_auto_meme_blocked(
+                            channel, guild_id, "memes.auto_meme_muted.no_pool_images"
+                        )
+                        await set_meme_schedule_error(
+                            guild_id, channel_id, MEME_SCHEDULE_ERROR_NO_POOL_IMAGES
+                        )
                     continue
 
                 corpus_sample = await get_corpus_messages_filtered(
@@ -530,12 +557,25 @@ class Memes(commands.Cog):
                 )
                 if not corpus_sample:
                     log.info("auto_meme: corpus vacío para guild %s", guild_id)
+                    if last_error != MEME_SCHEDULE_ERROR_EMPTY_CORPUS:
+                        await _warn_auto_meme_blocked(
+                            channel, guild_id, "memes.auto_meme_muted.empty_corpus"
+                        )
+                        await set_meme_schedule_error(
+                            guild_id, channel_id, MEME_SCHEDULE_ERROR_EMPTY_CORPUS
+                        )
                     continue
 
                 caption = await _generate_caption(guild_id, img_bytes, corpus_sample)
                 if not caption:
                     log.info("auto_meme: no se generó caption para guild %s", guild_id)
                     continue
+
+                if last_error is not None:
+                    # Se destrabó solo (se cargaron fotos, o hubo más
+                    # conversación) -- no hace falta que nadie lo confirme
+                    # a mano, el próximo posteo exitoso ya lo prueba.
+                    await set_meme_schedule_error(guild_id, channel_id, None)
 
                 meme_bytes = await asyncio.to_thread(render_caption, img_bytes, caption)
                 await channel.send(

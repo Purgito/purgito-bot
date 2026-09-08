@@ -82,6 +82,8 @@
   "settings.memes.activate_channel_placeholder": "Elige el canal destino…",
   "settings.memes.activate_pending_hint": "Elige abajo el canal donde se postearán los memes.",
   "settings.memes.activate_invalid": "El intervalo debe ser un número entre 2 y 24.",
+  "settings.memes.error_no_pool_images": "sin fotos guardadas, reacciona con 🎯 a una imagen para agregarla",
+  "settings.memes.error_empty_corpus": "todavía no aprendí suficientes mensajes de este servidor",
 
   "settings.cat.anuncios.label": "Anuncios",
   "settings.cat.anuncios.desc": "Mensajes automáticos programados a un canal",
@@ -202,6 +204,8 @@
   "memes.pool_reason.oversized": "La imagen supera el límite de {mb} MB.",
   "memes.pool_reason.unsupported": "Ese formato no es compatible (acepto png, jpg, jpeg y webp).",
   "memes.pool_reason.no_image": "Ese mensaje no tiene ninguna imagen adjunta.",
+  "memes.auto_meme_muted.no_pool_images": "Quiero mandar memes automáticos acá, pero todavía no tengo fotos guardadas — reacciona con 🎯 a una imagen en cualquier mensaje para agregarla.",
+  "memes.auto_meme_muted.empty_corpus": "Quiero mandar memes automáticos acá, pero todavía no aprendí suficientes mensajes de este servidor. Cuando haya más conversación, lo vuelvo a intentar solo.",
 
   "layout_buttons.invalid_context": "Este botón no es válido en este contexto.",
   "layout_buttons.role_gone": "Ese rol ya no existe.",

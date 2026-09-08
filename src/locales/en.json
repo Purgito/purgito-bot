@@ -82,6 +82,8 @@
   "settings.memes.activate_channel_placeholder": "Pick the destination channel…",
   "settings.memes.activate_pending_hint": "Pick below the channel where memes will be posted.",
   "settings.memes.activate_invalid": "The interval must be a number between 2 and 24.",
+  "settings.memes.error_no_pool_images": "no photos saved yet, react with 🎯 on an image to add one",
+  "settings.memes.error_empty_corpus": "haven't learned enough messages from this server yet",
 
   "settings.cat.anuncios.label": "Announcements",
   "settings.cat.anuncios.desc": "Automated messages scheduled to a channel",
@@ -202,6 +204,8 @@
   "memes.pool_reason.oversized": "The image is over the {mb} MB limit.",
   "memes.pool_reason.unsupported": "That format isn't supported (I accept png, jpg, jpeg and webp).",
   "memes.pool_reason.no_image": "That message doesn't have any image attached.",
+  "memes.auto_meme_muted.no_pool_images": "I want to post automatic memes here, but I don't have any saved photos yet — react with 🎯 on an image in any message to add one.",
+  "memes.auto_meme_muted.empty_corpus": "I want to post automatic memes here, but I haven't learned enough messages from this server yet. I'll try again on my own once there's more conversation.",
 
   "layout_buttons.invalid_context": "This button isn't valid in this context.",
   "layout_buttons.role_gone": "That role no longer exists.",
