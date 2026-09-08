@@ -1,20 +1,31 @@
-"""Privacy: /borrar_mis_datos -- interfaz de Discord del Right to be
-Forgotten individual. El núcleo de borrado vive en db.delete_user_data /
-generation.forget_user (ya implementados y testeados); este cog es solo
-presentación, confirmación de dos pasos y manejo de errores -- no reimplementa
-ninguna lógica de borrado."""
+"""Privacy: /borrar_mis_datos (Right to be Forgotten) y /mis_datos (su
+complemento simétrico de portabilidad). El núcleo de cada uno vive en
+generation.forget_user / db.export_user_data (ya implementados y
+testeados); este cog es solo presentación, confirmación de dos pasos donde
+aplica, y manejo de errores -- no reimplementa ninguna lógica."""
 
+import io
+import json
 import logging
+import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 import generation
+from db import export_user_data
 from help_view import PURGITO_COLOR
 from i18n import guild_locale, t
+from utils import LRUDict
 
 log = logging.getLogger(__name__)
+
+# Genera y adjunta un JSON -- sin límite, cualquiera podía disparar esto en
+# loop. No hace falta que sea estricto: es un pedido legítimo poco frecuente
+# en la práctica, esto solo corta un abuso obvio.
+_EXPORT_COOLDOWN_SECONDS = 60
+_export_cooldowns: LRUDict = LRUDict(1024)
 
 
 class _ConfirmDeleteView(discord.ui.View):
@@ -143,6 +154,16 @@ class _ConfirmDeleteView(discord.ui.View):
         await interaction.edit_original_response(content=result, embed=None, view=self)
 
 
+def _check_export_cooldown(user_id: int) -> int | None:
+    """None si puede exportar (y marca el cooldown); si no, segundos restantes."""
+    now = time.time()
+    elapsed = now - _export_cooldowns.get(user_id, 0)
+    if elapsed < _EXPORT_COOLDOWN_SECONDS:
+        return int(_EXPORT_COOLDOWN_SECONDS - elapsed)
+    _export_cooldowns[user_id] = now
+    return None
+
+
 class Privacy(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -167,6 +188,71 @@ class Privacy(commands.Cog):
         view = _ConfirmDeleteView(author_id=interaction.user.id, locale=locale)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         view.message = await interaction.original_response()
+
+    @app_commands.command(
+        name="mis_datos",
+        description="Descarga en JSON tu estilo guardado y los mensajes que Purgito aprendió de ti.",
+    )
+    async def mis_datos(self, interaction: discord.Interaction) -> None:
+        locale = await guild_locale(interaction.guild.id if interaction.guild else None)
+
+        remaining = _check_export_cooldown(interaction.user.id)
+        if remaining is not None:
+            await interaction.response.send_message(
+                t("privacy.export.cooldown", locale, seconds=remaining),
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            by_guild = await export_user_data(interaction.user.id)
+        except Exception:
+            log.exception(
+                "privacy.user_export: fallo exportando datos de author_id=%s",
+                interaction.user.id,
+            )
+            await interaction.followup.send(
+                t("privacy.export.error", locale), ephemeral=True
+            )
+            return
+
+        total_messages = sum(len(rows) for rows in by_guild.values())
+        if total_messages == 0:
+            await interaction.followup.send(
+                t("privacy.export.empty", locale), ephemeral=True
+            )
+            return
+
+        payload = {
+            "user_id": str(interaction.user.id),
+            "exported_at": discord.utils.utcnow().isoformat(),
+            "servers": [
+                {
+                    "guild_id": str(guild_id),
+                    "guild_name": getattr(self.bot.get_guild(guild_id), "name", None),
+                    "messages": rows,
+                }
+                for guild_id, rows in by_guild.items()
+            ],
+        }
+        buf = io.BytesIO(json.dumps(payload, ensure_ascii=False, indent=2).encode())
+        log.info(
+            "privacy.user_export: author_id=%s messages=%d guilds=%d",
+            interaction.user.id,
+            total_messages,
+            len(by_guild),
+        )
+        await interaction.followup.send(
+            t(
+                "privacy.export.result",
+                locale,
+                count=total_messages,
+                guilds=len(by_guild),
+            ),
+            file=discord.File(buf, filename="purgito_mis_datos.json"),
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:

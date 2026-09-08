@@ -170,6 +170,7 @@
   "commands.gif_add.description": "Saves a GIF to the server collection.",
   "commands.generar.description": "Generates a message using what Purgito learned from the server.",
   "commands.imitar.description": "Tries to write like a server member.",
+  "commands.imitar_mezcla.description": "Mixes the writing style of two server members.",
   "commands.refeed.description": "Makes Purgito learn from the current channel's history.",
   "commands.refeed_channels.description": "Makes Purgito learn from the history of configured channels.",
   "commands.corpus_info.description": "Shows how many messages Purgito has learned in this channel.",
@@ -221,6 +222,9 @@
   "chat.imitar_not_enough_messages": "**{user}** only has {count} message(s) learned. Needs at least 30 to imitate their style.",
   "chat.imitar_generation_failed": "Couldn't generate a message for **{user}**. Try again later.",
   "chat.imitar_result": "**{user}** would say: \"{text}\"",
+  "chat.imitar_mezcla_same_user": "Pick two different users to mix their styles.",
+  "chat.imitar_mezcla_generation_failed": "Couldn't generate a message mixing **{user1}** and **{user2}**. Try again later.",
+  "chat.imitar_mezcla_result": "**{user1}** + **{user2}** would say: \"{text}\"",
   "chat.channel_visible_report": "I can now read {channel}: {saved} new messages learned.",
 
   "chat.refeed.cannot_read_history": "I can't read this channel's history.",
@@ -336,6 +340,7 @@
   "help.cat.chat.label": "Generate & chat",
   "help.cat.chat.cmd.generar": "Generates a message using what Purgito learned",
   "help.cat.chat.cmd.imitar": "Tries to write like a server member",
+  "help.cat.chat.cmd.imitar_mezcla": "Mixes the writing style of two server members",
   "help.cat.chat.cmd.corpus_info": "Shows how many messages have been learned in this channel",
   "help.cat.chat.cmd.settings": "Quick chat settings",
 
@@ -371,5 +376,10 @@
   "privacy.delete.not_your_request": "This request isn't yours.",
   "privacy.delete.error": "The deletion couldn't be completed. Nothing was changed — try again later.",
   "privacy.delete.result_empty": "We couldn't find any data of yours stored by Purgito.",
-  "privacy.delete.result_success": "Done. Deleted {user_corpus_deleted} message(s) of your saved style across {guilds} server(s). Your original Discord messages weren't touched."
+  "privacy.delete.result_success": "Done. Deleted {user_corpus_deleted} message(s) of your saved style across {guilds} server(s). Your original Discord messages weren't touched.",
+  "commands.mis_datos.description": "Downloads your saved style and the messages Purgito learned from you as JSON.",
+  "privacy.export.cooldown": "Wait {seconds} seconds before requesting your data again.",
+  "privacy.export.error": "Couldn't generate the file. Try again later.",
+  "privacy.export.empty": "We couldn't find any data of yours stored by Purgito.",
+  "privacy.export.result": "Here you go: {count} message(s) of your saved style across {guilds} server(s)."
 }

@@ -3519,6 +3519,60 @@ async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"sent": True})
 
 
+def _parse_announcement_schedule(
+    data: dict,
+) -> tuple[str, int | None, int | None, int | None, list[int] | None] | web.Response:
+    """Valida mode/interval_minutes/hour/minute/weekdays de un anuncio
+    programado: (mode, interval_minutes, hour, minute, weekdays) o una
+    respuesta de error. Compartido entre los tres lugares que crean o
+    actualizan un anuncio (embed, texto plano, PUT) -- antes esta
+    validación estaba triplicada, cada copia con su propio riesgo de
+    divergir silenciosamente de las otras dos.
+
+    weekly reusa exactamente la validación de hour/minute de daily y le
+    suma weekdays: lista no vacía de enteros 0-6 (lunes=0, mismo criterio
+    que datetime.weekday())."""
+    mode = data.get("mode")
+    interval_minutes = hour = minute = None
+    weekdays = None
+    if mode == "interval":
+        interval_minutes = _to_int(data.get("interval_minutes"))
+        # Mismo rango que la UI de anuncios de /settings (5-1440 minutos).
+        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
+            return web.json_response(
+                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
+            )
+    elif mode in ("daily", "weekly"):
+        hour = _to_int(data.get("hour"))
+        minute = _to_int(data.get("minute"))
+        if (
+            hour is None
+            or minute is None
+            or not (0 <= hour <= 23 and 0 <= minute <= 59)
+        ):
+            return web.json_response(
+                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
+            )
+        if mode == "weekly":
+            raw_weekdays = data.get("weekdays")
+            if not isinstance(raw_weekdays, list) or not raw_weekdays:
+                return web.json_response(
+                    {"error": "elige al menos un día de la semana"}, status=400
+                )
+            parsed_weekdays = [_to_int(d) for d in raw_weekdays]
+            if any(d is None or not (0 <= d <= 6) for d in parsed_weekdays):
+                return web.json_response(
+                    {"error": "weekdays debe ser una lista de números 0-6 (lunes=0)"},
+                    status=400,
+                )
+            weekdays = parsed_weekdays
+    else:
+        return web.json_response(
+            {"error": "mode debe ser 'interval', 'daily' o 'weekly'"}, status=400
+        )
+    return mode, interval_minutes, hour, minute, weekdays
+
+
 @guild_api
 async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Response:
     """Programa un embed como anuncio (misma tabla/worker que los anuncios de
@@ -3551,31 +3605,11 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         await _register_role_buttons(request.app["bot"], guild_id, assignments)
         payload = json.dumps(layout)
 
-    # `mode` es la cadencia del anuncio (interval/daily), distinta de content_mode.
-    mode = data.get("mode")
-    interval_minutes = hour = minute = None
-    if mode == "interval":
-        interval_minutes = _to_int(data.get("interval_minutes"))
-        # Mismo rango que la UI de anuncios de /settings (5-1440 minutos).
-        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
-            return web.json_response(
-                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
-            )
-    elif mode == "daily":
-        hour = _to_int(data.get("hour"))
-        minute = _to_int(data.get("minute"))
-        if (
-            hour is None
-            or minute is None
-            or not (0 <= hour <= 23 and 0 <= minute <= 59)
-        ):
-            return web.json_response(
-                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
-            )
-    else:
-        return web.json_response(
-            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
-        )
+    # `mode` es la cadencia del anuncio (interval/daily/weekly), distinta de content_mode.
+    parsed_schedule = _parse_announcement_schedule(data)
+    if isinstance(parsed_schedule, web.Response):
+        return parsed_schedule
+    mode, interval_minutes, hour, minute, weekdays = parsed_schedule
 
     delete_after = _to_int(data.get("delete_after_seconds"))
     if delete_after is not None and not (1 <= delete_after <= 86400):
@@ -3596,6 +3630,7 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         embed_json=payload,
         content_mode=content_mode,
         delete_after_seconds=delete_after,
+        weekdays=weekdays,
     )
     if new_id is None:
         return web.json_response(
@@ -3675,29 +3710,10 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
     if denied is not None:
         return denied
 
-    mode = data.get("mode")
-    interval_minutes = hour = minute = None
-    if mode == "interval":
-        interval_minutes = _to_int(data.get("interval_minutes"))
-        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
-            return web.json_response(
-                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
-            )
-    elif mode == "daily":
-        hour = _to_int(data.get("hour"))
-        minute = _to_int(data.get("minute"))
-        if (
-            hour is None
-            or minute is None
-            or not (0 <= hour <= 23 and 0 <= minute <= 59)
-        ):
-            return web.json_response(
-                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
-            )
-    else:
-        return web.json_response(
-            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
-        )
+    parsed_schedule = _parse_announcement_schedule(data)
+    if isinstance(parsed_schedule, web.Response):
+        return parsed_schedule
+    mode, interval_minutes, hour, minute, weekdays = parsed_schedule
 
     delete_after = _to_int(data.get("delete_after_seconds"))
     if delete_after is not None and not (1 <= delete_after <= 86400):
@@ -3718,6 +3734,7 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
         embed_json=None,
         content_mode="plain_text",
         delete_after_seconds=delete_after,
+        weekdays=weekdays,
     )
     if new_id is None:
         return web.json_response(
@@ -3773,29 +3790,10 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
     if denied is not None:
         return denied
 
-    mode = data.get("mode")
-    interval_minutes = hour = minute = None
-    if mode == "interval":
-        interval_minutes = _to_int(data.get("interval_minutes"))
-        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
-            return web.json_response(
-                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
-            )
-    elif mode == "daily":
-        hour = _to_int(data.get("hour"))
-        minute = _to_int(data.get("minute"))
-        if (
-            hour is None
-            or minute is None
-            or not (0 <= hour <= 23 and 0 <= minute <= 59)
-        ):
-            return web.json_response(
-                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
-            )
-    else:
-        return web.json_response(
-            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
-        )
+    parsed_schedule = _parse_announcement_schedule(data)
+    if isinstance(parsed_schedule, web.Response):
+        return parsed_schedule
+    mode, interval_minutes, hour, minute, weekdays = parsed_schedule
 
     delete_after = _to_int(data.get("delete_after_seconds"))
     if delete_after is not None and not (1 <= delete_after <= 86400):
@@ -3815,6 +3813,7 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
         embed_json=None,
         content_mode="plain_text",
         delete_after_seconds=delete_after,
+        weekdays=weekdays,
     )
     if not ok:
         return web.json_response(

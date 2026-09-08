@@ -1322,6 +1322,87 @@ class Chat(commands.Cog):
             allowed_mentions=_SAFE_MENTIONS,
         )
 
+    @app_commands.command(
+        name="imitar_mezcla",
+        description="Genera un mensaje mezclando el estilo de dos usuarios del servidor.",
+    )
+    @app_commands.describe(
+        usuario1="Primer usuario a imitar", usuario2="Segundo usuario a imitar"
+    )
+    async def imitar_mezcla(
+        self,
+        interaction: discord.Interaction,
+        usuario1: discord.Member,
+        usuario2: discord.Member,
+    ):
+        locale = await i18n.guild_locale(
+            interaction.guild.id if interaction.guild else None
+        )
+        if not interaction.guild:
+            await interaction.response.send_message(
+                i18n.t("general.guild_only", locale), ephemeral=True
+            )
+            return
+
+        if usuario1.id == usuario2.id:
+            await interaction.response.send_message(
+                i18n.t("chat.imitar_mezcla_same_user", locale), ephemeral=True
+            )
+            return
+
+        remaining = _check_generate_cooldown(interaction.guild.id, interaction.user.id)
+        if remaining is not None:
+            await interaction.response.send_message(
+                i18n.t("chat.generate_cooldown", locale, seconds=remaining),
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(thinking=True)
+
+        counts = {
+            u: await count_user_messages(interaction.guild.id, u.id)
+            for u in (usuario1, usuario2)
+        }
+        short = next((u for u, c in counts.items() if c < 30), None)
+        if short is not None:
+            await interaction.followup.send(
+                i18n.t(
+                    "chat.imitar_not_enough_messages",
+                    locale,
+                    user=short.display_name,
+                    count=counts[short],
+                ),
+                allowed_mentions=_SAFE_MENTIONS,
+            )
+            return
+
+        result = await generation.generate_markov_for_users(
+            interaction.guild.id, (usuario1.id, usuario2.id)
+        )
+        if result is None:
+            await interaction.followup.send(
+                i18n.t(
+                    "chat.imitar_mezcla_generation_failed",
+                    locale,
+                    user1=usuario1.display_name,
+                    user2=usuario2.display_name,
+                ),
+                allowed_mentions=_SAFE_MENTIONS,
+            )
+            return
+
+        await interaction.followup.send(
+            i18n.t(
+                "chat.imitar_mezcla_result",
+                locale,
+                user1=usuario1.display_name,
+                user2=usuario2.display_name,
+                text=result,
+            ),
+            allowed_mentions=_SAFE_MENTIONS,
+        )
+
     # --- CORPUS ---
 
     async def _fetch_history_batch(

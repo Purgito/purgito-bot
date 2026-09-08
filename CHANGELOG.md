@@ -27,6 +27,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Categoría **YouTube** ampliada en `/settings`: ahora permite agregar suscripciones y configurar el rol de mención directo desde el panel, no solo remover.
 - Categoría **Memes** ampliada en `/settings`: ahora permite activar memes automáticos en un canal desde el panel (antes solo remover).
 - Categoría **Corpus** ampliada en `/settings`: botón para vaciar el corpus del servidor, con confirmación obligatoria (escribir el nombre exacto del servidor) antes de borrar.
+- `/mis_datos`: exporta en un JSON descargable todos los mensajes que el bot guardó del usuario, agrupados por servidor. Cooldown de 60s por persona.
+- `/imitar_mezcla @usuario1 @usuario2`: combina el corpus de ambos usuarios en un solo modelo Markov para generar un mensaje que mezcle el estilo de los dos, incluso cuando ninguno por separado llega al mínimo de mensajes que pide `/imitar`.
+- Categoría **Plantillas** del panel: exportar la plantilla que se está editando como JSON e importar un archivo exportado — importar siempre crea una plantilla nueva, nunca sobrescribe una existente.
+- Anuncios recurrentes: modo **semanal**, además de intervalo y diario — se elige un subconjunto de días de la semana y una hora fija de envío.
 
 ### Changed
 - `is_home_guild()` renombrado a `is_premium_guild()` y ahora consulta un `set` en memoria cargado al arrancar (sin hit a DB por evento/comando).

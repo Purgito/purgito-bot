@@ -35,6 +35,10 @@ addStrings({
     'tabsPlantillas.savedSuccess': 'Plantilla guardada',
     'tabsPlantillas.cancelBtn': 'Cancelar',
     'tabsPlantillas.emptyContentError': 'Escribí un mensaje o configurá un embed antes de guardar',
+    'tabsPlantillas.exportBtn': 'Exportar',
+    'tabsPlantillas.importBtn': 'Importar',
+    'tabsPlantillas.importSuccess': 'Plantilla importada como una nueva',
+    'tabsPlantillas.importInvalidFile': 'Ese archivo no es una plantilla válida de Purgito',
     'tabsPlantillas.previewSectionLabel': 'Vista previa',
     'tabsPlantillas.previewBotTag': 'BOT',
     'tabsPlantillas.previewToday': 'HOY',
@@ -51,6 +55,10 @@ addStrings({
     'tabsPlantillas.savedSuccess': 'Template saved',
     'tabsPlantillas.cancelBtn': 'Cancel',
     'tabsPlantillas.emptyContentError': 'Write a message or set up an embed before saving',
+    'tabsPlantillas.exportBtn': 'Export',
+    'tabsPlantillas.importBtn': 'Import',
+    'tabsPlantillas.importSuccess': 'Template imported as a new one',
+    'tabsPlantillas.importInvalidFile': "That file isn't a valid Purgito template",
     'tabsPlantillas.previewSectionLabel': 'Preview',
     'tabsPlantillas.previewBotTag': 'BOT',
     'tabsPlantillas.previewToday': 'TODAY',
@@ -525,27 +533,33 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
   }
 
   // ── Acciones ─────────────────────────────────────────────────────────
+  // Mismo shape que _template_row_to_json (webapi.py) devuelve al leer una
+  // plantilla -- por eso el JSON exportado se puede volver a mandar tal
+  // cual al POST de crear, sin traducción de formato en ningún lado.
+  function buildPayload() {
+    const trimmedName = name.trim();
+    if (!trimmedName) { toast(t('tabsPlantillas.nameRequired'), 'err'); return null; }
+    const hasText = format === 'text' && currentMessage.trim();
+    const embedPayload = embedPayloadFromState(embedState);
+    const hasEmbed = format === 'embed' && Object.keys(embedPayload).length > 0;
+    const hasButtons = buttons.length > 0;
+    if (!hasText && !hasEmbed && !hasButtons) { toast(t('tabsPlantillas.emptyContentError'), 'err'); return null; }
+
+    if (hasButtons || (hasText && hasEmbed)) {
+      const payload = { name: trimmedName, content_mode: 'composite', message: hasText ? currentMessage : '' };
+      if (hasEmbed) payload.embeds = [embedPayload];
+      if (hasButtons) payload.buttons = buttons;
+      return payload;
+    }
+    if (hasEmbed) return { name: trimmedName, content_mode: 'classic_embed', embeds: [embedPayload] };
+    return { name: trimmedName, content_mode: 'plain_text', message: currentMessage };
+  }
+
   const saveBtn = el('button', {
     type: 'button', class: 'btn btn-primary',
     onclick: async () => {
-      const trimmedName = name.trim();
-      if (!trimmedName) { toast(t('tabsPlantillas.nameRequired'), 'err'); return; }
-      const hasText = format === 'text' && currentMessage.trim();
-      const embedPayload = embedPayloadFromState(embedState);
-      const hasEmbed = format === 'embed' && Object.keys(embedPayload).length > 0;
-      const hasButtons = buttons.length > 0;
-      if (!hasText && !hasEmbed && !hasButtons) { toast(t('tabsPlantillas.emptyContentError'), 'err'); return; }
-
-      let payload;
-      if (hasButtons || (hasText && hasEmbed)) {
-        payload = { name: trimmedName, content_mode: 'composite', message: hasText ? currentMessage : '' };
-        if (hasEmbed) payload.embeds = [embedPayload];
-        if (hasButtons) payload.buttons = buttons;
-      } else if (hasEmbed) {
-        payload = { name: trimmedName, content_mode: 'classic_embed', embeds: [embedPayload] };
-      } else {
-        payload = { name: trimmedName, content_mode: 'plain_text', message: currentMessage };
-      }
+      const payload = buildPayload();
+      if (!payload) return;
 
       saveBtn.disabled = true;
       saveBtn.textContent = t('tabsPlantillas.saving');
@@ -574,7 +588,61 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
     onclick: () => { if (opts.onCancel) opts.onCancel(); else defaultDone(); },
   }, t('tabsPlantillas.cancelBtn'));
 
-  const actionsBar = el('div', { class: 'event-actions-bar' }, el('div', { class: 'left-actions' }, saveBtn, cancelBtn));
+  // ── Exportar / Importar (JSON, mismo shape que el payload de guardado) ─
+  const exportBtn = el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm',
+    title: t('tabsPlantillas.exportBtn'),
+    onclick: () => {
+      const payload = buildPayload();
+      if (!payload) return;
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const slug = payload.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'plantilla';
+      const a = el('a', { href: url, download: `purgito-plantilla-${slug}.json` });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+  }, icon('download'), t('tabsPlantillas.exportBtn'));
+
+  const importInput = el('input', { type: 'file', accept: 'application/json', style: 'display: none;' });
+  importInput.onchange = async () => {
+    const file = importInput.files && importInput.files[0];
+    importInput.value = '';
+    if (!file) return;
+    let payload;
+    try {
+      payload = JSON.parse(await file.text());
+    } catch (err) {
+      toast(t('tabsPlantillas.importInvalidFile'), 'err');
+      return;
+    }
+    if (!payload || typeof payload !== 'object' || !payload.content_mode) {
+      toast(t('tabsPlantillas.importInvalidFile'), 'err');
+      return;
+    }
+    // Nunca pisa la plantilla que se está editando: importar siempre crea
+    // una nueva, incluso si el archivo trae un id (que igual se ignora --
+    // el backend nunca lo lee del body de POST).
+    payload.name = (payload.name || t('tabsPlantillas.titleNew')).trim().slice(0, 100);
+    try {
+      const res = await apiFetch(`/api/server/${GUILD_ID}/embeds/templates`, { method: 'POST', body: JSON.stringify(payload) });
+      toast(t('tabsPlantillas.importSuccess'), 'ok');
+      loadTemplateEditor(res.id, opts);
+    } catch (err) {
+      toast(err.message || 'Error', 'err');
+    }
+  };
+  const importBtn = el('button', {
+    type: 'button', class: 'btn btn-secondary btn-sm',
+    title: t('tabsPlantillas.importBtn'),
+    onclick: () => importInput.click(),
+  }, icon('upload'), t('tabsPlantillas.importBtn'));
+
+  const actionsBar = el('div', { class: 'event-actions-bar' },
+    el('div', { class: 'left-actions' }, saveBtn, cancelBtn),
+    el('div', { class: 'left-actions' }, exportBtn, importBtn, importInput));
 
   const headBlock = el('div', { class: 'cfg-block' },
     el('div', { class: 'cfg-head-row' }, el('div', { class: 'cfg-head-title' }, el('h1', {}, existing ? t('tabsPlantillas.titleEdit') : t('tabsPlantillas.titleNew'))))

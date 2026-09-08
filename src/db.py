@@ -273,7 +273,8 @@ CREATE TABLE IF NOT EXISTS scheduled_announcements (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     embed_json TEXT DEFAULT NULL,
     content_mode TEXT NOT NULL DEFAULT 'classic_embed',
-    delete_after_seconds INTEGER
+    delete_after_seconds INTEGER,
+    weekdays TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_scheduled_announcements_guild ON scheduled_announcements(guild_id);
 
@@ -857,6 +858,16 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna delete_after_seconds ya existe en scheduled_announcements")
+    # Modo 'weekly': mismo hour/minute que 'daily', más esta lista de días
+    # (CSV de 0-6, Monday=0 -- mismo criterio que datetime.weekday()) para
+    # postear solo ciertos días de la semana en vez de todos.
+    try:
+        await _db.execute(
+            "ALTER TABLE scheduled_announcements ADD COLUMN weekdays TEXT"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna weekdays ya existe en scheduled_announcements")
     # Separación Eventos/Plantillas: un evento puede referenciar una plantilla en
     # vez de guardar su propio contenido. template_id NULL = comportamiento legacy
     # sin cambios (contenido inline en message/embed_json, como siempre).
@@ -1404,6 +1415,41 @@ async def delete_user_data(author_id: int) -> dict:
         len(guild_ids),
     )
     return report
+
+
+async def export_user_data(author_id: int) -> dict[int, list[dict]]:
+    """Complemento de solo lectura de delete_user_data, para /mis_datos: el
+    mismo corpus de estilo (user_corpus) que el borrado alcanza, pero sin
+    tocarlo. Agrupado por guild_id porque es como lo consume el comando (un
+    bloque por servidor en el JSON exportado).
+
+    A diferencia de delete_user_data, no toca corpus_messages: esa tabla es
+    la copia colectiva del mensaje (de todo el que la lea, no de un autor
+    en particular) y no le pertenece a nadie individualmente -- no hay nada
+    de ahí que "exportar" en un pedido de datos personales.
+
+    Mismo principio de seguridad que delete_user_data: confía en author_id
+    tal cual se lo pasan, es responsabilidad del llamador que sea
+    interaction.user.id o el equivalente autenticado, nunca un valor que el
+    propio usuario elija.
+    """
+    db = await get_db()
+    async with db.execute(
+        "SELECT guild_id, channel_id, content, created_at FROM user_corpus "
+        "WHERE author_id=? ORDER BY guild_id, created_at",
+        (author_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    by_guild: dict[int, list[dict]] = {}
+    for guild_id, channel_id, content, created_at in rows:
+        by_guild.setdefault(guild_id, []).append(
+            {
+                "channel_id": channel_id,
+                "content": content,
+                "created_at": created_at,
+            }
+        )
+    return by_guild
 
 
 async def count_guild_corpus_messages(guild_id: int) -> int:
@@ -3257,6 +3303,18 @@ async def set_meme_schedule_error(
         await db.commit()
 
 
+def _weekdays_to_csv(weekdays: list[int] | None) -> str | None:
+    if not weekdays:
+        return None
+    return ",".join(str(d) for d in sorted(set(weekdays)))
+
+
+def _weekdays_from_csv(raw: str | None) -> list[int] | None:
+    if not raw:
+        return None
+    return [int(d) for d in raw.split(",") if d.strip() != ""]
+
+
 async def add_scheduled_announcement(
     guild_id: int,
     channel_id: int,
@@ -3269,6 +3327,7 @@ async def add_scheduled_announcement(
     embed_json: str | None = None,
     content_mode: str = "plain_text",
     delete_after_seconds: int | None = None,
+    weekdays: list[int] | None = None,
 ) -> int | None:
     """Crea un anuncio programado. Devuelve el id insertado, o None si el guild
     ya llegó al límite de anuncios (a diferencia de gifs/imágenes, acá no se
@@ -3280,7 +3339,10 @@ async def add_scheduled_announcement(
 
     delete_after_seconds None = el mensaje enviado queda (comportamiento
     clásico); con valor, el loop de anuncios lo pasa como delete_after de
-    discord.py."""
+    discord.py.
+
+    weekdays solo aplica a mode='weekly' (lista de 0-6, Monday=0) -- se
+    ignora para 'interval'/'daily', ver get_due_scheduled_announcements."""
     if content_mode == "plain_text" and embed_json:
         content_mode = "classic_embed"
     max_announcements = _limit_for_guild(
@@ -3301,8 +3363,8 @@ async def add_scheduled_announcement(
             return None
         cursor = await db.execute(
             "INSERT INTO scheduled_announcements "
-            "(guild_id, channel_id, message, mode, interval_minutes, hour, minute, created_by, embed_json, content_mode, delete_after_seconds) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(guild_id, channel_id, message, mode, interval_minutes, hour, minute, created_by, embed_json, content_mode, delete_after_seconds, weekdays) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 guild_id,
                 channel_id,
@@ -3315,6 +3377,7 @@ async def add_scheduled_announcement(
                 embed_json,
                 content_mode,
                 delete_after_seconds,
+                _weekdays_to_csv(weekdays),
             ),
         )
         await db.commit()
@@ -3337,7 +3400,7 @@ async def list_scheduled_announcements(guild_id: int) -> list[dict]:
     db = await get_db()
     async with db.execute(
         "SELECT id, channel_id, message, mode, interval_minutes, hour, minute, "
-        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds "
+        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements WHERE guild_id=? ORDER BY id",
         (guild_id,),
     ) as cursor:
@@ -3357,6 +3420,7 @@ async def list_scheduled_announcements(guild_id: int) -> list[dict]:
             "embed_json": r[10],
             "content_mode": r[11],
             "delete_after_seconds": r[12],
+            "weekdays": _weekdays_from_csv(r[13]),
         }
         for r in rows
     ]
@@ -3368,7 +3432,7 @@ async def get_scheduled_announcement(
     db = await get_db()
     async with db.execute(
         "SELECT id, channel_id, message, mode, interval_minutes, hour, minute, "
-        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds "
+        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements WHERE guild_id=? AND id=?",
         (guild_id, announcement_id),
     ) as cursor:
@@ -3389,6 +3453,7 @@ async def get_scheduled_announcement(
         "embed_json": r[10],
         "content_mode": r[11],
         "delete_after_seconds": r[12],
+        "weekdays": _weekdays_from_csv(r[13]),
     }
 
 
@@ -3404,6 +3469,7 @@ async def update_scheduled_announcement(
     embed_json: str | None = None,
     content_mode: str = "plain_text",
     delete_after_seconds: int | None = None,
+    weekdays: list[int] | None = None,
 ) -> bool:
     if content_mode == "plain_text" and embed_json:
         content_mode = "classic_embed"
@@ -3412,7 +3478,7 @@ async def update_scheduled_announcement(
         cursor = await db.execute(
             "UPDATE scheduled_announcements SET "
             "channel_id=?, message=?, mode=?, interval_minutes=?, hour=?, minute=?, "
-            "embed_json=?, content_mode=?, delete_after_seconds=? "
+            "embed_json=?, content_mode=?, delete_after_seconds=?, weekdays=? "
             "WHERE guild_id=? AND id=?",
             (
                 channel_id,
@@ -3424,6 +3490,7 @@ async def update_scheduled_announcement(
                 embed_json,
                 content_mode,
                 delete_after_seconds,
+                _weekdays_to_csv(weekdays),
                 guild_id,
                 announcement_id,
             ),
@@ -3456,15 +3523,18 @@ async def get_scheduled_announcements_quota(guild_id: int) -> tuple[int, int, bo
 
 async def get_due_scheduled_announcements() -> list[dict]:
     """Anuncios listos para enviarse. El modo interval se resuelve en SQL;
-    el modo daily se evalúa acá en Python contra la timezone configurada,
-    porque hay que comparar hora:minuto y la FECHA local (no solo un delta)."""
+    daily y weekly se evalúan acá en Python contra la timezone configurada,
+    porque hay que comparar hora:minuto y la FECHA local (no solo un delta).
+    weekly es literalmente daily + un chequeo extra de día de la semana --
+    misma comparación de hora/última vez enviada, filtrada primero por si
+    hoy es uno de los días configurados."""
     db = await get_db()
     async with db.execute(
-        "SELECT id, guild_id, channel_id, message, mode, interval_minutes, hour, minute, last_sent_at, embed_json, content_mode, delete_after_seconds "
+        "SELECT id, guild_id, channel_id, message, mode, interval_minutes, hour, minute, last_sent_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements "
         "WHERE (mode='interval' AND (last_sent_at IS NULL "
         "       OR datetime(last_sent_at, '+' || interval_minutes || ' minutes') <= datetime('now'))) "
-        "   OR mode='daily'"
+        "   OR mode='daily' OR mode='weekly'"
     ) as cursor:
         rows = await cursor.fetchall()
 
@@ -3484,10 +3554,17 @@ async def get_due_scheduled_announcements() -> list[dict]:
             "embed_json": r[9],
             "content_mode": r[10],
             "delete_after_seconds": r[11],
+            "weekdays": _weekdays_from_csv(r[12]),
         }
         if item["mode"] == "interval":
             due.append(item)
             continue
+        if item["mode"] == "weekly":
+            # weekdays vacío/None es un estado inválido (no debería poder
+            # crearse desde la API), no "todos los días" -- más seguro
+            # fallar cerrado que postear en un día que nadie configuró.
+            if not item["weekdays"] or now_local.weekday() not in item["weekdays"]:
+                continue
         if (now_local.hour, now_local.minute) < (item["hour"], item["minute"]):
             continue
         if item["last_sent_at"]:

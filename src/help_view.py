@@ -21,6 +21,7 @@ CATEGORIES = {
         "commands": [
             ("/generar", "help.cat.chat.cmd.generar"),
             ("/imitar @usuario", "help.cat.chat.cmd.imitar"),
+            ("/imitar_mezcla", "help.cat.chat.cmd.imitar_mezcla"),
             ("/corpus_info", "help.cat.chat.cmd.corpus_info"),
             ("/settings", "help.cat.chat.cmd.settings"),
         ],

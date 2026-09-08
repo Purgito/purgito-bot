@@ -170,6 +170,7 @@
   "commands.gif_add.description": "Guarda un GIF en la colección del servidor.",
   "commands.generar.description": "Genera un mensaje usando lo que Purgito aprendió del servidor.",
   "commands.imitar.description": "Intenta escribir como un miembro del servidor.",
+  "commands.imitar_mezcla.description": "Mezcla el estilo de dos miembros del servidor.",
   "commands.refeed.description": "Hace que Purgito aprenda del historial del canal actual.",
   "commands.refeed_channels.description": "Hace que Purgito aprenda del historial de los canales configurados.",
   "commands.corpus_info.description": "Muestra cuántos mensajes ha aprendido Purgito en este canal.",
@@ -221,6 +222,9 @@
   "chat.imitar_not_enough_messages": "**{user}** solo tiene {count} mensaje(s) aprendidos. Se necesitan al menos 30 para imitar su estilo.",
   "chat.imitar_generation_failed": "No se pudo generar un mensaje para **{user}**. Intenta de nuevo más tarde.",
   "chat.imitar_result": "**{user}** diría: \"{text}\"",
+  "chat.imitar_mezcla_same_user": "Elige dos usuarios distintos para mezclar sus estilos.",
+  "chat.imitar_mezcla_generation_failed": "No se pudo generar un mensaje mezclando a **{user1}** y **{user2}**. Intenta de nuevo más tarde.",
+  "chat.imitar_mezcla_result": "**{user1}** + **{user2}** dirían: \"{text}\"",
   "chat.channel_visible_report": "Ya pude leer {channel}: {saved} mensajes nuevos aprendidos.",
 
   "chat.refeed.cannot_read_history": "No puedo leer el historial de este canal.",
@@ -336,6 +340,7 @@
   "help.cat.chat.label": "Generar y chat",
   "help.cat.chat.cmd.generar": "Genera un mensaje usando lo que Purgito aprendió",
   "help.cat.chat.cmd.imitar": "Intenta escribir como un miembro del servidor",
+  "help.cat.chat.cmd.imitar_mezcla": "Mezcla el estilo de dos miembros del servidor",
   "help.cat.chat.cmd.corpus_info": "Muestra cuántos mensajes se han aprendido en este canal",
   "help.cat.chat.cmd.settings": "Ajustes rápidos de chat",
 
@@ -371,5 +376,10 @@
   "privacy.delete.not_your_request": "Esta solicitud no es tuya.",
   "privacy.delete.error": "No se pudo completar el borrado. No se modificó nada — intenta de nuevo más tarde.",
   "privacy.delete.result_empty": "No encontramos datos tuyos almacenados por Purgito.",
-  "privacy.delete.result_success": "Listo. Se eliminaron {user_corpus_deleted} mensaje(s) de tu estilo guardado en {guilds} servidor(es). Tus mensajes originales de Discord no se tocaron."
+  "privacy.delete.result_success": "Listo. Se eliminaron {user_corpus_deleted} mensaje(s) de tu estilo guardado en {guilds} servidor(es). Tus mensajes originales de Discord no se tocaron.",
+  "commands.mis_datos.description": "Descarga en JSON tu estilo guardado y los mensajes que Purgito aprendió de ti.",
+  "privacy.export.cooldown": "Espera {seconds} segundos antes de pedir tus datos de nuevo.",
+  "privacy.export.error": "No se pudo generar el archivo. Intenta de nuevo más tarde.",
+  "privacy.export.empty": "No encontramos datos tuyos almacenados por Purgito.",
+  "privacy.export.result": "Acá tienes: {count} mensaje(s) de tu estilo guardado en {guilds} servidor(es)."
 }

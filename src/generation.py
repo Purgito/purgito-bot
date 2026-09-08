@@ -499,6 +499,63 @@ async def generate_markov_for_user(
         return sentence
 
 
+async def generate_markov_for_users(
+    guild_id: int, author_ids: tuple[int, int], *, wait: bool = True
+) -> str | None:
+    """Genera una frase entrenando un solo modelo con el corpus de DOS
+    usuarios mezclado -- ver /imitar_mezcla. A diferencia de
+    generate_markov_for_user, no cachea: es una combinación puntual por
+    par de usuarios, no vale la pena una entrada de _user_markov_cache por
+    cada par posible (crecería sin cota real, a diferencia del caché por
+    usuario individual)."""
+    for author_id in author_ids:
+        if await is_user_excluded_from_learning(guild_id, author_id):
+            return None
+    async with markov_limiter.slot(wait=wait) as acquired:
+        if not acquired:
+            return None
+        combined_corpus: list[str] = []
+        for author_id in author_ids:
+            combined_corpus.extend(
+                await get_user_messages(
+                    guild_id, author_id, limit=config.USER_MARKOV_TRAINING_MESSAGES
+                )
+            )
+        if len(combined_corpus) < 30:
+            return None
+
+        def build() -> SimpleMarkov:
+            m = SimpleMarkov()
+            for msg in combined_corpus:
+                tokens = tokenize_message(msg)
+                if tokens:
+                    m.add(tokens)
+            return m
+
+        try:
+            model = await asyncio.to_thread(build)
+        except Exception:
+            log.exception(
+                "Error construyendo modelo Markov mezclado para usuarios %s",
+                author_ids,
+            )
+            return None
+
+        try:
+            sentence = await asyncio.to_thread(
+                model.generate,
+                max_words=20,
+                max_attempts=5,
+                min_words=1,
+            )
+        except Exception:
+            log.exception(
+                "Error generando frase Markov mezclada para usuarios %s", author_ids
+            )
+            sentence = None
+        return sentence
+
+
 class GenerationResult(tuple):
     """Resultado de generate_response. Subclase de tuple de 2 elementos
     (texto, es_especial) para compatibilidad total hacia atrás con desempaquetado
