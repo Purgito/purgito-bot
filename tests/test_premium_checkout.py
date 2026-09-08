@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import cogs.premium as premium_mod
 import db
 import webapi
 
@@ -70,6 +71,73 @@ def test_premium_checkout_insufficient_scope(monkeypatch):
         "error": "Polar rechazó la creación del checkout por permisos insuficientes del token"
     }
     assert len(fake_polar.calls) == 1
+
+
+class FakeGetRequest:
+    def __init__(self, guild_id: int = 123):
+        self.match_info = {"guild_id": str(guild_id)}
+        self.headers = {}
+        self.remote = "1.2.3.4"
+
+
+async def _upsert_subscription(guild_id: int, status: str) -> None:
+    await db.upsert_premium_subscription(
+        guild_id,
+        subscription_id="sub_1",
+        customer_id="cus_1",
+        purchaser_user_id="42",
+        product_id="prod-monthly",
+        status=status,
+        current_period_start=None,
+        current_period_end=None,
+        trial_start=None,
+        trial_end=None,
+        cancel_at_period_end=False,
+        canceled_at=None,
+        event_at=None,
+    )
+
+
+def test_premium_get_sin_suscripcion_no_reporta_payment_issue(monkeypatch, temp_db):
+    _allow_guild_access(monkeypatch)
+
+    resp = asyncio.run(webapi._api_premium_get(FakeGetRequest()))
+
+    assert json.loads(resp.text) == {"premium": False, "payment_issue": False}
+
+
+def test_premium_get_activo_sin_problema_de_pago(monkeypatch, temp_db):
+    """Ver AUDITORIA_SEGURIDAD.md §6: el admin necesita enterarse de un pago
+    fallando ANTES de que el premium desaparezca de golpe -- payment_issue
+    solo se prende con status="past_due", no con cualquier estado activo."""
+    _allow_guild_access(monkeypatch)
+    monkeypatch.setattr(premium_mod, "_premium_guild_ids", set())
+
+    async def run():
+        await webapi.set_premium(123, "Polar — mensual")
+        await _upsert_subscription(123, status="active")
+        return await webapi._api_premium_get(FakeGetRequest())
+
+    resp = asyncio.run(run())
+
+    assert json.loads(resp.text) == {"premium": True, "payment_issue": False}
+
+
+def test_premium_get_reporta_payment_issue_en_past_due(monkeypatch, temp_db):
+    """El caso real del hallazgo: la suscripción sigue con premium activo
+    (Polar todavía no la revocó) pero el último cobro falló -- el admin
+    tiene que verlo acá, no recién cuando el premium desaparece."""
+    _allow_guild_access(monkeypatch)
+    monkeypatch.setattr(premium_mod, "_premium_guild_ids", set())
+
+    async def run():
+        await webapi.set_premium(123, "Polar — mensual")
+        await _upsert_subscription(123, status="past_due")
+        return await webapi._api_premium_get(FakeGetRequest())
+
+    resp = asyncio.run(run())
+
+    assert json.loads(resp.text) == {"premium": True, "payment_issue": True}
 
 
 def test_premium_checkout_no_escribe_nada_localmente(monkeypatch, temp_db):

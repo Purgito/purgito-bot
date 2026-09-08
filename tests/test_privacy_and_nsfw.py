@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
-from cogs.chat import Chat
+from cogs.chat import Chat, sanitize_nsfw_corpus_channels
 import db
 import generation
 import webapi
@@ -295,6 +295,92 @@ def test_api_rejects_nsfw_channel():
             resp = await webapi._api_corpus_post(request)
             assert resp.status == 400
             assert "nsfw" in resp.text.lower()
+
+    asyncio.run(_run())
+
+
+def test_sanitize_on_ready_purges_channel_that_flipped_nsfw_while_bot_was_offline(
+    memory_db,
+):
+    """on_guild_channel_update solo purga si el bot está conectado cuando
+    Discord manda el evento. sanitize_nsfw_corpus_channels es la red de
+    seguridad para cuando el bot estuvo offline durante el flip: corre en
+    cada on_ready y re-valida contra el estado NSFW en vivo, no contra nada
+    persistido."""
+
+    async def _run():
+        guild_id = 900
+        nsfw_channel_id = 901
+        safe_channel_id = 902
+
+        await db.seed_corpus_allowed_channels(
+            guild_id, [nsfw_channel_id, safe_channel_id]
+        )
+        for i in range(60):
+            await db.save_corpus_and_user_message(
+                guild_id=guild_id,
+                channel_id=nsfw_channel_id,
+                author_id=1,
+                author_name="u",
+                content=f"esto se aprendio mientras el bot estaba desconectado {i}",
+                message_id=i,
+            )
+        await generation.build_markov_model(guild_id)
+        assert guild_id in generation._markov_cache
+
+        nsfw_channel = MagicMock(spec=discord.TextChannel)
+        nsfw_channel.id = nsfw_channel_id
+        nsfw_channel.name = "ahora-nsfw"
+        nsfw_channel.is_nsfw.return_value = True
+
+        safe_channel = MagicMock(spec=discord.TextChannel)
+        safe_channel.id = safe_channel_id
+        safe_channel.name = "sigue-siendo-safe"
+        safe_channel.is_nsfw.return_value = False
+
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = guild_id
+        guild.name = "test guild"
+        guild.get_channel.side_effect = lambda cid: {
+            nsfw_channel_id: nsfw_channel,
+            safe_channel_id: safe_channel,
+        }.get(cid)
+
+        sanitized = await sanitize_nsfw_corpus_channels(guild)
+        assert sanitized == 1
+
+        remaining = await db.list_corpus_channels(guild_id)
+        assert remaining == [safe_channel_id]
+
+        db_conn = await db.get_db()
+        async with db_conn.execute(
+            "SELECT COUNT(*) FROM corpus_messages WHERE guild_id=? AND channel_id=?",
+            (guild_id, nsfw_channel_id),
+        ) as cur:
+            assert (await cur.fetchone())[0] == 0
+
+        assert guild_id not in generation._markov_cache
+
+    asyncio.run(_run())
+
+
+def test_sanitize_on_ready_leaves_safe_channels_untouched(memory_db):
+    async def _run():
+        guild_id = 910
+        safe_channel_id = 911
+        await db.seed_corpus_allowed_channels(guild_id, [safe_channel_id])
+
+        safe_channel = MagicMock(spec=discord.TextChannel)
+        safe_channel.id = safe_channel_id
+        safe_channel.is_nsfw.return_value = False
+
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = guild_id
+        guild.name = "test guild"
+        guild.get_channel.return_value = safe_channel
+
+        assert await sanitize_nsfw_corpus_channels(guild) == 0
+        assert await db.list_corpus_channels(guild_id) == [safe_channel_id]
 
     asyncio.run(_run())
 

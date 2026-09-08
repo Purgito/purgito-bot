@@ -28,6 +28,9 @@ addStrings({
     'tabsPremium.activeTitle': 'Purgito Premium activo',
     'tabsPremium.benefitsEnabled': 'Beneficios habilitados',
     'tabsPremium.activeDesc': 'Este servidor tiene acceso a todas las funciones premium y límites ampliados de Purgito.',
+    'tabsPremium.paymentIssueTitle': 'El pago de esta suscripción está fallando',
+    'tabsPremium.paymentIssueDesc': 'Polar no pudo cobrar el último período. Si no se resuelve, Premium se desactiva en cuanto termine de reintentar. Actualiza el método de pago desde la facturación de quien compró la suscripción.',
+    'tabsPremium.paymentIssueCta': 'Actualizar método de pago →',
     'tabsPremium.benefitCorpus.metric': '50.000 mensajes',
     'tabsPremium.benefitCorpus.label': 'Memoria del servidor (corpus) ampliada',
     'tabsPremium.benefitUserCorpus.metric': '8.000 mensajes',
@@ -98,6 +101,9 @@ addStrings({
     'tabsPremium.activeTitle': 'Purgito Premium active',
     'tabsPremium.benefitsEnabled': 'Benefits enabled',
     'tabsPremium.activeDesc': 'This server has access to all of Purgito\'s premium features and expanded limits.',
+    'tabsPremium.paymentIssueTitle': 'This subscription\'s payment is failing',
+    'tabsPremium.paymentIssueDesc': 'Polar couldn\'t charge the last billing period. If it isn\'t resolved, Premium turns off once retries run out. Update the payment method from the buyer\'s billing page.',
+    'tabsPremium.paymentIssueCta': 'Update payment method →',
     'tabsPremium.benefitCorpus.metric': '50,000 messages',
     'tabsPremium.benefitCorpus.label': 'Expanded server memory (corpus)',
     'tabsPremium.benefitUserCorpus.metric': '8,000 messages',
@@ -242,7 +248,14 @@ export async function loadPremium() {
             el('p', {}, t('tabsPremium.manageDesc')))),
         el('a', { class: 'btn btn-secondary btn-sm', href: `/${loc}/perfil/facturacion` }, t('tabsPremium.manageLink')));
 
-      box.append(el('div', { class: 'premium-layout' }, activeHero, manageBox));
+      const paymentIssueNote = data.payment_issue ? el('div', { class: 'premium-note premium-note--warning' },
+        icon('bell'),
+        el('div', { class: 'premium-note-body' },
+          el('h3', {}, t('tabsPremium.paymentIssueTitle')),
+          el('p', {}, t('tabsPremium.paymentIssueDesc')),
+          el('a', { class: 'btn btn-secondary btn-sm', href: `/${loc}/perfil/facturacion` }, t('tabsPremium.paymentIssueCta')))) : null;
+
+      box.append(el('div', { class: 'premium-layout' }, paymentIssueNote, activeHero, manageBox));
       return;
     }
 

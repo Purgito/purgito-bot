@@ -542,6 +542,54 @@ def test_release_twice_past_zero_does_not_redelete(memory_db, deleted_keys):
     asyncio.run(run())
 
 
+def test_release_and_revive_race_never_deletes_a_still_referenced_object(
+    memory_db, monkeypatch
+):
+    """Sección 3: si mientras se libera la última referencia a un objeto
+    (ref_count llega a 0) otra corrutina vuelve a guardar el mismo GIF antes
+    de que el borrado físico en R2 termine, el objeto no puede quedar
+    borrado con una fila en gif_objects que todavía lo referencia -- ver el
+    comentario de release_gif_reference sobre por qué el borrado va en dos
+    pasadas.
+
+    Se fuerza el interleaving real con asyncio.gather, mismo patrón que
+    test_apply_premium_webhook_change_concurrente_termina_consistente en
+    test_polar_webhook_hardening.py. delete_key necesita un await real (acá
+    un sleep(0)) para ceder el control como haría la llamada de red real a
+    R2 -- un mock sin ningún await interno no reproduce la ventana."""
+    # asyncio.Lock se ata al event loop de su primer acquire() CONTENDIDO --
+    # este es de los pocos tests del repo que genera contención real sobre
+    # _db_lock (asyncio.gather de dos escrituras). Sin resetearlo, queda
+    # atado al loop de este asyncio.run() y el próximo test que dispare
+    # contención (otro asyncio.run(), otro loop) explota con "bound to a
+    # different event loop" -- ver el mismo fix en test_polar_webhook_hardening.py.
+    monkeypatch.setattr(db, "_db_lock", db._RollbackOnErrorLock())
+    deleted: list[str] = []
+
+    async def slow_delete_key(key):
+        await asyncio.sleep(0)
+        deleted.append(key)
+
+    monkeypatch.setattr(r2, "delete_key", slow_delete_key)
+
+    async def run():
+        await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
+        await asyncio.gather(
+            db.release_gif_reference(_HASH, _url(_HASH)),
+            db.save_gif_url(_GUILD_B, _url(_HASH), _HASH, 100),
+        )
+        return await _ref_count(memory_db, _HASH)
+
+    ref = asyncio.run(run())
+
+    # La invariante real, sin importar quién ganó la carrera: si el objeto
+    # se borró físicamente, ninguna fila puede seguir referenciándolo.
+    if deleted:
+        assert ref is None
+    else:
+        assert ref is not None and ref > 0
+
+
 def test_release_without_hash_falls_back_to_delete_by_url(memory_db, deleted_keys):
     """Filas viejas (pre-dedup) y GIFs de tenor/giphy no tienen content_hash:
     se borran por URL como siempre -- para tenor/giphy delete_url es no-op."""

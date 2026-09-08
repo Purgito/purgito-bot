@@ -42,6 +42,7 @@ from db import (
     list_mention_channels,
     list_spontaneous_channels,
     mark_migration_applied,
+    remove_corpus_channel,
     save_corpus_and_user_message,
     seed_corpus_allowed_channels,
     upsert_channel_refeed_status,
@@ -612,6 +613,46 @@ async def ensure_corpus_migrated(guild: discord.Guild) -> int | None:
         return 0
 
 
+async def sanitize_nsfw_corpus_channels(guild: discord.Guild) -> int:
+    """Vuelve a validar cada canal de la allowlist del corpus contra su
+    estado NSFW en vivo. A diferencia de ensure_corpus_migrated, no es una
+    migración de un solo uso: corre en CADA on_ready porque
+    on_guild_channel_update (que purga en el momento del flip SAFE->NSFW)
+    solo se dispara si el bot está conectado cuando Discord manda el evento
+    -- si el bot estuvo caído o reconectando justo en ese momento, el canal
+    queda aprendiendo indefinidamente hasta que algo vuelva a chequearlo.
+    Discord es la única fuente de verdad (channel.nsfw en vivo, no un flag
+    persistido); esto es ese chequeo. Devuelve cuántos canales se sacaron de
+    la allowlist en esta corrida.
+    """
+    sanitized = 0
+    for channel_id in await list_corpus_channels(guild.id):
+        channel = guild.get_channel(channel_id)
+        if channel is None or not getattr(channel, "is_nsfw", lambda: False)():
+            continue
+        log.info(
+            "Corpus: canal %s (%s) es NSFW pero seguía en la allowlist de %s (%s) "
+            "— saneando en el arranque",
+            getattr(channel, "name", channel_id),
+            channel_id,
+            guild.name,
+            guild.id,
+        )
+        try:
+            res = await delete_channel_corpus(guild.id, channel_id)
+            await remove_corpus_channel(guild.id, channel_id)
+            if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
+                generation.reset_guild_caches(guild.id)
+            sanitized += 1
+        except Exception:
+            log.exception(
+                "Corpus: falló el saneamiento NSFW del canal %s (%s)",
+                channel_id,
+                guild.id,
+            )
+    return sanitized
+
+
 class Chat(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -626,6 +667,7 @@ class Chat(commands.Cog):
         """
         for guild in self.bot.guilds:
             await ensure_corpus_migrated(guild)
+            await sanitize_nsfw_corpus_channels(guild)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
