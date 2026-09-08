@@ -1383,6 +1383,16 @@ addStrings({
     'dash.stats.statusTitle': 'Capacidad y memoria en uso',
     'dash.stats.activityTitle': 'Actividad histórica',
     'dash.stats.activityDesc': 'Resumen de actividad acumulada en este servidor desde la llegada de Purgito.',
+    'dash.stats.byChannelTitle': 'Mensajes por canal',
+    'dash.stats.byChannelDesc': 'Los 8 canales de donde Purgito aprendió más, de mayor a menor.',
+    'dash.stats.channelUnavailable': 'Canal no disponible',
+    'dash.stats.byDayTitle': 'Actividad reciente',
+    'dash.stats.byDayDesc': 'Mensajes aprendidos por día en los últimos 14 días.',
+    'dash.stats.contributorsTitle': 'Quién alimenta más el corpus',
+    'dash.stats.contributorsDesc': 'Las 5 personas cuyos mensajes más aportaron al estilo del servidor.',
+    'dash.stats.wordsTitle': 'Palabras más frecuentes',
+    'dash.stats.wordsDesc': 'Sobre una muestra del corpus del servidor, sin contar muletillas comunes.',
+    'dash.stats.noData': 'Todavía no hay datos suficientes.',
   },
   en: {
     'dash.inicio.members': '{count} members',
@@ -1436,6 +1446,16 @@ addStrings({
     'dash.stats.statusTitle': 'Capacity and memory in use',
     'dash.stats.activityTitle': 'Historical activity',
     'dash.stats.activityDesc': 'Summary of accumulated activity on this server since Purgito joined.',
+    'dash.stats.byChannelTitle': 'Messages per channel',
+    'dash.stats.byChannelDesc': 'The 8 channels Purgito learned the most from, highest to lowest.',
+    'dash.stats.channelUnavailable': 'Channel unavailable',
+    'dash.stats.byDayTitle': 'Recent activity',
+    'dash.stats.byDayDesc': 'Messages learned per day over the last 14 days.',
+    'dash.stats.contributorsTitle': 'Who feeds the corpus the most',
+    'dash.stats.contributorsDesc': "The 5 people whose messages contributed most to the server's style.",
+    'dash.stats.wordsTitle': 'Most frequent words',
+    'dash.stats.wordsDesc': "Over a sample of the server's corpus, excluding common filler words.",
+    'dash.stats.noData': 'Not enough data yet.',
   },
 });
 
@@ -1582,9 +1602,10 @@ export async function loadStatsModule() {
   const epoch = _loadEpoch;
 
   try {
-    const [statsRes, channelsRes] = await Promise.allSettled([
+    const [statsRes, channelsRes, activityRes] = await Promise.allSettled([
       apiFetch(`/api/server/${GUILD_ID}/stats`),
       getChannels({ force: true }),
+      apiFetch(`/api/server/${GUILD_ID}/stats/activity`),
     ]);
 
     if (epoch !== _loadEpoch) return;
@@ -1669,7 +1690,99 @@ export async function loadStatsModule() {
       )
     );
 
-    box.append(header, usageGroup, activityRow);
+    // 3. Mensajes por canal (ya venía en /stats, no se renderizaba todavía)
+    const byChannel = stats.corpus_by_channel || [];
+    const maxChannelCount = Math.max(1, ...byChannel.map(c => c.count || 0));
+    const byChannelGroup = formGroup(t('dash.stats.byChannelTitle'),
+      el('div', { class: 'stat-by-channel' },
+        el('p', {}, t('dash.stats.byChannelDesc')),
+        byChannel.length
+          ? el('div', { class: 'stat-channels' },
+              ...byChannel.map(c => el('div', { class: 'stat-channel-row' },
+                c.name
+                  ? el('span', { class: 'stat-chan-name' }, `#${c.name}`)
+                  : el('span', { class: 'stat-chan-unavailable' },
+                      el('span', { class: 'stat-chan-unavail-title' }, t('dash.stats.channelUnavailable')),
+                      el('span', { class: 'stat-chan-id' }, c.channel_id)
+                    ),
+                el('div', { style: 'display:flex;align-items:center;gap:8px;' },
+                  el('progress', {
+                    class: 'prob-bar',
+                    style: 'max-width:8rem;',
+                    value: String(c.count || 0),
+                    max: String(maxChannelCount),
+                  }),
+                  el('span', { class: 'dim', style: 'font-size:12px;min-width:2.5em;text-align:right;' },
+                    Number(c.count || 0).toLocaleString('es'))
+                )
+              ))
+            )
+          : el('p', { class: 'dim' }, t('dash.stats.noData'))
+      )
+    );
+
+    // 4. Actividad reciente (mensajes/día, top contribuyentes, palabras) --
+    // endpoint separado porque tokenizar el corpus es más caro que el resto
+    // de esta tab (ver _api_stats_activity en webapi.py).
+    let recentActivityGroup = null;
+    if (activityRes.status === 'fulfilled') {
+      const activity = activityRes.value || {};
+      const byDay = activity.by_day || [];
+      const maxDayCount = Math.max(1, ...byDay.map(d => d.count || 0));
+      const byDayRows = byDay.length
+        ? el('div', { class: 'stat-channels' },
+            ...byDay.map(d => el('div', { class: 'stat-channel-row' },
+              el('span', { class: 'stat-chan-name' }, d.day),
+              el('div', { style: 'display:flex;align-items:center;gap:8px;' },
+                el('progress', {
+                  class: 'prob-bar',
+                  style: 'max-width:8rem;',
+                  value: String(d.count || 0),
+                  max: String(maxDayCount),
+                }),
+                el('span', { class: 'dim', style: 'font-size:12px;min-width:2.5em;text-align:right;' },
+                  Number(d.count || 0).toLocaleString('es'))
+              )
+            ))
+          )
+        : el('p', { class: 'dim' }, t('dash.stats.noData'));
+
+      const contributors = activity.top_contributors || [];
+      const contributorRows = contributors.length
+        ? el('div', { class: 'stat-channels' },
+            ...contributors.map(c => el('div', { class: 'stat-channel-row' },
+              el('span', { class: 'stat-chan-name' }, c.author_name || c.author_id),
+              el('span', { class: 'dim', style: 'font-size:12px;' }, Number(c.count || 0).toLocaleString('es'))
+            ))
+          )
+        : el('p', { class: 'dim' }, t('dash.stats.noData'));
+
+      const words = activity.top_words || [];
+      const wordChips = words.length
+        ? el('div', { class: 'stat-words' },
+            ...words.map(w => el('span', { class: 'stat-word-chip' },
+              w.word, ' ', el('b', {}, String(w.count))
+            ))
+          )
+        : el('p', { class: 'dim' }, t('dash.stats.noData'));
+
+      recentActivityGroup = formGroup(t('dash.stats.byDayTitle'),
+        el('p', { class: 'dim' }, t('dash.stats.byDayDesc')),
+        byDayRows,
+        el('div', { style: 'margin-top:20px;' },
+          el('div', { class: 'form-group-title' }, t('dash.stats.contributorsTitle')),
+          el('p', { class: 'dim' }, t('dash.stats.contributorsDesc')),
+          contributorRows
+        ),
+        el('div', { style: 'margin-top:20px;' },
+          el('div', { class: 'form-group-title' }, t('dash.stats.wordsTitle')),
+          el('p', { class: 'dim' }, t('dash.stats.wordsDesc')),
+          wordChips
+        )
+      );
+    }
+
+    box.append(header, usageGroup, activityRow, byChannelGroup, ...(recentActivityGroup ? [recentActivityGroup] : []));
   } catch (e) {
     if (box) renderError(box, e);
   }

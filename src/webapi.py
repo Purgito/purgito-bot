@@ -111,6 +111,7 @@ from db import (
     count_audit_action,
     count_corpus_by_channel,
     count_corpus_messages,
+    count_corpus_messages_by_day,
     count_gif_urls,
     count_guild_corpus_messages,
     delete_channel_trigger,
@@ -129,6 +130,7 @@ from db import (
     get_channel_tunables,
     get_chat_settings,
     get_audit_log_users,
+    get_corpus_messages,
     get_counters,
     get_embed_template,
     get_effective_chat_settings,
@@ -198,6 +200,7 @@ from db import (
     set_user_exclusion,
     update_scheduled_announcement,
     set_youtube_mention_role_by_id,
+    top_corpus_contributors,
     unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
@@ -2053,6 +2056,30 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
                 "gifs": gifs_limit(guild_id),
                 "frases": frases_limit(guild_id),
             },
+        }
+    )
+
+
+@guild_api
+async def _api_stats_activity(request: web.Request, guild_id: int) -> web.Response:
+    """Actividad reciente del corpus para la tab Estadísticas del dashboard:
+    mensajes por día (últimos 14), quién alimenta más el corpus y las
+    palabras más frecuentes. Separado de _api_stats porque tokenizar una
+    muestra del corpus es más caro que el resto de las métricas de esa tab,
+    que se piden mucho más seguido (cada vez que se abre el dashboard)."""
+    sample = await get_corpus_messages(guild_id, limit=5000)
+    return web.json_response(
+        {
+            "by_day": await count_corpus_messages_by_day(guild_id, days=14),
+            "top_contributors": [
+                {
+                    "author_id": str(c["author_id"]),
+                    "author_name": c["author_name"],
+                    "count": c["count"],
+                }
+                for c in await top_corpus_contributors(guild_id, limit=5)
+            ],
+            "top_words": generation.top_corpus_words(sample, limit=15),
         }
     )
 
@@ -5647,6 +5674,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get(f"{base}/roles", _api_roles)
         app.router.add_get(f"{base}/emojis", _api_emojis)
         app.router.add_get(f"{base}/stats", _api_stats)
+        app.router.add_get(f"{base}/stats/activity", _api_stats_activity)
         app.router.add_get(f"{base}/tasks", _api_server_tasks_get)
         app.router.add_get(f"{base}/style", _api_style_get)
         app.router.add_put(f"{base}/style", _api_style_put)

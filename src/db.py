@@ -3171,6 +3171,37 @@ async def count_corpus_by_channel(guild_id: int) -> list[dict]:
     return [{"channel_id": r[0], "count": r[1]} for r in rows]
 
 
+async def count_corpus_messages_by_day(guild_id: int, days: int = 14) -> list[dict]:
+    """Mensajes aprendidos por día, de los últimos `days` días (incluyendo
+    hoy), orden ascendente por fecha -- para el gráfico de actividad reciente
+    de la tab Estadísticas."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT DATE(created_at) AS day, COUNT(*) FROM corpus_messages "
+        "WHERE guild_id=? AND created_at >= datetime('now', ?) "
+        "GROUP BY day ORDER BY day ASC",
+        (guild_id, f"-{days} days"),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"day": r[0], "count": r[1]} for r in rows]
+
+
+async def top_corpus_contributors(guild_id: int, limit: int = 5) -> list[dict]:
+    """Quiénes alimentaron más el corpus por usuario (user_corpus), de mayor
+    a menor -- para "quién alimenta más el corpus" en la tab Estadísticas.
+    author_name es el nombre guardado al momento del mensaje, puede estar
+    desactualizado si la persona cambió de nombre después (mismo trade-off
+    que el resto de author_name guardados en el corpus)."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT author_id, author_name, COUNT(*) AS n FROM user_corpus "
+        "WHERE guild_id=? GROUP BY author_id ORDER BY n DESC LIMIT ?",
+        (guild_id, limit),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"author_id": r[0], "author_name": r[1], "count": r[2]} for r in rows]
+
+
 async def get_bot_style(guild_id: int) -> dict:
     db = await get_db()
     async with db.execute(

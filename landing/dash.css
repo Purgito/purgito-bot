@@ -3604,6 +3604,13 @@ h1 {
 .stat-chan-full { color: var(--premium); font-weight: 600; font-size: 12px; }
 .stat-chan-warn { color: var(--accent); font-size: 12px; }
 
+.stat-words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.stat-word-chip {
+  background: var(--surface-card); border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--text-dim);
+}
+.stat-word-chip b { color: var(--text); font-weight: 600; }
+
 /* Actividad acumulada */
 .activity-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

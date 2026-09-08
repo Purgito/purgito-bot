@@ -31,6 +31,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - `/imitar_mezcla @usuario1 @usuario2`: combina el corpus de ambos usuarios en un solo modelo Markov para generar un mensaje que mezcle el estilo de los dos, incluso cuando ninguno por separado llega al mínimo de mensajes que pide `/imitar`.
 - Categoría **Plantillas** del panel: exportar la plantilla que se está editando como JSON e importar un archivo exportado — importar siempre crea una plantilla nueva, nunca sobrescribe una existente.
 - Anuncios recurrentes: modo **semanal**, además de intervalo y diario — se elige un subconjunto de días de la semana y una hora fija de envío.
+- Tab **Estadísticas** del dashboard ampliada con actividad reciente: mensajes aprendidos por día (últimos 14 días), quién alimentó más el corpus del servidor y las palabras más frecuentes (excluyendo muletillas comunes, URLs y menciones). De paso se activó el desglose de mensajes por canal, que la API ya calculaba pero el panel nunca mostraba.
 
 ### Changed
 - `is_home_guild()` renombrado a `is_premium_guild()` y ahora consulta un `set` en memoria cargado al arrancar (sin hit a DB por evento/comando).

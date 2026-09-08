@@ -177,6 +177,43 @@ def tokenize_message(text: str) -> list[str]:
     return tokens
 
 
+# Muletillas/conectores/pronombres es+en de altísima frecuencia -- sin esto
+# "top palabras" de la tab Estadísticas del dashboard es siempre la misma
+# lista aburrida ("que", "de", "the", "a") en vez de mostrar algo específico
+# del servidor.
+_STATS_STOPWORDS = frozenset(
+    """
+    el la los las un una unos unas de del al a que y o u en es son fue ser
+    estar esta este estos estas con por para como mas pero si no se su sus
+    lo le les mi mis tu tus nos ya muy tan asi eso esa ese ahi aqui alli
+    cuando donde porque pues entonces bien mal todo toda todos todas algo
+    alguien nada nadie hay he ha han habia era soy eres somos sois yo tu el
+    ella ellos ellas nosotros ustedes vos te me os q xd jaja jajaja jajajaja
+    the a an and or of to in on for is are was were be been this that these
+    those with as at by it its i you he she we they not but if so do does
+    did have has had will would can could just like im dont cant yeah lol
+    """.split()
+)
+
+
+def top_corpus_words(messages: list[str], limit: int = 15) -> list[dict]:
+    """Palabras más frecuentes en una muestra del corpus (`messages`, ya
+    obtenida con db.get_corpus_messages), para la tab Estadísticas del
+    dashboard. Descarta URLs, menciones/emoji de Discord, stopwords y tokens
+    de menos de 3 caracteres."""
+    counts: dict[str, int] = {}
+    for raw in messages:
+        cleaned = _EMOJI_RE.sub(
+            " ", _DISCORD_MENTIONS_RE.sub(" ", _URL_RE.sub(" ", raw))
+        )
+        for tok in tokenize_message(cleaned):
+            if len(tok) < 3 or tok.isdigit() or tok in _STATS_STOPWORDS:
+                continue
+            counts[tok] = counts.get(tok, 0) + 1
+    top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    return [{"word": w, "count": c} for w, c in top]
+
+
 def note_corpus_insert(guild_id: int, channel_id: int) -> None:
     key = (guild_id, channel_id)
     n = _corpus_insert_counter.get(key, 0) + 1
