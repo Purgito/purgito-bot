@@ -207,6 +207,18 @@ CREATE TABLE IF NOT EXISTS youtube_subscriptions (
     UNIQUE(guild_id, youtube_channel_id)
 );
 
+CREATE TABLE IF NOT EXISTS twitch_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    twitch_user_id TEXT NOT NULL,
+    twitch_login TEXT NOT NULL,
+    last_stream_id TEXT,
+    discord_channel_id INTEGER NOT NULL,
+    mention_role_id INTEGER,
+    last_error TEXT,
+    UNIQUE(guild_id, twitch_user_id)
+);
+
 CREATE TABLE IF NOT EXISTS rss_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER NOT NULL,
@@ -2417,6 +2429,171 @@ async def set_youtube_mention_role_by_id(
     async with _db_lock:
         cursor = await db.execute(
             "UPDATE youtube_subscriptions SET mention_role_id=? WHERE guild_id=? AND id=?",
+            (role_id, guild_id, sub_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
+# ─── Twitch (avisos de "en vivo") ────────────────────────────────────────────
+# Mismo esquema que youtube_subscriptions: last_stream_id juega el rol de
+# last_video_id (compara contra el id del stream actual, no un booleano
+# "está en vivo", así un stream que sigue en vivo entre dos chequeos no
+# reavisa, y uno nuevo que arranca sí -- ver cogs/twitch.py.check_twitch).
+
+
+async def add_twitch_sub(
+    guild_id: int,
+    twitch_user_id: str,
+    twitch_login: str,
+    discord_channel_id: int,
+    mention_role_id: int | None = None,
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO twitch_subscriptions "
+            "(guild_id, twitch_user_id, twitch_login, discord_channel_id, mention_role_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                guild_id,
+                twitch_user_id,
+                twitch_login,
+                discord_channel_id,
+                mention_role_id,
+            ),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_twitch_sub(guild_id: int, twitch_user_id: str) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM twitch_subscriptions WHERE guild_id=? AND twitch_user_id=?",
+            (guild_id, twitch_user_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def remove_twitch_sub_by_id(guild_id: int, sub_id: int) -> bool:
+    """Igual que remove_twitch_sub pero por id interno -- lo usa el
+    dashboard web (ver remove_youtube_sub_by_id)."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM twitch_subscriptions WHERE guild_id=? AND id=?",
+            (guild_id, sub_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_twitch_subs(guild_id: int) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, twitch_user_id, twitch_login, last_stream_id, "
+        "discord_channel_id, mention_role_id, last_error "
+        "FROM twitch_subscriptions WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "guild_id": r[1],
+            "twitch_user_id": r[2],
+            "twitch_login": r[3],
+            "last_stream_id": r[4],
+            "discord_channel_id": r[5],
+            "mention_role_id": r[6],
+            "last_error": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def get_all_twitch_subs() -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, twitch_user_id, twitch_login, last_stream_id, "
+        "discord_channel_id, mention_role_id, last_error FROM twitch_subscriptions"
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "guild_id": r[1],
+            "twitch_user_id": r[2],
+            "twitch_login": r[3],
+            "last_stream_id": r[4],
+            "discord_channel_id": r[5],
+            "mention_role_id": r[6],
+            "last_error": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def update_last_stream_id(
+    guild_id: int, twitch_user_id: str, stream_id: str
+) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE twitch_subscriptions SET last_stream_id=? WHERE guild_id=? AND twitch_user_id=?",
+            (stream_id, guild_id, twitch_user_id),
+        )
+        await db.commit()
+
+
+TWITCH_ERROR_NO_PERMISSION = "sin_permiso"
+TWITCH_ERROR_CHANNEL_NOT_FOUND = "canal_no_encontrado"
+
+
+async def set_twitch_sub_error(
+    guild_id: int, twitch_user_id: str, error: str | None
+) -> None:
+    """error es None, TWITCH_ERROR_NO_PERMISSION o TWITCH_ERROR_CHANNEL_NOT_FOUND.
+    Ver cogs/twitch.py.check_twitch."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE twitch_subscriptions SET last_error=? WHERE guild_id=? AND twitch_user_id=?",
+            (error, guild_id, twitch_user_id),
+        )
+        await db.commit()
+
+
+async def set_twitch_mention_role(
+    guild_id: int, twitch_user_id: str, role_id: int | None
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE twitch_subscriptions SET mention_role_id=? WHERE guild_id=? AND twitch_user_id=?",
+            (role_id, guild_id, twitch_user_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
+async def set_twitch_mention_role_by_id(
+    guild_id: int, sub_id: int, role_id: int | None
+) -> bool:
+    """Igual que set_twitch_mention_role pero por id interno -- ver
+    remove_twitch_sub_by_id."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE twitch_subscriptions SET mention_role_id=? WHERE guild_id=? AND id=?",
             (role_id, guild_id, sub_id),
         )
         updated = cursor.rowcount > 0
@@ -5075,7 +5252,7 @@ async def list_audit_log_page(
                     "(action LIKE 'embed_template%' OR action LIKE 'embeds%')"
                 )
             elif cat == "integraciones":
-                conditions.append("action LIKE 'youtube%'")
+                conditions.append("(action LIKE 'youtube%' OR action LIKE 'twitch%')")
             elif cat == "otros":
                 conditions.append("action LIKE 'style%'")
             else:
@@ -5629,6 +5806,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "corpus_gifs",
         "corpus_images",
         "youtube_subscriptions",
+        "twitch_subscriptions",
         "rss_subscriptions",
         "ignored_channels",
         "meme_schedule",

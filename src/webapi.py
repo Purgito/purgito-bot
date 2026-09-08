@@ -79,6 +79,9 @@ from cogs.gifs import (
 )
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.rss import resolve_rss_feed
+from cogs.twitch import TwitchNotConfigured
+from cogs.twitch import is_configured as twitch_is_configured
+from cogs.twitch import resolve_twitch_channel
 from cogs.updates import check_updates_channel_permissions
 from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
@@ -102,6 +105,7 @@ from db import (
     add_scheduled_announcement,
     add_shared_embed,
     add_spontaneous_channel,
+    add_twitch_sub,
     add_youtube_sub,
     assign_pack_to_channel,
     block_gif,
@@ -171,6 +175,7 @@ from db import (
     list_reaction_pool,
     list_rss_subs,
     list_spontaneous_channels,
+    list_twitch_subs,
     list_uploaded_images,
     list_youtube_subs,
     log_audit,
@@ -185,6 +190,7 @@ from db import (
     remove_rss_sub_by_id,
     remove_scheduled_announcement,
     remove_spontaneous_channel,
+    remove_twitch_sub_by_id,
     remove_user_exclusion,
     remove_youtube_sub_by_id,
     revoke_session,
@@ -199,6 +205,7 @@ from db import (
     set_updates_channel,
     set_user_exclusion,
     update_scheduled_announcement,
+    set_twitch_mention_role_by_id,
     set_youtube_mention_role_by_id,
     top_corpus_contributors,
     unassign_pack_from_channel,
@@ -2882,6 +2889,119 @@ async def _api_youtube_patch(request: web.Request, guild_id: int) -> web.Respons
             request,
             guild_id,
             "youtube.update_mention_role",
+            detail=f"sub_id={sub_id} role_id={role_id}",
+        )
+    return web.json_response({"updated": updated})
+
+
+# ---------------- API: Twitch (suscripciones, tab del dashboard) ----------------
+
+# Paridad con la categoría Twitch de /settings (cogs/settings.py ->
+# TwitchCategory) y con la API de YouTube de arriba -- misma forma, mismo
+# estilo de aviso de last_error. Único agregado real: TWITCH_NOT_CONFIGURED,
+# porque a diferencia de YouTube esta integración depende de credenciales
+# opcionales (TWITCH_CLIENT_ID/TWITCH_CLIENT_SECRET) que el bot puede no
+# tener -- sin eso, "no se pudo resolver el canal" sería un mensaje confuso
+# (sugiere revisar el nombre cuando el problema es de configuración del bot).
+
+
+def _twitch_sub_json(guild, s: dict) -> dict:
+    return {
+        "id": s["id"],
+        "twitch_user_id": s["twitch_user_id"],
+        "twitch_login": s["twitch_login"],
+        "discord_channel_id": str(s["discord_channel_id"]),
+        "discord_channel_name": _channel_name(guild, s["discord_channel_id"]),
+        "mention_role_id": str(s["mention_role_id"]) if s["mention_role_id"] else None,
+        "last_error": s["last_error"],
+    }
+
+
+@guild_api
+async def _api_twitch_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    subs = await list_twitch_subs(guild_id)
+    return web.json_response(
+        {
+            "configured": twitch_is_configured(),
+            "subscriptions": [_twitch_sub_json(guild, s) for s in subs],
+        }
+    )
+
+
+@guild_api
+async def _api_twitch_post(request: web.Request, guild_id: int) -> web.Response:
+    if not twitch_is_configured():
+        return web.json_response(
+            {"error": "Purgito no tiene configurada la integración con Twitch"},
+            status=503,
+        )
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_post, ip, 5):
+        return web.json_response({"error": "rate limit"}, status=429)
+    data = await _json_body(request)
+    channel_login = (data.get("channel_login") or "").strip() if data else ""
+    discord_channel_id = _to_int(data.get("discord_channel_id")) if data else None
+    if not channel_login or discord_channel_id is None:
+        return web.json_response(
+            {"error": "channel_login y discord_channel_id son obligatorios"},
+            status=400,
+        )
+    try:
+        resolved = await resolve_twitch_channel(channel_login)
+    except TwitchNotConfigured:
+        return web.json_response(
+            {"error": "Purgito no tiene configurada la integración con Twitch"},
+            status=503,
+        )
+    if resolved is None:
+        return web.json_response(
+            {"error": "No se pudo obtener información del canal. Verifica el nombre."},
+            status=400,
+        )
+    added = await add_twitch_sub(
+        guild_id, resolved["id"], resolved["login"], discord_channel_id
+    )
+    if added:
+        await _log_audit(request, guild_id, "twitch.add", detail=resolved["login"])
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_twitch_delete(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_delete, ip, 3):
+        return web.json_response({"error": "rate limit"}, status=429)
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    removed = await remove_twitch_sub_by_id(guild_id, sub_id)
+    if removed:
+        await _log_audit(request, guild_id, "twitch.remove", detail=f"sub_id={sub_id}")
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_twitch_patch(request: web.Request, guild_id: int) -> web.Response:
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None or "mention_role_id" not in data:
+        return web.json_response(
+            {"error": "mention_role_id es obligatorio"}, status=400
+        )
+    role_id = None
+    if data["mention_role_id"] is not None:
+        role_id = _to_int(data["mention_role_id"])
+        if role_id is None:
+            return web.json_response({"error": "mention_role_id inválido"}, status=400)
+    updated = await set_twitch_mention_role_by_id(guild_id, sub_id, role_id)
+    if updated:
+        await _log_audit(
+            request,
+            guild_id,
+            "twitch.update_mention_role",
             detail=f"sub_id={sub_id} role_id={role_id}",
         )
     return web.json_response({"updated": updated})
@@ -5801,6 +5921,10 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/youtube", _api_youtube_post)
         app.router.add_delete(f"{base}/youtube/{{sub_id}}", _api_youtube_delete)
         app.router.add_patch(f"{base}/youtube/{{sub_id}}", _api_youtube_patch)
+        app.router.add_get(f"{base}/twitch", _api_twitch_get)
+        app.router.add_post(f"{base}/twitch", _api_twitch_post)
+        app.router.add_delete(f"{base}/twitch/{{sub_id}}", _api_twitch_delete)
+        app.router.add_patch(f"{base}/twitch/{{sub_id}}", _api_twitch_patch)
         app.router.add_get(f"{base}/rss", _api_rss_get)
         app.router.add_post(f"{base}/rss", _api_rss_post)
         app.router.add_delete(f"{base}/rss/{{sub_id}}", _api_rss_delete)

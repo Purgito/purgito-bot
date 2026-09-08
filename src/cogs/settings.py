@@ -13,29 +13,38 @@ from discord.ext import commands
 import generation
 import i18n
 from cogs.premium import is_premium_guild
+from cogs.twitch import TwitchNotConfigured
+from cogs.twitch import is_configured as twitch_is_configured
+from cogs.twitch import resolve_twitch_channel
 from cogs.youtube import resolve_youtube_channel
 from config import PANEL_URL, get_dashboard_url
 from db import (
     MEME_SCHEDULE_ERROR_EMPTY_CORPUS,
     MEME_SCHEDULE_ERROR_NO_POOL_IMAGES,
+    TWITCH_ERROR_CHANNEL_NOT_FOUND,
+    TWITCH_ERROR_NO_PERMISSION,
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
     add_corpus_channel,
     add_meme_schedule,
     add_scheduled_announcement,
+    add_twitch_sub,
     add_youtube_sub,
     count_guild_corpus_messages,
     get_chat_settings,
     list_corpus_channels,
     list_meme_schedules,
     list_scheduled_announcements,
+    list_twitch_subs,
     list_youtube_subs,
     remember_welcome_channel,
     remove_corpus_channel,
     remove_meme_schedule,
     remove_scheduled_announcement,
+    remove_twitch_sub,
     remove_youtube_sub,
     set_chat_mode,
+    set_twitch_mention_role,
     set_youtube_mention_role,
     update_last_video_id,
     wipe_corpus,
@@ -740,6 +749,173 @@ class YouTubeCategory(SettingsCategory):
         return items
 
 
+class TwitchCategory(SettingsCategory):
+    key = "twitch"
+    emoji = "🔴"
+
+    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
+        if not twitch_is_configured():
+            return discord.Embed(
+                title=self.title(panel.locale),
+                description=t("settings.twitch.not_configured", panel.locale),
+                color=PURGITO_COLOR,
+            )
+        subs = await list_twitch_subs(panel.guild.id)
+        body = t("settings.twitch.body", panel.locale)
+        if subs:
+            lines = []
+            for s in subs:
+                line = f"• **{s['twitch_login']}** → <#{s['discord_channel_id']}>"
+                if s["last_error"] == TWITCH_ERROR_NO_PERMISSION:
+                    line += "\n  " + t(
+                        "settings.twitch.error_no_permission", panel.locale
+                    )
+                elif s["last_error"] == TWITCH_ERROR_CHANNEL_NOT_FOUND:
+                    line += "\n  " + t(
+                        "settings.twitch.error_channel_not_found", panel.locale
+                    )
+                lines.append(line)
+            body += "\n\n" + "\n".join(lines)
+        else:
+            body += "\n\n" + t("settings.twitch.none", panel.locale)
+        if getattr(panel, "tw_pending_channel", None):
+            body += "\n\n" + t("settings.twitch.add_pending_hint", panel.locale)
+        if getattr(panel, "tw_add_error", False):
+            body += "\n\n" + t("settings.twitch.add_invalid", panel.locale)
+            panel.tw_add_error = False
+        if getattr(panel, "tw_pending_mention", None):
+            body += "\n\n" + t("settings.twitch.mention_pending_hint", panel.locale)
+        return discord.Embed(
+            title=self.title(panel.locale), description=body[:4000], color=PURGITO_COLOR
+        )
+
+    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
+        if not twitch_is_configured():
+            return []
+        subs = await list_twitch_subs(panel.guild.id)
+        items: list[discord.ui.Item] = []
+
+        if subs:
+            remove_select = discord.ui.Select(
+                placeholder=t("settings.twitch.remove_placeholder", panel.locale),
+                options=[
+                    discord.SelectOption(
+                        label=s["twitch_login"][:100], value=s["twitch_user_id"]
+                    )
+                    for s in subs[:25]
+                ],
+                row=1,
+            )
+
+            async def on_remove(interaction: discord.Interaction):
+                await remove_twitch_sub(panel.guild.id, remove_select.values[0])
+                await panel.refresh(interaction)
+
+            remove_select.callback = on_remove
+            items.append(remove_select)
+
+        pending_channel: str | None = getattr(panel, "tw_pending_channel", None)
+        if pending_channel:
+            dest_select = discord.ui.ChannelSelect(
+                channel_types=[discord.ChannelType.text],
+                placeholder=t("settings.twitch.add_channel_placeholder", panel.locale),
+                row=2,
+            )
+
+            async def on_dest_channel(interaction: discord.Interaction):
+                panel.tw_pending_channel = None
+                try:
+                    resolved = await resolve_twitch_channel(pending_channel)
+                except TwitchNotConfigured:
+                    resolved = None
+                if resolved is None:
+                    panel.tw_add_error = True
+                    await panel.refresh(interaction)
+                    return
+                await add_twitch_sub(
+                    panel.guild.id,
+                    resolved["id"],
+                    resolved["login"],
+                    dest_select.values[0].id,
+                )
+                await panel.refresh(interaction)
+
+            dest_select.callback = on_dest_channel
+            items.append(dest_select)
+        else:
+            add_btn = discord.ui.Button(
+                label=t("settings.twitch.btn_add", panel.locale),
+                style=discord.ButtonStyle.primary,
+                row=2,
+            )
+
+            class AddChannelModal(discord.ui.Modal):
+                def __init__(self):
+                    super().__init__(
+                        title=t("settings.twitch.add_modal_title", panel.locale)
+                    )
+                    self.channel_input = discord.ui.TextInput(
+                        label=t("settings.twitch.add_modal_field", panel.locale)[:45],
+                        max_length=100,
+                    )
+                    self.add_item(self.channel_input)
+
+                async def on_submit(self, interaction: discord.Interaction):
+                    text = self.channel_input.value.strip()
+                    if not text:
+                        await interaction.response.send_message(
+                            t("settings.twitch.add_invalid", panel.locale),
+                            ephemeral=True,
+                        )
+                        return
+                    panel.tw_pending_channel = text
+                    await panel.refresh(interaction)
+
+            async def on_add(interaction: discord.Interaction):
+                await interaction.response.send_modal(AddChannelModal())
+
+            add_btn.callback = on_add
+            items.append(add_btn)
+
+        pending_mention: str | None = getattr(panel, "tw_pending_mention", None)
+        if pending_mention:
+            role_select = discord.ui.RoleSelect(
+                placeholder=t("settings.twitch.mention_role_placeholder", panel.locale),
+                min_values=0,
+                max_values=1,
+                row=3,
+            )
+
+            async def on_role(interaction: discord.Interaction):
+                role_id = role_select.values[0].id if role_select.values else None
+                await set_twitch_mention_role(panel.guild.id, pending_mention, role_id)
+                panel.tw_pending_mention = None
+                await panel.refresh(interaction)
+
+            role_select.callback = on_role
+            items.append(role_select)
+        elif subs:
+            mention_select = discord.ui.Select(
+                placeholder=t("settings.twitch.mention_placeholder", panel.locale),
+                options=[
+                    discord.SelectOption(
+                        label=s["twitch_login"][:100], value=s["twitch_user_id"]
+                    )
+                    for s in subs[:25]
+                ],
+                row=3,
+            )
+
+            async def on_mention_target(interaction: discord.Interaction):
+                panel.tw_pending_mention = mention_select.values[0]
+                await panel.refresh(interaction)
+
+            mention_select.callback = on_mention_target
+            items.append(mention_select)
+
+        return items
+
+
 class MemesCategory(SettingsCategory):
     key = "memes"
     emoji = "😏"
@@ -1115,6 +1291,7 @@ CATEGORIES: list[SettingsCategory] = [
     IdiomaCategory(),
     AprendizajeCategory(),
     YouTubeCategory(),
+    TwitchCategory(),
     MemesCategory(),
     AnunciosCategory(),
     DatosCategory(),

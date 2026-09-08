@@ -18,6 +18,7 @@ import { getChannels, getRoles, channelSelect, roleSelect, content } from '/js/p
 import { loadGifs } from '/js/tabs/gifs.js';
 import { loadPremium } from '/js/tabs/premium.js';
 import { loadYoutube } from '/js/tabs/youtube.js';
+import { loadTwitch } from '/js/tabs/twitch.js';
 import { loadRss } from '/js/tabs/rss.js';
 import { loadHistorial } from '/js/tabs/historial.js';
 import { loadWelcomeTab, loadGoodbyeTab, loadBoostTab } from '/js/tabs/eventos.js';
@@ -65,6 +66,7 @@ addStrings({
     'dash.mod.frases.label': 'Frases y Packs',
     'dash.mod.frases.desc': 'Frases personalizadas y paquetes temáticos organizados por canal',
     'dash.mod.youtube.desc': 'Avisos automáticos de nuevos videos en canales de YouTube',
+    'dash.mod.twitch.desc': 'Avisos automáticos cuando un canal de Twitch empieza a transmitir en vivo',
     'dash.mod.rss.desc': 'Avisos automáticos de nuevas entradas en blogs y sitios web con feed',
     'dash.mod.embeds.label': 'Embeds',
     'dash.mod.embeds.desc': 'Crea y edita mensajes reutilizables: texto, embeds y bloques Layout V2. Bienvenidas, Despedidas y Boosts los usan.',
@@ -112,6 +114,7 @@ addStrings({
     'dash.mod.frases.label': 'Phrases and Packs',
     'dash.mod.frases.desc': 'Custom phrases and themed packs organized by channel',
     'dash.mod.youtube.desc': 'Automatic alerts for new videos on YouTube channels',
+    'dash.mod.twitch.desc': 'Automatic alerts when a Twitch channel goes live',
     'dash.mod.rss.desc': 'Automatic alerts for new posts on blogs and websites with a feed',
     'dash.mod.embeds.label': 'Embeds',
     'dash.mod.embeds.desc': 'Create and edit reusable messages: text, embeds, and Layout V2 blocks. Welcome, Goodbye, and Boosts use them.',
@@ -289,6 +292,15 @@ export const MODULES = [
     desc: t('dash.mod.youtube.desc'),
     keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
     load: loadYoutube,
+  },
+  {
+    key: 'twitch',
+    cat: 'automatizacion',
+    label: 'Twitch',
+    icon: 'twitch',
+    desc: t('dash.mod.twitch.desc'),
+    keywords: ['twitch', 'en vivo', 'live', 'stream', 'transmision', 'alertas'],
+    load: loadTwitch,
   },
   {
     key: 'rss',

@@ -69,6 +69,10 @@ ENABLE_MESSAGE_CONTENT = os.getenv(
 ).strip().lower() in ("1", "true", "yes")
 GUILD_ID_ENV = os.getenv("GUILD_ID")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# Sin estas dos, cogs/twitch.py se carga pero no arranca el chequeo periódico
+# (feature desactivada, resto del bot funciona igual -- mismo criterio que GROQ_API_KEY).
+TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", "")
+TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", "")
 BOT_TRIGGER_NAME = os.getenv("BOT_TRIGGER_NAME", "artemis").strip().lower()
 BOT_OWNER_ID: int | None = _env_int_or_none("BOT_OWNER_ID")
 # ID fijo del servidor original PURG4TORY — siempre premium, sin pasar por la tabla.

@@ -32,6 +32,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Categoría **Plantillas** del panel: exportar la plantilla que se está editando como JSON e importar un archivo exportado — importar siempre crea una plantilla nueva, nunca sobrescribe una existente.
 - Anuncios recurrentes: modo **semanal**, además de intervalo y diario — se elige un subconjunto de días de la semana y una hora fija de envío.
 - Tab **Estadísticas** del dashboard ampliada con actividad reciente: mensajes aprendidos por día (últimos 14 días), quién alimentó más el corpus del servidor y las palabras más frecuentes (excluyendo muletillas comunes, URLs y menciones). De paso se activó el desglose de mensajes por canal, que la API ya calculaba pero el panel nunca mostraba.
+- Avisos de Twitch en vivo: nueva categoría **Twitch** en `/settings` y tab propia en el dashboard, con el mismo diseño que YouTube (mención por rol opcional, aviso de canal borrado/sin permiso). Requiere credenciales opcionales (`TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET`, ver `.env.example`) — sin ellas, la categoría queda visible pero no deja agregar canales, el resto del bot funciona igual.
 
 ### Changed
 - `is_home_guild()` renombrado a `is_premium_guild()` y ahora consulta un `set` en memoria cargado al arrancar (sin hit a DB por evento/comando).

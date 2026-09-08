@@ -69,6 +69,25 @@
   "settings.youtube.error_no_permission": "Purgito doesn't have permission to post in this channel",
   "settings.youtube.error_channel_not_found": "The configured channel no longer exists",
 
+  "settings.cat.twitch.label": "Twitch",
+  "settings.cat.twitch.desc": "Live stream alerts",
+  "settings.cat.twitch.title": "Twitch alerts",
+  "settings.twitch.body": "Active subscriptions for this server.",
+  "settings.twitch.none": "No active subscriptions.",
+  "settings.twitch.not_configured": "Purgito doesn't have the Twitch integration configured right now.",
+  "settings.twitch.remove_placeholder": "Remove a subscription…",
+  "settings.twitch.btn_add": "Add channel",
+  "settings.twitch.add_modal_title": "Add Twitch channel",
+  "settings.twitch.add_modal_field": "Twitch username or channel URL",
+  "settings.twitch.add_channel_placeholder": "Pick the destination Discord channel…",
+  "settings.twitch.add_pending_hint": "Pick below the Discord channel where the live alert will be posted.",
+  "settings.twitch.add_invalid": "Couldn't fetch channel info. Check the username.",
+  "settings.twitch.mention_placeholder": "Pick a subscription to configure its mention…",
+  "settings.twitch.mention_role_placeholder": "Pick a mention role (empty = remove mention)…",
+  "settings.twitch.mention_pending_hint": "Pick below the role to mention (leave empty to remove the mention).",
+  "settings.twitch.error_no_permission": "Purgito doesn't have permission to post in this channel",
+  "settings.twitch.error_channel_not_found": "The configured channel no longer exists",
+
   "settings.cat.memes.label": "Auto memes",
   "settings.cat.memes.desc": "Channels with scheduled memes (premium)",
   "settings.cat.memes.title": "Auto memes ⭐",
@@ -246,6 +265,7 @@
   "chat.corpus_info.needs_more": "Needs at least 50 messages to generate varied responses.",
 
   "youtube.new_video": "📺 **{author}** posted a new video!\n**{title}**\n{url}",
+  "twitch.now_live": "🔴 **{login}** is live!\n**{title}**\n{url}",
   "rss.new_item": "📰 **{feed_title}** published a new post:\n**{title}**\n{url}",
 
   "api.errors.access_denied": "access denied",
@@ -353,6 +373,8 @@
 
   "help.cat.youtube.label": "YouTube",
   "help.cat.youtube.cmd.settings": "New YouTube video alerts",
+  "help.cat.twitch.label": "Twitch",
+  "help.cat.twitch.cmd.settings": "Alerts when a channel starts streaming live",
 
   "help.cat.admin.label": "Configuration",
   "help.cat.admin.cmd.settings": "Quick settings panel",

@@ -55,6 +55,13 @@ CATEGORIES = {
             ("/settings → YouTube", "help.cat.youtube.cmd.settings"),
         ],
     },
+    "twitch": {
+        "emoji": "🔴",
+        "row": 1,
+        "commands": [
+            ("/settings → Twitch", "help.cat.twitch.cmd.settings"),
+        ],
+    },
     "panel": {
         "emoji": "🧩",
         "row": 1,
