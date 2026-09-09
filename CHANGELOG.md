@@ -11,6 +11,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Rate limit genérico para los endpoints de escritura de `@guild_api` (POST/PUT/PATCH/DELETE), por usuario de sesión: de los ~80 endpoints bajo ese decorador, la mayoría no tenía ningún límite propio.
 - `/api/server/{guild_id}/premium` ahora expone `payment_issue` (true cuando la suscripción del guild está en `past_due`), para que cualquier admin vea que el pago está fallando antes de que Premium desaparezca de golpe cuando Polar termine de reintentar.
 
+### Fixed
+- Memes automáticos: cuando `auto_meme_task` salta un canal por no tener imágenes en la colección o por corpus vacío, ahora avisa una vez en el canal configurado en vez de saltearlo en silencio cada 10 minutos para siempre. El aviso no se repite mientras el motivo siga siendo el mismo (`meme_schedule.last_error`), y se limpia solo en cuanto el canal vuelve a postear con éxito.
+
 ### Added
 - Sistema de servidores premium: tabla `premium_guilds`, activada/desactivada por los webhooks de Polar.sh (`/webhooks/polar`) al procesar una suscripción — sin ningún endpoint de administración manual. Las features restringidas (memes, pool de imágenes) siguen siempre activas en `PURGATORY_GUILD_ID` hardcodeado, incondicionalmente; para el resto de los servidores depende exclusivamente de tener una suscripción activa en Polar. `HOME_GUILD_ID` se migra automáticamente a la tabla en el primer arranque.
 - Limpieza diferida de datos al salir de un servidor: `on_guild_remove` registra la salida en `guild_departures`; task diaria purga datos (DB + R2) después de `GUILD_DATA_RETENTION_DAYS` (default 30). Reinvitar al bot dentro del período cancela el borrado.
@@ -24,6 +27,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Categoría **YouTube** ampliada en `/settings`: ahora permite agregar suscripciones y configurar el rol de mención directo desde el panel, no solo remover.
 - Categoría **Memes** ampliada en `/settings`: ahora permite activar memes automáticos en un canal desde el panel (antes solo remover).
 - Categoría **Corpus** ampliada en `/settings`: botón para vaciar el corpus del servidor, con confirmación obligatoria (escribir el nombre exacto del servidor) antes de borrar.
+- `/mis_datos`: exporta en un JSON descargable todos los mensajes que el bot guardó del usuario, agrupados por servidor. Cooldown de 60s por persona.
+- `/imitar_mezcla @usuario1 @usuario2`: combina el corpus de ambos usuarios en un solo modelo Markov para generar un mensaje que mezcle el estilo de los dos, incluso cuando ninguno por separado llega al mínimo de mensajes que pide `/imitar`.
+- Categoría **Plantillas** del panel: exportar la plantilla que se está editando como JSON e importar un archivo exportado — importar siempre crea una plantilla nueva, nunca sobrescribe una existente.
+- Anuncios recurrentes: modo **semanal**, además de intervalo y diario — se elige un subconjunto de días de la semana y una hora fija de envío.
+- Tab **Estadísticas** del dashboard ampliada con actividad reciente: mensajes aprendidos por día (últimos 14 días), quién alimentó más el corpus del servidor y las palabras más frecuentes (excluyendo muletillas comunes, URLs y menciones). De paso se activó el desglose de mensajes por canal, que la API ya calculaba pero el panel nunca mostraba.
+- Avisos de Twitch en vivo: nueva categoría **Twitch** en `/settings` y tab propia en el dashboard, con el mismo diseño que YouTube (mención por rol opcional, aviso de canal borrado/sin permiso). Requiere credenciales opcionales (`TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET`, ver `.env.example`) — sin ellas, la categoría queda visible pero no deja agregar canales, el resto del bot funciona igual.
 
 ### Changed
 - `is_home_guild()` renombrado a `is_premium_guild()` y ahora consulta un `set` en memoria cargado al arrancar (sin hit a DB por evento/comando).

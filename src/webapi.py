@@ -79,6 +79,9 @@ from cogs.gifs import (
 )
 from cogs.premium import is_premium_guild, set_premium, unset_premium
 from cogs.rss import resolve_rss_feed
+from cogs.twitch import TwitchNotConfigured
+from cogs.twitch import is_configured as twitch_is_configured
+from cogs.twitch import resolve_twitch_channel
 from cogs.updates import check_updates_channel_permissions
 from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
@@ -102,6 +105,7 @@ from db import (
     add_scheduled_announcement,
     add_shared_embed,
     add_spontaneous_channel,
+    add_twitch_sub,
     add_youtube_sub,
     assign_pack_to_channel,
     block_gif,
@@ -111,6 +115,7 @@ from db import (
     count_audit_action,
     count_corpus_by_channel,
     count_corpus_messages,
+    count_corpus_messages_by_day,
     count_gif_urls,
     count_guild_corpus_messages,
     delete_channel_trigger,
@@ -129,6 +134,7 @@ from db import (
     get_channel_tunables,
     get_chat_settings,
     get_audit_log_users,
+    get_corpus_messages,
     get_counters,
     get_embed_template,
     get_effective_chat_settings,
@@ -169,6 +175,7 @@ from db import (
     list_reaction_pool,
     list_rss_subs,
     list_spontaneous_channels,
+    list_twitch_subs,
     list_uploaded_images,
     list_youtube_subs,
     log_audit,
@@ -183,6 +190,7 @@ from db import (
     remove_rss_sub_by_id,
     remove_scheduled_announcement,
     remove_spontaneous_channel,
+    remove_twitch_sub_by_id,
     remove_user_exclusion,
     remove_youtube_sub_by_id,
     revoke_session,
@@ -197,7 +205,9 @@ from db import (
     set_updates_channel,
     set_user_exclusion,
     update_scheduled_announcement,
+    set_twitch_mention_role_by_id,
     set_youtube_mention_role_by_id,
+    top_corpus_contributors,
     unassign_pack_from_channel,
     unblock_gif,
     update_embed_template,
@@ -2057,6 +2067,30 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
     )
 
 
+@guild_api
+async def _api_stats_activity(request: web.Request, guild_id: int) -> web.Response:
+    """Actividad reciente del corpus para la tab Estadísticas del dashboard:
+    mensajes por día (últimos 14), quién alimenta más el corpus y las
+    palabras más frecuentes. Separado de _api_stats porque tokenizar una
+    muestra del corpus es más caro que el resto de las métricas de esa tab,
+    que se piden mucho más seguido (cada vez que se abre el dashboard)."""
+    sample = await get_corpus_messages(guild_id, limit=5000)
+    return web.json_response(
+        {
+            "by_day": await count_corpus_messages_by_day(guild_id, days=14),
+            "top_contributors": [
+                {
+                    "author_id": str(c["author_id"]),
+                    "author_name": c["author_name"],
+                    "count": c["count"],
+                }
+                for c in await top_corpus_contributors(guild_id, limit=5)
+            ],
+            "top_words": generation.top_corpus_words(sample, limit=15),
+        }
+    )
+
+
 # ---------------- API: audit log ----------------
 
 
@@ -2860,6 +2894,119 @@ async def _api_youtube_patch(request: web.Request, guild_id: int) -> web.Respons
     return web.json_response({"updated": updated})
 
 
+# ---------------- API: Twitch (suscripciones, tab del dashboard) ----------------
+
+# Paridad con la categoría Twitch de /settings (cogs/settings.py ->
+# TwitchCategory) y con la API de YouTube de arriba -- misma forma, mismo
+# estilo de aviso de last_error. Único agregado real: TWITCH_NOT_CONFIGURED,
+# porque a diferencia de YouTube esta integración depende de credenciales
+# opcionales (TWITCH_CLIENT_ID/TWITCH_CLIENT_SECRET) que el bot puede no
+# tener -- sin eso, "no se pudo resolver el canal" sería un mensaje confuso
+# (sugiere revisar el nombre cuando el problema es de configuración del bot).
+
+
+def _twitch_sub_json(guild, s: dict) -> dict:
+    return {
+        "id": s["id"],
+        "twitch_user_id": s["twitch_user_id"],
+        "twitch_login": s["twitch_login"],
+        "discord_channel_id": str(s["discord_channel_id"]),
+        "discord_channel_name": _channel_name(guild, s["discord_channel_id"]),
+        "mention_role_id": str(s["mention_role_id"]) if s["mention_role_id"] else None,
+        "last_error": s["last_error"],
+    }
+
+
+@guild_api
+async def _api_twitch_get(request: web.Request, guild_id: int) -> web.Response:
+    guild = _bot_guild(request, guild_id)
+    subs = await list_twitch_subs(guild_id)
+    return web.json_response(
+        {
+            "configured": twitch_is_configured(),
+            "subscriptions": [_twitch_sub_json(guild, s) for s in subs],
+        }
+    )
+
+
+@guild_api
+async def _api_twitch_post(request: web.Request, guild_id: int) -> web.Response:
+    if not twitch_is_configured():
+        return web.json_response(
+            {"error": "Purgito no tiene configurada la integración con Twitch"},
+            status=503,
+        )
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_post, ip, 5):
+        return web.json_response({"error": "rate limit"}, status=429)
+    data = await _json_body(request)
+    channel_login = (data.get("channel_login") or "").strip() if data else ""
+    discord_channel_id = _to_int(data.get("discord_channel_id")) if data else None
+    if not channel_login or discord_channel_id is None:
+        return web.json_response(
+            {"error": "channel_login y discord_channel_id son obligatorios"},
+            status=400,
+        )
+    try:
+        resolved = await resolve_twitch_channel(channel_login)
+    except TwitchNotConfigured:
+        return web.json_response(
+            {"error": "Purgito no tiene configurada la integración con Twitch"},
+            status=503,
+        )
+    if resolved is None:
+        return web.json_response(
+            {"error": "No se pudo obtener información del canal. Verifica el nombre."},
+            status=400,
+        )
+    added = await add_twitch_sub(
+        guild_id, resolved["id"], resolved["login"], discord_channel_id
+    )
+    if added:
+        await _log_audit(request, guild_id, "twitch.add", detail=resolved["login"])
+    return web.json_response({"added": added})
+
+
+@guild_api
+async def _api_twitch_delete(request: web.Request, guild_id: int) -> web.Response:
+    ip = _client_ip(request)
+    if not _rate_ok(_rate_delete, ip, 3):
+        return web.json_response({"error": "rate limit"}, status=429)
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    removed = await remove_twitch_sub_by_id(guild_id, sub_id)
+    if removed:
+        await _log_audit(request, guild_id, "twitch.remove", detail=f"sub_id={sub_id}")
+    return web.json_response({"removed": removed})
+
+
+@guild_api
+async def _api_twitch_patch(request: web.Request, guild_id: int) -> web.Response:
+    sub_id = _to_int(request.match_info.get("sub_id"))
+    if sub_id is None:
+        return web.json_response({"error": "id inválido"}, status=400)
+    data = await _json_body(request)
+    if data is None or "mention_role_id" not in data:
+        return web.json_response(
+            {"error": "mention_role_id es obligatorio"}, status=400
+        )
+    role_id = None
+    if data["mention_role_id"] is not None:
+        role_id = _to_int(data["mention_role_id"])
+        if role_id is None:
+            return web.json_response({"error": "mention_role_id inválido"}, status=400)
+    updated = await set_twitch_mention_role_by_id(guild_id, sub_id, role_id)
+    if updated:
+        await _log_audit(
+            request,
+            guild_id,
+            "twitch.update_mention_role",
+            detail=f"sub_id={sub_id} role_id={role_id}",
+        )
+    return web.json_response({"updated": updated})
+
+
 # ---------------- API: RSS / Feeds ----------------
 
 
@@ -3519,6 +3666,60 @@ async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"sent": True})
 
 
+def _parse_announcement_schedule(
+    data: dict,
+) -> tuple[str, int | None, int | None, int | None, list[int] | None] | web.Response:
+    """Valida mode/interval_minutes/hour/minute/weekdays de un anuncio
+    programado: (mode, interval_minutes, hour, minute, weekdays) o una
+    respuesta de error. Compartido entre los tres lugares que crean o
+    actualizan un anuncio (embed, texto plano, PUT) -- antes esta
+    validación estaba triplicada, cada copia con su propio riesgo de
+    divergir silenciosamente de las otras dos.
+
+    weekly reusa exactamente la validación de hour/minute de daily y le
+    suma weekdays: lista no vacía de enteros 0-6 (lunes=0, mismo criterio
+    que datetime.weekday())."""
+    mode = data.get("mode")
+    interval_minutes = hour = minute = None
+    weekdays = None
+    if mode == "interval":
+        interval_minutes = _to_int(data.get("interval_minutes"))
+        # Mismo rango que la UI de anuncios de /settings (5-1440 minutos).
+        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
+            return web.json_response(
+                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
+            )
+    elif mode in ("daily", "weekly"):
+        hour = _to_int(data.get("hour"))
+        minute = _to_int(data.get("minute"))
+        if (
+            hour is None
+            or minute is None
+            or not (0 <= hour <= 23 and 0 <= minute <= 59)
+        ):
+            return web.json_response(
+                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
+            )
+        if mode == "weekly":
+            raw_weekdays = data.get("weekdays")
+            if not isinstance(raw_weekdays, list) or not raw_weekdays:
+                return web.json_response(
+                    {"error": "elige al menos un día de la semana"}, status=400
+                )
+            parsed_weekdays = [_to_int(d) for d in raw_weekdays]
+            if any(d is None or not (0 <= d <= 6) for d in parsed_weekdays):
+                return web.json_response(
+                    {"error": "weekdays debe ser una lista de números 0-6 (lunes=0)"},
+                    status=400,
+                )
+            weekdays = parsed_weekdays
+    else:
+        return web.json_response(
+            {"error": "mode debe ser 'interval', 'daily' o 'weekly'"}, status=400
+        )
+    return mode, interval_minutes, hour, minute, weekdays
+
+
 @guild_api
 async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Response:
     """Programa un embed como anuncio (misma tabla/worker que los anuncios de
@@ -3551,31 +3752,11 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         await _register_role_buttons(request.app["bot"], guild_id, assignments)
         payload = json.dumps(layout)
 
-    # `mode` es la cadencia del anuncio (interval/daily), distinta de content_mode.
-    mode = data.get("mode")
-    interval_minutes = hour = minute = None
-    if mode == "interval":
-        interval_minutes = _to_int(data.get("interval_minutes"))
-        # Mismo rango que la UI de anuncios de /settings (5-1440 minutos).
-        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
-            return web.json_response(
-                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
-            )
-    elif mode == "daily":
-        hour = _to_int(data.get("hour"))
-        minute = _to_int(data.get("minute"))
-        if (
-            hour is None
-            or minute is None
-            or not (0 <= hour <= 23 and 0 <= minute <= 59)
-        ):
-            return web.json_response(
-                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
-            )
-    else:
-        return web.json_response(
-            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
-        )
+    # `mode` es la cadencia del anuncio (interval/daily/weekly), distinta de content_mode.
+    parsed_schedule = _parse_announcement_schedule(data)
+    if isinstance(parsed_schedule, web.Response):
+        return parsed_schedule
+    mode, interval_minutes, hour, minute, weekdays = parsed_schedule
 
     delete_after = _to_int(data.get("delete_after_seconds"))
     if delete_after is not None and not (1 <= delete_after <= 86400):
@@ -3596,6 +3777,7 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
         embed_json=payload,
         content_mode=content_mode,
         delete_after_seconds=delete_after,
+        weekdays=weekdays,
     )
     if new_id is None:
         return web.json_response(
@@ -3675,29 +3857,10 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
     if denied is not None:
         return denied
 
-    mode = data.get("mode")
-    interval_minutes = hour = minute = None
-    if mode == "interval":
-        interval_minutes = _to_int(data.get("interval_minutes"))
-        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
-            return web.json_response(
-                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
-            )
-    elif mode == "daily":
-        hour = _to_int(data.get("hour"))
-        minute = _to_int(data.get("minute"))
-        if (
-            hour is None
-            or minute is None
-            or not (0 <= hour <= 23 and 0 <= minute <= 59)
-        ):
-            return web.json_response(
-                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
-            )
-    else:
-        return web.json_response(
-            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
-        )
+    parsed_schedule = _parse_announcement_schedule(data)
+    if isinstance(parsed_schedule, web.Response):
+        return parsed_schedule
+    mode, interval_minutes, hour, minute, weekdays = parsed_schedule
 
     delete_after = _to_int(data.get("delete_after_seconds"))
     if delete_after is not None and not (1 <= delete_after <= 86400):
@@ -3718,6 +3881,7 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
         embed_json=None,
         content_mode="plain_text",
         delete_after_seconds=delete_after,
+        weekdays=weekdays,
     )
     if new_id is None:
         return web.json_response(
@@ -3773,29 +3937,10 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
     if denied is not None:
         return denied
 
-    mode = data.get("mode")
-    interval_minutes = hour = minute = None
-    if mode == "interval":
-        interval_minutes = _to_int(data.get("interval_minutes"))
-        if interval_minutes is None or not (5 <= interval_minutes <= 1440):
-            return web.json_response(
-                {"error": "interval_minutes debe estar entre 5 y 1440"}, status=400
-            )
-    elif mode == "daily":
-        hour = _to_int(data.get("hour"))
-        minute = _to_int(data.get("minute"))
-        if (
-            hour is None
-            or minute is None
-            or not (0 <= hour <= 23 and 0 <= minute <= 59)
-        ):
-            return web.json_response(
-                {"error": "hora inválida (HH 0-23, MM 0-59)"}, status=400
-            )
-    else:
-        return web.json_response(
-            {"error": "mode debe ser 'interval' o 'daily'"}, status=400
-        )
+    parsed_schedule = _parse_announcement_schedule(data)
+    if isinstance(parsed_schedule, web.Response):
+        return parsed_schedule
+    mode, interval_minutes, hour, minute, weekdays = parsed_schedule
 
     delete_after = _to_int(data.get("delete_after_seconds"))
     if delete_after is not None and not (1 <= delete_after <= 86400):
@@ -3815,6 +3960,7 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
         embed_json=None,
         content_mode="plain_text",
         delete_after_seconds=delete_after,
+        weekdays=weekdays,
     )
     if not ok:
         return web.json_response(
@@ -5648,6 +5794,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get(f"{base}/roles", _api_roles)
         app.router.add_get(f"{base}/emojis", _api_emojis)
         app.router.add_get(f"{base}/stats", _api_stats)
+        app.router.add_get(f"{base}/stats/activity", _api_stats_activity)
         app.router.add_get(f"{base}/tasks", _api_server_tasks_get)
         app.router.add_get(f"{base}/style", _api_style_get)
         app.router.add_put(f"{base}/style", _api_style_put)
@@ -5774,6 +5921,10 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_post(f"{base}/youtube", _api_youtube_post)
         app.router.add_delete(f"{base}/youtube/{{sub_id}}", _api_youtube_delete)
         app.router.add_patch(f"{base}/youtube/{{sub_id}}", _api_youtube_patch)
+        app.router.add_get(f"{base}/twitch", _api_twitch_get)
+        app.router.add_post(f"{base}/twitch", _api_twitch_post)
+        app.router.add_delete(f"{base}/twitch/{{sub_id}}", _api_twitch_delete)
+        app.router.add_patch(f"{base}/twitch/{{sub_id}}", _api_twitch_patch)
         app.router.add_get(f"{base}/rss", _api_rss_get)
         app.router.add_post(f"{base}/rss", _api_rss_post)
         app.router.add_delete(f"{base}/rss/{{sub_id}}", _api_rss_delete)

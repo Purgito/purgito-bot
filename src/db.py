@@ -207,6 +207,18 @@ CREATE TABLE IF NOT EXISTS youtube_subscriptions (
     UNIQUE(guild_id, youtube_channel_id)
 );
 
+CREATE TABLE IF NOT EXISTS twitch_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    twitch_user_id TEXT NOT NULL,
+    twitch_login TEXT NOT NULL,
+    last_stream_id TEXT,
+    discord_channel_id INTEGER NOT NULL,
+    mention_role_id INTEGER,
+    last_error TEXT,
+    UNIQUE(guild_id, twitch_user_id)
+);
+
 CREATE TABLE IF NOT EXISTS rss_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER NOT NULL,
@@ -273,7 +285,8 @@ CREATE TABLE IF NOT EXISTS scheduled_announcements (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     embed_json TEXT DEFAULT NULL,
     content_mode TEXT NOT NULL DEFAULT 'classic_embed',
-    delete_after_seconds INTEGER
+    delete_after_seconds INTEGER,
+    weekdays TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_scheduled_announcements_guild ON scheduled_announcements(guild_id);
 
@@ -857,6 +870,16 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna delete_after_seconds ya existe en scheduled_announcements")
+    # Modo 'weekly': mismo hour/minute que 'daily', más esta lista de días
+    # (CSV de 0-6, Monday=0 -- mismo criterio que datetime.weekday()) para
+    # postear solo ciertos días de la semana en vez de todos.
+    try:
+        await _db.execute(
+            "ALTER TABLE scheduled_announcements ADD COLUMN weekdays TEXT"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna weekdays ya existe en scheduled_announcements")
     # Separación Eventos/Plantillas: un evento puede referenciar una plantilla en
     # vez de guardar su propio contenido. template_id NULL = comportamiento legacy
     # sin cambios (contenido inline en message/embed_json, como siempre).
@@ -902,6 +925,15 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna channel_id ya existe en user_corpus")
+    # Mismo patrón que youtube_subscriptions.last_error: auto_meme_task
+    # saltaba un canal en silencio cada 10 min si no había imágenes en el
+    # pool o el corpus estaba vacío (AUDITORIA_UX.md #8) -- esto guarda esa
+    # transición para avisar una sola vez, no en cada corrida.
+    try:
+        await _db.execute("ALTER TABLE meme_schedule ADD COLUMN last_error TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna last_error ya existe en meme_schedule")
     await _db.commit()
     flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
     if not os.path.exists(flag_path):
@@ -1395,6 +1427,41 @@ async def delete_user_data(author_id: int) -> dict:
         len(guild_ids),
     )
     return report
+
+
+async def export_user_data(author_id: int) -> dict[int, list[dict]]:
+    """Complemento de solo lectura de delete_user_data, para /mis_datos: el
+    mismo corpus de estilo (user_corpus) que el borrado alcanza, pero sin
+    tocarlo. Agrupado por guild_id porque es como lo consume el comando (un
+    bloque por servidor en el JSON exportado).
+
+    A diferencia de delete_user_data, no toca corpus_messages: esa tabla es
+    la copia colectiva del mensaje (de todo el que la lea, no de un autor
+    en particular) y no le pertenece a nadie individualmente -- no hay nada
+    de ahí que "exportar" en un pedido de datos personales.
+
+    Mismo principio de seguridad que delete_user_data: confía en author_id
+    tal cual se lo pasan, es responsabilidad del llamador que sea
+    interaction.user.id o el equivalente autenticado, nunca un valor que el
+    propio usuario elija.
+    """
+    db = await get_db()
+    async with db.execute(
+        "SELECT guild_id, channel_id, content, created_at FROM user_corpus "
+        "WHERE author_id=? ORDER BY guild_id, created_at",
+        (author_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    by_guild: dict[int, list[dict]] = {}
+    for guild_id, channel_id, content, created_at in rows:
+        by_guild.setdefault(guild_id, []).append(
+            {
+                "channel_id": channel_id,
+                "content": content,
+                "created_at": created_at,
+            }
+        )
+    return by_guild
 
 
 async def count_guild_corpus_messages(guild_id: int) -> int:
@@ -2369,6 +2436,171 @@ async def set_youtube_mention_role_by_id(
     return updated
 
 
+# ─── Twitch (avisos de "en vivo") ────────────────────────────────────────────
+# Mismo esquema que youtube_subscriptions: last_stream_id juega el rol de
+# last_video_id (compara contra el id del stream actual, no un booleano
+# "está en vivo", así un stream que sigue en vivo entre dos chequeos no
+# reavisa, y uno nuevo que arranca sí -- ver cogs/twitch.py.check_twitch).
+
+
+async def add_twitch_sub(
+    guild_id: int,
+    twitch_user_id: str,
+    twitch_login: str,
+    discord_channel_id: int,
+    mention_role_id: int | None = None,
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "INSERT OR IGNORE INTO twitch_subscriptions "
+            "(guild_id, twitch_user_id, twitch_login, discord_channel_id, mention_role_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                guild_id,
+                twitch_user_id,
+                twitch_login,
+                discord_channel_id,
+                mention_role_id,
+            ),
+        )
+        inserted = _was_inserted(cursor)
+        await db.commit()
+    return inserted
+
+
+async def remove_twitch_sub(guild_id: int, twitch_user_id: str) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM twitch_subscriptions WHERE guild_id=? AND twitch_user_id=?",
+            (guild_id, twitch_user_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def remove_twitch_sub_by_id(guild_id: int, sub_id: int) -> bool:
+    """Igual que remove_twitch_sub pero por id interno -- lo usa el
+    dashboard web (ver remove_youtube_sub_by_id)."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM twitch_subscriptions WHERE guild_id=? AND id=?",
+            (guild_id, sub_id),
+        )
+        removed = cursor.rowcount > 0
+        await db.commit()
+    return removed
+
+
+async def list_twitch_subs(guild_id: int) -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, twitch_user_id, twitch_login, last_stream_id, "
+        "discord_channel_id, mention_role_id, last_error "
+        "FROM twitch_subscriptions WHERE guild_id=?",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "guild_id": r[1],
+            "twitch_user_id": r[2],
+            "twitch_login": r[3],
+            "last_stream_id": r[4],
+            "discord_channel_id": r[5],
+            "mention_role_id": r[6],
+            "last_error": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def get_all_twitch_subs() -> list[dict]:
+    db = await get_db()
+    async with db.execute(
+        "SELECT id, guild_id, twitch_user_id, twitch_login, last_stream_id, "
+        "discord_channel_id, mention_role_id, last_error FROM twitch_subscriptions"
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "guild_id": r[1],
+            "twitch_user_id": r[2],
+            "twitch_login": r[3],
+            "last_stream_id": r[4],
+            "discord_channel_id": r[5],
+            "mention_role_id": r[6],
+            "last_error": r[7],
+        }
+        for r in rows
+    ]
+
+
+async def update_last_stream_id(
+    guild_id: int, twitch_user_id: str, stream_id: str
+) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE twitch_subscriptions SET last_stream_id=? WHERE guild_id=? AND twitch_user_id=?",
+            (stream_id, guild_id, twitch_user_id),
+        )
+        await db.commit()
+
+
+TWITCH_ERROR_NO_PERMISSION = "sin_permiso"
+TWITCH_ERROR_CHANNEL_NOT_FOUND = "canal_no_encontrado"
+
+
+async def set_twitch_sub_error(
+    guild_id: int, twitch_user_id: str, error: str | None
+) -> None:
+    """error es None, TWITCH_ERROR_NO_PERMISSION o TWITCH_ERROR_CHANNEL_NOT_FOUND.
+    Ver cogs/twitch.py.check_twitch."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE twitch_subscriptions SET last_error=? WHERE guild_id=? AND twitch_user_id=?",
+            (error, guild_id, twitch_user_id),
+        )
+        await db.commit()
+
+
+async def set_twitch_mention_role(
+    guild_id: int, twitch_user_id: str, role_id: int | None
+) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE twitch_subscriptions SET mention_role_id=? WHERE guild_id=? AND twitch_user_id=?",
+            (role_id, guild_id, twitch_user_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
+async def set_twitch_mention_role_by_id(
+    guild_id: int, sub_id: int, role_id: int | None
+) -> bool:
+    """Igual que set_twitch_mention_role pero por id interno -- ver
+    remove_twitch_sub_by_id."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "UPDATE twitch_subscriptions SET mention_role_id=? WHERE guild_id=? AND id=?",
+            (role_id, guild_id, sub_id),
+        )
+        updated = cursor.rowcount > 0
+        await db.commit()
+    return updated
+
+
 # ---------- Suscripciones RSS/Atom genéricas ----------
 
 RSS_ERROR_NO_PERMISSION = "sin_permiso"
@@ -3116,6 +3348,37 @@ async def count_corpus_by_channel(guild_id: int) -> list[dict]:
     return [{"channel_id": r[0], "count": r[1]} for r in rows]
 
 
+async def count_corpus_messages_by_day(guild_id: int, days: int = 14) -> list[dict]:
+    """Mensajes aprendidos por día, de los últimos `days` días (incluyendo
+    hoy), orden ascendente por fecha -- para el gráfico de actividad reciente
+    de la tab Estadísticas."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT DATE(created_at) AS day, COUNT(*) FROM corpus_messages "
+        "WHERE guild_id=? AND created_at >= datetime('now', ?) "
+        "GROUP BY day ORDER BY day ASC",
+        (guild_id, f"-{days} days"),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"day": r[0], "count": r[1]} for r in rows]
+
+
+async def top_corpus_contributors(guild_id: int, limit: int = 5) -> list[dict]:
+    """Quiénes alimentaron más el corpus por usuario (user_corpus), de mayor
+    a menor -- para "quién alimenta más el corpus" en la tab Estadísticas.
+    author_name es el nombre guardado al momento del mensaje, puede estar
+    desactualizado si la persona cambió de nombre después (mismo trade-off
+    que el resto de author_name guardados en el corpus)."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT author_id, author_name, COUNT(*) AS n FROM user_corpus "
+        "WHERE guild_id=? GROUP BY author_id ORDER BY n DESC LIMIT ?",
+        (guild_id, limit),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"author_id": r[0], "author_name": r[1], "count": r[2]} for r in rows]
+
+
 async def get_bot_style(guild_id: int) -> dict:
     db = await get_db()
     async with db.execute(
@@ -3183,12 +3446,18 @@ async def remove_meme_schedule(guild_id: int, channel_id: int) -> bool:
 async def list_meme_schedules(guild_id: int) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT channel_id, interval_minutes, last_posted_at FROM meme_schedule WHERE guild_id=? ORDER BY channel_id",
+        "SELECT channel_id, interval_minutes, last_posted_at, last_error "
+        "FROM meme_schedule WHERE guild_id=? ORDER BY channel_id",
         (guild_id,),
     ) as cursor:
         rows = await cursor.fetchall()
     return [
-        {"channel_id": r[0], "interval_minutes": r[1], "last_posted_at": r[2]}
+        {
+            "channel_id": r[0],
+            "interval_minutes": r[1],
+            "last_posted_at": r[2],
+            "last_error": r[3],
+        }
         for r in rows
     ]
 
@@ -3196,13 +3465,19 @@ async def list_meme_schedules(guild_id: int) -> list[dict]:
 async def get_due_meme_schedules() -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT guild_id, channel_id, interval_minutes FROM meme_schedule "
+        "SELECT guild_id, channel_id, interval_minutes, last_error FROM meme_schedule "
         "WHERE last_posted_at IS NULL "
         "   OR datetime(last_posted_at, '+' || interval_minutes || ' minutes') <= datetime('now')"
     ) as cursor:
         rows = await cursor.fetchall()
     return [
-        {"guild_id": r[0], "channel_id": r[1], "interval_minutes": r[2]} for r in rows
+        {
+            "guild_id": r[0],
+            "channel_id": r[1],
+            "interval_minutes": r[2],
+            "last_error": r[3],
+        }
+        for r in rows
     ]
 
 
@@ -3214,6 +3489,38 @@ async def update_meme_last_posted(guild_id: int, channel_id: int) -> None:
             (guild_id, channel_id),
         )
         await db.commit()
+
+
+MEME_SCHEDULE_ERROR_NO_POOL_IMAGES = "sin_imagenes"
+MEME_SCHEDULE_ERROR_EMPTY_CORPUS = "corpus_vacio"
+
+
+async def set_meme_schedule_error(
+    guild_id: int, channel_id: int, error: str | None
+) -> None:
+    """Marca (o limpia, con error=None) por qué auto_meme_task viene
+    salteando este canal: MEME_SCHEDULE_ERROR_NO_POOL_IMAGES o
+    MEME_SCHEDULE_ERROR_EMPTY_CORPUS. Mismo patrón que
+    set_youtube_sub_error -- ver cogs/memes.py.auto_meme_task."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE meme_schedule SET last_error=? WHERE guild_id=? AND channel_id=?",
+            (error, guild_id, channel_id),
+        )
+        await db.commit()
+
+
+def _weekdays_to_csv(weekdays: list[int] | None) -> str | None:
+    if not weekdays:
+        return None
+    return ",".join(str(d) for d in sorted(set(weekdays)))
+
+
+def _weekdays_from_csv(raw: str | None) -> list[int] | None:
+    if not raw:
+        return None
+    return [int(d) for d in raw.split(",") if d.strip() != ""]
 
 
 async def add_scheduled_announcement(
@@ -3228,6 +3535,7 @@ async def add_scheduled_announcement(
     embed_json: str | None = None,
     content_mode: str = "plain_text",
     delete_after_seconds: int | None = None,
+    weekdays: list[int] | None = None,
 ) -> int | None:
     """Crea un anuncio programado. Devuelve el id insertado, o None si el guild
     ya llegó al límite de anuncios (a diferencia de gifs/imágenes, acá no se
@@ -3239,7 +3547,10 @@ async def add_scheduled_announcement(
 
     delete_after_seconds None = el mensaje enviado queda (comportamiento
     clásico); con valor, el loop de anuncios lo pasa como delete_after de
-    discord.py."""
+    discord.py.
+
+    weekdays solo aplica a mode='weekly' (lista de 0-6, Monday=0) -- se
+    ignora para 'interval'/'daily', ver get_due_scheduled_announcements."""
     if content_mode == "plain_text" and embed_json:
         content_mode = "classic_embed"
     max_announcements = _limit_for_guild(
@@ -3260,8 +3571,8 @@ async def add_scheduled_announcement(
             return None
         cursor = await db.execute(
             "INSERT INTO scheduled_announcements "
-            "(guild_id, channel_id, message, mode, interval_minutes, hour, minute, created_by, embed_json, content_mode, delete_after_seconds) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(guild_id, channel_id, message, mode, interval_minutes, hour, minute, created_by, embed_json, content_mode, delete_after_seconds, weekdays) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 guild_id,
                 channel_id,
@@ -3274,6 +3585,7 @@ async def add_scheduled_announcement(
                 embed_json,
                 content_mode,
                 delete_after_seconds,
+                _weekdays_to_csv(weekdays),
             ),
         )
         await db.commit()
@@ -3296,7 +3608,7 @@ async def list_scheduled_announcements(guild_id: int) -> list[dict]:
     db = await get_db()
     async with db.execute(
         "SELECT id, channel_id, message, mode, interval_minutes, hour, minute, "
-        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds "
+        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements WHERE guild_id=? ORDER BY id",
         (guild_id,),
     ) as cursor:
@@ -3316,6 +3628,7 @@ async def list_scheduled_announcements(guild_id: int) -> list[dict]:
             "embed_json": r[10],
             "content_mode": r[11],
             "delete_after_seconds": r[12],
+            "weekdays": _weekdays_from_csv(r[13]),
         }
         for r in rows
     ]
@@ -3327,7 +3640,7 @@ async def get_scheduled_announcement(
     db = await get_db()
     async with db.execute(
         "SELECT id, channel_id, message, mode, interval_minutes, hour, minute, "
-        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds "
+        "last_sent_at, created_by, created_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements WHERE guild_id=? AND id=?",
         (guild_id, announcement_id),
     ) as cursor:
@@ -3348,6 +3661,7 @@ async def get_scheduled_announcement(
         "embed_json": r[10],
         "content_mode": r[11],
         "delete_after_seconds": r[12],
+        "weekdays": _weekdays_from_csv(r[13]),
     }
 
 
@@ -3363,6 +3677,7 @@ async def update_scheduled_announcement(
     embed_json: str | None = None,
     content_mode: str = "plain_text",
     delete_after_seconds: int | None = None,
+    weekdays: list[int] | None = None,
 ) -> bool:
     if content_mode == "plain_text" and embed_json:
         content_mode = "classic_embed"
@@ -3371,7 +3686,7 @@ async def update_scheduled_announcement(
         cursor = await db.execute(
             "UPDATE scheduled_announcements SET "
             "channel_id=?, message=?, mode=?, interval_minutes=?, hour=?, minute=?, "
-            "embed_json=?, content_mode=?, delete_after_seconds=? "
+            "embed_json=?, content_mode=?, delete_after_seconds=?, weekdays=? "
             "WHERE guild_id=? AND id=?",
             (
                 channel_id,
@@ -3383,6 +3698,7 @@ async def update_scheduled_announcement(
                 embed_json,
                 content_mode,
                 delete_after_seconds,
+                _weekdays_to_csv(weekdays),
                 guild_id,
                 announcement_id,
             ),
@@ -3415,15 +3731,18 @@ async def get_scheduled_announcements_quota(guild_id: int) -> tuple[int, int, bo
 
 async def get_due_scheduled_announcements() -> list[dict]:
     """Anuncios listos para enviarse. El modo interval se resuelve en SQL;
-    el modo daily se evalúa acá en Python contra la timezone configurada,
-    porque hay que comparar hora:minuto y la FECHA local (no solo un delta)."""
+    daily y weekly se evalúan acá en Python contra la timezone configurada,
+    porque hay que comparar hora:minuto y la FECHA local (no solo un delta).
+    weekly es literalmente daily + un chequeo extra de día de la semana --
+    misma comparación de hora/última vez enviada, filtrada primero por si
+    hoy es uno de los días configurados."""
     db = await get_db()
     async with db.execute(
-        "SELECT id, guild_id, channel_id, message, mode, interval_minutes, hour, minute, last_sent_at, embed_json, content_mode, delete_after_seconds "
+        "SELECT id, guild_id, channel_id, message, mode, interval_minutes, hour, minute, last_sent_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements "
         "WHERE (mode='interval' AND (last_sent_at IS NULL "
         "       OR datetime(last_sent_at, '+' || interval_minutes || ' minutes') <= datetime('now'))) "
-        "   OR mode='daily'"
+        "   OR mode='daily' OR mode='weekly'"
     ) as cursor:
         rows = await cursor.fetchall()
 
@@ -3443,10 +3762,17 @@ async def get_due_scheduled_announcements() -> list[dict]:
             "embed_json": r[9],
             "content_mode": r[10],
             "delete_after_seconds": r[11],
+            "weekdays": _weekdays_from_csv(r[12]),
         }
         if item["mode"] == "interval":
             due.append(item)
             continue
+        if item["mode"] == "weekly":
+            # weekdays vacío/None es un estado inválido (no debería poder
+            # crearse desde la API), no "todos los días" -- más seguro
+            # fallar cerrado que postear en un día que nadie configuró.
+            if not item["weekdays"] or now_local.weekday() not in item["weekdays"]:
+                continue
         if (now_local.hour, now_local.minute) < (item["hour"], item["minute"]):
             continue
         if item["last_sent_at"]:
@@ -4926,7 +5252,7 @@ async def list_audit_log_page(
                     "(action LIKE 'embed_template%' OR action LIKE 'embeds%')"
                 )
             elif cat == "integraciones":
-                conditions.append("action LIKE 'youtube%'")
+                conditions.append("(action LIKE 'youtube%' OR action LIKE 'twitch%')")
             elif cat == "otros":
                 conditions.append("action LIKE 'style%'")
             else:
@@ -5480,6 +5806,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "corpus_gifs",
         "corpus_images",
         "youtube_subscriptions",
+        "twitch_subscriptions",
         "rss_subscriptions",
         "ignored_channels",
         "meme_schedule",

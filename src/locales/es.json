@@ -69,6 +69,25 @@
   "settings.youtube.error_no_permission": "Purgito no tiene permiso para escribir en este canal",
   "settings.youtube.error_channel_not_found": "El canal configurado ya no existe",
 
+  "settings.cat.twitch.label": "Twitch",
+  "settings.cat.twitch.desc": "Avisos de transmisiones en vivo",
+  "settings.cat.twitch.title": "Avisos de Twitch",
+  "settings.twitch.body": "Suscripciones activas de este servidor.",
+  "settings.twitch.none": "No hay suscripciones activas.",
+  "settings.twitch.not_configured": "Purgito no tiene configurada la integración con Twitch en este momento.",
+  "settings.twitch.remove_placeholder": "Eliminar una suscripción…",
+  "settings.twitch.btn_add": "Agregar canal",
+  "settings.twitch.add_modal_title": "Agregar canal de Twitch",
+  "settings.twitch.add_modal_field": "Nombre de usuario o URL del canal de Twitch",
+  "settings.twitch.add_channel_placeholder": "Elige el canal de Discord destino…",
+  "settings.twitch.add_pending_hint": "Elige abajo el canal de Discord donde se avisará cuando empiece a transmitir.",
+  "settings.twitch.add_invalid": "No se pudo obtener información del canal. Verifica el nombre de usuario.",
+  "settings.twitch.mention_placeholder": "Elegir suscripción para configurar mención…",
+  "settings.twitch.mention_role_placeholder": "Elegir rol de mención (vacío = quitar mención)…",
+  "settings.twitch.mention_pending_hint": "Elige abajo el rol a mencionar (déjalo vacío para quitar la mención).",
+  "settings.twitch.error_no_permission": "Purgito no tiene permiso para escribir en este canal",
+  "settings.twitch.error_channel_not_found": "El canal configurado ya no existe",
+
   "settings.cat.memes.label": "Memes automáticos",
   "settings.cat.memes.desc": "Canales con memes programados (premium)",
   "settings.cat.memes.title": "Memes automáticos ⭐",
@@ -82,6 +101,8 @@
   "settings.memes.activate_channel_placeholder": "Elige el canal destino…",
   "settings.memes.activate_pending_hint": "Elige abajo el canal donde se postearán los memes.",
   "settings.memes.activate_invalid": "El intervalo debe ser un número entre 2 y 24.",
+  "settings.memes.error_no_pool_images": "sin fotos guardadas, reacciona con 🎯 a una imagen para agregarla",
+  "settings.memes.error_empty_corpus": "todavía no aprendí suficientes mensajes de este servidor",
 
   "settings.cat.anuncios.label": "Anuncios",
   "settings.cat.anuncios.desc": "Mensajes automáticos programados a un canal",
@@ -168,6 +189,7 @@
   "commands.gif_add.description": "Guarda un GIF en la colección del servidor.",
   "commands.generar.description": "Genera un mensaje usando lo que Purgito aprendió del servidor.",
   "commands.imitar.description": "Intenta escribir como un miembro del servidor.",
+  "commands.imitar_mezcla.description": "Mezcla el estilo de dos miembros del servidor.",
   "commands.refeed.description": "Hace que Purgito aprenda del historial del canal actual.",
   "commands.refeed_channels.description": "Hace que Purgito aprenda del historial de los canales configurados.",
   "commands.corpus_info.description": "Muestra cuántos mensajes ha aprendido Purgito en este canal.",
@@ -202,6 +224,8 @@
   "memes.pool_reason.oversized": "La imagen supera el límite de {mb} MB.",
   "memes.pool_reason.unsupported": "Ese formato no es compatible (acepto png, jpg, jpeg y webp).",
   "memes.pool_reason.no_image": "Ese mensaje no tiene ninguna imagen adjunta.",
+  "memes.auto_meme_muted.no_pool_images": "Quiero mandar memes automáticos acá, pero todavía no tengo fotos guardadas — reacciona con 🎯 a una imagen en cualquier mensaje para agregarla.",
+  "memes.auto_meme_muted.empty_corpus": "Quiero mandar memes automáticos acá, pero todavía no aprendí suficientes mensajes de este servidor. Cuando haya más conversación, lo vuelvo a intentar solo.",
 
   "layout_buttons.invalid_context": "Este botón no es válido en este contexto.",
   "layout_buttons.role_gone": "Ese rol ya no existe.",
@@ -217,6 +241,9 @@
   "chat.imitar_not_enough_messages": "**{user}** solo tiene {count} mensaje(s) aprendidos. Se necesitan al menos 30 para imitar su estilo.",
   "chat.imitar_generation_failed": "No se pudo generar un mensaje para **{user}**. Intenta de nuevo más tarde.",
   "chat.imitar_result": "**{user}** diría: \"{text}\"",
+  "chat.imitar_mezcla_same_user": "Elige dos usuarios distintos para mezclar sus estilos.",
+  "chat.imitar_mezcla_generation_failed": "No se pudo generar un mensaje mezclando a **{user1}** y **{user2}**. Intenta de nuevo más tarde.",
+  "chat.imitar_mezcla_result": "**{user1}** + **{user2}** dirían: \"{text}\"",
   "chat.channel_visible_report": "Ya pude leer {channel}: {saved} mensajes nuevos aprendidos.",
 
   "chat.refeed.cannot_read_history": "No puedo leer el historial de este canal.",
@@ -238,6 +265,7 @@
   "chat.corpus_info.needs_more": "Se necesitan al menos 50 mensajes para generar respuestas variadas.",
 
   "youtube.new_video": "📺 **{author}** subió un video nuevo!\n**{title}**\n{url}",
+  "twitch.now_live": "🔴 **{login}** está en vivo!\n**{title}**\n{url}",
   "rss.new_item": "📰 **{feed_title}** publicó una nueva entrada:\n**{title}**\n{url}",
 
   "api.errors.access_denied": "acceso denegado",
@@ -332,6 +360,7 @@
   "help.cat.chat.label": "Generar y chat",
   "help.cat.chat.cmd.generar": "Genera un mensaje usando lo que Purgito aprendió",
   "help.cat.chat.cmd.imitar": "Intenta escribir como un miembro del servidor",
+  "help.cat.chat.cmd.imitar_mezcla": "Mezcla el estilo de dos miembros del servidor",
   "help.cat.chat.cmd.corpus_info": "Muestra cuántos mensajes se han aprendido en este canal",
   "help.cat.chat.cmd.settings": "Ajustes rápidos de chat",
 
@@ -344,6 +373,8 @@
 
   "help.cat.youtube.label": "YouTube",
   "help.cat.youtube.cmd.settings": "Avisos de videos nuevos de YouTube",
+  "help.cat.twitch.label": "Twitch",
+  "help.cat.twitch.cmd.settings": "Avisos cuando un canal empieza a transmitir en vivo",
 
   "help.cat.admin.label": "Configuración",
   "help.cat.admin.cmd.settings": "Panel de configuración rápida",
@@ -367,5 +398,10 @@
   "privacy.delete.not_your_request": "Esta solicitud no es tuya.",
   "privacy.delete.error": "No se pudo completar el borrado. No se modificó nada — intenta de nuevo más tarde.",
   "privacy.delete.result_empty": "No encontramos datos tuyos almacenados por Purgito.",
-  "privacy.delete.result_success": "Listo. Se eliminaron {user_corpus_deleted} mensaje(s) de tu estilo guardado en {guilds} servidor(es). Tus mensajes originales de Discord no se tocaron."
+  "privacy.delete.result_success": "Listo. Se eliminaron {user_corpus_deleted} mensaje(s) de tu estilo guardado en {guilds} servidor(es). Tus mensajes originales de Discord no se tocaron.",
+  "commands.mis_datos.description": "Descarga en JSON tu estilo guardado y los mensajes que Purgito aprendió de ti.",
+  "privacy.export.cooldown": "Espera {seconds} segundos antes de pedir tus datos de nuevo.",
+  "privacy.export.error": "No se pudo generar el archivo. Intenta de nuevo más tarde.",
+  "privacy.export.empty": "No encontramos datos tuyos almacenados por Purgito.",
+  "privacy.export.result": "Acá tienes: {count} mensaje(s) de tu estilo guardado en {guilds} servidor(es)."
 }

@@ -363,6 +363,81 @@ def test_api_anuncios_validation_errors(memory_db):
     asyncio.run(_test())
 
 
+def test_api_anuncios_weekly_mode(memory_db):
+    async def _test():
+        # Falta weekdays por completo.
+        no_weekdays_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "weekly",
+                "hour": 9,
+                "minute": 0,
+                "message": "Test",
+            },
+        )
+        resp = await webapi._api_anuncios_post(no_weekdays_req)
+        assert resp.status == 400
+        assert "día de la semana" in json.loads(resp.text)["error"]
+
+        # weekdays vacío.
+        empty_weekdays_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "weekly",
+                "hour": 9,
+                "minute": 0,
+                "weekdays": [],
+                "message": "Test",
+            },
+        )
+        resp = await webapi._api_anuncios_post(empty_weekdays_req)
+        assert resp.status == 400
+        assert "día de la semana" in json.loads(resp.text)["error"]
+
+        # weekdays con un valor fuera de rango (solo 0-6 válidos).
+        bad_weekday_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "weekly",
+                "hour": 9,
+                "minute": 0,
+                "weekdays": [0, 7],
+                "message": "Test",
+            },
+        )
+        resp = await webapi._api_anuncios_post(bad_weekday_req)
+        assert resp.status == 400
+        assert "weekdays" in json.loads(resp.text)["error"]
+
+        # Alta válida: se crea y el GET devuelve weekdays deduplicado y ordenado.
+        ok_req = FakeRequest(
+            guild_id=_GUILD,
+            body={
+                "channel_id": _CHANNEL_ID,
+                "mode": "weekly",
+                "hour": 9,
+                "minute": 30,
+                "weekdays": [4, 0, 0],
+                "message": "Anuncio semanal",
+            },
+        )
+        resp_post = await webapi._api_anuncios_post(ok_req)
+        assert resp_post.status == 201
+        new_id = json.loads(resp_post.text)["id"]
+
+        get_req = FakeRequest(guild_id=_GUILD, announcement_id=new_id)
+        resp_get = await webapi._api_anuncio_get(get_req)
+        assert resp_get.status == 200
+        item = json.loads(resp_get.text)["announcement"]
+        assert item["mode"] == "weekly"
+        assert item["weekdays"] == [0, 4]
+
+    asyncio.run(_test())
+
+
 def test_api_anuncios_variables_validation(memory_db):
     async def _test():
         # Variable desconocida rechazada con 400

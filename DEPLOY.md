@@ -698,6 +698,14 @@ server {
     # El prefijo de idioma suelto (/es/, /en/) ya está cubierto arriba;
     # esto es para el resto de rutas de un solo nivel (/es/terminos, etc.)
     # y para ru/ja/de si algún día tienen contenido propio.
+    #
+    # Decisión registrada (roadmap, sección i18n): mantener la
+    # generalización a 5 idiomas en vez de acotarla a es/en. No cuesta nada
+    # en runtime -- ru/ja/de sin contenido caen en el try_files genérico de
+    # abajo, sirven la homepage, listo -- y sacarla reintroduciría el bug
+    # concreto que motivó generalizar esto (ver el dashboard(/.*)?$ de
+    # arriba): un idioma nuevo con contenido propio rompería en silencio
+    # hasta que alguien se acuerde de tocar nginx.
     location ~ ^/(es|en|ru|ja|de)/ {
         try_files $uri $uri/ $uri/index.html /index.html;
     }

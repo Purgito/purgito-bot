@@ -25,6 +25,7 @@ addStrings({
     'tabsAnuncios.statusInactive': 'Inactivo',
     'tabsAnuncios.cadenceInterval': 'Cada {minutes} minutos',
     'tabsAnuncios.cadenceDaily': 'Todos los días · {time}',
+    'tabsAnuncios.cadenceWeekly': '{days} · {time}',
     'tabsAnuncios.channelMissing': '⚠ Canal no disponible',
     'tabsAnuncios.noPerms': '⚠ Purgito no puede publicar aquí',
     'tabsAnuncios.noPermsWarning': '⚠ Purgito no tiene permiso para enviar mensajes en ese canal.',
@@ -45,11 +46,23 @@ addStrings({
     'tabsAnuncios.cadenceLabel': 'Tipo de programación',
     'tabsAnuncios.modeInterval': 'Cada cierto tiempo',
     'tabsAnuncios.modeDaily': 'A una hora fija',
+    'tabsAnuncios.modeWeekly': 'Días de la semana',
     'tabsAnuncios.intervalInputLabel': 'Cada',
     'tabsAnuncios.intervalMinutesUnit': 'minutos',
     'tabsAnuncios.intervalHint': 'Se enviará cada {minutes} minutos.',
     'tabsAnuncios.timeInputLabel': 'Todos los días a las',
     'tabsAnuncios.timeHint': 'Se enviará todos los días a las {time}.',
+    'tabsAnuncios.weeklyTimeInputLabel': 'Los días elegidos, a las',
+    'tabsAnuncios.weeklyHintWithDays': 'Se enviará los días {days} a las {time}.',
+    'tabsAnuncios.weeklyHintNoDays': 'Elige al menos un día de la semana.',
+    'tabsAnuncios.weekdayShortMon': 'L',
+    'tabsAnuncios.weekdayShortTue': 'M',
+    'tabsAnuncios.weekdayShortWed': 'M',
+    'tabsAnuncios.weekdayShortThu': 'J',
+    'tabsAnuncios.weekdayShortFri': 'V',
+    'tabsAnuncios.weekdayShortSat': 'S',
+    'tabsAnuncios.weekdayShortSun': 'D',
+    'tabsAnuncios.weeklyNoDaysError': 'Elige al menos un día de la semana',
     'tabsAnuncios.sectionMessage': 'Mensaje',
     'tabsAnuncios.messageLabel': 'Mensaje',
     'tabsAnuncios.messagePlaceholder': 'Escribe el mensaje que Purgito publicará automáticamente…',
@@ -93,6 +106,7 @@ addStrings({
     'tabsAnuncios.statusInactive': 'Inactive',
     'tabsAnuncios.cadenceInterval': 'Every {minutes} minutes',
     'tabsAnuncios.cadenceDaily': 'Every day · {time}',
+    'tabsAnuncios.cadenceWeekly': '{days} · {time}',
     'tabsAnuncios.channelMissing': '⚠ Channel unavailable',
     'tabsAnuncios.noPerms': '⚠ Purgito cannot post here',
     'tabsAnuncios.noPermsWarning': '⚠ Purgito does not have permission to send messages in this channel.',
@@ -113,11 +127,23 @@ addStrings({
     'tabsAnuncios.cadenceLabel': 'Schedule type',
     'tabsAnuncios.modeInterval': 'Every interval',
     'tabsAnuncios.modeDaily': 'Daily at a fixed time',
+    'tabsAnuncios.modeWeekly': 'Specific weekdays',
     'tabsAnuncios.intervalInputLabel': 'Every',
     'tabsAnuncios.intervalMinutesUnit': 'minutes',
     'tabsAnuncios.intervalHint': 'Will be sent every {minutes} minutes.',
     'tabsAnuncios.timeInputLabel': 'Every day at',
     'tabsAnuncios.timeHint': 'Will be sent every day at {time}.',
+    'tabsAnuncios.weeklyTimeInputLabel': 'On the chosen days, at',
+    'tabsAnuncios.weeklyHintWithDays': 'Will be sent on {days} at {time}.',
+    'tabsAnuncios.weeklyHintNoDays': 'Pick at least one day of the week.',
+    'tabsAnuncios.weekdayShortMon': 'Mo',
+    'tabsAnuncios.weekdayShortTue': 'Tu',
+    'tabsAnuncios.weekdayShortWed': 'We',
+    'tabsAnuncios.weekdayShortThu': 'Th',
+    'tabsAnuncios.weekdayShortFri': 'Fr',
+    'tabsAnuncios.weekdayShortSat': 'Sa',
+    'tabsAnuncios.weekdayShortSun': 'Su',
+    'tabsAnuncios.weeklyNoDaysError': 'Pick at least one day of the week',
     'tabsAnuncios.sectionMessage': 'Message',
     'tabsAnuncios.messageLabel': 'Message',
     'tabsAnuncios.messagePlaceholder': 'Write the message that Purgito will automatically publish…',
@@ -148,6 +174,11 @@ addStrings({
     'tabsAnuncios.emptyMessage': 'Announcement message cannot be empty',
   },
 });
+
+// Lunes=0 (datetime.weekday() de Python) -- mismo orden que se manda al
+// backend. Compartido entre el editor (chips de selección) y la tarjeta de
+// la lista (resumen "L, J, V · 09:00").
+const WEEKDAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const DEFAULT_ANNOUNCEMENT_VARIABLES = [
   { name: 'server_name', category: 'server', description: 'Nombre del servidor de Discord.', example: 'Mi Servidor' },
@@ -319,6 +350,15 @@ function renderAnunciosManager(container, initialData, channels) {
       let cadenceText = '';
       if (ann.mode === 'interval') {
         cadenceText = t('tabsAnuncios.cadenceInterval', { minutes: ann.interval_minutes || 30 });
+      } else if (ann.mode === 'weekly') {
+        const hh = String(ann.hour || 0).padStart(2, '0');
+        const mm = String(ann.minute || 0).padStart(2, '0');
+        const days = (ann.weekdays || [])
+          .slice()
+          .sort((a, b) => a - b)
+          .map(d => t(`tabsAnuncios.weekdayShort${WEEKDAY_KEYS[d]}`))
+          .join(', ');
+        cadenceText = t('tabsAnuncios.cadenceWeekly', { days, time: `${hh}:${mm}` });
       } else {
         const hh = String(ann.hour || 0).padStart(2, '0');
         const mm = String(ann.minute || 0).padStart(2, '0');
@@ -429,6 +469,7 @@ function renderAnunciosManager(container, initialData, channels) {
     let intervalMinutes = ann.interval_minutes || 30;
     let dailyHour = ann.hour !== undefined && ann.hour !== null ? ann.hour : 8;
     let dailyMinute = ann.minute !== undefined && ann.minute !== null ? ann.minute : 0;
+    let selectedWeekdays = Array.isArray(ann.weekdays) ? [...ann.weekdays] : [];
     let textMessage = ann.message || '';
     if (!textMessage && ann.embed_json) {
       try {
@@ -507,11 +548,21 @@ function renderAnunciosManager(container, initialData, channels) {
       },
     }, t('tabsAnuncios.modeDaily'));
 
+    const weeklyPill = el('button', {
+      type: 'button',
+      class: 'mode-pill' + (scheduleMode === 'weekly' ? ' active' : ''),
+      onclick: () => {
+        scheduleMode = 'weekly';
+        refreshScheduleControls();
+      },
+    }, t('tabsAnuncios.modeWeekly'));
+
     const scheduleControlsWrap = el('div', { class: 'anuncio-schedule-controls' });
 
     function refreshScheduleControls() {
       intervalPill.className = 'mode-pill' + (scheduleMode === 'interval' ? ' active' : '');
       dailyPill.className = 'mode-pill' + (scheduleMode === 'daily' ? ' active' : '');
+      weeklyPill.className = 'mode-pill' + (scheduleMode === 'weekly' ? ' active' : '');
       scheduleControlsWrap.innerHTML = '';
 
       if (scheduleMode === 'interval') {
@@ -562,7 +613,7 @@ function renderAnunciosManager(container, initialData, channels) {
         );
 
         scheduleControlsWrap.append(inputRow, presetChips, hint);
-      } else {
+      } else if (scheduleMode === 'daily') {
         const hh = String(dailyHour).padStart(2, '0');
         const mm = String(dailyMinute).padStart(2, '0');
         const timeInp = el('input', {
@@ -589,6 +640,61 @@ function renderAnunciosManager(container, initialData, channels) {
         );
 
         scheduleControlsWrap.append(inputRow, hint);
+      } else {
+        // weekly: mismo time input que daily, más una fila de chips de día
+        // (lunes=0, igual que datetime.weekday() del lado del servidor).
+        const hh = String(dailyHour).padStart(2, '0');
+        const mm = String(dailyMinute).padStart(2, '0');
+        const timeInp = el('input', {
+          type: 'time',
+          class: 'form-control anuncio-time-input',
+          value: `${hh}:${mm}`,
+        });
+        const hint = el('p', { class: 'dim text-sm anuncio-field-hint' });
+
+        function updateWeeklyHint() {
+          if (!selectedWeekdays.length) {
+            hint.textContent = t('tabsAnuncios.weeklyHintNoDays');
+            return;
+          }
+          const days = [...selectedWeekdays].sort((a, b) => a - b)
+            .map(d => t(`tabsAnuncios.weekdayShort${WEEKDAY_KEYS[d]}`))
+            .join(', ');
+          hint.textContent = t('tabsAnuncios.weeklyHintWithDays', { days, time: `${hh}:${mm}` });
+        }
+
+        timeInp.oninput = () => {
+          const parts = timeInp.value.split(':');
+          if (parts.length === 2) {
+            dailyHour = parseInt(parts[0], 10);
+            dailyMinute = parseInt(parts[1], 10);
+            updateWeeklyHint();
+          }
+        };
+
+        const inputRow = el('div', { class: 'anuncio-input-row' },
+          el('span', { class: 'anuncio-input-prefix' }, t('tabsAnuncios.weeklyTimeInputLabel')),
+          timeInp
+        );
+
+        const weekdayChips = el('div', { class: 'preset-chips' });
+        WEEKDAY_KEYS.forEach((key, idx) => {
+          const chip = el('button', {
+            type: 'button',
+            class: 'category-tab-btn' + (selectedWeekdays.includes(idx) ? ' active' : ''),
+            onclick: () => {
+              const pos = selectedWeekdays.indexOf(idx);
+              if (pos === -1) selectedWeekdays.push(idx);
+              else selectedWeekdays.splice(pos, 1);
+              chip.classList.toggle('active', selectedWeekdays.includes(idx));
+              updateWeeklyHint();
+            },
+          }, t(`tabsAnuncios.weekdayShort${key}`));
+          weekdayChips.append(chip);
+        });
+
+        updateWeeklyHint();
+        scheduleControlsWrap.append(inputRow, weekdayChips, hint);
       }
     }
 
@@ -596,7 +702,7 @@ function renderAnunciosManager(container, initialData, channels) {
 
     const sendGroup = el('div', { class: 'anuncio-field-group' },
       el('label', { class: 'anuncio-field-label' }, t('tabsAnuncios.sendLabel')),
-      el('div', { class: 'event-mode-pills' }, intervalPill, dailyPill),
+      el('div', { class: 'event-mode-pills' }, intervalPill, dailyPill, weeklyPill),
       scheduleControlsWrap
     );
 
@@ -841,6 +947,11 @@ function renderAnunciosManager(container, initialData, channels) {
           return;
         }
 
+        if (scheduleMode === 'weekly' && !selectedWeekdays.length) {
+          toast(t('tabsAnuncios.weeklyNoDaysError'), 'err');
+          return;
+        }
+
         saveBtn.disabled = true;
         saveBtn.textContent = t('tabsAnuncios.saving');
 
@@ -857,6 +968,7 @@ function renderAnunciosManager(container, initialData, channels) {
           } else {
             payload.hour = dailyHour;
             payload.minute = dailyMinute;
+            if (scheduleMode === 'weekly') payload.weekdays = selectedWeekdays;
           }
 
           if (isEditing) {

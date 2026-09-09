@@ -177,6 +177,43 @@ def tokenize_message(text: str) -> list[str]:
     return tokens
 
 
+# Muletillas/conectores/pronombres es+en de altísima frecuencia -- sin esto
+# "top palabras" de la tab Estadísticas del dashboard es siempre la misma
+# lista aburrida ("que", "de", "the", "a") en vez de mostrar algo específico
+# del servidor.
+_STATS_STOPWORDS = frozenset(
+    """
+    el la los las un una unos unas de del al a que y o u en es son fue ser
+    estar esta este estos estas con por para como mas pero si no se su sus
+    lo le les mi mis tu tus nos ya muy tan asi eso esa ese ahi aqui alli
+    cuando donde porque pues entonces bien mal todo toda todos todas algo
+    alguien nada nadie hay he ha han habia era soy eres somos sois yo tu el
+    ella ellos ellas nosotros ustedes vos te me os q xd jaja jajaja jajajaja
+    the a an and or of to in on for is are was were be been this that these
+    those with as at by it its i you he she we they not but if so do does
+    did have has had will would can could just like im dont cant yeah lol
+    """.split()
+)
+
+
+def top_corpus_words(messages: list[str], limit: int = 15) -> list[dict]:
+    """Palabras más frecuentes en una muestra del corpus (`messages`, ya
+    obtenida con db.get_corpus_messages), para la tab Estadísticas del
+    dashboard. Descarta URLs, menciones/emoji de Discord, stopwords y tokens
+    de menos de 3 caracteres."""
+    counts: dict[str, int] = {}
+    for raw in messages:
+        cleaned = _EMOJI_RE.sub(
+            " ", _DISCORD_MENTIONS_RE.sub(" ", _URL_RE.sub(" ", raw))
+        )
+        for tok in tokenize_message(cleaned):
+            if len(tok) < 3 or tok.isdigit() or tok in _STATS_STOPWORDS:
+                continue
+            counts[tok] = counts.get(tok, 0) + 1
+    top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    return [{"word": w, "count": c} for w, c in top]
+
+
 def note_corpus_insert(guild_id: int, channel_id: int) -> None:
     key = (guild_id, channel_id)
     n = _corpus_insert_counter.get(key, 0) + 1
@@ -495,6 +532,63 @@ async def generate_markov_for_user(
             )
         except Exception:
             log.exception("Error generando frase Markov para usuario %s", author_id)
+            sentence = None
+        return sentence
+
+
+async def generate_markov_for_users(
+    guild_id: int, author_ids: tuple[int, int], *, wait: bool = True
+) -> str | None:
+    """Genera una frase entrenando un solo modelo con el corpus de DOS
+    usuarios mezclado -- ver /imitar_mezcla. A diferencia de
+    generate_markov_for_user, no cachea: es una combinación puntual por
+    par de usuarios, no vale la pena una entrada de _user_markov_cache por
+    cada par posible (crecería sin cota real, a diferencia del caché por
+    usuario individual)."""
+    for author_id in author_ids:
+        if await is_user_excluded_from_learning(guild_id, author_id):
+            return None
+    async with markov_limiter.slot(wait=wait) as acquired:
+        if not acquired:
+            return None
+        combined_corpus: list[str] = []
+        for author_id in author_ids:
+            combined_corpus.extend(
+                await get_user_messages(
+                    guild_id, author_id, limit=config.USER_MARKOV_TRAINING_MESSAGES
+                )
+            )
+        if len(combined_corpus) < 30:
+            return None
+
+        def build() -> SimpleMarkov:
+            m = SimpleMarkov()
+            for msg in combined_corpus:
+                tokens = tokenize_message(msg)
+                if tokens:
+                    m.add(tokens)
+            return m
+
+        try:
+            model = await asyncio.to_thread(build)
+        except Exception:
+            log.exception(
+                "Error construyendo modelo Markov mezclado para usuarios %s",
+                author_ids,
+            )
+            return None
+
+        try:
+            sentence = await asyncio.to_thread(
+                model.generate,
+                max_words=20,
+                max_attempts=5,
+                min_words=1,
+            )
+        except Exception:
+            log.exception(
+                "Error generando frase Markov mezclada para usuarios %s", author_ids
+            )
             sentence = None
         return sentence
 
