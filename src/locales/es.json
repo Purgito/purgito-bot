@@ -348,7 +348,7 @@
   "general.error.cooldown": "Espera {seconds}s antes de usar este comando de nuevo.",
   "general.error.generic": "Ocurrió un error inesperado. Intenta de nuevo más tarde.",
   "download.dl.missing_url": "Pasa un link después del comando: `!dl <link>` o `purgito dl <link>`.",
-  "download.dl.only_instagram": "Por ahora solo descarga videos de Instagram.",
+  "download.dl.unsupported_site": "Por ahora solo descarga videos de Instagram, TikTok o Twitter/X.",
   "download.dl.too_large": "Ese video pesa más de {mb}MB, no entra en este canal.",
   "download.dl.failed": "No se pudo descargar ese link. Revisa que el post sea público y siga existiendo.",
   "download.dl.busy": "Ya hay una descarga en curso en este servidor, espera a que termine.",
@@ -368,7 +368,7 @@
   "help.cat.chat.cmd.imitar_mezcla": "Mezcla el estilo de dos miembros del servidor",
   "help.cat.chat.cmd.corpus_info": "Muestra cuántos mensajes se han aprendido en este canal",
   "help.cat.chat.cmd.settings": "Ajustes rápidos de chat",
-  "help.cat.chat.cmd.dl": "Descarga un video de Instagram y lo sube al chat",
+  "help.cat.chat.cmd.dl": "Descarga un video de Instagram, TikTok o Twitter/X y lo sube al chat",
 
   "help.cat.memes.label": "Memes ⭐",
   "help.cat.memes.intro": "⭐ **Función premium** — no disponible en todos los servidores.",

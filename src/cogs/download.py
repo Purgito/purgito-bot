@@ -1,16 +1,20 @@
-"""Comando "dl": descarga un video de Instagram y lo sube al mismo canal.
+"""Comando "dl": descarga un video de Instagram, TikTok o Twitter/X y lo
+sube al mismo canal.
 
 Se invoca con cualquiera de los dos prefijos que resuelve bot.py:get_prefix
 -- el símbolo (custom por guild, default "!") o la palabra fija ("purgito
-dl <link>"). Solo Instagram por ahora: YouTube bloquea activamente la
+dl <link>"). YouTube queda deliberadamente afuera: bloquea activamente la
 descarga por fuera del navegador (throttling, a veces pide cookies de
-sesión) y queda deliberadamente afuera -- ver discusión en el PR.
+sesión) -- ver discusión en el PR.
 
 Nada de SSRF nuevo acá pese a que yt-dlp termina haciendo requests de red a
 partir de un link que manda el usuario: a diferencia de r2.py (que sí
 resuelve y filtra IPs porque acepta CUALQUIER URL de imagen), acá el host
-tiene que ser literalmente instagram.com/instagr.am antes de llamar a
-yt-dlp -- no hay forma de apuntarlo a una IP interna.
+tiene que estar en _ALLOWED_HOSTS antes de llamar a yt-dlp -- no hay forma
+de apuntarlo a una IP interna. Por eso "t.co" NO está en la lista aunque
+sea de Twitter: es un acortador de propósito general (cualquiera puede
+tuitear un link a cualquier sitio), así que permitirlo reabriría el mismo
+hueco que esta allowlist existe para cerrar.
 """
 
 import asyncio
@@ -35,14 +39,22 @@ log = logging.getLogger(__name__)
 # el proceso descargue videos larguísimos innecesariamente.
 MAX_DL_VIDEO_BYTES = env_int("MAX_DL_VIDEO_BYTES", 100 * 1024 * 1024)
 
-_INSTAGRAM_HOSTS = {"instagram.com", "instagr.am"}
+# Dominios base: el chequeo de host también acepta cualquier subdominio
+# (".instagram.com", "vm.tiktok.com", etc.) -- ver _is_supported_url.
+_ALLOWED_HOSTS = {
+    "instagram.com",
+    "instagr.am",
+    "tiktok.com",
+    "twitter.com",
+    "x.com",
+}
 _URL_RE = re.compile(r"https?://\S+")
 _DL_COOLDOWN_SECONDS = 20
 
 
 class DownloadFailed(Exception):
     """El link es válido pero yt-dlp no pudo bajar el video (privado, borrado,
-    o Instagram cambió algo del lado de ellos)."""
+    o el sitio cambió algo de su lado)."""
 
 
 class DownloadTooLarge(Exception):
@@ -50,15 +62,15 @@ class DownloadTooLarge(Exception):
         self.max_bytes = max_bytes
 
 
-def _is_instagram_url(url: str) -> bool:
+def _is_supported_url(url: str) -> bool:
     try:
         host = (urlparse(url).hostname or "").lower()
     except ValueError:
         return False
     if not host:
         return False
-    return host in _INSTAGRAM_HOSTS or any(
-        host.endswith(f".{allowed}") for allowed in _INSTAGRAM_HOSTS
+    return host in _ALLOWED_HOSTS or any(
+        host.endswith(f".{allowed}") for allowed in _ALLOWED_HOSTS
     )
 
 
@@ -118,8 +130,8 @@ class Download(commands.Cog):
             await ctx.reply(t("download.dl.missing_url", locale))
             return
         link = match.group(0)
-        if not _is_instagram_url(link):
-            await ctx.reply(t("download.dl.only_instagram", locale))
+        if not _is_supported_url(link):
+            await ctx.reply(t("download.dl.unsupported_site", locale))
             return
 
         max_bytes = MAX_DL_VIDEO_BYTES
