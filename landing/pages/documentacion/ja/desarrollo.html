@@ -1,0 +1,72 @@
+<h1>開発</h1>
+<p>ローカル環境の構築、自動テストスイートの実行、そしてPurgitoのコードへの貢献に関する技術ガイドです。</p>
+
+<h2 id="estructura-del-proyecto">リポジトリの構成</h2>
+<ul>
+  <li><code>src/bot.py</code> — Discordボットのエントリーポイント、インテントの設定、cogの読み込み順序。</li>
+  <li><code>src/config.py</code> — 環境変数(<code>.env</code>、<code>urls.env</code>、<code>limits.env</code>)の読み込みと検証を一元化するモジュール。</li>
+  <li><code>src/db.py</code> — SQLite(<code>aiosqlite</code>)上の非同期永続化層、自動マイグレーション、トランザクション。</li>
+  <li><code>src/webapi.py</code> — すべてのJSON REST エンドポイント、OAuth2認証、Webhookを備えた<code>aiohttp.web</code>サーバー。</li>
+  <li><code>src/markov_engine.py</code> — 1次・2次のマルコフ連鎖による確率的エンジンの実装。</li>
+  <li><code>src/r2.py</code> — Cloudflare R2向けのS3互換クライアント。SHA-256ハッシュによるメディアの重複排除と知覚ハッシュ。</li>
+  <li><code>src/tasks.py</code> — 定期的なスケジュールタスク(サーバーの遅延削除、監査ログの失効、各種配信)。</li>
+  <li><code>src/cogs/</code> — 機能ごとに整理されたDiscordのcog(chat、gifs、memes、youtube、rss、premium、anuncios、settings、layout_buttons)。</li>
+  <li><code>landing/</code> — 静的フロントエンド:HTMLページ(<code>landing/pages/</code>)、CSSスタイル(<code>landing/style.css</code>、<code>landing/dash.css</code>)、モジュール化されたJavaScript(<code>landing/js/</code>)。</li>
+  <li><code>landing/build_docs.py</code> — HTMLページのビルドスクリプト。共通レイアウトの差し込みと、キャッシュバスティング用ハッシュの計算を行います。</li>
+  <li><code>tests/</code> — <code>pytest</code>による自動テストスイートと、Node.jsによるフロントエンドのテスト。</li>
+</ul>
+
+<h2 id="entorno-local">ローカル開発環境</h2>
+<p>必要条件:Python 3.11以上(推奨は3.12)、フロントエンドのテスト用にNode.js 18+。</p>
+
+<h3>1. 環境ファイルの設定</h3>
+<p>Purgitoは、それぞれ役割の異なる3つの独立した設定ファイルを使用します:</p>
+<ul>
+  <li><code>.env</code>:開発用のシークレットとトークン(Discordボットのトークン、OAuth2の認証情報、セッションの鍵、Webhook)。Gitではバージョン管理されません。<code>.env.example</code>からコピーしてください。</li>
+  <li><code>urls.env</code>:アプリケーションの公開URLとエンドポイント。Gitでバージョン管理されます。</li>
+  <li><code>limits.env</code>:無料プラン・Premiumプランごとの、サーバー単位のクォータと保存上限。Gitでバージョン管理されます。</li>
+</ul>
+
+<h3>2. 依存関係のインストール</h3>
+<pre><code># 仮想環境の作成と有効化
+python3 -m venv .venv
+source .venv/bin/activate
+
+# ボットとテストツールの依存関係をインストール
+pip install -r requirements.txt pytest ruff
+</code></pre>
+
+<h2 id="suite-de-pruebas">テストとLintの実行</h2>
+
+<h3>Pythonの単体テスト(pytest)</h3>
+<pre><code># ボットとAPIの自動テストをすべて実行
+.venv/bin/python -m pytest tests -q
+
+# 特定のテストファイルのみ実行
+.venv/bin/python -m pytest tests/test_dashboard_routes.py -v
+</code></pre>
+
+<h3>フロントエンドのテスト(Node.js)</h3>
+<pre><code># ダッシュボードSPAの統合テスト
+node landing/test_dash.mjs
+
+# 多言語対応(ES / EN)の整合性テスト
+node landing/test_lang.mjs
+</code></pre>
+
+<h3>Ruffによるフォーマットと静的解析</h3>
+<pre><code># コードのスタイルとルールを検証
+ruff check .
+
+# コードを自動フォーマット
+ruff format .
+</code></pre>
+
+<h3>ドキュメントとウェブページの生成</h3>
+<p><code>landing/pages/</code>、<code>landing/js/</code>、<code>landing/style.css</code>、<code>landing/dash.css</code>のいずれかを変更した際は、キャッシュバスティング用ハッシュを更新し、言語間の整合性を確認するためにページを再生成する必要があります:</p>
+<pre><code># landing/es/ と landing/en/ の静的ページを再生成
+.venv/bin/python landing/build_docs.py
+
+# 生成されたファイルがリポジトリと完全に一致するか確認(CIで使用)
+.venv/bin/python landing/build_docs.py --check
+</code></pre>

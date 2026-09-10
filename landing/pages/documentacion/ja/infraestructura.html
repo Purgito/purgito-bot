@@ -1,0 +1,54 @@
+<h1>インフラストラクチャ</h1>
+<p>Purgitoは、最適化されたLinuxの単一ノード上で動作します:サーバーの入り口に立つNginxのリバースプロキシ、systemdが管理する非同期のPythonプロセス、そしてCDN兼境界のセキュリティレイヤーとなるCloudflareのネットワークです。</p>
+
+<h2 id="runtime">実行環境(Runtime)</h2>
+<p>ボットとそのWeb APIは、同じ非同期イベントループ(<em>asyncioイベントループ</em>)の中で、Python 3.11+の単一プロセスとして一緒に動作します:</p>
+<ul>
+  <li><strong>systemdによる管理</strong>:<code>bot-purg.service</code>というサービスが、サーバー上でのプロセスのライフサイクルを管理し、障害発生後の自動再起動や、<code>journald</code>へのログの転送を担当します。</li>
+  <li><strong>ネットワークの分離</strong>:HTTP API(<code>aiohttp</code>)は<code>127.0.0.1:WEB_PORT</code>(デフォルトはポート8080/8081)でのみ待ち受けます。Pythonアプリケーションのソケットがインターネットに直接公開されることはありません。</li>
+</ul>
+
+<h2 id="nginx">Nginxのトポロジー</h2>
+<p>Nginxは唯一のローカルな入口として機能し、静的なコンテンツと動的なコンテンツのトラフィックを振り分けます:</p>
+
+<pre><code>受信リクエスト (HTTPS)
+           │
+           ▼
+     ┌───────────┐
+     │   Nginx   │
+     └─────┬─────┘
+           │
+     ┌─────┴────────────────────────────────┐
+     │                                      │
+     ▼ 動的なルート                          ▼ 静的なルート
+/api/*, /auth/*, /webhooks/*, /health       /es/*, /en/*, /assets/*, /style.css
+     │                                      │
+     ▼ proxy_pass                           ▼ try_files
+┌─────────────────────────┐           ┌─────────────────────────┐
+│  Python 127.0.0.1:8080  │           │    ディスクから直接配信   │
+│   aiohttp REST API      │           │   (PythonのCPUを使わない) │
+└─────────────────────────┘           └─────────────────────────┘
+</code></pre>
+
+<ul>
+  <li><strong>高速な静的コンテンツ配信</strong>:HTMLページ(ランディング、ガイド、ドキュメント、ダッシュボード)、CSSスタイル、JSスクリプト、公開画像はすべて、Pythonプロセスを起こしたりアプリケーションのメモリを消費したりすることなく、ファイルシステムから直接配信されます。</li>
+  <li><strong>ダッシュボードの動的ルート</strong>:サーバーIDを含むURL(例:<code>/es/dashboard/{id}/*</code>)に対するNginxのルールは、対応するダッシュボードの静的ファイルへリダイレクトし、シングルページアプリケーションがクライアント側でルートを解決できるようにします。</li>
+  <li><strong>セキュリティとキャッシュのヘッダー</strong>:Nginxはセキュリティヘッダー(CSP、X-Content-Type-Options、Referrer-Policy)を付与し、キャッシュバスティング用のハッシュ(<code>?v=...</code>)が付いたバージョン管理済みファイルには<code>Cache-Control: public, max-age=31536000, immutable</code>ヘッダーを適用します。</li>
+</ul>
+
+<h2 id="cloudflare">CDNとセキュリティレイヤー(Cloudflare)</h2>
+<p>Cloudflareはオリジンサーバーの手前に位置し、TLSプロキシおよびコンテンツ配信ネットワークとして機能します:</p>
+<ul>
+  <li><strong>TLS 1.3の終端</strong>:SSL/TLS証明書とクライアントへの暗号化を管理します。</li>
+  <li><strong>エッジでのキャッシュ</strong>:静的アセット(画像、CSS、JS)を世界中に分散したデータセンターにキャッシュし、ランディングページのトラフィックを吸収してサーバーの負荷を軽減します。</li>
+  <li><strong>DDoS対策とWAF</strong>:サービス拒否攻撃を、Nginxのポートに到達する前にネットワーク・トランスポート層でフィルタリングします。</li>
+</ul>
+
+<h2 id="despliegue">ビルドステップなしの継続的デプロイ</h2>
+<p>Purgitoのアーキテクチャは、サーバー上での重いビルドステップ(<em>build step</em>)を不要にします:</p>
+<ol>
+  <li>ソースコード、スクリプト、<code>landing/build_docs.py</code>によって事前生成されたページはすべて、Gitリポジトリに直接バージョン管理されています。</li>
+  <li>デプロイは<code>git pull</code>で変更を同期するだけです。</li>
+  <li>ドキュメントの整合性チェック:<code>python3 landing/build_docs.py --check</code>を実行します。</li>
+  <li><code>systemctl restart bot-purg.service</code>でサービスを再起動し、数秒で更新が完了します。</li>
+</ol>

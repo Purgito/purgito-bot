@@ -1,0 +1,35 @@
+<h1>セキュリティ</h1>
+<p>Purgitoのセキュリティモデルは、クライアントを信頼しないアーキテクチャ(<em>zero-trust client boundary</em>)、多層防御、そして設計段階からのデータの厳格な分離に基づいています。</p>
+
+<h2 id="autenticacion-y-sesiones">OAuth2認証と暗号化されたCookie</h2>
+<p>ログインのフローは、OAuth2(<em>Authorization Code Flow</em>)によってアイデンティティの管理を完全にDiscordへ委ねます:</p>
+<ul>
+  <li><strong>認証情報を保存しない</strong>:Purgitoはユーザーのパスワードや、Discordの生のトークンを受け取ったり処理したりすることは一切ありません。</li>
+  <li><strong>セッションの対称暗号化</strong>:セッションは、秘密鍵<code>SESSION_SECRET</code>を使ったFernetアルゴリズム(HMAC-SHA256による認証を伴うCBCモードのAES-128)で暗号化されたCookieにカプセル化されます。</li>
+  <li><strong>Cookieの属性</strong>:Cookieには<code>HttpOnly</code>(JavaScriptからアクセスできないためXSS攻撃に対して安全)、<code>Secure</code>(HTTPS経由でのみ送信)、<code>SameSite=Lax</code>(オリジンをまたいだ遷移での漏洩を防止)のフラグが付与されます。</li>
+  <li><strong>分散された失効リスト</strong>:<code>revoked_sessions</code>テーブルには明示的に取り消されたセッションのIDが保存され、ブラウザに物理的にCookieが残っていてもログアウトによってセッションが即座に無効になることを保証します。</li>
+</ul>
+
+<h2 id="autorizacion-en-tiempo-real">リアルタイムな認可とゼロトラスト</h2>
+<p>管理系のリクエストは、ブラウザから送信された申告(リクエストボディ内のIDや改ざんされたヘッダーなど)を一切信頼しません:</p>
+<ul>
+  <li><strong>DiscordのAPIに対する再検証</strong>:ユーザーがダッシュボードでサーバーを操作するたび(<code>/api/server/{guild_id}/*</code>)、サーバーはログイン時に取得したアクセストークンを使って、そのユーザーの権限をDiscord(<code>/users/@me/guilds</code>)にリアルタイムで問い合わせます。</li>
+  <li><strong>ネイティブな権限の検証</strong>:<code>サーバー管理</code>(<code>MANAGE_GUILD</code>)または<code>管理者</code>(<code>ADMINISTRATOR</code>)の権限が要求されます。データベース内に、実際の権限とずれる可能性のある独自のロールは存在しません。</li>
+  <li><strong>ボットのロール階層</strong>:Discord上でLayout V2のインタラクティブなボタン(ロールの付与など)によって実行されるアクションはすべて、Purgitoが持つ最上位のロールが付与しようとしているロールより上位にあることを検証し、権限昇格を防ぎます。</li>
+</ul>
+
+<h2 id="defensa-en-red-y-ssrf">SSRF対策とファイルの検証</h2>
+<p>ボットがユーザーやWebhookから渡されたURLから画像やGIFをダウンロードする際:</p>
+<ul>
+  <li><strong>安全なDNS解決</strong>:HTTP接続を確立する前に接続先のIPアドレスを解決し、プライベートサブネット(RFC 1918:<code>10.0.0.0/8</code>、<code>172.16.0.0/12</code>、<code>192.168.0.0/16</code>)、ローカルループバックアドレス(<code>127.0.0.1</code>、<code>::1</code>)、リンクローカルアドレスやクラウドプロバイダーのメタデータ(例:<code>169.254.169.254</code>)へのリクエストをブロックします。</li>
+  <li><strong>実際のコンテンツ種別の検査</strong>:ダウンロードされたファイルはバイナリのヘッダー(<em>マジックナンバー</em>)によって検証され、有効な画像形式(PNG、JPEG、GIF、WEBP)であることを確認し、偽装された実行ファイルやスクリプトを除外します。</li>
+</ul>
+
+<h2 id="rate-limiting">利用制限と不正利用対策</h2>
+<p>Purgitoは、独立した複数のレイヤーでレート制限(<em>rate limiter</em>)を実装しています:</p>
+<ul>
+  <li><strong>公開APIでのIP単位の制限</strong>:<code>/health</code>、<code>/api/status</code>、<code>/auth/*</code>の各エンドポイントを、自動スキャンやサービス拒否攻撃から保護します。</li>
+  <li><strong>コマンドでのユーザー単位の制限</strong>:負荷の高いDiscordコマンド(ミーム生成、メンバーの模倣、チャンネルの再学習)にクールダウン(<em>cooldown</em>)を設けます。</li>
+  <li><strong>自発的な応答のチャンネル単位の制限</strong>:同じチャンネルでのチャットの飽和を防ぐため、自動応答の間に必須の最小間隔を設けます。</li>
+  <li><strong>CPUのセマフォ</strong>:あるサーバーが共有プロセスのリソースを独占しないよう、マルコフ連鎖の同時実行数にグローバルな上限を設けます。</li>
+</ul>
