@@ -2021,7 +2021,13 @@ MODULE_HEAD = "{importmap}"
 
 
 OG_LOCALE = {"es": "es_ES", "en": "en_US", "ru": "ru_RU", "ja": "ja_JP", "de": "de_DE"}
-TOC_LABEL = {"es": "Índice", "en": "Index", "ru": "Оглавление", "ja": "目次", "de": "Inhalt"}
+TOC_LABEL = {
+    "es": "Índice",
+    "en": "Index",
+    "ru": "Оглавление",
+    "ja": "目次",
+    "de": "Inhalt",
+}
 UPDATED_LABEL = {
     "es": "Última actualización",
     "en": "Last updated",

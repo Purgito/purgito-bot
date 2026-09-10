@@ -1,0 +1,62 @@
+<h1>リファレンス</h1>
+<p>Purgitoが使用するすべての環境変数に関する技術リファレンスです。ライフサイクルと機密性に応じて、3つのファイルに分かれています。</p>
+
+<h2 id="variables-de-entorno">設定ファイル</h2>
+<p><code>src/config.py</code>モジュールが、アプリケーションのインポート時にこの3つのファイルを自動的に読み込みます。シークレットは<code>.env</code>(Gitでは無視されます)にのみ存在し、URLやクォータの定数は<code>urls.env</code>と<code>limits.env</code>でバージョン管理されています。</p>
+
+<h3><code>.env</code> — シークレットとデプロイ設定</h3>
+<table>
+<tr><th>変数</th><th>型</th><th>説明と用途</th></tr>
+<tr><td><code>DISCORD_TOKEN</code></td><td><code>string</code></td><td>Discordのゲートウェイ・REST APIにおける、ボットの認証用シークレットトークン。</td></tr>
+<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>メッセージ内容に関する特権インテント(<code>message_content</code>)を有効化します。コーパスの取得に必要です。</td></tr>
+<tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>ローカルでのテスト時に、スラッシュコマンドを即座に同期するための開発用サーバーID。</td></tr>
+<tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>テキストによるミーム生成や文脈に応じた応答を発火させる、キーワードまたは予約語。</td></tr>
+<tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>メンテナンス用コマンドへのアクセス権を持つ、ボット所有者のDiscordユーザーID。</td></tr>
+<tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>AIによる画像認識でミームのキャプションを生成するための、Groq APIキー。未設定の場合はマルコフエンジンが使われます。</td></tr>
+<tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td><code>/refeed</code>で個別のチャンネルを再学習する際に読み込むメッセージ数の上限。</td></tr>
+<tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td><code>/refeed_all</code>でサーバーの全チャンネルを再学習する際に読み込む、累計メッセージ数の上限。</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>サーバーのマルコフモデルをコンパイルするために、<code>corpus</code>テーブルから抽出するランダムサンプルのサイズ。</td></tr>
+<tr><td><code>USER_MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>ユーザーごとのモデル(模倣コマンド)を学習するためのメッセージサンプルのサイズ。</td></tr>
+<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>サーバーがカスタム値を設定していない場合の、自発的な応答の基本確率(0.0〜1.0)。</td></tr>
+<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>ボットを追放したサーバーのデータを完全に削除するまでの猶予日数(デフォルト:30)。</td></tr>
+<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td><code>integer</code></td><td><code>audit_log</code>テーブルの記録を保持する最大日数(デフォルト:90)。</td></tr>
+<tr><td><code>R2_ACCESS_KEY_ID</code>、<code>R2_SECRET_ACCESS_KEY</code></td><td><code>string</code></td><td>Cloudflare R2のバケットに対するS3アクセス認証情報。</td></tr>
+<tr><td><code>R2_ENDPOINT_URL</code>、<code>R2_BUCKET_NAME</code>、<code>R2_PUBLIC_URL</code></td><td><code>string</code></td><td>Cloudflare R2のエンドポイント、バケット名、保存されたメディアを配信する公開CDNドメイン。</td></tr>
+<tr><td><code>WEB_PORT</code></td><td><code>integer</code></td><td>aiohttpのHTTPサーバーが待ち受けるローカルTCPポート(デフォルト:8080)。</td></tr>
+<tr><td><code>DISCORD_CLIENT_ID</code>、<code>DISCORD_CLIENT_SECRET</code></td><td><code>string</code></td><td>ダッシュボードでユーザーを認証するための、DiscordのOAuth2アプリケーション認証情報。</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td><code>string</code></td><td>Fernetアルゴリズムでセッションクッキーを対称暗号化するための、base64形式の秘密鍵。</td></tr>
+<tr><td><code>DASHBOARD_ENABLED</code></td><td><code>boolean</code></td><td>ダッシュボードのルートの有効・無効を切り替えるマスタースイッチ。</td></tr>
+<tr><td><code>POLAR_ACCESS_TOKEN</code>、<code>POLAR_WEBHOOK_SECRET</code></td><td><code>string</code></td><td>Polarの請求Webhookの署名を検証するための、APIトークンとHMACシークレット。</td></tr>
+<tr><td><code>POLAR_PRODUCT_ID_MONTHLY</code>、<code>POLAR_PRODUCT_ID_ANNUAL</code></td><td><code>string</code></td><td>月額・年額サブスクリプションに対応する、Polarの商品ID。</td></tr>
+<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td><code>string</code></td><td>固定時刻の予約アナウンスの送信時刻を計算する際に使われる、デフォルトのIANAタイムゾーン。</td></tr>
+</table>
+
+<h3><code>urls.env</code> — 公開URLとエコシステムのリンク</h3>
+<table>
+<tr><th>変数</th><th>説明と用途</th></tr>
+<tr><td><code>PANEL_URL</code></td><td>ダッシュボードと管理パネルの公開ベースURL(例:<code>https://purgito.app</code>)。</td></tr>
+<tr><td><code>DASHBOARD_BASE_URL</code></td><td>OAuth2フローのリダイレクトURL(<code>redirect_uri</code>)を組み立てるために使われる公開ホスト。</td></tr>
+<tr><td><code>LANDING_URL</code></td><td>トップページからのログイン完了後にリダイレクトされる先のURL。</td></tr>
+<tr><td><code>LANDING_ORIGINS</code></td><td>ドメインをまたいだ認証済みリクエストにおいて、CORSヘッダーで許可するオリジンの一覧。</td></tr>
+<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>セッションCookieの<code>Set-Cookie</code>ヘッダーに設定される、有効範囲のドメイン。</td></tr>
+<tr><td><code>SUPPORT_URL</code></td><td>Purgitoの公式サポート・コミュニティDiscordサーバーへの招待リンク。</td></tr>
+<tr><td><code>DOCS_URL</code></td><td>技術ドキュメントとガイドの公開URL。</td></tr>
+<tr><td><code>REPO_URL</code></td><td>GitHub上の公式ソースコードリポジトリへのリンク。</td></tr>
+</table>
+
+<h3><code>limits.env</code> — サーバーごとのクォータと容量</h3>
+<table>
+<tr><th>変数</th><th>用途</th></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>チャンネルごとにメモリに保持されるメッセージ数の上限(15,000 / 50,000)。</td></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>サーバーごとのコーパスの合計容量の上限(150,000 / 500,000)。</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>個別モデル用に投稿者ごとに保存されるメッセージ数の上限(5,000 / 20,000)。</td></tr>
+<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>サーバーのカタログに保存できるGIFの上限(1,500 / 4,000)。</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>リモートのGIFをダウンロードする際に許可される最大バイト数(デフォルト:10 MB)。</td></tr>
+<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>R2への保存用にGIFを最適化する際に適用される、非可逆圧縮のレベル。</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>サーバーのミームバンクに保存できる画像の上限(50 / 200)。</td></tr>
+<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>サーバーで予約できる自動アナウンスの上限(3 / 10)。</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>メッセージデザイナーに保存できるテンプレートの上限(10 / 50)。</td></tr>
+<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>embedエディターにアップロードする画像の最大バイト数(デフォルト:8 MB)。</td></tr>
+<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>サーバーが1日に生成できるテンプレートの共有リンク数の上限。</td></tr>
+<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Layout V2の「ファイル」ブロックにアップロードする添付ファイルの最大サイズ。</td></tr>
+</table>
