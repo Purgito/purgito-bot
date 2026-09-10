@@ -1,0 +1,62 @@
+<h1>Referenz</h1>
+<p>Technische Referenzdokumentation aller von Purgito verwendeten Umgebungsvariablen, verteilt auf drei Dateien nach ihrem Lebenszyklus und ihrer Vertraulichkeit.</p>
+
+<h2 id="variables-de-entorno">Konfigurationsdateien</h2>
+<p>Das Modul <code>src/config.py</code> lädt beim Import der Anwendung automatisch alle drei Dateien. Secrets liegen ausschließlich in <code>.env</code> (von Git ignoriert), während die Konstanten für URLs und Kontingente in <code>urls.env</code> und <code>limits.env</code> versioniert sind.</p>
+
+<h3><code>.env</code> — Secrets und Deployment-Konfiguration</h3>
+<table>
+<tr><th>Variable</th><th>Typ</th><th>Beschreibung und Zweck</th></tr>
+<tr><td><code>DISCORD_TOKEN</code></td><td><code>string</code></td><td>Geheimes Authentifizierungstoken des Bots für Gateway und REST-API von Discord.</td></tr>
+<tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>Aktiviert den privilegierten Intent für Nachrichteninhalte (<code>message_content</code>). Erforderlich, um den Corpus zu erfassen.</td></tr>
+<tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>ID des Entwicklungsservers für die sofortige Synchronisierung von Slash-Commands bei lokalen Tests.</td></tr>
+<tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Schlüsselwort, das per Text die Generierung von Memes und kontextuellen Antworten auslöst.</td></tr>
+<tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>Discord-Nutzer-ID des Bot-Betreibers mit Zugriff auf Wartungsbefehle.</td></tr>
+<tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>API-Schlüssel von Groq zur Generierung von Meme-Captions mittels KI-Bildmodellen. Ist er nicht gesetzt, wird die Markov-Engine verwendet.</td></tr>
+<tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Maximale Anzahl gelesener Nachrichten beim erneuten Trainieren eines einzelnen Kanals mit <code>/refeed</code>.</td></tr>
+<tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Maximale Anzahl kumulierter Nachrichten beim erneuten Trainieren aller Kanäle des Servers mit <code>/refeed_all</code>.</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Größe der zufälligen Stichprobe von Nachrichten aus der Tabelle <code>corpus</code>, um das Markov-Modell des Servers zu kompilieren.</td></tr>
+<tr><td><code>USER_MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Stichprobengröße zum Trainieren nutzerspezifischer Modelle (Imitationsbefehle).</td></tr>
+<tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>Basiswahrscheinlichkeit (0,0 bis 1,0) für spontane Antworten, wenn der Server keinen eigenen Wert festgelegt hat.</td></tr>
+<tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Anzahl Tage Karenzzeit, bevor die Daten eines Servers, der den Bot entfernt hat, endgültig gelöscht werden (Standard: 30).</td></tr>
+<tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Maximales Alter in Tagen, bevor Einträge der Tabelle <code>audit_log</code> gelöscht werden (Standard: 90).</td></tr>
+<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code></td><td><code>string</code></td><td>S3-Zugangsdaten für den Cloudflare-R2-Bucket.</td></tr>
+<tr><td><code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td><code>string</code></td><td>Endpunkt von Cloudflare R2, Name des Buckets und öffentliche CDN-Domain zur Auslieferung der gehosteten Medien.</td></tr>
+<tr><td><code>WEB_PORT</code></td><td><code>integer</code></td><td>Lokaler TCP-Port, auf dem der aiohttp-HTTP-Server lauscht (Standard: 8080).</td></tr>
+<tr><td><code>DISCORD_CLIENT_ID</code>, <code>DISCORD_CLIENT_SECRET</code></td><td><code>string</code></td><td>Zugangsdaten der OAuth2-Anwendung von Discord zur Authentifizierung von Nutzern im Dashboard.</td></tr>
+<tr><td><code>SESSION_SECRET</code></td><td><code>string</code></td><td>Geheimer Base64-Schlüssel zur symmetrischen Verschlüsselung der Sitzungscookies mit dem Fernet-Algorithmus.</td></tr>
+<tr><td><code>DASHBOARD_ENABLED</code></td><td><code>boolean</code></td><td>Hauptschalter zum Aktivieren oder Deaktivieren der Dashboard-Routen.</td></tr>
+<tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code></td><td><code>string</code></td><td>API-Token und HMAC-Secret zur Validierung der Signatur der Abrechnungs-Webhooks von Polar.</td></tr>
+<tr><td><code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td><code>string</code></td><td>Produktkennungen bei Polar für monatliche und jährliche Abonnements.</td></tr>
+<tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td><code>string</code></td><td>Standard-IANA-Zeitzone zur Berechnung des Versands geplanter Ankündigungen zu fester Uhrzeit.</td></tr>
+</table>
+
+<h3><code>urls.env</code> — Öffentliche URLs und Links des Ökosystems</h3>
+<table>
+<tr><th>Variable</th><th>Beschreibung und Zweck</th></tr>
+<tr><td><code>PANEL_URL</code></td><td>Öffentliche Basis-URL des Dashboards und Verwaltungspanels (z. B. <code>https://purgito.app</code>).</td></tr>
+<tr><td><code>DASHBOARD_BASE_URL</code></td><td>Öffentlicher Host zum Erstellen der Redirect-URL (<code>redirect_uri</code>) des OAuth2-Ablaufs.</td></tr>
+<tr><td><code>LANDING_URL</code></td><td>Ziel-URL nach abgeschlossener Anmeldung von der Startseite aus.</td></tr>
+<tr><td><code>LANDING_ORIGINS</code></td><td>Liste der erlaubten Ursprünge in CORS-Headern für authentifizierte domainübergreifende Anfragen.</td></tr>
+<tr><td><code>SESSION_COOKIE_DOMAIN</code></td><td>Im <code>Set-Cookie</code>-Header konfigurierter Geltungsbereich für das Sitzungscookie.</td></tr>
+<tr><td><code>SUPPORT_URL</code></td><td>Einladungslink zum offiziellen Discord-Server für Support und Community von Purgito.</td></tr>
+<tr><td><code>DOCS_URL</code></td><td>Öffentliche URL der technischen Dokumentation und Leitfäden.</td></tr>
+<tr><td><code>REPO_URL</code></td><td>Link zum offiziellen Quellcode-Repository auf GitHub.</td></tr>
+</table>
+
+<h3><code>limits.env</code> — Kontingente und Kapazität pro Server</h3>
+<table>
+<tr><th>Variable</th><th>Zweck</th></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximale Anzahl im Speicher gehaltener Nachrichten pro Kanal (15.000 / 50.000).</td></tr>
+<tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Maximale Gesamtkapazität des Corpus pro Server (150.000 / 500.000).</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximale Anzahl pro Autor gespeicherter Nachrichten für individuelle Modelle (5.000 / 20.000).</td></tr>
+<tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Obergrenze der GIFs im Katalog des Servers (1.500 / 4.000).</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Maximale Größe in Bytes beim Herunterladen eines externen GIFs (Standard: 10 MB).</td></tr>
+<tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Verlustbehafteter Komprimierungsgrad beim Optimieren von GIFs für die Speicherung in R2.</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Obergrenze der Bilder in der Meme-Bank des Servers (50 / 200).</td></tr>
+<tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Obergrenze planbarer automatisierter Ankündigungen auf dem Server (3 / 10).</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Obergrenze gespeicherter Vorlagen im Nachrichten-Designer (10 / 50).</td></tr>
+<tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Maximale Größe in Bytes für in den Embed-Editor hochgeladene Bilder (Standard: 8 MB).</td></tr>
+<tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Tägliches Limit teilbarer Vorlagen-Links, die ein Server erzeugen kann.</td></tr>
+<tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Maximale Größe von Dateianhängen, die in einem "Datei"-Block von Layout V2 hochgeladen werden.</td></tr>
+</table>

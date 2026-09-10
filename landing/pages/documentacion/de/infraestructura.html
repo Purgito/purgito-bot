@@ -1,0 +1,54 @@
+<h1>Infrastruktur</h1>
+<p>Purgito läuft auf einer optimierten Einzelknoten-Infrastruktur unter Linux: einem Nginx-Reverse-Proxy am Rand des Servers, einem asynchronen Python-Prozess, verwaltet von systemd, und dem Cloudflare-Netzwerk als CDN und perimetrische Sicherheitsschicht.</p>
+
+<h2 id="runtime">Laufzeitumgebung (Runtime)</h2>
+<p>Der Bot und seine Web-API laufen gemeinsam in einem einzigen Python-3.11+-Prozess innerhalb desselben asynchronen Ereignis-Loops (<em>asyncio event loop</em>):</p>
+<ul>
+  <li><strong>Verwaltung mit systemd</strong>: Der Dienst <code>bot-purg.service</code> verwaltet den Lebenszyklus des Prozesses auf dem Server, übernimmt automatische Neustarts nach Abstürzen und leitet Logs an <code>journald</code> weiter.</li>
+  <li><strong>Netzwerkisolation</strong>: Die HTTP-API (<code>aiohttp</code>) lauscht ausschließlich auf <code>127.0.0.1:WEB_PORT</code> (standardmäßig Port 8080/8081). Kein Socket der Python-Anwendung ist direkt dem Internet ausgesetzt.</li>
+</ul>
+
+<h2 id="nginx">Nginx-Topologie</h2>
+<p>Nginx fungiert als einziger lokaler Einstiegspunkt und trennt den Verkehr zwischen statischen und dynamischen Inhalten:</p>
+
+<pre><code>Eingehende Anfrage (HTTPS)
+           │
+           ▼
+     ┌───────────┐
+     │   Nginx   │
+     └─────┬─────┘
+           │
+     ┌─────┴────────────────────────────────┐
+     │                                      │
+     ▼ Dynamische Routen                    ▼ Statische Routen
+/api/*, /auth/*, /webhooks/*, /health       /es/*, /en/*, /assets/*, /style.css
+     │                                      │
+     ▼ proxy_pass                           ▼ try_files
+┌─────────────────────────┐           ┌─────────────────────────┐
+│  Python 127.0.0.1:8080  │           │   Direkt von der Platte │
+│   aiohttp REST API      │           │   (Zero Python-CPU)     │
+└─────────────────────────┘           └─────────────────────────┘
+</code></pre>
+
+<ul>
+  <li><strong>Statische Auslieferung mit hoher Performance</strong>: Alle HTML-Seiten (Landingpage, Leitfäden, Dokumentation, Dashboard), CSS-Stile, JS-Skripte und öffentliche Bilder werden direkt aus dem Dateisystem ausgeliefert, ohne den Python-Prozess zu beanspruchen oder Speicher der Anwendung zu verbrauchen.</li>
+  <li><strong>Dynamische Routen des Dashboards</strong>: Die Nginx-Regel leitet jede URL mit Server-ID (z. B. <code>/de/dashboard/{id}/*</code>) an die entsprechende statische Datei des Dashboards weiter, sodass die Single Page Application die Route auf dem Client auflösen kann.</li>
+  <li><strong>Sicherheits- und Cache-Header</strong>: Nginx fügt Sicherheitsheader ein (CSP, X-Content-Type-Options, Referrer-Policy) und wendet <code>Cache-Control: public, max-age=31536000, immutable</code> auf die mit Cache-Busting-Hashes versionierten Dateien an (<code>?v=...</code>).</li>
+</ul>
+
+<h2 id="cloudflare">CDN- und Sicherheitsschicht (Cloudflare)</h2>
+<p>Cloudflare steht vor dem Ursprungsserver und fungiert als TLS-Proxy und Content-Delivery-Netzwerk:</p>
+<ul>
+  <li><strong>TLS-1.3-Terminierung</strong>: Verwaltet die SSL/TLS-Zertifikate und die Verschlüsselung zum Client.</li>
+  <li><strong>Caching am Edge</strong>: Speichert statische Assets (Bilder, CSS, JS) in weltweit verteilten Rechenzentren zwischen, fängt den Traffic der Landingpage ab und reduziert die Last auf dem Server.</li>
+  <li><strong>DDoS-Abwehr und WAF</strong>: Filtert Denial-of-Service-Angriffe auf Netzwerk- und Transportebene, bevor sie den Port von Nginx erreichen.</li>
+</ul>
+
+<h2 id="despliegue">Kontinuierliches Deployment ohne Build-Schritt</h2>
+<p>Die Architektur von Purgito macht aufwendige Build-Schritte (<em>build steps</em>) auf dem Server überflüssig:</p>
+<ol>
+  <li>Der Quellcode, die Skripte und die von <code>landing/build_docs.py</code> vorgenerierten Seiten sind direkt im Git-Repository versioniert.</li>
+  <li>Das Deployment besteht aus dem Synchronisieren der Änderungen mit <code>git pull</code>.</li>
+  <li>Die Integritätsprüfung der Dokumentation wird ausgeführt: <code>python3 landing/build_docs.py --check</code>.</li>
+  <li>Der Dienst wird mit <code>systemctl restart bot-purg.service</code> neu gestartet, wodurch die Aktualisierung in wenigen Sekunden abgeschlossen ist.</li>
+</ol>

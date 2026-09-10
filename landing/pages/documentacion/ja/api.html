@@ -1,0 +1,66 @@
+<h1>API</h1>
+<p>PurgitoのAPIは、<code>aiohttp.web</code>上に構築された非同期のJSON REST インターフェースです。ボットと同じプロセス内で<code>127.0.0.1:WEB_PORT</code>として動作し、Nginxのリバースプロキシを介して安全にインターネットへ公開されます。</p>
+
+<h2 id="autenticacion-y-sesiones">OAuth2認証とセッション</h2>
+<p>ダッシュボードへのアクセスは、Discordの標準的なOAuth2認可フロー(<em>Authorization Code Flow</em>)を使用します:</p>
+<ol>
+  <li><code>GET /auth/login</code>が<code>secrets.token_urlsafe(32)</code>で暗号学的に安全な<code>state</code>パラメータを生成し、<code>identify</code>、<code>email</code>、<code>guilds</code>のスコープを要求してユーザーをDiscordの同意画面にリダイレクトします。</li>
+  <li>Discordが認可コードと<code>state</code>を添えて<code>GET /auth/callback</code>にリダイレクトします。</li>
+  <li>サーバーは<code>https://discord.com/api/v10/oauth2/token</code>経由でコードをアクセストークンに交換し、ユーザーのプロフィールと管理しているサーバー一覧(<code>/users/@me/guilds</code>)を取得します。ユーザーがボットの導入済み・利用可能なサーバーをひとつも管理していない場合、認証は拒否されます。</li>
+  <li>Fernet(<code>SESSION_SECRET</code>)で対称暗号化した、<code>HttpOnly</code>、<code>SameSite=Lax</code>、<code>Secure</code>属性を持つセッションCookieが発行されます。</li>
+</ol>
+
+<p>メモリ上に重い状態を保持せずにセッションを無効化するため、<code>revoked_sessions</code>テーブルには、<code>POST /auth/logout</code>によって明示的に終了されたセッションIDが記録されます。受信するリクエストはすべて、そのセッションIDがこのテーブルに存在しないことを確認します。</p>
+
+<h2 id="catalogo-de-endpoints">エンドポイント一覧</h2>
+
+<h3>公開・監視用エンドポイント</h3>
+<table>
+<tr><th>メソッド</th><th>ルート</th><th>説明</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/health</code></td><td>ロードバランサーや基本的な監視のための、プロセスの生存確認。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status</code></td><td>稼働時間、DiscordとのWebSocketレイテンシ、サーバー数、ユーザー数などのグローバルなシステム指標。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status/guild/{guild_id}</code></td><td>特定のサーバーの接続確認(ステータスページの検索機能で使用)。</td></tr>
+</table>
+
+<h3>アカウント・セッション関連のエンドポイント</h3>
+<table>
+<tr><th>メソッド</th><th>ルート</th><th>説明</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/login</code></td><td>DiscordのOAuth2認証フローを開始します。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/callback</code></td><td>認可コードを交換し、暗号化されたCookieを発行します。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--post">POST</span></td><td><code>/auth/logout</code></td><td>アクティブなセッションを無効化し、Cookieを失効させます。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me</code></td><td>認証済みユーザーの情報(ID、名前、アバター)。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/guilds</code></td><td>ユーザーが管理しているサーバーの一覧。設定済みのものと利用可能なものに分類されます。</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/billing</code></td><td>ユーザーのサブスクリプションと請求の状況。</td></tr>
+</table>
+
+<h3>サーバー単位のエンドポイント(<code>/api/server/{guild_id}/*</code>)</h3>
+<p>このプレフィックス配下のルートはすべて、アクティブなセッションが必要で、そのサーバーでユーザーが<code>サーバー管理</code>の権限を持っているかをリアルタイムで検証します:</p>
+
+<ul>
+  <li><code>GET/POST /api/server/{id}/style</code>:Purgitoのアバター、ニックネーム、バナーの参照・更新。</li>
+  <li><code>GET/POST /api/server/{id}/stats</code>:メッセージメモリ、GIF、フレーズ、過去の活動、クォータに関する詳細な指標。</li>
+  <li><code>GET/PUT /api/server/{id}/chat</code>:生成設定、自発的な応答の割合、メッセージの上限。</li>
+  <li><code>GET/PUT /api/server/{id}/canales</code>:読み取りチャンネル、応答チャンネル、ミュートされたチャンネル、無視するロールのマトリクス。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/gifs</code>:GIFのカタログ、ファイルのアップロード、個別または一括での削除。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/memes</code>:ミームバンクのテンプレートと画像。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/triggers</code>:完全一致、前方一致、正規表現(regex)による自動応答。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/reacciones</code>:絵文字による自動リアクションのルール。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/frases</code>:チャンネルごとのカスタムフレーズとテーマ別パック。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/embeds</code>:クラシックなembedテンプレートとLayout V2のインタラクティブなブロック。</li>
+  <li><code>POST /api/server/{id}/embeds/send</code>:デザインしたメッセージをDiscordチャンネルへ即時配信します。</li>
+  <li><code>GET/PUT/DELETE /api/server/{id}/events/{event_type}</code>:変数エンジンを備えた、歓迎・送別・ブーストイベントの参照、設定(プレーンテキスト、クラシックembed、Layout V2)、リセット。</li>
+  <li><code>POST /api/server/{id}/events/{event_type}/test</code>:動的変数を解決したテストメッセージを、設定済みのチャンネルへ送信します。</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/anuncios</code>:自動アナウンスのスケジュール設定と管理。</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/youtube</code>:新着動画の購読と通知先チャンネル。</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/rss</code>:汎用RSS/Atomフィードの購読と、新着投稿の通知先チャンネル。</li>
+  <li><code>POST /api/server/{id}/amnesia</code>:過去24時間で学習したメッセージコーパスと文体のクリア。</li>
+  <li><code>GET /api/server/{id}/audit</code>:ダッシュボードから行われた変更の監査ログ。</li>
+</ul>
+
+<h2 id="webhooks-de-pago">支払いのWebhook(Polar)</h2>
+<p><code>POST /webhooks/polar</code>は、Polarが発行するサブスクリプションと請求に関するイベント通知を受け取ります:</p>
+<ul>
+  <li><strong>署名の検証</strong>:<code>Webhook-Signature</code>ヘッダーを、<code>POLAR_WEBHOOK_SECRET</code>を使った<em>Standard Webhooks</em>の標準(HMAC-SHA256)に基づいて検証します。署名が不正、またはヘッダーが欠けている場合、リクエストは<code>400</code>で拒否されます。</li>
+  <li><strong>イベントの順序</strong>:各ペイロードにはタイムスタンプが含まれており、ネットワーク上で遅延したイベントが、より新しい状態を上書きしないことを保証します。</li>
+  <li><strong>処理されるイベント</strong>:<code>subscription.created</code>、<code>subscription.updated</code>、<code>subscription.active</code>、<code>subscription.canceled</code>、<code>order.refunded</code>で、これらは<code>guild_premium</code>テーブルをリアルタイムに更新します。</li>
+</ul>

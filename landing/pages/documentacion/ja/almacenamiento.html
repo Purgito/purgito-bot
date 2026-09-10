@@ -1,0 +1,42 @@
+<h1>ストレージ</h1>
+<p>Purgitoは、ローカルに組み込まれたリレーショナルデータベースSQLiteと、負荷の大きいメディアファイル用のS3互換オブジェクトストレージ(Cloudflare R2)を組み合わせたストレージアーキテクチャを採用しています。</p>
+
+<h2 id="sqlite">SQLiteデータベースとパフォーマンス</h2>
+<p>リレーショナルなデータはすべて<code>data/bot.db</code>という単一のファイルに保存されます。接続は<code>src/db.py</code>内で<code>aiosqlite</code>を通じて非同期に管理されており、次のようなパフォーマンス設定が使われています:</p>
+
+<ul>
+  <li><code>PRAGMA journal_mode=WAL</code>:<em>Write-Ahead Logging</em>モードにより、書き込みをブロックすることなく並行した読み取りが可能になり、ディスクの競合が減ります。</li>
+  <li><code>PRAGMA synchronous=NORMAL</code>:I/Oのレイテンシへの影響を最小限に抑えながら、OSのクラッシュに対するデータの整合性を保証します。</li>
+  <li><code>PRAGMA foreign_keys=ON</code>:カスケード削除における参照整合性を維持します。</li>
+  <li><strong>非同期の書き込みロック</strong>:単一の<code>asyncio.Lock</code>がPythonからのすべての書き込みトランザクションを直列化し、高負荷時に<code>database is locked</code>のようなエラーが起きるのを防ぎます。</li>
+</ul>
+
+<h2 id="esquema">スキーマとデータの分離</h2>
+<p>データベースにはドメインごとに整理された20以上のテーブルがあります。各テーブルにインデックス付きの<code>guild_id</code>カラムを持たせることで、サーバー間の分離をスキーマレベルで保証しています:</p>
+<ul>
+  <li><strong>設定とスタイル</strong>:<code>guild_settings</code>、<code>guild_style</code>、<code>channel_settings</code>、<code>ignored_roles</code>、<code>silenced_channels</code>。</li>
+  <li><strong>学習用コーパス</strong>:<code>corpus</code>(チャンネルごとのメッセージ)と<code>user_corpus</code>(投稿者ごとのメッセージ)。どちらも<code>(guild_id, created_at)</code>の複合インデックスを持ち、削減処理や学習用クエリを高速化します。</li>
+  <li><strong>自動化とトリガー</strong>:<code>triggers</code>、<code>custom_reactions</code>、<code>custom_phrases</code>、<code>phrase_packs</code>、<code>scheduled_announcements</code>。</li>
+  <li><strong>サーバーイベント</strong>:<code>server_events</code>(ギルドごとの歓迎・送別・ブースト設定)、<code>member_boost_records</code>(ブーストのタイムスタンプを冪等に記録)。</li>
+  <li><strong>メッセージデザイナー</strong>:<code>embed_templates</code>、<code>layout_v2_blocks</code>、<code>embed_share_links</code>。</li>
+  <li><strong>セキュリティと請求</strong>:<code>revoked_sessions</code>、<code>guild_premium</code>、<code>audit_log</code>。</li>
+</ul>
+
+<h2 id="r2">Cloudflare R2とメディアの重複排除</h2>
+<p>Cloudflare R2(<code>src/r2.py</code>)を使ったオブジェクトストレージはオプションです。<code>.env</code>にR2の5つの認証情報が設定されている場合、PurgitoはGIFや画像のダウンロード、最適化、ホスティングを有効にします:</p>
+
+<ul>
+  <li><strong>コンテンツベースの重複排除(SHA-256)</strong>:ダウンロードされたバイナリファイルは、その内容のSHA-256ハッシュに基づいて命名されます。2つのサーバーが同じGIFを保存する場合、R2のバケット内には1つだけ保存されます。</li>
+  <li><strong>知覚ハッシュ(pHash)</strong>:圧縮率やメタデータが異なるだけで見た目が同一の画像を検出するため、<code>imagehash.phash</code>で知覚ハッシュ(<em>perceptual hash</em>)を計算します。</li>
+  <li><strong>参照カウント</strong>:<code>gif_objects</code>テーブルが利用回数のカウンターを保持します。あるサーバーがGIFを削除するとカウンターが減り、そのカウントがゼロになったときにのみ、ファイルはR2から物理的に削除されます。</li>
+  <li><strong>ダウンロード時のSSRF対策</strong>:メディアのダウンロードでは、リモートURLがプライベートIPアドレス(RFC 1918)、ローカルループバック(<code>127.0.0.1</code>)、クラウドプロバイダーのメタデータエンドポイントに解決されないことを検証します。</li>
+</ul>
+
+<h2 id="retencion">データ保持ポリシーとバックグラウンドタスク</h2>
+<p><code>src/tasks.py</code>モジュールは、定期的なクリーンアップ処理を自動で実行します:</p>
+<ul>
+  <li><strong>サーバーの猶予期間</strong>:ボットがサーバーから追放されると(<code>on_guild_remove</code>)、<code>left_at</code>に日付が記録されます。毎日実行されるタスクは、<code>GUILD_DATA_RETENTION_DAYS</code>日(デフォルト30日)が経過した後にのみ、そのサーバーの全レコードを完全に削除します。期限が切れる前にボットが再招待された場合、この削除は自動的にキャンセルされます。</li>
+  <li><strong>監査ログの失効</strong>:<code>audit_log</code>テーブルの<code>AUDIT_LOG_RETENTION_DAYS</code>(デフォルト90日)を超えた古いレコードは自動的に削除されます。</li>
+  <li><strong>共有リンク</strong>:ダッシュボードから生成されたembedテンプレートの共有用一時リンクは、24時間後に失効・削除されます。</li>
+  <li><strong>失効したセッション</strong>:<code>revoked_sessions</code>内の期限切れセッションIDは、テーブルを軽量に保つため定期的にクリーンアップされます。</li>
+</ul>

@@ -1,0 +1,47 @@
+<h1>Discord</h1>
+<p>Purgitoは<code>discord.py</code>の上に構築されており、モジュール化されたcogの集まりとして構成されています。各cogはアプリケーションコマンド(<em>スラッシュコマンド</em>)、ゲートウェイのイベントリスナー、非同期の定期処理をカプセル化しています。</p>
+
+<h2 id="bot-y-cogs">ボットの構成とCog</h2>
+<p>ボットのエントリーポイント(<code>src/bot.py</code>)は、必要最小限のインテント(<code>guilds</code>、<code>message_content</code>、<code>emojis_and_stickers</code>、<code>reactions</code>)を指定して<code>commands.Bot</code>のインスタンスを初期化します。cogは<code>setup_hook</code>メソッド内で、決まった順序に従って非同期に読み込まれます:</p>
+
+<table>
+<tr><th>Cog</th><th>モジュール</th><th>技術的な役割</th></tr>
+<tr><td><code>premium</code></td><td><code>src/cogs/premium.py</code></td><td>クォータの検証とPremiumステータスの確認(<code>is_premium_guild</code>)。他のcogに上限のヘルパーを提供するため、最初に読み込まれます。</td></tr>
+<tr><td><code>chat</code></td><td><code>src/cogs/chat.py</code></td><td>コーパス用のメッセージの取得とクリーニング、応答確率の評価、マルコフエンジンの呼び出し、メンションの処理。</td></tr>
+<tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>メッセージ内のGIFの検出、ネイティブURL(Tenor/Giphy)の抽出、任意の圧縮、Cloudflare R2への重複排除付きアップロード。</td></tr>
+<tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>サーバーの画像バンク、ミームテンプレートの生成、MarkovまたはGroq AIによるキャプション生成、絵文字リアクションによるキャプチャ。</td></tr>
+<tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>YouTubeチャンネルのRSSフィードの定期監視と、設定されたDiscordチャンネルへの自動通知の配信。</td></tr>
+<tr><td><code>rss</code></td><td><code>src/cogs/rss.py</code></td><td>汎用RSS/Atomフィードの定期監視と、設定されたDiscordチャンネルへの自動通知の配信。</td></tr>
+<tr><td><code>anuncios</code></td><td><code>src/cogs/anuncios.py</code></td><td>自動アナウンスのスケジューラー:タイムゾーンに対応しつつ、定期的な間隔または固定時刻でembedやメッセージを配信します。</td></tr>
+<tr><td><code>general</code></td><td><code>src/cogs/general.py</code></td><td>一般的なコマンド(<code>/ping</code>、<code>/ayuda</code>)、コマンドのグローバル同期、サーバーのライフサイクル管理。</td></tr>
+<tr><td><code>settings</code></td><td><code>src/cogs/settings.py</code></td><td>Discordネイティブのインタラクティブなパネル(view、セレクト、ボタン)と、新しいサーバーに参加した際のオンボーディングメッセージ。</td></tr>
+<tr><td><code>layout_buttons</code></td><td><code>src/cogs/layout_buttons.py</code></td><td>インタラクティブなコンポーネント(Layout V2)のコントローラー:ロールの付与・剥奪、外部リンク、モーダルビュー。</td></tr>
+<tr><td><code>events</code></td><td><code>src/cogs/events.py</code></td><td>サーバーイベント:動的変数({user}、{server_membercount_ordinal}など)の解決、3種類のコンテンツモードへの対応、チャンネルへの安全な配信を伴う、参加・退出・ブーストへの対応。</td></tr>
+</table>
+
+<h2 id="ciclo-de-eventos">Gatewayイベントのライフサイクル</h2>
+<p>cogはDiscordのゲートウェイが発行するイベントを購読します(メンバー関連のイベントを追跡するには<code>intents.members = True</code>が必要です):</p>
+
+<ul>
+  <li><code>on_ready</code>:ボットがゲートウェイとの識別処理を完了すると発火します。スラッシュコマンドをDiscordと同期し、<code>src/tasks.py</code>の定期タスクを起動します。</li>
+  <li><code>on_message</code>:メッセージパイプラインの処理:ボットのメッセージの除外、許可・ミュート済みチャンネルの検証、<code>corpus</code>テーブルへの挿入、トリガーの評価、応答の生成。</li>
+  <li><code>on_member_join</code>:新規メンバーの参加を検知し、設定済みの歓迎メッセージを配信します。</li>
+  <li><code>on_member_remove</code>:メンバーの退出を検知し、設定済みの送別メッセージを配信します。</li>
+  <li><code>on_member_update</code>:ブースト開始への遷移を冪等に検知し、お礼のメッセージを配信します。</li>
+  <li><code>on_raw_reaction_add</code>:自動絵文字トリガーやミームバンクへの画像追加のために、メッセージへのリアクションを取得します。</li>
+  <li><code>on_guild_join</code>:サーバーをデータベースに登録し、デフォルト設定を初期化して、歓迎メッセージとクイックガイドを送信します。</li>
+  <li><code>on_guild_remove</code>:データベース上でサーバーに<code>left_at</code>のタイムスタンプを付け、データの完全な削除までの猶予期間を開始します。</li>
+  <li><code>on_guild_channel_update</code>:ダッシュボードとの同期を保つため、ローカルにキャッシュされたチャンネルのメタデータや名前を更新します。</li>
+</ul>
+
+<h2 id="manejo-de-errores">エラー処理とインタラクション</h2>
+<p>スラッシュコマンドはDiscordのコマンドツリー(<code>app_commands.CommandTree</code>)を使用します。インタラクション中に発生したエラーは、グローバルな<code>on_app_command_error</code>ハンドラーで捕捉されます:</p>
+
+<ul>
+  <li><code>app_commands.MissingPermissions</code>:必要な権限(例:<code>サーバー管理</code>)が不足していることを、エフェメラルメッセージ(実行者にのみ表示)でユーザーに通知します。</li>
+  <li><code>app_commands.BotMissingPermissions</code>:そのチャンネルでPurgitoに不足している具体的な権限(例:<code>メッセージを送信</code>、<code>埋め込みリンク</code>、<code>ファイルを添付</code>)を通知します。</li>
+  <li><code>app_commands.CommandOnCooldown</code>:負荷の高いコマンドでのスパムを防ぐため、残りのクールダウン時間を通知します。</li>
+</ul>
+
+<h2 id="permisos-y-seguridad">権限とコンポーネントのモデル</h2>
+<p>Purgitoは認可をDiscordのネイティブな権限システムに委ねています。並行するロール階層は保持しておらず、すべてのチェックは<code>interaction.user.guild_permissions</code>を参照します。メンバーに対する管理系のアクション(Layout V2のボタンによるロール付与など)については、ボット自身がサーバー内で持つ最上位のロールが、付与しようとしているロールより上位にあることも併せて検証します。</p>

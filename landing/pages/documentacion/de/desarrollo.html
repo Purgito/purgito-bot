@@ -1,0 +1,72 @@
+<h1>Entwicklung</h1>
+<p>Technische Anleitung zum Einrichten der lokalen Umgebung, zum Ausführen der automatisierten Testsuite und zum Beitragen zum Code von Purgito.</p>
+
+<h2 id="estructura-del-proyecto">Struktur des Repositorys</h2>
+<ul>
+  <li><code>src/bot.py</code> — Einstiegspunkt des Discord-Bots, Konfiguration der Intents und geordnetes Laden der Cogs.</li>
+  <li><code>src/config.py</code> — Zentrales Modul zum Laden und Validieren der Umgebungsvariablen (<code>.env</code>, <code>urls.env</code>, <code>limits.env</code>).</li>
+  <li><code>src/db.py</code> — Asynchrone Persistenzschicht über SQLite (<code>aiosqlite</code>), automatische Migrationen und Transaktionen.</li>
+  <li><code>src/webapi.py</code> — Webserver <code>aiohttp.web</code> mit allen JSON-REST-Endpunkten, OAuth2-Authentifizierung und Webhooks.</li>
+  <li><code>src/markov_engine.py</code> — Implementierung der probabilistischen Markov-Ketten-Engine erster und zweiter Ordnung.</li>
+  <li><code>src/r2.py</code> — S3-kompatibler Client für Cloudflare R2, Mediendeduplizierung per SHA-256-Hash und perzeptuelles Hashing.</li>
+  <li><code>src/tasks.py</code> — Periodische geplante Aufgaben (verzögerte Löschung von Servern, Ablauf der Audit-Daten und Versandaufgaben).</li>
+  <li><code>src/cogs/</code> — Discord-Cogs, organisiert nach Funktion (chat, gifs, memes, youtube, rss, premium, anuncios, settings, layout_buttons).</li>
+  <li><code>landing/</code> — Statisches Frontend: HTML-Seiten (<code>landing/pages/</code>), CSS-Stile (<code>landing/style.css</code>, <code>landing/dash.css</code>) und modulares JavaScript (<code>landing/js/</code>).</li>
+  <li><code>landing/build_docs.py</code> — Build-Skript für HTML-Seiten, Einfügen des gemeinsamen Layouts und Berechnung der Cache-Busting-Hashes.</li>
+  <li><code>tests/</code> — Automatisierte Testsuite mit <code>pytest</code> und Frontend-Tests mit Node.js.</li>
+</ul>
+
+<h2 id="entorno-local">Lokale Entwicklungsumgebung</h2>
+<p>Voraussetzungen: Python 3.11 oder höher (empfohlen 3.12) und Node.js 18+ für die Frontend-Tests.</p>
+
+<h3>1. Konfiguration der Umgebungsdateien</h3>
+<p>Purgito nutzt drei unabhängige Konfigurationsdateien mit jeweils eigenem Zweck:</p>
+<ul>
+  <li><code>.env</code>: Secrets und Entwicklungs-Tokens (Token des Discord-Bots, OAuth2-Zugangsdaten, Sitzungsschlüssel und Webhooks). Nicht in Git versioniert. Von <code>.env.example</code> kopieren.</li>
+  <li><code>urls.env</code>: URLs und öffentliche Endpunkte der Anwendung. In Git versioniert.</li>
+  <li><code>limits.env</code>: Kontingente und Speicherlimits pro Server für die Pläne Free und Premium. In Git versioniert.</li>
+</ul>
+
+<h3>2. Installation der Abhängigkeiten</h3>
+<pre><code># Virtuelle Umgebung erstellen und aktivieren
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Abhängigkeiten des Bots und Testwerkzeuge installieren
+pip install -r requirements.txt pytest ruff
+</code></pre>
+
+<h2 id="suite-de-pruebas">Tests ausführen und Linting</h2>
+
+<h3>Python-Unit-Tests (pytest)</h3>
+<pre><code># Alle automatisierten Tests von Bot und API ausführen
+.venv/bin/python -m pytest tests -q
+
+# Eine bestimmte Testdatei ausführen
+.venv/bin/python -m pytest tests/test_dashboard_routes.py -v
+</code></pre>
+
+<h3>Frontend-Tests (Node.js)</h3>
+<pre><code># Integrationstests des Dashboard-SPA
+node landing/test_dash.mjs
+
+# Paritäts- und Abdeckungstests der Internationalisierung (ES / EN)
+node landing/test_lang.mjs
+</code></pre>
+
+<h3>Formatierung und statische Analyse mit Ruff</h3>
+<pre><code># Codestil und Regeln prüfen
+ruff check .
+
+# Code automatisch formatieren
+ruff format .
+</code></pre>
+
+<h3>Generierung von Dokumentation und Webseiten</h3>
+<p>Immer wenn Dateien in <code>landing/pages/</code>, <code>landing/js/</code>, <code>landing/style.css</code> oder <code>landing/dash.css</code> geändert werden, müssen die Seiten neu generiert werden, um die Cache-Busting-Hashes zu aktualisieren und die Parität zwischen den Sprachen zu prüfen:</p>
+<pre><code># Statische Seiten in landing/es/ und landing/en/ neu generieren
+.venv/bin/python landing/build_docs.py
+
+# Prüfen, dass die generierten Dateien exakt mit dem Repository übereinstimmen (in CI verwendet)
+.venv/bin/python landing/build_docs.py --check
+</code></pre>
