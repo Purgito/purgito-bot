@@ -1,0 +1,152 @@
+<!-- Cuerpo de /es/estado. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Todos los datos reales los trae estado.js desde /api/status y
+     /api/status/guild/{id}; acá solo va el esqueleto estructurado. -->
+<main id="contenido" class="wrap estado">
+
+  <header class="estado-head">
+    <div class="estado-head-row">
+      <div class="estado-head-copy">
+        <h1 class="estado-title">Status von Purgito</h1>
+        <p class="estado-sub">Echtzeit-Monitoring der Dienste und Komponenten von Purgito.</p>
+      </div>
+      <div class="estado-live-badge" title="Aktives Monitoring · Aktualisierung alle 30 Sekunden">
+        <span class="live-pulse-dot" aria-hidden="true"></span>
+        <span id="estadoLastUpdate">Status wird abgefragt…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. Banner Principal de Estado Global -->
+  <section class="estado-banner" id="estadoGlobalBanner" aria-labelledby="estadoGlobalTitle">
+    <div class="estado-banner-top">
+      <div class="estado-banner-status">
+        <span id="estadoGlobalDot" class="estado-dot estado-dot-lg is-ok" aria-hidden="true"></span>
+        <div class="estado-banner-titles">
+          <h2 id="estadoGlobalTitle" class="estado-banner-title">Alle Systeme funktionieren</h2>
+          <p id="estadoGlobalDesc" class="estado-banner-desc">Purgito und seine Komponenten laufen normal.</p>
+        </div>
+      </div>
+      <span id="estadoGlobalBadge" class="status-badge is-ok">Betriebsbereit</span>
+    </div>
+
+    <div class="estado-metrics-bar">
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Laufzeit</span>
+        <strong id="estadoUptime" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Server</span>
+        <strong id="estadoGuilds" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Nutzer</span>
+        <strong id="estadoUsers" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Gateway-Latenz</span>
+        <strong id="estadoLatency" class="estado-metric-value">—</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Servicios del Bot -->
+  <section class="estado-section">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">Dienste</h2>
+      <span class="estado-section-sub">Hauptkomponenten und Subsysteme</span>
+    </div>
+
+    <div class="estado-card estado-list">
+      <!-- Fila 1: Bot de Discord -->
+      <div class="estado-row" id="rowBot">
+        <div class="estado-row-identity">
+          <span id="estadoDotBot" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Discord-Bot</strong>
+            <span id="estadoBotDetail" class="estado-row-desc">Verbindung zum Discord Gateway · Befehle und Events</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Latenz</span>
+            <strong id="estadoBotLatency" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Server</span>
+            <strong id="estadoBotGuilds" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Nutzer</span>
+            <strong id="estadoBotMembers" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoBotBadge" class="status-badge is-ok">Verbunden</span>
+        </div>
+      </div>
+
+      <!-- Fila 2: Panel Web y API HTTP -->
+      <div class="estado-row" id="rowWeb">
+        <div class="estado-row-identity">
+          <span id="estadoDotWeb" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Web-Panel und API</strong>
+            <span id="estadoWebDetail" class="estado-row-desc">aiohttp-HTTP-Server · purgito.app</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">HTTP-Latenz</span>
+            <strong id="estadoWebLatency" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Laufzeit</span>
+            <strong id="estadoWebUptime" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoWebBadge" class="status-badge is-ok">Betriebsbereit</span>
+        </div>
+      </div>
+
+      <!-- Fila 3: Motor de Generación y Tareas -->
+      <div class="estado-row" id="rowEngine">
+        <div class="estado-row-identity">
+          <span id="estadoDotEngine" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Generierungs-Engine und Aufgaben</strong>
+            <span id="estadoEngineDetail" class="estado-row-desc">Markov-Ketten, Meme-Generator und Hintergrundaufgaben</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">Laufzeit</span>
+            <strong id="estadoEngineUptime" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoEngineBadge" class="status-badge is-ok">Betriebsbereit</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Búsqueda y Comprobación de Servidor Específico -->
+  <section class="estado-section estado-section-search">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">Meinen Server prüfen</h2>
+      <p class="estado-section-sub">Prüfe, ob Purgito auf deinem Discord-Server verbunden ist, antwortet und verfügbar ist.</p>
+    </div>
+
+    <div class="estado-card estado-search-card">
+      <form class="estado-search-form" id="estadoSearchForm" onsubmit="return false;">
+        <div class="estado-search-input-wrap">
+          <svg class="estado-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="estadoGuildId" class="estado-search-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Füge die ID deines Servers ein (z. B. 1471724794411089920)" aria-label="ID des Discord-Servers">
+        </div>
+        <button id="estadoSearchBtn" class="btn btn-accent estado-search-btn" type="button">Server prüfen</button>
+      </form>
+      <p class="estado-hint">In Discord: Rechtsklick auf das Symbol deines Servers → Server-ID kopieren (erfordert den Entwicklermodus in den Discord-Einstellungen).</p>
+      <div id="estadoSearchResult" class="estado-search-result"></div>
+    </div>
+  </section>
+
+</main>

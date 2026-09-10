@@ -1,0 +1,350 @@
+<!-- Cuerpo de /es/premium. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
+<main id="contenido" class="prem-page">
+
+  <!-- ── 1. HERO: IDENTIDAD & EXPERIENCIA ────────────────── -->
+  <section class="prem-hero">
+    <div class="wrap prem-hero-inner">
+      <div class="prem-hero-copy">
+        <div class="prem-pill">
+          <svg class="prem-pill-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <span>PURGITO PREMIUM</span>
+        </div>
+
+        <h1 class="prem-hero-title">
+          Hol das Beste aus deinem Server<br>
+          <span class="grad-premium">heraus</span>
+        </h1>
+
+        <p class="prem-hero-desc">
+          Erweiterter Speicher, automatische Meme-Generierung, tausende GIFs und fortgeschrittene Automatisierungen, damit Purgito den Geist deiner Community wie kein anderer einfängt.
+        </p>
+
+        <div class="prem-hero-actions">
+          <!-- El checkout real necesita el guild_id del panel: el botón enruta
+               al selector de servidores. El href estático es el fallback sin JS. -->
+          <a class="btn btn-accent btn-lg prem-cta-main js-subscribe" href="/auth/login?from=landing&amp;locale=de&amp;plan=monthly">
+            7 Tage kostenlos starten
+          </a>
+          <a class="btn btn-lg prem-cta-sec" href="#planes">
+            Pläne und Preise ansehen
+          </a>
+        </div>
+
+        <div class="prem-trust-strip">
+          <div class="prem-trust-item" id="plan-trust-trial">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>7 Tage Testphase</span>
+          </div>
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+            <span>Jederzeit kündbar</span>
+          </div>
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>Sofortige Aktivierung</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="prem-hero-visual" aria-hidden="true">
+        <div class="prem-mascot-card">
+          <img class="prem-mascot-img" src="/assets/mascota.webp" alt="Purgito-Maskottchen" width="340" height="340">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. BENEFICIOS / SUPERPODERES ────────────────────── -->
+  <section class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">Superkräfte für deine Community</h2>
+      <p class="prem-section-sub">Alles, was Purgito einzigartig macht, maximal ausgereizt für anspruchsvolle Server.</p>
+    </div>
+
+    <div class="prem-features-grid">
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2a8 8 0 0 0-8 8c0 3.36 2.07 6.24 5 7.42V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.58c2.93-1.18 5-4.06 5-7.42a8 8 0 0 0-8-8z"/>
+            <line x1="9" y1="22" x2="15" y2="22"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">Erweiterter Speicher</h3>
+        <p class="prem-feat-desc">Bis zu <strong>50.000 Nachrichten pro Kanal</strong> und <strong>500.000 insgesamt</strong>. Purgito lernt tiefer und gibt Stil und Redewendungen deines Servers mit hoher Genauigkeit wieder.</p>
+        <div class="prem-feat-badge">3,3x mehr Kapazität</div>
+      </article>
+
+      <article class="box prem-feat-card prem-feat-card--hero">
+        <div class="prem-feat-icon-wrap prem-feat-icon-wrap--purple">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">Automatische Meme-Generierung im Chat</h3>
+        <p class="prem-feat-desc">Schaltet die automatische Meme-Erstellung frei. Lade bis zu <strong>200 Bilder</strong> in deine Meme-Bank hoch und lass Purgito grafische Antworten auf Basis der Unterhaltung generieren.</p>
+        <div class="prem-feat-badge prem-feat-badge--exclusive">Exklusiv für Premium</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">4.000 gespeicherte GIFs</h3>
+        <p class="prem-feat-desc">Speichere bis zu <strong>4.000 GIFs</strong> für automatische Antworten und Erwähnungen. Ein riesiges visuelles Repertoire, um den Chat lebendig zu halten, ohne früh aussortieren zu müssen.</p>
+        <div class="prem-feat-badge">2,6x mehr GIFs</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">10 geplante Ankündigungen</h3>
+        <p class="prem-feat-desc">Richte bis zu <strong>10 automatisierte Ankündigungen</strong> ein, in Intervallen oder zu einer festen Uhrzeit. Perfekt für Erinnerungen, Community-Events, Aktionen und Hinweise.</p>
+        <div class="prem-feat-badge">3,3x mehr Ankündigungen</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">50 Embed-Vorlagen</h3>
+        <p class="prem-feat-desc">Speichere bis zu <strong>50 interaktive Vorlagen</strong> im visuellen Editor. Gestalte Regeln, Infopanels und Mitteilungen mit Buttons und Auswahlmenüs.</p>
+        <div class="prem-feat-badge">2,5x mehr Vorlagen</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">Phrasen-Packs und Trigger</h3>
+        <p class="prem-feat-desc">Bis zu <strong>200 Spezialphrasen</strong>, verteilt auf <strong>20 pro Kanal zuweisbare Packs</strong>, plus <strong>30 Trigger</strong> für sofortige Antworten auf Schlüsselwörter.</p>
+        <div class="prem-feat-badge">4x mehr Individualisierung</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── 3. COMPARATIVA DE LÍMITES TÉCNICOS ──────────────── -->
+  <section class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">Kapazität für<br>aktive Server</h2>
+      <p class="prem-section-sub">Vergleiche die echten Limits zwischen dem kostenlosen Plan und Purgito Premium.</p>
+    </div>
+
+    <div class="box prem-stat-matrix">
+      <div class="prem-stat-matrix-header">
+        <div class="prem-stat-col-title">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>Limit oder Funktion</span>
+        </div>
+        <div class="prem-stat-col-head prem-stat-col-head--free">Kostenloser Plan</div>
+        <div class="prem-stat-col-head prem-stat-col-head--prem">Purgito Premium</div>
+      </div>
+
+      <div class="prem-stat-rows">
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Nachrichten pro Kanal</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">15.000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">50.000</span>
+            <span class="prem-stat-mult">3,3x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Gesamtspeicher des Servers</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">150.000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">500.000</span>
+            <span class="prem-stat-mult">3,3x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Nachrichten pro Nutzer</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">2.000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">8.000</span>
+            <span class="prem-stat-mult">4,0x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Gespeicherte GIFs</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">1.500</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">4.000</span>
+            <span class="prem-stat-mult">2,6x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Bilder für Memes</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">75</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">200</span>
+            <span class="prem-stat-mult">2,6x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Embed-Vorlagen</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">20</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">50</span>
+            <span class="prem-stat-mult">2,5x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">Geplante Ankündigungen</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">Kostenlos:</span>
+            <span class="prem-stat-val">3</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">10</span>
+            <span class="prem-stat-mult">3,3x</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. PLANES & PRECIOS ─────────────────────────────── -->
+  <section id="planes" class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">Wähle den Plan für deinen Server</h2>
+      <p class="prem-section-sub">Ohne Vertragsbindung oder Mindestlaufzeit. Jederzeit über dein Kontrollpanel kündbar.</p>
+
+      <div class="plan-toggle" id="plan-toggle" role="group" aria-label="Abrechnungszeitraum">
+        <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">Monatlich</button>
+        <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">Jährlich <span class="prem-discount-tag">33% sparen</span></button>
+      </div>
+    </div>
+
+    <div class="prem-plans-grid">
+      <!-- Plan Free -->
+      <article class="box prem-plan-card">
+        <div class="prem-plan-header">
+          <h3 class="prem-plan-title">Purgito Free</h3>
+          <p class="prem-plan-desc">Das Wesentliche für kleine oder wachsende Server.</p>
+          <div class="prem-plan-price-wrap">
+            <span class="prem-plan-price">0 $</span>
+            <span class="prem-plan-per">/für immer</span>
+          </div>
+        </div>
+
+        <ul class="prem-perks-list">
+          <li><span class="prem-perk-check">✓</span> 15.000 Nachrichten Speicher pro Kanal</li>
+          <li><span class="prem-perk-check">✓</span> 150.000 Nachrichten insgesamt pro Server</li>
+          <li><span class="prem-perk-check">✓</span> 1.500 gespeicherte GIFs</li>
+          <li><span class="prem-perk-check">✓</span> 75 Bilder in der Meme-Bank</li>
+          <li><span class="prem-perk-check">✓</span> 20 Embed-Vorlagen</li>
+          <li><span class="prem-perk-check">✓</span> 3 geplante Ankündigungen</li>
+          <li><span class="prem-perk-check">✓</span> 50 Spezialphrasen und 5 Packs</li>
+          <li><span class="prem-perk-check">✓</span> 10 Antwort-Trigger</li>
+          <li class="prem-perk-disabled"><span class="prem-perk-cross">✕</span> Automatische Memes im Chat</li>
+        </ul>
+
+        <div class="prem-plan-action">
+          <a class="btn btn-secondary btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
+            <img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Purgito einladen
+          </a>
+        </div>
+      </article>
+
+      <!-- Plan Premium -->
+      <article class="box prem-plan-card prem-plan-card--featured">
+        <div class="prem-featured-ribbon">AM BELIEBTESTEN</div>
+        <div class="prem-plan-header">
+          <h3 class="prem-plan-title">Purgito Premium</h3>
+          <p class="prem-plan-desc">Maximale Kapazität, automatische Memes und alle Werkzeuge.</p>
+          <div class="prem-plan-price-wrap">
+            <span class="prem-plan-price" id="plan-amount">4,99 $</span>
+            <span class="prem-plan-per" id="plan-per">/monatlich</span>
+          </div>
+          <p class="plan-trial prem-plan-trial-badge" id="plan-trial">✨ 7 Tage kostenlose Testphase</p>
+        </div>
+
+        <ul class="prem-perks-list">
+          <li class="prem-perk-highlight"><span class="prem-perk-check">★</span> <strong>Automatische Memes im Chat</strong></li>
+          <li><span class="prem-perk-check">✓</span> <strong>50.000</strong> Nachrichten pro Kanal (500.000 insgesamt)</li>
+          <li><span class="prem-perk-check">✓</span> <strong>4.000</strong> gespeicherte GIFs</li>
+          <li><span class="prem-perk-check">✓</span> <strong>200</strong> Bilder in der Meme-Bank</li>
+          <li><span class="prem-perk-check">✓</span> <strong>50</strong> Embed-Vorlagen</li>
+          <li><span class="prem-perk-check">✓</span> <strong>10</strong> geplante Ankündigungen</li>
+          <li><span class="prem-perk-check">✓</span> <strong>200</strong> Spezialphrasen und <strong>20</strong> Packs</li>
+          <li><span class="prem-perk-check">✓</span> <strong>30</strong> Antwort-Trigger</li>
+          <li><span class="prem-perk-check">✓</span> Prioritäts-Support und Badge im Dashboard</li>
+        </ul>
+
+        <div class="prem-plan-action">
+          <a class="btn btn-accent btn-lg plan-cta js-subscribe" id="plan-cta" href="/auth/login?from=landing&amp;locale=de&amp;plan=monthly">
+            Kostenlose Testphase starten
+          </a>
+        </div>
+      </article>
+    </div>
+
+    <!-- Información secundaria sobre la prueba y facturación -->
+    <div class="prem-sub-details">
+      <p class="prem-sub-notes" id="plan-sub-notes">
+        Die kostenlose 7-Tage-Testphase steht für monatliche Abonnements zur Verfügung. Das Abonnement wird sicher über Polar abgerechnet und an den Discord-Server gebunden, den du in deinem Panel auswählst. Du kannst jederzeit vor Ablauf der Testphase kostenlos kündigen.
+      </p>
+
+      <p class="plans-legal">
+        Mit dem Abschluss eines Abonnements akzeptierst du die <a href="/de/terminos">Nutzungsbedingungen</a>, die <a href="/de/reembolsos">Rückerstattungsrichtlinie</a> und die <a href="/de/privacidad">Datenschutzrichtlinie</a>. Kontakt: <a href="mailto:billing@purgito.app">billing@purgito.app</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── 5. DONACIÓN (SECUNDARIA) ────────────────────────── -->
+  <section class="wrap prem-donate-wrap">
+    <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Auf Ko-fi spenden">
+      <div class="donate-copy">
+        <h2 class="donate-title">Möchtest du das Projekt einfach nur unterstützen?</h2>
+        <p class="donate-sub">Du kannst auch eine freiwillige Spende auf Ko-fi machen, um die Serverkosten mitzutragen.</p>
+        <p class="donate-fine">Spenden ist freiwillig und gewährt keine Vorteile oder Abonnements innerhalb des Bots.</p>
+      </div>
+      <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+    </a>
+  </section>
+
+</main>

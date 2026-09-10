@@ -1,0 +1,152 @@
+<!-- Cuerpo de /ja/estado. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Todos los datos reales los trae estado.js desde /api/status y
+     /api/status/guild/{id}; acá solo va el esqueleto estructurado. -->
+<main id="contenido" class="wrap estado">
+
+  <header class="estado-head">
+    <div class="estado-head-row">
+      <div class="estado-head-copy">
+        <h1 class="estado-title">Purgitoのステータス</h1>
+        <p class="estado-sub">Purgitoのサービスとコンポーネントをリアルタイムで監視。</p>
+      </div>
+      <div class="estado-live-badge" title="監視中 · 30秒ごとに自動更新">
+        <span class="live-pulse-dot" aria-hidden="true"></span>
+        <span id="estadoLastUpdate">ステータスを確認中…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. Banner Principal de Estado Global -->
+  <section class="estado-banner" id="estadoGlobalBanner" aria-labelledby="estadoGlobalTitle">
+    <div class="estado-banner-top">
+      <div class="estado-banner-status">
+        <span id="estadoGlobalDot" class="estado-dot estado-dot-lg is-ok" aria-hidden="true"></span>
+        <div class="estado-banner-titles">
+          <h2 id="estadoGlobalTitle" class="estado-banner-title">すべてのシステムが正常稼働中</h2>
+          <p id="estadoGlobalDesc" class="estado-banner-desc">Purgitoとそのコンポーネントは正常に動作しています。</p>
+        </div>
+      </div>
+      <span id="estadoGlobalBadge" class="status-badge is-ok">稼働中</span>
+    </div>
+
+    <div class="estado-metrics-bar">
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">稼働時間</span>
+        <strong id="estadoUptime" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">サーバー数</span>
+        <strong id="estadoGuilds" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">ユーザー数</span>
+        <strong id="estadoUsers" class="estado-metric-value">—</strong>
+      </div>
+      <div class="estado-metric-divider" aria-hidden="true"></div>
+      <div class="estado-metric-cell">
+        <span class="estado-metric-label">Gatewayレイテンシ</span>
+        <strong id="estadoLatency" class="estado-metric-value">—</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Servicios del Bot -->
+  <section class="estado-section">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">サービス</h2>
+      <span class="estado-section-sub">主要なコンポーネントとサブシステム</span>
+    </div>
+
+    <div class="estado-card estado-list">
+      <!-- Fila 1: Bot de Discord -->
+      <div class="estado-row" id="rowBot">
+        <div class="estado-row-identity">
+          <span id="estadoDotBot" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">Discordボット</strong>
+            <span id="estadoBotDetail" class="estado-row-desc">Discord Gatewayとの接続 · コマンドとイベント</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">レイテンシ</span>
+            <strong id="estadoBotLatency" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">サーバー数</span>
+            <strong id="estadoBotGuilds" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">ユーザー数</span>
+            <strong id="estadoBotMembers" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoBotBadge" class="status-badge is-ok">接続済み</span>
+        </div>
+      </div>
+
+      <!-- Fila 2: Panel Web y API HTTP -->
+      <div class="estado-row" id="rowWeb">
+        <div class="estado-row-identity">
+          <span id="estadoDotWeb" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">ウェブパネルとAPI</strong>
+            <span id="estadoWebDetail" class="estado-row-desc">aiohttp HTTPサーバー · purgito.app</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">HTTPレイテンシ</span>
+            <strong id="estadoWebLatency" class="estado-stat-num">—</strong>
+          </div>
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">稼働時間</span>
+            <strong id="estadoWebUptime" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoWebBadge" class="status-badge is-ok">稼働中</span>
+        </div>
+      </div>
+
+      <!-- Fila 3: Motor de Generación y Tareas -->
+      <div class="estado-row" id="rowEngine">
+        <div class="estado-row-identity">
+          <span id="estadoDotEngine" class="estado-dot is-ok" aria-hidden="true"></span>
+          <div class="estado-row-titles">
+            <strong class="estado-row-name">生成エンジンとタスク</strong>
+            <span id="estadoEngineDetail" class="estado-row-desc">マルコフ連鎖、ミーム生成、バックグラウンドタスク</span>
+          </div>
+        </div>
+        <div class="estado-row-metrics">
+          <div class="estado-stat-col">
+            <span class="estado-stat-label">稼働時間</span>
+            <strong id="estadoEngineUptime" class="estado-stat-num">—</strong>
+          </div>
+          <span id="estadoEngineBadge" class="status-badge is-ok">稼働中</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Búsqueda y Comprobación de Servidor Específico -->
+  <section class="estado-section estado-section-search">
+    <div class="estado-section-head">
+      <h2 class="estado-section-title">自分のサーバーを確認</h2>
+      <p class="estado-section-sub">PurgitoがあなたのDiscordサーバーに接続され、応答し、利用可能かどうかを確認します。</p>
+    </div>
+
+    <div class="estado-card estado-search-card">
+      <form class="estado-search-form" id="estadoSearchForm" onsubmit="return false;">
+        <div class="estado-search-input-wrap">
+          <svg class="estado-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="estadoGuildId" class="estado-search-input" type="text" inputmode="numeric" autocomplete="off" placeholder="サーバーのIDを貼り付け(例:1471724794411089920)" aria-label="DiscordサーバーのID">
+        </div>
+        <button id="estadoSearchBtn" class="btn btn-accent estado-search-btn" type="button">サーバーを確認</button>
+      </form>
+      <p class="estado-hint">Discordで:サーバーアイコンを右クリック →「サーバーIDをコピー」(Discordの設定で開発者モードを有効にする必要があります)。</p>
+      <div id="estadoSearchResult" class="estado-search-result"></div>
+    </div>
+  </section>
+
+</main>

@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-vdGHKwwc1vy08uVKZQuan+NxchS9QTDScLNfQ3PFWWk='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Purgito — бот, который подражает твоему сообществу</title>
+<meta name="description" content="Purgito учится на юморе твоего сервера Discord — сообщениях, гифках — и отвечает, подражая его стилю. Бесплатно навсегда.">
+<meta name="theme-color" content="#13c4d8">
+
+<!-- Preview al compartir el link (Discord, X, etc.). Las URLs de imagen van
+     absolutas a propósito: varios crawlers de preview no resuelven relativas. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Purgito">
+<meta property="og:url" content="https://purgito.app/ru/">
+<meta property="og:title" content="Purgito — бот, который подражает твоему сообществу">
+<meta property="og:description" content="Purgito учится на юморе твоего сервера Discord — сообщениях, гифках — и отвечает, подражая его стилю. Бесплатно навсегда.">
+<meta property="og:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="Purgito">
+<meta property="og:locale" content="ru_RU">
+
+<!-- summary y no summary_large_image: thumbnail cuadrado y compacto a la
+     derecha del texto, en vez de un banner ancho debajo. -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Purgito — бот, который подражает твоему сообществу">
+<meta name="twitter:description" content="Purgito учится на юморе твоего сервера Discord — сообщениях, гифках — и отвечает, подражая его стилю. Бесплатно навсегда.">
+<meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
+
+<link rel="canonical" href="https://purgito.app/ru/">
+<link rel="alternate" hreflang="es" href="https://purgito.app/es/">
+<link rel="alternate" hreflang="en" href="https://purgito.app/en/">
+<link rel="alternate" hreflang="x-default" href="https://purgito.app/">
+
+<link rel="icon" href="/assets/icon.png">
+<link rel="stylesheet" href="/style.css?v=ff5cfe1b">
+
+<!-- Sin prefijo de idioma en el path: elige el idioma del navegador con
+     traducción disponible y cae a español. Va en el <head> para redirigir
+     antes de pintar nada. -->
+<script>
+/* ponytail: agregar 'ru','ja','de' aquí cuando exista su traducción —
+   habilita a la vez el redirect y su ítem en el selector de idioma. */
+window.READY_LANGS = ['es', 'en'];
+(function () {
+  if (/^\/(es|en|ru|ja|de)(\/|$)/.test(location.pathname)) return;
+  var want = navigator.languages || [navigator.language || ''];
+  var pick = 'es';
+  for (var i = 0; i < want.length; i++) {
+    var l = String(want[i]).slice(0, 2).toLowerCase();
+    if (window.READY_LANGS.indexOf(l) !== -1) { pick = l; break; }
+  }
+  location.replace('/' + pick + location.pathname + location.search + location.hash);
+})();
+</script>
+</head>
+<body>
+
+<!-- El gradiente del hero vive detrás de todo: el navbar flota encima. -->
+<div id="bg" aria-hidden="true"></div>
+
+<a class="skip" href="#contenido">Перейти к содержимому</a>
+
+<!-- ── NAVBAR ────────────────────────────────────────────── -->
+<nav class="nav" id="top">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/ru/" aria-label="Purgito, на главную">
+      <img class="nav-logo" src="/assets/mascota.webp" alt="" onerror="this.remove()">
+      <span class="nav-brand-name">Purgito</span>
+    </a>
+
+    <span class="nav-sep" aria-hidden="true"></span>
+
+    <a class="nav-topgg" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener" aria-label="Purgito на top.gg">
+      <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+        <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+        <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+      </svg>
+      <span>.gg</span>
+    </a>
+
+    <div class="nav-links">
+      <!-- Item 1: Premium (Direct Link) -->
+      <a class="nav-link" href="/ru/premium">Premium</a>
+
+      <!-- Item 2: Recursos (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-recursos">
+          <span>Ресурсы</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-recursos" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Ресурсы и гиды</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/ru/guia">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Гид по Purgito</span>
+                  <span class="nav-drop-desc">Как работает бот и что можно настроить</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/ru/documentacion">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Документация</span>
+                  <span class="nav-drop-desc">Руководства, архитектура, команды и API</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/ru/estado">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Статус сервиса</span>
+                  <span class="nav-drop-desc">Доступность в реальном времени, шарды и задержка</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 3: Comunidad (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-comunidad">
+          <span>Сообщество</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-comunidad" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Сообщество и ссылки</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--blurple">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Сервер Discord</span>
+                  <span class="nav-drop-desc">Поддержка, предложения и общение</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+                <div class="nav-drop-icon nav-drop-icon--topgg">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path>
+                    <path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path>
+                    <path fill="#ffd23f" d="M15 10h7v4h-7z"></path>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Голосовать на Top.gg</span>
+                  <span class="nav-drop-desc">Поддержи Purgito своим голосом</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">GitHub</span>
+                  <span class="nav-drop-desc">Исходный код и разработка</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Item 4: Legal (Dropdown) -->
+      <div class="nav-item has-dropdown" data-nav-dropdown>
+        <button type="button" class="nav-link nav-dropdown-btn" aria-expanded="false" aria-haspopup="true" id="nav-btn-legal">
+          <span>Правовая информация</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown" role="region" aria-labelledby="nav-btn-legal" hidden>
+          <div class="nav-dropdown-inner">
+            <div class="nav-dropdown-header">Правовая информация и условия</div>
+            <div class="nav-dropdown-grid">
+              <a class="nav-drop-item" href="/ru/terminos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Условия обслуживания</span>
+                  <span class="nav-drop-desc">Условия использования и ответственность</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/ru/privacidad">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Политика конфиденциальности</span>
+                  <span class="nav-drop-desc">Обработка и защита данных</span>
+                </div>
+              </a>
+              <a class="nav-drop-item" href="/ru/reembolsos">
+                <div class="nav-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                  </svg>
+                </div>
+                <div class="nav-drop-text">
+                  <span class="nav-drop-title">Политика возврата средств</span>
+                  <span class="nav-drop-desc">Условия пробного периода и платежей</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <!-- Selector de idioma: el prefijo del path cambia con la elección. -->
+      <div class="lang" data-lang-picker>
+        <button type="button" class="lang-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="lang-code" data-lang-code>RU</span>
+          <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="lang-menu" role="menu" hidden>
+          <a class="lang-item" role="menuitemradio" href="/es/" data-lang="es"><span class="radio" aria-hidden="true"></span>Español</a>
+          <a class="lang-item" role="menuitemradio" href="/en/" data-lang="en"><span class="radio" aria-hidden="true"></span>English</a>
+          <a class="lang-item" role="menuitemradio" href="/ru/" data-lang="ru"><span class="radio" aria-hidden="true"></span>Русский</a>
+          <a class="lang-item" role="menuitemradio" href="/ja/" data-lang="ja"><span class="radio" aria-hidden="true"></span>日本語</a>
+          <a class="lang-item" role="menuitemradio" href="/de/" data-lang="de"><span class="radio" aria-hidden="true"></span>Deutsch</a>
+        </div>
+      </div>
+
+      <!-- Slot de sesión: arranca vacío y se rellena ya resuelto (sin parpadeo).
+           El acceso al dashboard vive dentro de este dropdown, no suelto en el nav. -->
+      <div id="auth-slot" class="auth-slot"></div>
+
+      <!-- Botón de menú móvil -->
+      <button type="button" class="nav-mobile-toggle" id="nav-mobile-toggle" aria-expanded="false" aria-label="Открыть меню навигации" aria-controls="nav-mobile-panel">
+        <span class="nav-hamburger" aria-hidden="true">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel móvil desplegable -->
+  <div class="nav-mobile-panel" id="nav-mobile-panel" hidden>
+    <div class="nav-mobile-content">
+      <a class="nav-mobile-item nav-mobile-item--highlight" href="/ru/premium">
+        <span>Purgito Premium</span>
+      </a>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Ресурсы</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/ru/guia">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            <div>
+              <div class="title">Гид по Purgito</div>
+              <div class="desc">Как работает бот и настройка</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/ru/documentacion">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <div>
+              <div class="title">Документация</div>
+              <div class="desc">Руководства, архитектура и команды</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/ru/estado">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <div>
+              <div class="title">Статус сервиса</div>
+              <div class="desc">Доступность в реальном времени и шарды</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Сообщество</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+            <div>
+              <div class="title">Сервер Discord</div>
+              <div class="desc">Поддержка и сообщество</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://top.gg/bot/1471724794411089920" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff3366" d="M2 3h9v4H7.5v6H2z"></path><path fill="#0fa3d8" d="M11 3h11v4h-7v3h-4z"></path><path fill="#ffd23f" d="M15 10h7v4h-7z"></path></svg>
+            <div>
+              <div class="title">Голосовать на Top.gg</div>
+              <div class="desc">Проголосуй за Purgito</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+            <div>
+              <div class="title">GitHub</div>
+              <div class="desc">Открытый исходный код</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-mobile-group">
+        <button type="button" class="nav-mobile-accordion-btn" aria-expanded="false">
+          <span>Правовая информация</span>
+          <svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="nav-mobile-sub" hidden>
+          <a class="nav-mobile-link" href="/ru/terminos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <div>
+              <div class="title">Условия обслуживания</div>
+              <div class="desc">Условия использования и ответственность</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/ru/privacidad">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+              <div class="title">Политика конфиденциальности</div>
+              <div class="desc">Обработка и защита данных</div>
+            </div>
+          </a>
+          <a class="nav-mobile-link" href="/ru/reembolsos">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <div>
+              <div class="title">Политика возврата средств</div>
+              <div class="desc">Условия пробного периода и платежей</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────── -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <h1 class="hero-title">Бот, который<br><span class="grad">подражает твоему сообществу</span></h1>
+      <p class="hero-sub">Учится на юморе твоего сервера — сообщения, гифки</p>
+
+      <div class="hero-actions">
+        <a class="btn btn-accent" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">Пригласить Purgito</a>
+        <a class="btn" href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+          Сервер поддержки
+        </a>
+      </div>
+
+      <p class="hero-hint">Пригласи его <svg class="hint-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c5-1 9-5 13-11M17 5h3v3"/></svg></p>
+    </div>
+
+    <!-- Elemento decorativo: sin diseño en el boceto, armado a mano. -->
+    <div class="hero-deco" aria-hidden="true">
+      <svg viewBox="0 0 420 320" class="deco-svg">
+        <defs>
+          <radialGradient id="dg1" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity=".55"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="dg2" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="var(--accent-2)" stop-opacity=".45"/>
+            <stop offset="100%" stop-color="var(--accent-2)" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle class="deco-blob" cx="250" cy="130" r="120" fill="url(#dg1)"/>
+        <circle class="deco-blob deco-blob-b" cx="140" cy="200" r="105" fill="url(#dg2)"/>
+        <circle class="deco-ring" cx="210" cy="160" r="118" fill="none" stroke="var(--accent)" stroke-opacity=".28" stroke-width="1.5" stroke-dasharray="3 9"/>
+        <circle class="deco-ring deco-ring-b" cx="210" cy="160" r="86" fill="none" stroke="var(--accent-soft)" stroke-opacity=".2" stroke-width="1" stroke-dasharray="2 14"/>
+        <g class="deco-spark" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-opacity=".85">
+          <path d="M330 62v22M319 73h22"/>
+          <path d="M96 96v14M89 103h14"/>
+          <path d="M300 246v16M292 254h16"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Terminal: componente firma que ya existía, reutilizado tal cual. -->
+  <div class="wrap">
+    <div class="ticker" role="img" aria-label="Примеры фраз, сгенерированных ботом">
+      <span class="ticker-prompt">&gt;&nbsp;</span><span class="ticker-text" id="ticker-text"></span><span class="ticker-cursor" id="ticker-cursor">▌</span>
+    </div>
+  </div>
+
+  <div class="scroll-cue" aria-hidden="true"><span class="scroll-dot"></span></div>
+</header>
+
+<main id="contenido">
+
+  <!-- ── FEATURES ────────────────────────────────────────── -->
+  <section class="wrap features">
+
+    <article class="box feat reveal">
+      <div class="feat-copy">
+        <h2 class="h2">Общайся с Purgito</h2>
+        <span class="badge">Бесплатно навсегда</span>
+        <p class="feat-text">
+          Анализирует сообщения в разрешённых каналах и отвечает, подражая стилю
+          твоего сообщества. Без перевода и интерпретации — учится напрямую на
+          структуре текста.
+        </p>
+        <div class="feat-actions">
+          <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Пригласить</a>
+        </div>
+      </div>
+
+      <div class="feat-media">
+        <figure class="shot shot-tilt">
+          <img src="/assets/purgito-comando-help.png" alt="Команда /help Purgito в Discord" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <!-- Sin asset todavía: dos placeholders con la misma caja que las shots. -->
+      <div class="feat-minis">
+        <figure class="shot shot-ph shot-tilt-l">
+          <span>гифка с Purgito, отвечающим гифкой</span>
+        </figure>
+        <figure class="shot shot-ph shot-tilt-r">
+          <span>гифка с Purgito, отвечающим сообщением</span>
+        </figure>
+      </div>
+    </article>
+
+    <article class="box feat feat-flip reveal">
+      <div class="feat-copy">
+        <h2 class="h2">Редактор embed-сообщений</h2>
+        <span class="badge">Бесплатно навсегда</span>
+        <p class="feat-text">
+          Создавай embed-сообщения с интерактивными кнопками —включая кнопки,
+          которые выдают роли— с предпросмотром в реальном времени. Каждый дизайн
+          сохраняется как шаблон, готовый к повторному использованию в любой момент.
+        </p>
+        <div class="feat-actions">
+          <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Пригласить</a>
+          <a class="btn btn-sm dash-link" href="#">Панель управления</a>
+        </div>
+      </div>
+      <div class="feat-media">
+        <figure class="shot shot-tilt-l">
+          <img src="/assets/editor-embeds.png" alt="Редактор embed-сообщений с предпросмотром в реальном времени" loading="lazy" decoding="async">
+        </figure>
+      </div>
+    </article>
+
+    <article class="box feat reveal">
+      <div class="feat-copy">
+        <h2 class="h2">Галерея GIF</h2>
+        <span class="badge">Бесплатно навсегда</span>
+        <p class="feat-text">
+          Каждый сервер собирает свою коллекцию, сохраняя GIF, которыми делятся
+          в каналах. Управляется через веб-галерею — без команд и поиска
+          исходного сообщения.
+        </p>
+        <div class="feat-actions">
+          <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Пригласить</a>
+          <a class="btn btn-sm dash-link" href="#">Панель управления</a>
+        </div>
+      </div>
+      <div class="feat-media">
+        <figure class="shot shot-tilt">
+          <img src="/assets/galeria-gifs.png" alt="Веб-галерея сохранённых GIF сервера" loading="lazy" decoding="async">
+        </figure>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ── FAQ ─────────────────────────────────────────────── -->
+  <section class="wrap faq" aria-label="Часто задаваемые вопросы">
+
+    <details class="q">
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M21 11h-6"/></svg></span>Как пригласить Purgito на свой сервер?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <ol>
+          <li>Убедись, что у тебя есть право «Управление сервером» (<code class="cmd">Manage Server</code>) на сервере, куда хочешь пригласить Purgito.</li>
+          <li>Нажми «Пригласить Purgito» (в верхней части этой страницы).</li>
+          <li>Выбери свой сервер и нажми «Продолжить».</li>
+          <li>Не снимай ни одного разрешения и нажми «Авторизовать».</li>
+        </ol>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h3"/></svg></span>Как отменить подписку или управлять ей?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          Оплата обрабатывается через Polar, нашего платёжного провайдера (Merchant of Record) —
+          управление подпиской происходит там, а не в этой панели. При оформлении подписки Polar
+          отправляет тебе письмо с подтверждением и доступом к твоему клиентскому порталу. Через
+          этот портал можно в любой момент отменить подписку, переключиться между месячным и
+          годовым планом или посмотреть чеки. Если не находишь письмо, проверь папки со спамом
+          или промоакциями.
+        </p>
+        <p>
+          Если ты отменишь подписку, доступ к Premium останется активным до конца уже оплаченного
+          периода. После этой даты подписка не продлевается, и сервер автоматически переходит на
+          бесплатный план.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20.5S4 16 4 10.8A3.8 3.8 0 0 1 12 7.7a3.8 3.8 0 0 1 8 3.1c0 5.2-8 9.7-8 9.7Z"/></svg></span>Даёт ли донат на Ko-fi что-то внутри бота?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          Нет — донат на Ko-fi — это прямая добровольная поддержка разработки Purgito, без каких-либо
+          преимуществ внутри бота или сервера. Если хочешь разблокировать функции (автоматические
+          мемы, больше памяти, GIF и т. д.), это делает Premium, а не донат на Ko-fi.
+        </p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/></svg></span>Purgito понимает любой язык?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          Да — Purgito не переводит и не интерпретирует язык, а учится напрямую на структуре
+          читаемого текста. Он одинаково работает на испанском, английском или любой смеси
+          языков твоего сервера, и тебе не нужно ничего настраивать.
+        </p>
+        <figure class="shot shot-ph faq-ph">
+          <span>гифка с Purgito, отправляющим сообщения на разных языках</span>
+        </figure>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="q-i" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 17-5-5 5-5M16 7l5 5-5 5"/></svg></span>Purgito с открытым исходным кодом?<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="a">
+        <p>
+          Да, с одним условием. Код Purgito опубликован на GitHub под лицензией MIT — можешь его
+          смотреть, изучать, изменять и даже запустить собственный экземпляр для личного
+          использования или своего сервера — бесплатно и без запроса разрешения. Единственное
+          ограничение, добавленное так называемой «Commons Clause», — нельзя продавать это
+          программное обеспечение или брать плату за услугу, ценность которой в значительной
+          степени зависит от него — например, использовать этот код для запуска собственного
+          платного бота или брать плату за его хостинг для третьих лиц. За рамками этого
+          конкретного ограничения это действительно открытый исходный код.
+        </p>
+      </div>
+    </details>
+
+  </section>
+
+  <!-- ── CTA FINAL ───────────────────────────────────────── -->
+  <section class="wrap">
+    <div class="box cta">
+      <h2 class="h2 cta-title">Попробуй</h2>
+      <div class="cta-actions">
+        <a class="btn btn-accent btn-lg" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Пригласить Purgito</a>
+        <a class="btn btn-lg dash-link" href="#">Панель управления <svg class="i arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-5-6 6 6-6 6"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="wrap foot-inner">
+
+    <div class="foot-cols">
+      <div class="foot-brand">
+        <div class="foot-name">
+          <img class="nav-logo" src="/assets/mascota.webp" alt="" onerror="this.remove()">
+          <span class="foot-word-a">Purgito</span> <span class="foot-word-b">Bot</span>
+        </div>
+
+        <div class="foot-social">
+          <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener" aria-label="Discord">
+            <svg class="i" viewBox="0 0 24 24"><path d="M19.3 5.3A16.9 16.9 0 0 0 15.1 4l-.2.4a12.6 12.6 0 0 1 3.7 1.9 15.9 15.9 0 0 0-13.3 0A12.6 12.6 0 0 1 9 4.4L8.8 4A16.9 16.9 0 0 0 4.6 5.3C2 9.2 1.3 13 1.7 16.7a17 17 0 0 0 5.1 2.6l1-1.7a11 11 0 0 1-1.8-.8l.4-.3a12.2 12.2 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.8l1 1.7a17 17 0 0 0 5.1-2.6c.5-4.3-.6-8.1-2.2-11.4ZM8.5 14.5c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm7 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+          </a>
+          <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+          </a>
+          <a href="https://ko-fi.com/punkyyy01" target="_blank" rel="noopener" aria-label="Ko-fi">
+            <svg class="i" viewBox="0 0 24 24"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+          </a>
+        </div>
+
+        <p class="foot-by">
+          Сделано
+          <a class="chip" href="https://github.com/punkyyy01" target="_blank" rel="noopener">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z"/></svg>
+            punkyyy01
+          </a>
+        </p>
+      </div>
+
+      <nav class="foot-col" aria-label="Ресурсы">
+        <h3>Ресурсы</h3>
+        <a href="/ru/documentacion">Документация</a>
+        <a href="/ru/estado">Статус</a>
+        <a href="/ru/guia">Гид</a>
+      </nav>
+
+      <nav class="foot-col" aria-label="Purgito">
+        <h3>Purgito</h3>
+        <a href="https://github.com/punkyyy01/purgito-bot" target="_blank" rel="noopener">Код</a>
+        <a href="https://discord.gg/5U7HKyxnBv" target="_blank" rel="noopener">Поддержка</a>
+      </nav>
+
+      <nav class="foot-col" aria-label="Правовая информация">
+        <h3>Правовая информация</h3>
+        <a href="/ru/terminos">Условия</a>
+        <a href="/ru/privacidad">Конфиденциальность</a>
+        <a href="/ru/reembolsos">Возврат средств</a>
+      </nav>
+    </div>
+
+    <hr class="foot-rule">
+
+    <div class="foot-bottom">
+      <div class="foot-actions">
+        <a class="btn btn-sm" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920"><img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Пригласить</a>
+        <a class="btn btn-sm" href="https://top.gg/bot/1471724794411089920/vote" target="_blank" rel="noopener">
+          <svg class="topgg-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M2 6h9v4H7.5v6H2z"></path>
+            <path fill="currentColor" d="M11 6h11v4h-7v3h-4z" opacity=".6"></path>
+          </svg>
+          Голосовать
+        </a>
+      </div>
+
+      <!-- Sin selector de idioma ni botón "volver arriba": el boceto del footer
+           solo tiene los dos botones y el copyright. -->
+      <p class="foot-copy">© Purgito 2026 · Не связано с Discord Inc.</p>
+    </div>
+
+  </div>
+</footer>
+
+<script src="/script.js?v=a5209b63"></script>
+</body>
+</html>

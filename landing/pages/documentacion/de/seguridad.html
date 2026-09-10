@@ -1,0 +1,35 @@
+<h1>Sicherheit</h1>
+<p>Das Sicherheitsmodell von Purgito folgt einer Zero-Trust-Architektur gegenüber dem Client (<em>zero-trust client boundary</em>), gestaffelter Verteidigung und strikter Datenisolation von Grund auf.</p>
+
+<h2 id="autenticacion-y-sesiones">OAuth2-Authentifizierung und verschlüsselte Cookies</h2>
+<p>Der Login-Flow delegiert die Identität vollständig an Discord über OAuth2 (<em>Authorization Code Flow</em>):</p>
+<ul>
+  <li><strong>Keine Speicherung von Zugangsdaten</strong>: Purgito erhält und verarbeitet niemals Passwörter von Nutzern oder direkte Discord-Tokens.</li>
+  <li><strong>Symmetrische Sitzungsverschlüsselung</strong>: Die Sitzung wird in einem Cookie gekapselt, das mit dem Fernet-Algorithmus verschlüsselt ist (AES-128 im CBC-Modus mit HMAC-SHA256-Authentifizierung) unter Verwendung des geheimen Schlüssels <code>SESSION_SECRET</code>.</li>
+  <li><strong>Cookie-Attribute</strong>: Das Cookie wird mit den Flags <code>HttpOnly</code> (unzugänglich für JavaScript und damit immun gegen XSS-Angriffe), <code>Secure</code> (nur über HTTPS übertragen) und <code>SameSite=Lax</code> (verhindert Lecks bei seitenübergreifender Navigation) übertragen.</li>
+  <li><strong>Verteilte Sperrliste</strong>: Die Tabelle <code>revoked_sessions</code> speichert die IDs explizit widerrufener Sitzungen und stellt sicher, dass der Logout die Sitzung sofort ungültig macht, selbst wenn das Cookie physisch noch im Browser existiert.</li>
+</ul>
+
+<h2 id="autorizacion-en-tiempo-real">Echtzeit-Autorisierung und Zero Trust</h2>
+<p>Keine administrative Anfrage vertraut Angaben, die vom Browser gesendet werden (wie IDs im Anfragekörper oder manipulierte Header):</p>
+<ul>
+  <li><strong>Neuvalidierung gegen die Discord-API</strong>: Jedes Mal, wenn ein Nutzer im Dashboard mit einem Server interagiert (<code>/api/server/{guild_id}/*</code>), fragt der Server live bei Discord die Berechtigungen des Nutzers ab (<code>/users/@me/guilds</code>), unter Verwendung des beim Login erhaltenen Zugangstokens.</li>
+  <li><strong>Prüfung nativer Berechtigungen</strong>: Erforderlich ist die Berechtigung <code>Server verwalten</code> (<code>MANAGE_GUILD</code>) oder <code>Administrator</code> (<code>ADMINISTRATOR</code>). Es gibt keine fiktiven Rollen in der Datenbank, die aus dem Takt geraten könnten.</li>
+  <li><strong>Rollenhierarchie des Bots</strong>: In Discord prüft jede von interaktiven Layout-V2-Buttons ausgeführte Aktion (wie das Zuweisen von Rollen), dass die höchste Rolle von Purgito über der zugewiesenen Rolle positioniert ist, um Rechteausweitungen zu verhindern.</li>
+</ul>
+
+<h2 id="defensa-en-red-y-ssrf">Schutz gegen SSRF und Dateivalidierung</h2>
+<p>Wenn der Bot Bilder oder GIFs von Nutzern oder Webhooks bereitgestellten URLs herunterlädt:</p>
+<ul>
+  <li><strong>Sichere DNS-Auflösung</strong>: Die Ziel-IP-Adresse wird aufgelöst, bevor die HTTP-Verbindung hergestellt wird, wobei Anfragen an private Subnetze (RFC 1918: <code>10.0.0.0/8</code>, <code>172.16.0.0/12</code>, <code>192.168.0.0/16</code>), Loopback-Adressen (<code>127.0.0.1</code>, <code>::1</code>) sowie Link-lokale Adressen oder Metadaten-Endpunkte von Cloud-Anbietern (z. B. <code>169.254.169.254</code>) blockiert werden.</li>
+  <li><strong>Prüfung des tatsächlichen Inhaltstyps</strong>: Heruntergeladene Dateien werden anhand ihres binären Headers (<em>magic numbers</em>) validiert, um sicherzustellen, dass sie gültigen Bildformaten (PNG, JPEG, GIF, WEBP) entsprechen, wobei getarnte ausführbare Dateien oder Skripte verworfen werden.</li>
+</ul>
+
+<h2 id="rate-limiting">Nutzungslimits und Missbrauchsschutz</h2>
+<p>Purgito implementiert Ratenbegrenzer (<em>rate limiters</em>) auf mehreren unabhängigen Ebenen:</p>
+<ul>
+  <li><strong>IP-Limit auf der öffentlichen API</strong>: Schützt die Endpunkte <code>/health</code>, <code>/api/status</code> und <code>/auth/*</code> vor automatisierten Scans und Denial-of-Service-Angriffen.</li>
+  <li><strong>Nutzerlimit bei Befehlen</strong>: Abklingzeiten (<em>Cooldowns</em>) bei rechenintensiven Discord-Befehlen (Meme-Generierung, Imitation von Mitgliedern, Refeed von Kanälen).</li>
+  <li><strong>Kanallimit bei spontanen Antworten</strong>: Verpflichtender Mindestabstand zwischen automatischen Antworten im selben Kanal, um eine Überlastung des Chats zu verhindern.</li>
+  <li><strong>CPU-Semaphore</strong>: Globale Obergrenze gleichzeitiger Markov-Ketten-Ausführungen, damit kein Server die Ressourcen des gemeinsam genutzten Prozesses monopolisiert.</li>
+</ul>

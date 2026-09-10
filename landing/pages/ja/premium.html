@@ -1,0 +1,350 @@
+<!-- Cuerpo de /ja/premium. El navbar, el footer y el <head> los pega
+     landing/build_docs.py — no los agregues acá.
+     Los límites de cada plan salen de limits.env: si cambian allá, cambian acá. -->
+<main id="contenido" class="prem-page">
+
+  <!-- ── 1. HERO: IDENTIDAD & EXPERIENCIA ────────────────── -->
+  <section class="prem-hero">
+    <div class="wrap prem-hero-inner">
+      <div class="prem-hero-copy">
+        <div class="prem-pill">
+          <svg class="prem-pill-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <span>PURGITO PREMIUM</span>
+        </div>
+
+        <h1 class="prem-hero-title">
+          あなたのサーバーを<br>
+          <span class="grad-premium">次のレベルへ</span>
+        </h1>
+
+        <p class="prem-hero-desc">
+          拡張されたメモリ、自動ミーム生成、何千ものGIF、高度な自動化機能で、Purgitoがあなたのコミュニティの本質を誰よりも的確に捉えます。
+        </p>
+
+        <div class="prem-hero-actions">
+          <!-- El checkout real necesita el guild_id del panel: el botón enruta
+               al selector de servidores. El href estático es el fallback sin JS. -->
+          <a class="btn btn-accent btn-lg prem-cta-main js-subscribe" href="/auth/login?from=landing&amp;locale=ja&amp;plan=monthly">
+            7日間無料で始める
+          </a>
+          <a class="btn btn-lg prem-cta-sec" href="#planes">
+            プランと料金を見る
+          </a>
+        </div>
+
+        <div class="prem-trust-strip">
+          <div class="prem-trust-item" id="plan-trust-trial">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>7日間の無料トライアル</span>
+          </div>
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+            <span>いつでもキャンセル可能</span>
+          </div>
+          <div class="prem-trust-item">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span>即時有効化</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="prem-hero-visual" aria-hidden="true">
+        <div class="prem-mascot-card">
+          <img class="prem-mascot-img" src="/assets/mascota.webp" alt="Purgitoのマスコット" width="340" height="340">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. BENEFICIOS / SUPERPODERES ────────────────────── -->
+  <section class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">コミュニティのためのスーパーパワー</h2>
+      <p class="prem-section-sub">Purgitoを唯一無二にするすべての機能を、要求の厳しいサーバー向けに最大限強化。</p>
+    </div>
+
+    <div class="prem-features-grid">
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 2a8 8 0 0 0-8 8c0 3.36 2.07 6.24 5 7.42V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.58c2.93-1.18 5-4.06 5-7.42a8 8 0 0 0-8-8z"/>
+            <line x1="9" y1="22" x2="15" y2="22"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">拡張メモリ</h3>
+        <p class="prem-feat-desc">チャンネルごとに最大<strong>5万件のメッセージ</strong>、合計で<strong>50万件</strong>まで。Purgitoはより深く学習し、あなたのサーバーのスタイルや言い回しを高い精度で再現します。</p>
+        <div class="prem-feat-badge">3.3倍の容量</div>
+      </article>
+
+      <article class="box prem-feat-card prem-feat-card--hero">
+        <div class="prem-feat-icon-wrap prem-feat-icon-wrap--purple">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">チャットでのミーム自動生成</h3>
+        <p class="prem-feat-desc">ミームの自動生成が解放されます。ミームバンクに最大<strong>200枚の画像</strong>をアップロードし、会話の内容に基づいてPurgitoに画像付きの返信を生成させましょう。</p>
+        <div class="prem-feat-badge prem-feat-badge--exclusive">Premium限定</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">4,000件のGIF保存</h3>
+        <p class="prem-feat-desc">自動応答やメンションのために最大<strong>4,000件のGIF</strong>を保存できます。早期に削除されることなく、チャットを活発に保つための膨大なビジュアルレパートリーです。</p>
+        <div class="prem-feat-badge">2.6倍のGIF</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">10件の予約アナウンス</h3>
+        <p class="prem-feat-desc">一定の間隔または指定した時刻に送信される自動アナウンスを最大<strong>10件</strong>まで設定できます。リマインダー、コミュニティイベント、企画、お知らせに最適です。</p>
+        <div class="prem-feat-badge">3.3倍のアナウンス</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">50件のEmbedテンプレート</h3>
+        <p class="prem-feat-desc">ビジュアルエディターで最大<strong>50件のインタラクティブなテンプレート</strong>を保存できます。ボタンやセレクターを使ってルール、案内パネル、お知らせをデザインしましょう。</p>
+        <div class="prem-feat-badge">2.5倍のテンプレート</div>
+      </article>
+
+      <article class="box prem-feat-card">
+        <div class="prem-feat-icon-wrap">
+          <svg class="prem-feat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/>
+          </svg>
+        </div>
+        <h3 class="prem-feat-title">フレーズパックとトリガー</h3>
+        <p class="prem-feat-desc">チャンネルごとに割り当て可能な<strong>20個のパック</strong>に分かれた最大<strong>200個の特別なフレーズ</strong>、さらにキーワードに即座に反応する<strong>30個のトリガー</strong>。</p>
+        <div class="prem-feat-badge">4倍のカスタマイズ性</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── 3. COMPARATIVA DE LÍMITES TÉCNICOS ──────────────── -->
+  <section class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">アクティブなサーバーのために<br>設計された容量</h2>
+      <p class="prem-section-sub">無料プランとPurgito Premiumの実際の上限を比較。</p>
+    </div>
+
+    <div class="box prem-stat-matrix">
+      <div class="prem-stat-matrix-header">
+        <div class="prem-stat-col-title">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>上限・機能</span>
+        </div>
+        <div class="prem-stat-col-head prem-stat-col-head--free">無料プラン</div>
+        <div class="prem-stat-col-head prem-stat-col-head--prem">Purgito Premium</div>
+      </div>
+
+      <div class="prem-stat-rows">
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">チャンネルごとのメッセージ数</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">15,000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">50,000</span>
+            <span class="prem-stat-mult">3.3x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">サーバー全体のメモリ</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">150,000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">500,000</span>
+            <span class="prem-stat-mult">3.3x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">ユーザーごとのメッセージ数</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">2,000</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">8,000</span>
+            <span class="prem-stat-mult">4.0x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">保存されたGIF数</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">1,500</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">4,000</span>
+            <span class="prem-stat-mult">2.6x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">ミーム用画像数</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">75</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">200</span>
+            <span class="prem-stat-mult">2.6x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">embedテンプレート数</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">20</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">50</span>
+            <span class="prem-stat-mult">2.5x</span>
+          </div>
+        </div>
+
+        <div class="prem-stat-row">
+          <div class="prem-stat-name">予約アナウンス数</div>
+          <div class="prem-stat-cell prem-stat-cell--free">
+            <span class="prem-stat-mob-label">無料:</span>
+            <span class="prem-stat-val">3</span>
+          </div>
+          <div class="prem-stat-cell prem-stat-cell--prem">
+            <span class="prem-stat-mob-label">Premium:</span>
+            <span class="prem-stat-val">10</span>
+            <span class="prem-stat-mult">3.3x</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. PLANES & PRECIOS ─────────────────────────────── -->
+  <section id="planes" class="prem-section wrap">
+    <div class="prem-section-head">
+      <h2 class="prem-section-title">サーバーに合ったプランを選ぼう</h2>
+      <p class="prem-section-sub">契約や縛りなし。管理パネルからいつでもキャンセルできます。</p>
+
+      <div class="plan-toggle" id="plan-toggle" role="group" aria-label="請求サイクル">
+        <button type="button" class="toggle-opt is-active" data-plan="mensual" aria-pressed="true">月額</button>
+        <button type="button" class="toggle-opt" data-plan="anual" aria-pressed="false">年額 <span class="prem-discount-tag">33%お得</span></button>
+      </div>
+    </div>
+
+    <div class="prem-plans-grid">
+      <!-- Plan Free -->
+      <article class="box prem-plan-card">
+        <div class="prem-plan-header">
+          <h3 class="prem-plan-title">Purgito Free</h3>
+          <p class="prem-plan-desc">小規模サーバーや成長中のサーバーに必要な基本機能。</p>
+          <div class="prem-plan-price-wrap">
+            <span class="prem-plan-price">$0</span>
+            <span class="prem-plan-per">/永久</span>
+          </div>
+        </div>
+
+        <ul class="prem-perks-list">
+          <li><span class="prem-perk-check">✓</span> チャンネルごとに15,000件のメッセージメモリ</li>
+          <li><span class="prem-perk-check">✓</span> サーバー全体で150,000件のメッセージ</li>
+          <li><span class="prem-perk-check">✓</span> 1,500件のGIF保存</li>
+          <li><span class="prem-perk-check">✓</span> ミームバンクに75枚の画像</li>
+          <li><span class="prem-perk-check">✓</span> 20件のembedテンプレート</li>
+          <li><span class="prem-perk-check">✓</span> 3件の予約アナウンス</li>
+          <li><span class="prem-perk-check">✓</span> 50個の特別なフレーズと5個のパック</li>
+          <li><span class="prem-perk-check">✓</span> 10個の応答トリガー</li>
+          <li class="prem-perk-disabled"><span class="prem-perk-cross">✕</span> チャットでの自動ミーム</li>
+        </ul>
+
+        <div class="prem-plan-action">
+          <a class="btn btn-secondary btn-lg plan-cta" href="https://discord.com/oauth2/authorize?client_id=1471724794411089920">
+            <img class="btn-avatar" src="/assets/mascota.webp" alt="" onerror="this.remove()">Purgitoを招待
+          </a>
+        </div>
+      </article>
+
+      <!-- Plan Premium -->
+      <article class="box prem-plan-card prem-plan-card--featured">
+        <div class="prem-featured-ribbon">一番人気</div>
+        <div class="prem-plan-header">
+          <h3 class="prem-plan-title">Purgito Premium</h3>
+          <p class="prem-plan-desc">最大容量、自動ミーム、フル機能ツールセット。</p>
+          <div class="prem-plan-price-wrap">
+            <span class="prem-plan-price" id="plan-amount">$4.99</span>
+            <span class="prem-plan-per" id="plan-per">/月</span>
+          </div>
+          <p class="plan-trial prem-plan-trial-badge" id="plan-trial">✨ 7日間の無料トライアル</p>
+        </div>
+
+        <ul class="prem-perks-list">
+          <li class="prem-perk-highlight"><span class="prem-perk-check">★</span> <strong>チャットでの自動ミーム</strong></li>
+          <li><span class="prem-perk-check">✓</span> チャンネルごとに<strong>50,000</strong>件のメッセージ(合計500,000件)</li>
+          <li><span class="prem-perk-check">✓</span> <strong>4,000</strong>件のGIF保存</li>
+          <li><span class="prem-perk-check">✓</span> ミームバンクに<strong>200</strong>枚の画像</li>
+          <li><span class="prem-perk-check">✓</span> <strong>50</strong>件のembedテンプレート</li>
+          <li><span class="prem-perk-check">✓</span> <strong>10</strong>件の予約アナウンス</li>
+          <li><span class="prem-perk-check">✓</span> <strong>200</strong>個の特別なフレーズと<strong>20</strong>個のパック</li>
+          <li><span class="prem-perk-check">✓</span> <strong>30</strong>個の応答トリガー</li>
+          <li><span class="prem-perk-check">✓</span> 優先サポートとダッシュボードのバッジ</li>
+        </ul>
+
+        <div class="prem-plan-action">
+          <a class="btn btn-accent btn-lg plan-cta js-subscribe" id="plan-cta" href="/auth/login?from=landing&amp;locale=ja&amp;plan=monthly">
+            無料トライアルを始める
+          </a>
+        </div>
+      </article>
+    </div>
+
+    <!-- Información secundaria sobre la prueba y facturación -->
+    <div class="prem-sub-details">
+      <p class="prem-sub-notes" id="plan-sub-notes">
+        7日間の無料トライアルは月額サブスクリプションで利用できます。サブスクリプションはPolarを通じて安全に請求され、パネルで選択したDiscordサーバーに紐づけられます。トライアル期間が終了する前であれば、いつでも無料でキャンセルできます。
+      </p>
+
+      <p class="plans-legal">
+        サブスクリプションに登録すると、<a href="/ja/terminos">利用規約</a>、<a href="/ja/reembolsos">返金ポリシー</a>、<a href="/ja/privacidad">プライバシーポリシー</a>に同意したものとみなされます。お問い合わせ:<a href="mailto:billing@purgito.app">billing@purgito.app</a>。
+      </p>
+    </div>
+  </section>
+
+  <!-- ── 5. DONACIÓN (SECUNDARIA) ────────────────────────── -->
+  <section class="wrap prem-donate-wrap">
+    <a class="box donate" href="https://ko-fi.com/punkyyyy" target="_blank" rel="noopener" aria-label="Ko-fiで寄付する">
+      <div class="donate-copy">
+        <h2 class="donate-title">プロジェクトを応援したいだけ?</h2>
+        <p class="donate-sub">サーバーの維持費を支援するために、Ko-fiで任意の寄付をすることもできます。</p>
+        <p class="donate-fine">寄付は任意であり、ボット内の特典やサブスクリプションが付与されるものではありません。</p>
+      </div>
+      <svg class="i donate-kofi" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h13a4 4 0 0 1 0 8h-1.2A5 5 0 0 1 11 18H8a5 5 0 0 1-5-5V7a1 1 0 0 1 1-1Zm13 6a2 2 0 0 0 0-4h-1v4h1Z"/></svg>
+    </a>
+  </section>
+
+</main>

@@ -1,0 +1,39 @@
+<h1>Generierungs-Engine</h1>
+<p>Purgito verwendet eine hybride Architektur zur Inhaltsgenerierung: eine eigene Engine für probabilistische Markov-Ketten erster und zweiter Ordnung für die Konversation im Chat, sowie eine optionale Integration mit KI-Bildmodellen (Groq), um Memes automatisch zu betiteln.</p>
+
+<h2 id="motor-markov">Funktionsweise der Markov-Engine</h2>
+<p>Die Markov-Engine (<code>src/markov_engine.py</code>) modelliert statistisch die im Nachrichten-Corpus des Servers beobachteten Wortfolgen:</p>
+
+<ul>
+  <li><strong>Tokenisierung und Zustände</strong>: Der Trainingstext wird normalisiert und unter Beachtung von Satzzeichen und Wörtern in Tokens zerlegt. Es werden zwei Übergangstabellen aufgebaut: ein Modell zweiter Ordnung (Paare aufeinanderfolgender Wörter <code>(w1, w2) -&gt; w3</code>) zur Wahrung von grammatikalischer Kohärenz und komplexen Redewendungen, sowie ein Modell erster Ordnung (<code>w1 -&gt; w2</code>) als Fallback-Mechanismus, wenn ein Zustand zweiter Ordnung in eine Sackgasse gerät.</li>
+  <li><strong>Satzgenerierung</strong>: Die Kette beginnt mit der probabilistischen Auswahl eines Starttokens, wählt anschließend das nächste Wort gewichtet nach seiner im Corpus beobachteten Häufigkeit und stoppt beim Erreichen eines Schluss-Tokens oder des konfigurierten Längenlimits (maximal 2000 Zeichen von Discord).</li>
+  <li><strong>Nachbearbeitungsfilter</strong>: Verwaiste Konnektoren am Satzende ("und", "oder", "aber", "von") werden entfernt, defekte Emoji-Codes bereinigt und Groß-/Kleinschreibung sowie Leerzeichen angepasst.</li>
+</ul>
+
+<h2 id="corpus">Verwaltung des Corpus und Lernen</h2>
+<p>Jeder Server verfügt über einen isolierten Corpus, der in der SQLite-Tabelle <code>corpus</code> gespeichert wird:</p>
+<ul>
+  <li><strong>Bereinigung bei der Aufnahme</strong>: Bevor Nachrichten in die Datenbank eingefügt werden, werden sie mittels regulärer Ausdrücke gefiltert, um Nutzererwähnungen (<code>&lt;@id&gt;</code>), Rollenerwähnungen (<code>&lt;@&amp;id&gt;</code>), Kanal-Links (<code>&lt;#id&gt;</code>), HTTP/HTTPS-URLs und Code-Fragmente zu entfernen.</li>
+  <li><strong>Kanalkontrolle</strong>: Nur explizit auf der Leseliste markierte Kanäle speisen den Corpus. Wird ein Kanal zur Liste der stummgeschalteten Kanäle hinzugefügt, wird er sowohl für das Lernen als auch für automatische Antworten vollständig ignoriert.</li>
+  <li><strong>Corpus pro Nutzer</strong>: Nachrichten werden zusätzlich mit der <code>user_id</code> des Autors in einer ergänzenden Tabelle (<code>user_corpus</code>) markiert, was das Trainieren spezifischer Modelle für Befehle ermöglicht, die ein bestimmtes Server-Mitglied imitieren.</li>
+</ul>
+
+<h2 id="concurrencia-y-rendimiento">Nebenläufigkeitskontrolle und Cache</h2>
+<p>Training und Generierung mit Markov-Ketten sind rechenintensive Operationen (<em>CPU-bound</em>). Um Leistungseinbußen auf gemeinsam genutzten Servern zu vermeiden, implementiert Purgito eine strikte Nebenläufigkeitskontrolle:</p>
+
+<ul>
+  <li><strong>Globaler asynchroner Semaphore</strong>: Ein <code>asyncio.Semaphore</code> begrenzt die Anzahl der Generierungs- und Modellkompilierungsaufgaben, die gleichzeitig im gesamten Prozess laufen können.</li>
+  <li><strong>Nicht blockierende Zustellung</strong>: Spontane Generierungen (automatische Nachrichten anhand eines Aktivitätsprozentsatzes) versuchen, den Semaphore ohne Blockierung zu belegen: Ist der Semaphore ausgelastet, wird die spontane Antwort stillschweigend verworfen, um die Reaktionsfähigkeit des Bots zu priorisieren. Antworten auf direkte Erwähnungen warten dagegen in der Warteschlange.</li>
+  <li><strong>LRU-Cache im Arbeitsspeicher</strong>: Kompilierte Markov-Modelle werden in einem LRU-Dictionary (<em>Least Recently Used</em>) pro Server und pro Nutzer gespeichert. Das Modell wird automatisch ungültig, wenn eine Leerungsaktion (Amnesie) ausgeführt wird oder nach dem massenhaften Einfügen neuer Nachrichten.</li>
+</ul>
+
+<h2 id="recorte-y-cuotas">Kürzungsrichtlinien und Kontingente</h2>
+<p>Um unbegrenztes Wachstum der Datenbank zu verhindern, wird die Größe des Corpus durch in <code>limits.env</code> konfigurierte Obergrenzen geregelt:</p>
+
+<table>
+<tr><th>Kontingent</th><th>Kostenloser Plan</th><th>Premium-Plan</th><th>Kürzungsmechanismus</th></tr>
+<tr><td>Nachrichten pro Kanal</td><td>15.000</td><td>50.000</td><td>FIFO: Beim Einfügen neuer Nachrichten werden die ältesten Nachrichten des Kanals verworfen.</td></tr>
+<tr><td>Gesamtnachrichten des Servers</td><td>150.000</td><td>500.000</td><td>Proportionale Kürzung: Überschreitet die Gesamtzahl die Obergrenze, werden Nachrichten gleichmäßig auf alle Kanäle verteilt entfernt, damit keiner geleert wird.</td></tr>
+<tr><td>Nachrichten pro Nutzer</td><td>5.000</td><td>20.000</td><td>FIFO pro Autor.</td></tr>
+</table>
+<p>Die Kürzungsroutinen (<code>trim_corpus</code> und <code>trim_guild_total</code>) laufen nicht bei jeder einzelnen Nachricht, sondern verzögert in periodischen Batches, um die Festplattenleistung zu optimieren.</p>

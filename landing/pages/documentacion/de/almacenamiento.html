@@ -1,0 +1,42 @@
+<h1>Speicher</h1>
+<p>Purgito nutzt eine Speicherarchitektur, die auf einer lokal eingebetteten relationalen SQLite-Datenbank und einem S3-kompatiblen Objektspeicher (Cloudflare R2) für umfangreiche Mediendateien basiert.</p>
+
+<h2 id="sqlite">SQLite-Datenbank und Performance</h2>
+<p>Die gesamte relationale Persistenz liegt in einer einzigen Datei: <code>data/bot.db</code>. Die Verbindung wird asynchron über <code>aiosqlite</code> in <code>src/db.py</code> mit folgenden Performance-Einstellungen verwaltet:</p>
+
+<ul>
+  <li><code>PRAGMA journal_mode=WAL</code>: Der <em>Write-Ahead-Logging</em>-Modus erlaubt gleichzeitige Lesezugriffe, ohne Schreibvorgänge zu blockieren, und reduziert die Festplatten-Contention.</li>
+  <li><code>PRAGMA synchronous=NORMAL</code>: Gewährleistet Datenintegrität bei Abstürzen des Betriebssystems mit minimalen Auswirkungen auf die I/O-Latenz.</li>
+  <li><code>PRAGMA foreign_keys=ON</code>: Erhält die referenzielle Integrität bei kaskadierenden Löschungen.</li>
+  <li><strong>Asynchrone Schreibsperre</strong>: Ein einziges <code>asyncio.Lock</code> serialisiert alle Schreibtransaktionen aus Python, um Fehler vom Typ <code>database is locked</code> bei hoher Nebenläufigkeit zu vermeiden.</li>
+</ul>
+
+<h2 id="esquema">Schema und Datentrennung</h2>
+<p>Die Datenbank umfasst über 20 Tabellen, organisiert nach Domäne. Die Isolation zwischen Servern wird auf Schemaebene über indizierte <code>guild_id</code>-Spalten in jeder Tabelle sichergestellt:</p>
+<ul>
+  <li><strong>Konfiguration und Stil</strong>: <code>guild_settings</code>, <code>guild_style</code>, <code>channel_settings</code>, <code>ignored_roles</code>, <code>silenced_channels</code>.</li>
+  <li><strong>Lern-Corpus</strong>: <code>corpus</code> (Nachrichten pro Kanal) und <code>user_corpus</code> (Nachrichten pro Autor), beide mit zusammengesetzten Indizes auf <code>(guild_id, created_at)</code>, um Kürzungen und Trainingsabfragen zu beschleunigen.</li>
+  <li><strong>Automatisierung und Trigger</strong>: <code>triggers</code>, <code>custom_reactions</code>, <code>custom_phrases</code>, <code>phrase_packs</code>, <code>scheduled_announcements</code>.</li>
+  <li><strong>Server-Events</strong>: <code>server_events</code> (Konfiguration von Willkommens-, Abschieds- und Boost-Nachrichten pro Guild), <code>member_boost_records</code> (idempotente Aufzeichnung von Boost-Zeitstempeln).</li>
+  <li><strong>Nachrichten-Designer</strong>: <code>embed_templates</code>, <code>layout_v2_blocks</code>, <code>embed_share_links</code>.</li>
+  <li><strong>Sicherheit und Abrechnung</strong>: <code>revoked_sessions</code>, <code>guild_premium</code>, <code>audit_log</code>.</li>
+</ul>
+
+<h2 id="r2">Cloudflare R2 und Medien-Deduplizierung</h2>
+<p>Die Objektspeicherung in Cloudflare R2 (<code>src/r2.py</code>) ist optional. Sind die fünf R2-Zugangsdaten in <code>.env</code> konfiguriert, aktiviert Purgito den Download, die Optimierung und das Hosting von GIFs und Bildern:</p>
+
+<ul>
+  <li><strong>Inhaltsbasierte Deduplizierung (SHA-256)</strong>: Heruntergeladene Binärdateien werden nach dem SHA-256-Hash ihres Inhalts benannt. Speichern zwei Server dasselbe GIF, wird es nur einmal im R2-Bucket abgelegt.</li>
+  <li><strong>Perzeptuelles Hashing (pHash)</strong>: Mit <code>imagehash.phash</code> wird ein <em>perceptual hash</em> berechnet, um visuell identische Bilder mit unterschiedlicher Kompression oder Metadaten zu erkennen.</li>
+  <li><strong>Referenzzählung</strong>: Die Tabelle <code>gif_objects</code> führt einen Nutzungszähler. Löscht ein Server ein GIF, wird der Zähler verringert; die Datei wird erst physisch aus R2 gelöscht, wenn der Zähler null erreicht.</li>
+  <li><strong>SSRF-Schutz bei Downloads</strong>: Beim Herunterladen von Medien wird geprüft, dass die entfernten URLs nicht zu privaten IP-Adressen (RFC 1918), Loopback-Adressen (<code>127.0.0.1</code>) oder Metadaten-Endpunkten von Cloud-Anbietern auflösen.</li>
+</ul>
+
+<h2 id="retencion">Aufbewahrungsrichtlinien und Hintergrundaufgaben</h2>
+<p>Das Modul <code>src/tasks.py</code> führt automatische Routinen zur periodischen Bereinigung aus:</p>
+<ul>
+  <li><strong>Karenzzeit für Server</strong>: Wird der Bot von einem Server entfernt (<code>on_guild_remove</code>), wird das Datum in <code>left_at</code> gespeichert. Die tägliche Aufgabe löscht alle Datensätze dieses Servers endgültig erst, nachdem <code>GUILD_DATA_RETENTION_DAYS</code> Tage vergangen sind (standardmäßig 30 Tage). Wird der Bot vor Ablauf dieser Frist erneut eingeladen, wird die Löschung automatisch abgebrochen.</li>
+  <li><strong>Ablauf der Audit-Daten</strong>: Einträge in der Tabelle <code>audit_log</code>, die älter als <code>AUDIT_LOG_RETENTION_DAYS</code> sind (standardmäßig 90 Tage), werden automatisch gelöscht.</li>
+  <li><strong>Teilbare Links</strong>: Temporäre Links zum Teilen von Embed-Vorlagen, die im Dashboard erzeugt wurden, laufen nach 24 Stunden ab und werden gelöscht.</li>
+  <li><strong>Widerrufene Sitzungen</strong>: Die Kennungen abgelaufener Sitzungen in <code>revoked_sessions</code> werden regelmäßig bereinigt, um die Tabelle kompakt zu halten.</li>
+</ul>
