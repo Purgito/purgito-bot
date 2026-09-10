@@ -204,6 +204,169 @@ PAGES_EN = [
     },
 ]
 
+# Mismo formato que PAGES, en ruso/japonés/alemán. A diferencia de PAGES_EN,
+# el slug es el mismo literal que en PAGES -- ru/ja/de reutilizan el slug
+# español tal cual (ver SLUG_MAP_ES_EN, que solo cubre ES<->EN). src apunta a
+# los markdown en docs/*.{ru,ja,de}.md, que agrega el agente de traducción.
+PAGES_RU = [
+    {
+        "slug": "terminos",
+        "src": "TERMS.ru.md",
+        "title": "Условия обслуживания",
+        "meta": "Условия использования Purgito: допустимое использование, "
+        "лицензия, генерируемый контент, подписки и ограничение ответственности.",
+        "toc": [
+            "Что можно и что нельзя делать с ботом.",
+            "Лицензия MIT и отсутствие гарантий на программное обеспечение.",
+            "Что значит, что текст создаётся машиной, и кто его модерирует.",
+            "Premium, цены, бесплатный пробный период, отмена и возврат средств.",
+            "Сервис предоставляется без гарантии непрерывной доступности.",
+            "Какой ущерб не покрывается разработчиком.",
+            "Как и когда меняются эти Условия.",
+            "Куда писать, если есть вопросы или нужно сообщить о проблеме.",
+        ],
+    },
+    {
+        "slug": "privacidad",
+        "src": "PRIVACY.ru.md",
+        "title": "Политика конфиденциальности",
+        "meta": "Какие данные собирает Purgito, для чего они используются, "
+        "с какими сервисами передаются и как их удалить.",
+        "toc": [
+            "Какие данные хранит бот: ID, сообщения, медиафайлы, сессия и платежи.",
+            "Для чего используются эти данные — никогда для рекламы или продажи.",
+            "Внешние поставщики услуг, участвующие в некоторых функциях.",
+            "Как долго хранятся данные и как их удалить.",
+            "Что вы можете запросить в отношении собранной информации.",
+            "Минимальный возраст и возможность оформить Premium.",
+            "Меры по защите хранимой информации.",
+            "Как сообщается об обновлениях этой Политики.",
+            "Куда писать с вопросами или запросом на удаление данных.",
+        ],
+    },
+    {
+        "slug": "reembolsos",
+        "src": "REFUNDS.ru.md",
+        "title": "Политика возврата средств",
+        "meta": "Политика возврата средств за премиум-подписки Purgito и "
+        "условия бесплатного пробного периода.",
+        "toc": [
+            "7-дневный бесплатный пробный период и его условия.",
+            "Как отменить подписку через портал Polar.",
+            "Почему не предоставляется возврат средств за уже оплаченный период.",
+            "Когда доступ к Premium может быть отозван.",
+            "Что происходит с сохранённым контентом, если сервер теряет Premium.",
+            "К чему привязан Premium: к серверу, а не к аккаунту.",
+        ],
+    },
+]
+
+PAGES_JA = [
+    {
+        "slug": "terminos",
+        "src": "TERMS.ja.md",
+        "title": "利用規約",
+        "meta": "Purgitoの利用規約:許容される使用方法、ライセンス、生成される"
+        "コンテンツ、サブスクリプション、責任の制限について。",
+        "toc": [
+            "ボットでできること・できないこと。",
+            "MITライセンスとソフトウェアに関する保証の不存在。",
+            "テキストが機械によって生成されることの意味と、誰がモデレーションを行うか。",
+            "Premium、料金、無料トライアル、キャンセルと返金について。",
+            "本サービスは継続的な稼働を保証するものではありません。",
+            "開発者が責任を負わない損害について。",
+            "本規約がどのように、いつ変更されるか。",
+            "質問や問題を報告したい場合の連絡先。",
+        ],
+    },
+    {
+        "slug": "privacidad",
+        "src": "PRIVACY.ja.md",
+        "title": "プライバシーポリシー",
+        "meta": "Purgitoが収集するデータの種類、その利用目的、共有先のサービス、"
+        "削除方法について。",
+        "toc": [
+            "ボットが保存するデータ:ID、メッセージ、メディア、セッション、支払い情報。",
+            "そのデータの利用目的 — 広告や販売には一切使用しません。",
+            "一部の機能に関わる外部サービス提供者。",
+            "データの保存期間と削除方法。",
+            "収集された情報について要求できること。",
+            "Premium契約に必要な最低年齢と資格。",
+            "保存された情報を保護するための対策。",
+            "本ポリシーの更新はどのように通知されるか。",
+            "質問や削除依頼をしたい場合の連絡先。",
+        ],
+    },
+    {
+        "slug": "reembolsos",
+        "src": "REFUNDS.ja.md",
+        "title": "返金ポリシー",
+        "meta": "Purgitoのプレミアムサブスクリプションの返金ポリシーと、"
+        "無料トライアルの条件について。",
+        "toc": [
+            "7日間の無料トライアルとその条件。",
+            "Polarポータルからサブスクリプションを解約する方法。",
+            "すでに支払われた期間について返金が行われない理由。",
+            "Premiumアクセスが取り消される場合について。",
+            "サーバーがPremiumを失った場合、保存されたコンテンツはどうなるか。",
+            "Premiumが紐づく対象:アカウントではなくサーバー。",
+        ],
+    },
+]
+
+PAGES_DE = [
+    {
+        "slug": "terminos",
+        "src": "TERMS.de.md",
+        "title": "Nutzungsbedingungen",
+        "meta": "Nutzungsbedingungen von Purgito: zulässige Nutzung, Lizenz, "
+        "generierte Inhalte, Abonnements und Haftungsbeschränkungen.",
+        "toc": [
+            "Was mit dem Bot erlaubt ist und was nicht.",
+            "MIT-Lizenz und Haftungsausschluss für die Software.",
+            "Was es bedeutet, dass der Text maschinell generiert wird, und wer ihn moderiert.",
+            "Premium, Preise, kostenlose Testphase, Kündigung und Rückerstattungen.",
+            "Der Dienst wird ohne Garantie einer durchgehenden Verfügbarkeit angeboten.",
+            "Welche Schäden der Entwickler nicht abdeckt.",
+            "Wie und wann sich diese Nutzungsbedingungen ändern.",
+            "Wohin man sich bei Fragen oder zur Meldung eines Problems wenden kann.",
+        ],
+    },
+    {
+        "slug": "privacidad",
+        "src": "PRIVACY.de.md",
+        "title": "Datenschutzrichtlinie",
+        "meta": "Welche Daten Purgito erfasst, wofür sie verwendet werden, mit "
+        "welchen Diensten sie geteilt werden und wie man sie löscht.",
+        "toc": [
+            "Welche Daten der Bot speichert: IDs, Nachrichten, Medien, Sitzung und Zahlungen.",
+            "Wofür diese Daten verwendet werden — niemals für Werbung oder Verkauf.",
+            "Externe Anbieter, die bei bestimmten Funktionen beteiligt sind.",
+            "Wie lange Daten aufbewahrt werden und wie man sie löscht.",
+            "Was du bezüglich der gesammelten Informationen verlangen kannst.",
+            "Mindestalter und Berechtigung zum Erwerb von Premium.",
+            "Maßnahmen zum Schutz der gespeicherten Informationen.",
+            "Wie Aktualisierungen dieser Richtlinie bekannt gegeben werden.",
+            "Wohin man sich mit Fragen oder einem Löschantrag wenden kann.",
+        ],
+    },
+    {
+        "slug": "reembolsos",
+        "src": "REFUNDS.de.md",
+        "title": "Rückerstattungsrichtlinie",
+        "meta": "Rückerstattungsrichtlinie für Purgito-Premium-Abonnements und "
+        "Bedingungen der kostenlosen Testphase.",
+        "toc": [
+            "Die 7-tägige kostenlose Testphase und ihre Bedingungen.",
+            "Wie man das Abonnement über das Polar-Portal kündigt.",
+            "Warum keine Rückerstattung für einen bereits bezahlten Zeitraum angeboten wird.",
+            "Wann der Premium-Zugang widerrufen werden kann.",
+            "Was mit deinen gespeicherten Inhalten passiert, wenn der Server Premium verliert.",
+            "Woran Premium gebunden ist: an den Server, nicht an das Konto.",
+        ],
+    },
+]
+
 # Páginas que no salen de un markdown: el cuerpo se escribe a mano en
 # landing/pages/ y acá solo se le pega el navbar/footer/head compartido.
 #
@@ -491,6 +654,431 @@ HTML_PAGES_EN = [
     },
 ]
 
+# Mismo formato que HTML_PAGES_EN, en ruso/japonés/alemán. El slug es el
+# mismo literal que en HTML_PAGES (ver la nota de PAGES_RU/JA/DE más arriba);
+# src apunta a landing/pages/{ru,ja,de}/*.html y
+# landing/pages/documentacion/{ru,ja,de}/*.html, que agrega el agente de
+# traducción de contenido.
+HTML_PAGES_RU = [
+    {
+        "slug": "premium",
+        "src": "ru/premium.html",
+        "title": "Purgito Premium",
+        "meta": "Выведи свой сервер на новый уровень с Purgito Premium: "
+        "расширенная память на 50 000 сообщений, автоматические мемы, "
+        "4 000 GIF и приоритетная поддержка.",
+    },
+    {
+        "slug": "perfil",
+        "src": "ru/perfil.html",
+        "title": "Профиль",
+        "meta": "Твой аккаунт Purgito: данные профиля Discord, серверы и подписки.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/servidores",
+        "src": "ru/perfil.html",
+        "title": "Серверы",
+        "meta": "Твои серверы Discord с Purgito: заходи в панель управления "
+        "каждого или пригласи бота туда, где его ещё нет.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/conexiones",
+        "src": "ru/perfil.html",
+        "title": "Подключения",
+        "meta": "Подключения твоего аккаунта Purgito к Discord и связанным сервисам.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/facturacion",
+        "src": "ru/perfil.html",
+        "title": "Оплата",
+        "meta": "Статус твоих Premium-подписок Purgito и управление платежами.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "dashboard",
+        "src": "ru/dashboard.html",
+        "title": "Панель управления",
+        "meta": "Настрой Purgito на своём сервере: чат, корпус, реакции, "
+        "фразы, GIF, embed-сообщения и premium.",
+        "app": "dash.js",
+        "no_footer": True,
+    },
+    {
+        "slug": "estado",
+        "src": "ru/estado.html",
+        "title": "Статус Purgito",
+        "meta": "Статус Purgito в реальном времени: время работы, память, "
+        "задержка соединения с Discord и количество серверов. Публичная "
+        "страница, вход не требуется.",
+        "module": "estado.js",
+    },
+    {
+        "slug": "guia",
+        "src": "ru/guia.html",
+        "title": "Гид по Purgito — Как работает бот",
+        "meta": "Узнай, как работает Purgito: от системы обучения и чата до "
+        "GIF, мемов, embed-сообщений, YouTube и Premium.",
+        "guia": True,
+    },
+    {
+        "slug": "documentacion",
+        "src": "documentacion/ru/index.html",
+        "title": "Техническая документация",
+        "meta": "Руководства, справочник и подробности об архитектуре, API, "
+        "внутренних системах и инфраструктуре Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/arquitectura",
+        "src": "documentacion/ru/arquitectura.html",
+        "title": "Архитектура — Техническая документация",
+        "meta": "Как связаны между собой бот Discord, движок генерации, "
+        "база данных и панель управления Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/discord",
+        "src": "documentacion/ru/discord.html",
+        "title": "Discord — Техническая документация",
+        "meta": "Коги (cogs), события, разрешения и взаимодействия бота Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/api",
+        "src": "documentacion/ru/api.html",
+        "title": "API — Техническая документация",
+        "meta": "Аутентификация, сессии, эндпоинты и вебхуки API Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/generacion",
+        "src": "documentacion/ru/generacion.html",
+        "title": "Движок генерации — Техническая документация",
+        "meta": "Как Purgito генерирует текст: цепи Маркова, корпус, "
+        "параллелизм и ограничения.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "src": "documentacion/ru/almacenamiento.html",
+        "title": "Хранилище — Техническая документация",
+        "meta": "SQLite, Cloudflare R2, кэши в памяти и хранение данных в Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "src": "documentacion/ru/seguridad.html",
+        "title": "Безопасность — Техническая документация",
+        "meta": "Модель безопасности Purgito: OAuth2, сессии, разрешения и "
+        "лимиты использования.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "src": "documentacion/ru/infraestructura.html",
+        "title": "Инфраструктура — Техническая документация",
+        "meta": "Runtime, nginx, Cloudflare и развёртывание Purgito в продакшене.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "src": "documentacion/ru/desarrollo.html",
+        "title": "Разработка — Техническая документация",
+        "meta": "Структура проекта, локальное окружение и тесты Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/referencia",
+        "src": "documentacion/ru/referencia.html",
+        "title": "Справочник — Техническая документация",
+        "meta": "Переменные окружения Purgito.",
+        "doc": True,
+    },
+]
+
+HTML_PAGES_JA = [
+    {
+        "slug": "premium",
+        "src": "ja/premium.html",
+        "title": "Purgito Premium",
+        "meta": "Purgito Premiumでサーバーを次のレベルへ:5万件のメッセージを"
+        "記憶する拡張メモリ、自動ミーム生成、4,000件のGIF、優先サポート。",
+    },
+    {
+        "slug": "perfil",
+        "src": "ja/perfil.html",
+        "title": "プロフィール",
+        "meta": "あなたのPurgitoアカウント:Discordのプロフィール情報、"
+        "サーバー、サブスクリプション。",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/servidores",
+        "src": "ja/perfil.html",
+        "title": "サーバー",
+        "meta": "Purgitoを導入したあなたのDiscordサーバー:各サーバーの"
+        "ダッシュボードを開くか、未導入のサーバーに招待できます。",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/conexiones",
+        "src": "ja/perfil.html",
+        "title": "連携",
+        "meta": "PurgitoアカウントとDiscordおよび連携サービスとの接続情報。",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/facturacion",
+        "src": "ja/perfil.html",
+        "title": "請求",
+        "meta": "Purgito Premiumサブスクリプションの状況と請求管理。",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "dashboard",
+        "src": "ja/dashboard.html",
+        "title": "ダッシュボード",
+        "meta": "サーバーでのPurgitoの設定:チャット、コーパス、リアクション、"
+        "フレーズ、GIF、embed、premium。",
+        "app": "dash.js",
+        "no_footer": True,
+    },
+    {
+        "slug": "estado",
+        "src": "ja/estado.html",
+        "title": "Purgitoのステータス",
+        "meta": "Purgitoのリアルタイムステータス:稼働時間、メモリ使用量、"
+        "Discordとの通信遅延、導入サーバー数。ログイン不要で公開されています。",
+        "module": "estado.js",
+    },
+    {
+        "slug": "guia",
+        "src": "ja/guia.html",
+        "title": "Purgitoガイド — ボットの仕組み",
+        "meta": "学習システムやチャットから、GIF、ミーム、embed、YouTube、"
+        "Premiumまで、Purgitoの仕組みを解説します。",
+        "guia": True,
+    },
+    {
+        "slug": "documentacion",
+        "src": "documentacion/ja/index.html",
+        "title": "技術ドキュメント",
+        "meta": "Purgitoのアーキテクチャ、API、内部システム、インフラに関する"
+        "ガイド、リファレンス、詳細情報。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/arquitectura",
+        "src": "documentacion/ja/arquitectura.html",
+        "title": "アーキテクチャ — 技術ドキュメント",
+        "meta": "DiscordボットPurgitoの生成エンジン、データベース、"
+        "ダッシュボードがどのように連携しているか。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/discord",
+        "src": "documentacion/ja/discord.html",
+        "title": "Discord — 技術ドキュメント",
+        "meta": "PurgitoボットのCog、イベント、権限、インタラクションについて。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/api",
+        "src": "documentacion/ja/api.html",
+        "title": "API — 技術ドキュメント",
+        "meta": "Purgito APIの認証、セッション、エンドポイント、Webhookについて。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/generacion",
+        "src": "documentacion/ja/generacion.html",
+        "title": "生成エンジン — 技術ドキュメント",
+        "meta": "Purgitoがテキストを生成する仕組み:マルコフ連鎖、コーパス、"
+        "並行処理と制限について。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "src": "documentacion/ja/almacenamiento.html",
+        "title": "ストレージ — 技術ドキュメント",
+        "meta": "PurgitoにおけるSQLite、Cloudflare R2、インメモリキャッシュ、"
+        "データ保持について。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "src": "documentacion/ja/seguridad.html",
+        "title": "セキュリティ — 技術ドキュメント",
+        "meta": "Purgitoのセキュリティモデル:OAuth2、セッション、権限、"
+        "利用制限について。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "src": "documentacion/ja/infraestructura.html",
+        "title": "インフラストラクチャ — 技術ドキュメント",
+        "meta": "Purgitoの本番環境におけるランタイム、nginx、Cloudflare、"
+        "デプロイについて。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "src": "documentacion/ja/desarrollo.html",
+        "title": "開発 — 技術ドキュメント",
+        "meta": "Purgitoのプロジェクト構成、ローカル環境、テストについて。",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/referencia",
+        "src": "documentacion/ja/referencia.html",
+        "title": "リファレンス — 技術ドキュメント",
+        "meta": "Purgitoの環境変数について。",
+        "doc": True,
+    },
+]
+
+HTML_PAGES_DE = [
+    {
+        "slug": "premium",
+        "src": "de/premium.html",
+        "title": "Purgito Premium",
+        "meta": "Bring deinen Server mit Purgito Premium auf die nächste "
+        "Stufe: erweiterter Speicher für 50.000 Nachrichten, automatische "
+        "Memes, 4.000 GIFs und priorisierter Support.",
+    },
+    {
+        "slug": "perfil",
+        "src": "de/perfil.html",
+        "title": "Profil",
+        "meta": "Dein Purgito-Konto: Discord-Profilinformationen, Server und Abonnements.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/servidores",
+        "src": "de/perfil.html",
+        "title": "Server",
+        "meta": "Deine Discord-Server mit Purgito: öffne das Dashboard für "
+        "jeden einzelnen oder lade den Bot auf die ein, die noch fehlen.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/conexiones",
+        "src": "de/perfil.html",
+        "title": "Verbindungen",
+        "meta": "Verbindungen deines Purgito-Kontos mit Discord und verknüpften Diensten.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "perfil/facturacion",
+        "src": "de/perfil.html",
+        "title": "Abrechnung",
+        "meta": "Status deiner Purgito-Premium-Abonnements und Rechnungsverwaltung.",
+        "app": "perfil.js",
+    },
+    {
+        "slug": "dashboard",
+        "src": "de/dashboard.html",
+        "title": "Dashboard",
+        "meta": "Konfiguriere Purgito auf deinem Server: Chat, Korpus, "
+        "Reaktionen, Sprüche, GIFs, Embeds und Premium.",
+        "app": "dash.js",
+        "no_footer": True,
+    },
+    {
+        "slug": "estado",
+        "src": "de/estado.html",
+        "title": "Purgito-Status",
+        "meta": "Live-Status von Purgito: Betriebszeit, Speicher, Latenz zu "
+        "Discord und Anzahl der Server. Öffentlich, ohne Login.",
+        "module": "estado.js",
+    },
+    {
+        "slug": "guia",
+        "src": "de/guia.html",
+        "title": "Purgito-Leitfaden — So funktioniert der Bot",
+        "meta": "Erfahre, wie Purgito funktioniert: vom Lernsystem und Chat "
+        "bis zu GIFs, Memes, Embeds, YouTube und Premium.",
+        "guia": True,
+    },
+    {
+        "slug": "documentacion",
+        "src": "documentacion/de/index.html",
+        "title": "Technische Dokumentation",
+        "meta": "Anleitungen, Referenz und Details zu Architektur, APIs, "
+        "internen Systemen und Infrastruktur von Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/arquitectura",
+        "src": "documentacion/de/arquitectura.html",
+        "title": "Architektur — Technische Dokumentation",
+        "meta": "Wie der Discord-Bot, die Generierungs-Engine, die Datenbank "
+        "und das Dashboard von Purgito miteinander verbunden sind.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/discord",
+        "src": "documentacion/de/discord.html",
+        "title": "Discord — Technische Dokumentation",
+        "meta": "Cogs, Ereignisse, Berechtigungen und Interaktionen des Purgito-Bots.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/api",
+        "src": "documentacion/de/api.html",
+        "title": "API — Technische Dokumentation",
+        "meta": "Authentifizierung, Sitzungen, Endpunkte und Webhooks der Purgito-API.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/generacion",
+        "src": "documentacion/de/generacion.html",
+        "title": "Generierungs-Engine — Technische Dokumentation",
+        "meta": "Wie Purgito Text generiert: Markov-Ketten, Korpus, "
+        "Nebenläufigkeit und Limits.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "src": "documentacion/de/almacenamiento.html",
+        "title": "Speicher — Technische Dokumentation",
+        "meta": "SQLite, Cloudflare R2, In-Memory-Caches und Datenaufbewahrung bei Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "src": "documentacion/de/seguridad.html",
+        "title": "Sicherheit — Technische Dokumentation",
+        "meta": "Sicherheitsmodell von Purgito: OAuth2, Sitzungen, "
+        "Berechtigungen und Nutzungslimits.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "src": "documentacion/de/infraestructura.html",
+        "title": "Infrastruktur — Technische Dokumentation",
+        "meta": "Runtime, nginx, Cloudflare und Produktions-Deployment von Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "src": "documentacion/de/desarrollo.html",
+        "title": "Entwicklung — Technische Dokumentation",
+        "meta": "Projektstruktur, lokale Umgebung und Tests von Purgito.",
+        "doc": True,
+    },
+    {
+        "slug": "documentacion/referencia",
+        "src": "documentacion/de/referencia.html",
+        "title": "Referenz — Technische Dokumentation",
+        "meta": "Umgebungsvariablen von Purgito.",
+        "doc": True,
+    },
+]
+
 # Estructura de /es/documentacion: una entrada por página. Los "subs" son
 # anclas dentro de esa misma página (no páginas propias) — ver Task 1 del
 # plan de documentación técnica para el porqué de la granularidad agrupada.
@@ -678,17 +1266,307 @@ DOC_SECTIONS_EN = [
     },
 ]
 
+# RU/JA/DE: mismos slugs y anchors que DOC_SECTIONS (ver la nota de arriba),
+# solo cambia el texto visible (label y las etiquetas de subs).
+DOC_SECTIONS_RU = [
+    {"slug": "documentacion", "label": "Главная", "subs": []},
+    {
+        "slug": "documentacion/arquitectura",
+        "label": "Архитектура",
+        "subs": [
+            ("vision-general", "Общий обзор"),
+            ("componentes", "Компоненты"),
+            ("flujo-de-una-peticion", "Поток обработки запроса"),
+        ],
+    },
+    {
+        "slug": "documentacion/discord",
+        "label": "Discord",
+        "subs": [
+            ("bot-y-cogs", "Бот и коги (cogs)"),
+            ("eventos", "События"),
+            ("permisos", "Разрешения"),
+            ("interacciones", "Взаимодействия"),
+        ],
+    },
+    {
+        "slug": "documentacion/api",
+        "label": "API",
+        "subs": [
+            ("vision-general", "Общий обзор"),
+            ("autenticacion", "Аутентификация"),
+            ("sesiones", "Сессии"),
+            ("endpoints", "Эндпоинты"),
+            ("webhooks", "Вебхуки"),
+        ],
+    },
+    {
+        "slug": "documentacion/generacion",
+        "label": "Генерация",
+        "subs": [
+            ("motor-markov", "Движок Маркова"),
+            ("corpus", "Корпус"),
+            ("pipeline", "Конвейер генерации"),
+            ("concurrencia-y-limites", "Параллелизм и ограничения"),
+        ],
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "label": "Хранилище",
+        "subs": [
+            ("sqlite", "SQLite"),
+            ("r2", "R2"),
+            ("cache", "Кэш"),
+            ("retencion", "Хранение данных"),
+        ],
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "label": "Безопасность",
+        "subs": [
+            ("oauth2", "OAuth2"),
+            ("permisos", "Разрешения"),
+            ("rate-limits", "Лимиты запросов"),
+            ("modelo-de-seguridad", "Модель безопасности"),
+        ],
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "label": "Инфраструктура",
+        "subs": [
+            ("runtime", "Runtime"),
+            ("nginx", "Nginx"),
+            ("cloudflare", "Cloudflare"),
+            ("deployment", "Развёртывание"),
+            ("health-checks", "Проверки состояния"),
+        ],
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "label": "Разработка",
+        "subs": [
+            ("estructura-del-proyecto", "Структура проекта"),
+            ("entorno-local", "Локальное окружение"),
+            ("tests", "Тесты"),
+        ],
+    },
+    {
+        "slug": "documentacion/referencia",
+        "label": "Справочник",
+        "subs": [
+            ("variables-de-entorno", "Переменные окружения"),
+        ],
+    },
+]
+
+DOC_SECTIONS_JA = [
+    {"slug": "documentacion", "label": "ホーム", "subs": []},
+    {
+        "slug": "documentacion/arquitectura",
+        "label": "アーキテクチャ",
+        "subs": [
+            ("vision-general", "概要"),
+            ("componentes", "コンポーネント"),
+            ("flujo-de-una-peticion", "リクエストの流れ"),
+        ],
+    },
+    {
+        "slug": "documentacion/discord",
+        "label": "Discord",
+        "subs": [
+            ("bot-y-cogs", "ボットとCog"),
+            ("eventos", "イベント"),
+            ("permisos", "権限"),
+            ("interacciones", "インタラクション"),
+        ],
+    },
+    {
+        "slug": "documentacion/api",
+        "label": "API",
+        "subs": [
+            ("vision-general", "概要"),
+            ("autenticacion", "認証"),
+            ("sesiones", "セッション"),
+            ("endpoints", "エンドポイント"),
+            ("webhooks", "Webhook"),
+        ],
+    },
+    {
+        "slug": "documentacion/generacion",
+        "label": "生成エンジン",
+        "subs": [
+            ("motor-markov", "マルコフエンジン"),
+            ("corpus", "コーパス"),
+            ("pipeline", "生成パイプライン"),
+            ("concurrencia-y-limites", "並行処理と制限"),
+        ],
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "label": "ストレージ",
+        "subs": [
+            ("sqlite", "SQLite"),
+            ("r2", "R2"),
+            ("cache", "キャッシュ"),
+            ("retencion", "データ保持"),
+        ],
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "label": "セキュリティ",
+        "subs": [
+            ("oauth2", "OAuth2"),
+            ("permisos", "権限"),
+            ("rate-limits", "レート制限"),
+            ("modelo-de-seguridad", "セキュリティモデル"),
+        ],
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "label": "インフラストラクチャ",
+        "subs": [
+            ("runtime", "ランタイム"),
+            ("nginx", "Nginx"),
+            ("cloudflare", "Cloudflare"),
+            ("deployment", "デプロイ"),
+            ("health-checks", "ヘルスチェック"),
+        ],
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "label": "開発",
+        "subs": [
+            ("estructura-del-proyecto", "プロジェクト構成"),
+            ("entorno-local", "ローカル環境"),
+            ("tests", "テスト"),
+        ],
+    },
+    {
+        "slug": "documentacion/referencia",
+        "label": "リファレンス",
+        "subs": [
+            ("variables-de-entorno", "環境変数"),
+        ],
+    },
+]
+
+DOC_SECTIONS_DE = [
+    {"slug": "documentacion", "label": "Start", "subs": []},
+    {
+        "slug": "documentacion/arquitectura",
+        "label": "Architektur",
+        "subs": [
+            ("vision-general", "Überblick"),
+            ("componentes", "Komponenten"),
+            ("flujo-de-una-peticion", "Ablauf einer Anfrage"),
+        ],
+    },
+    {
+        "slug": "documentacion/discord",
+        "label": "Discord",
+        "subs": [
+            ("bot-y-cogs", "Bot und Cogs"),
+            ("eventos", "Ereignisse"),
+            ("permisos", "Berechtigungen"),
+            ("interacciones", "Interaktionen"),
+        ],
+    },
+    {
+        "slug": "documentacion/api",
+        "label": "API",
+        "subs": [
+            ("vision-general", "Überblick"),
+            ("autenticacion", "Authentifizierung"),
+            ("sesiones", "Sitzungen"),
+            ("endpoints", "Endpunkte"),
+            ("webhooks", "Webhooks"),
+        ],
+    },
+    {
+        "slug": "documentacion/generacion",
+        "label": "Generierung",
+        "subs": [
+            ("motor-markov", "Markov-Engine"),
+            ("corpus", "Korpus"),
+            ("pipeline", "Generierungs-Pipeline"),
+            ("concurrencia-y-limites", "Nebenläufigkeit und Limits"),
+        ],
+    },
+    {
+        "slug": "documentacion/almacenamiento",
+        "label": "Speicher",
+        "subs": [
+            ("sqlite", "SQLite"),
+            ("r2", "R2"),
+            ("cache", "Cache"),
+            ("retencion", "Datenaufbewahrung"),
+        ],
+    },
+    {
+        "slug": "documentacion/seguridad",
+        "label": "Sicherheit",
+        "subs": [
+            ("oauth2", "OAuth2"),
+            ("permisos", "Berechtigungen"),
+            ("rate-limits", "Ratenbegrenzungen"),
+            ("modelo-de-seguridad", "Sicherheitsmodell"),
+        ],
+    },
+    {
+        "slug": "documentacion/infraestructura",
+        "label": "Infrastruktur",
+        "subs": [
+            ("runtime", "Runtime"),
+            ("nginx", "Nginx"),
+            ("cloudflare", "Cloudflare"),
+            ("deployment", "Deployment"),
+            ("health-checks", "Health-Checks"),
+        ],
+    },
+    {
+        "slug": "documentacion/desarrollo",
+        "label": "Entwicklung",
+        "subs": [
+            ("estructura-del-proyecto", "Projektstruktur"),
+            ("entorno-local", "Lokale Umgebung"),
+            ("tests", "Tests"),
+        ],
+    },
+    {
+        "slug": "documentacion/referencia",
+        "label": "Referenz",
+        "subs": [
+            ("variables-de-entorno", "Umgebungsvariablen"),
+        ],
+    },
+]
+
 # ru/ja/de (si existen) reutilizan el slug español tal cual -- ver
 # SLUG_MAP_ES_EN -- pero sí traducen label y las etiquetas de subs; el
 # anchor (primer elemento de cada tupla) se mantiene igual en los 5 idiomas
 # porque es un fragmento de URL invisible, no texto que lea nadie.
-DOC_SECTIONS_BY_LANG = {"es": DOC_SECTIONS, "en": DOC_SECTIONS_EN}
+DOC_SECTIONS_BY_LANG = {
+    "es": DOC_SECTIONS,
+    "en": DOC_SECTIONS_EN,
+    "ru": DOC_SECTIONS_RU,
+    "ja": DOC_SECTIONS_JA,
+    "de": DOC_SECTIONS_DE,
+}
 
 
-DOC_SIDEBAR_LABEL = {"es": "Categorías", "en": "Categories"}
+DOC_SIDEBAR_LABEL = {
+    "es": "Categorías",
+    "en": "Categories",
+    "ru": "Категории",
+    "ja": "カテゴリー",
+    "de": "Kategorien",
+}
 DOC_SIDEBAR_ARIA = {
     "es": "Documentación técnica",
     "en": "Technical documentation",
+    "ru": "Техническая документация",
+    "ja": "技術ドキュメント",
+    "de": "Technische Dokumentation",
 }
 
 
@@ -766,9 +1644,86 @@ GUIA_SECTIONS_EN = [
 
 # ru/ja/de (si existen) reutilizan el anchor español tal cual -- ver la nota
 # de DOC_SECTIONS_BY_LANG, mismo motivo.
-GUIA_SECTIONS_BY_LANG = {"es": GUIA_SECTIONS, "en": GUIA_SECTIONS_EN}
-GUIA_SIDEBAR_SUMMARY = {"es": "Guía ▾", "en": "Guide ▾"}
-GUIA_SIDEBAR_ARIA = {"es": "Guía de Purgito", "en": "Purgito Guide"}
+# Mismos anchors que GUIA_SECTIONS (fragmento de URL invisible), solo cambia
+# el label visible.
+GUIA_SECTIONS_RU = [
+    ("introduccion", "Введение"),
+    ("primeros-pasos", "Первые шаги"),
+    ("como-aprende", "Как учится Purgito"),
+    ("chat", "Чат"),
+    ("corpus", "Корпус"),
+    ("gifs", "GIF-файлы"),
+    ("memes", "Мемы"),
+    ("reacciones", "Реакции"),
+    ("frases-y-packs", "Фразы и наборы"),
+    ("triggers", "Триггеры"),
+    ("embeds", "Embed-сообщения"),
+    ("youtube", "YouTube"),
+    ("anuncios", "Запланированные объявления"),
+    ("premium", "Premium"),
+    ("dashboard", "Панель управления"),
+    ("historial", "История изменений"),
+]
+
+GUIA_SECTIONS_JA = [
+    ("introduccion", "はじめに"),
+    ("primeros-pasos", "最初のステップ"),
+    ("como-aprende", "Purgitoの学習方法"),
+    ("chat", "チャット"),
+    ("corpus", "コーパス"),
+    ("gifs", "GIF"),
+    ("memes", "ミーム"),
+    ("reacciones", "リアクション"),
+    ("frases-y-packs", "フレーズとパック"),
+    ("triggers", "トリガー"),
+    ("embeds", "Embed"),
+    ("youtube", "YouTube"),
+    ("anuncios", "予約投稿"),
+    ("premium", "Premium"),
+    ("dashboard", "ダッシュボード"),
+    ("historial", "履歴"),
+]
+
+GUIA_SECTIONS_DE = [
+    ("introduccion", "Einführung"),
+    ("primeros-pasos", "Erste Schritte"),
+    ("como-aprende", "Wie Purgito lernt"),
+    ("chat", "Chat"),
+    ("corpus", "Korpus"),
+    ("gifs", "GIFs"),
+    ("memes", "Memes"),
+    ("reacciones", "Reaktionen"),
+    ("frases-y-packs", "Sprüche und Packs"),
+    ("triggers", "Trigger"),
+    ("embeds", "Embeds"),
+    ("youtube", "YouTube"),
+    ("anuncios", "Geplante Ankündigungen"),
+    ("premium", "Premium"),
+    ("dashboard", "Dashboard"),
+    ("historial", "Verlauf"),
+]
+
+GUIA_SECTIONS_BY_LANG = {
+    "es": GUIA_SECTIONS,
+    "en": GUIA_SECTIONS_EN,
+    "ru": GUIA_SECTIONS_RU,
+    "ja": GUIA_SECTIONS_JA,
+    "de": GUIA_SECTIONS_DE,
+}
+GUIA_SIDEBAR_SUMMARY = {
+    "es": "Guía ▾",
+    "en": "Guide ▾",
+    "ru": "Гид ▾",
+    "ja": "ガイド ▾",
+    "de": "Leitfaden ▾",
+}
+GUIA_SIDEBAR_ARIA = {
+    "es": "Guía de Purgito",
+    "en": "Purgito Guide",
+    "ru": "Гид по Purgito",
+    "ja": "Purgitoガイド",
+    "de": "Purgito-Leitfaden",
+}
 
 
 def guia_sidebar(lang="es"):
@@ -1010,7 +1965,13 @@ SHELL = (
     % LANDING_CSP
 )
 
-SKIP_LABEL = {"es": "Saltar al contenido", "en": "Skip to content"}
+SKIP_LABEL = {
+    "es": "Saltar al contenido",
+    "en": "Skip to content",
+    "ru": "Перейти к содержимому",
+    "ja": "コンテンツへスキップ",
+    "de": "Zum Inhalt springen",
+}
 
 
 def hreflang_links(slug, lang):
@@ -1048,9 +2009,15 @@ APP_SCRIPT = '<script type="module" src="/js/{src}?v={v}"></script>\n'
 MODULE_HEAD = "{importmap}"
 
 
-OG_LOCALE = {"es": "es_ES", "en": "en_US"}
-TOC_LABEL = {"es": "Índice", "en": "Index"}
-UPDATED_LABEL = {"es": "Última actualización", "en": "Last updated"}
+OG_LOCALE = {"es": "es_ES", "en": "en_US", "ru": "ru_RU", "ja": "ja_JP", "de": "de_DE"}
+TOC_LABEL = {"es": "Índice", "en": "Index", "ru": "Оглавление", "ja": "目次", "de": "Inhalt"}
+UPDATED_LABEL = {
+    "es": "Última actualización",
+    "en": "Last updated",
+    "ru": "Последнее обновление",
+    "ja": "最終更新日",
+    "de": "Zuletzt aktualisiert",
+}
 
 
 def build_toc(sections, descs, lang="es"):
@@ -1230,9 +2197,27 @@ def chunk_of(src, pattern):
     return m.group(0)
 
 
-INDEX_FILE = {"es": "index.html", "en": "index.en.html"}
-PAGES_BY_LANG = {"es": PAGES, "en": PAGES_EN}
-HTML_PAGES_BY_LANG = {"es": HTML_PAGES, "en": HTML_PAGES_EN}
+INDEX_FILE = {
+    "es": "index.html",
+    "en": "index.en.html",
+    "ru": "index.ru.html",
+    "ja": "index.ja.html",
+    "de": "index.de.html",
+}
+PAGES_BY_LANG = {
+    "es": PAGES,
+    "en": PAGES_EN,
+    "ru": PAGES_RU,
+    "ja": PAGES_JA,
+    "de": PAGES_DE,
+}
+HTML_PAGES_BY_LANG = {
+    "es": HTML_PAGES,
+    "en": HTML_PAGES_EN,
+    "ru": HTML_PAGES_RU,
+    "ja": HTML_PAGES_JA,
+    "de": HTML_PAGES_DE,
+}
 
 
 def main():
