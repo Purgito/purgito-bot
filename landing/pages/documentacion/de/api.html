@@ -1,0 +1,66 @@
+<h1>API</h1>
+<p>Die API von Purgito ist eine asynchrone JSON-REST-Schnittstelle, aufgebaut auf <code>aiohttp.web</code>. Sie läuft im selben Prozess wie der Bot auf <code>127.0.0.1:WEB_PORT</code> und wird über den Reverse-Proxy von Nginx sicher ins Internet exponiert.</p>
+
+<h2 id="autenticacion-y-sesiones">OAuth2-Authentifizierung und Sitzungen</h2>
+<p>Der Zugriff auf das Dashboard nutzt den Standard-OAuth2-Autorisierungsablauf von Discord (<em>Authorization Code Flow</em>):</p>
+<ol>
+  <li><code>GET /auth/login</code> erzeugt einen kryptographisch sicheren <code>state</code>-Parameter mit <code>secrets.token_urlsafe(32)</code> und leitet den Nutzer zur Zustimmungsseite von Discord weiter, mit den Scopes <code>identify</code>, <code>email</code> und <code>guilds</code>.</li>
+  <li>Discord leitet zu <code>GET /auth/callback</code> weiter, mit dem Autorisierungscode und dem <code>state</code>.</li>
+  <li>Der Server tauscht den Code über <code>https://discord.com/api/v10/oauth2/token</code> gegen ein Zugangstoken ein, ruft das Nutzerprofil sowie die von ihm verwalteten Server ab (<code>/users/@me/guilds</code>). Verwaltet der Nutzer keinen Server, auf dem der Bot vorhanden oder verfügbar ist, wird die Authentifizierung verweigert.</li>
+  <li>Ein Sitzungscookie wird ausgestellt, symmetrisch verschlüsselt mit Fernet (<code>SESSION_SECRET</code>), mit den Eigenschaften <code>HttpOnly</code>, <code>SameSite=Lax</code> und <code>Secure</code>.</li>
+</ol>
+
+<p>Um Sitzungen zu invalidieren, ohne einen aufwendigen Zustand im Arbeitsspeicher zu halten, speichert die Tabelle <code>revoked_sessions</code> die Kennungen explizit über <code>POST /auth/logout</code> beendeter Sitzungen. Jede eingehende Anfrage prüft, dass die Sitzungs-ID nicht in dieser Tabelle steht.</p>
+
+<h2 id="catalogo-de-endpoints">Endpunkt-Katalog</h2>
+
+<h3>Öffentliche Endpunkte und Monitoring</h3>
+<table>
+<tr><th>Methode</th><th>Route</th><th>Beschreibung</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/health</code></td><td>Lebenszeichen-Check des Prozesses für Load Balancer und grundlegendes Monitoring.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status</code></td><td>Globale Systemmetriken: Betriebszeit, WebSocket-Latenz zu Discord, Anzahl der Server und Nutzer.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/status/guild/{guild_id}</code></td><td>Konnektivitätsprüfung für einen bestimmten Server (genutzt vom Statuschecker).</td></tr>
+</table>
+
+<h3>Konto- und Sitzungsendpunkte</h3>
+<table>
+<tr><th>Methode</th><th>Route</th><th>Beschreibung</th></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/login</code></td><td>Startet den OAuth2-Authentifizierungsablauf von Discord.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/auth/callback</code></td><td>Tauscht den Autorisierungscode ein und erstellt das verschlüsselte Cookie.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--post">POST</span></td><td><code>/auth/logout</code></td><td>Widerruft die aktive Sitzung und invalidiert das Cookie.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me</code></td><td>Informationen zum authentifizierten Nutzer (ID, Name, Avatar).</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/guilds</code></td><td>Liste der vom Nutzer verwalteten Server, aufgeteilt in konfigurierte und verfügbare.</td></tr>
+<tr><td><span class="badge docs-badge docs-badge--get">GET</span></td><td><code>/api/me/billing</code></td><td>Status der Abonnements und Rechnungsdaten des Nutzers.</td></tr>
+</table>
+
+<h3>Endpunkte pro Server (<code>/api/server/{guild_id}/*</code>)</h3>
+<p>Alle Routen unter diesem Präfix erfordern eine aktive Sitzung und prüfen in Echtzeit, dass der Nutzer die Berechtigung <code>Server verwalten</code> auf dem angefragten Server besitzt:</p>
+
+<ul>
+  <li><code>GET/POST /api/server/{id}/style</code>: Abfrage und Aktualisierung von Avatar, Spitzname und Banner von Purgito auf dem Server.</li>
+  <li><code>GET/POST /api/server/{id}/stats</code>: Detaillierte Metriken zu Nachrichtenspeicher, GIFs, Sprüchen, historischer Aktivität und Kontingenten.</li>
+  <li><code>GET/PUT /api/server/{id}/chat</code>: Einstellungen zur Generierung, Prozentsätze für spontane Antworten und Nachrichtenlimits.</li>
+  <li><code>GET/PUT /api/server/{id}/canales</code>: Matrix aus Lesekanälen, Antwortkanälen, stummgeschalteten Kanälen und ignorierten Rollen.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/gifs</code>: GIF-Katalog, Datei-Upload und einzelnes oder massenhaftes Löschen.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/memes</code>: Vorlagen und Bilder der Meme-Bank.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/triggers</code>: Automatische Antworten bei exakter Übereinstimmung, Präfix oder regulären Ausdrücken (Regex).</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/reacciones</code>: Regeln für automatische Emoji-Reaktionen.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/frases</code>: Benutzerdefinierte Sprüche und thematische Pakete pro Kanal.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/embeds</code>: Vorlagen für klassische Embeds und interaktive Layout-V2-Blöcke.</li>
+  <li><code>POST /api/server/{id}/embeds/send</code>: Sofortiger Versand einer gestalteten Nachricht an einen Discord-Kanal.</li>
+  <li><code>GET/PUT/DELETE /api/server/{id}/events/{event_type}</code>: Abfrage, Konfiguration (Klartext, klassisches Embed, Layout V2) und Zurücksetzen von Willkommens-, Abschieds- und Boost-Events mit Variablen-Engine.</li>
+  <li><code>POST /api/server/{id}/events/{event_type}/test</code>: Versand einer Testnachricht mit aufgelösten dynamischen Variablen an den konfigurierten Kanal.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/anuncios</code>: Planung und Verwaltung automatisierter Ankündigungen.</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/youtube</code>: Abonnements und Alarmkanäle für neue Videos.</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/rss</code>: Abonnements generischer RSS/Atom-Feeds und Alarmkanäle für neue Veröffentlichungen.</li>
+  <li><code>POST /api/server/{id}/amnesia</code>: Leerung des in den letzten 24 Stunden gelernten Nachrichten-Corpus und Stils.</li>
+  <li><code>GET /api/server/{id}/audit</code>: Audit-Protokoll der über das Dashboard vorgenommenen Änderungen.</li>
+</ul>
+
+<h2 id="webhooks-de-pago">Zahlungs-Webhooks (Polar)</h2>
+<p><code>POST /webhooks/polar</code> empfängt von Polar ausgelöste Ereignisse zu Abonnements und Abrechnung:</p>
+<ul>
+  <li><strong>Signaturprüfung</strong>: Der Header <code>Webhook-Signature</code> wird nach dem Standard <em>Standard Webhooks</em> (HMAC-SHA256) mit dem Secret <code>POLAR_WEBHOOK_SECRET</code> validiert. Ist die Signatur ungültig oder der Header nicht vorhanden, wird die Anfrage mit Code <code>400</code> abgelehnt.</li>
+  <li><strong>Reihenfolge der Ereignisse</strong>: Jeder Payload enthält Zeitstempel, um zu garantieren, dass im Netzwerk verzögerte Ereignisse nicht neuere Zustände überschreiben.</li>
+  <li><strong>Verarbeitete Ereignisse</strong>: <code>subscription.created</code>, <code>subscription.updated</code>, <code>subscription.active</code>, <code>subscription.canceled</code> und <code>order.refunded</code>, die in Echtzeit die Tabelle <code>guild_premium</code> aktualisieren.</li>
+</ul>

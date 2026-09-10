@@ -1,0 +1,12 @@
+<!-- Cuerpo de /es/perfil, /es/perfil/conexiones y /es/perfil/facturacion — las
+     tres páginas comparten este archivo: solo cambia qué tab pinta perfil.js
+     (lo decide por la URL) y el <title>, que sale de HTML_PAGES.
+     El navbar, el footer y el <head> los pega landing/build_docs.py.
+
+     Nace vacío a propósito: sin la sesión resuelta no hay nada real que
+     mostrar, y un esqueleto que después se reemplaza solo aporta parpadeo. -->
+<main id="contenido" class="shell-main"></main>
+
+<!-- Toast de confirmación (abajo a la izquierda). Uno solo por página:
+     core/dom.js lo reutiliza para todos los avisos. -->
+<div id="toast" role="status" aria-live="polite"></div>

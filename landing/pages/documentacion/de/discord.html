@@ -1,0 +1,47 @@
+<h1>Discord</h1>
+<p>Purgito ist auf <code>discord.py</code> aufgebaut und in eine modulare Sammlung von Cogs strukturiert. Jeder Cog kapselt Anwendungsbefehle (<em>Slash Commands</em>), Event-Listener des Gateways und periodische asynchrone Routinen.</p>
+
+<h2 id="bot-y-cogs">Struktur des Bots und Cogs</h2>
+<p>Der Einstiegspunkt des Bots (<code>src/bot.py</code>) initialisiert die <code>commands.Bot</code>-Instanz mit den minimal nötigen Intents: <code>guilds</code>, <code>message_content</code>, <code>emojis_and_stickers</code> und <code>reactions</code>. Die Cogs werden asynchron in der Methode <code>setup_hook</code> in einer festgelegten Reihenfolge geladen:</p>
+
+<table>
+<tr><th>Cog</th><th>Modul</th><th>Technische Verantwortung</th></tr>
+<tr><td><code>premium</code></td><td><code>src/cogs/premium.py</code></td><td>Prüfung von Kontingenten und Premium-Status (<code>is_premium_guild</code>). Wird zuerst geladen, um Hilfsfunktionen für Limits den restlichen Cogs bereitzustellen.</td></tr>
+<tr><td><code>chat</code></td><td><code>src/cogs/chat.py</code></td><td>Erfassung und Bereinigung von Nachrichten für den Corpus, Bewertung der Antwortwahrscheinlichkeit, Aufruf der Markov-Engine und Verwaltung von Erwähnungen.</td></tr>
+<tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>Erkennung von GIFs in Nachrichten, Extraktion nativer URLs (Tenor/Giphy), optionale Komprimierung und deduplizierter Upload zu Cloudflare R2.</td></tr>
+<tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>Bilderbank des Servers, Generierung von Meme-Vorlagen, Captions über Markov oder Groq-KI und Erfassung per Emoji-Reaktion.</td></tr>
+<tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>Periodisches Überwachen von RSS-Feeds von YouTube-Kanälen und automatischer Versand von Benachrichtigungen an konfigurierte Discord-Kanäle.</td></tr>
+<tr><td><code>rss</code></td><td><code>src/cogs/rss.py</code></td><td>Periodisches Überwachen generischer RSS/Atom-Feeds und automatischer Versand von Benachrichtigungen an konfigurierte Discord-Kanäle.</td></tr>
+<tr><td><code>anuncios</code></td><td><code>src/cogs/anuncios.py</code></td><td>Planer für automatisierte Ankündigungen: versendet Embeds und Nachrichten in wiederkehrenden Intervallen oder zu festen Zeiten mit Zeitzonen-Unterstützung.</td></tr>
+<tr><td><code>general</code></td><td><code>src/cogs/general.py</code></td><td>Allgemeine Befehle (<code>/ping</code>, <code>/ayuda</code>), globale Synchronisierung der Befehle und Verwaltung des Server-Lebenszyklus.</td></tr>
+<tr><td><code>settings</code></td><td><code>src/cogs/settings.py</code></td><td>Natives interaktives Panel in Discord (Views, Selects, Buttons) und Onboarding-Nachricht beim Beitritt zu neuen Servern.</td></tr>
+<tr><td><code>layout_buttons</code></td><td><code>src/cogs/layout_buttons.py</code></td><td>Controller für interaktive Komponenten (Layout V2): Zuweisen und Entfernen von Rollen, externe Links und modale Views.</td></tr>
+<tr><td><code>events</code></td><td><code>src/cogs/events.py</code></td><td>Server-Events: Willkommen, Abschied und Boosts mit Auflösung dynamischer Variablen ({user}, {server_membercount_ordinal} usw.), Unterstützung für 3 Inhaltsmodi und sicherem Versand an Kanäle.</td></tr>
+</table>
+
+<h2 id="ciclo-de-eventos">Lebenszyklus der Gateway-Ereignisse</h2>
+<p>Die Cogs abonnieren die vom Gateway von Discord ausgelösten Ereignisse (benötigt <code>intents.members = True</code> zur Verfolgung von Mitgliedern):</p>
+
+<ul>
+  <li><code>on_ready</code>: Wird ausgelöst, sobald der Bot die Identifikation beim Gateway abgeschlossen hat. Synchronisiert die Slash-Commands mit Discord und startet die periodischen Aufgaben aus <code>src/tasks.py</code>.</li>
+  <li><code>on_message</code>: Verarbeitung der Nachrichten-Pipeline: Filtern von Bot-Nachrichten, Prüfung erlaubter/stummgeschalteter Kanäle, Einfügen in die Tabelle <code>corpus</code>, Auswertung von Triggern und Generierung von Antworten.</li>
+  <li><code>on_member_join</code>: Erkennt den Beitritt neuer Mitglieder und versendet die konfigurierte Willkommensnachricht.</li>
+  <li><code>on_member_remove</code>: Erkennt das Ausscheiden von Mitgliedern und versendet die konfigurierte Abschiedsnachricht.</li>
+  <li><code>on_member_update</code>: Erkennt idempotent den Übergang zu Boost-Beginn und versendet die Dankesnachricht.</li>
+  <li><code>on_raw_reaction_add</code>: Erfassung von Reaktionen auf Nachrichten für automatische Emoji-Trigger und das Hinzufügen von Bildern zur Meme-Bank.</li>
+  <li><code>on_guild_join</code>: Registriert den Server in der Datenbank, initialisiert die Standardkonfiguration und sendet die Willkommensnachricht mit Kurzanleitung.</li>
+  <li><code>on_guild_remove</code>: Markiert den Server mit dem Zeitstempel <code>left_at</code> in der Datenbank und startet damit die Karenzzeit vor der endgültigen Löschung der Daten.</li>
+  <li><code>on_guild_channel_update</code>: Aktualisiert Metadaten und Namen von Kanälen im lokalen Cache, um das Dashboard synchron zu halten.</li>
+</ul>
+
+<h2 id="manejo-de-errores">Fehlerbehandlung und Interaktionen</h2>
+<p>Die Slash-Commands nutzen den Befehlsbaum von Discord (<code>app_commands.CommandTree</code>). Fehler, die bei Interaktionen auftreten, werden über einen globalen Handler <code>on_app_command_error</code> abgefangen:</p>
+
+<ul>
+  <li><code>app_commands.MissingPermissions</code>: Benachrichtigt den Nutzer, dass ihm die nötigen Berechtigungen fehlen (z. B. <code>Server verwalten</code>), über eine ephemere Nachricht (nur für den Autor sichtbar).</li>
+  <li><code>app_commands.BotMissingPermissions</code>: Informiert über die konkreten Berechtigungen, die Purgito im Kanal fehlen (z. B. <code>Nachrichten senden</code>, <code>Links einbetten</code>, <code>Dateien anhängen</code>).</li>
+  <li><code>app_commands.CommandOnCooldown</code>: Informiert über die verbleibende Abklingzeit, um Spam bei rechenintensiven Befehlen zu vermeiden.</li>
+</ul>
+
+<h2 id="permisos-y-seguridad">Berechtigungsmodell und Komponenten</h2>
+<p>Purgito delegiert die Autorisierung an das native Berechtigungssystem von Discord. Es gibt keine parallele Rollenhierarchie: Alle Prüfungen lesen <code>interaction.user.guild_permissions</code>. Für administrative Aktionen an Mitgliedern (wie das Zuweisen von Rollen über Layout-V2-Buttons) prüft der Bot zusätzlich, dass seine eigene höchste Rolle auf dem Server über der Rolle liegt, die vergeben werden soll.</p>
