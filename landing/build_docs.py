@@ -1808,9 +1808,20 @@ def parse(md):
         head, *rest = re.split(r"^## ", head, flags=re.M)
 
     title, _, intro = head.partition("\n")
-    date = re.search(r"\*\*(?:Última actualización|Last updated):\*\*\s*(.+)", intro)
+    # Mismas etiquetas que UPDATED_LABEL -- si un idioma nuevo cambia esa
+    # etiqueta, esta alternativa tiene que actualizarse junto con ella o la
+    # fecha del markdown deja de extraerse y queda pegada dentro del intro.
+    date = re.search(
+        r"\*\*(?:Última actualización|Last updated|Последнее обновление"
+        r"|最終更新日|Zuletzt aktualisiert):\*\*\s*(.+)",
+        intro,
+    )
     intro = re.sub(
-        r"^\*\*(?:Última actualización|Last updated):\*\*.*$", "", intro, flags=re.M
+        r"^\*\*(?:Última actualización|Last updated|Последнее обновление"
+        r"|最終更新日|Zuletzt aktualisiert):\*\*.*$",
+        "",
+        intro,
+        flags=re.M,
     )
 
     sections = []
