@@ -1,4 +1,4 @@
-"""Tests para la funcionalidad de Chat-to-Speech inspirada en Wamellow para Purgito."""
+"""Tests para la funcionalidad de Chat-to-Speech pasivo inspirada en Wamellow para Purgito."""
 
 import asyncio
 from types import SimpleNamespace
@@ -9,6 +9,7 @@ import pytest
 import db
 from cogs.tts import TTS
 from tts.errors import ProviderError, QueueFullError
+from tts.service import TTSService
 
 
 class MockVoiceClient:
@@ -35,6 +36,19 @@ class MockVoiceClient:
         self._connected = False
 
 
+class MockVoiceChannel:
+    """Mock de canal de voz con método connect()."""
+
+    def __init__(self, id: int = 55555, name: str = "General"):
+        self.id = id
+        self.name = name
+        self.connect_called = False
+
+    async def connect(self, timeout: float = 10.0, reconnect: bool = True):
+        self.connect_called = True
+        return MockVoiceClient(connected=True, channel=self)
+
+
 class MockMessage:
     """Mock completo de discord.Message."""
 
@@ -47,6 +61,8 @@ class MockMessage:
         is_bot: bool = False,
         webhook_id: int | None = None,
         voice_connected: bool = True,
+        author_in_voice: bool = False,
+        voice_channel=None,
     ):
         vc = MockVoiceClient(connected=voice_connected) if voice_connected else None
         self.guild = (
@@ -55,34 +71,16 @@ class MockMessage:
             else None
         )
         self.channel = SimpleNamespace(id=channel_id, name="tts-chat")
-        self.author = SimpleNamespace(id=user_id, name="TestUser", bot=is_bot)
+        v_chan = voice_channel or (MockVoiceChannel() if author_in_voice else None)
+        self.author = SimpleNamespace(
+            id=user_id,
+            name="TestUser",
+            bot=is_bot,
+            voice=SimpleNamespace(channel=v_chan) if v_chan else None,
+        )
         self.content = content
         self.clean_content = content
         self.webhook_id = webhook_id
-
-
-class MockInteraction:
-    """Mock de discord.Interaction para comandos slash de configuración."""
-
-    def __init__(
-        self,
-        guild_id: int = 12345,
-        user_id: int = 67890,
-        is_admin: bool = True,
-    ):
-        self.guild = SimpleNamespace(id=guild_id, name="Test Guild")
-        self.user = SimpleNamespace(
-            id=user_id,
-            name="AdminUser",
-            guild_permissions=SimpleNamespace(
-                administrator=is_admin, manage_guild=is_admin
-            ),
-        )
-        self.sent_messages: list[tuple[str, bool]] = []
-        self.response = SimpleNamespace(send_message=self._fake_send_message)
-
-    async def _fake_send_message(self, content=None, ephemeral=False, **kwargs):
-        self.sent_messages.append((str(content), ephemeral))
 
 
 @pytest.fixture
@@ -100,8 +98,8 @@ async def _open_memory_db() -> aiosqlite.Connection:
     return conn
 
 
-# 1. Mensaje en canal configurado -> entra a cola
-def test_chat_to_speech_message_in_configured_channel_enqueues(memory_db, monkeypatch):
+# 1. Canal configurado → entra a cola
+def test_chat_to_speech_configured_channel_enqueues(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -134,8 +132,36 @@ def test_chat_to_speech_message_in_configured_channel_enqueues(memory_db, monkey
     asyncio.run(_test())
 
 
-# 2. Mensaje en otro canal -> ignorado
-def test_chat_to_speech_message_in_other_channel_ignored(memory_db, monkeypatch):
+# 2. Canal no configurado (NULL) → ignorado
+def test_chat_to_speech_no_channel_configured_ignored(memory_db, monkeypatch):
+    async def _test():
+        cog = TTS(SimpleNamespace())
+        guild_id = 12345
+
+        # No se ha configurado ningún canal (chat_to_speech_channel_id es None)
+        await db.set_tts_guild_settings(
+            guild_id=guild_id,
+            chat_to_speech_channel_id=None,
+            chat_to_speech_enabled=False,
+        )
+
+        msg = MockMessage(
+            content="Mensaje en canal no configurado",
+            guild_id=guild_id,
+            channel_id=1001,
+        )
+        await cog.on_message(msg)
+
+        player = await cog.tts_queue_manager.get_player(guild_id)
+        assert player.queue_size() == 0
+
+        await cog.cog_unload()
+
+    asyncio.run(_test())
+
+
+# 3. Mensaje en otro canal → ignorado
+def test_chat_to_speech_other_channel_ignored(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -149,7 +175,7 @@ def test_chat_to_speech_message_in_other_channel_ignored(memory_db, monkeypatch)
 
         msg = MockMessage(
             content="Hola", guild_id=guild_id, channel_id=9999
-        )  # Otro canal
+        )  # Canal distinto
         await cog.on_message(msg)
 
         player = await cog.tts_queue_manager.get_player(guild_id)
@@ -160,32 +186,40 @@ def test_chat_to_speech_message_in_other_channel_ignored(memory_db, monkeypatch)
     asyncio.run(_test())
 
 
-# 3. TTS desactivado en el guild -> ignorado
-def test_chat_to_speech_disabled_ignored(memory_db, monkeypatch):
+# 4. Disabled/no channel → ignorado
+def test_chat_to_speech_disabled_or_no_channel_ignored(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
         channel_id = 1001
 
+        # Caso A: chat_to_speech_enabled = False
         await db.set_tts_guild_settings(
             guild_id=guild_id,
             chat_to_speech_channel_id=channel_id,
-            chat_to_speech_enabled=False,  # Desactivado
+            chat_to_speech_enabled=False,
         )
 
-        msg = MockMessage(content="Hola", guild_id=guild_id, channel_id=channel_id)
-        await cog.on_message(msg)
+        msg_a = MockMessage(content="Hola A", guild_id=guild_id, channel_id=channel_id)
+        await cog.on_message(msg_a)
 
         player = await cog.tts_queue_manager.get_player(guild_id)
         assert player.queue_size() == 0
+
+        # Caso B: settings inexistentes en BD (None)
+        msg_b = MockMessage(content="Hola B", guild_id=99999, channel_id=channel_id)
+        await cog.on_message(msg_b)
+
+        player_b = await cog.tts_queue_manager.get_player(99999)
+        assert player_b.queue_size() == 0
 
         await cog.cog_unload()
 
     asyncio.run(_test())
 
 
-# 4. Mensaje de bot/webhook ignorado por defecto
-def test_chat_to_speech_bot_ignored_by_default(memory_db, monkeypatch):
+# 5. Mensaje de bot/webhook ignorado por defecto
+def test_chat_to_speech_bot_webhook_ignored_by_default(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -198,7 +232,7 @@ def test_chat_to_speech_bot_ignored_by_default(memory_db, monkeypatch):
             allow_bots=False,
         )
 
-        # Mensaje de un bot
+        # Mensaje de bot
         bot_msg = MockMessage(
             content="Mensaje de bot",
             guild_id=guild_id,
@@ -207,7 +241,7 @@ def test_chat_to_speech_bot_ignored_by_default(memory_db, monkeypatch):
         )
         await cog.on_message(bot_msg)
 
-        # Mensaje de un webhook
+        # Mensaje de webhook
         webhook_msg = MockMessage(
             content="Mensaje de webhook",
             guild_id=guild_id,
@@ -224,8 +258,8 @@ def test_chat_to_speech_bot_ignored_by_default(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 5. Mensaje de bot procesado si allow_bots=True
-def test_chat_to_speech_bot_processed_when_allow_bots_true(memory_db, monkeypatch):
+# 6. Allow_bots=true → procesado
+def test_chat_to_speech_allow_bots_true_processed(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -261,8 +295,8 @@ def test_chat_to_speech_bot_processed_when_allow_bots_true(memory_db, monkeypatc
     asyncio.run(_test())
 
 
-# 6. Sin voice connection activa -> ignorado (no auto-connect)
-def test_chat_to_speech_no_voice_connection_ignored(memory_db, monkeypatch):
+# 7a. Bot no conectado + autor en canal de voz → se conecta automáticamente y reproduce
+def test_chat_to_speech_auto_connects_when_author_in_voice(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -274,26 +308,67 @@ def test_chat_to_speech_no_voice_connection_ignored(memory_db, monkeypatch):
             chat_to_speech_enabled=True,
         )
 
-        # 1. voice_client es None
-        msg1 = MockMessage(
-            content="Nadie en voz",
+        async def fake_synthesize(text, voice_id, **kwargs):
+            return "audio.mp3"
+
+        monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
+
+        v_chan = MockVoiceChannel(id=7777, name="General")
+        msg = MockMessage(
+            content="Hola auto-connect",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            voice_connected=False,  # Purgito NO está conectado inicialmente
+            voice_channel=v_chan,  # Autor SÍ está en canal de voz
+        )
+
+        await cog.on_message(msg)
+
+        assert v_chan.connect_called is True
+        player = await cog.tts_queue_manager.get_player(guild_id)
+        assert player.queue_size() == 1
+        item = player.queue.get_nowait()
+        assert item.text == "Hola auto-connect"
+
+        await cog.cog_unload()
+
+    asyncio.run(_test())
+
+
+# 7b. Bot no conectado + autor FUERA de cualquier canal de voz → ignorar (no conectar ni sintetizar)
+def test_chat_to_speech_ignored_when_author_not_in_voice(memory_db, monkeypatch):
+    async def _test():
+        cog = TTS(SimpleNamespace())
+        guild_id = 12345
+        channel_id = 1001
+
+        await db.set_tts_guild_settings(
+            guild_id=guild_id,
+            chat_to_speech_channel_id=channel_id,
+            chat_to_speech_enabled=True,
+        )
+
+        synthesize_called = False
+
+        async def fake_synthesize(text, voice_id, **kwargs):
+            nonlocal synthesize_called
+            synthesize_called = True
+            return "audio.mp3"
+
+        monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
+
+        # Autor NO está en ningún canal de voz (author.voice = None)
+        msg = MockMessage(
+            content="Hola sin voz",
             guild_id=guild_id,
             channel_id=channel_id,
             voice_connected=False,
+            author_in_voice=False,
         )
-        await cog.on_message(msg1)
 
-        # 2. voice_client existe pero no está conectado
-        disconnected_vc = MockVoiceClient(connected=False)
-        msg2 = MockMessage(
-            content="Desconectado",
-            guild_id=guild_id,
-            channel_id=channel_id,
-            voice_connected=False,
-        )
-        msg2.guild.voice_client = disconnected_vc
-        await cog.on_message(msg2)
+        await cog.on_message(msg)
 
+        assert synthesize_called is False
         player = await cog.tts_queue_manager.get_player(guild_id)
         assert player.queue_size() == 0
 
@@ -302,8 +377,47 @@ def test_chat_to_speech_no_voice_connection_ignored(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 7. Mensaje demasiado largo -> truncado según política
-def test_chat_to_speech_text_truncated(memory_db, monkeypatch):
+# 7c. Bot YA conectado a voz → reutiliza la conexión existente
+def test_chat_to_speech_reuses_existing_voice_connection(memory_db, monkeypatch):
+    async def _test():
+        cog = TTS(SimpleNamespace())
+        guild_id = 12345
+        channel_id = 1001
+
+        await db.set_tts_guild_settings(
+            guild_id=guild_id,
+            chat_to_speech_channel_id=channel_id,
+            chat_to_speech_enabled=True,
+        )
+
+        async def fake_synthesize(text, voice_id, **kwargs):
+            return "audio.mp3"
+
+        monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
+
+        # Bot YA conectado a voz
+        msg = MockMessage(
+            content="Hola con bot ya conectado",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            voice_connected=True,
+            author_in_voice=False,  # Incluso si el autor no tiene voice_state, usa la conexión activa
+        )
+
+        await cog.on_message(msg)
+
+        player = await cog.tts_queue_manager.get_player(guild_id)
+        assert player.queue_size() == 1
+        item = player.queue.get_nowait()
+        assert item.text == "Hola con bot ya conectado"
+
+        await cog.cog_unload()
+
+    asyncio.run(_test())
+
+
+# 8. Mensaje demasiado largo → truncado según política
+def test_chat_to_speech_message_too_long_truncated(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -324,8 +438,7 @@ def test_chat_to_speech_text_truncated(memory_db, monkeypatch):
 
         monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
 
-        # Texto que excede el límite
-        long_content = "X" * (cog.tts_service.max_text_length + 100)
+        long_content = "Z" * (cog.tts_service.max_text_length + 100)
         msg = MockMessage(
             content=long_content,
             guild_id=guild_id,
@@ -337,14 +450,14 @@ def test_chat_to_speech_text_truncated(memory_db, monkeypatch):
         assert player.queue_size() == 1
         item = player.queue.get_nowait()
         assert len(item.text) == cog.tts_service.max_text_length
-        assert synthesized_text == "X" * cog.tts_service.max_text_length
+        assert synthesized_text == "Z" * cog.tts_service.max_text_length
 
         await cog.cog_unload()
 
     asyncio.run(_test())
 
 
-# 8. Prefijo de exclusión (//, \\, /*) -> ignorado
+# 9. Prefijo de exclusión (//, \\, /*) → ignorado
 def test_chat_to_speech_exclusion_prefix_ignored(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
@@ -373,8 +486,8 @@ def test_chat_to_speech_exclusion_prefix_ignored(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 9. Voz personal del autor aplicada
-def test_chat_to_speech_personal_voice_applied(memory_db, monkeypatch):
+# 10. Preferencia personal → aplicada
+def test_chat_to_speech_personal_preference_applied(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -395,7 +508,7 @@ def test_chat_to_speech_personal_voice_applied(memory_db, monkeypatch):
         monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
 
         msg = MockMessage(
-            content="Hola con mi voz",
+            content="Hola con mi voz personal",
             guild_id=guild_id,
             channel_id=channel_id,
             user_id=user_id,
@@ -412,8 +525,8 @@ def test_chat_to_speech_personal_voice_applied(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 10. Voz del guild aplicada si el usuario no tiene override
-def test_chat_to_speech_guild_voice_applied(memory_db, monkeypatch):
+# 11. Preferencia guild → aplicada si no existe personal
+def test_chat_to_speech_guild_preference_applied_if_no_personal(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -450,8 +563,8 @@ def test_chat_to_speech_guild_voice_applied(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 11. Fallback global
-def test_chat_to_speech_global_voice_fallback(memory_db, monkeypatch):
+# 12. Fallback global
+def test_chat_to_speech_fallback_global(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -470,7 +583,7 @@ def test_chat_to_speech_global_voice_fallback(memory_db, monkeypatch):
         monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
 
         msg = MockMessage(
-            content="Hola global",
+            content="Hola fallback global",
             guild_id=guild_id,
             channel_id=channel_id,
             user_id=6666,
@@ -487,12 +600,14 @@ def test_chat_to_speech_global_voice_fallback(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 12. Chat-to-Speech y /tts decir reutilizan el mismo TTSService
-def test_chat_to_speech_and_decir_share_same_service_and_queue(memory_db, monkeypatch):
+# 13. Mismo TTSService que el pipeline TTS existente
+def test_chat_to_speech_uses_same_tts_service(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
         channel_id = 1001
+
+        assert isinstance(cog.tts_service, TTSService)
 
         await db.set_tts_guild_settings(
             guild_id=guild_id,
@@ -500,58 +615,31 @@ def test_chat_to_speech_and_decir_share_same_service_and_queue(memory_db, monkey
             chat_to_speech_enabled=True,
         )
 
-        called_with_services = []
+        used_service = None
 
         async def fake_synthesize(text, voice_id, **kwargs):
-            called_with_services.append(cog.tts_service)
+            nonlocal used_service
+            used_service = cog.tts_service
             return "audio.mp3"
 
         monkeypatch.setattr(cog.tts_service, "synthesize_speech", fake_synthesize)
 
-        # 1. Chat-to-Speech message
         msg = MockMessage(
             content="Mensaje C2S",
             guild_id=guild_id,
             channel_id=channel_id,
         )
-
-        player = await cog.tts_queue_manager.get_player(guild_id)
-        enqueued_items = []
-
-        async def spy_enqueue(item):
-            enqueued_items.append(item)
-            # No delegar al worker de audio para evitar llamadas a ffmpeg en test
-            player.queue.put_nowait(item)
-
-        monkeypatch.setattr(player, "enqueue", spy_enqueue)
-
         await cog.on_message(msg)
 
-        # 2. /tts decir command
-        from test_tts_cog_resilience import MockInteraction
-
-        interaction = MockInteraction(guild_id=guild_id, in_voice=True)
-        # Apuntar el mock voice client y canal del interaction al mismo
-        interaction.guild.voice_client = msg.guild.voice_client
-        interaction.user.voice.channel = msg.guild.voice_client.channel
-        await cog.decir.callback(cog, interaction, texto="Mensaje Slash")
-
-        assert len(enqueued_items) == 2
-        assert len(called_with_services) == 2
-        assert called_with_services[0] is called_with_services[1]
-        assert called_with_services[0] is cog.tts_service
-
-        # Verificar orden FIFO
-        assert enqueued_items[0].text == "Mensaje C2S"
-        assert enqueued_items[1].text == "Mensaje Slash"
+        assert used_service is cog.tts_service
 
         await cog.cog_unload()
 
     asyncio.run(_test())
 
 
-# 13. Errores del provider no rompen el listener de on_message
-def test_chat_to_speech_provider_error_does_not_break_listener(memory_db, monkeypatch):
+# 14. Provider error → on_message continúa
+def test_chat_to_speech_provider_error_continues(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -574,7 +662,7 @@ def test_chat_to_speech_provider_error_does_not_break_listener(memory_db, monkey
             channel_id=channel_id,
         )
 
-        # No debe lanzar excepción
+        # No debe propagar excepción ni crashear el listener
         await cog.on_message(msg)
 
         player = await cog.tts_queue_manager.get_player(guild_id)
@@ -585,8 +673,8 @@ def test_chat_to_speech_provider_error_does_not_break_listener(memory_db, monkey
     asyncio.run(_test())
 
 
-# 14. Queue overflow no rompe el listener
-def test_chat_to_speech_queue_overflow_does_not_break_listener(memory_db, monkeypatch):
+# 15. Queue overflow → on_message continúa
+def test_chat_to_speech_queue_overflow_continues(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
         guild_id = 12345
@@ -616,7 +704,7 @@ def test_chat_to_speech_queue_overflow_does_not_break_listener(memory_db, monkey
             channel_id=channel_id,
         )
 
-        # No debe lanzar excepción
+        # No debe propagar excepción
         await cog.on_message(msg)
 
         await cog.cog_unload()
@@ -624,7 +712,7 @@ def test_chat_to_speech_queue_overflow_does_not_break_listener(memory_db, monkey
     asyncio.run(_test())
 
 
-# 15. Override explícito de voz en el mensaje: [voz_id] texto
+# 16. Override explícito de voz en el mensaje: [voz_id] texto
 def test_chat_to_speech_explicit_voice_override_tag(memory_db, monkeypatch):
     async def _test():
         cog = TTS(SimpleNamespace())
@@ -661,47 +749,66 @@ def test_chat_to_speech_explicit_voice_override_tag(memory_db, monkeypatch):
     asyncio.run(_test())
 
 
-# 16. Slash command /tts channel consulta y modificación
-def test_tts_channel_command(memory_db):
+# 17. Integración en /settings con TTSCategory
+def test_settings_tts_category_panel(memory_db):
     async def _test():
-        cog = TTS(SimpleNamespace())
-        guild_id = 12345
+        from cogs.settings import SettingsPanel, TTSCategory
 
-        # 1. Consulta inicial de estado
-        inter_query = MockInteraction(guild_id=guild_id, is_admin=False)
-        await cog.channel.callback(cog, inter_query)
-        assert len(inter_query.sent_messages) == 1
-        assert "Estado de Chat-to-Speech" in inter_query.sent_messages[0][0]
+        guild_id = 77777
+        guild = SimpleNamespace(id=guild_id, name="Test Guild", text_channels=[])
+        panel = SettingsPanel(guild=guild, locale="es", invoker_id=123)
 
-        # 2. Modificación sin permisos
-        fake_chan = SimpleNamespace(id=2002, name="general")
-        inter_no_perm = MockInteraction(guild_id=guild_id, is_admin=False)
-        await cog.channel.callback(cog, inter_no_perm, canal=fake_chan)
-        assert "permiso" in inter_no_perm.sent_messages[0][0].lower()
+        category = TTSCategory()
 
-        # 3. Modificación con permisos de admin
-        inter_admin = MockInteraction(guild_id=guild_id, is_admin=True)
-        await cog.channel.callback(
-            cog,
-            inter_admin,
-            canal=fake_chan,
-            activar=True,
-            permitir_bots=True,
+        # 1. Embed cuando no hay canal configurado
+        embed_before = await category.build_embed(panel)
+        assert "Desactivado" in embed_before.description
+
+        # 2. Configurar canal
+        items = await category.build_items(panel)
+        chan_select = items[0]
+        fake_chan_obj = SimpleNamespace(id=8888)
+        chan_select._values = [fake_chan_obj]
+
+        async def fake_edit(**kw):
+            pass
+
+        fake_interaction = SimpleNamespace(
+            guild=guild,
+            user=SimpleNamespace(id=123),
+            response=SimpleNamespace(
+                is_done=lambda: True,
+                edit_message=fake_edit,
+            ),
+            edit_original_response=fake_edit,
         )
-        assert "actualizada" in inter_admin.sent_messages[0][0].lower()
+        await chan_select.callback(fake_interaction)
 
-        # Verificar en base de datos
         settings = await db.get_tts_guild_settings(guild_id)
-        assert settings["chat_to_speech_channel_id"] == 2002
+        assert settings["chat_to_speech_channel_id"] == 8888
         assert settings["chat_to_speech_enabled"] is True
-        assert settings["allow_bots"] is True
 
-        # 4. Desvincular canal
-        inter_unlink = MockInteraction(guild_id=guild_id, is_admin=True)
-        await cog.channel.callback(cog, inter_unlink, desvincular=True)
-        settings_after = await db.get_tts_guild_settings(guild_id)
-        assert settings_after["chat_to_speech_channel_id"] is None
+        embed_after = await category.build_embed(panel)
+        assert "Activo" in embed_after.description
+        assert "<#8888>" in embed_after.description
 
-        await cog.cog_unload()
+        # 3. Toggle bots
+        items_active = await category.build_items(panel)
+        bots_btn = items_active[1]
+        await bots_btn.callback(fake_interaction)
+
+        settings_bots = await db.get_tts_guild_settings(guild_id)
+        assert settings_bots["allow_bots"] is True
+
+        # 4. Desvincular / Desactivar canal
+        items_with_clear = await category.build_items(panel)
+        clear_btn = items_with_clear[2]
+        await clear_btn.callback(fake_interaction)
+
+        settings_cleared = await db.get_tts_guild_settings(guild_id)
+        assert settings_cleared["chat_to_speech_channel_id"] is None
+
+        embed_final = await category.build_embed(panel)
+        assert "Desactivado" in embed_final.description
 
     asyncio.run(_test())

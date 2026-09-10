@@ -1293,14 +1293,14 @@ class TTSCategory(SettingsCategory):
 
     async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
         settings = await get_tts_guild_settings(panel.guild.id) or {}
-        enabled = settings.get("chat_to_speech_enabled", False)
         ch_id = settings.get("chat_to_speech_channel_id")
+        is_active = ch_id is not None
         allow_bots = settings.get("allow_bots", False)
         voice = settings.get("default_voice") or "es_002"
 
         status_str = (
             t("settings.tts.enabled", panel.locale)
-            if enabled
+            if is_active
             else t("settings.tts.disabled", panel.locale)
         )
         ch_str = (
@@ -1328,32 +1328,42 @@ class TTSCategory(SettingsCategory):
 
     async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
         settings = await get_tts_guild_settings(panel.guild.id) or {}
-        enabled = settings.get("chat_to_speech_enabled", False)
+        ch_id = settings.get("chat_to_speech_channel_id")
         allow_bots = settings.get("allow_bots", False)
 
-        toggle_btn = discord.ui.Button(
-            label=t(
-                "settings.tts.btn_disable" if enabled else "settings.tts.btn_enable",
-                panel.locale,
-            ),
-            style=discord.ButtonStyle.danger
-            if enabled
-            else discord.ButtonStyle.success,
+        items: list[discord.ui.Item] = []
+
+        channel_select = discord.ui.ChannelSelect(
+            placeholder=t("settings.tts.channel_placeholder", panel.locale),
+            channel_types=[discord.ChannelType.text],
+            min_values=0,
+            max_values=1,
             row=1,
         )
 
-        async def on_toggle(interaction: discord.Interaction):
-            await set_tts_guild_settings(
-                panel.guild.id, chat_to_speech_enabled=not enabled
-            )
+        async def on_channel(interaction: discord.Interaction):
+            if channel_select.values:
+                chosen = channel_select.values[0]
+                await set_tts_guild_settings(
+                    panel.guild.id,
+                    chat_to_speech_channel_id=chosen.id,
+                    chat_to_speech_enabled=True,
+                )
+            else:
+                await set_tts_guild_settings(
+                    panel.guild.id,
+                    clear_chat_to_speech_channel=True,
+                    chat_to_speech_enabled=False,
+                )
             await panel.refresh(interaction)
 
-        toggle_btn.callback = on_toggle
+        channel_select.callback = on_channel
+        items.append(channel_select)
 
         bots_btn = discord.ui.Button(
             label=f"{t('settings.tts.btn_toggle_bots', panel.locale)}: {t('settings.tts.yes' if allow_bots else 'settings.tts.no', panel.locale)}",
             style=discord.ButtonStyle.secondary,
-            row=1,
+            row=2,
         )
 
         async def on_toggle_bots(interaction: discord.Interaction):
@@ -1361,25 +1371,27 @@ class TTSCategory(SettingsCategory):
             await panel.refresh(interaction)
 
         bots_btn.callback = on_toggle_bots
+        items.append(bots_btn)
 
-        channel_select = discord.ui.ChannelSelect(
-            placeholder=t("settings.tts.channel_placeholder", panel.locale),
-            channel_types=[discord.ChannelType.text],
-            row=2,
-        )
-
-        async def on_channel(interaction: discord.Interaction):
-            chosen = channel_select.values[0]
-            await set_tts_guild_settings(
-                panel.guild.id,
-                chat_to_speech_channel_id=chosen.id,
-                chat_to_speech_enabled=True,
+        if ch_id:
+            clear_btn = discord.ui.Button(
+                label=t("settings.tts.btn_disable", panel.locale),
+                style=discord.ButtonStyle.danger,
+                row=2,
             )
-            await panel.refresh(interaction)
 
-        channel_select.callback = on_channel
+            async def on_clear(interaction: discord.Interaction):
+                await set_tts_guild_settings(
+                    panel.guild.id,
+                    clear_chat_to_speech_channel=True,
+                    chat_to_speech_enabled=False,
+                )
+                await panel.refresh(interaction)
 
-        return [toggle_btn, bots_btn, channel_select]
+            clear_btn.callback = on_clear
+            items.append(clear_btn)
+
+        return items
 
 
 CATEGORIES: list[SettingsCategory] = [
