@@ -76,6 +76,8 @@ addStrings({
     'dash.mod.canales.desc': 'Matriz de lectura/respuesta y canales o roles ignorados',
     'dash.mod.amnesia.label': 'Limpieza',
     'dash.mod.amnesia.desc': 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
+    'dash.mod.prefijo.label': 'Prefijo de comandos',
+    'dash.mod.prefijo.desc': 'Cambia el símbolo con el que se invocan los comandos de texto, como !dl',
   },
   en: {
     'dash.cat.principal': 'Main',
@@ -124,6 +126,8 @@ addStrings({
     'dash.mod.canales.desc': 'Read/reply matrix and ignored channels or roles',
     'dash.mod.amnesia.label': 'Cleanup',
     'dash.mod.amnesia.desc': 'Deletes messages and style learned in the last 24 hours',
+    'dash.mod.prefijo.label': 'Command prefix',
+    'dash.mod.prefijo.desc': 'Change the symbol used to invoke text commands, like !dl',
   },
 });
 
@@ -350,6 +354,15 @@ export const MODULES = [
     desc: t('dash.mod.amnesia.desc'),
     keywords: ['amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset'],
     load: loadAmnesiaModule,
+  },
+  {
+    key: 'prefijo',
+    cat: 'servidor',
+    label: t('dash.mod.prefijo.label'),
+    icon: 'zap',
+    desc: t('dash.mod.prefijo.desc'),
+    keywords: ['prefijo', 'prefix', 'comandos', 'dl', 'instagram', 'purgito'],
+    load: loadPrefijoModule,
   },
 
   // Purgito Premium (Módulo especial)
@@ -2799,6 +2812,15 @@ addStrings({
     'dash.reacciones.moduleDesc': 'Configura la probabilidad y la colección de emojis con los que Purgito puede reaccionar a los mensajes del chat.',
     'dash.reacciones.probLabel': 'Probabilidad de reaccionar con un emoji',
     'dash.reacciones.emojiCollectionLabel': 'Colección de emojis',
+    'dash.prefijo.moduleTitle': 'Prefijo de comandos',
+    'dash.prefijo.moduleDesc': 'Los comandos de texto (como !dl) responden al símbolo de acá, o escribiendo "purgito" antes del comando.',
+    'dash.prefijo.label': 'Símbolo del prefijo',
+    'dash.prefijo.wordNote': 'Además del símbolo, "purgito" antes del comando siempre funciona (ej: "purgito dl <link>") -- eso no se cambia acá.',
+    'dash.prefijo.save': 'Guardar',
+    'dash.prefijo.reset': 'Restablecer',
+    'dash.prefijo.saved': 'Prefijo actualizado',
+    'dash.prefijo.errorSave': 'No se pudo guardar el prefijo',
+    'dash.prefijo.errorEmpty': 'El prefijo no puede estar vacío',
   },
   en: {
     'dash.updates.moduleTitle': 'Updates Channel',
@@ -2809,6 +2831,15 @@ addStrings({
     'dash.reacciones.moduleDesc': "Set the probability and the collection of emojis Purgito can use to react to chat messages.",
     'dash.reacciones.probLabel': 'Probability of reacting with an emoji',
     'dash.reacciones.emojiCollectionLabel': 'Emoji collection',
+    'dash.prefijo.moduleTitle': 'Command prefix',
+    'dash.prefijo.moduleDesc': 'Text commands (like !dl) respond to the symbol below, or to typing "purgito" before the command.',
+    'dash.prefijo.label': 'Prefix symbol',
+    'dash.prefijo.wordNote': 'Besides the symbol, "purgito" before the command always works too (e.g. "purgito dl <link>") -- that one isn\'t changed here.',
+    'dash.prefijo.save': 'Save',
+    'dash.prefijo.reset': 'Reset',
+    'dash.prefijo.saved': 'Prefix updated',
+    'dash.prefijo.errorSave': "Couldn't save the prefix",
+    'dash.prefijo.errorEmpty': "The prefix can't be empty",
   },
 });
 
@@ -2831,6 +2862,59 @@ async function loadUpdatesModule() {
         title: t('dash.updates.moduleTitle'),
         subtitle: t('dash.updates.moduleSubtitle'),
       })
+    );
+  } catch (e) { if (box) renderError(box, e); }
+}
+
+async function loadPrefijoModule() {
+  const box = content();
+  if (box) {
+    box.innerHTML = '';
+    box.append(spinner());
+  }
+  try {
+    const data = await apiFetch(`/api/server/${GUILD_ID}/settings/prefix`);
+    if (!box) return;
+    box.innerHTML = '';
+
+    const input = el('input', {
+      type: 'text',
+      value: data.prefix,
+      maxlength: String(data.max_length || 10),
+      placeholder: data.default_prefix,
+    });
+    const saveBtn = el('button', { class: 'btn btn-primary' }, t('dash.prefijo.save'));
+    const resetBtn = el('button', { class: 'btn btn-secondary', disabled: !data.is_custom },
+      t('dash.prefijo.reset'));
+
+    async function persist(prefix) {
+      try {
+        const res = await apiFetch(`/api/server/${GUILD_ID}/settings/prefix`, {
+          method: 'PUT', body: { prefix },
+        });
+        input.value = res.prefix;
+        resetBtn.disabled = res.prefix === data.default_prefix;
+        toast(t('dash.prefijo.saved'), 'ok');
+      } catch (e) {
+        toast(humanError(e) || t('dash.prefijo.errorSave'), 'err');
+      }
+    }
+
+    saveBtn.onclick = () => {
+      const value = (input.value || '').trim();
+      if (!value) { toast(t('dash.prefijo.errorEmpty'), 'err'); return; }
+      persist(value);
+    };
+    resetBtn.onclick = () => persist(null);
+
+    box.append(
+      formGroup(t('dash.prefijo.moduleTitle'),
+        el('p', { class: 'dim' }, t('dash.prefijo.moduleDesc')),
+        el('div', { class: 'field' },
+          el('label', {}, t('dash.prefijo.label'), helpIcon(t('dash.prefijo.wordNote'))),
+          el('div', { class: 'chain-fields' }, input, saveBtn, resetBtn)
+        )
+      )
     );
   } catch (e) { if (box) renderError(box, e); }
 }

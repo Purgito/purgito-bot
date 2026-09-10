@@ -15,6 +15,7 @@ import pytest
 
 import cogs.chat as chat_mod
 from cogs.chat import Chat, OTHER_BOT_PREFIXES
+from config import BOT_TRIGGER_NAME
 
 BOT_ID = 999
 _next_message_id = itertools.count(1)
@@ -80,6 +81,9 @@ def cog(monkeypatch):
     async def fake_generate(guild_id, channel_id, *, special_phrase_probability=None):
         return "respuesta", True
 
+    async def fake_guild_prefix(guild_id):
+        return None  # sin custom_prefix -> DEFAULT_COMMAND_PREFIX ("!")
+
     monkeypatch.setattr(chat_mod, "save_corpus_and_user_message", fake_save)
     monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_settings)
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_empty_list)
@@ -88,6 +92,7 @@ def cog(monkeypatch):
     monkeypatch.setattr(chat_mod, "list_spontaneous_channels", fake_empty_list)
     monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_empty_list)
     monkeypatch.setattr(chat_mod, "list_exempt_channels", fake_empty_list)
+    monkeypatch.setattr(chat_mod, "get_guild_prefix", fake_guild_prefix)
     monkeypatch.setattr(chat_mod.generation, "generate_response", fake_generate)
 
     bot = SimpleNamespace(user=SimpleNamespace(id=BOT_ID))
@@ -138,3 +143,43 @@ def test_asterisco_de_roleplay_no_se_bloquea(cog):
     asyncio.run(chat.on_message(m))
 
     assert saved == ["*se ríe*"]
+
+
+def test_prefijo_custom_del_guild_no_entra_al_corpus(cog, monkeypatch):
+    """Un guild que cambió su prefijo de símbolo (dashboard) también queda
+    mudo con ESE prefijo, no solo con el "!" default -- ver DEFAULT_COMMAND_PREFIX."""
+    chat, saved = cog
+
+    async def fake_custom_prefix(guild_id):
+        return "$"
+
+    monkeypatch.setattr(chat_mod, "get_guild_prefix", fake_custom_prefix)
+
+    m = FakeMessage("$dl https://instagram.com/reel/x", mention=True)
+    asyncio.run(chat.on_message(m))
+
+    assert saved == []
+    assert m.replies == []
+
+
+def test_prefijo_de_palabra_no_entra_al_corpus(cog):
+    """ "purgito dl <link>" es un comando (BOT_TRIGGER_NAME + espacio), mismo
+    criterio que "purgito generar" en is_meme_trigger -- no es charla real."""
+    chat, saved = cog
+
+    m = FakeMessage(f"{BOT_TRIGGER_NAME} dl https://instagram.com/x", mention=False)
+    asyncio.run(chat.on_message(m))
+
+    assert saved == []
+
+
+def test_palabra_sin_espacio_despues_no_se_bloquea(cog):
+    """ "purgitocracia es interesante" no es un comando -- el prefijo de
+    palabra exige el espacio (BOT_TRIGGER_NAME + " "), si no cualquier
+    palabra que arranque igual quedaría muda por accidente."""
+    chat, saved = cog
+
+    m = FakeMessage(f"{BOT_TRIGGER_NAME}cracia es interesante", mention=True)
+    asyncio.run(chat.on_message(m))
+
+    assert saved == [f"{BOT_TRIGGER_NAME}cracia es interesante"]
