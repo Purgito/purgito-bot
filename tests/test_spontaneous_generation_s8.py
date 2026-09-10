@@ -297,6 +297,7 @@ def test_canal_no_permitido_en_corpus_no_cuenta_ni_genera(monkeypatch):
         monkeypatch.setattr(
             chat_mod, "is_corpus_allowed", AsyncMock(return_value=False)
         )
+        monkeypatch.setattr(chat_mod, "get_guild_prefix", AsyncMock(return_value=None))
         save_mock = AsyncMock()
         monkeypatch.setattr(cog, "_save_message_to_corpus", save_mock)
 
@@ -340,6 +341,7 @@ def test_canal_no_permitido_en_spontaneous_no_genera(monkeypatch):
             "save_corpus_and_user_message",
             AsyncMock(return_value=(True, True)),
         )
+        monkeypatch.setattr(chat_mod, "get_guild_prefix", AsyncMock(return_value=None))
 
         msg = FakeMessage(
             guild_id=1, channel_id=10, content="este es un mensaje de prueba"
@@ -384,6 +386,7 @@ def test_caso_completo_every_1_prob_1_genera_exitosamente(monkeypatch):
             AsyncMock(return_value=(True, True)),
         )
         monkeypatch.setattr(chat_mod, "bump_counter", AsyncMock())
+        monkeypatch.setattr(chat_mod, "get_guild_prefix", AsyncMock(return_value=None))
 
         # Mock del modelo Markov
         markov = SimpleMarkov()

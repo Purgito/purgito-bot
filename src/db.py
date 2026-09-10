@@ -80,6 +80,13 @@ _db_lock: asyncio.Lock = _RollbackOnErrorLock()
 DEFAULT_MENTION_RATE_LIMIT = 10
 MAX_MENTION_RATE_LIMIT = 1000
 
+# Prefijo de símbolo por defecto (bot.py lo usa si el guild no tiene
+# settings.custom_prefix). El prefijo de palabra ("purgito ") no es
+# configurable por guild -- viene de config.BOT_TRIGGER_NAME, el mismo que ya
+# usa el trigger de texto de memes ("purgito generar").
+DEFAULT_COMMAND_PREFIX = "!"
+MAX_CUSTOM_PREFIX_LENGTH = 10
+
 # Comportamiento del chat, ahora por servidor (antes eran constantes globales en
 # config.py). Los defaults replican exactamente lo que hacía el bot con los
 # valores fijos, así que migrar no cambia la conducta de ningún servidor.
@@ -133,7 +140,8 @@ CREATE TABLE IF NOT EXISTS settings (
     chat_channel_id INTEGER,
     mention_rate_limit INTEGER NOT NULL DEFAULT 10,
     locale TEXT,
-    updates_channel_id INTEGER
+    updates_channel_id INTEGER,
+    custom_prefix TEXT
 );
 
 CREATE TABLE IF NOT EXISTS corpus_messages (
@@ -811,6 +819,14 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna updates_channel_id ya existe en settings")
+    # Prefijo de símbolo custom del guild (dashboard, tab Servidor). NULL =
+    # usa DEFAULT_COMMAND_PREFIX ("!"). El prefijo de palabra ("purgito ") no
+    # vive acá -- ver DEFAULT_COMMAND_PREFIX arriba.
+    try:
+        await _db.execute("ALTER TABLE settings ADD COLUMN custom_prefix TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna custom_prefix ya existe en settings")
     # Anti-farmeo: interacciones por hora y por usuario. Los servidores que ya
     # existen quedan con el default (10), igual que uno nuevo.
     try:
@@ -1233,6 +1249,30 @@ async def set_guild_locale(guild_id: int, locale: str) -> None:
             "INSERT INTO settings (guild_id, locale) VALUES (?, ?) "
             "ON CONFLICT(guild_id) DO UPDATE SET locale=excluded.locale",
             (guild_id, locale),
+        )
+        await db.commit()
+
+
+async def get_guild_prefix(guild_id: int) -> str | None:
+    """None si el guild no personalizó el prefijo de símbolo -- bot.py y
+    cogs/chat.py caen a DEFAULT_COMMAND_PREFIX en ese caso."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT custom_prefix FROM settings WHERE guild_id=?", (guild_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row[0] if row and row[0] else None
+
+
+async def set_guild_prefix(guild_id: int, prefix: str | None) -> None:
+    """`prefix=None` borra la personalización (vuelve a DEFAULT_COMMAND_PREFIX).
+    No valida el contenido -- eso lo hace el caller (webapi._api_prefix_put)."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO settings (guild_id, custom_prefix) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET custom_prefix=excluded.custom_prefix",
+            (guild_id, prefix),
         )
         await db.commit()
 

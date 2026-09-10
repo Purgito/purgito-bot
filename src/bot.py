@@ -19,7 +19,14 @@ import config  # ejecuta load_dotenv() al importarse
 import i18n
 import r2
 import webapi
-from db import close_db, get_lifecycle_state, init_db, set_lifecycle_state
+from db import (
+    DEFAULT_COMMAND_PREFIX,
+    close_db,
+    get_guild_prefix,
+    get_lifecycle_state,
+    init_db,
+    set_lifecycle_state,
+)
 
 # Configurar logging
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,6 +56,7 @@ EXTENSIONS = [
     "cogs.rss",
     "cogs.anuncios",
     "cogs.general",
+    "cogs.download",
     "cogs.settings",
     "cogs.layout_buttons",
     "cogs.privacy",
@@ -76,7 +84,19 @@ class PurgitoBot(commands.Bot):
         await super().close()
 
 
-bot = PurgitoBot(command_prefix="!", intents=intents)
+async def get_prefix(_bot: commands.Bot, message: discord.Message) -> list[str]:
+    """Símbolo (custom por guild, default "!") + prefijo de palabra fijo
+    ("purgito ", de config.BOT_TRIGGER_NAME) -- mismo trigger que ya usa el
+    texto de memes ("purgito generar"), así no hay un segundo concepto de
+    "palabra mágica" por separado. Fuera de un guild (DM) solo el símbolo
+    default: no hay guild_id para resolver un custom_prefix."""
+    symbol = DEFAULT_COMMAND_PREFIX
+    if message.guild is not None:
+        symbol = await get_guild_prefix(message.guild.id) or DEFAULT_COMMAND_PREFIX
+    return [symbol, f"{config.BOT_TRIGGER_NAME} "]
+
+
+bot = PurgitoBot(command_prefix=get_prefix, intents=intents)
 bot.remove_command("help")
 
 

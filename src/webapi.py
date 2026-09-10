@@ -87,6 +87,8 @@ from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
 from db import (
     CHAT_TUNABLES,
+    DEFAULT_COMMAND_PREFIX,
+    MAX_CUSTOM_PREFIX_LENGTH,
     MAX_TRIGGER_PATTERN,
     TRIGGER_ACTIONS,
     TRIGGER_MATCH_TYPES,
@@ -141,6 +143,7 @@ from db import (
     get_effective_frase_pool,
     get_gif_by_id,
     get_gif_by_url,
+    get_guild_prefix,
     get_premium_subscription,
     get_random_gif_candidates,
     get_scheduled_announcement,
@@ -200,6 +203,7 @@ from db import (
     set_chat_enabled,
     set_chat_mode,
     set_chat_tunables,
+    set_guild_prefix,
     set_rss_mention_role_by_id,
     set_server_event,
     set_updates_channel,
@@ -2018,6 +2022,53 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
             "channel_name": channel_name,
         }
     )
+
+
+@guild_api
+async def _api_prefix_get(request: web.Request, guild_id: int) -> web.Response:
+    """Prefijo de comandos de texto (tab Servidor del dashboard). El prefijo
+    de palabra ("purgito ") no es custom por guild -- ver bot.py:get_prefix."""
+    custom = await get_guild_prefix(guild_id)
+    return web.json_response(
+        {
+            "prefix": custom or DEFAULT_COMMAND_PREFIX,
+            "is_custom": custom is not None,
+            "default_prefix": DEFAULT_COMMAND_PREFIX,
+            "max_length": MAX_CUSTOM_PREFIX_LENGTH,
+        }
+    )
+
+
+@guild_api
+async def _api_prefix_put(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+
+    raw_prefix = data.get("prefix")
+    if raw_prefix is None or raw_prefix == "":
+        await set_guild_prefix(guild_id, None)
+        await _log_audit(request, guild_id, "prefix.reset")
+        return web.json_response({"ok": True, "prefix": DEFAULT_COMMAND_PREFIX})
+
+    if not isinstance(raw_prefix, str):
+        return web.json_response({"error": "prefijo inválido"}, status=400)
+    prefix = raw_prefix.strip()
+    if not prefix or len(prefix) > MAX_CUSTOM_PREFIX_LENGTH:
+        return web.json_response(
+            {
+                "error": f"el prefijo tiene que tener entre 1 y {MAX_CUSTOM_PREFIX_LENGTH} caracteres"
+            },
+            status=400,
+        )
+    if any(c.isspace() for c in prefix):
+        return web.json_response(
+            {"error": "el prefijo no puede tener espacios"}, status=400
+        )
+
+    await set_guild_prefix(guild_id, prefix)
+    await _log_audit(request, guild_id, "prefix.set", detail=prefix)
+    return web.json_response({"ok": True, "prefix": prefix})
 
 
 @guild_api
@@ -5902,6 +5953,8 @@ async def start_web_server(bot: commands.Bot) -> None:
         )
         app.router.add_get(f"{base}/settings/updates", _api_updates_get)
         app.router.add_put(f"{base}/settings/updates", _api_updates_put)
+        app.router.add_get(f"{base}/settings/prefix", _api_prefix_get)
+        app.router.add_put(f"{base}/settings/prefix", _api_prefix_put)
         app.router.add_get(f"{base}/settings/gifs", _api_server_gifs_get)
         app.router.add_post(f"{base}/settings/gifs", _api_server_gifs_post)
         app.router.add_delete(

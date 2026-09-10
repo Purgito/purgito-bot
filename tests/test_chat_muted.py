@@ -89,8 +89,12 @@ def cog(monkeypatch):
     async def fake_locale(guild_id):
         return "es"
 
+    async def fake_guild_prefix(guild_id):
+        return None  # sin custom_prefix -> DEFAULT_COMMAND_PREFIX ("!")
+
     monkeypatch.setattr(chat_mod, "save_corpus_and_user_message", fake_save)
     monkeypatch.setattr(i18n, "guild_locale", fake_locale)
+    monkeypatch.setattr(chat_mod, "get_guild_prefix", fake_guild_prefix)
 
     bot = SimpleNamespace(user=SimpleNamespace(id=BOT_ID))
     return Chat(bot), saved, monkeypatch
@@ -150,6 +154,9 @@ def _patch_ctx(
     async def fake_exempt_channels(guild_id):
         return list(exempt_channels)
 
+    async def fake_guild_prefix(guild_id):
+        return None  # sin custom_prefix -> DEFAULT_COMMAND_PREFIX ("!")
+
     chat_mod._mention_hits.clear()
     chat_mod._rate_limit_warned.clear()
     monkeypatch.setattr(chat_mod, "is_channel_ignored", fake_ignored)
@@ -161,6 +168,7 @@ def _patch_ctx(
     )
     monkeypatch.setattr(chat_mod, "list_exempt_roles", fake_exempt)
     monkeypatch.setattr(chat_mod, "list_exempt_channels", fake_exempt_channels)
+    monkeypatch.setattr(chat_mod, "get_guild_prefix", fake_guild_prefix)
 
 
 # ─── Sección 5, ronda 1: reenvío de eventos duplicados del gateway ───────────

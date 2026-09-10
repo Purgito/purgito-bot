@@ -347,6 +347,11 @@
   "general.error.missing_argument": "Missing arguments. Check how to use the command.",
   "general.error.cooldown": "Wait {seconds}s before using this command again.",
   "general.error.generic": "Something went wrong on my end. Try again in a bit.",
+  "download.dl.missing_url": "Add a link after the command: `!dl <link>` or `purgito dl <link>`.",
+  "download.dl.only_instagram": "Only downloads Instagram videos for now.",
+  "download.dl.too_large": "That video is over {mb}MB, too big for this channel.",
+  "download.dl.failed": "Couldn't download that link. Make sure the post is public and still exists.",
+  "download.dl.busy": "There's already a download running in this server, wait for it to finish.",
 
   "help.intro.title": "Purgito Help",
   "help.intro.description": "Purgito learns how your server writes and generates new messages from that.\n\nUse the buttons below to see commands by category.",
@@ -363,6 +368,7 @@
   "help.cat.chat.cmd.imitar_mezcla": "Mixes the writing style of two server members",
   "help.cat.chat.cmd.corpus_info": "Shows how many messages have been learned in this channel",
   "help.cat.chat.cmd.settings": "Quick chat settings",
+  "help.cat.chat.cmd.dl": "Downloads an Instagram video and uploads it to the chat",
 
   "help.cat.memes.label": "Memes ⭐",
   "help.cat.memes.intro": "⭐ **Premium feature** — not available on every server.",
