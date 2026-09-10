@@ -32,9 +32,11 @@ from db import (
     add_youtube_sub,
     count_guild_corpus_messages,
     get_chat_settings,
+    get_tts_guild_settings,
     list_corpus_channels,
     list_meme_schedules,
     list_scheduled_announcements,
+    set_tts_guild_settings,
     list_twitch_subs,
     list_youtube_subs,
     remember_welcome_channel,
@@ -1285,9 +1287,105 @@ class AnunciosCategory(SettingsCategory):
         return items
 
 
+class TTSCategory(SettingsCategory):
+    key = "tts"
+    emoji = "🔊"
+
+    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
+        settings = await get_tts_guild_settings(panel.guild.id) or {}
+        enabled = settings.get("chat_to_speech_enabled", False)
+        ch_id = settings.get("chat_to_speech_channel_id")
+        allow_bots = settings.get("allow_bots", False)
+        voice = settings.get("default_voice") or "es_002"
+
+        status_str = (
+            t("settings.tts.enabled", panel.locale)
+            if enabled
+            else t("settings.tts.disabled", panel.locale)
+        )
+        ch_str = (
+            f"<#{ch_id}>" if ch_id else t("settings.tts.channel_none", panel.locale)
+        )
+        bots_str = (
+            t("settings.tts.yes", panel.locale)
+            if allow_bots
+            else t("settings.tts.no", panel.locale)
+        )
+
+        desc = t(
+            "settings.tts.body",
+            panel.locale,
+            status=status_str,
+            channel=ch_str,
+            bots=bots_str,
+            voice=voice,
+        )
+        return discord.Embed(
+            title=self.title(panel.locale),
+            description=desc,
+            color=PURGITO_COLOR,
+        )
+
+    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
+        settings = await get_tts_guild_settings(panel.guild.id) or {}
+        enabled = settings.get("chat_to_speech_enabled", False)
+        allow_bots = settings.get("allow_bots", False)
+
+        toggle_btn = discord.ui.Button(
+            label=t(
+                "settings.tts.btn_disable" if enabled else "settings.tts.btn_enable",
+                panel.locale,
+            ),
+            style=discord.ButtonStyle.danger
+            if enabled
+            else discord.ButtonStyle.success,
+            row=1,
+        )
+
+        async def on_toggle(interaction: discord.Interaction):
+            await set_tts_guild_settings(
+                panel.guild.id, chat_to_speech_enabled=not enabled
+            )
+            await panel.refresh(interaction)
+
+        toggle_btn.callback = on_toggle
+
+        bots_btn = discord.ui.Button(
+            label=f"{t('settings.tts.btn_toggle_bots', panel.locale)}: {t('settings.tts.yes' if allow_bots else 'settings.tts.no', panel.locale)}",
+            style=discord.ButtonStyle.secondary,
+            row=1,
+        )
+
+        async def on_toggle_bots(interaction: discord.Interaction):
+            await set_tts_guild_settings(panel.guild.id, allow_bots=not allow_bots)
+            await panel.refresh(interaction)
+
+        bots_btn.callback = on_toggle_bots
+
+        channel_select = discord.ui.ChannelSelect(
+            placeholder=t("settings.tts.channel_placeholder", panel.locale),
+            channel_types=[discord.ChannelType.text],
+            row=2,
+        )
+
+        async def on_channel(interaction: discord.Interaction):
+            chosen = channel_select.values[0]
+            await set_tts_guild_settings(
+                panel.guild.id,
+                chat_to_speech_channel_id=chosen.id,
+                chat_to_speech_enabled=True,
+            )
+            await panel.refresh(interaction)
+
+        channel_select.callback = on_channel
+
+        return [toggle_btn, bots_btn, channel_select]
+
+
 CATEGORIES: list[SettingsCategory] = [
     CanalesCategory(),
     ChatCategory(),
+    TTSCategory(),
     IdiomaCategory(),
     AprendizajeCategory(),
     YouTubeCategory(),

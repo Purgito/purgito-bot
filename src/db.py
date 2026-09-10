@@ -697,6 +697,22 @@ CREATE TABLE IF NOT EXISTS member_boost_records (
     created_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY(guild_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS tts_user_settings (
+    user_id INTEGER PRIMARY KEY,
+    voice_id TEXT,
+    filter TEXT NOT NULL DEFAULT 'normal',
+    speed REAL NOT NULL DEFAULT 1.0,
+    pitch REAL NOT NULL DEFAULT 1.0
+);
+
+CREATE TABLE IF NOT EXISTS tts_guild_settings (
+    guild_id INTEGER PRIMARY KEY,
+    default_voice TEXT,
+    chat_to_speech_channel_id INTEGER,
+    chat_to_speech_enabled INTEGER NOT NULL DEFAULT 0,
+    allow_bots INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -987,6 +1003,42 @@ async def init_db():
         )
         await _db.commit()
     await backfill_user_corpus_channel_id()
+    try:
+        await _db.execute(
+            "CREATE TABLE IF NOT EXISTS tts_user_settings ("
+            "user_id INTEGER PRIMARY KEY, "
+            "voice_id TEXT, "
+            "filter TEXT NOT NULL DEFAULT 'normal', "
+            "speed REAL NOT NULL DEFAULT 1.0, "
+            "pitch REAL NOT NULL DEFAULT 1.0)"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("No se pudo crear tabla tts_user_settings")
+    try:
+        await _db.execute(
+            "CREATE TABLE IF NOT EXISTS tts_guild_settings ("
+            "guild_id INTEGER PRIMARY KEY, "
+            "default_voice TEXT, "
+            "chat_to_speech_channel_id INTEGER, "
+            "chat_to_speech_enabled INTEGER NOT NULL DEFAULT 0, "
+            "allow_bots INTEGER NOT NULL DEFAULT 0)"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("No se pudo crear tabla tts_guild_settings")
+    for _col, _type in (
+        ("chat_to_speech_channel_id", "INTEGER"),
+        ("chat_to_speech_enabled", "INTEGER NOT NULL DEFAULT 0"),
+        ("allow_bots", "INTEGER NOT NULL DEFAULT 0"),
+    ):
+        try:
+            await _db.execute(
+                f"ALTER TABLE tts_guild_settings ADD COLUMN {_col} {_type}"
+            )
+            await _db.commit()
+        except Exception:
+            log.debug("Columna %s ya existe en tts_guild_settings", _col)
 
 
 async def close_db():
@@ -1444,6 +1496,8 @@ async def delete_user_data(author_id: int) -> dict:
             "DELETE FROM user_corpus WHERE author_id=?", (author_id,)
         )
         user_corpus_deleted = cur_uc.rowcount
+
+        await db.execute("DELETE FROM tts_user_settings WHERE user_id=?", (author_id,))
 
         await db.commit()
 
@@ -5879,6 +5933,7 @@ async def purge_guild_data(guild_id: int) -> None:
         "server_events",
         "member_boost_records",
         "channel_webhooks",
+        "tts_guild_settings",
     ]
     async with _db_lock:
         for table in tables:
@@ -6060,3 +6115,161 @@ async def list_image_urls(guild_id: int) -> list[str]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
+
+
+# ─── TTS Settings ──────────────────────────────────────────────────────────
+
+
+async def get_tts_user_settings(user_id: int) -> dict | None:
+    """Obtiene la configuración de TTS de un usuario (voz, filtro, velocidad, pitch).
+    Devuelve None si el usuario no tiene configuración personalizada."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT user_id, voice_id, filter, speed, pitch FROM tts_user_settings WHERE user_id = ?",
+        (user_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    return {
+        "user_id": row[0],
+        "voice_id": row[1],
+        "filter": row[2],
+        "speed": row[3],
+        "pitch": row[4],
+    }
+
+
+async def set_tts_user_settings(
+    user_id: int,
+    voice_id: str | None = None,
+    filter_name: str | None = None,
+    speed: float | None = None,
+    pitch: float | None = None,
+) -> dict:
+    """Crea o actualiza la configuración de TTS de un usuario.
+    Los campos no especificados conservan su valor actual o usan el default."""
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT voice_id, filter, speed, pitch FROM tts_user_settings WHERE user_id = ?",
+            (user_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        current_voice = row[0] if row else None
+        current_filter = row[1] if row else "normal"
+        current_speed = row[2] if row else 1.0
+        current_pitch = row[3] if row else 1.0
+
+        new_voice = voice_id if voice_id is not None else current_voice
+        new_filter = filter_name if filter_name is not None else current_filter
+        new_speed = speed if speed is not None else current_speed
+        new_pitch = pitch if pitch is not None else current_pitch
+
+        await db.execute(
+            "INSERT INTO tts_user_settings (user_id, voice_id, filter, speed, pitch) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET "
+            "voice_id = excluded.voice_id, "
+            "filter = excluded.filter, "
+            "speed = excluded.speed, "
+            "pitch = excluded.pitch",
+            (user_id, new_voice, new_filter, new_speed, new_pitch),
+        )
+        await db.commit()
+    return {
+        "user_id": user_id,
+        "voice_id": new_voice,
+        "filter": new_filter,
+        "speed": new_speed,
+        "pitch": new_pitch,
+    }
+
+
+async def get_tts_guild_settings(guild_id: int) -> dict | None:
+    """Obtiene la configuración de TTS de un servidor (voz por defecto, canal de chat-to-speech, etc.).
+    Devuelve None si el servidor no tiene configuración personalizada."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT guild_id, default_voice, chat_to_speech_channel_id, chat_to_speech_enabled, allow_bots "
+        "FROM tts_guild_settings WHERE guild_id = ?",
+        (guild_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    return {
+        "guild_id": row[0],
+        "default_voice": row[1],
+        "chat_to_speech_channel_id": row[2],
+        "chat_to_speech_enabled": bool(row[3]),
+        "allow_bots": bool(row[4]),
+    }
+
+
+async def set_tts_guild_settings(
+    guild_id: int,
+    default_voice: str | None = None,
+    chat_to_speech_channel_id: int | None = None,
+    chat_to_speech_enabled: bool | None = None,
+    allow_bots: bool | None = None,
+    clear_chat_to_speech_channel: bool = False,
+) -> dict:
+    """Configura las opciones de TTS para un servidor.
+    Los campos no especificados conservan su valor actual o usan el default."""
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT default_voice, chat_to_speech_channel_id, chat_to_speech_enabled, allow_bots "
+            "FROM tts_guild_settings WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        current_voice = row[0] if row else None
+        current_channel = row[1] if row else None
+        current_enabled = bool(row[2]) if row else False
+        current_allow_bots = bool(row[3]) if row else False
+
+        new_voice = default_voice if default_voice is not None else current_voice
+        if clear_chat_to_speech_channel:
+            new_channel = None
+        else:
+            new_channel = (
+                chat_to_speech_channel_id
+                if chat_to_speech_channel_id is not None
+                else current_channel
+            )
+        new_enabled = (
+            chat_to_speech_enabled
+            if chat_to_speech_enabled is not None
+            else current_enabled
+        )
+        new_allow_bots = allow_bots if allow_bots is not None else current_allow_bots
+
+        await db.execute(
+            "INSERT INTO tts_guild_settings ("
+            "guild_id, default_voice, chat_to_speech_channel_id, chat_to_speech_enabled, allow_bots"
+            ") VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "default_voice = excluded.default_voice, "
+            "chat_to_speech_channel_id = excluded.chat_to_speech_channel_id, "
+            "chat_to_speech_enabled = excluded.chat_to_speech_enabled, "
+            "allow_bots = excluded.allow_bots",
+            (
+                guild_id,
+                new_voice,
+                new_channel,
+                1 if new_enabled else 0,
+                1 if new_allow_bots else 0,
+            ),
+        )
+        await db.commit()
+    return {
+        "guild_id": guild_id,
+        "default_voice": new_voice,
+        "chat_to_speech_channel_id": new_channel,
+        "chat_to_speech_enabled": new_enabled,
+        "allow_bots": new_allow_bots,
+    }
