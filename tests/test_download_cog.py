@@ -1,6 +1,7 @@
-"""Comando "dl" (cogs/download.py): descarga de un video de Instagram y lo
-sube al canal. Mockea _download_video por completo -- nada de red real ni
-yt-dlp de verdad. Cubre la validación de dominio (solo Instagram), los tres
+"""Comando "dl" (cogs/download.py): descarga de un video de Instagram,
+TikTok o Twitter/X y lo sube al canal. Mockea _download_video por completo
+-- nada de red real ni yt-dlp de verdad. Cubre la validación de dominio
+(la allowlist, incluyendo que "t.co" quede afuera a propósito), los tres
 casos de error, y el camino feliz (manda el archivo y limpia el tmp dir).
 
 Mismo patrón que test_mis_datos.py / test_borrar_mis_datos.py: se llama
@@ -16,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 import cogs.download as download_mod
-from cogs.download import Download, DownloadFailed, DownloadTooLarge, _is_instagram_url
+from cogs.download import Download, DownloadFailed, DownloadTooLarge, _is_supported_url
 
 
 class _FakeTyping:
@@ -73,7 +74,7 @@ def _fake_download_factory(seen=None):
     return fake
 
 
-# ── _is_instagram_url ────────────────────────────────────────────────────────
+# ── _is_supported_url ────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -83,10 +84,16 @@ def _fake_download_factory(seen=None):
         "https://www.instagram.com/reel/abc123",
         "https://instagr.am/p/xyz",
         "http://m.instagram.com/p/xyz",
+        "https://tiktok.com/@user/video/123",
+        "https://www.tiktok.com/@user/video/123",
+        "https://vm.tiktok.com/abc123",
+        "https://twitter.com/user/status/123",
+        "https://x.com/user/status/123",
+        "https://mobile.twitter.com/user/status/123",
     ],
 )
-def test_is_instagram_url_acepta_hosts_validos(url):
-    assert _is_instagram_url(url)
+def test_is_supported_url_acepta_hosts_validos(url):
+    assert _is_supported_url(url)
 
 
 @pytest.mark.parametrize(
@@ -96,12 +103,16 @@ def test_is_instagram_url_acepta_hosts_validos(url):
         "https://youtu.be/abc",
         "https://evil.com/instagram.com",
         "https://instagram.com.evil.com/reel/abc",
+        # t.co es un acortador genérico de Twitter (cualquier link tuiteado
+        # pasa por ahí, no solo contenido de Twitter) -- queda afuera a
+        # propósito, ver el docstring del módulo.
+        "https://t.co/abc123",
         "not-a-url",
         "",
     ],
 )
-def test_is_instagram_url_rechaza_todo_lo_demas(url):
-    assert not _is_instagram_url(url)
+def test_is_supported_url_rechaza_todo_lo_demas(url):
+    assert not _is_supported_url(url)
 
 
 # ── comando dl ────────────────────────────────────────────────────────────────
@@ -117,7 +128,7 @@ def test_dl_sin_link_responde_con_instrucciones():
     assert ctx.reply_files == []
 
 
-def test_dl_rechaza_link_que_no_es_instagram():
+def test_dl_rechaza_link_de_sitio_no_soportado():
     cog = _cog()
     ctx = FakeContext()
 
