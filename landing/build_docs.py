@@ -678,6 +678,19 @@ DOC_SECTIONS_EN = [
     },
 ]
 
+# ru/ja/de (si existen) reutilizan el slug español tal cual -- ver
+# SLUG_MAP_ES_EN -- pero sí traducen label y las etiquetas de subs; el
+# anchor (primer elemento de cada tupla) se mantiene igual en los 5 idiomas
+# porque es un fragmento de URL invisible, no texto que lea nadie.
+DOC_SECTIONS_BY_LANG = {"es": DOC_SECTIONS, "en": DOC_SECTIONS_EN}
+
+
+DOC_SIDEBAR_LABEL = {"es": "Categorías", "en": "Categories"}
+DOC_SIDEBAR_ARIA = {
+    "es": "Documentación técnica",
+    "en": "Technical documentation",
+}
+
 
 def doc_sidebar(current_slug, lang="es"):
     """Sidebar de /{lang}/documentacion: categorías + anclas de la página activa.
@@ -685,9 +698,9 @@ def doc_sidebar(current_slug, lang="es"):
     Sin JS: la categoría activa se resuelve en build time (cada página sabe
     su propio slug) y las anclas son <a href="#id"> normales.
     """
-    sections = DOC_SECTIONS if lang == "es" else DOC_SECTIONS_EN
-    label = "Categorías" if lang == "es" else "Categories"
-    aria = "Documentación técnica" if lang == "es" else "Technical documentation"
+    sections = DOC_SECTIONS_BY_LANG[lang]
+    label = DOC_SIDEBAR_LABEL[lang]
+    aria = DOC_SIDEBAR_ARIA[lang]
     items = []
     for sec in sections:
         active = sec["slug"] == current_slug
@@ -751,15 +764,22 @@ GUIA_SECTIONS_EN = [
 ]
 
 
+# ru/ja/de (si existen) reutilizan el anchor español tal cual -- ver la nota
+# de DOC_SECTIONS_BY_LANG, mismo motivo.
+GUIA_SECTIONS_BY_LANG = {"es": GUIA_SECTIONS, "en": GUIA_SECTIONS_EN}
+GUIA_SIDEBAR_SUMMARY = {"es": "Guía ▾", "en": "Guide ▾"}
+GUIA_SIDEBAR_ARIA = {"es": "Guía de Purgito", "en": "Purgito Guide"}
+
+
 def guia_sidebar(lang="es"):
     """Sidebar de /{lang}/guia: navegación por anclas a las secciones de la página.
 
     Funciona con anchors directos (#id) en una sola página. En móvil se pliega
     en un <details> accesible con summary 'Guía ▾'.
     """
-    sections = GUIA_SECTIONS if lang == "es" else GUIA_SECTIONS_EN
-    summary = "Guía ▾" if lang == "es" else "Guide ▾"
-    aria = "Guía de Purgito" if lang == "es" else "Purgito Guide"
+    sections = GUIA_SECTIONS_BY_LANG[lang]
+    summary = GUIA_SIDEBAR_SUMMARY[lang]
+    aria = GUIA_SIDEBAR_ARIA[lang]
     items = []
     for anchor, label in sections:
         items.append('    <li><a href="#%s">%s</a></li>' % (anchor, html.escape(label)))
@@ -994,19 +1014,26 @@ SKIP_LABEL = {"es": "Saltar al contenido", "en": "Skip to content"}
 
 
 def hreflang_links(slug, lang):
-    """Bloque de <link rel="alternate" hreflang> ES/EN + x-default.
+    """Bloque de <link rel="alternate" hreflang> para cada idioma activo
+    (LANGS) + x-default.
 
     x-default apunta siempre a la versión española: sigue siendo el idioma
     por defecto del sitio (ver el fallback 'es' en el redirect de índex.html).
+    Solo ES↔EN tienen slugs propios (SLUG_MAP_ES_EN); ru/ja/de reutilizan el
+    slug español tal cual -- mismo criterio que translateRest() en script.js,
+    normalizar al slug canónico (el español) y de ahí retraducir al destino.
     """
-    es = slug if lang == "es" else es_slug(slug)
-    en = en_slug(slug) if lang == "es" else slug
-    return (
-        '<link rel="alternate" hreflang="es" href="%s/es/%s">\n'
-        '<link rel="alternate" hreflang="en" href="%s/en/%s">\n'
-        '<link rel="alternate" hreflang="x-default" href="%s/es/%s">\n'
-        % (BASE_URL, es, BASE_URL, en, BASE_URL, es)
+    canonical = es_slug(slug) if lang == "en" else slug
+    links = [
+        '<link rel="alternate" hreflang="%s" href="%s/%s/%s">'
+        % (lg, BASE_URL, lg, en_slug(canonical) if lg == "en" else canonical)
+        for lg in LANGS
+    ]
+    links.append(
+        '<link rel="alternate" hreflang="x-default" href="%s/es/%s">'
+        % (BASE_URL, canonical)
     )
+    return "\n".join(links) + "\n"
 
 
 # Páginas del dashboard: el CSS propio va después de style.css (lo extiende, no
@@ -1261,10 +1288,17 @@ def main():
                 out.write_text(page_html, "utf-8")
                 print("→", out.relative_to(ROOT))
 
-    # Cada página ES tiene su contraparte EN y viceversa -- si esto falla,
-    # alguien agregó una página a un lado sin el otro.
-    assert len(PAGES) == len(PAGES_EN), (len(PAGES), len(PAGES_EN))
-    assert len(HTML_PAGES) == len(HTML_PAGES_EN), (len(HTML_PAGES), len(HTML_PAGES_EN))
+    # Cada idioma en *_BY_LANG tiene que traer exactamente las mismas páginas
+    # que "es" -- si esto falla, alguien agregó una página a un lado sin el
+    # resto (incluye ru/ja/de el día que se sumen a estos dicts).
+    for lang, pages in PAGES_BY_LANG.items():
+        assert len(pages) == len(PAGES), (lang, len(pages), len(PAGES))
+    for lang, pages in HTML_PAGES_BY_LANG.items():
+        assert len(pages) == len(HTML_PAGES), (lang, len(pages), len(HTML_PAGES))
+    for lang, sections in DOC_SECTIONS_BY_LANG.items():
+        assert len(sections) == len(DOC_SECTIONS), (lang, len(sections))
+    for lang, sections in GUIA_SECTIONS_BY_LANG.items():
+        assert len(sections) == len(GUIA_SECTIONS), (lang, len(sections))
     # SLUG_MAP_ES_EN tiene que ser reversible en ambos sentidos.
     for es, en in SLUG_MAP_ES_EN.items():
         assert es_slug(en) == es, (es, en)

@@ -89,15 +89,19 @@ var SLUG_MAP_EN_ES = {};
 for (var esSlug in SLUG_MAP_ES_EN) { SLUG_MAP_EN_ES[SLUG_MAP_ES_EN[esSlug]] = esSlug; }
 
 /* Traduce el resto de la ruta (todo lo que sigue al prefijo de idioma) al
-   cambiar de `from` a `to`. Solo ES↔EN tienen slugs mapeados; cualquier
-   otro par de idiomas (o un slug sin entrada en el mapa) conserva el
-   texto tal cual. */
+   cambiar de `from` a `to`. Solo ES↔EN tienen slugs propios -- ru/ja/de
+   reutilizan el slug español tal cual (ver LANGS y READY_LANGS más abajo).
+   Por eso el slug se normaliza primero a su forma canónica (la española:
+   'en' se destraduce vía SLUG_MAP_EN_ES, cualquier otro idioma ya la usa)
+   y recién ahí se traduce al idioma de destino ('en' vía SLUG_MAP_ES_EN,
+   cualquier otro se queda con la forma canónica). Sin este paso intermedio,
+   ir de EN a RU/JA/DE (o entre dos de esos tres) arrastraba el slug en
+   inglés en vez de caer al español que es el que existe en disco. */
 function translateRest(rest, from, to) {
   var slug = rest.replace(/^\/|\/$/g, '');
   if (!slug) return rest;
-  var mapped = slug;
-  if (from === 'es' && to === 'en') mapped = SLUG_MAP_ES_EN[slug] || slug;
-  else if (from === 'en' && to === 'es') mapped = SLUG_MAP_EN_ES[slug] || slug;
+  var canonical = from === 'en' ? (SLUG_MAP_EN_ES[slug] || slug) : slug;
+  var mapped = to === 'en' ? (SLUG_MAP_ES_EN[canonical] || canonical) : canonical;
   return '/' + mapped;
 }
 

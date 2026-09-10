@@ -29,13 +29,15 @@ const SLUG_MAP_EN_ES = Object.fromEntries(
   Object.entries(SLUG_MAP_ES_EN).map(([es, en]) => [en, es])
 );
 
-// Misma lógica que translateRest() en script.js.
+// Misma lógica que translateRest() en script.js: normaliza al slug canónico
+// (el español -- ru/ja/de reutilizan ese mismo slug) y de ahí traduce al
+// destino, en vez de mapear directo entre `from` y `to`. Necesario para que
+// EN<->ru/ja/de (o ru/ja/de entre sí) no arrastre el slug en inglés.
 function translateRest(rest, from, to) {
   const slug = rest.replace(/^\/|\/$/g, '');
   if (!slug) return rest;
-  let mapped = slug;
-  if (from === 'es' && to === 'en') mapped = SLUG_MAP_ES_EN[slug] || slug;
-  else if (from === 'en' && to === 'es') mapped = SLUG_MAP_EN_ES[slug] || slug;
+  const canonical = from === 'en' ? (SLUG_MAP_EN_ES[slug] || slug) : slug;
+  const mapped = to === 'en' ? (SLUG_MAP_ES_EN[canonical] || canonical) : canonical;
   return '/' + mapped;
 }
 
@@ -75,6 +77,27 @@ assert.equal(hrefFor('/en/documentation/development', 'es'), '/es/documentacion/
 for (const same of ['guia', 'premium', 'estado', 'dashboard', 'perfil', 'perfil/servidores', 'perfil/conexiones', 'perfil/facturacion']) {
   assert.equal(hrefFor(`/es/${same}`, 'en'), `/en/${same}`, `slug idéntico roto: ${same}`);
   assert.equal(hrefFor(`/en/${same}`, 'es'), `/es/${same}`, `slug idéntico roto (vuelta): ${same}`);
+}
+
+// ru/ja/de reutilizan el slug español tal cual -- yendo desde ES o entre
+// ellos mismos el slug no debería tocarse nunca.
+for (const lang of ['ru', 'ja', 'de']) {
+  assert.equal(hrefFor('/es/documentacion/arquitectura', lang), `/${lang}/documentacion/arquitectura`);
+  assert.equal(hrefFor(`/${lang}/documentacion/arquitectura`, 'es'), '/es/documentacion/arquitectura');
+  assert.equal(hrefFor('/es/terminos', lang), `/${lang}/terminos`);
+  assert.equal(hrefFor(`/${lang}/terminos`, 'es'), '/es/terminos');
+}
+assert.equal(hrefFor('/ru/documentacion/arquitectura', 'ja'), '/ja/documentacion/arquitectura');
+assert.equal(hrefFor('/de/terminos', 'ru'), '/ru/terminos');
+
+// El caso que motivó el fix de normalización: yendo desde EN, el slug en
+// inglés tiene que destraducirse al español antes de aterrizar en ru/ja/de
+// (que no tienen su propia copia del slug en inglés).
+for (const lang of ['ru', 'ja', 'de']) {
+  assert.equal(hrefFor('/en/documentation/architecture', lang), `/${lang}/documentacion/arquitectura`);
+  assert.equal(hrefFor(`/${lang}/documentacion/arquitectura`, 'en'), '/en/documentation/architecture');
+  assert.equal(hrefFor('/en/terms', lang), `/${lang}/terminos`);
+  assert.equal(hrefFor(`/${lang}/terminos`, 'en'), '/en/terms');
 }
 
 // Deep links de dashboard (módulos por servidor)
