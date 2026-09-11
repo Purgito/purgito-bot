@@ -20,5 +20,3 @@ aiohttp-session[secure]==2.12.1
 # ese momento en vez de la que se auditó.
 cryptography==50.0.1
 polar-sdk==0.31.7
-edge-tts==7.2.8
-PyNaCl==1.6.2

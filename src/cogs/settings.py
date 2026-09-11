@@ -32,11 +32,9 @@ from db import (
     add_youtube_sub,
     count_guild_corpus_messages,
     get_chat_settings,
-    get_tts_guild_settings,
     list_corpus_channels,
     list_meme_schedules,
     list_scheduled_announcements,
-    set_tts_guild_settings,
     list_twitch_subs,
     list_youtube_subs,
     remember_welcome_channel,
@@ -1287,117 +1285,9 @@ class AnunciosCategory(SettingsCategory):
         return items
 
 
-class TTSCategory(SettingsCategory):
-    key = "tts"
-    emoji = "🔊"
-
-    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
-        settings = await get_tts_guild_settings(panel.guild.id) or {}
-        ch_id = settings.get("chat_to_speech_channel_id")
-        is_active = ch_id is not None
-        allow_bots = settings.get("allow_bots", False)
-        voice = settings.get("default_voice") or "es_002"
-
-        status_str = (
-            t("settings.tts.enabled", panel.locale)
-            if is_active
-            else t("settings.tts.disabled", panel.locale)
-        )
-        ch_str = (
-            f"<#{ch_id}>" if ch_id else t("settings.tts.channel_none", panel.locale)
-        )
-        bots_str = (
-            t("settings.tts.yes", panel.locale)
-            if allow_bots
-            else t("settings.tts.no", panel.locale)
-        )
-
-        desc = t(
-            "settings.tts.body",
-            panel.locale,
-            status=status_str,
-            channel=ch_str,
-            bots=bots_str,
-            voice=voice,
-        )
-        return discord.Embed(
-            title=self.title(panel.locale),
-            description=desc,
-            color=PURGITO_COLOR,
-        )
-
-    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
-        settings = await get_tts_guild_settings(panel.guild.id) or {}
-        ch_id = settings.get("chat_to_speech_channel_id")
-        allow_bots = settings.get("allow_bots", False)
-
-        items: list[discord.ui.Item] = []
-
-        channel_select = discord.ui.ChannelSelect(
-            placeholder=t("settings.tts.channel_placeholder", panel.locale),
-            channel_types=[discord.ChannelType.text],
-            min_values=0,
-            max_values=1,
-            row=1,
-        )
-
-        async def on_channel(interaction: discord.Interaction):
-            if channel_select.values:
-                chosen = channel_select.values[0]
-                await set_tts_guild_settings(
-                    panel.guild.id,
-                    chat_to_speech_channel_id=chosen.id,
-                    chat_to_speech_enabled=True,
-                )
-            else:
-                await set_tts_guild_settings(
-                    panel.guild.id,
-                    clear_chat_to_speech_channel=True,
-                    chat_to_speech_enabled=False,
-                )
-            await panel.refresh(interaction)
-
-        channel_select.callback = on_channel
-        items.append(channel_select)
-
-        bots_btn = discord.ui.Button(
-            label=f"{t('settings.tts.btn_toggle_bots', panel.locale)}: {t('settings.tts.yes' if allow_bots else 'settings.tts.no', panel.locale)}",
-            style=discord.ButtonStyle.secondary,
-            row=2,
-        )
-
-        async def on_toggle_bots(interaction: discord.Interaction):
-            await set_tts_guild_settings(panel.guild.id, allow_bots=not allow_bots)
-            await panel.refresh(interaction)
-
-        bots_btn.callback = on_toggle_bots
-        items.append(bots_btn)
-
-        if ch_id:
-            clear_btn = discord.ui.Button(
-                label=t("settings.tts.btn_disable", panel.locale),
-                style=discord.ButtonStyle.danger,
-                row=2,
-            )
-
-            async def on_clear(interaction: discord.Interaction):
-                await set_tts_guild_settings(
-                    panel.guild.id,
-                    clear_chat_to_speech_channel=True,
-                    chat_to_speech_enabled=False,
-                )
-                await panel.refresh(interaction)
-
-            clear_btn.callback = on_clear
-            items.append(clear_btn)
-
-        return items
-
-
 CATEGORIES: list[SettingsCategory] = [
     CanalesCategory(),
     ChatCategory(),
-    TTSCategory(),
     IdiomaCategory(),
     AprendizajeCategory(),
     YouTubeCategory(),

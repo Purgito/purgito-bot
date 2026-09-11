@@ -8,7 +8,6 @@
   "settings.guild_only": "This command only works in servers.",
   "settings.updated": "Settings updated.",
   "settings.panel_footer": "Also available at {url}",
-
   "settings.cat.canales.label": "Learning channels",
   "settings.cat.canales.desc": "Choose which channels Purgito learns from",
   "settings.cat.canales.title": "Learning channels",
@@ -16,7 +15,6 @@
   "settings.canales.selected_count": "{count} channel(s) selected.",
   "settings.canales.placeholder": "Select learning channels…",
   "settings.canales.btn_refeed": "Learn from history",
-
   "settings.cat.chat.label": "Chat",
   "settings.cat.chat.desc": "Replies when mentioned",
   "settings.cat.chat.title": "Chat",
@@ -24,20 +22,17 @@
   "settings.chat.status_off": "Replies when mentioning the bot are **disabled**.",
   "settings.chat.btn_enable": "Enable",
   "settings.chat.btn_disable": "Disable",
-
   "settings.cat.idioma.label": "Language",
   "settings.cat.idioma.desc": "Language for settings messages",
   "settings.cat.idioma.title": "Language",
   "settings.idioma.body": "Current server language: **{language}**.\nThis language is used in settings panels and bot messages.",
   "settings.idioma.placeholder": "Pick a language…",
   "settings.idioma.changed": "Language changed to **{language}**.",
-
   "settings.cat.aprendizaje.label": "Learn from history",
   "settings.cat.aprendizaje.desc": "Reads previous messages from configured channels",
   "settings.cat.aprendizaje.title": "Learn from history",
   "settings.aprendizaje.body": "Has Purgito read previous messages from configured channels to start with more context.",
   "settings.aprendizaje.btn_start": "Start learning",
-
   "settings.cat.datos.label": "Server data",
   "settings.cat.datos.desc": "Delete learned messages or saved GIFs",
   "settings.cat.datos.title": "Server data",
@@ -50,7 +45,6 @@
   "settings.corpus.btn_wipe_gifs": "Delete saved GIFs",
   "settings.corpus.wipe_gifs_modal_title": "Delete saved GIFs",
   "settings.corpus.wipe_gifs_success": "Deleted {count} GIFs.",
-
   "settings.cat.youtube.label": "YouTube",
   "settings.cat.youtube.desc": "New video notifications",
   "settings.cat.youtube.title": "YouTube notifications",
@@ -68,7 +62,6 @@
   "settings.youtube.mention_pending_hint": "Pick below the role to mention (leave empty to remove the mention).",
   "settings.youtube.error_no_permission": "Purgito doesn't have permission to post in this channel",
   "settings.youtube.error_channel_not_found": "The configured channel no longer exists",
-
   "settings.cat.twitch.label": "Twitch",
   "settings.cat.twitch.desc": "Live stream alerts",
   "settings.cat.twitch.title": "Twitch alerts",
@@ -87,7 +80,6 @@
   "settings.twitch.mention_pending_hint": "Pick below the role to mention (leave empty to remove the mention).",
   "settings.twitch.error_no_permission": "Purgito doesn't have permission to post in this channel",
   "settings.twitch.error_channel_not_found": "The configured channel no longer exists",
-
   "settings.cat.memes.label": "Auto memes",
   "settings.cat.memes.desc": "Channels with scheduled memes (premium)",
   "settings.cat.memes.title": "Auto memes ⭐",
@@ -103,7 +95,6 @@
   "settings.memes.activate_invalid": "The interval must be a number between 2 and 24.",
   "settings.memes.error_no_pool_images": "no photos saved yet, react with 🎯 on an image to add one",
   "settings.memes.error_empty_corpus": "haven't learned enough messages from this server yet",
-
   "settings.cat.anuncios.label": "Announcements",
   "settings.cat.anuncios.desc": "Automated messages scheduled to a channel",
   "settings.cat.anuncios.title": "Scheduled announcements",
@@ -126,20 +117,6 @@
   "settings.anuncios.limit_reached": "This server already reached the max number of scheduled announcements. Remove one before adding another.",
   "settings.anuncios.modal_field_delete_after": "Auto-delete after (seconds, optional)",
   "settings.anuncios.invalid_delete_after": "Must be a number between 1 and 86400 seconds.",
-  "settings.cat.tts.label": "Text-to-Speech (TTS)",
-  "settings.cat.tts.desc": "Chat-to-Speech and server default voice",
-  "settings.cat.tts.title": "Text-to-Speech (TTS)",
-  "settings.tts.body": "Configure the default voice and Chat-to-Speech channel.\n\n**Status:** {status}\n**Chat Channel:** {channel}\n**Allow bots:** {bots}\n**Server voice:** `{voice}`\n\n*Note: Start a message with `//` to prevent it from being read aloud.*",
-  "settings.tts.enabled": "Enabled",
-  "settings.tts.disabled": "Disabled",
-  "settings.tts.channel_none": "None configured",
-  "settings.tts.yes": "Yes",
-  "settings.tts.no": "No",
-  "settings.tts.btn_enable": "Enable",
-  "settings.tts.btn_disable": "Disable",
-  "settings.tts.btn_toggle_bots": "Toggle bots",
-  "settings.tts.channel_placeholder": "Select channel for Chat-to-Speech…",
-
   "setup.title": "Purgito initial setup",
   "setup.intro": "Purgito needs to learn how your server writes before it can generate useful messages.\n\nChoose the channels you want it to learn from.",
   "setup.status_no_channels": "Purgito is not learning from any channels yet.",
@@ -152,7 +129,6 @@
   "setup.btn_dashboard": "Open dashboard",
   "setup.error_nsfw_channel": "#{channel} is an NSFW channel and cannot be included.",
   "setup.error_no_permission_channel": "Purgito does not have permission to read #{channel}.",
-
   "welcome.title": "Hi! I'm Purgito",
   "welcome.intro": "I learn how your server writes and generate new messages from that.",
   "welcome.getting_started": "**To get started:**\nChoose the channels you want me to learn from.",
@@ -161,11 +137,9 @@
   "welcome.btn_configure": "Set up Purgito",
   "welcome.btn_dashboard": "Open dashboard",
   "welcome.limited_visibility": "Right now I can only read {seen} of {total} channels: {names}. To let Purgito learn from other channels, make sure it has permissions to view them and read their message history.",
-
   "dm.title": "Thanks for adding me to {guild}",
   "dm.body": "The first step is choosing the channels you want me to learn from.\n\nUse `/setup` in the server to do that.\n\nAfter that you can try `/generar`.\n\nFor advanced options, you can use the dashboard: {url}",
   "dm.limited_visibility_extra": "Right now I can only read {seen} of {total} channels in this server. If you want to include other channels, check Purgito's permissions in server settings.",
-
   "refeed.progress_header": "I'm learning…",
   "refeed.progress_footer": "You don't need to do anything while I finish.",
   "refeed.done_header": "Done.",
@@ -183,19 +157,15 @@
   "refeed.problem_error": "An error occurred while reading #{channel}.",
   "refeed.done_success": "Done.\n\nLearned from {total} messages across {channels}.\n\nYou can now try `/generar` or mention me.",
   "refeed.done_with_problems": "Finished with some issues.\n\nLearned from {total} messages.\n{problems}\n\nYou can check the permissions for those channels and try again.",
-
   "chat.empty_reply.full": "I haven't learned anything from this server yet.\n\nAn admin can use `/setup` to choose channels and learn from history.",
   "chat.empty_reply.short": "I haven't learned anything from this server yet.",
-
   "chat.frase_fallback.no_phrases": "I don't have any custom phrases configured to use here. Add some in Content → Phrases from your dashboard: {url}.",
   "chat.frase_fallback.channel_not_allowed": "Custom phrases are disabled in this channel. You can enable them in Channels → Phrases from your dashboard: {url}.",
   "chat.frase_fallback.cooldown": "I recently used a phrase. Wait a moment before asking for another.",
-
   "chat.muted.ignored_channel": "This channel is muted in this server.",
   "chat.muted.disabled": "Chat is disabled in this server. An admin can enable it with `/settings`.",
   "chat.muted.wrong_channel": "I only reply when mentioned in {channel}.",
   "chat.rate_limited": "You reached the hourly message limit on this server. Try again later.",
-
   "commands.help.description": "Shows Purgito's commands.",
   "commands.vote.description": "Link to vote for Purgito on top.gg.",
   "commands.gif_add.description": "Saves a GIF to the server collection.",
@@ -210,16 +180,13 @@
   "commands.momo.description": "Generates a meme using server photos and messages.",
   "commands.meme.description": "Generates a meme using server photos and messages.",
   "commands.borrar_mis_datos.description": "Permanently deletes your data stored by Purgito.",
-
   "premium.required_message": "This feature is only available on premium servers. You can see how to get it at {url}",
-
   "general.guild_only": "Servers only.",
   "gifs.add.too_large": "The GIF is over the allowed size limit.",
   "gifs.add.upload_failed": "Couldn't upload the GIF to R2. Check that the URL is reachable.",
   "gifs.add.unrecognized_url": "Unrecognized URL. Only GIFs from tenor.com, giphy.com or cdn.discordapp.com are accepted.",
   "gifs.add.saved": "GIF saved. The server's collection now has {total} GIFs total.",
   "gifs.add.duplicate": "That GIF was already in the collection. Total: {total} GIFs.",
-
   "memes.need_image_reply": "I need you to reply to a message that has an image.",
   "memes.image_too_large": "The image is over the 10MB limit.",
   "memes.download_failed": "I couldn't download the image. Try again in a moment.",
@@ -238,7 +205,6 @@
   "memes.pool_reason.no_image": "That message doesn't have any image attached.",
   "memes.auto_meme_muted.no_pool_images": "I want to post automatic memes here, but I don't have any saved photos yet — react with 🎯 on an image in any message to add one.",
   "memes.auto_meme_muted.empty_corpus": "I want to post automatic memes here, but I haven't learned enough messages from this server yet. I'll try again on my own once there's more conversation.",
-
   "layout_buttons.invalid_context": "This button isn't valid in this context.",
   "layout_buttons.role_gone": "That role no longer exists.",
   "layout_buttons.missing_permissions": "The bot doesn't have permission to assign that role (missing \"Manage Roles\" or the role is above the bot in the hierarchy).",
@@ -247,7 +213,6 @@
   "layout_buttons.role_change_forbidden": "Couldn't change the role: insufficient permissions.",
   "layout_buttons.modal_submitted": "Your response has been submitted.",
   "layout_buttons.modal_response_title": "Form response: {title}",
-
   "chat.generate_cooldown": "Wait {seconds}s before generating again.",
   "chat.cannot_determine_channel": "I can't determine the channel.",
   "chat.imitar_not_enough_messages": "**{user}** only has {count} message(s) learned. Needs at least 30 to imitate their style.",
@@ -257,7 +222,6 @@
   "chat.imitar_mezcla_generation_failed": "Couldn't generate a message mixing **{user1}** and **{user2}**. Try again later.",
   "chat.imitar_mezcla_result": "**{user1}** + **{user2}** would say: \"{text}\"",
   "chat.channel_visible_report": "I can now read {channel}: {saved} new messages learned.",
-
   "chat.refeed.cannot_read_history": "I can't read this channel's history.",
   "chat.refeed.channel_ignored": "This channel is muted. Remove it from `/settings` first to include it.",
   "chat.refeed.channel_not_allowed": "This channel is not selected to learn from. Add it with `/setup` or `/settings`.",
@@ -268,18 +232,14 @@
   "chat.refeed.result_incremental": "This channel was already up to date: {saved} new messages learned{gifs}.",
   "chat.refeed.result_complete": "Full history read: {saved} messages learned{gifs}.",
   "chat.refeed.result_partial": "Saved {saved} messages{gifs}.\nLimit of {limit} messages reached; run `/refeed` again to continue where it left off.",
-
   "chat.refeed_channels.already_running": "Purgito is already learning in this server; wait for it to finish.",
   "chat.refeed_channels.starting": "Starting to read the channels' history…",
   "chat.refeed_channels.race_lost": "Purgito was already learning in this server (started just before); this invocation did nothing new.",
-
   "chat.corpus_info.count": "I have learned {count} messages in this channel.",
   "chat.corpus_info.needs_more": "Needs at least 50 messages to generate varied responses.",
-
   "youtube.new_video": "📺 **{author}** posted a new video!\n**{title}**\n{url}",
   "twitch.now_live": "🔴 **{login}** is live!\n**{title}**\n{url}",
   "rss.new_item": "📰 **{feed_title}** published a new post:\n**{title}**\n{url}",
-
   "api.errors.access_denied": "access denied",
   "api.errors.image_storage_not_configured": "image storage not configured",
   "api.errors.empty_file": "empty file",
@@ -340,7 +300,6 @@
   "api.errors.invalid_trigger_id": "invalid trigger_id",
   "api.errors.invalid_url": "invalid or disallowed URL",
   "api.errors.webhook_not_configured": "webhook not configured",
-
   "api.errors.unknown_fields": "unknown fields: {fields}",
   "api.errors.file_too_large": "the file is over the {mb} MB maximum",
   "api.errors.image_field_invalid": "invalid {field}: upload the image from the panel",
@@ -351,7 +310,6 @@
   "api.errors.discord_rejected_content": "Discord rejected the content: {detail}",
   "api.errors.image_too_large": "the image is over the {mb} MB maximum",
   "api.errors.polar_insufficient_scope": "Polar rejected the checkout creation due to insufficient token permissions",
-
   "general.help.default_guild_name": "this server",
   "general.vote.title": "Vote for Purgito",
   "general.vote.description": "[Vote on top.gg]({url})\n\nYou can vote every 12 hours — every vote helps!",
@@ -364,7 +322,6 @@
   "download.dl.too_large": "That video is over {mb}MB, too big for this channel.",
   "download.dl.failed": "Couldn't download that link. Make sure the post is public and still exists.",
   "download.dl.busy": "There's already a download running in this server, wait for it to finish.",
-
   "help.intro.title": "Purgito Help",
   "help.intro.description": "Purgito learns how your server writes and generates new messages from that.\n\nUse the buttons below to see commands by category.",
   "help.intro.panel_field_name": "Advanced options",
@@ -373,7 +330,6 @@
   "help.category.footer": "{guild} · /help to go back home",
   "help.button.home": "Home",
   "help.not_your_menu": "This menu was opened by someone else — use `/help` to open your own.",
-
   "help.cat.chat.label": "Generate & chat",
   "help.cat.chat.cmd.generar": "Generates a message using what Purgito learned",
   "help.cat.chat.cmd.imitar": "Tries to write like a server member",
@@ -381,19 +337,16 @@
   "help.cat.chat.cmd.corpus_info": "Shows how many messages have been learned in this channel",
   "help.cat.chat.cmd.settings": "Quick chat settings",
   "help.cat.chat.cmd.dl": "Downloads an Instagram, TikTok, or Twitter/X video and uploads it to the chat",
-
   "help.cat.memes.label": "Memes ⭐",
   "help.cat.memes.intro": "⭐ **Premium feature** — not available on every server.",
   "help.cat.memes.cmd.momo": "Generates a meme using server photos and messages",
   "help.cat.memes.cmd.reply_generar": "Generates a meme from a photo",
   "help.cat.memes.cmd.reaction": "Saves a photo to generate memes",
   "help.cat.memes.cmd.settings": "Automatic memes per channel",
-
   "help.cat.youtube.label": "YouTube",
   "help.cat.youtube.cmd.settings": "New YouTube video alerts",
   "help.cat.twitch.label": "Twitch",
   "help.cat.twitch.cmd.settings": "Alerts when a channel starts streaming live",
-
   "help.cat.admin.label": "Configuration",
   "help.cat.admin.cmd.settings": "Quick settings panel",
   "help.cat.admin.cmd.setup": "Initial setup and learning channels",
@@ -402,10 +355,8 @@
   "help.cat.admin.cmd.settings_corpus": "Delete server data",
   "help.cat.admin.cmd.gif_add": "Saves a GIF to the collection ⭐",
   "help.cat.admin.cmd.ping": "Checks that the bot is active",
-
   "help.cat.panel.label": "Dashboard",
   "help.cat.panel.intro": "These features live in the web dashboard ({url}):\n\n**Embed editor** — build classic embeds or interactive layouts with buttons.\n**Interactive buttons** — link buttons or role assignment on click.\n**Images & templates** — upload images and save templates for reuse.",
-
   "privacy.delete.title": "Delete my data",
   "privacy.delete.body": "This permanently deletes, across every server where you've written:\n• Your writing style saved for /imitar.\n• The messages Purgito learned from you.\n\nYour original Discord messages aren't touched. This action is irreversible.",
   "privacy.delete.button_start": "Delete my data",
