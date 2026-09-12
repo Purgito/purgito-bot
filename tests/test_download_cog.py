@@ -15,6 +15,7 @@ import tempfile
 from types import SimpleNamespace
 
 import pytest
+import yt_dlp
 
 import cogs.download as download_mod
 from cogs.download import Download, DownloadFailed, DownloadTooLarge, _is_supported_url
@@ -223,3 +224,102 @@ def test_dl_error_generico_no_revienta_y_responde_algo(monkeypatch):
     asyncio.run(cog.dl_error(ctx, ValueError("boom")))
 
     assert len(ctx.replies) == 1
+
+
+# ── _download_video: fallback a syndication en Twitter/X ──────────────────────
+#
+# X exige login vía la API graphql (la que yt-dlp usa por default sin
+# cookies) para cualquier tuit marcado "sensible", aunque sea público -- ver
+# el docstring de _download_video. Estos tests mockean yt_dlp.YoutubeDL
+# directamente (en vez de _download_video como los de arriba) para cubrir
+# ese reintento.
+
+
+class _FakeYDL:
+    """Registra los ydl_opts de cada instanciación en `calls` y simula
+    extract_info/prepare_filename escribiendo un archivo real (para que los
+    chequeos de os.path.getsize de _download_video funcionen)."""
+
+    def __init__(self, calls, should_fail, opts):
+        self.calls = calls
+        self.should_fail = should_fail
+        self.opts = opts
+        calls.append(opts)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def extract_info(self, url, download=True):
+        if self.should_fail(self.opts):
+            raise yt_dlp.utils.DownloadError("NSFW tweet requires authentication")
+        return {"id": "vid"}
+
+    def prepare_filename(self, info):
+        tmp_dir = os.path.dirname(self.opts["outtmpl"])
+        path = os.path.join(tmp_dir, "vid.mp4")
+        with open(path, "wb") as f:
+            f.write(b"contenido")
+        return path
+
+
+def _patch_ydl(monkeypatch, should_fail):
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        download_mod.yt_dlp,
+        "YoutubeDL",
+        lambda opts: _FakeYDL(calls, should_fail, opts),
+    )
+    return calls
+
+
+def test_download_video_reintenta_con_syndication_si_twitter_pide_login(monkeypatch):
+    calls = _patch_ydl(
+        monkeypatch, should_fail=lambda opts: "extractor_args" not in opts
+    )
+
+    path = download_mod._download_video("https://x.com/user/status/123", 1024 * 1024)
+
+    assert os.path.exists(path)
+    assert len(calls) == 2
+    assert "extractor_args" not in calls[0]
+    assert calls[1]["extractor_args"] == {"twitter": {"api": ["syndication"]}}
+
+
+def test_download_video_no_reintenta_en_sitios_que_no_son_twitter(monkeypatch):
+    calls = _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+
+    with pytest.raises(DownloadFailed):
+        download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+    assert len(calls) == 1
+
+
+def test_download_video_falla_si_syndication_tambien_falla(monkeypatch):
+    calls = _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+
+    with pytest.raises(DownloadFailed):
+        download_mod._download_video("https://twitter.com/user/status/123", 1024 * 1024)
+
+    assert len(calls) == 2
+
+
+def test_download_video_no_deja_directorios_temporales_al_fallar(monkeypatch):
+    created_dirs: list[str] = []
+    real_mkdtemp = tempfile.mkdtemp
+
+    def tracked_mkdtemp(*args, **kwargs):
+        d = real_mkdtemp(*args, **kwargs)
+        created_dirs.append(d)
+        return d
+
+    monkeypatch.setattr(download_mod.tempfile, "mkdtemp", tracked_mkdtemp)
+    _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+
+    with pytest.raises(DownloadFailed):
+        download_mod._download_video("https://twitter.com/user/status/123", 1024 * 1024)
+
+    assert len(created_dirs) == 2
+    assert not any(os.path.exists(d) for d in created_dirs)
