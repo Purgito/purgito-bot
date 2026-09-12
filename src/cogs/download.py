@@ -85,10 +85,12 @@ def _is_twitter_url(url: str) -> bool:
     return host in _TWITTER_HOSTS or any(host.endswith(f".{h}") for h in _TWITTER_HOSTS)
 
 
-def _attempt_download(url: str, max_bytes: int, extra_opts: dict | None = None) -> str:
-    """Un intento de descarga. Devuelve la ruta del archivo; si falla, borra
-    su propio tmp_dir antes de propagar la excepción (el caller solo tiene
-    que limpiar tmp_dir en el camino feliz)."""
+def _attempt_download(
+    url: str, max_bytes: int, extra_opts: dict | None = None
+) -> tuple[str, dict]:
+    """Un intento de descarga. Devuelve (ruta del archivo, info de yt-dlp);
+    si falla, borra su propio tmp_dir antes de propagar la excepción (el
+    caller solo tiene que limpiar tmp_dir en el camino feliz)."""
     tmp_dir = tempfile.mkdtemp(prefix="purgito_dl_")
     ydl_opts = {
         "outtmpl": os.path.join(tmp_dir, "%(id)s.%(ext)s"),
@@ -107,18 +109,19 @@ def _attempt_download(url: str, max_bytes: int, extra_opts: dict | None = None) 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            return ydl.prepare_filename(info)
+            return ydl.prepare_filename(info), info
     except Exception:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise
 
 
-def _download_video(url: str, max_bytes: int) -> str:
-    """Bloqueante -- se corre en un thread aparte. Devuelve la ruta del
-    archivo descargado; el caller es responsable de borrar el directorio
-    temporal entero (no solo el archivo) cuando termine."""
+def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
+    """Bloqueante -- se corre en un thread aparte. Devuelve (ruta del
+    archivo descargado, si el sitio de origen lo marca como contenido
+    sensible/+18); el caller es responsable de borrar el directorio temporal
+    entero (no solo el archivo) cuando termine."""
     try:
-        path = _attempt_download(url, max_bytes)
+        path, info = _attempt_download(url, max_bytes)
     except yt_dlp.utils.DownloadError as e:
         if "max-filesize" in str(e).lower():
             raise DownloadTooLarge(max_bytes) from e
@@ -131,9 +134,11 @@ def _download_video(url: str, max_bytes: int) -> str:
         # verlo en el navegador. El endpoint de syndication
         # (cdn.syndication.twimg.com) es el que usa el embed/widget público
         # de Twitter: no tiene ese gate ni pide cuenta, a costa de menos
-        # metadata. Reintentamos ahí antes de darlo por perdido.
+        # metadata. Reintentamos ahí antes de darlo por perdido -- el tuit
+        # sigue viniendo marcado sensible en el info que devuelve (ver
+        # age_limit abajo), simplemente ya no hace falta login para leerlo.
         try:
-            path = _attempt_download(
+            path, info = _attempt_download(
                 url,
                 max_bytes,
                 {"extractor_args": {"twitter": {"api": ["syndication"]}}},
@@ -156,7 +161,10 @@ def _download_video(url: str, max_bytes: int) -> str:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise DownloadTooLarge(max_bytes)
 
-    return path
+    # age_limit es el campo estándar de yt-dlp para esto (no es cosa de
+    # Twitter/X: Instagram y TikTok también lo completan cuando corresponde).
+    is_sensitive = bool(info.get("age_limit"))
+    return path, is_sensitive
 
 
 class Download(commands.Cog):
@@ -184,7 +192,9 @@ class Download(commands.Cog):
         tmp_dir = None
         async with ctx.typing():
             try:
-                path = await asyncio.to_thread(_download_video, link, max_bytes)
+                path, is_sensitive = await asyncio.to_thread(
+                    _download_video, link, max_bytes
+                )
                 tmp_dir = os.path.dirname(path)
             except DownloadTooLarge as e:
                 await ctx.reply(
@@ -196,6 +206,10 @@ class Download(commands.Cog):
                 return
 
         try:
+            channel_is_nsfw = getattr(ctx.channel, "is_nsfw", lambda: False)()
+            if is_sensitive and not channel_is_nsfw:
+                await ctx.reply(t("download.dl.nsfw_channel_required", locale))
+                return
             await ctx.reply(file=discord.File(path))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)

@@ -30,8 +30,11 @@ class _FakeTyping:
 
 
 class FakeContext:
-    def __init__(self, guild_filesize_limit=25 * 1024 * 1024, guild_id=1):
+    def __init__(
+        self, guild_filesize_limit=25 * 1024 * 1024, guild_id=1, channel_is_nsfw=False
+    ):
         self.guild = SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
+        self.channel = SimpleNamespace(is_nsfw=lambda: channel_is_nsfw)
         self.replies: list[str] = []
         self.reply_files: list = []
 
@@ -57,7 +60,7 @@ def _cog():
     return Download(SimpleNamespace())
 
 
-def _fake_download_factory(seen=None):
+def _fake_download_factory(seen=None, is_sensitive=False):
     """Fabrica un _download_video falso que crea un archivo temporal real
     (para que discord.File(path) funcione sin mockear discord) y anota los
     argumentos con los que se lo llamó."""
@@ -70,7 +73,7 @@ def _fake_download_factory(seen=None):
         path = os.path.join(tmp_dir, "video.mp4")
         with open(path, "wb") as f:
             f.write(b"fake-mp4-bytes")
-        return path
+        return path, is_sensitive
 
     return fake
 
@@ -177,7 +180,7 @@ def test_dl_camino_feliz_limpia_el_directorio_temporal(monkeypatch):
         path = os.path.join(tmp_dir, "video.mp4")
         with open(path, "wb") as f:
             f.write(b"fake-mp4-bytes")
-        return path
+        return path, False
 
     monkeypatch.setattr(download_mod, "_download_video", fake)
 
@@ -185,6 +188,41 @@ def test_dl_camino_feliz_limpia_el_directorio_temporal(monkeypatch):
 
     assert len(ctx.reply_files) == 1
     assert not os.path.exists(created_dirs[0])
+
+
+def test_dl_no_sube_video_sensible_fuera_de_un_canal_nsfw(monkeypatch):
+    cog = _cog()
+    ctx = FakeContext(channel_is_nsfw=False)
+    created_dirs: list[str] = []
+
+    def fake(url, max_bytes):
+        tmp_dir = tempfile.mkdtemp(prefix="purgito_dl_test_")
+        created_dirs.append(tmp_dir)
+        path = os.path.join(tmp_dir, "video.mp4")
+        with open(path, "wb") as f:
+            f.write(b"fake-mp4-bytes")
+        return path, True
+
+    monkeypatch.setattr(download_mod, "_download_video", fake)
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://x.com/user/status/123"))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+    assert not os.path.exists(created_dirs[0])
+
+
+def test_dl_sube_video_sensible_en_un_canal_nsfw(monkeypatch):
+    cog = _cog()
+    ctx = FakeContext(channel_is_nsfw=True)
+    monkeypatch.setattr(
+        download_mod, "_download_video", _fake_download_factory(is_sensitive=True)
+    )
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://x.com/user/status/123"))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.replies == []
 
 
 def test_dl_video_demasiado_grande(monkeypatch):
@@ -240,10 +278,11 @@ class _FakeYDL:
     extract_info/prepare_filename escribiendo un archivo real (para que los
     chequeos de os.path.getsize de _download_video funcionen)."""
 
-    def __init__(self, calls, should_fail, opts):
+    def __init__(self, calls, should_fail, opts, age_limit=0):
         self.calls = calls
         self.should_fail = should_fail
         self.opts = opts
+        self.age_limit = age_limit
         calls.append(opts)
 
     def __enter__(self):
@@ -255,7 +294,7 @@ class _FakeYDL:
     def extract_info(self, url, download=True):
         if self.should_fail(self.opts):
             raise yt_dlp.utils.DownloadError("NSFW tweet requires authentication")
-        return {"id": "vid"}
+        return {"id": "vid", "age_limit": self.age_limit}
 
     def prepare_filename(self, info):
         tmp_dir = os.path.dirname(self.opts["outtmpl"])
@@ -265,12 +304,12 @@ class _FakeYDL:
         return path
 
 
-def _patch_ydl(monkeypatch, should_fail):
+def _patch_ydl(monkeypatch, should_fail, age_limit=0):
     calls: list[dict] = []
     monkeypatch.setattr(
         download_mod.yt_dlp,
         "YoutubeDL",
-        lambda opts: _FakeYDL(calls, should_fail, opts),
+        lambda opts: _FakeYDL(calls, should_fail, opts, age_limit),
     )
     return calls
 
@@ -280,12 +319,30 @@ def test_download_video_reintenta_con_syndication_si_twitter_pide_login(monkeypa
         monkeypatch, should_fail=lambda opts: "extractor_args" not in opts
     )
 
-    path = download_mod._download_video("https://x.com/user/status/123", 1024 * 1024)
+    path, is_sensitive = download_mod._download_video(
+        "https://x.com/user/status/123", 1024 * 1024
+    )
 
     assert os.path.exists(path)
+    assert is_sensitive is False
     assert len(calls) == 2
     assert "extractor_args" not in calls[0]
     assert calls[1]["extractor_args"] == {"twitter": {"api": ["syndication"]}}
+
+
+def test_download_video_propaga_age_limit_como_is_sensitive(monkeypatch):
+    # El tuit sensible que forzó el reintento con syndication sigue viniendo
+    # marcado como tal en el info que devuelve esa API -- lo único que cambia
+    # es que ya no hace falta login para leerlo.
+    _patch_ydl(
+        monkeypatch, should_fail=lambda opts: "extractor_args" not in opts, age_limit=18
+    )
+
+    _path, is_sensitive = download_mod._download_video(
+        "https://x.com/user/status/123", 1024 * 1024
+    )
+
+    assert is_sensitive is True
 
 
 def test_download_video_no_reintenta_en_sitios_que_no_son_twitter(monkeypatch):

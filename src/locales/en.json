@@ -322,6 +322,7 @@
   "download.dl.too_large": "That video is over {mb}MB, too big for this channel.",
   "download.dl.failed": "Couldn't download that link. Make sure the post is public and still exists.",
   "download.dl.busy": "There's already a download running in this server, wait for it to finish.",
+  "download.dl.nsfw_channel_required": "That video is flagged as sensitive content: it can only be posted in an NSFW channel.",
   "help.intro.title": "Purgito Help",
   "help.intro.description": "Purgito learns how your server writes and generates new messages from that.\n\nUse the buttons below to see commands by category.",
   "help.intro.panel_field_name": "Advanced options",
