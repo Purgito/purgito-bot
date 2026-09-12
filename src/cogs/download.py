@@ -74,10 +74,21 @@ def _is_supported_url(url: str) -> bool:
     )
 
 
-def _download_video(url: str, max_bytes: int) -> str:
-    """Bloqueante -- se corre en un thread aparte. Devuelve la ruta del
-    archivo descargado; el caller es responsable de borrar el directorio
-    temporal entero (no solo el archivo) cuando termine."""
+_TWITTER_HOSTS = {"twitter.com", "x.com"}
+
+
+def _is_twitter_url(url: str) -> bool:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    return host in _TWITTER_HOSTS or any(host.endswith(f".{h}") for h in _TWITTER_HOSTS)
+
+
+def _attempt_download(url: str, max_bytes: int, extra_opts: dict | None = None) -> str:
+    """Un intento de descarga. Devuelve la ruta del archivo; si falla, borra
+    su propio tmp_dir antes de propagar la excepción (el caller solo tiene
+    que limpiar tmp_dir en el camino feliz)."""
     tmp_dir = tempfile.mkdtemp(prefix="purgito_dl_")
     ydl_opts = {
         "outtmpl": os.path.join(tmp_dir, "%(id)s.%(ext)s"),
@@ -91,20 +102,52 @@ def _download_video(url: str, max_bytes: int) -> str:
         "max_filesize": max_bytes,
         "socket_timeout": 20,
         "retries": 2,
+        **(extra_opts or {}),
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            path = ydl.prepare_filename(info)
-    except yt_dlp.utils.DownloadError as e:
+            return ydl.prepare_filename(info)
+    except Exception:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+
+
+def _download_video(url: str, max_bytes: int) -> str:
+    """Bloqueante -- se corre en un thread aparte. Devuelve la ruta del
+    archivo descargado; el caller es responsable de borrar el directorio
+    temporal entero (no solo el archivo) cuando termine."""
+    try:
+        path = _attempt_download(url, max_bytes)
+    except yt_dlp.utils.DownloadError as e:
         if "max-filesize" in str(e).lower():
             raise DownloadTooLarge(max_bytes) from e
-        raise DownloadFailed(str(e)) from e
+        if not _is_twitter_url(url):
+            raise DownloadFailed(str(e)) from e
+        # Sin cookies de una cuenta logueada, yt-dlp pega por default a la
+        # API graphql con un guest token -- y esa API le exige login a
+        # cualquier tuit que X marque como sensible ("NSFW tweet requires
+        # authentication"), aunque el tuit sea público y cualquiera pueda
+        # verlo en el navegador. El endpoint de syndication
+        # (cdn.syndication.twimg.com) es el que usa el embed/widget público
+        # de Twitter: no tiene ese gate ni pide cuenta, a costa de menos
+        # metadata. Reintentamos ahí antes de darlo por perdido.
+        try:
+            path = _attempt_download(
+                url,
+                max_bytes,
+                {"extractor_args": {"twitter": {"api": ["syndication"]}}},
+            )
+        except yt_dlp.utils.DownloadError as e2:
+            if "max-filesize" in str(e2).lower():
+                raise DownloadTooLarge(max_bytes) from e2
+            raise DownloadFailed(str(e2)) from e2
+        except Exception as e2:
+            raise DownloadFailed(str(e2)) from e2
     except Exception as e:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
         raise DownloadFailed(str(e)) from e
 
+    tmp_dir = os.path.dirname(path)
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         raise DownloadFailed("archivo vacío o no generado")
