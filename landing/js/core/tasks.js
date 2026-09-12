@@ -44,12 +44,11 @@ function renderRunning(container, running) {
   for (const task of running) container.append(taskBannerRow(task));
 }
 
-function renderJustFinished(container, task) {
+function renderFinishedRow(container, task) {
   container.innerHTML = '';
   const ok = task.status === 'completed';
   container.append(el('div', { class: 'onboarding-banner task-banner' },
     el('span', {}, `${ok ? '✅' : '❌'} ${taskLabel(task)} ${ok ? 'terminada' : 'fallida'}`)));
-  setTimeout(() => { container.innerHTML = ''; }, DONE_MESSAGE_MS);
 }
 
 /** Monta el indicador en `container` (un elemento vacío que el caller ya
@@ -71,6 +70,22 @@ export async function watchTasks(container) {
     if (timer) clearInterval(timer);
   };
   let running = new Map();
+  // Cola de tasks que terminaron y todavía no se mostraron -- si dos
+  // operaciones running del mismo guild terminan en el mismo tick, ambas se
+  // avisan (una tras otra) en vez de perderse la segunda.
+  const finishedQueue = [];
+  let showingFinished = false;
+
+  function showNextFinished() {
+    if (!finishedQueue.length) {
+      showingFinished = false;
+      if (!stopped && container.isConnected) container.innerHTML = '';
+      return;
+    }
+    showingFinished = true;
+    renderFinishedRow(container, finishedQueue.shift());
+    setTimeout(showNextFinished, DONE_MESSAGE_MS);
+  }
 
   async function tick() {
     if (stopped || !container.isConnected) {
@@ -90,19 +105,16 @@ export async function watchTasks(container) {
 
     const byId = new Map(data.tasks.map(t => [t.id, t]));
     const nowRunning = data.tasks.filter(t => t.status === 'running');
-    // ponytail: si dos tasks terminan en el mismo tick, solo se avisa la
-    // primera -- caso raro (requiere dos operaciones running a la vez para
-    // el mismo guild) y esto es un indicador simple, no un centro de
-    // notificaciones. Subir a una cola de avisos si alguna vez hace falta.
-    const justFinishedId = [...running.keys()].find(id => !byId.has(id) || byId.get(id).status !== 'running');
+    for (const id of running.keys()) {
+      const task = byId.get(id);
+      if (task && task.status !== 'running') finishedQueue.push(task);
+    }
     running = new Map(nowRunning.map(t => [t.id, t]));
 
     if (nowRunning.length) {
       renderRunning(container, nowRunning);
-    } else if (justFinishedId && byId.get(justFinishedId)) {
-      renderJustFinished(container, byId.get(justFinishedId));
-    } else {
-      container.innerHTML = '';
+    } else if (!showingFinished) {
+      showNextFinished();
     }
 
     if (!nowRunning.length && timer) {
