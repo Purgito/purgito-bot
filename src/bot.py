@@ -62,7 +62,6 @@ EXTENSIONS = [
     "cogs.privacy",
     "cogs.updates",
     "cogs.events",
-    "cogs.tts",
 ]
 
 intents = discord.Intents.default()
