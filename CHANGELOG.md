@@ -6,6 +6,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ## [Unreleased]
 
 ### Security
+- `!dl`: si el sitio de origen (Instagram, TikTok o Twitter/X) marca el video como contenido sensible (`age_limit` de yt-dlp), ahora solo se sube en canales NSFW — antes se subía igual a cualquier canal, sin ningún filtro.
 - Race condition en `release_gif_reference` (`db.py`): si mientras se liberaba la última referencia a un GIF alguien volvía a compartir el mismo contenido antes de que el borrado físico en R2 terminara, la referencia nueva podía quedar apuntando a un objeto recién borrado. El borrado de la fila de `gif_objects` ahora se confirma en una segunda pasada atómica justo antes de tocar R2, así que una referencia revivida a tiempo cancela el borrado físico.
 - Bloqueo de aprendizaje NSFW: además del gate ya existente en el mensaje en vivo, `/refeed` y la migración de canales, `on_ready` ahora corre `sanitize_nsfw_corpus_channels` en cada arranque — re-valida toda la allowlist del corpus contra el estado NSFW en vivo de Discord, para cubrir el caso de que un canal haya pasado a NSFW mientras el bot estaba desconectado (`on_guild_channel_update` nunca se disparó).
 - Rate limit genérico para los endpoints de escritura de `@guild_api` (POST/PUT/PATCH/DELETE), por usuario de sesión: de los ~80 endpoints bajo ese decorador, la mayoría no tenía ningún límite propio.
