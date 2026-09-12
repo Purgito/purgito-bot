@@ -74,6 +74,20 @@ def _is_supported_url(url: str) -> bool:
     )
 
 
+# Twitter/X e Instagram sirven bastante contenido (videos largos, Reels, la
+# mayoría de lo que no es un clip corto) como video y audio en streams
+# separados -- "best" a secas exige un único archivo progresivo, así que
+# rechaza esos posts de entrada aunque el video exista y sea público (esto es
+# lo que un downloader que sí mergea, como NotSoBot, resuelve y el nuestro
+# no). Mergear requiere ffmpeg -- ya es una dependencia real del proceso
+# (src/tts/audio.py), así que no es una instalación nueva, pero como TTS la
+# usa "si está" (ver AudioProcessingError ahí), acá también hay que
+# comportarse bien si faltara: sin ffmpeg, seguir pidiendo el progresivo
+# de siempre en vez de que yt-dlp explote a mitad de una descarga tratando
+# de mergear sin la herramienta para hacerlo.
+_FFMPEG_AVAILABLE = shutil.which("ffmpeg") is not None
+
+
 def _download_video(url: str, max_bytes: int) -> str:
     """Bloqueante -- se corre en un thread aparte. Devuelve la ruta del
     archivo descargado; el caller es responsable de borrar el directorio
@@ -81,9 +95,7 @@ def _download_video(url: str, max_bytes: int) -> str:
     tmp_dir = tempfile.mkdtemp(prefix="purgito_dl_")
     ydl_opts = {
         "outtmpl": os.path.join(tmp_dir, "%(id)s.%(ext)s"),
-        # "best" a secas: un solo archivo progresivo, sin mergear video+audio
-        # por separado -- así no hace falta ffmpeg instalado en el server.
-        "format": "best",
+        "format": "bestvideo*+bestaudio/best" if _FFMPEG_AVAILABLE else "best",
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
@@ -92,6 +104,8 @@ def _download_video(url: str, max_bytes: int) -> str:
         "socket_timeout": 20,
         "retries": 2,
     }
+    if _FFMPEG_AVAILABLE:
+        ydl_opts["merge_output_format"] = "mp4"
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -148,7 +162,11 @@ class Download(commands.Cog):
                     t("download.dl.too_large", locale, mb=e.max_bytes // (1024 * 1024))
                 )
                 return
-            except DownloadFailed:
+            except DownloadFailed as e:
+                # El mensaje de yt-dlp (privado/borrado/login requerido/formato no
+                # disponible/rate limit) se perdía acá -- sin esto, un rechazo en
+                # producción no se podía diagnosticar sin reproducirlo a mano.
+                log.info("Falló !dl para %s: %s", link, e)
                 await ctx.reply(t("download.dl.failed", locale))
                 return
 

@@ -77,6 +77,12 @@ else
     bad "gifsicle no encontrado -- los GIFs se subirán a R2 sin comprimir (degrada con gracia, pero revisar si es intencional)"
 fi
 
+if which ffmpeg >/dev/null 2>&1; then
+    ok "ffmpeg instalado ($(ffmpeg -version | head -n1))"
+else
+    bad "ffmpeg no encontrado -- TTS va a fallar (AudioProcessingError) y \"!dl\" va a bajar solo el formato progresivo más simple de cada sitio (Twitter/X e Instagram a veces no lo ofrecen). Ver DEPLOY.md § Dependencias del sistema"
+fi
+
 VENV_PY="$REPO_DIR/.venv/bin/python"
 if [ -x "$VENV_PY" ]; then
     ok "venv tiene un python ejecutable ($($VENV_PY --version 2>&1))"

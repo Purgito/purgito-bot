@@ -13,6 +13,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
 ### Fixed
 - Memes automáticos: cuando `auto_meme_task` salta un canal por no tener imágenes en la colección o por corpus vacío, ahora avisa una vez en el canal configurado en vez de saltearlo en silencio cada 10 minutos para siempre. El aviso no se repite mientras el motivo siga siendo el mismo (`meme_schedule.last_error`), y se limpia solo en cuanto el canal vuelve a postear con éxito.
+- `!dl`/`purgito dl`: rechazaba posts de Twitter/X e Instagram que existen y son públicos porque pedía el formato "best" a secas (un único archivo progresivo) y esos sitios sirven buena parte de su contenido como video y audio en streams separados. Ahora, si el servidor tiene `ffmpeg` (ya es dependencia obligatoria de TTS), pide `bestvideo*+bestaudio/best` y mergea; si no lo tiene, sigue pidiendo el progresivo de siempre. De paso, un fallo de descarga ahora se loguea con el motivo real de yt-dlp en vez de perderse en silencio.
 
 ### Added
 - Sistema de servidores premium: tabla `premium_guilds`, activada/desactivada por los webhooks de Polar.sh (`/webhooks/polar`) al procesar una suscripción — sin ningún endpoint de administración manual. Las features restringidas (memes, pool de imágenes) siguen siempre activas en `PURGATORY_GUILD_ID` hardcodeado, incondicionalmente; para el resto de los servidores depende exclusivamente de tener una suscripción activa en Polar. `HOME_GUILD_ID` se migra automáticamente a la tabla en el primer arranque.

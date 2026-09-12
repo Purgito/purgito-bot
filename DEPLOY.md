@@ -388,9 +388,20 @@ sudo dnf install -y python3 python3-pip python3-devel nginx git
 sudo dnf install -y epel-release
 sudo dnf install -y gifsicle
 
+# ffmpeg — obligatorio para TTS (src/tts/audio.py, revienta con
+# AudioProcessingError sin él) y opcional para "!dl"/"purgito dl"
+# (cogs/download.py): sin ffmpeg, "!dl" sigue funcionando pero solo baja el
+# formato progresivo más simple de cada sitio, lo que Twitter/X e Instagram
+# a veces ni siquiera ofrecen para un post dado. No está en EPEL (temas de
+# licencia de códecs) -- hace falta RPM Fusion.
+sudo dnf install -y --nogpgcheck \
+  "https://mirrors.rpmfusion.org/free/el/rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm"
+sudo dnf install -y ffmpeg
+
 # Verificar
 python3 --version  # 3.11+
 gifsicle --version
+ffmpeg -version
 ```
 
 Oracle Linux trae SELinux en `enforcing` por default (`getenforce` para
@@ -402,16 +413,20 @@ cuando llegues a nginx.
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip python3-venv nginx git gifsicle
+sudo apt install -y python3 python3-pip python3-venv nginx git gifsicle ffmpeg
 
 # Verificar
 python3 --version  # 3.11+
 gifsicle --version
+ffmpeg -version
 ```
 
 `gifsicle` sí está en los repos base de Ubuntu/Debian — no hace falta nada
-como EPEL acá. Ubuntu/Debian no tiene SELinux: todo el troubleshooting de
-`setsebool`/`restorecon` de la sección 9 no aplica en esta distro. En
+como EPEL acá. `ffmpeg` también sale directo del repo `universe` sin agregar
+nada (a diferencia de Oracle Linux/RPM Fusion) -- ver más arriba por qué hace
+falta (TTS obligatorio, "!dl" opcional). Ubuntu/Debian no tiene SELinux: todo
+el troubleshooting de `setsebool`/`restorecon` de la sección 9 no aplica en
+esta distro. En
 cambio, mirá el punto de permisos de `/home/<usuario>` en [Configurar
 nginx](#configurar-nginx) — ese sí es específico de Ubuntu/Debian.
 
