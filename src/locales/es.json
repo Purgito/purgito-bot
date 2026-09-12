@@ -322,6 +322,7 @@
   "download.dl.too_large": "Ese video pesa más de {mb}MB, no entra en este canal.",
   "download.dl.failed": "No se pudo descargar ese link. Revisa que el post sea público y siga existiendo.",
   "download.dl.busy": "Ya hay una descarga en curso en este servidor, espera a que termine.",
+  "download.dl.nsfw_channel_required": "Ese video viene marcado como contenido sensible: solo se puede subir en un canal NSFW.",
   "help.intro.title": "Ayuda de Purgito",
   "help.intro.description": "Purgito aprende cómo escribe tu servidor y genera mensajes nuevos a partir de eso.\n\nUsa los botones de abajo para ver los comandos por categoría.",
   "help.intro.panel_field_name": "Opciones avanzadas",
