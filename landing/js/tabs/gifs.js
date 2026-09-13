@@ -53,6 +53,7 @@ addStrings({
     'tabsGifs.viewCatalog': 'Catálogo',
     'tabsGifs.viewPeople': 'Por persona',
     'tabsGifs.goToMessage': 'Ir al mensaje',
+    'tabsGifs.viewSenderGifs': 'Ver GIFs de {name}',
     'tabsGifs.sentOnce': 'lo mandó 1 vez',
     'tabsGifs.sentTimes': 'lo mandó {count} veces',
     'tabsGifs.peopleSearchPlaceholder': 'Buscar persona…',
@@ -110,6 +111,7 @@ addStrings({
     'tabsGifs.viewCatalog': 'Catalog',
     'tabsGifs.viewPeople': 'By person',
     'tabsGifs.goToMessage': 'Go to message',
+    'tabsGifs.viewSenderGifs': "View {name}'s GIFs",
     'tabsGifs.sentOnce': 'sent it 1 time',
     'tabsGifs.sentTimes': 'sent it {count} times',
     'tabsGifs.peopleSearchPlaceholder': 'Search person…',
@@ -129,6 +131,10 @@ let _view = 'catalog'; // 'catalog' | 'people' | 'person'
 let _people = [];
 let _personGifPool = [];
 let _selectedPerson = null;
+// A qué vista vuelve "← Volver" desde la vista de una persona: 'people' si se
+// llegó eligiéndola de la lista, 'catalog' si se llegó con un click directo
+// desde el badge de remitente de un GIF puntual.
+let _returnView = 'people';
 
 // Misma clasificación que la galería pública (gif_gallery.py).
 function classifyGif(gif) {
@@ -320,30 +326,55 @@ function gifOriginLabel(g) {
   return `${source} · ${kind}`;
 }
 
-// Badge de remitente sobre la esquina de la miniatura (mismo lenguaje que el
-// stack de "quién reaccionó" de Discord): avatar del envío más reciente +
-// "+N" si lo mandó más de una persona. El tooltip nombra a todos; el click
-// va al mensaje del remitente más reciente (null si el GIF se agregó a mano
-// vía /gif_add o el input de arriba -- ahí no hay mensaje al que ir).
+// Botón circular chico con el link al mensaje de origen (compartido por el
+// catálogo general y la vista "Por persona"). null si el GIF se agregó a
+// mano vía /gif_add o el input de arriba -- ahí no hay mensaje al que ir.
+function jumpPill(messageUrl, label) {
+  if (!messageUrl) return null;
+  return el('a', {
+    class: 'gif-jump-pill', href: messageUrl, target: '_blank', rel: 'noopener',
+    title: `${t('tabsGifs.goToMessage')} — ${label}`,
+  }, '↗');
+}
+
+// Badge de remitente sobre la otra esquina de la miniatura: avatar del envío
+// más reciente + "+N" si lo mandó más de una persona (el tooltip nombra a
+// todos). Moderar un GIF puntual casi siempre termina en "¿qué más mandó
+// esta persona?", así que el click va directo a su vista "Por persona" --
+// sin tener que anotar el nombre y buscarlo a mano. El link al mensaje de
+// origen vive aparte, en jumpPill.
 function senderPill(senders) {
   if (!senders || !senders.length) return null;
   const [primary, ...rest] = senders;
   const names = senders.map(s => s.user_name).join(', ');
+  const title = rest.length
+    ? `${names} — ${t('tabsGifs.viewSenderGifs', { name: primary.user_name })}`
+    : t('tabsGifs.viewSenderGifs', { name: primary.user_name });
   const avatar = userAvatar({ name: primary.user_name, avatar_url: primary.avatar_url }, 'gif-sender-avatar');
   const children = [avatar];
   if (rest.length) children.push(el('span', { class: 'gif-sender-pill-badge' }, `+${rest.length}`));
-  const attrs = { class: 'gif-sender-pill', title: names };
-  if (primary.message_url) {
-    return el('a', { ...attrs, href: primary.message_url, target: '_blank', rel: 'noopener' }, ...children);
-  }
-  return el('span', attrs, ...children);
+  const btn = el('button', { type: 'button', class: 'gif-sender-pill', title }, ...children);
+  btn.onclick = () => {
+    _returnView = 'catalog';
+    _selectedPerson = { user_id: primary.user_id, user_name: primary.user_name, avatar_url: primary.avatar_url };
+    _view = 'person';
+    loadGifs();
+  };
+  return btn;
 }
 
 function gifCard(g) {
   const origin = gifOriginLabel(g);
   const thumbWrap = el('div', { class: 'gif-thumb-wrap' }, gifThumb(g));
-  const pill = senderPill(g.senders);
+  const senders = g.senders || [];
+  const pill = senderPill(senders);
   if (pill) thumbWrap.append(pill);
+  if (senders.length) {
+    const primary = senders[0];
+    const label = primary.send_count > 1 ? t('tabsGifs.sentTimes', { count: primary.send_count }) : t('tabsGifs.sentOnce');
+    const jump = jumpPill(primary.message_url, label);
+    if (jump) thumbWrap.append(jump);
+  }
   const card = el('div', { class: 'gif-card' },
     thumbWrap,
     el('a', {
@@ -444,7 +475,7 @@ function personCard(p) {
     el('div', { class: 'gif-person-card-info' },
       el('span', { class: 'gif-person-card-name' }, p.user_name),
       el('span', { class: 'gif-person-card-count' }, count)));
-  card.onclick = () => { _selectedPerson = p; _view = 'person'; loadGifs(); };
+  card.onclick = () => { _returnView = 'people'; _selectedPerson = p; _view = 'person'; loadGifs(); };
   return card;
 }
 
@@ -479,13 +510,9 @@ function renderPeopleList(box) {
 function personGifCard(g, onRemoved) {
   const origin = gifOriginLabel(g);
   const thumbWrap = el('div', { class: 'gif-thumb-wrap' }, gifThumb(g));
-  if (g.message_url) {
-    const label = g.send_count > 1 ? t('tabsGifs.sentTimes', { count: g.send_count }) : t('tabsGifs.sentOnce');
-    thumbWrap.append(el('a', {
-      class: 'gif-jump-pill', href: g.message_url, target: '_blank', rel: 'noopener',
-      title: `${t('tabsGifs.goToMessage')} — ${label}`,
-    }, '↗'));
-  }
+  const label = g.send_count > 1 ? t('tabsGifs.sentTimes', { count: g.send_count }) : t('tabsGifs.sentOnce');
+  const jump = jumpPill(g.message_url, label);
+  if (jump) thumbWrap.append(jump);
   const card = el('div', { class: 'gif-card' },
     thumbWrap,
     el('a', {
@@ -496,7 +523,7 @@ function personGifCard(g, onRemoved) {
 }
 
 function renderPersonView(box) {
-  const back = el('button', { class: 'btn btn-secondary btn-sm', onclick: () => { _view = 'people'; loadGifs(); } }, t('tabsGifs.back'));
+  const back = el('button', { class: 'btn btn-secondary btn-sm', onclick: () => { _view = _returnView; loadGifs(); } }, t('tabsGifs.back'));
   const avatar = userAvatar({ name: _selectedPerson.user_name, avatar_url: _selectedPerson.avatar_url }, 'person-avatar');
   const countEl = el('span', { class: 'gif-person-header-count' });
   box.append(el('div', { class: 'gif-person-header' },
