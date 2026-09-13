@@ -44,7 +44,7 @@
   "settings.corpus.wipe_success": "Se borraron los mensajes aprendidos de este servidor.",
   "settings.corpus.btn_wipe_gifs": "Borrar GIFs guardados",
   "settings.corpus.wipe_gifs_modal_title": "Borrar GIFs guardados",
-  "settings.corpus.wipe_gifs_success": "Se eliminaron {count} GIFs.",
+  "settings.corpus.wipe_gifs_success": "Se eliminaron {count} GIFs. Corre /refeed_channels para volver a encontrar en el historial los que sigan disponibles.",
   "settings.cat.youtube.label": "YouTube",
   "settings.cat.youtube.desc": "Notificaciones de videos nuevos",
   "settings.cat.youtube.title": "Notificaciones de YouTube",

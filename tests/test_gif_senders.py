@@ -269,3 +269,66 @@ def test_gif_bloqueado_no_registra_remitente(memory_db):
         assert await db.get_gif_by_url(_GUILD, url) is None
 
     asyncio.run(run())
+
+
+def test_fallo_al_registrar_remitente_no_tira_abajo_el_guardado_del_gif(memory_db):
+    """Registrar el remitente es un enriquecimiento sobre el guardado, no el
+    guardado en sí: si esa escritura falla por lo que sea (acá se fuerza
+    borrando la tabla), el GIF tiene que quedar guardado en corpus_gifs
+    igual -- no todo-o-nada por culpa de la atribución.
+
+    Regresión real: antes de aislar el try/except, cualquier excepción sin
+    atrapar en este punto hacía que _RollbackOnErrorLock deshaga TODA la
+    transacción de save_gif_url, incluido el INSERT de corpus_gifs que ya
+    había salido bien."""
+
+    async def run():
+        await memory_db.execute("DROP TABLE gif_senders")
+        await memory_db.commit()
+
+        inserted, _ = await db.save_gif_url(
+            _GUILD,
+            "https://tenor.com/view/a-1",
+            user_id=_USER_A,
+            channel_id=1,
+            message_id=1,
+        )
+        assert inserted is True
+        assert await db.get_gif_by_url(_GUILD, "https://tenor.com/view/a-1") is not None
+
+    asyncio.run(run())
+
+
+def test_wipe_gifs_resetea_el_checkpoint_de_refeed_del_guild(memory_db):
+    """channel_refeed_status es el checkpoint de /refeed (desde qué mensaje en
+    adelante ya está todo aprendido) -- es del corpus de TEXTO, ajeno a los
+    GIFs. Si sobrevive a wipe_gifs, /refeed solo mira mensajes nuevos desde
+    ahí y nunca vuelve a caminar el historial viejo donde quedaron los GIFs
+    recién borrados, aunque sus links sigan vivos. wipe_gifs tiene que
+    resetear el checkpoint de ESE guild (sin tocar el de otros) para que el
+    próximo /refeed haga un backfill completo de nuevo."""
+
+    async def run():
+        await db.upsert_channel_refeed_status(
+            _GUILD,
+            10,
+            newest_message_id=999,
+            oldest_message_id=1,
+            backfill_complete=True,
+        )
+        await db.upsert_channel_refeed_status(
+            _OTHER_GUILD,
+            20,
+            newest_message_id=999,
+            oldest_message_id=1,
+            backfill_complete=True,
+        )
+
+        await db.save_gif_url(_GUILD, "https://tenor.com/view/a-1", user_id=_USER_A)
+        await db.wipe_gifs(_GUILD)
+
+        assert await db.get_channel_refeed_status(_GUILD, 10) is None
+        # No debe tocar el checkpoint de otros guilds.
+        assert await db.get_channel_refeed_status(_OTHER_GUILD, 20) is not None
+
+    asyncio.run(run())

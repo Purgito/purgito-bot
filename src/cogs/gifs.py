@@ -126,6 +126,43 @@ async def _upload_gif_throttled(url: str) -> "r2.GifUpload | None":
         return await asyncio.to_thread(r2.upload_gif_sync, url)
 
 
+async def _save_one_gif(
+    guild_id: int, message: discord.Message, url: str, *, validate_host: bool
+) -> bool:
+    """Sube a R2 si hace falta (cdn.discordapp.com) y guarda una URL de GIF
+    candidata, atribuida a quien mandó `message`. Devuelve True si insertó
+    una fila nueva en el corpus (no duplicada).
+
+    validate_host=True exige que, si no es cdn.discordapp.com, sea un host de
+    la allowlist (tenor/giphy) -- necesario para las URLs de `message.content`
+    porque el regex matchea el dominio como substring y dejaría pasar
+    "https://evil.com/?tenor.com". Los adjuntos (validate_host=False) ya
+    vienen estructurados desde la API de Discord, sin ese riesgo."""
+    host = _gif_host(url)
+    content_hash, size_bytes, fingerprint = None, 0, None
+    if host == "cdn.discordapp.com":
+        up = await _upload_gif_throttled(url)
+        if not up or up.url == r2.GIF_TOO_LARGE:
+            # Sin subida a R2 no hay URL estable que guardar: el link crudo
+            # de cdn.discordapp.com está firmado y expira, así que quedaría
+            # roto en el corpus.
+            return False
+        url, content_hash, size_bytes, fingerprint = up
+    elif validate_host and not _is_gif_site(host):
+        return False
+    inserted, _ = await save_gif_url(
+        guild_id,
+        url,
+        content_hash,
+        size_bytes,
+        fingerprint,
+        user_id=message.author.id,
+        channel_id=message.channel.id,
+        message_id=message.id,
+    )
+    return inserted
+
+
 async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
     """Guarda en la colección los GIFs (tenor/giphy/cdn) del contenido y adjuntos de un mensaje.
     Retorna cuántos GIFs nuevos (no duplicados) se guardaron."""
@@ -133,32 +170,9 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
     if message.content:
         for m in GIF_RE.finditer(message.content):
             try:
-                url = m.group(0)
-                # Se valida el host real: el regex matchea el dominio como
-                # substring y dejaría pasar "https://evil.com/?tenor.com".
-                host = _gif_host(url)
-                content_hash, size_bytes, fingerprint = None, 0, None
-                if host == "cdn.discordapp.com":
-                    up = await _upload_gif_throttled(url)
-                    if not up or up.url == r2.GIF_TOO_LARGE:
-                        # Sin subida a R2 no hay URL estable que guardar: el
-                        # link crudo de cdn.discordapp.com está firmado y
-                        # expira, así que quedaría roto en el corpus.
-                        continue
-                    url, content_hash, size_bytes, fingerprint = up
-                elif not _is_gif_site(host):
-                    continue
-                inserted, _ = await save_gif_url(
-                    guild_id,
-                    url,
-                    content_hash,
-                    size_bytes,
-                    fingerprint,
-                    user_id=message.author.id,
-                    channel_id=message.channel.id,
-                    message_id=message.id,
-                )
-                if inserted:
+                if await _save_one_gif(
+                    guild_id, message, m.group(0), validate_host=True
+                ):
                     saved += 1
             except Exception:
                 log.exception("Error guardando GIF de mensaje: %s", m.group(0))
@@ -169,24 +183,9 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
             or (attachment.content_type and "gif" in attachment.content_type)
         ):
             try:
-                url = attachment.url
-                content_hash, size_bytes, fingerprint = None, 0, None
-                if "cdn.discordapp.com" in url:
-                    up = await _upload_gif_throttled(url)
-                    if not up or up.url == r2.GIF_TOO_LARGE:
-                        continue
-                    url, content_hash, size_bytes, fingerprint = up
-                inserted, _ = await save_gif_url(
-                    guild_id,
-                    url,
-                    content_hash,
-                    size_bytes,
-                    fingerprint,
-                    user_id=message.author.id,
-                    channel_id=message.channel.id,
-                    message_id=message.id,
-                )
-                if inserted:
+                if await _save_one_gif(
+                    guild_id, message, attachment.url, validate_host=False
+                ):
                     saved += 1
             except Exception:
                 log.exception("Error guardando GIF adjunto: %s", attachment.url)
