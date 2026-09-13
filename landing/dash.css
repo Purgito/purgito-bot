@@ -946,7 +946,21 @@ h1 {
   transition: opacity 220ms ease, transform 220ms ease;
 }
 .gif-card.out { opacity: 0; transform: scale(0.92); pointer-events: none; }
-.gif-card img { width: 100%; height: 125px; object-fit: cover; background: #000; border-radius: 4px; }
+.gif-thumb-wrap { position: relative; }
+/* Clase dedicada (no ".gif-card img") a propósito: un selector por
+   descendencia le pegaba también al avatar chico del badge de remitente,
+   que también es un <img> dentro de la card -- lo estiraba al tamaño de la
+   miniatura entera. */
+.gif-media {
+  display: block;
+  width: 100%;
+  height: 125px;
+  object-fit: cover;
+  background: #000;
+  border-radius: 4px;
+  border: none;
+}
+iframe.gif-media { pointer-events: none; }
 .gif-placeholder {
   width: 100%;
   height: 125px;
@@ -1009,48 +1023,78 @@ h1 {
    Agregar/Verificar acá arriba, sin componente nuevo). */
 .gif-view-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
 
-/* Remitentes de un GIF en el catálogo general: chip clickeable (si hay
-   mensaje al que ir) con avatar chico + nombre. */
-.gif-sender-row {
+/* Badge de remitente sobre la miniatura -- mismo lenguaje visual que el
+   stack de "quién reaccionó" de Discord: un avatar (el envío más reciente)
+   con un aro oscuro para separarlo del contenido del GIF debajo, sea cual
+   sea su color, y un "+N" solo si lo mandó más de una persona. El tooltip
+   nombra a todos; click va al mensaje del remitente más reciente. */
+.gif-sender-pill {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.gif-sender-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
   text-decoration: none;
-  color: var(--text-muted);
-}
-a.gif-sender-chip:hover { color: var(--accent-2); text-decoration: underline; }
-.gif-sender-chip span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .gif-sender-avatar, .gif-sender-avatar-initial {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--bg), 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 .gif-sender-avatar-initial {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-card);
+  background: var(--surface-raised);
   color: var(--accent);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   user-select: none;
 }
-.gif-sender-more { color: var(--text-muted); }
-.gif-sender-none { font-style: italic; }
+.gif-sender-pill-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+a.gif-sender-pill:hover .gif-sender-avatar,
+a.gif-sender-pill:hover .gif-sender-avatar-initial { filter: brightness(1.2); }
+
+/* Vista "Por persona", card de un GIF puntual: ya sabemos de quién es toda
+   la grilla (lo dice el header arriba), así que en vez del avatar acá va
+   directo el link al mensaje -- un botón circular chico en la otra esquina. */
+.gif-jump-pill {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  text-decoration: none;
+  backdrop-filter: blur(2px);
+  transition: background var(--transition), color var(--transition);
+}
+.gif-jump-pill:hover { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 
 /* Vista "Por persona": selector de personas + cátalogo de una persona. */
 .gif-people-search { width: 100%; margin-bottom: 16px; }

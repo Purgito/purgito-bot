@@ -55,7 +55,6 @@ addStrings({
     'tabsGifs.goToMessage': 'Ir al mensaje',
     'tabsGifs.sentOnce': 'lo mandó 1 vez',
     'tabsGifs.sentTimes': 'lo mandó {count} veces',
-    'tabsGifs.noSender': 'Autor desconocido',
     'tabsGifs.peopleSearchPlaceholder': 'Buscar persona…',
     'tabsGifs.peopleEmpty': 'Todavía nadie mandó un GIF que siga guardado.',
     'tabsGifs.peopleNoMatch': 'Nadie coincide con esa búsqueda.',
@@ -113,7 +112,6 @@ addStrings({
     'tabsGifs.goToMessage': 'Go to message',
     'tabsGifs.sentOnce': 'sent it 1 time',
     'tabsGifs.sentTimes': 'sent it {count} times',
-    'tabsGifs.noSender': 'Unknown sender',
     'tabsGifs.peopleSearchPlaceholder': 'Search person…',
     'tabsGifs.peopleEmpty': 'Nobody has sent a GIF that is still saved yet.',
     'tabsGifs.peopleNoMatch': 'Nobody matches that search.',
@@ -167,14 +165,12 @@ function gifLinkCard(url) {
 function gifThumb(g) {
   const { type, src } = classifyGif(g);
   if (type === 'img') {
-    const img = el('img', { src, loading: 'lazy', alt: '' });
+    const img = el('img', { class: 'gif-media', src, loading: 'lazy', alt: '' });
     img.onerror = () => img.replaceWith(gifLinkCard(g.url));
     return img;
   }
   if (type === 'iframe') {
-    const frame = el('iframe', { src, loading: 'lazy', frameborder: '0' });
-    frame.style.cssText = 'width:100%;height:110px;border:none;pointer-events:none;border-radius:3px;background:#000';
-    return frame;
+    return el('iframe', { class: 'gif-media', src, loading: 'lazy', frameborder: '0' });
   }
   return gifLinkCard(g.url);
 }
@@ -324,50 +320,39 @@ function gifOriginLabel(g) {
   return `${source} · ${kind}`;
 }
 
-// Chip de un remitente: avatar chico + nombre, linkeado al mensaje exacto
-// cuando existe (no lo hay si el GIF se agregó a mano vía /gif_add o el
-// input de arriba). Hasta 3 remitentes visibles, el resto colapsa en "+N".
-const MAX_SENDER_CHIPS = 3;
-
-function senderChip(s) {
-  const avatar = userAvatar({ name: s.user_name, avatar_url: s.avatar_url }, 'gif-sender-avatar');
-  const label = s.send_count > 1
-    ? `${s.user_name} — ${t('tabsGifs.sentTimes', { count: s.send_count })}`
-    : `${s.user_name} — ${t('tabsGifs.sentOnce')}`;
-  const nameEl = el('span', {}, s.user_name);
-  if (s.message_url) {
-    return el('a', {
-      class: 'gif-sender-chip', href: s.message_url, target: '_blank', rel: 'noopener', title: label,
-    }, avatar, nameEl);
+// Badge de remitente sobre la esquina de la miniatura (mismo lenguaje que el
+// stack de "quién reaccionó" de Discord): avatar del envío más reciente +
+// "+N" si lo mandó más de una persona. El tooltip nombra a todos; el click
+// va al mensaje del remitente más reciente (null si el GIF se agregó a mano
+// vía /gif_add o el input de arriba -- ahí no hay mensaje al que ir).
+function senderPill(senders) {
+  if (!senders || !senders.length) return null;
+  const [primary, ...rest] = senders;
+  const names = senders.map(s => s.user_name).join(', ');
+  const avatar = userAvatar({ name: primary.user_name, avatar_url: primary.avatar_url }, 'gif-sender-avatar');
+  const children = [avatar];
+  if (rest.length) children.push(el('span', { class: 'gif-sender-pill-badge' }, `+${rest.length}`));
+  const attrs = { class: 'gif-sender-pill', title: names };
+  if (primary.message_url) {
+    return el('a', { ...attrs, href: primary.message_url, target: '_blank', rel: 'noopener' }, ...children);
   }
-  return el('span', { class: 'gif-sender-chip', title: label }, avatar, nameEl);
-}
-
-function gifSenderRow(g) {
-  const senders = g.senders || [];
-  if (!senders.length) {
-    return el('div', { class: 'gif-sender-row gif-sender-none' }, t('tabsGifs.noSender'));
-  }
-  const row = el('div', { class: 'gif-sender-row' });
-  for (const s of senders.slice(0, MAX_SENDER_CHIPS)) row.append(senderChip(s));
-  if (senders.length > MAX_SENDER_CHIPS) {
-    row.append(el('span', { class: 'gif-sender-more' }, `+${senders.length - MAX_SENDER_CHIPS}`));
-  }
-  return row;
+  return el('span', attrs, ...children);
 }
 
 function gifCard(g) {
   const origin = gifOriginLabel(g);
+  const thumbWrap = el('div', { class: 'gif-thumb-wrap' }, gifThumb(g));
+  const pill = senderPill(g.senders);
+  if (pill) thumbWrap.append(pill);
   const card = el('div', { class: 'gif-card' },
-    gifThumb(g),
+    thumbWrap,
     el('a', {
       class: 'gif-url gif-source-badge',
       href: g.url,
       target: '_blank',
       rel: 'noopener',
       title: g.url,
-    }, origin),
-    gifSenderRow(g));
+    }, origin));
   card.append(gifCardActions(g.id, card, (id) => {
     _gifPool = _gifPool.filter(x => x.id !== id);
     updateGifStats();
@@ -488,20 +473,24 @@ function renderPeopleList(box) {
   renderFiltered();
 }
 
+// Acá ya sabemos de quién es toda la grilla (lo dice el header de
+// renderPersonView), así que no hace falta repetir el avatar por card: el
+// botón circular de la esquina va directo al mensaje de origen.
 function personGifCard(g, onRemoved) {
   const origin = gifOriginLabel(g);
-  const label = g.send_count > 1 ? t('tabsGifs.sentTimes', { count: g.send_count }) : t('tabsGifs.sentOnce');
-  const meta = el('div', { class: 'gif-sender-row' },
-    g.message_url
-      ? el('a', { class: 'gif-sender-chip', href: g.message_url, target: '_blank', rel: 'noopener' }, t('tabsGifs.goToMessage'))
-      : el('span', { class: 'gif-sender-none' }, label),
-    g.message_url ? el('span', {}, `· ${label}`) : null);
+  const thumbWrap = el('div', { class: 'gif-thumb-wrap' }, gifThumb(g));
+  if (g.message_url) {
+    const label = g.send_count > 1 ? t('tabsGifs.sentTimes', { count: g.send_count }) : t('tabsGifs.sentOnce');
+    thumbWrap.append(el('a', {
+      class: 'gif-jump-pill', href: g.message_url, target: '_blank', rel: 'noopener',
+      title: `${t('tabsGifs.goToMessage')} — ${label}`,
+    }, '↗'));
+  }
   const card = el('div', { class: 'gif-card' },
-    gifThumb(g),
+    thumbWrap,
     el('a', {
       class: 'gif-url gif-source-badge', href: g.url, target: '_blank', rel: 'noopener', title: g.url,
-    }, origin),
-    meta);
+    }, origin));
   card.append(gifCardActions(g.id, card, onRemoved));
   return card;
 }
