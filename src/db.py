@@ -1958,21 +1958,43 @@ async def save_gif_url(
                 db, content_hash, r2.gif_key(content_hash), size_bytes, fingerprint
             )
         if user_id is not None:
-            async with db.execute(
-                "SELECT id FROM corpus_gifs WHERE guild_id=? AND url=?", (guild_id, u)
-            ) as cur:
-                gif_row = await cur.fetchone()
-            if gif_row:
-                await db.execute(
-                    "INSERT INTO gif_senders "
-                    "(gif_id, guild_id, user_id, channel_id, message_id, "
-                    "send_count, first_seen, last_seen) "
-                    "VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                    "ON CONFLICT(gif_id, user_id) DO UPDATE SET "
-                    "channel_id=excluded.channel_id, message_id=excluded.message_id, "
-                    "send_count=send_count+1, last_seen=CURRENT_TIMESTAMP",
-                    (gif_row[0], guild_id, user_id, channel_id, message_id),
-                )
+            # cursor.lastrowid solo es confiable cuando ESTE statement insertó
+            # (rowcount==1, ya validado en `inserted`); si el INSERT OR IGNORE
+            # no hizo nada, lastrowid podría venir de un insert anterior sin
+            # relación -- ahí sí hace falta el SELECT.
+            gif_id = cursor.lastrowid if inserted else None
+            if gif_id is None:
+                async with db.execute(
+                    "SELECT id FROM corpus_gifs WHERE guild_id=? AND url=?",
+                    (guild_id, u),
+                ) as cur:
+                    gif_row = await cur.fetchone()
+                gif_id = gif_row[0] if gif_row else None
+            if gif_id is not None:
+                try:
+                    await db.execute(
+                        "INSERT INTO gif_senders "
+                        "(gif_id, guild_id, user_id, channel_id, message_id, "
+                        "send_count, first_seen, last_seen) "
+                        "VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
+                        "ON CONFLICT(gif_id, user_id) DO UPDATE SET "
+                        "channel_id=excluded.channel_id, message_id=excluded.message_id, "
+                        "send_count=send_count+1, last_seen=CURRENT_TIMESTAMP",
+                        (gif_id, guild_id, user_id, channel_id, message_id),
+                    )
+                except Exception:
+                    # Registrar el remitente es un enriquecimiento sobre el
+                    # guardado, no el guardado en sí -- un fallo acá NO puede
+                    # tirarse abajo el GIF que ya se guardó bien arriba.
+                    # _RollbackOnErrorLock deshace TODA la transacción de esta
+                    # llamada ante cualquier excepción sin atrapar (ver su
+                    # docstring); sin este try/except, un solo fallo acá se
+                    # llevaba puesto también el INSERT de corpus_gifs.
+                    log.exception(
+                        "No se pudo registrar remitente del GIF (gif_id=%s, user_id=%s)",
+                        gif_id,
+                        user_id,
+                    )
         await db.commit()
     if evicted_id is not None:
         await release_gif_reference(evicted_hash, evicted_url)

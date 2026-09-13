@@ -269,3 +269,31 @@ def test_gif_bloqueado_no_registra_remitente(memory_db):
         assert await db.get_gif_by_url(_GUILD, url) is None
 
     asyncio.run(run())
+
+
+def test_fallo_al_registrar_remitente_no_tira_abajo_el_guardado_del_gif(memory_db):
+    """Registrar el remitente es un enriquecimiento sobre el guardado, no el
+    guardado en sí: si esa escritura falla por lo que sea (acá se fuerza
+    borrando la tabla), el GIF tiene que quedar guardado en corpus_gifs
+    igual -- no todo-o-nada por culpa de la atribución.
+
+    Regresión real: antes de aislar el try/except, cualquier excepción sin
+    atrapar en este punto hacía que _RollbackOnErrorLock deshaga TODA la
+    transacción de save_gif_url, incluido el INSERT de corpus_gifs que ya
+    había salido bien."""
+
+    async def run():
+        await memory_db.execute("DROP TABLE gif_senders")
+        await memory_db.commit()
+
+        inserted, _ = await db.save_gif_url(
+            _GUILD,
+            "https://tenor.com/view/a-1",
+            user_id=_USER_A,
+            channel_id=1,
+            message_id=1,
+        )
+        assert inserted is True
+        assert await db.get_gif_by_url(_GUILD, "https://tenor.com/view/a-1") is not None
+
+    asyncio.run(run())
