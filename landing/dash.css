@@ -1027,13 +1027,19 @@ iframe.gif-media { pointer-events: none; }
    stack de "quién reaccionó" de Discord: un avatar (el envío más reciente)
    con un aro oscuro para separarlo del contenido del GIF debajo, sea cual
    sea su color, y un "+N" solo si lo mandó más de una persona. El tooltip
-   nombra a todos; click va al mensaje del remitente más reciente. */
+   nombra a todos; es un <button> (no un link) porque el click navega
+   dentro del panel a la vista "Por persona" de ese remitente, no sale a
+   ningún lado -- de ahí el reset de estilos default de botón. */
 .gif-sender-pill {
   position: absolute;
   left: 6px;
   bottom: 6px;
   display: flex;
-  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
 }
 .gif-sender-avatar, .gif-sender-avatar-initial {
   width: 22px;
@@ -1069,8 +1075,8 @@ iframe.gif-media { pointer-events: none; }
   justify-content: center;
   box-shadow: 0 0 0 2px var(--bg);
 }
-a.gif-sender-pill:hover .gif-sender-avatar,
-a.gif-sender-pill:hover .gif-sender-avatar-initial { filter: brightness(1.2); }
+.gif-sender-pill:hover .gif-sender-avatar,
+.gif-sender-pill:hover .gif-sender-avatar-initial { filter: brightness(1.2); }
 
 /* Vista "Por persona", card de un GIF puntual: ya sabemos de quién es toda
    la grilla (lo dice el header arriba), así que en vez del avatar acá va
