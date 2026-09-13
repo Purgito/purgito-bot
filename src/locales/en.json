@@ -44,7 +44,7 @@
   "settings.corpus.wipe_success": "Learned messages for this server were deleted.",
   "settings.corpus.btn_wipe_gifs": "Delete saved GIFs",
   "settings.corpus.wipe_gifs_modal_title": "Delete saved GIFs",
-  "settings.corpus.wipe_gifs_success": "Deleted {count} GIFs.",
+  "settings.corpus.wipe_gifs_success": "Deleted {count} GIFs. Run /refeed_channels to find the ones still available in the history again.",
   "settings.cat.youtube.label": "YouTube",
   "settings.cat.youtube.desc": "New video notifications",
   "settings.cat.youtube.title": "YouTube notifications",

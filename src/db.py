@@ -1841,7 +1841,20 @@ async def wipe_gifs(guild_id: int) -> int:
     quedaría borrado de corpus_gifs por el DELETE (que es "todo lo del
     guild", no las filas puntuales leídas) pero nunca liberado de
     gif_objects -- una referencia fantasma que ningún barrido periódico
-    puede corregir después, porque get_live_gif_keys confía en ref_count."""
+    puede corregir después, porque get_live_gif_keys confía en ref_count.
+
+    También resetea channel_refeed_status del guild: ese checkpoint (de
+    dónde viene /refeed) es del corpus de TEXTO, ajeno a los GIFs -- si un
+    canal ya tenía backfill_complete, /refeed solo mira mensajes nuevos
+    desde ahí, y nunca vuelve a caminar el historial viejo donde están los
+    GIFs que se acaban de borrar (aunque sus links sigan vivos). Sin este
+    reset, vaciar GIFs y correr /refeed_channels después "debería" traer de
+    vuelta buena parte de lo borrado y en la práctica casi no trae nada --
+    la única forma de que /refeed vuelva a caminar todo es que este
+    checkpoint quede en blanco, como si el canal nunca se hubiera refeedeado.
+    _save_message_to_corpus dedupea por message_id, así que reprocesar
+    historial ya aprendido no duplica nada del lado de texto -- solo cuesta
+    tiempo y llamadas a la API de Discord."""
     db = await get_db()
     async with _db_lock:
         async with db.execute(
@@ -1853,6 +1866,9 @@ async def wipe_gifs(guild_id: int) -> int:
         )
         deleted = cursor.rowcount
         await db.execute("DELETE FROM gif_senders WHERE guild_id=?", (guild_id,))
+        await db.execute(
+            "DELETE FROM channel_refeed_status WHERE guild_id=?", (guild_id,)
+        )
         await db.commit()
 
     # En serie, no con gather: release_gif_reference toma _db_lock y los
