@@ -1,5 +1,5 @@
 import { apiFetch } from '/js/core/api.js';
-import { el, spinner, emptyState, renderError, toast } from '/js/core/dom.js';
+import { el, spinner, emptyState, renderError, toast, userAvatar } from '/js/core/dom.js';
 import { GUILD_ID, getDashboardUrl } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 import { watchTasks } from '/js/core/tasks.js';
@@ -50,6 +50,19 @@ addStrings({
     'tabsGifs.addBtn': 'Agregar',
     'tabsGifs.emptyState': 'Todavía no hay GIFs guardados — añade uno con el campo de arriba.',
     'tabsGifs.loadMore': 'Cargar más',
+    'tabsGifs.viewCatalog': 'Catálogo',
+    'tabsGifs.viewPeople': 'Por persona',
+    'tabsGifs.goToMessage': 'Ir al mensaje',
+    'tabsGifs.sentOnce': 'lo mandó 1 vez',
+    'tabsGifs.sentTimes': 'lo mandó {count} veces',
+    'tabsGifs.noSender': 'Autor desconocido',
+    'tabsGifs.peopleSearchPlaceholder': 'Buscar persona…',
+    'tabsGifs.peopleEmpty': 'Todavía nadie mandó un GIF que siga guardado.',
+    'tabsGifs.peopleNoMatch': 'Nadie coincide con esa búsqueda.',
+    'tabsGifs.gifCount': '{count} GIFs',
+    'tabsGifs.gifCountOne': '1 GIF',
+    'tabsGifs.back': '← Volver',
+    'tabsGifs.personEmpty': 'Esta persona no tiene GIFs guardados.',
   },
   en: {
     'tabsGifs.openGif': 'OPEN GIF',
@@ -95,12 +108,29 @@ addStrings({
     'tabsGifs.addBtn': 'Add',
     'tabsGifs.emptyState': 'No GIFs saved yet — add one using the field above.',
     'tabsGifs.loadMore': 'Load more',
+    'tabsGifs.viewCatalog': 'Catalog',
+    'tabsGifs.viewPeople': 'By person',
+    'tabsGifs.goToMessage': 'Go to message',
+    'tabsGifs.sentOnce': 'sent it 1 time',
+    'tabsGifs.sentTimes': 'sent it {count} times',
+    'tabsGifs.noSender': 'Unknown sender',
+    'tabsGifs.peopleSearchPlaceholder': 'Search person…',
+    'tabsGifs.peopleEmpty': 'Nobody has sent a GIF that is still saved yet.',
+    'tabsGifs.peopleNoMatch': 'Nobody matches that search.',
+    'tabsGifs.gifCount': '{count} GIFs',
+    'tabsGifs.gifCountOne': '1 GIF',
+    'tabsGifs.back': '← Back',
+    'tabsGifs.personEmpty': "This person doesn't have any GIFs saved.",
   },
 });
 
 const GIFS_PAGE = 30;
 let _gifPool = [];
 let _gifStatsEl = null;
+let _view = 'catalog'; // 'catalog' | 'people' | 'person'
+let _people = [];
+let _personGifPool = [];
+let _selectedPerson = null;
 
 // Misma clasificación que la galería pública (gif_gallery.py).
 function classifyGif(gif) {
@@ -214,7 +244,7 @@ function renderGifBatch() {
 // (gif_blocklist en db.py) -- el texto de confirmación lo deja explícito
 // porque, a diferencia de "Quitar", no hay forma de deshacer el veto salvo
 // yendo a la sección "GIFs bloqueados" de abajo.
-function gifCardActions(gifId, card) {
+function gifCardActions(gifId, card, onRemoved) {
   const wrap = el('div', { class: 'gif-actions' });
 
   function showButtons() {
@@ -242,8 +272,7 @@ function gifCardActions(gifId, card) {
   }
   function removeCard() {
     card.classList.add('out');
-    _gifPool = _gifPool.filter(g => g.id !== gifId);
-    updateGifStats();
+    onRemoved(gifId);
     setTimeout(() => { card.remove(); syncGifMore(); }, 240);
   }
   async function doDelete() {
@@ -295,6 +324,38 @@ function gifOriginLabel(g) {
   return `${source} · ${kind}`;
 }
 
+// Chip de un remitente: avatar chico + nombre, linkeado al mensaje exacto
+// cuando existe (no lo hay si el GIF se agregó a mano vía /gif_add o el
+// input de arriba). Hasta 3 remitentes visibles, el resto colapsa en "+N".
+const MAX_SENDER_CHIPS = 3;
+
+function senderChip(s) {
+  const avatar = userAvatar({ name: s.user_name, avatar_url: s.avatar_url }, 'gif-sender-avatar');
+  const label = s.send_count > 1
+    ? `${s.user_name} — ${t('tabsGifs.sentTimes', { count: s.send_count })}`
+    : `${s.user_name} — ${t('tabsGifs.sentOnce')}`;
+  const nameEl = el('span', {}, s.user_name);
+  if (s.message_url) {
+    return el('a', {
+      class: 'gif-sender-chip', href: s.message_url, target: '_blank', rel: 'noopener', title: label,
+    }, avatar, nameEl);
+  }
+  return el('span', { class: 'gif-sender-chip', title: label }, avatar, nameEl);
+}
+
+function gifSenderRow(g) {
+  const senders = g.senders || [];
+  if (!senders.length) {
+    return el('div', { class: 'gif-sender-row gif-sender-none' }, t('tabsGifs.noSender'));
+  }
+  const row = el('div', { class: 'gif-sender-row' });
+  for (const s of senders.slice(0, MAX_SENDER_CHIPS)) row.append(senderChip(s));
+  if (senders.length > MAX_SENDER_CHIPS) {
+    row.append(el('span', { class: 'gif-sender-more' }, `+${senders.length - MAX_SENDER_CHIPS}`));
+  }
+  return row;
+}
+
 function gifCard(g) {
   const origin = gifOriginLabel(g);
   const card = el('div', { class: 'gif-card' },
@@ -305,8 +366,12 @@ function gifCard(g) {
       target: '_blank',
       rel: 'noopener',
       title: g.url,
-    }, origin));
-  card.append(gifCardActions(g.id, card));
+    }, origin),
+    gifSenderRow(g));
+  card.append(gifCardActions(g.id, card, (id) => {
+    _gifPool = _gifPool.filter(x => x.id !== id);
+    updateGifStats();
+  }));
   return card;
 }
 
@@ -370,12 +435,139 @@ function blockedGifsSection() {
   return details;
 }
 
-export async function loadGifs() {
-  const box = content();
+// ---------------- Toggle Catálogo / Por persona ----------------
+
+function viewToggle() {
+  const catBtn = el('button', {
+    class: `btn ${_view === 'catalog' ? 'btn-primary' : 'btn-secondary'}`,
+    onclick: () => { _view = 'catalog'; loadGifs(); },
+  }, t('tabsGifs.viewCatalog'));
+  const peopleBtn = el('button', {
+    class: `btn ${_view !== 'catalog' ? 'btn-primary' : 'btn-secondary'}`,
+    onclick: () => { _view = 'people'; loadGifs(); },
+  }, t('tabsGifs.viewPeople'));
+  return el('div', { class: 'gif-view-toggle' }, catBtn, peopleBtn);
+}
+
+// ---------------- Vista "Por persona" ----------------
+
+function personCard(p) {
+  const avatar = userAvatar({ name: p.user_name, avatar_url: p.avatar_url }, 'person-avatar');
+  const count = p.gif_count === 1 ? t('tabsGifs.gifCountOne') : t('tabsGifs.gifCount', { count: p.gif_count });
+  const card = el('button', { class: 'gif-person-card', type: 'button' },
+    avatar,
+    el('div', { class: 'gif-person-card-info' },
+      el('span', { class: 'gif-person-card-name' }, p.user_name),
+      el('span', { class: 'gif-person-card-count' }, count)));
+  card.onclick = () => { _selectedPerson = p; _view = 'person'; loadGifs(); };
+  return card;
+}
+
+function renderPeopleList(box) {
+  if (!_people.length) {
+    box.append(emptyState(t('tabsGifs.peopleEmpty')));
+    return;
+  }
+  const search = el('input', {
+    type: 'text', class: 'gif-people-search', placeholder: t('tabsGifs.peopleSearchPlaceholder'),
+  });
+  const grid = el('div', { class: 'gif-people-grid' });
+  box.append(search, grid);
+
+  function renderFiltered() {
+    const q = search.value.trim().toLowerCase();
+    grid.innerHTML = '';
+    const matches = q ? _people.filter(p => p.user_name.toLowerCase().includes(q)) : _people;
+    if (!matches.length) {
+      grid.append(el('p', { class: 'dim' }, t('tabsGifs.peopleNoMatch')));
+      return;
+    }
+    for (const p of matches) grid.append(personCard(p));
+  }
+  search.oninput = renderFiltered;
+  renderFiltered();
+}
+
+function personGifCard(g, onRemoved) {
+  const origin = gifOriginLabel(g);
+  const label = g.send_count > 1 ? t('tabsGifs.sentTimes', { count: g.send_count }) : t('tabsGifs.sentOnce');
+  const meta = el('div', { class: 'gif-sender-row' },
+    g.message_url
+      ? el('a', { class: 'gif-sender-chip', href: g.message_url, target: '_blank', rel: 'noopener' }, t('tabsGifs.goToMessage'))
+      : el('span', { class: 'gif-sender-none' }, label),
+    g.message_url ? el('span', {}, `· ${label}`) : null);
+  const card = el('div', { class: 'gif-card' },
+    gifThumb(g),
+    el('a', {
+      class: 'gif-url gif-source-badge', href: g.url, target: '_blank', rel: 'noopener', title: g.url,
+    }, origin),
+    meta);
+  card.append(gifCardActions(g.id, card, onRemoved));
+  return card;
+}
+
+function renderPersonView(box) {
+  const back = el('button', { class: 'btn btn-secondary btn-sm', onclick: () => { _view = 'people'; loadGifs(); } }, t('tabsGifs.back'));
+  const avatar = userAvatar({ name: _selectedPerson.user_name, avatar_url: _selectedPerson.avatar_url }, 'person-avatar');
+  const countEl = el('span', { class: 'gif-person-header-count' });
+  box.append(el('div', { class: 'gif-person-header' },
+    back, avatar,
+    el('div', { class: 'gif-person-header-info' },
+      el('span', { class: 'gif-person-header-name' }, _selectedPerson.user_name),
+      countEl)));
+
+  function updateCount() {
+    countEl.textContent = _personGifPool.length === 1
+      ? t('tabsGifs.gifCountOne') : t('tabsGifs.gifCount', { count: _personGifPool.length });
+  }
+  updateCount();
+
+  const emptyEl = emptyState(t('tabsGifs.personEmpty'));
+  const grid = el('div', { class: 'gif-grid' });
+  box.append(emptyEl, grid);
+  emptyEl.hidden = Boolean(_personGifPool.length);
+  for (const g of _personGifPool) {
+    grid.append(personGifCard(g, (id) => {
+      _personGifPool = _personGifPool.filter(x => x.id !== id);
+      _people = _people.map(p => p.user_id === _selectedPerson.user_id
+        ? { ...p, gif_count: p.gif_count - 1 } : p);
+      updateCount();
+      emptyEl.hidden = Boolean(_personGifPool.length);
+    }));
+  }
+}
+
+async function loadPeopleView(box) {
+  box.append(spinner());
+  try {
+    const data = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/senders`);
+    box.innerHTML = '';
+    box.append(viewToggle());
+    _people = data.senders;
+    renderPeopleList(box);
+  } catch (e) { renderError(box, e); }
+}
+
+async function loadPersonView(box) {
+  box.append(spinner());
+  try {
+    const data = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs/by-user/${_selectedPerson.user_id}`);
+    box.innerHTML = '';
+    box.append(viewToggle());
+    _selectedPerson = data.user;
+    _personGifPool = data.gifs;
+    renderPersonView(box);
+  } catch (e) { renderError(box, e); }
+}
+
+// ---------------- Vista "Catálogo" (la de siempre) ----------------
+
+async function loadCatalogView(box) {
   box.append(spinner());
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/gifs`);
     box.innerHTML = '';
+    box.append(viewToggle());
 
     const taskBanner = el('div', { class: 'task-banner-wrap' });
     box.append(taskBanner);
@@ -450,4 +642,12 @@ export async function loadGifs() {
     box.append(el('div', { class: 'gif-more-wrap' }, moreBtn));
     syncGifMore();
   } catch (e) { renderError(box, e); }
+}
+
+export async function loadGifs() {
+  const box = content();
+  box.innerHTML = '';
+  if (_view === 'catalog') return loadCatalogView(box);
+  if (_view === 'person' && _selectedPerson) return loadPersonView(box);
+  return loadPeopleView(box);
 }

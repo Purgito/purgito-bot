@@ -1004,6 +1004,115 @@ h1 {
 
 .gif-more-wrap { text-align: center; margin-top: 16px; }
 
+/* Toggle "Catálogo" / "Por persona" -- dos .btn normales, el activo con
+   btn-primary y el inactivo con btn-secondary (mismo par que ya usan
+   Agregar/Verificar acá arriba, sin componente nuevo). */
+.gif-view-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+
+/* Remitentes de un GIF en el catálogo general: chip clickeable (si hay
+   mensaje al que ir) con avatar chico + nombre. */
+.gif-sender-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.gif-sender-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+a.gif-sender-chip:hover { color: var(--accent-2); text-decoration: underline; }
+.gif-sender-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gif-sender-avatar, .gif-sender-avatar-initial {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.gif-sender-avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-card);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  user-select: none;
+}
+.gif-sender-more { color: var(--text-muted); }
+.gif-sender-none { font-style: italic; }
+
+/* Vista "Por persona": selector de personas + cátalogo de una persona. */
+.gif-people-search { width: 100%; margin-bottom: 16px; }
+.gif-people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.gif-person-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition);
+}
+.gif-person-card:hover { border-color: color-mix(in srgb, var(--border) 55%, var(--accent)); }
+.gif-person-card-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gif-person-card-name {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gif-person-card-count { font-size: 11px; color: var(--text-muted); }
+.person-avatar, .person-avatar-initial {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.person-avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-card);
+  color: var(--accent);
+  font-weight: 700;
+  user-select: none;
+}
+.gif-person-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.gif-person-header-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gif-person-header-name {
+  font-size: var(--t-lg);
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gif-person-header-count { font-size: 12px; color: var(--text-muted); }
+
 /* Sección "GIFs bloqueados" (details/summary nativo, mismo patrón que
    .send-opts del editor de embeds). */
 .gif-blocked-section {
