@@ -663,6 +663,9 @@ def test_gif_collection_continues_when_below_min_threshold(memory_db, monkeypatc
             fake_msg = SimpleNamespace(
                 content=f"Mira este gif: https://tenor.com/view/cat-meme-{i}",
                 attachments=[],
+                author=SimpleNamespace(id=55),
+                channel=SimpleNamespace(id=10),
+                id=100 + i,
             )
             saved = await gifs_mod.save_gif_candidates(_GUILD, fake_msg)
             assert saved == 1
@@ -675,6 +678,9 @@ def test_gif_collection_continues_when_below_min_threshold(memory_db, monkeypatc
         msg_10 = SimpleNamespace(
             content="El décimo https://tenor.com/view/cat-meme-9",
             attachments=[],
+            author=SimpleNamespace(id=55),
+            channel=SimpleNamespace(id=10),
+            id=200,
         )
         saved_10 = await gifs_mod.save_gif_candidates(_GUILD, msg_10)
         assert saved_10 == 1
@@ -752,6 +758,7 @@ def test_manual_gif_commands_unaffected_by_threshold(memory_db, monkeypatch):
         class FakeInteraction:
             guild = SimpleNamespace(id=_GUILD)
             guild_id = _GUILD
+            channel_id = 10
             user = SimpleNamespace(
                 id=1, guild_permissions=SimpleNamespace(administrator=True)
             )

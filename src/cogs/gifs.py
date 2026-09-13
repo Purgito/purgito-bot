@@ -149,7 +149,14 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
                 elif not _is_gif_site(host):
                     continue
                 inserted, _ = await save_gif_url(
-                    guild_id, url, content_hash, size_bytes, fingerprint
+                    guild_id,
+                    url,
+                    content_hash,
+                    size_bytes,
+                    fingerprint,
+                    user_id=message.author.id,
+                    channel_id=message.channel.id,
+                    message_id=message.id,
                 )
                 if inserted:
                     saved += 1
@@ -170,7 +177,14 @@ async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
                         continue
                     url, content_hash, size_bytes, fingerprint = up
                 inserted, _ = await save_gif_url(
-                    guild_id, url, content_hash, size_bytes, fingerprint
+                    guild_id,
+                    url,
+                    content_hash,
+                    size_bytes,
+                    fingerprint,
+                    user_id=message.author.id,
+                    channel_id=message.channel.id,
+                    message_id=message.id,
                 )
                 if inserted:
                     saved += 1
@@ -710,7 +724,13 @@ class Gifs(commands.Cog):
             return
 
         inserted, _ = await save_gif_url(
-            interaction.guild.id, final_url, content_hash, size_bytes, fingerprint
+            interaction.guild.id,
+            final_url,
+            content_hash,
+            size_bytes,
+            fingerprint,
+            user_id=interaction.user.id,
+            channel_id=interaction.channel_id,
         )
         total = await count_gif_urls(interaction.guild.id)
         if inserted:

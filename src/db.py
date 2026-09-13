@@ -202,6 +202,27 @@ CREATE TABLE IF NOT EXISTS gif_blocklist (
     PRIMARY KEY (guild_id, content_hash, url)
 );
 
+-- Quién mandó cada GIF y en qué mensaje, para el catálogo por persona del
+-- panel y el link "ir al mensaje" de cada GIF. Una fila por (gif_id, user_id)
+-- -- no una por envío -- para no crecer sin límite si alguien repite el mismo
+-- GIF: channel_id/message_id apuntan siempre al envío más reciente de esa
+-- persona, y send_count cuenta cuántas veces lo mandó. channel_id/message_id
+-- quedan NULL cuando el GIF se agregó a mano (/gif_add o el input del panel):
+-- ahí no hay mensaje real al que enlazar.
+CREATE TABLE IF NOT EXISTS gif_senders (
+    gif_id INTEGER NOT NULL,
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    channel_id INTEGER,
+    message_id INTEGER,
+    send_count INTEGER NOT NULL DEFAULT 1,
+    first_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (gif_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gif_senders_guild_user ON gif_senders(guild_id, user_id);
+
 CREATE TABLE IF NOT EXISTS youtube_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER NOT NULL,
@@ -1831,6 +1852,7 @@ async def wipe_gifs(guild_id: int) -> int:
             "DELETE FROM corpus_gifs WHERE guild_id=?", (guild_id,)
         )
         deleted = cursor.rowcount
+        await db.execute("DELETE FROM gif_senders WHERE guild_id=?", (guild_id,))
         await db.commit()
 
     # En serie, no con gather: release_gif_reference toma _db_lock y los
@@ -1861,6 +1883,9 @@ async def save_gif_url(
     content_hash: str | None = None,
     size_bytes: int = 0,
     fingerprint: "r2.GifFingerprint | None" = None,
+    user_id: int | None = None,
+    channel_id: int | None = None,
+    message_id: int | None = None,
 ) -> tuple[bool, int | None]:
     """Devuelve (inserted, evicted_id). evicted_id es el id del GIF más viejo
     desalojado por haber llegado al límite del guild, o None si no hubo desalojo.
@@ -1873,6 +1898,13 @@ async def save_gif_url(
     gif_blocklist se aplica acá y no en cada llamador. Un GIF bloqueado
     devuelve (False, None), igual que "ya existía": el caller no debe tratarlo
     como error.
+
+    user_id identifica quién lo mandó (para el catálogo por persona del panel
+    y el link "ir al mensaje"); se registra en gif_senders tanto si el GIF es
+    nuevo en el guild como si ya estaba -- alguien puede volver a compartir un
+    GIF que otra persona ya había guardado, y esa segunda persona también
+    "lo mandó". channel_id/message_id quedan en NULL cuando no hay un mensaje
+    real detrás (alta manual vía /gif_add o el input del panel).
 
     El chequeo de gif_blocklist va DENTRO del mismo _db_lock que el insert,
     no antes: si se hiciera antes (como pasaba antes de este fix), un
@@ -1925,6 +1957,22 @@ async def save_gif_url(
             await _retain_gif_object(
                 db, content_hash, r2.gif_key(content_hash), size_bytes, fingerprint
             )
+        if user_id is not None:
+            async with db.execute(
+                "SELECT id FROM corpus_gifs WHERE guild_id=? AND url=?", (guild_id, u)
+            ) as cur:
+                gif_row = await cur.fetchone()
+            if gif_row:
+                await db.execute(
+                    "INSERT INTO gif_senders "
+                    "(gif_id, guild_id, user_id, channel_id, message_id, "
+                    "send_count, first_seen, last_seen) "
+                    "VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
+                    "ON CONFLICT(gif_id, user_id) DO UPDATE SET "
+                    "channel_id=excluded.channel_id, message_id=excluded.message_id, "
+                    "send_count=send_count+1, last_seen=CURRENT_TIMESTAMP",
+                    (gif_row[0], guild_id, user_id, channel_id, message_id),
+                )
         await db.commit()
     if evicted_id is not None:
         await release_gif_reference(evicted_hash, evicted_url)
@@ -1980,13 +2028,13 @@ async def block_gif(guild_id: int, content_hash: str | None, url: str) -> None:
     async with _db_lock:
         if content_hash:
             async with db.execute(
-                "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND content_hash=?",
+                "SELECT id, url, content_hash FROM corpus_gifs WHERE guild_id=? AND content_hash=?",
                 (guild_id, content_hash),
             ) as cur:
                 rows = await cur.fetchall()
         else:
             async with db.execute(
-                "SELECT url, content_hash FROM corpus_gifs WHERE guild_id=? AND url=?",
+                "SELECT id, url, content_hash FROM corpus_gifs WHERE guild_id=? AND url=?",
                 (guild_id, url),
             ) as cur:
                 rows = await cur.fetchall()
@@ -1999,14 +2047,18 @@ async def block_gif(guild_id: int, content_hash: str | None, url: str) -> None:
         if rows:
             await db.executemany(
                 "DELETE FROM corpus_gifs WHERE guild_id=? AND url=?",
-                [(guild_id, r[0]) for r in rows],
+                [(guild_id, r[1]) for r in rows],
+            )
+            await db.executemany(
+                "DELETE FROM gif_senders WHERE gif_id=?",
+                [(r[0],) for r in rows],
             )
         await db.commit()
 
     # Fuera de _db_lock y en serie (no gather): release_gif_reference toma el
     # lock ella misma, y dos decrementos del mismo content_hash tienen que ir
     # uno detrás del otro -- mismo motivo que wipe_gifs.
-    for row_url, row_hash in rows:
+    for _row_id, row_url, row_hash in rows:
         await release_gif_reference(row_hash, row_url)
 
 
@@ -2113,6 +2165,81 @@ async def list_gif_urls(guild_id: int) -> list[dict]:
     ]
 
 
+async def list_gif_senders_by_guild(guild_id: int) -> dict[int, list[dict]]:
+    """Remitentes de TODOS los GIFs del guild en una sola consulta (evita N+1
+    al armar el catálogo general del panel, que puede tener miles de GIFs).
+    Devuelve {gif_id: [{"user_id", "channel_id", "message_id", "send_count",
+    "last_seen"}, ...]}, cada lista ordenada por envío más reciente primero."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT gif_id, user_id, channel_id, message_id, send_count, last_seen "
+        "FROM gif_senders WHERE guild_id=? ORDER BY gif_id, last_seen DESC",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    result: dict[int, list[dict]] = {}
+    for gif_id, user_id, channel_id, message_id, send_count, last_seen in rows:
+        result.setdefault(gif_id, []).append(
+            {
+                "user_id": user_id,
+                "channel_id": channel_id,
+                "message_id": message_id,
+                "send_count": send_count,
+                "last_seen": last_seen,
+            }
+        )
+    return result
+
+
+async def list_gif_senders_summary(guild_id: int) -> list[dict]:
+    """Una fila por persona que mandó al menos un GIF todavía guardado en este
+    guild, con cuántos GIFs distintos mandó -- para el selector "por persona"
+    del catálogo. Ordenado de más a menos GIFs."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT gs.user_id, COUNT(DISTINCT gs.gif_id) AS gif_count "
+        "FROM gif_senders gs "
+        "JOIN corpus_gifs cg ON cg.id = gs.gif_id "
+        "WHERE gs.guild_id=? "
+        "GROUP BY gs.user_id ORDER BY gif_count DESC",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"user_id": r[0], "gif_count": r[1]} for r in rows]
+
+
+async def list_gifs_by_user(guild_id: int, user_id: int) -> list[dict]:
+    """GIFs que una persona puntual mandó en este guild (todavía guardados),
+    con los datos de su último envío para el link "ir al mensaje" y el
+    contador de veces que lo mandó."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT cg.id, cg.url, cg.created_at, cg.media_url, cg.last_health_check, "
+        "cg.content_hash, gs.channel_id, gs.message_id, gs.send_count, gs.last_seen "
+        "FROM corpus_gifs cg "
+        "JOIN gif_senders gs ON gs.gif_id = cg.id "
+        "WHERE cg.guild_id=? AND gs.guild_id=? AND gs.user_id=? "
+        "ORDER BY gs.last_seen DESC",
+        (guild_id, guild_id, user_id),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "url": r[1],
+            "created_at": r[2],
+            "media_url": r[3],
+            "last_health_check": r[4],
+            "content_hash": r[5],
+            "channel_id": r[6],
+            "message_id": r[7],
+            "send_count": r[8],
+            "last_seen": r[9],
+        }
+        for r in rows
+    ]
+
+
 async def get_gifs_for_health_check(
     guild_id: int | None = None, limit: int = 500
 ) -> list[dict]:
@@ -2199,6 +2326,7 @@ async def record_gif_health_check(gif_id: int, status: str) -> bool:
             return False
         streak, guild_id, url, content_hash = row
         await db.execute("DELETE FROM corpus_gifs WHERE id=?", (gif_id,))
+        await db.execute("DELETE FROM gif_senders WHERE gif_id=?", (gif_id,))
         await db.commit()
     log.warning(
         "Auto-borrado GIF #%s (guild=%s, url=%s): %s chequeos 'dead' seguidos",
@@ -2303,6 +2431,8 @@ async def delete_gif_url_by_id(guild_id: int, gif_id: int) -> bool:
             (guild_id, gif_id),
         )
         deleted = cursor.rowcount > 0
+        if deleted:
+            await db.execute("DELETE FROM gif_senders WHERE gif_id=?", (gif_id,))
         await db.commit()
 
     if deleted:

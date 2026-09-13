@@ -169,7 +169,10 @@ from db import (
     list_frase_channels,
     list_frase_packs,
     list_frases_especiales,
+    list_gif_senders_by_guild,
+    list_gif_senders_summary,
     list_gif_urls,
+    list_gifs_by_user,
     list_guild_triggers,
     list_ignored_channels,
     list_mention_channels,
@@ -759,6 +762,46 @@ def _channel_name(guild, channel_id: int | None) -> str | None:
     return getattr(guild.get_channel(channel_id), "name", None)
 
 
+def _member_brief(request: web.Request, guild, user_id: int) -> dict:
+    """Nombre + avatar para mostrar un user_id en el panel (remitentes de
+    GIFs). Mismo fallback member -> user en caché que ya usan
+    _api_excluded_users_get/_api_members_search, sin fetch_member remoto: acá
+    se llama en lote (uno por remitente distinto), no para un usuario puntual."""
+    member = guild.get_member(user_id) if guild else None
+    if member:
+        return {
+            "user_id": str(user_id),
+            "user_name": member.display_name,
+            "avatar_url": str(member.display_avatar.url)
+            if member.display_avatar
+            else None,
+        }
+    user_obj = request.app["bot"].get_user(user_id)
+    if user_obj:
+        return {
+            "user_id": str(user_id),
+            "user_name": user_obj.display_name,
+            "avatar_url": str(user_obj.display_avatar.url)
+            if user_obj.display_avatar
+            else None,
+        }
+    return {
+        "user_id": str(user_id),
+        "user_name": f"Usuario ({user_id})",
+        "avatar_url": None,
+    }
+
+
+def _gif_message_url(
+    guild_id: int, channel_id: int | None, message_id: int | None
+) -> str | None:
+    """Link directo al mensaje de origen de un GIF -- None cuando se agregó a
+    mano (/gif_add o el input del panel) y no hay mensaje real al que ir."""
+    if not channel_id or not message_id:
+        return None
+    return f"https://discord.com/channels/{guild_id}/{channel_id}/{message_id}"
+
+
 # ---------------- GIF API ----------------
 
 
@@ -770,7 +813,10 @@ async def _gif_add_impl(request: web.Request, guild_id: int) -> web.Response:
     url = (data.get("url") or "").strip() if data else ""
     if not url or not _valid_gif_url(url):
         return web.json_response({"error": "url inválida o no permitida"}, status=400)
-    inserted, evicted_id = await save_gif_url(guild_id, url)
+    session = await get_session(request)
+    inserted, evicted_id = await save_gif_url(
+        guild_id, url, user_id=int(session["user_id"])
+    )
     total = await count_gif_urls(guild_id)
     resp = {"inserted": inserted, "total": total}
     if inserted:
@@ -2731,6 +2777,19 @@ async def _api_server_gifs_get(request: web.Request, guild_id: int) -> web.Respo
     # `limit` da el denominador del contador de la pestaña, y `auto_removed_30d`
     # los GIFs que el chequeo de salud sacó solo: sin esto desaparecían sin
     # ningún rastro visible y era indistinguible de un bug.
+    senders_by_gif = await list_gif_senders_by_guild(guild_id)
+    guild = _bot_guild(request, guild_id)
+    for gif in gifs:
+        gif["senders"] = [
+            {
+                **_member_brief(request, guild, s["user_id"]),
+                "message_url": _gif_message_url(
+                    guild_id, s["channel_id"], s["message_id"]
+                ),
+                "send_count": s["send_count"],
+            }
+            for s in senders_by_gif.get(gif["id"], [])
+        ]
     return web.json_response(
         {
             "gifs": gifs,
@@ -2739,6 +2798,43 @@ async def _api_server_gifs_get(request: web.Request, guild_id: int) -> web.Respo
             "auto_removed_30d": await count_audit_action(
                 guild_id, "gifs.auto_removed", days=30
             ),
+        }
+    )
+
+
+@guild_api
+async def _api_server_gifs_senders_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    """Personas que mandaron al menos un GIF todavía guardado, para el
+    selector "por persona" del catálogo."""
+    summary = await list_gif_senders_summary(guild_id)
+    guild = _bot_guild(request, guild_id)
+    senders = [
+        {**_member_brief(request, guild, s["user_id"]), "gif_count": s["gif_count"]}
+        for s in summary
+    ]
+    return web.json_response({"senders": senders})
+
+
+@guild_api
+async def _api_server_gifs_by_user_get(
+    request: web.Request, guild_id: int
+) -> web.Response:
+    user_id = _to_int(request.match_info.get("user_id"))
+    if user_id is None:
+        return web.json_response({"error": "user_id inválido"}, status=400)
+    gifs = await list_gifs_by_user(guild_id, user_id)
+    for gif in gifs:
+        gif["message_url"] = _gif_message_url(
+            guild_id, gif.pop("channel_id"), gif.pop("message_id")
+        )
+    guild = _bot_guild(request, guild_id)
+    return web.json_response(
+        {
+            "user": _member_brief(request, guild, user_id),
+            "gifs": gifs,
+            "total": len(gifs),
         }
     )
 
@@ -5957,6 +6053,12 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_put(f"{base}/settings/prefix", _api_prefix_put)
         app.router.add_get(f"{base}/settings/gifs", _api_server_gifs_get)
         app.router.add_post(f"{base}/settings/gifs", _api_server_gifs_post)
+        app.router.add_get(
+            f"{base}/settings/gifs/senders", _api_server_gifs_senders_get
+        )
+        app.router.add_get(
+            f"{base}/settings/gifs/by-user/{{user_id}}", _api_server_gifs_by_user_get
+        )
         app.router.add_delete(
             f"{base}/settings/gifs/{{gif_id}}", _api_server_gifs_delete
         )
