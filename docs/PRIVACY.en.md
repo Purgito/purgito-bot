@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** August 16, 2026
+**Last updated:** September 14, 2026
 
 This Policy describes how **Purgito** collects, uses, stores, and protects the information it needs to provide its features.
 
@@ -43,9 +43,11 @@ The bot may store:
 
 - Image URLs.
 - GIF URLs.
-- Media files needed for the GIF gallery and meme collection features.
+- Media files needed for the GIF gallery, meme collection, and announcement/embed template features.
 
 Where applicable, these files may be stored persistently via Cloudflare R2.
+
+For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The admin panel shows this in the GIF catalog — with a direct link to the original message and a filter to see one person's GIFs — visible to the server's admins.
 
 ---
 
@@ -129,6 +131,18 @@ Purgito uses external services for certain features. Each provider processes onl
 - **Local fallback**: If Groq isn't configured, unavailable, or fails, caption generation happens 100% locally via Markov chains.
 - **Advertising**: Data sent to Groq for this feature isn't used by Purgito for advertising or data sale.
 
+## Twitch API (live stream notifications)
+
+- **What it is and what it's used for**: Twitch is the streaming platform whose API is queried, optionally, to post in a Discord channel when a Twitch channel an admin configured goes live.
+- **What's sent**: No information about the server's users. The bot uses its own application credentials (not any Discord user's) to query public Twitch data, such as whether a channel is live and the stream title.
+- **When it's used**: Only if the bot's operator configured `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET`; otherwise the feature stays disabled.
+
+## Social media video download (`!dl`)
+
+- **What it is and what it's used for**: The `!dl` command downloads a public video from Instagram, TikTok, or Twitter/X from a link a user pastes, and uploads it to the same Discord channel.
+- **What's processed**: Only the pasted URL and the video downloaded from it. The file is saved to a temporary process directory and deleted immediately after being sent to the channel — it isn't stored persistently or uploaded to Cloudflare R2.
+- **Responsibility**: Purgito doesn't verify whether whoever pastes the link has the right to redistribute that content (see "Redistributed third-party content" in the Terms of Service).
+
 ## Payments and infrastructure
 
 - **Polar.sh**: Payment processor and Merchant of Record for Premium subscriptions. See its [Privacy Policy](https://polar.sh/legal/privacy).
@@ -161,13 +175,19 @@ The `/borrar_mis_datos` command, available to anyone on any server where Purgito
 
 Your original Discord messages aren't affected: this only deletes the copy Purgito saved to learn your writing style. Since this is irreversible, the command asks for explicit confirmation before running the deletion.
 
-This deletion is specifically for the message-learning data described above, and doesn't automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server's pool, or your own entries in the panel's audit log if you're an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see "Contact").
+This deletion is specifically for the message-learning data described above, and doesn't automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server's pool, your entry as a sender in the GIF catalog, or your own entries in the panel's audit log if you're an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see "Contact").
+
+---
+
+## Downloading your own data (portability)
+
+Any user can also request a copy of their own information with the `/mis_datos` command, available on any server where Purgito is present. It generates a JSON file with your saved writing style and the messages Purgito learned from you, grouped by server, and sends it to you privately. It's the read-only counterpart to `/borrar_mis_datos`: it doesn't delete anything.
 
 ---
 
 # 5. User rights
 
-Any user can delete their own information at any time using the `/borrar_mis_datos` command (see section 4), without needing to be a server admin.
+Any user can delete their own information at any time using the `/borrar_mis_datos` command, and download a copy with `/mis_datos` (see section 4) — both without needing to be a server admin.
 
 Server admins also have their own tools to control data collection for their community (see section 4), including the ability to exclude specific users: independently, they can mark that Purgito shouldn't interact with a user (no replies, reactions, or triggers) and/or shouldn't learn from their messages (not used for the corpus or the impersonation feature).
 

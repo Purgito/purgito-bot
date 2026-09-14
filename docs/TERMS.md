@@ -1,6 +1,6 @@
 # Condiciones del Servicio (Terms of Service)
 
-**Última actualización:** 15 de agosto de 2026
+**Última actualización:** 14 de septiembre de 2026
 
 Al invitar **Purgito** a un servidor de Discord o interactuar con él, aceptas los presentes Términos del Servicio, así como los [Términos de Servicio](https://discord.com/terms) y la [Política de Privacidad](https://discord.com/privacy) de Discord.
 
@@ -43,6 +43,12 @@ Debido a la naturaleza probabilística de estos sistemas:
 - El desarrollador no revisa manualmente cada respuesta o meme generado por el bot.
 
 Los administradores del servidor son responsables de moderar el uso del bot dentro de su comunidad.
+
+## Contenido de terceros redistribuido (`!dl`)
+
+El comando `!dl` descarga un video público de Instagram, TikTok o Twitter/X a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
+
+Purgito no verifica la titularidad de derechos de ese contenido: es responsabilidad de quien usa el comando tener derecho a redistribuirlo. El desarrollador puede desactivar esta función en cualquier momento, sin previo aviso, ante un cambio en los términos de esos sitios o un reclamo de derechos de autor.
 
 ---
 

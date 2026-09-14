@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 16 de agosto de 2026
+**Última actualización:** 14 de septiembre de 2026
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.
 
@@ -43,9 +43,11 @@ El bot puede almacenar:
 
 - URLs de imágenes.
 - URLs de GIFs.
-- Archivos multimedia necesarios para las funciones de la galería de GIFs y la colección de memes.
+- Archivos multimedia necesarios para las funciones de la galería de GIFs, la colección de memes y las plantillas de anuncios/embeds.
 
 Cuando corresponde, dichos archivos pueden almacenarse de forma persistente mediante Cloudflare R2.
+
+Para cada GIF guardado en la galería, el bot registra además quién lo mandó: ID de usuario, canal y mensaje de origen, y cuántas veces lo compartió (incluye el caso de volver a compartir un GIF que otra persona ya había guardado). El panel de administración muestra este dato en el catálogo de GIFs — con link directo al mensaje original y un filtro para ver los GIFs de una persona en particular — visible para los administradores del servidor.
 
 ---
 
@@ -129,6 +131,18 @@ Purgito utiliza servicios externos para determinadas funciones. Cada proveedor p
 - **Fallback local**: Si Groq no está configurado, no está disponible o falla, la generación del caption se realiza 100% de forma local mediante cadenas de Markov.
 - **Publicidad**: Los datos transmitidos a Groq en esta función no son utilizados por Purgito con fines publicitarios ni de venta de datos.
 
+## Twitch API (avisos de transmisiones en vivo)
+
+- **Qué es y para qué se utiliza**: Twitch es la plataforma de streaming cuya API se consulta, de forma opcional, para avisar en un canal de Discord cuando un canal de Twitch configurado por un administrador empieza una transmisión en vivo.
+- **Qué se envía**: Ninguna información de los usuarios del servidor. El bot usa credenciales propias de la aplicación (no de ningún usuario de Discord) para consultar datos públicos de Twitch, como si el canal está en vivo y el título del stream.
+- **Cuándo interviene**: Únicamente si el operador del bot configuró `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET`; si no, la función queda desactivada.
+
+## Descarga de video de redes sociales (`!dl`)
+
+- **Qué es y para qué se utiliza**: El comando `!dl` descarga un video público de Instagram, TikTok o Twitter/X a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
+- **Qué se procesa**: Únicamente la URL pegada y el video descargado de esa URL. El archivo se guarda en un directorio temporal del proceso y se borra inmediatamente después de enviarlo al canal — no se almacena de forma persistente ni se sube a Cloudflare R2.
+- **Responsabilidad**: Purgito no verifica si quien pega el link tiene derecho a redistribuir ese contenido (ver "Contenido de terceros redistribuido" en las Condiciones del Servicio).
+
 ## Pagos e infraestructura
 
 - **Polar.sh**: Procesador de pagos y Merchant of Record para las suscripciones premium. Ver su [Política de Privacidad](https://polar.sh/legal/privacy).
@@ -161,13 +175,19 @@ El comando `/borrar_mis_datos`, disponible para cualquier persona en cualquier s
 
 Tus mensajes originales de Discord no se ven afectados: esto borra únicamente la copia que Purgito guardó para aprender de tu forma de escribir. Por tratarse de una acción irreversible, el comando pide una confirmación explícita antes de ejecutar el borrado.
 
-Este borrado está pensado específicamente para los datos de aprendizaje de mensajes descritos arriba, y no cubre automáticamente otras categorías que puedas haber generado en un servidor — por ejemplo, GIFs o imágenes que hayas aportado al pool del servidor, o tu propia aparición en el registro de auditoría del panel si eres administrador — ya que esas quedan asociadas al servidor donde se generaron, no solo a tu cuenta. Si quieres pedir la eliminación de alguna de ellas, puedes contactar al desarrollador (ver "Contacto").
+Este borrado está pensado específicamente para los datos de aprendizaje de mensajes descritos arriba, y no cubre automáticamente otras categorías que puedas haber generado en un servidor — por ejemplo, GIFs o imágenes que hayas aportado al pool del servidor, tu registro como remitente en el catálogo de GIFs, o tu propia aparición en el registro de auditoría del panel si eres administrador — ya que esas quedan asociadas al servidor donde se generaron, no solo a tu cuenta. Si quieres pedir la eliminación de alguna de ellas, puedes contactar al desarrollador (ver "Contacto").
+
+---
+
+## Descargar tus propios datos (portabilidad)
+
+Cualquier usuario puede además pedir una copia de su propia información con el comando `/mis_datos`, disponible en cualquier servidor donde esté Purgito. Genera un archivo JSON con tu estilo de escritura guardado y los mensajes que Purgito aprendió de ti, agrupados por servidor, y te lo manda de forma privada. Es el complemento de solo lectura de `/borrar_mis_datos`: no borra nada.
 
 ---
 
 # 5. Derechos de los usuarios
 
-Cualquier usuario puede eliminar su propia información en cualquier momento usando el comando `/borrar_mis_datos` (ver sección 4), sin necesidad de ser administrador de ningún servidor.
+Cualquier usuario puede eliminar su propia información en cualquier momento usando el comando `/borrar_mis_datos`, y descargar una copia con `/mis_datos` (ver sección 4) — ambos sin necesidad de ser administrador de ningún servidor.
 
 Los administradores del servidor además disponen de herramientas propias para controlar la recopilación de datos de su comunidad (ver sección 4), incluyendo la posibilidad de excluir a usuarios específicos: de forma independiente, pueden marcar que Purgito no interactúe con ese usuario (no le responda, reaccione ni dispare triggers) y/o que no aprenda de sus mensajes (no los use para el corpus ni para la función de imitación).
 

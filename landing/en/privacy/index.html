@@ -347,7 +347,7 @@
 <main id="contenido" class="doc wrap">
   <header class="doc-head">
     <h1 class="doc-title">Privacy Policy</h1>
-    <p class="doc-date">Last updated: August 16, 2026</p>
+    <p class="doc-date">Last updated: September 14, 2026</p>
     <div class="doc-body doc-intro">
 <p>This Policy describes how <strong>Purgito</strong> collects, uses, stores, and protects the information it needs to provide its features.</p>
 <p>Purgito is a public Discord bot used by multiple servers. The data we collect and how we handle it are the same for every server where the bot is present.</p>
@@ -381,8 +381,9 @@
 <p>Channels marked <strong>NSFW</strong> in Discord are always excluded from this learning: Purgito never stores messages from an NSFW channel, with no exception and no way to manually enable it for the corpus. If a channel that was already enabled for the corpus gets marked NSFW later, the history already saved from that channel is purged immediately.</p>
 <h3>Media</h3>
 <p>The bot may store:</p>
-<ul><li>Image URLs.</li><li>GIF URLs.</li><li>Media files needed for the GIF gallery and meme collection features.</li></ul>
+<ul><li>Image URLs.</li><li>GIF URLs.</li><li>Media files needed for the GIF gallery, meme collection, and announcement/embed template features.</li></ul>
 <p>Where applicable, these files may be stored persistently via Cloudflare R2.</p>
+<p>For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The admin panel shows this in the GIF catalog — with a direct link to the original message and a filter to see one person&#x27;s GIFs — visible to the server&#x27;s admins.</p>
 <h3>Display name</h3>
 <p>A user&#x27;s Display Name may be stored alongside certain messages to enable features like user impersonation.</p>
 <h3>Logging in to the web panel</h3>
@@ -418,6 +419,10 @@
 <ul><li><strong>Discord</strong>: For platform communication, receiving events, authentication, and sending messages.</li><li><strong>Cloudflare R2</strong>: For persistent storage of media files (images in the server&#x27;s meme pool and GIFs uploaded to the gallery).</li></ul>
 <h3>Groq API (AI meme captions)</h3>
 <ul><li><strong>What it is and what it&#x27;s used for</strong>: Groq is an external AI model inference provider (vision and language) used optionally and exclusively to analyze images and write captions in the meme feature.</li><li><strong>What data may be sent</strong>: The image used for the meme (base64-encoded) and a limited sample of the server&#x27;s corpus (up to a maximum of 25 short messages and 15 long messages, as a reference for vocabulary and tone).</li><li><strong>When it&#x27;s used</strong>: Only when a meme is requested or generated (<code class="cmd">/momo</code> command, image-trigger reply, or scheduled meme), and only when the <code class="cmd">GROQ_API_KEY</code> has been configured by the bot&#x27;s operator.</li><li><strong>Narrow scope</strong>: Groq doesn&#x27;t process regular chat conversations and doesn&#x27;t receive any server&#x27;s full corpus. Purgito&#x27;s general conversation runs 100% locally.</li><li><strong>Local fallback</strong>: If Groq isn&#x27;t configured, unavailable, or fails, caption generation happens 100% locally via Markov chains.</li><li><strong>Advertising</strong>: Data sent to Groq for this feature isn&#x27;t used by Purgito for advertising or data sale.</li></ul>
+<h3>Twitch API (live stream notifications)</h3>
+<ul><li><strong>What it is and what it&#x27;s used for</strong>: Twitch is the streaming platform whose API is queried, optionally, to post in a Discord channel when a Twitch channel an admin configured goes live.</li><li><strong>What&#x27;s sent</strong>: No information about the server&#x27;s users. The bot uses its own application credentials (not any Discord user&#x27;s) to query public Twitch data, such as whether a channel is live and the stream title.</li><li><strong>When it&#x27;s used</strong>: Only if the bot&#x27;s operator configured <code class="cmd">TWITCH_CLIENT_ID</code>/<code class="cmd">TWITCH_CLIENT_SECRET</code>; otherwise the feature stays disabled.</li></ul>
+<h3>Social media video download (<code class="cmd">!dl</code>)</h3>
+<ul><li><strong>What it is and what it&#x27;s used for</strong>: The <code class="cmd">!dl</code> command downloads a public video from Instagram, TikTok, or Twitter/X from a link a user pastes, and uploads it to the same Discord channel.</li><li><strong>What&#x27;s processed</strong>: Only the pasted URL and the video downloaded from it. The file is saved to a temporary process directory and deleted immediately after being sent to the channel — it isn&#x27;t stored persistently or uploaded to Cloudflare R2.</li><li><strong>Responsibility</strong>: Purgito doesn&#x27;t verify whether whoever pastes the link has the right to redistribute that content (see &quot;Redistributed third-party content&quot; in the Terms of Service).</li></ul>
 <h3>Payments and infrastructure</h3>
 <ul><li><strong>Polar.sh</strong>: Payment processor and Merchant of Record for Premium subscriptions. See its <a href="https://polar.sh/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</li><li>Other infrastructure services strictly necessary for the bot to operate.</li></ul>
     </div>
@@ -435,13 +440,15 @@
 <p>The <code class="cmd">/borrar_mis_datos</code> command, available to anyone on any server where Purgito is present, permanently and immediately deletes, across <strong>every</strong> server where you&#x27;ve written:</p>
 <ul><li>Your writing style saved for the impersonation feature (<code class="cmd">/imitar</code>).</li><li>The messages Purgito learned from you to generate text.</li></ul>
 <p>Your original Discord messages aren&#x27;t affected: this only deletes the copy Purgito saved to learn your writing style. Since this is irreversible, the command asks for explicit confirmation before running the deletion.</p>
-<p>This deletion is specifically for the message-learning data described above, and doesn&#x27;t automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server&#x27;s pool, or your own entries in the panel&#x27;s audit log if you&#x27;re an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see &quot;Contact&quot;).</p>
+<p>This deletion is specifically for the message-learning data described above, and doesn&#x27;t automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server&#x27;s pool, your entry as a sender in the GIF catalog, or your own entries in the panel&#x27;s audit log if you&#x27;re an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see &quot;Contact&quot;).</p>
+<h3>Downloading your own data (portability)</h3>
+<p>Any user can also request a copy of their own information with the <code class="cmd">/mis_datos</code> command, available on any server where Purgito is present. It generates a JSON file with your saved writing style and the messages Purgito learned from you, grouped by server, and sends it to you privately. It&#x27;s the read-only counterpart to <code class="cmd">/borrar_mis_datos</code>: it doesn&#x27;t delete anything.</p>
     </div>
   </section>
   <section class="box doc-sec" id="seccion-5">
     <h2 class="doc-sec-title">5. User rights</h2>
     <div class="doc-body">
-<p>Any user can delete their own information at any time using the <code class="cmd">/borrar_mis_datos</code> command (see section 4), without needing to be a server admin.</p>
+<p>Any user can delete their own information at any time using the <code class="cmd">/borrar_mis_datos</code> command, and download a copy with <code class="cmd">/mis_datos</code> (see section 4) — both without needing to be a server admin.</p>
 <p>Server admins also have their own tools to control data collection for their community (see section 4), including the ability to exclude specific users: independently, they can mark that Purgito shouldn&#x27;t interact with a user (no replies, reactions, or triggers) and/or shouldn&#x27;t learn from their messages (not used for the corpus or the impersonation feature).</p>
 <p>If you believe there&#x27;s information that should be deleted and isn&#x27;t covered by these self-service tools, or you have questions about how data is handled, you can contact the developer.</p>
 <p>Where technically possible, reasonable deletion requests will be honored.</p>
