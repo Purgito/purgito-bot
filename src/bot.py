@@ -89,11 +89,22 @@ async def get_prefix(_bot: commands.Bot, message: discord.Message) -> list[str]:
     ("purgito ", de config.BOT_TRIGGER_NAME) -- mismo trigger que ya usa el
     texto de memes ("purgito generar"), así no hay un segundo concepto de
     "palabra mágica" por separado. Fuera de un guild (DM) solo el símbolo
-    default: no hay guild_id para resolver un custom_prefix."""
+    default: no hay guild_id para resolver un custom_prefix.
+
+    El prefijo de palabra se busca sin importar mayúsculas/minúsculas (igual
+    que is_meme_trigger en cogs/memes.py) pero se devuelve con el casing
+    exacto que escribió el usuario ("Purgito dl", "PURGITO dl", etc.):
+    discord.py compara cada prefijo devuelto contra message.content con un
+    startswith case-sensitive, así que un "purgito " fijo en minúsculas
+    dejaría afuera cualquier variante con mayúsculas."""
     symbol = DEFAULT_COMMAND_PREFIX
     if message.guild is not None:
         symbol = await get_guild_prefix(message.guild.id) or DEFAULT_COMMAND_PREFIX
-    return [symbol, f"{config.BOT_TRIGGER_NAME} "]
+    word_prefix = f"{config.BOT_TRIGGER_NAME} "
+    content = message.content or ""
+    if content.lower().startswith(word_prefix):
+        word_prefix = content[: len(word_prefix)]
+    return [symbol, word_prefix]
 
 
 bot = PurgitoBot(command_prefix=get_prefix, intents=intents)

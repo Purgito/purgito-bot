@@ -3,9 +3,13 @@ sube al mismo canal.
 
 Se invoca con cualquiera de los dos prefijos que resuelve bot.py:get_prefix
 -- el símbolo (custom por guild, default "!") o la palabra fija ("purgito
-dl <link>"). YouTube queda deliberadamente afuera: bloquea activamente la
-descarga por fuera del navegador (throttling, a veces pide cookies de
-sesión) -- ver discusión en el PR.
+dl <link>", sin importar mayúsculas/minúsculas: bot.py:get_prefix devuelve
+el prefijo con el casing exacto que escribió el usuario). Si el comando se
+invoca sin link propio pero respondiendo a un mensaje, usa el link de ese
+mensaje (_reply_target_url) -- así alcanza con "purgito dl" en respuesta a
+un mensaje que ya tiene el video. YouTube queda deliberadamente afuera:
+bloquea activamente la descarga por fuera del navegador (throttling, a
+veces pide cookies de sesión) -- ver discusión en el PR.
 
 Nada de SSRF nuevo acá pese a que yt-dlp termina haciendo requests de red a
 partir de un link que manda el usuario: a diferencia de r2.py (que sí
@@ -167,6 +171,30 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
     return path, is_sensitive
 
 
+async def _reply_target_url(ctx: commands.Context) -> str | None:
+    """Si el comando se invocó sin link propio pero respondiendo a un
+    mensaje, busca un link ahí -- así "purgito dl" alcanza como respuesta a
+    un mensaje con un video, sin tener que repetir la URL. `resolved` ya
+    viene poblado en la mayoría de los casos (Discord lo manda junto con el
+    mensaje de reply), pero si no -- mensaje viejo fuera de caché -- se
+    busca con un fetch aparte."""
+    reference = ctx.message.reference
+    if reference is None:
+        return None
+    resolved = reference.resolved
+    if isinstance(resolved, discord.DeletedReferencedMessage):
+        return None
+    if resolved is None:
+        if reference.message_id is None:
+            return None
+        try:
+            resolved = await ctx.channel.fetch_message(reference.message_id)
+        except discord.HTTPException:
+            return None
+    match = _URL_RE.search(resolved.content or "")
+    return match.group(0) if match else None
+
+
 class Download(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -177,10 +205,10 @@ class Download(commands.Cog):
     async def dl(self, ctx: commands.Context, *, url: str | None = None):
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
         match = _URL_RE.search(url or "")
-        if not match:
+        link = match.group(0) if match else await _reply_target_url(ctx)
+        if not link:
             await ctx.reply(t("download.dl.missing_url", locale))
             return
-        link = match.group(0)
         if not _is_supported_url(link):
             await ctx.reply(t("download.dl.unsupported_site", locale))
             return
