@@ -47,6 +47,35 @@ porque el comportamiento de "lista vacía" es asimétrico entre columnas (ver
 `spontaneous_channels`/`mention_channels` vs. `corpus_allowed_channels` en
 `CLAUDE.md`) — no adivinable mirando la tabla sola.
 
+Filtro (`channelMatrix`, dash.js): input de texto por nombre + checkbox
+"Solo configurados" (un canal cuenta si `cols.some(c => c.isSelected(id))`),
+combinables. Si el filtro no deja ninguna fila visible se muestra
+`emptyState('Ningún canal coincide con el filtro.')` en vez de dejar la tabla
+en blanco sin explicación. `applyFilter()` se vuelve a llamar después de
+cada cambio de checkbox de la matriz (no solo al tipear), porque "Solo
+configurados" depende de ese estado.
+
+## Estados vacíos y de carga
+
+- **Una línea, tono atenuado**: `emptyState(msg)` (core/dom.js) — para avisos
+  breves ("Todavía no hay GIFs guardados…"). Es el default; no le agregues
+  ícono ni card a menos que el contexto lo pida.
+- **Ícono + título + descripción (+ acción opcional)**: `richEmptyState({icon,
+  title, desc, action})` (core/dom.js) — para un módulo vacío que merece más
+  contexto que una línea (Anuncios sin ningún anuncio, Playground sin
+  canales utilizables). Antes existían `.sim-empty-state` (playground) y
+  `.empty-state-card` (anuncios) duplicando el mismo layout con nombres
+  distintos; ahora es un único componente sobre `.card.empty-state-card`.
+- **Spinner solo**: `spinner()` — carga de una sección completa (reemplaza
+  todo el contenido de la caja mientras se pide al backend).
+- **Spinner + mensaje en card**: `loadingCard(msg)` — espera localizada que
+  no reemplaza toda la sección (ej. el resultado del simulador de CHAT
+  mientras corre una simulación), donde un spinner solo no explica qué está
+  pasando.
+
+No dupliques estos patrones bajo un nombre nuevo por módulo (`sim-*`,
+`*-card` ad hoc) — si el layout ya existe acá, importalo.
+
 ## Override por canal — mostrar el valor, no explicar de dónde sale
 
 `channelOverrideRow` (dash.js:547): el estado hereda/propio ya lo carga el
@@ -74,6 +103,25 @@ con una única ubicación coherente y canónica.
 - **Móviles (`<= 860px`)**: Se presenta mediante un selector desplegable accesible (`.dash-mobile-nav-toggle`),
   optimizando el espacio en pantallas pequeñas.
 
+## Borrado con deshacer
+
+`confirmDelBtn` (dom.js) pide confirmar en dos pasos antes de ejecutar una
+baja; eso evita el click accidental, pero hasta ahora una vez confirmada la
+baja era instantánea e irreversible. `undoableDelete(row, {message,
+onDelete, errorMessage})` (core/dom.js) agrega la segunda red: al confirmar,
+la fila se atenúa (`.is-pending-delete`) y un toast con acción "Deshacer"
+da unos segundos antes de recién ahí llamar a `onDelete` (el DELETE real).
+Deshacer solo cancela el temporizador y restaura la fila — nunca se llegó a
+tocar el backend, así que no hace falta un endpoint de "restaurar".
+
+En uso: frases y triggers (con `confirmDelBtn` + `undoableDelete` en
+cadena) y los chips de la colección de reacciones (un solo click, sin
+`confirmDelBtn` — perder un emoji es trivial de deshacer). Los packs de
+frases quedan solo con `confirmDelBtn`, sin `undoableDelete`: borrar un pack
+mueve sus frases al pool default del servidor, un efecto que "deshacer" no
+podría revertir limpiamente sin lógica de backend extra — ofrecer un botón
+de deshacer que no deshace todo sería peor que no ofrecerlo.
+
 ## Regla de uso de ⓘ (`helpIcon`)
 
 Un tooltip se agrega solo si su ausencia puede llevar a una decisión
@@ -84,6 +132,7 @@ un campo llamado "Roles exentos del límite" no necesita un ⓘ aclarando que
 
 ## Backlog (no implementar todavía — anotado para cuando duela)
 
-- **Canales → matriz**: con muchos canales (ej. 100) pierde legibilidad.
-  Eventualmente necesita búsqueda/filtro, quizás un toggle "solo
-  configurados".
+- **Canales → matriz**: filtro de texto + toggle "solo configurados" ya
+  implementados (ver arriba). Con cientos de canales el registro completo
+  igual se sigue enviando al cliente entero — si eso duele, el siguiente
+  paso es paginar o virtualizar la lista, no el filtro en sí.

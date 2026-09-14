@@ -7,8 +7,8 @@
 
 import { apiFetch, humanError } from '/js/core/api.js';
 import {
-  el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
-  confirmDelBtn, helpIcon, accordionGroup,
+  el, icon, spinner, emptyState, richEmptyState, loadingCard, renderError, guildIcon, toast, formGroup,
+  confirmDelBtn, undoableDelete, helpIcon, accordionGroup,
 } from '/js/core/dom.js';
 import {
   GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
@@ -2147,13 +2147,11 @@ async function loadPlaygroundModule() {
           el('p', { class: 'dim' },
             t('dash.playground.moduleDesc')
           ),
-          el('div', { class: 'sim-empty-state' },
-            el('div', { class: 'sim-empty-state-icon' }, icon('lock')),
-            el('h3', { class: 'sim-empty-state-title' }, t('dash.playground.noChannels')),
-            el('p', { class: 'sim-empty-state-desc' },
-              t('dash.playground.noChannelsDesc')
-            )
-          )
+          richEmptyState({
+            icon: 'lock',
+            title: t('dash.playground.noChannels'),
+            desc: t('dash.playground.noChannelsDesc'),
+          })
         )
       );
       return;
@@ -2245,12 +2243,7 @@ async function loadPlaygroundModule() {
 
       // Solo cambia el resultado: loading localizado sin provocar scroll jumps ni recrear la página
       resultSlot.innerHTML = '';
-      resultSlot.append(
-        el('div', { class: 'sim-card sim-result-loading-card' },
-          spinner(),
-          el('div', { class: 'sim-result-loading-text' }, t('dash.playground.simulatingSpontaneous'))
-        )
-      );
+      resultSlot.append(loadingCard(t('dash.playground.simulatingSpontaneous')));
 
       try {
         const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
@@ -3605,7 +3598,14 @@ function channelMatrix({ channels, cols, openOverrides }) {
   const filter = el('input', {
     type: 'search', placeholder: 'Filtrar canales…', class: 'chan-filter', autocomplete: 'off',
   });
+  const onlyConfigured = el('input', { type: 'checkbox' });
+  const filterBar = el('div', { class: 'chan-filter-bar' },
+    filter,
+    el('label', { class: 'chan-filter-toggle' }, onlyConfigured, 'Solo configurados'));
   const body = el('div', { class: 'chan-matrix-body' });
+  const noResults = emptyState('Ningún canal coincide con el filtro.');
+  noResults.classList.add('chan-matrix-no-results');
+  noResults.hidden = true;
 
   const head = el('div', { class: 'chan-matrix-head' },
     el('span', {}, 'Canal'),
@@ -3647,6 +3647,7 @@ function channelMatrix({ channels, cols, openOverrides }) {
             box.checked = !on;
             toast('No se pudo guardar, intenta de nuevo', 'err');
           }
+          applyFilter();
         };
         return el('label', { class: 'chan-matrix-cell', title: c.short }, box);
       }),
@@ -3656,12 +3657,24 @@ function channelMatrix({ channels, cols, openOverrides }) {
 
   const items = channels.map(ch => ({ ch, node: rowFor(ch) }));
   for (const it of items) body.append(it.node);
-  filter.oninput = () => {
-    const q = filter.value.trim().toLowerCase();
-    for (const it of items) it.node.hidden = q && !(it.ch.name || '').toLowerCase().includes(q);
-  };
 
-  wrap.append(filter, head, body);
+  function applyFilter() {
+    const q = filter.value.trim().toLowerCase();
+    let anyVisible = false;
+    for (const it of items) {
+      const matchesText = !q || (it.ch.name || '').toLowerCase().includes(q);
+      const matchesConfigured = !onlyConfigured.checked || cols.some(c => c.isSelected(it.ch.id));
+      const visible = matchesText && matchesConfigured;
+      it.node.hidden = !visible;
+      if (visible) anyVisible = true;
+    }
+    noResults.hidden = anyVisible || !items.length;
+  }
+  filter.oninput = applyFilter;
+  onlyConfigured.onchange = applyFilter;
+  applyFilter();
+
+  wrap.append(filterBar, head, body, noResults);
   return wrap;
 }
 
@@ -4262,26 +4275,26 @@ async function renderReacciones(box, pool) {
     for (const r of poolList) {
       const parsed = parseEmojiText(r.emoji_text);
       if (parsed.isCustom) {
-        poolContainer.append(el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
+        const chip = el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
           el('img', { src: parsed.url, alt: parsed.name, class: 'emoji-chip-img', loading: 'lazy' }),
-          el('span', { class: 'emoji-chip-name' }, parsed.name),
-          el('button', {
-            type: 'button',
-            class: 'emoji-chip-x',
-            'aria-label': `Quitar :${parsed.name}:`,
-            onclick: () => removeReaction(box, r.id),
-          }, '✕')
-        ));
+          el('span', { class: 'emoji-chip-name' }, parsed.name));
+        chip.append(el('button', {
+          type: 'button',
+          class: 'emoji-chip-x',
+          'aria-label': `Quitar :${parsed.name}:`,
+          onclick: () => removeReactionChip(box, chip, r.id),
+        }, '✕'));
+        poolContainer.append(chip);
       } else {
-        poolContainer.append(el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
-          el('span', { class: 'emoji-chip-char' }, r.emoji_text),
-          el('button', {
-            type: 'button',
-            class: 'emoji-chip-x',
-            'aria-label': `Quitar ${r.emoji_text}`,
-            onclick: () => removeReaction(box, r.id),
-          }, '✕')
-        ));
+        const chip = el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
+          el('span', { class: 'emoji-chip-char' }, r.emoji_text));
+        chip.append(el('button', {
+          type: 'button',
+          class: 'emoji-chip-x',
+          'aria-label': `Quitar ${r.emoji_text}`,
+          onclick: () => removeReactionChip(box, chip, r.id),
+        }, '✕'));
+        poolContainer.append(chip);
       }
     }
   }
@@ -4322,6 +4335,20 @@ async function removeReaction(box, id, modalOverlay = null) {
   } catch (e) {
     toast('No se pudo quitar el emoji, intenta de nuevo', 'err');
   }
+}
+
+// Variante con deshacer para el chip de la colección (no el selector del
+// modal, que se cierra al toque y ya tiene su propio "deshacer": volver a
+// tocar el emoji para agregarlo de nuevo).
+function removeReactionChip(box, chip, id) {
+  undoableDelete(chip, {
+    message: 'Emoji quitado',
+    errorMessage: 'No se pudo quitar el emoji, intenta de nuevo',
+    onDelete: async () => {
+      await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones/${id}`, { method: 'DELETE' });
+      reloadReacciones(box);
+    },
+  });
 }
 
 async function reloadReacciones(box) {
@@ -4786,10 +4813,17 @@ function renderFrases(box, frases, packs, limit) {
           },
         }, 'Editar');
 
-        const delBtn = confirmDelBtn('¿Eliminar esta frase? No se puede recuperar.', async () => {
-          try {
+        const actionsDiv = el('div', { class: 'frase-actions' }, editBtn);
+        const row = el('li', { class: 'frase-item' },
+          el('span', { class: 'frase-text' }, f.frase),
+          packSelect,
+          actionsDiv);
+
+        const delBtn = confirmDelBtn('¿Eliminar esta frase?', () => undoableDelete(row, {
+          message: 'Frase eliminada',
+          errorMessage: 'No se pudo quitar la frase, intenta de nuevo',
+          onDelete: async () => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
-            toast('Frase quitada', 'ok');
             state.frases = state.frases.filter(item => item.id !== f.id);
             if (state.editingId === f.id) {
               state.editingId = null;
@@ -4797,18 +4831,11 @@ function renderFrases(box, frases, packs, limit) {
             }
             updateCupo();
             renderListAndPagination();
-          } catch (e) {
-            toast('No se pudo quitar la frase, intenta de nuevo', 'err');
-          }
-        });
+          },
+        }));
+        actionsDiv.append(delBtn);
 
-        list.append(
-          el('li', { class: 'frase-item' },
-            el('span', { class: 'frase-text' }, f.frase),
-            packSelect,
-            el('div', { class: 'frase-actions' }, editBtn, delBtn)
-          )
-        );
+        list.append(row);
       }
     }
 
@@ -5022,19 +5049,21 @@ function renderTriggers(box, data, channels, packs) {
   if (!triggersList.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
   for (const trig of triggersList) {
     const d = describeTrigger(trig, channels, safePacks);
-    list.append(el('li', { class: 'trigger-card' },
+    const row = el('li', { class: 'trigger-card' },
       el('div', { class: 'trigger-card-main' },
         el('span', { class: 'badge trigger-chan-badge' }, d.channelLabel),
         el('span', {}, d.matchLabel, ' ', el('code', { class: 'cmd' }, `"${d.pattern}"`)),
         el('span', { class: 'trigger-arrow' }, '→'),
-        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : '')),
-      confirmDelBtn('¿Eliminar este trigger? Hay que volver a escribirlo desde cero.', async () => {
-        try {
-          await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
-          toast('Trigger eliminado', 'ok');
-        } catch (e) { toast('No se pudo eliminar el trigger, intenta de nuevo', 'err'); }
+        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : '')));
+    row.append(confirmDelBtn('¿Eliminar este trigger?', () => undoableDelete(row, {
+      message: 'Trigger eliminado',
+      errorMessage: 'No se pudo eliminar el trigger, intenta de nuevo',
+      onDelete: async () => {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
         reloadTriggers(box, channels, safePacks);
-      })));
+      },
+    })));
+    list.append(row);
   }
   box.append(list, triggerForm(box, channels, safePacks, safeData));
 }

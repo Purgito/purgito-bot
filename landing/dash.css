@@ -1010,6 +1010,14 @@ iframe.gif-media { pointer-events: none; }
   color: var(--text-muted);
   width: 100%;
 }
+
+/* undoableDelete (core/dom.js): fila a punto de borrarse, mientras el toast
+   ofrece deshacer. */
+.is-pending-delete {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
 .gif-confirm .btn {
   min-width: 26px;
   padding: 0 4px;
@@ -3835,7 +3843,14 @@ iframe.gif-media { pointer-events: none; }
 /* Acotada: con el ancho completo del panel, las casillas quedaban a 700px del
    nombre del canal y seguir una fila con la vista costaba. */
 .chan-matrix { display: flex; flex-direction: column; gap: 2px; max-width: 680px; }
-.chan-filter { max-width: 280px; margin-bottom: var(--space-3); }
+.chan-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3); }
+.chan-filter { max-width: 280px; flex: 1 1 200px; margin-bottom: 0; }
+.chan-filter-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-muted); cursor: pointer; white-space: nowrap;
+}
+.chan-filter-toggle input { accent-color: var(--accent); cursor: pointer; }
+.chan-matrix-no-results { margin-top: var(--space-3); }
 .chan-matrix-head,
 .chan-matrix-row {
   display: grid; grid-template-columns: 1fr repeat(4, 76px);
@@ -4239,18 +4254,6 @@ iframe.gif-media { pointer-events: none; }
   gap: 24px;
 }
 
-.sim-loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  gap: 12px;
-  background: var(--surface-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
 .sim-main-layout {
   display: flex;
   flex-direction: column;
@@ -4553,7 +4556,9 @@ iframe.gif-media { pointer-events: none; }
 }
 
 /* Local Result Loading Card */
-.sim-result-loading-card {
+/* .loading-card / .loading-card-text: spinner + mensaje dentro de una card
+   (loadingCard en core/dom.js), reusado fuera del simulador también. */
+.loading-card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4566,7 +4571,7 @@ iframe.gif-media { pointer-events: none; }
   border-radius: var(--radius-lg);
 }
 
-.sim-result-loading-text {
+.loading-card-text {
   font-size: 14px;
   color: var(--text-muted);
   font-weight: 500;
@@ -4861,42 +4866,8 @@ iframe.gif-media { pointer-events: none; }
   font-weight: 600;
 }
 
-.sim-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 32px 20px;
-  background: var(--surface-card);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-lg);
-  gap: 10px;
-}
-
-.sim-empty-state-icon {
-  width: 40px;
-  height: 40px;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sim-empty-state-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.sim-empty-state-desc {
-  margin: 0;
-  max-width: 440px;
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
+/* Estado vacío del playground: usa .empty-state-card/.empty-icon-wrap
+   (richEmptyState en core/dom.js), compartido con Anuncios. */
 
 /* ---------- Historial y Auditoría ---------- */
 
