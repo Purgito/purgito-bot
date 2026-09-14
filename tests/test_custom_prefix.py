@@ -63,9 +63,9 @@ def test_set_guild_prefix_no_pisa_otros_guilds(memory_db):
 # ── bot.py: get_prefix ────────────────────────────────────────────────────────
 
 
-def _fake_message(guild_id):
+def _fake_message(guild_id, content=""):
     guild = SimpleNamespace(id=guild_id) if guild_id is not None else None
-    return MagicMock(spec=discord.Message, guild=guild)
+    return MagicMock(spec=discord.Message, guild=guild, content=content)
 
 
 def test_get_prefix_default_sin_custom(memory_db):
@@ -91,6 +91,33 @@ def test_get_prefix_no_mezcla_prefijos_entre_guilds(memory_db):
 def test_get_prefix_sin_guild_usa_default(memory_db):
     """DM: no hay guild_id para resolver un custom_prefix."""
     msg = _fake_message(None)
+    prefixes = asyncio.run(bot_module.get_prefix(bot_module.bot, msg))
+    assert prefixes == ["!", f"{BOT_TRIGGER_NAME} "]
+
+
+def test_get_prefix_reconoce_el_prefijo_de_palabra_con_mayusculas(memory_db):
+    """ "Purgito dl <link>" tiene que funcionar igual que "purgito dl <link>"
+    -- el prefijo de palabra que arma get_prefix se compara con un
+    startswith case-sensitive del lado de discord.py, así que hay que
+    devolverlo con el casing exacto que escribió el usuario."""
+    capitalizado = f"{BOT_TRIGGER_NAME.capitalize()} dl https://instagram.com/x"
+    msg = _fake_message(1, content=capitalizado)
+    prefixes = asyncio.run(bot_module.get_prefix(bot_module.bot, msg))
+    assert prefixes == ["!", f"{BOT_TRIGGER_NAME.capitalize()} "]
+    assert capitalizado.startswith(prefixes[1])
+
+
+def test_get_prefix_reconoce_el_prefijo_de_palabra_en_mayusculas_totales(memory_db):
+    en_mayusculas = f"{BOT_TRIGGER_NAME.upper()} dl https://instagram.com/x"
+    msg = _fake_message(1, content=en_mayusculas)
+    prefixes = asyncio.run(bot_module.get_prefix(bot_module.bot, msg))
+    assert prefixes == ["!", f"{BOT_TRIGGER_NAME.upper()} "]
+
+
+def test_get_prefix_sin_prefijo_de_palabra_devuelve_el_default_en_minusculas(memory_db):
+    """Un mensaje que no arranca con el trigger (charla normal) no debe
+    alterar el prefijo de palabra devuelto."""
+    msg = _fake_message(1, content="hola a todos")
     prefixes = asyncio.run(bot_module.get_prefix(bot_module.bot, msg))
     assert prefixes == ["!", f"{BOT_TRIGGER_NAME} "]
 

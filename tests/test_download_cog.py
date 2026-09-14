@@ -14,6 +14,7 @@ import os
 import tempfile
 from types import SimpleNamespace
 
+import discord
 import pytest
 import yt_dlp
 
@@ -31,18 +32,31 @@ class _FakeTyping:
 
 class FakeContext:
     def __init__(
-        self, guild_filesize_limit=25 * 1024 * 1024, guild_id=1, channel_is_nsfw=False
+        self,
+        guild_filesize_limit=25 * 1024 * 1024,
+        guild_id=1,
+        channel_is_nsfw=False,
+        reference=None,
     ):
         self.guild = SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
-        self.channel = SimpleNamespace(is_nsfw=lambda: channel_is_nsfw)
+        self.channel = SimpleNamespace(
+            is_nsfw=lambda: channel_is_nsfw, fetch_message=self._fetch_message
+        )
+        self.message = SimpleNamespace(reference=reference)
         self.replies: list[str] = []
         self.reply_files: list = []
+        self._fetch_message_result = None
 
     async def reply(self, content=None, *, file=None, **kwargs):
         if content is not None:
             self.replies.append(content)
         if file is not None:
             self.reply_files.append(file)
+
+    async def _fetch_message(self, message_id):
+        if self._fetch_message_result is None:
+            raise discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "")
+        return self._fetch_message_result
 
     def typing(self):
         return _FakeTyping()
@@ -130,6 +144,79 @@ def test_dl_sin_link_responde_con_instrucciones():
 
     assert len(ctx.replies) == 1
     assert ctx.reply_files == []
+
+
+# ── comando dl: link tomado del mensaje al que se responde ────────────────────
+
+
+def test_dl_sin_link_propio_usa_el_link_del_mensaje_respondido(monkeypatch):
+    """ "purgito dl" (sin link) como respuesta a un mensaje que tiene uno --
+    caso de uso típico: alguien manda un link y minutos después otra persona
+    responde con "purgito dl"."""
+    cog = _cog()
+    referenced = SimpleNamespace(content="mira esto https://instagram.com/reel/xyz")
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    seen: dict = {}
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://instagram.com/reel/xyz"
+    assert len(ctx.reply_files) == 1
+
+
+def test_dl_prioriza_el_link_propio_sobre_el_del_mensaje_respondido(monkeypatch):
+    cog = _cog()
+    referenced = SimpleNamespace(content="https://instagram.com/reel/del-otro-mensaje")
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    seen: dict = {}
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://x.com/user/status/123"))
+
+    assert seen["url"] == "https://x.com/user/status/123"
+
+
+def test_dl_sin_link_ni_en_el_mensaje_respondido_responde_con_instrucciones():
+    cog = _cog()
+    referenced = SimpleNamespace(content="che mira esto")
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert len(ctx.replies) == 1
+    assert ctx.reply_files == []
+
+
+def test_dl_ignora_el_mensaje_respondido_si_fue_borrado():
+    cog = _cog()
+    ctx = FakeContext(
+        reference=SimpleNamespace(
+            resolved=discord.DeletedReferencedMessage(SimpleNamespace()), message_id=1
+        )
+    )
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert len(ctx.replies) == 1
+    assert ctx.reply_files == []
+
+
+def test_dl_busca_el_mensaje_respondido_con_fetch_si_no_esta_en_cache(monkeypatch):
+    """resolved=None pasa cuando el mensaje original no está en la caché de
+    discord.py (por ejemplo, muy viejo) -- hay que ir a buscarlo con un
+    fetch aparte."""
+    cog = _cog()
+    ctx = FakeContext(reference=SimpleNamespace(resolved=None, message_id=42))
+    ctx._fetch_message_result = SimpleNamespace(
+        content="https://tiktok.com/@user/video/123"
+    )
+    seen: dict = {}
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://tiktok.com/@user/video/123"
 
 
 def test_dl_rechaza_link_de_sitio_no_soportado():

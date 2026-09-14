@@ -317,7 +317,7 @@
   "general.error.missing_argument": "Missing arguments. Check how to use the command.",
   "general.error.cooldown": "Wait {seconds}s before using this command again.",
   "general.error.generic": "Something went wrong on my end. Try again in a bit.",
-  "download.dl.missing_url": "Add a link after the command: `!dl <link>` or `purgito dl <link>`.",
+  "download.dl.missing_url": "Add a link after the command, or reply to a message that has one: `!dl <link>` or `purgito dl <link>`.",
   "download.dl.unsupported_site": "Only downloads videos from Instagram, TikTok, or Twitter/X for now.",
   "download.dl.too_large": "That video is over {mb}MB, too big for this channel.",
   "download.dl.failed": "Couldn't download that link. Make sure the post is public and still exists.",

@@ -317,7 +317,7 @@
   "general.error.missing_argument": "Faltan argumentos. Revisa cómo usar el comando.",
   "general.error.cooldown": "Espera {seconds}s antes de usar este comando de nuevo.",
   "general.error.generic": "Ocurrió un error inesperado. Intenta de nuevo más tarde.",
-  "download.dl.missing_url": "Pasa un link después del comando: `!dl <link>` o `purgito dl <link>`.",
+  "download.dl.missing_url": "Pasa un link después del comando o responde a un mensaje que tenga uno: `!dl <link>` o `purgito dl <link>`.",
   "download.dl.unsupported_site": "Por ahora solo descarga videos de Instagram, TikTok o Twitter/X.",
   "download.dl.too_large": "Ese video pesa más de {mb}MB, no entra en este canal.",
   "download.dl.failed": "No se pudo descargar ese link. Revisa que el post sea público y siga existiendo.",
