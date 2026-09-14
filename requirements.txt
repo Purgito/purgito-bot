@@ -7,7 +7,7 @@ requests==2.34.2
 feedparser==6.0.12
 # !dl / "purgito dl" (cogs/download.py): descarga de videos de Instagram.
 yt-dlp==2026.8.19
-regex==2026.9.3
+regex==2026.9.10
 Pillow==12.3.0
 imagehash==4.3.2
 groq==1.7.0
