@@ -2020,6 +2020,38 @@ iframe.gif-media { pointer-events: none; }
   cursor: pointer;
 }
 
+/* Aviso de guardado pendiente/fallido (dash.js: trackSave + activate()).
+   Esquina opuesta al #toast (abajo a la izquierda) para que uno nunca tape
+   al otro si coinciden — este es persistente mientras dure el estado, el
+   toast siempre se autooculta. */
+.unsaved-banner {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  max-width: min(320px, calc(100vw - 40px));
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font-size: var(--t-sm);
+  padding: 10px 14px;
+  z-index: 9998;
+}
+.unsaved-banner.show { display: flex; }
+.unsaved-banner::before { font-weight: 700; line-height: 1; }
+.unsaved-banner.is-pending { border-left-color: var(--accent-soft); }
+.unsaved-banner.is-pending::before { content: '↻'; color: var(--accent-2); }
+.unsaved-banner.is-error {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--popover));
+}
+.unsaved-banner.is-error::before { content: '⚠'; color: var(--danger); }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 768px) {

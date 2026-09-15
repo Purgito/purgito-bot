@@ -9,6 +9,7 @@ import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, richEmptyState, loadingCard, renderError, guildIcon, toast, formGroup,
   confirmDelBtn, undoableDelete, helpIcon, accordionGroup,
+  trackSave, hasUnsavedWork, onUnsavedWorkChange, clearUnsavedWork,
 } from '/js/core/dom.js';
 import {
   GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
@@ -399,6 +400,11 @@ let _sidebarCollapsed = getStoredSidebarCollapsed();
 let _loadEpoch = 0;
 let _activeGuild = null;
 export let _serverPickerOpen = false;
+// Tab realmente pintado en pantalla ahora mismo — lo usa el aviso de
+// cambios sin guardar para devolver la URL a su lugar si el usuario cancela
+// una navegación disparada por atrás/adelante del navegador (ahí la URL ya
+// cambió antes de que activate() pudiera preguntar).
+let _activeModuleKey = null;
 
 // Avisos de cupo para la sidebar: { [moduleKey]: { full: bool, pct } }. Se
 // llenan con loadQuotaAlerts() y se pintan como un punto sobre el ícono del
@@ -880,6 +886,67 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ---------------- AVISO DE CAMBIOS SIN GUARDAR ----------------
+// CHAT y Canales autoguardan cada campo (ver saveTunable, channelOverrideRow
+// y channelMatrix más abajo) — no hay botón "Guardar" que retenga cambios.
+// Lo único que se puede perder de verdad es un guardado que sigue en vuelo
+// (debounce de 500 ms) o que falló y no se reintentó: trackSave() lo cuenta
+// (core/dom.js) y acá solo se pinta el aviso y se bloquea salir mientras
+// quede alguno.
+
+addStrings({
+  es: {
+    'dash.unsaved.saving': 'Guardando…',
+    'dash.unsaved.saveFailed': 'No se pudo guardar un cambio',
+    'dash.unsaved.confirmLeave': 'Hay un cambio sin guardar que se pierde si sales. ¿Seguro que quieres salir?',
+  },
+  en: {
+    'dash.unsaved.saving': 'Saving…',
+    'dash.unsaved.saveFailed': "A change couldn't be saved",
+    'dash.unsaved.confirmLeave': "There's an unsaved change that will be lost if you leave. Leave anyway?",
+  },
+});
+
+let _unsavedBannerEl = null;
+function unsavedBanner() {
+  if (!_unsavedBannerEl) {
+    _unsavedBannerEl = el('div', { class: 'unsaved-banner', role: 'status', 'aria-live': 'polite' });
+    document.body.append(_unsavedBannerEl);
+  }
+  return _unsavedBannerEl;
+}
+
+onUnsavedWorkChange(({ pending, failed }) => {
+  const banner = unsavedBanner();
+  if (failed > 0) {
+    banner.className = 'unsaved-banner show is-error';
+    banner.textContent = t('dash.unsaved.saveFailed');
+  } else if (pending > 0) {
+    banner.className = 'unsaved-banner show is-pending';
+    banner.textContent = t('dash.unsaved.saving');
+  } else {
+    banner.className = 'unsaved-banner';
+  }
+});
+
+// Cierre real de pestaña/recarga/URL externa: el único aviso que el
+// navegador deja personalizar es mostrar o no su diálogo nativo.
+window.addEventListener('beforeunload', (e) => {
+  if (!hasUnsavedWork()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+// Navegación dentro del panel (sidebar, paleta de comandos, cambio de
+// servidor, atrás/adelante): todas pasan por activate(), así que se
+// pregunta una sola vez ahí en vez de repetir el guard en cada disparador.
+function confirmDiscardUnsaved() {
+  if (!hasUnsavedWork()) return true;
+  const ok = window.confirm(t('dash.unsaved.confirmLeave'));
+  if (ok) clearUnsavedWork();
+  return ok;
+}
+
 // ---------------- RENDERIZADO DE SIDEBAR ----------------
 
 addStrings({
@@ -1148,6 +1215,7 @@ addStrings({
 
 export async function selectGuild(newGuildId) {
   if (!newGuildId || newGuildId === GUILD_ID) return;
+  if (!confirmDiscardUnsaved()) return;
 
   setGuildId(newGuildId);
   clearGuildCaches();
@@ -1173,6 +1241,16 @@ export async function selectGuild(newGuildId) {
 // ---------------- ACTIVACIÓN DE MÓDULO ----------------
 
 export function activate(key, push) {
+  if (!confirmDiscardUnsaved()) {
+    // Atrás/adelante del navegador ya movió la URL antes de poder preguntar
+    // (push=false): la devolvemos a la tab que se sigue mostrando en vez de
+    // dejar la barra de direcciones desincronizada del contenido.
+    if (!push) {
+      history.pushState({}, '', getDashboardUrl(GUILD_ID, _activeModuleKey || 'inicio'));
+    }
+    return;
+  }
+  _activeModuleKey = key;
   renderSidebar(key);
 
   if (push) {
@@ -3252,6 +3330,7 @@ async function loadCanalesModule() {
 
     const cols = [
       {
+        key: 'spontaneous',
         short: t('dash.canalesModule.colSpeakShort'), onLabel: t('dash.canalesModule.colSpeakOn'), offLabel: t('dash.canalesModule.colSpeakOff'),
         help: t('dash.canalesModule.colSpeakHelp'),
         isSelected: id => spontaneousSelected.has(id),
@@ -3267,6 +3346,7 @@ async function loadCanalesModule() {
         },
       },
       {
+        key: 'mention',
         short: t('dash.canalesModule.colReplyShort'), onLabel: t('dash.canalesModule.colReplyOn'), offLabel: t('dash.canalesModule.colReplyOff'),
         help: t('dash.canalesModule.colReplyHelp'),
         isSelected: id => mentionSelected.has(id),
@@ -3282,6 +3362,7 @@ async function loadCanalesModule() {
         },
       },
       {
+        key: 'corpus',
         short: t('dash.canalesModule.colLearnShort'), onLabel: t('dash.canalesModule.colLearnOn'), offLabel: t('dash.canalesModule.colLearnOff'),
         help: t('dash.canalesModule.colLearnHelp'),
         isSelected: id => corpusSelected.has(id),
@@ -3525,9 +3606,9 @@ const TUNABLE_SAVE_DEBOUNCE_MS = 500;
 
 async function saveTunable(key, value, label, onSaved) {
   try {
-    const r = await apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
+    const r = await trackSave(`tunable:${key}`, () => apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
       method: 'PUT', body: { [key]: value },
-    });
+    }));
     if (onSaved && r.saved && r.saved[key] !== undefined) onSaved(r.saved[key]);
     toast(`${label} actualizado`, 'ok');
   } catch (e) {
@@ -3616,9 +3697,9 @@ function channelOverrideRow(channelId, spec) {
   async function save(raw) {
     const prev = override;
     try {
-      const r = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
+      const r = await trackSave(`override:${channelId}:${key}`, () => apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
         method: 'PUT', body: { [key]: raw === null ? null : toApi(raw) },
-      });
+      }));
       override = raw === null ? null : r.saved[key];
       paint();
       toast(raw === null ? `${label}: vuelve al valor del servidor` : `${label} actualizado en este canal`, 'ok');
@@ -3742,7 +3823,7 @@ function channelMatrix({ channels, cols, openOverrides }) {
         box.onchange = async () => {
           const on = box.checked;
           try {
-            if (on) await c.add(ch); else await c.remove(ch);
+            await trackSave(`matrix:${c.key}:${ch.id}`, () => (on ? c.add(ch) : c.remove(ch)));
             toast(`#${ch.name}: ${on ? c.onLabel : c.offLabel}`, 'ok');
           } catch (e) {
             box.checked = !on;
@@ -4175,9 +4256,9 @@ async function loadChatTab() {
     const check = el('input', { type: 'checkbox', checked: chat.enabled });
     check.onchange = async () => {
       try {
-        await apiFetch(`/api/server/${GUILD_ID}/settings/chat`, {
+        await trackSave('chat:enabled', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat`, {
           method: 'PUT', body: { enabled: check.checked },
-        });
+        }));
         toast(check.checked ? 'Chat activado' : 'Chat desactivado', 'ok');
       } catch (e) {
         check.checked = !check.checked;

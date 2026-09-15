@@ -60,6 +60,47 @@ desde `tests/`.
   visual/técnica (gitignored, no es parte del proyecto — no ejecutar ni
   modificar nada ahí, y no confundir sus rutas internas con las de este repo)
 
+## Novedades (docs/NOVEDADES.md)
+
+`docs/NOVEDADES.md` + `docs/NOVEDADES.en.md` alimentan la página pública
+`/es/novedades` (`/en/changelog`) vía `build_docs.py` — no son solo
+referencia interna, un admin de servidor las lee. Registrar ahí un cambio
+notable es parte de terminar la tarea, no un paso aparte y opcional — pero
+con criterio: solo lo que un admin de servidor notaría o le importaría
+(feature nueva, cambio de comportamiento, arreglo de bug visible). Nada de
+refactors internos, detalles de implementación, ni una entrada por cada
+commit — si dudas si algo califica, no entra.
+
+Formato: markdown plano, sin frontmatter ni JSON — el parser de
+`build_docs.py` es deliberadamente un subconjunto acotado (ver su
+docstring) para no sumar una dependencia nueva. Es el único doc de 3
+niveles (el resto de `docs/*.md` usa 2): `# <año>` (ej. `# 2026`) agrupa
+las entradas de ese año, `## <entrada>` es una release (`Versión X.Y.Z —
+fecha`) o, mientras no tenga versión numerada todavía, `## Novedades
+recientes`, y dentro de cada entrada `### Nuevo` / `### Mejorado` /
+`### Corregido` categoriza los cambios. Una línea por cambio, en el mismo
+lenguaje simple que pide "Voz y copy" más abajo — nunca jerga técnica ("el
+endpoint X ahora valida Y"), sino qué cambia para quien administra el
+servidor.
+
+Edita **los dos idiomas juntos** (agregar solo en `NOVEDADES.md` sin su par
+en `.en.md` es tan incompleto como dejar una clave de `src/locales/` sin
+traducir) y corre `landing/build_docs.py` después — si no, el HTML
+generado queda viejo y el `--check` de CI lo detecta.
+
+La página ya está pensada para que esto crezca años: agrupa por año con
+una sidebar de anclas y colapsa en `<details>` todas las entradas salvo la
+más reciente de cada año (`build_changelog_page`/`changelog_sidebar` en
+`build_docs.py`), así que un año con muchos releases no es un scroll
+interminable. Lo que sigue siendo un solo archivo de texto que crece sin
+límite es la fuente (`docs/NOVEDADES.md`/`.en.md` en sí) — a propósito, así
+crecen también `docs/PRIVACY.md` y el resto de `docs/*.md`, y con los pocos
+meses de historial que tiene hoy no hace falta más. Si en unos años el
+archivo fuente se vuelve incómodo de mantener, la salida es archivar los
+años viejos en un archivo aparte (ej. `docs/NOVEDADES-2026.md`) enlazado
+desde la página actual — sigue siendo markdown plano, solo particionado, no
+una migración a JSON/DB. No lo hagas preventivamente: todavía no duele.
+
 ## Variables de entorno
 
 Tres archivos, con reglas distintas:
