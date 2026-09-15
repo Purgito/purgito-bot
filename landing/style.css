@@ -1368,14 +1368,69 @@ body.no-scroll {
 
 @media (min-width: 1024px) { .doc-title { font-size: var(--t-5xl); } }
 
-/* ── /es/novedades (/en/changelog): ver page["changelog"] en build_docs.py ──
-   Mismo .doc-sec/.box que el resto de estas páginas, con un acento lateral
-   para que se lea como una entrada de "qué cambió" y no como un artículo
-   legal más. */
-.changelog-page .doc-sec {
-  border-left: 3px solid var(--accent);
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+/* ── /es/novedades (/en/changelog): ver build_changelog_page() en
+   build_docs.py — mismo grid de dos columnas que /documentacion
+   (.docs-shell/.docs-sidebar, ver más abajo), pero SIN .docs-content: esa
+   clase define tipografía por tag (h1/h2/h3/p/ul) pensada para HTML sin
+   clases como /guia y /documentacion, y este contenido ya usa las mismas
+   .doc-title/.doc-date/.doc-body que Términos/Privacidad/Reembolsos.
+   Sidebar de años (crece agregando entradas dentro de un año, no agregando
+   columnas de sidebar) y cada entrada colapsada en un <details> salvo la
+   más reciente — sin esto, un año con muchos releases sería un scroll
+   gigante de principio a fin. */
+.changelog-content { max-width: 56rem; }
+
+.changelog-year + .changelog-year { margin-top: 3rem; }
+.changelog-year-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: var(--t-2xl);
+  color: var(--text);
+  margin: 0 0 1rem;
+  scroll-margin-top: 6rem;
+}
+
+/* .box ya trae fondo/borde/radio/sombra; el padding se anula acá porque lo
+   controlan por separado el summary (siempre visible) y el cuerpo
+   (colapsable), no el <details> entero. */
+.changelog-entry { padding: 0; overflow: hidden; }
+.changelog-entry + .changelog-entry { margin-top: 1rem; }
+
+.changelog-entry-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: var(--t-lg);
+  color: var(--text);
+}
+.changelog-entry-summary::-webkit-details-marker { display: none; }
+/* Flecha propia en vez del marcador nativo del navegador, para que gire
+   con la misma transición prolija que el resto del sitio usa en <details>
+   (ver .q summary de las FAQ de la home). */
+.changelog-entry-summary::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: auto;
+  border: solid var(--text-muted);
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+  transition: transform var(--dur);
+  flex-shrink: 0;
+}
+.changelog-entry[open] .changelog-entry-summary::before { transform: rotate(45deg); }
+
+.changelog-entry > .doc-body { padding: 0 1.5rem 1.5rem; }
+
+@media (min-width: 768px) {
+  .changelog-entry-summary { padding: 1.25rem 2rem; }
+  .changelog-entry > .doc-body { padding: 0 2rem 2rem; }
 }
 
 .changelog-version {

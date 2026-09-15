@@ -155,11 +155,6 @@ PAGES = [
         "meta": "Qué cambió en Purgito: funciones nuevas, mejoras y arreglos, "
         "resumidos en lenguaje simple.",
         "changelog": True,
-        "toc": [
-            "Límites de uso visibles, Twitch, /mis_datos, plantillas exportables y más.",
-            "Memes, frases especiales, reacciones, YouTube y el panel /settings.",
-            "El lanzamiento: GIFs por servidor y generación de texto.",
-        ],
     },
 ]
 
@@ -223,11 +218,6 @@ PAGES_EN = [
         "meta": "What changed in Purgito: new features, improvements, and "
         "fixes, summarized in plain language.",
         "changelog": True,
-        "toc": [
-            "Visible usage limits, Twitch, /mis_datos, exportable templates, and more.",
-            "Memes, special phrases, reactions, YouTube, and the /settings panel.",
-            "The launch: per-server GIFs and text generation.",
-        ],
     },
 ]
 
@@ -813,20 +803,6 @@ def inline(text):
     return out
 
 
-# Subtítulos de /es/novedades (/en/changelog) que además de texto llevan un
-# color propio (ver .changelog-tag en style.css) -- el resto de los `## `
-# de cualquier doc (ej. "Reembolsos" en TERMS) no matchea nada de acá y
-# sigue siendo un <h3> plano, sin tocar ese comportamiento.
-CHANGELOG_TAGS = {
-    "Nuevo": "new",
-    "Mejorado": "improved",
-    "Corregido": "fixed",
-    "New": "new",
-    "Improved": "improved",
-    "Fixed": "fixed",
-}
-
-
 def render(body):
     """Cuerpo de una sección → HTML. Agrupa listas y párrafos multilínea."""
     out, para, items = [], [], []
@@ -847,15 +823,7 @@ def render(body):
             flush()
         elif line.startswith("## "):
             flush()
-            heading = line[3:]
-            tag = CHANGELOG_TAGS.get(heading)
-            if tag:
-                out.append(
-                    '<h3 class="changelog-tag changelog-tag--%s">%s</h3>'
-                    % (tag, inline(heading))
-                )
-            else:
-                out.append("<h3>%s</h3>" % inline(heading))
+            out.append("<h3>%s</h3>" % inline(line[3:]))
         elif line.startswith("- "):
             if para:
                 flush()
@@ -1091,11 +1059,105 @@ def build_toc(sections, descs, lang="es"):
     )
 
 
-def changelog_section_title(name):
+# ── /es/novedades (/en/changelog): 3 niveles, no 2 ──────────────────────────
+# Único doc con 3 niveles en vez de 2: '# ' = año, '## ' = entrada (una
+# versión, o "Novedades recientes" para lo que todavía no tiene versión
+# numerada), '### ' = categoría (Nuevo/Mejorado/Corregido) dentro de la
+# entrada. Parser y builder propios en vez de forzar un tercer nivel en
+# parse()/render()/build_page() (que usan TERMS, PRIVACY y REFUNDS con 2
+# niveles nomás) -- esto va a crecer con cada release y no debía complicar
+# esas páginas legales, que no lo necesitan.
+#
+# El layout es el mismo docs-shell/docs-sidebar que ya usan /guia y
+# /documentacion (ver guia_sidebar()/doc_sidebar()), pero con años en vez de
+# categorías/anclas de guía, y cada entrada colapsada en un <details> salvo
+# la más reciente -- sin esto, un año con 10+ releases sería un scroll
+# gigante de principio a fin.
+
+CHANGELOG_TAGS = {
+    "Nuevo": "new",
+    "Mejorado": "improved",
+    "Corregido": "fixed",
+    "New": "new",
+    "Improved": "improved",
+    "Fixed": "fixed",
+}
+
+
+def render_changelog_entry(body):
+    """Cuerpo de una entrada (versión) de changelog → HTML. Igual que
+    render(), salvo que el heading de categoría es '### ' -- '## ' ya está
+    ocupado acá por el nivel de entrada -- y se pinta como pill de color
+    cuando el texto matchea CHANGELOG_TAGS; cualquier otro cae a un <h4>
+    plano, igual que render() con un heading que no reconoce."""
+    out, para, items = [], [], []
+
+    def flush():
+        if para:
+            out.append("<p>" + inline(" ".join(para)) + "</p>")
+            para.clear()
+        if items:
+            out.append(
+                "<ul>" + "".join("<li>%s</li>" % inline(i) for i in items) + "</ul>"
+            )
+            items.clear()
+
+    for line in body.splitlines():
+        line = line.strip()
+        if not line or line == "---":
+            flush()
+        elif line.startswith("### "):
+            flush()
+            heading = line[4:]
+            tag = CHANGELOG_TAGS.get(heading)
+            if tag:
+                out.append(
+                    '<h4 class="changelog-tag changelog-tag--%s">%s</h4>'
+                    % (tag, inline(heading))
+                )
+            else:
+                out.append("<h4>%s</h4>" % inline(heading))
+        elif line.startswith("- "):
+            if para:
+                flush()
+            items.append(line[2:])
+        elif items:
+            items[-1] += " " + line
+        else:
+            para.append(line)
+    flush()
+    return "\n".join(out)
+
+
+def parse_changelog(md):
+    """Devuelve (título, fecha, intro_html, [(año, [(nombre_entrada,
+    cuerpo_html), …]), …]). El orden es el del propio markdown: más
+    reciente primero, tanto los años como las entradas dentro de cada uno."""
+    chunks = re.split(r"^# ", md, flags=re.M)[1:]
+    head, year_chunks = chunks[0], chunks[1:]
+
+    title, _, intro = head.partition("\n")
+    date = re.search(r"\*\*(?:Última actualización|Last updated):\*\*\s*(.+)", intro)
+    intro = re.sub(
+        r"^\*\*(?:Última actualización|Last updated):\*\*.*$", "", intro, flags=re.M
+    )
+
+    years = []
+    for chunk in year_chunks:
+        year_name, _, year_body = chunk.partition("\n")
+        entries = []
+        for entry_chunk in re.split(r"^## ", year_body, flags=re.M)[1:]:
+            entry_name, _, entry_body = entry_chunk.partition("\n")
+            entries.append((entry_name.strip(), render_changelog_entry(entry_body)))
+        years.append((year_name.strip(), entries))
+    return title.strip(), date.group(1).strip() if date else "", render(intro), years
+
+
+def changelog_entry_title(name):
     """Separa 'Versión 1.1.0 — 28 de junio de 2026' en un chip de versión +
     fecha atenuada (ver .changelog-version/.changelog-date-inline en
-    style.css). Un título sin '—' (ej. 'Novedades recientes', que no tiene
-    fecha propia) queda como texto plano, sin chip."""
+    style.css). Un nombre sin '—' (ej. 'Novedades recientes', sin versión
+    numerada todavía) queda como texto plano, sin chip."""
     m = re.match(r"^(.+?)\s+—\s+(.+)$", name)
     if not m:
         return html.escape(name)
@@ -1108,6 +1170,95 @@ def changelog_section_title(name):
     )
 
 
+def changelog_anchor(year_name):
+    return "year-%s" % re.sub(r"\W+", "", year_name)
+
+
+def changelog_sidebar(years, lang="es"):
+    """Sidebar de años, mismo patrón que guia_sidebar(): anclas dentro de
+    una sola página, sin JS. Se pliega en un <details> accesible en móvil."""
+    label = "Años" if lang == "es" else "Years"
+    aria = "Novedades" if lang == "es" else "Changelog"
+    items = [
+        '    <li><a href="#%s">%s</a></li>'
+        % (changelog_anchor(name), html.escape(name))
+        for name, _ in years
+    ]
+    return (
+        '<details class="docs-sidebar changelog-sidebar" open aria-label="%s">\n'
+        "  <summary>%s</summary>\n"
+        "  <ul>\n%s\n  </ul>\n</details>" % (aria, label, "\n".join(items))
+    )
+
+
+def build_changelog_page(page, nav, footer, lang="es"):
+    title, date, intro, years = parse_changelog((DOCS / page["src"]).read_text("utf-8"))
+
+    year_blocks = []
+    for year_name, entries in years:
+        entry_blocks = []
+        for i, (name, body) in enumerate(entries):
+            entry_blocks.append(
+                '    <details class="box changelog-entry"%s>\n'
+                '      <summary class="changelog-entry-summary">%s</summary>\n'
+                '      <div class="doc-body">\n%s\n      </div>\n    </details>'
+                % (" open" if i == 0 else "", changelog_entry_title(name), body)
+            )
+        year_blocks.append(
+            '  <section class="changelog-year" id="%s">\n'
+            '    <h2 class="changelog-year-title">%s</h2>\n%s\n  </section>'
+            % (
+                changelog_anchor(year_name),
+                html.escape(year_name),
+                "\n".join(entry_blocks),
+            )
+        )
+
+    content = (
+        '  <header class="doc-head">\n'
+        '    <h1 class="doc-title">%s</h1>\n'
+        '    <p class="doc-date">%s: %s</p>\n'
+        '    <div class="doc-body doc-intro">\n%s\n    </div>\n'
+        "  </header>\n%s"
+        % (
+            html.escape(title),
+            UPDATED_LABEL[lang],
+            html.escape(date),
+            intro,
+            "\n".join(year_blocks),
+        )
+    )
+    body = (
+        '<div class="docs-shell wrap">\n%s\n'
+        '  <main id="contenido" class="changelog-content">\n%s\n  </main>\n</div>'
+        % (changelog_sidebar(years, lang), content)
+    )
+
+    full_title = f"{html.escape(page.get('title', title))} — Purgito"
+    canonical_url = f"{BASE_URL}/{lang}/{page['slug']}"
+    og_image = page.get("og_image") or get_default_og_image()
+    return SHELL.format(
+        lang=lang,
+        skip=SKIP_LABEL[lang],
+        full_title=full_title,
+        meta=html.escape(page["meta"]),
+        canonical_url=canonical_url,
+        hreflang=hreflang_links(page["slug"], lang),
+        og_type="article",
+        og_image=og_image,
+        og_image_width=page.get("og_image_width", DEFAULT_OG_IMAGE_WIDTH),
+        og_image_height=page.get("og_image_height", DEFAULT_OG_IMAGE_HEIGHT),
+        og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
+        og_locale=OG_LOCALE[lang],
+        twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
+        nav=nav,
+        body=body,
+        footer=footer,
+        head="",
+        scripts="",
+    )
+
+
 def build_page(page, nav, footer, lang="es"):
     title, date, intro, sections = parse((DOCS / page["src"]).read_text("utf-8"))
     descs = page["toc"]
@@ -1117,28 +1268,23 @@ def build_page(page, nav, footer, lang="es"):
             % (page["src"], len(sections), len(descs))
         )
 
-    is_changelog = page.get("changelog", False)
     blocks = []
     for i, (name, body) in enumerate(sections, 1):
-        title_html = (
-            changelog_section_title(name) if is_changelog else html.escape(name)
-        )
         blocks.append(
             '  <section class="box doc-sec" id="seccion-%d">\n'
             '    <h2 class="doc-sec-title">%s</h2>\n'
             '    <div class="doc-body">\n%s\n    </div>\n  </section>'
-            % (i, title_html, body)
+            % (i, html.escape(name), body)
         )
 
     body = (
-        '<main id="contenido" class="doc wrap%s">\n'
+        '<main id="contenido" class="doc wrap">\n'
         '  <header class="doc-head">\n'
         '    <h1 class="doc-title">%s</h1>\n'
         '    <p class="doc-date">%s: %s</p>\n'
         '    <div class="doc-body doc-intro">\n%s\n    </div>\n'
         "  </header>\n%s%s\n</main>"
         % (
-            " changelog-page" if is_changelog else "",
             html.escape(title),
             UPDATED_LABEL[lang],
             html.escape(date),
@@ -1318,9 +1464,10 @@ def main():
                 copy_out.write_text(stamped_index, "utf-8")
                 print("→", copy_out.relative_to(ROOT))
 
-        todo = [(p, build_page) for p in PAGES_BY_LANG[lang]] + [
-            (p, build_html_page) for p in HTML_PAGES_BY_LANG[lang]
-        ]
+        todo = [
+            (p, build_changelog_page if p.get("changelog") else build_page)
+            for p in PAGES_BY_LANG[lang]
+        ] + [(p, build_html_page) for p in HTML_PAGES_BY_LANG[lang]]
         for page, build in todo:
             out = LANDING / lang / page["slug"] / "index.html"
             page_html = stamp(build(page, nav, footer, lang))
