@@ -1368,6 +1368,68 @@ body.no-scroll {
 
 @media (min-width: 1024px) { .doc-title { font-size: var(--t-5xl); } }
 
+/* ── /es/novedades (/en/changelog): ver page["changelog"] en build_docs.py ──
+   Mismo .doc-sec/.box que el resto de estas páginas, con un acento lateral
+   para que se lea como una entrada de "qué cambió" y no como un artículo
+   legal más. */
+.changelog-page .doc-sec {
+  border-left: 3px solid var(--accent);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.changelog-version {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+.changelog-date-inline {
+  color: var(--text-muted);
+  font-size: var(--t-sm);
+  font-weight: 400;
+}
+
+/* Subtítulo de categoría (Nuevo/Mejorado/Corregido) como pill de color en
+   vez de un <h3> plano más — ver CHANGELOG_TAGS en build_docs.py. El punto
+   de ::before es decorativo, no lleva texto que un lector de pantalla deba
+   anunciar dos veces (ya lo dice el propio texto del pill). */
+.changelog-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.changelog-tag::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.changelog-tag--new {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-2);
+}
+.changelog-tag--improved {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  color: var(--success);
+}
+.changelog-tag--fixed {
+  background: color-mix(in srgb, hsl(38 92% 55%) 18%, transparent);
+  color: hsl(38 92% 68%);
+}
+
 /* ══════════════════ /es/premium (REDESIGNED) ══════════════════
    Cuerpo en landing/pages/premium.html, ensamblado por build_docs.py. */
 

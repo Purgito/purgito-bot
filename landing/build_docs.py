@@ -154,6 +154,7 @@ PAGES = [
         "title": "Novedades",
         "meta": "Qué cambió en Purgito: funciones nuevas, mejoras y arreglos, "
         "resumidos en lenguaje simple.",
+        "changelog": True,
         "toc": [
             "Límites de uso visibles, Twitch, /mis_datos, plantillas exportables y más.",
             "Memes, frases especiales, reacciones, YouTube y el panel /settings.",
@@ -221,6 +222,7 @@ PAGES_EN = [
         "title": "Changelog",
         "meta": "What changed in Purgito: new features, improvements, and "
         "fixes, summarized in plain language.",
+        "changelog": True,
         "toc": [
             "Visible usage limits, Twitch, /mis_datos, exportable templates, and more.",
             "Memes, special phrases, reactions, YouTube, and the /settings panel.",
@@ -811,6 +813,20 @@ def inline(text):
     return out
 
 
+# Subtítulos de /es/novedades (/en/changelog) que además de texto llevan un
+# color propio (ver .changelog-tag en style.css) -- el resto de los `## `
+# de cualquier doc (ej. "Reembolsos" en TERMS) no matchea nada de acá y
+# sigue siendo un <h3> plano, sin tocar ese comportamiento.
+CHANGELOG_TAGS = {
+    "Nuevo": "new",
+    "Mejorado": "improved",
+    "Corregido": "fixed",
+    "New": "new",
+    "Improved": "improved",
+    "Fixed": "fixed",
+}
+
+
 def render(body):
     """Cuerpo de una sección → HTML. Agrupa listas y párrafos multilínea."""
     out, para, items = [], [], []
@@ -831,7 +847,15 @@ def render(body):
             flush()
         elif line.startswith("## "):
             flush()
-            out.append("<h3>%s</h3>" % inline(line[3:]))
+            heading = line[3:]
+            tag = CHANGELOG_TAGS.get(heading)
+            if tag:
+                out.append(
+                    '<h3 class="changelog-tag changelog-tag--%s">%s</h3>'
+                    % (tag, inline(heading))
+                )
+            else:
+                out.append("<h3>%s</h3>" % inline(heading))
         elif line.startswith("- "):
             if para:
                 flush()
@@ -1067,6 +1091,20 @@ def build_toc(sections, descs, lang="es"):
     )
 
 
+def changelog_section_title(name):
+    """Separa 'Versión 1.1.0 — 28 de junio de 2026' en un chip de versión +
+    fecha atenuada (ver .changelog-version/.changelog-date-inline en
+    style.css). Un título sin '—' (ej. 'Novedades recientes', que no tiene
+    fecha propia) queda como texto plano, sin chip."""
+    m = re.match(r"^(.+?)\s+—\s+(.+)$", name)
+    if not m:
+        return html.escape(name)
+    return '<span class="changelog-version">%s</span> <span class="changelog-date-inline">%s</span>' % (
+        html.escape(m.group(1)),
+        html.escape(m.group(2)),
+    )
+
+
 def build_page(page, nav, footer, lang="es"):
     title, date, intro, sections = parse((DOCS / page["src"]).read_text("utf-8"))
     descs = page["toc"]
@@ -1076,23 +1114,26 @@ def build_page(page, nav, footer, lang="es"):
             % (page["src"], len(sections), len(descs))
         )
 
+    is_changelog = page.get("changelog", False)
     blocks = []
     for i, (name, body) in enumerate(sections, 1):
+        title_html = changelog_section_title(name) if is_changelog else html.escape(name)
         blocks.append(
             '  <section class="box doc-sec" id="seccion-%d">\n'
             '    <h2 class="doc-sec-title">%s</h2>\n'
             '    <div class="doc-body">\n%s\n    </div>\n  </section>'
-            % (i, html.escape(name), body)
+            % (i, title_html, body)
         )
 
     body = (
-        '<main id="contenido" class="doc wrap">\n'
+        '<main id="contenido" class="doc wrap%s">\n'
         '  <header class="doc-head">\n'
         '    <h1 class="doc-title">%s</h1>\n'
         '    <p class="doc-date">%s: %s</p>\n'
         '    <div class="doc-body doc-intro">\n%s\n    </div>\n'
         "  </header>\n%s%s\n</main>"
         % (
+            " changelog-page" if is_changelog else "",
             html.escape(title),
             UPDATED_LABEL[lang],
             html.escape(date),
