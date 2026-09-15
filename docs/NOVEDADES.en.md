@@ -32,6 +32,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - CHAT and Channels now warn before you leave if a change is still saving or failed to save, so you don't lose it without noticing.
 - The channel matrix (speaks/replies/learns) now shows as readable cards on mobile instead of a cramped table with tiny checkboxes.
 - The First steps guide in INICIO can be dismissed even with steps left unfinished, and the step about learning new messages no longer reads like a repeat of choosing channels.
+- Fewer redundant dashboard modules: Customization is now edited directly from INICIO (it used to lead to a separate page with the same thing), and Command prefix + Memory cleanup were merged into one module, General. The bot's updates channel setting moved to Automation, alongside YouTube/Twitch/RSS.
 
 ### Fixed
 - A channel with a lot of history no longer eats into the learned-message quota of other channels on the same server — the limit is now per channel.

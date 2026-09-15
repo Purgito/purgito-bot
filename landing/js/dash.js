@@ -43,8 +43,6 @@ addStrings({
     'dash.mod.stats.desc': 'Métricas de uso, memoria del bot, canales y actividad acumulada',
     'dash.mod.chat.label': 'Ajustes de Chat',
     'dash.mod.chat.desc': 'Comportamiento, probabilidades, canales y límites del chat',
-    'dash.mod.estilo.label': 'Personalización',
-    'dash.mod.estilo.desc': 'Apariencia de Purgito en este servidor: nick, avatar y banner',
     'dash.mod.playground.label': 'Simulador de Chat',
     'dash.mod.playground.desc': 'Simula y prueba cómo respondería Purgito en vivo según las reglas y corpus del canal',
     'dash.mod.historial.label': 'Auditoría',
@@ -75,10 +73,8 @@ addStrings({
     'dash.mod.memes.desc': 'Generación automática de memes y plantillas',
     'dash.mod.canales.label': 'Canales y Permisos',
     'dash.mod.canales.desc': 'Matriz de lectura/respuesta y canales o roles ignorados',
-    'dash.mod.amnesia.label': 'Limpieza',
-    'dash.mod.amnesia.desc': 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
-    'dash.mod.prefijo.label': 'Prefijo de comandos',
-    'dash.mod.prefijo.desc': 'Cambia el símbolo con el que se invocan los comandos de texto, como !dl',
+    'dash.mod.general.label': 'General',
+    'dash.mod.general.desc': 'Prefijo de comandos y borrado rápido de memoria reciente',
   },
   en: {
     'dash.cat.principal': 'Main',
@@ -93,8 +89,6 @@ addStrings({
     'dash.mod.stats.desc': 'Usage metrics, bot memory, channels, and accumulated activity',
     'dash.mod.chat.label': 'Chat settings',
     'dash.mod.chat.desc': 'Behavior, probabilities, channels, and chat limits',
-    'dash.mod.estilo.label': 'Customization',
-    'dash.mod.estilo.desc': "Purgito's appearance on this server: nickname, avatar, and banner",
     'dash.mod.playground.label': 'Chat Simulator',
     'dash.mod.playground.desc': "Simulate and test how Purgito would reply live, based on the channel's rules and corpus",
     'dash.mod.historial.label': 'Audit log',
@@ -125,10 +119,8 @@ addStrings({
     'dash.mod.memes.desc': 'Automatic meme generation and templates',
     'dash.mod.canales.label': 'Channels and Permissions',
     'dash.mod.canales.desc': 'Read/reply matrix and ignored channels or roles',
-    'dash.mod.amnesia.label': 'Cleanup',
-    'dash.mod.amnesia.desc': 'Deletes messages and style learned in the last 24 hours',
-    'dash.mod.prefijo.label': 'Command prefix',
-    'dash.mod.prefijo.desc': 'Change the symbol used to invoke text commands, like !dl',
+    'dash.mod.general.label': 'General',
+    'dash.mod.general.desc': 'Command prefix and quick recent-memory cleanup',
   },
 });
 
@@ -174,15 +166,6 @@ export const MODULES = [
     desc: t('dash.mod.chat.desc'),
     keywords: ['chat', 'ajustes', 'markov', 'probabilidad', 'menciones', 'espontaneo', 'comportamiento'],
     load: loadChatTab,
-  },
-  {
-    key: 'estilo',
-    cat: 'principal',
-    label: t('dash.mod.estilo.label'),
-    icon: 'palette',
-    desc: t('dash.mod.estilo.desc'),
-    keywords: ['estilo', 'personalizacion', 'nick', 'apodo', 'avatar', 'banner', 'foto', 'apariencia'],
-    load: loadEstiloModule,
   },
   {
     key: 'playground',
@@ -239,15 +222,6 @@ export const MODULES = [
     desc: t('dash.mod.anuncios.desc'),
     keywords: ['anuncios', 'programados', 'intervalo', 'diario', 'cadencia', 'mensajes', 'publicaciones', 'automatico', 'auto-delete'],
     load: loadAnunciosTab,
-  },
-  {
-    key: 'updates',
-    cat: 'anuncios',
-    label: t('dash.mod.updates.label'),
-    icon: 'bell',
-    desc: t('dash.mod.updates.desc'),
-    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal', 'updates'],
-    load: loadUpdatesModule,
   },
 
   // Plantillas
@@ -316,6 +290,15 @@ export const MODULES = [
     keywords: ['rss', 'atom', 'feeds', 'noticias', 'blogs', 'articulos', 'alertas'],
     load: loadRss,
   },
+  {
+    key: 'updates',
+    cat: 'automatizacion',
+    label: t('dash.mod.updates.label'),
+    icon: 'bell',
+    desc: t('dash.mod.updates.desc'),
+    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal', 'updates'],
+    load: loadUpdatesModule,
+  },
 
   // Contenido
   {
@@ -348,22 +331,13 @@ export const MODULES = [
     load: loadCanalesModule,
   },
   {
-    key: 'amnesia',
+    key: 'general',
     cat: 'servidor',
-    label: t('dash.mod.amnesia.label'),
-    icon: 'trash',
-    desc: t('dash.mod.amnesia.desc'),
-    keywords: ['amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset'],
-    load: loadAmnesiaModule,
-  },
-  {
-    key: 'prefijo',
-    cat: 'servidor',
-    label: t('dash.mod.prefijo.label'),
-    icon: 'zap',
-    desc: t('dash.mod.prefijo.desc'),
-    keywords: ['prefijo', 'prefix', 'comandos', 'dl', 'instagram', 'purgito'],
-    load: loadPrefijoModule,
+    label: t('dash.mod.general.label'),
+    icon: 'settings',
+    desc: t('dash.mod.general.desc'),
+    keywords: ['prefijo', 'prefix', 'comandos', 'dl', 'instagram', 'purgito', 'amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset', 'general'],
+    load: loadGeneralModule,
   },
 
   // Purgito Premium (Módulo especial)
@@ -1524,7 +1498,6 @@ addStrings({
     'dash.inicio.quickStyleTitle': 'Personalización rápida',
     'dash.inicio.previewText': 'Así se ve Purgito en este servidor',
     'dash.inicio.editStyle': 'Editar estilo',
-    'dash.inicio.viewOptions': 'Ver opciones →',
     'dash.inicio.activityTitle': 'Actividad histórica',
     'dash.inicio.activityDesc': 'Actividad acumulada en este servidor desde que se unió Purgito.',
     'dash.inicio.gifsSent': 'GIFs enviados',
@@ -1595,7 +1568,6 @@ addStrings({
     'dash.inicio.quickStyleTitle': 'Quick customization',
     'dash.inicio.previewText': "This is how Purgito looks on this server",
     'dash.inicio.editStyle': 'Edit style',
-    'dash.inicio.viewOptions': 'View options →',
     'dash.inicio.activityTitle': 'Historical activity',
     'dash.inicio.activityDesc': "Activity accumulated on this server since Purgito joined.",
     'dash.inicio.gifsSent': 'GIFs sent',
@@ -1793,7 +1765,7 @@ async function loadInicio() {
     // 3. Acciones rápidas (Quick Actions)
     const quickActionsGrid = el('div', { class: 'quick-actions-grid' },
       quickActionCard('chat', t('dash.inicio.qaChatTitle'), t('dash.inicio.qaChatDesc'), () => activate('chat', true)),
-      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => activate('estilo', true)),
+      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => openStyleModal(style)),
       quickActionCard('layout', t('dash.inicio.qaEmbedsTitle'), t('dash.inicio.qaEmbedsDesc'), () => activate('embeds', true)),
       quickActionCard('film', t('dash.inicio.qaGifsTitle'), t('dash.inicio.qaGifsDesc'), () => activate('gifs', true)),
       quickActionCard('zap', t('dash.inicio.qaTriggersTitle'), t('dash.inicio.qaTriggersDesc'), () => activate('triggers', true)),
@@ -1820,11 +1792,7 @@ async function loadInicio() {
           el('button', {
             class: 'btn btn-secondary',
             onclick: () => openStyleModal(style),
-          }, t('dash.inicio.editStyle')),
-          el('button', {
-            class: 'btn btn-secondary',
-            onclick: () => activate('estilo', true),
-          }, t('dash.inicio.viewOptions'))
+          }, t('dash.inicio.editStyle'))
         )
       )
     );
@@ -2050,10 +2018,6 @@ addStrings({
     'dash.styleModal.bannerToggle': 'Modificar banner',
     'dash.styleModal.bannerDesc': 'Banner del perfil de Purgito en este servidor.',
     'dash.styleModal.title': 'Editar apariencia en este servidor',
-    'dash.styleModal.moduleTitle': 'Personalización de Purgito',
-    'dash.styleModal.moduleDesc': 'Modifica cómo se presenta Purgito exclusivamente en este servidor (apodo, avatar y banner de perfil).',
-    'dash.styleModal.modulePreview': 'Vista previa del bot en este servidor',
-    'dash.styleModal.editAppearance': 'Editar apariencia',
   },
   en: {
     'dash.styleModal.imageHelp': 'PNG, JPG, GIF, or WEBP. Max 10 MB.',
@@ -2069,10 +2033,6 @@ addStrings({
     'dash.styleModal.bannerToggle': 'Change banner',
     'dash.styleModal.bannerDesc': "Purgito's profile banner on this server.",
     'dash.styleModal.title': 'Edit appearance on this server',
-    'dash.styleModal.moduleTitle': 'Customize Purgito',
-    'dash.styleModal.moduleDesc': "Change how Purgito presents itself exclusively on this server (nickname, avatar, and profile banner).",
-    'dash.styleModal.modulePreview': "Preview of the bot on this server",
-    'dash.styleModal.editAppearance': 'Edit appearance',
   },
 });
 
@@ -2226,7 +2186,6 @@ export function openStyleModal(style = {}) {
         if (res && res.warning) toast(res.warning, 'warn');
         if (modal) modal.remove();
         if (currentTab() === 'inicio') loadInicio();
-        else if (currentTab() === 'estilo') loadEstiloModule();
       } catch (e) {
         toast(e.message || t('dash.styleModal.saveError'), 'err');
       } finally {
@@ -2259,41 +2218,6 @@ export function openStyleModal(style = {}) {
   );
 
   modal = panelModal(t('dash.styleModal.title'), modalBody);
-}
-
-async function loadEstiloModule() {
-  const box = content();
-  if (box) {
-    box.innerHTML = '';
-    box.append(spinner());
-  }
-  try {
-    const style = await apiFetch(`/api/server/${GUILD_ID}/style`);
-    if (!box) return;
-    box.innerHTML = '';
-
-    const avatar = (style && (style.avatar_url || style.current_avatar_url)) || null;
-    const nick = (style && (style.nick || style.current_nick)) || 'Purgito';
-
-    box.append(
-      formGroup(t('dash.styleModal.moduleTitle'),
-        el('p', { class: 'dim' }, t('dash.styleModal.moduleDesc')),
-        el('div', { class: 'style-card' },
-          el('div', { class: 'style-preview' },
-            avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
-            el('div', {},
-              el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
-              el('div', { class: 'dim' }, t('dash.styleModal.modulePreview'))
-            )
-          ),
-          el('button', {
-            class: 'btn btn-primary',
-            onclick: () => openStyleModal(style || {}),
-          }, t('dash.styleModal.editAppearance'))
-        )
-      )
-    );
-  } catch (e) { if (box) renderError(box, e); }
 }
 
 addStrings({
@@ -3034,6 +2958,12 @@ addStrings({
     'dash.prefijo.saved': 'Prefijo actualizado',
     'dash.prefijo.errorSave': 'No se pudo guardar el prefijo',
     'dash.prefijo.errorEmpty': 'El prefijo no puede estar vacío',
+    'dash.amnesia.moduleTitle': 'Limpieza de memoria reciente',
+    'dash.amnesia.moduleDesc': 'Borra el corpus (mensajes aprendidos y estilo por usuario) de las últimas 24 horas de todo el servidor. Esta acción es irreversible.',
+    'dash.amnesia.btnLabel': 'Borrar corpus de las últimas 24h',
+    'dash.amnesia.confirmQuestion': 'Esto borra mensajes y estilo por usuario de las últimas 24 horas y no se puede deshacer. ¿Seguro?',
+    'dash.amnesia.successMsg': 'Borrados {corpus} mensajes y {user} de estilo por usuario',
+    'dash.amnesia.errorMsg': 'No se pudo borrar el corpus reciente, intenta de nuevo',
   },
   en: {
     'dash.updates.moduleTitle': 'Updates Channel',
@@ -3053,6 +2983,12 @@ addStrings({
     'dash.prefijo.saved': 'Prefix updated',
     'dash.prefijo.errorSave': "Couldn't save the prefix",
     'dash.prefijo.errorEmpty': "The prefix can't be empty",
+    'dash.amnesia.moduleTitle': 'Clean up recent memory',
+    'dash.amnesia.moduleDesc': "Deletes the corpus (learned messages and per-user style) from the last 24 hours across the whole server. This action can't be undone.",
+    'dash.amnesia.btnLabel': 'Delete corpus from the last 24h',
+    'dash.amnesia.confirmQuestion': "This deletes messages and per-user style from the last 24 hours and can't be undone. Are you sure?",
+    'dash.amnesia.successMsg': 'Deleted {corpus} messages and {user} per-user style entries',
+    'dash.amnesia.errorMsg': "Couldn't delete the recent corpus, try again",
   },
 });
 
@@ -3079,16 +3015,21 @@ async function loadUpdatesModule() {
   } catch (e) { if (box) renderError(box, e); }
 }
 
-async function loadPrefijoModule() {
+// Prefijo de comandos y limpieza de memoria reciente: dos ajustes chicos
+// y sin relación entre sí, cada uno con su propio módulo de sidebar hasta
+// acá (~15-50 líneas de contenido real cada uno, casi todo boilerplate de
+// un solo campo o un solo botón). Se unifican en una sola página general
+// de servidor en vez de gastar dos entradas de sidebar en algo tan chico.
+async function loadGeneralModule() {
   const box = content();
   if (box) {
     box.innerHTML = '';
     box.append(spinner());
   }
+
+  let prefixSection;
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/prefix`);
-    if (!box) return;
-    box.innerHTML = '';
 
     const input = el('input', {
       type: 'text',
@@ -3120,16 +3061,26 @@ async function loadPrefijoModule() {
     };
     resetBtn.onclick = () => persist(null);
 
-    box.append(
-      formGroup(t('dash.prefijo.moduleTitle'),
-        el('p', { class: 'dim' }, t('dash.prefijo.moduleDesc')),
-        el('div', { class: 'field' },
-          el('label', {}, t('dash.prefijo.label'), helpIcon(t('dash.prefijo.wordNote'))),
-          el('div', { class: 'chain-fields' }, input, saveBtn, resetBtn)
-        )
+    prefixSection = formGroup(t('dash.prefijo.moduleTitle'),
+      el('p', { class: 'dim' }, t('dash.prefijo.moduleDesc')),
+      el('div', { class: 'field' },
+        el('label', {}, t('dash.prefijo.label'), helpIcon(t('dash.prefijo.wordNote'))),
+        el('div', { class: 'chain-fields' }, input, saveBtn, resetBtn)
       )
     );
-  } catch (e) { if (box) renderError(box, e); }
+  } catch (e) {
+    prefixSection = formGroup(t('dash.prefijo.moduleTitle'), el('p', { class: 'error' }, e.message));
+  }
+
+  if (!box) return;
+  box.innerHTML = '';
+  box.append(
+    prefixSection,
+    formGroup(t('dash.amnesia.moduleTitle'),
+      el('p', { class: 'dim' }, t('dash.amnesia.moduleDesc')),
+      amnesiaButton()
+    )
+  );
 }
 
 async function loadTriggersModule() {
@@ -3521,19 +3472,6 @@ async function loadCanalesModule() {
   } catch (e) { renderError(box, e); }
 }
 
-async function loadAmnesiaModule() {
-  const box = content();
-  box.innerHTML = '';
-  box.append(
-    formGroup('Limpieza de memoria reciente',
-      el('p', { class: 'dim' },
-        'Borra el corpus (mensajes aprendidos y estilo por usuario) de las últimas 24 horas de todo el servidor. Esta acción es irreversible.'
-      ),
-      amnesiaButton()
-    )
-  );
-}
-
 // ---------------- CONFIGURACIÓN DEL CHAT (SUBTABS) ----------------
 
 function channelToggleList({ channels, selected, isSelected, add, remove, listBelow }) {
@@ -3601,40 +3539,28 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
 }
 
 function amnesiaButton() {
-  const wrap = el('div', {});
-
-  function showButton() {
-    wrap.innerHTML = '';
-    wrap.append(el('button', {
-      class: 'btn btn-danger', onclick: showConfirm,
-    }, 'Borrar corpus de las últimas 24h'));
-  }
-
-  function showConfirm() {
-    wrap.innerHTML = '';
-    wrap.append(el('div', { class: 'gif-confirm' },
-      'Esto borra mensajes y estilo por usuario de las últimas 24 horas y no se puede deshacer. ¿Seguro?',
-      el('button', { class: 'btn btn-danger btn-sm', onclick: doAmnesia }, '✓ Sí, borrar'),
-      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButton }, '✗ Cancelar')));
-  }
-
-  async function doAmnesia() {
-    try {
-      const data = await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/amnesia`, {
-        method: 'POST',
-      });
-      toast(
-        `Borrados ${data.deleted.corpus_messages} mensajes y ${data.deleted.user_corpus} de estilo por usuario`,
-        'ok',
-      );
-    } catch (e) {
-      toast('No se pudo borrar el corpus reciente, intenta de nuevo', 'err');
-    }
-    showButton();
-  }
-
-  showButton();
-  return wrap;
+  // confirmDelBtn trae la clase .gif-actions de fábrica, pensada para el pie
+  // angosto de una card de GIF (botones a ~50% de ancho, texto chico) -- acá
+  // el botón está solo en una página de ajustes con espacio de sobra, así
+  // que .amnesia-confirm resetea ese tamaño en dash.css.
+  return el('div', { class: 'amnesia-confirm' },
+    confirmDelBtn(t('dash.amnesia.confirmQuestion'), async () => {
+      try {
+        const data = await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/amnesia`, {
+          method: 'POST',
+        });
+        toast(
+          t('dash.amnesia.successMsg', {
+            corpus: data.deleted.corpus_messages,
+            user: data.deleted.user_corpus,
+          }),
+          'ok',
+        );
+      } catch (e) {
+        toast(t('dash.amnesia.errorMsg'), 'err');
+      }
+    }, { label: t('dash.amnesia.btnLabel') })
+  );
 }
 
 function debounce(fn, delayMs) {
@@ -4276,7 +4202,7 @@ async function loadChatTab() {
   if (hash === 'triggers') { activate('triggers', true); return; }
   if (hash === 'canales') { activate('canales', true); return; }
   if (hash === 'datos' || hash === 'corpus') { activate('canales', true); return; }
-  if (hash === 'amnesia') { activate('amnesia', true); return; }
+  if (hash === 'amnesia') { activate('general', true); return; }
   if (hash === 'playground') { activate('playground', true); return; }
 
   const box = content();

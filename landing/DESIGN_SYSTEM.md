@@ -166,7 +166,19 @@ cadena) y los chips de la colección de reacciones (un solo click, sin
 frases quedan solo con `confirmDelBtn`, sin `undoableDelete`: borrar un pack
 mueve sus frases al pool default del servidor, un efecto que "deshacer" no
 podría revertir limpiamente sin lógica de backend extra — ofrecer un botón
-de deshacer que no deshace todo sería peor que no ofrecerlo.
+de deshacer que no deshace todo sería peor que no ofrecerlo. El botón de
+amnesia (tab Servidor → General) es el mismo caso: borra directo en el
+backend, sin deshacer posible, así que también va solo con `confirmDelBtn`
+(antes tenía su propia reimplementación local del mismo patrón de dos
+pasos, con texto sin traducir — quedó reemplazada por el helper).
+
+`confirmDelBtn` trae de fábrica la clase `.gif-actions` en su wrapper
+(pensada para el pie angosto de una card de GIF: botones a ~50% de ancho,
+texto chico). En un contexto con más espacio, como el botón de amnesia,
+hay que neutralizar ese tamaño envolviendo el resultado en un contenedor
+propio y pisando `.gif-actions .btn` ahí adentro (ver `.amnesia-confirm` en
+dash.css) — no editar la regla base, que sí es la correcta para su uso
+original en GIFs/frases/triggers.
 
 ## Regla de uso de ⓘ (`helpIcon`)
 

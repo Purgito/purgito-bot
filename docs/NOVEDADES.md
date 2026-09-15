@@ -32,6 +32,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - CHAT y Canales avisan antes de salir si un cambio se sigue guardando o no se pudo guardar, para no perderlo sin darte cuenta.
 - La matriz de canales (habla/responde/aprende) se ve como tarjetas legibles en el celular, en vez de una tabla apretada con casillas diminutas.
 - La guía de Primeros pasos en INICIO se puede ocultar aunque falten pasos, y el paso sobre aprender mensajes nuevos ya no se confunde con elegir canales.
+- Menos módulos redundantes en el dashboard: Personalización se edita directo desde INICIO (antes llevaba a una página aparte con lo mismo), y Prefijo de comandos + Limpieza de memoria se unieron en un solo módulo, General. El canal de novedades del bot se movió a Automatización, junto a YouTube/Twitch/RSS.
 
 ### Corregido
 - Un canal con mucho historial ya no le come el cupo de mensajes aprendidos a los demás canales del mismo servidor — el límite ahora es por canal.

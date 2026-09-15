@@ -774,7 +774,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
     assert.equal(count, 1, `El módulo ${key} solo debe existir una vez en MODULES`);
   }
 
-  // Bienvenidas, Despedidas, Boosts, Anuncios y Updates deben estar en Anuncios
+  // Bienvenidas, Despedidas, Boosts y Anuncios deben estar en Anuncios
   const welcomeMod = MODULES.find(m => m.key === 'welcome');
   assert.equal(welcomeMod.cat, 'anuncios', 'Bienvenidas debe estar en Anuncios');
 
@@ -787,8 +787,12 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const anunciosMod = MODULES.find(m => m.key === 'anuncios');
   assert.equal(anunciosMod.cat, 'anuncios', 'Anuncios debe estar en Anuncios');
 
+  // Updates vive con YouTube/Twitch/RSS: las cuatro son "una señal externa
+  // dispara un post automático", a diferencia de Anuncios (contenido
+  // escrito por el admin) o Bienvenidas/Despedidas/Boosts (eventos del
+  // propio servidor).
   const updatesMod = MODULES.find(m => m.key === 'updates');
-  assert.equal(updatesMod.cat, 'anuncios', 'Updates debe estar en Anuncios');
+  assert.equal(updatesMod.cat, 'automatizacion', 'Updates debe estar en Automatización, junto a YouTube/Twitch/RSS');
 
   // Triggers, Reacciones, Frases y YouTube deben estar en Automatización
   const youtubeMod = MODULES.find(m => m.key === 'youtube');
@@ -1357,7 +1361,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const tabs = [
     'inicio', 'stats', 'chat', 'welcome', 'goodbye', 'boost', 'anuncios',
     'updates', 'gifs', 'memes', 'triggers', 'reacciones', 'frases',
-    'canales', 'amnesia', 'historial', 'premium', 'youtube', 'embeds'
+    'canales', 'general', 'historial', 'premium', 'youtube', 'embeds'
   ];
   for (const t of tabs) {
     assert.equal(getDashboardUrl('123', t, null, 'en'), `/en/dashboard/123/${t}`);
