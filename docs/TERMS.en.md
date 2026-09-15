@@ -46,7 +46,7 @@ Server administrators are responsible for moderating the bot's use within their 
 
 ## Redistributed third-party content (`!dl`)
 
-The `!dl` command downloads a public video from Instagram, TikTok, or Twitter/X from a link a user pastes, and uploads it to the same Discord channel.
+The `!dl` command downloads a public video from Instagram, TikTok, Twitter/X, or Facebook from a link a user pastes, and uploads it to the same Discord channel.
 
 Purgito doesn't verify the ownership of rights to that content: whoever uses the command is responsible for having the right to redistribute it. The developer may disable this feature at any time, without prior notice, in response to a change in those sites' terms or a copyright claim.
 

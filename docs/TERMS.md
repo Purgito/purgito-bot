@@ -46,7 +46,7 @@ Los administradores del servidor son responsables de moderar el uso del bot dent
 
 ## Contenido de terceros redistribuido (`!dl`)
 
-El comando `!dl` descarga un video público de Instagram, TikTok o Twitter/X a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
+El comando `!dl` descarga un video público de Instagram, TikTok, Twitter/X o Facebook a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
 
 Purgito no verifica la titularidad de derechos de ese contenido: es responsabilidad de quien usa el comando tener derecho a redistribuirlo. El desarrollador puede desactivar esta función en cualquier momento, sin previo aviso, ante un cambio en los términos de esos sitios o un reclamo de derechos de autor.
 

@@ -6,7 +6,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 ## [Unreleased]
 
 ### Security
-- `!dl`: si el sitio de origen (Instagram, TikTok o Twitter/X) marca el video como contenido sensible (`age_limit` de yt-dlp), ahora solo se sube en canales NSFW — antes se subía igual a cualquier canal, sin ningún filtro.
+- `!dl`: si el sitio de origen (Instagram, TikTok, Twitter/X o Facebook) marca el video como contenido sensible (`age_limit` de yt-dlp), ahora solo se sube en canales NSFW — antes se subía igual a cualquier canal, sin ningún filtro.
 - Race condition en `release_gif_reference` (`db.py`): si mientras se liberaba la última referencia a un GIF alguien volvía a compartir el mismo contenido antes de que el borrado físico en R2 terminara, la referencia nueva podía quedar apuntando a un objeto recién borrado. El borrado de la fila de `gif_objects` ahora se confirma en una segunda pasada atómica justo antes de tocar R2, así que una referencia revivida a tiempo cancela el borrado físico.
 - Bloqueo de aprendizaje NSFW: además del gate ya existente en el mensaje en vivo, `/refeed` y la migración de canales, `on_ready` ahora corre `sanitize_nsfw_corpus_channels` en cada arranque — re-valida toda la allowlist del corpus contra el estado NSFW en vivo de Discord, para cubrir el caso de que un canal haya pasado a NSFW mientras el bot estaba desconectado (`on_guild_channel_update` nunca se disparó).
 - Rate limit genérico para los endpoints de escritura de `@guild_api` (POST/PUT/PATCH/DELETE), por usuario de sesión: de los ~80 endpoints bajo ese decorador, la mayoría no tenía ningún límite propio.
@@ -16,6 +16,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Memes automáticos: cuando `auto_meme_task` salta un canal por no tener imágenes en la colección o por corpus vacío, ahora avisa una vez en el canal configurado en vez de saltearlo en silencio cada 10 minutos para siempre. El aviso no se repite mientras el motivo siga siendo el mismo (`meme_schedule.last_error`), y se limpia solo en cuanto el canal vuelve a postear con éxito.
 
 ### Added
+- `!dl` / `purgito dl` ahora también descarga videos de Facebook (`facebook.com`, `fb.watch`), sumado a Instagram, TikTok y Twitter/X.
 - Sistema de servidores premium: tabla `premium_guilds`, activada/desactivada por los webhooks de Polar.sh (`/webhooks/polar`) al procesar una suscripción — sin ningún endpoint de administración manual. Las features restringidas (memes, pool de imágenes) siguen siempre activas en `PURGATORY_GUILD_ID` hardcodeado, incondicionalmente; para el resto de los servidores depende exclusivamente de tener una suscripción activa en Polar. `HOME_GUILD_ID` se migra automáticamente a la tabla en el primer arranque.
 - Limpieza diferida de datos al salir de un servidor: `on_guild_remove` registra la salida en `guild_departures`; task diaria purga datos (DB + R2) después de `GUILD_DATA_RETENTION_DAYS` (default 30). Reinvitar al bot dentro del período cancela el borrado.
 - Límites de almacenamiento por servidor: `MAX_CORPUS_MESSAGES_PER_GUILD_FREE/PREMIUM`

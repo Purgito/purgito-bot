@@ -1,5 +1,5 @@
 """Comando "dl" (cogs/download.py): descarga de un video de Instagram,
-TikTok o Twitter/X y lo sube al canal. Mockea _download_video por completo
+TikTok, Twitter/X o Facebook y lo sube al canal. Mockea _download_video por completo
 -- nada de red real ni yt-dlp de verdad. Cubre la validación de dominio
 (la allowlist, incluyendo que "t.co" quede afuera a propósito), los tres
 casos de error, y el camino feliz (manda el archivo y limpia el tmp dir).
@@ -108,6 +108,9 @@ def _fake_download_factory(seen=None, is_sensitive=False):
         "https://twitter.com/user/status/123",
         "https://x.com/user/status/123",
         "https://mobile.twitter.com/user/status/123",
+        "https://facebook.com/user/videos/123",
+        "https://www.facebook.com/user/videos/123",
+        "https://fb.watch/abc123",
     ],
 )
 def test_is_supported_url_acepta_hosts_validos(url):

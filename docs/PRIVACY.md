@@ -139,7 +139,7 @@ Purgito utiliza servicios externos para determinadas funciones. Cada proveedor p
 
 ## Descarga de video de redes sociales (`!dl`)
 
-- **Qué es y para qué se utiliza**: El comando `!dl` descarga un video público de Instagram, TikTok o Twitter/X a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
+- **Qué es y para qué se utiliza**: El comando `!dl` descarga un video público de Instagram, TikTok, Twitter/X o Facebook a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
 - **Qué se procesa**: Únicamente la URL pegada y el video descargado de esa URL. El archivo se guarda en un directorio temporal del proceso y se borra inmediatamente después de enviarlo al canal — no se almacena de forma persistente ni se sube a Cloudflare R2.
 - **Responsabilidad**: Purgito no verifica si quien pega el link tiene derecho a redistribuir ese contenido (ver "Contenido de terceros redistribuido" en las Condiciones del Servicio).
 
