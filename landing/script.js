@@ -74,6 +74,7 @@ var SLUG_MAP_ES_EN = {
   'terminos': 'terms',
   'privacidad': 'privacy',
   'reembolsos': 'refunds',
+  'novedades': 'changelog',
   'documentacion': 'documentation',
   'documentacion/arquitectura': 'documentation/architecture',
   'documentacion/discord': 'documentation/discord',

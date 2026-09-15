@@ -7,8 +7,8 @@
 
 import { apiFetch, humanError } from '/js/core/api.js';
 import {
-  el, icon, spinner, emptyState, renderError, guildIcon, toast, formGroup,
-  confirmDelBtn, helpIcon, accordionGroup,
+  el, icon, spinner, emptyState, richEmptyState, loadingCard, renderError, guildIcon, toast, formGroup,
+  confirmDelBtn, undoableDelete, helpIcon, accordionGroup,
 } from '/js/core/dom.js';
 import {
   GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
@@ -399,6 +399,38 @@ let _sidebarCollapsed = getStoredSidebarCollapsed();
 let _loadEpoch = 0;
 let _activeGuild = null;
 export let _serverPickerOpen = false;
+
+// Avisos de cupo para la sidebar: { [moduleKey]: { full: bool, pct } }. Se
+// llenan con loadQuotaAlerts() y se pintan como un punto sobre el ícono del
+// módulo (quotaAlertDot en renderSidebar) — el mismo dato que ya se mostraba
+// como aviso de texto dentro de INICIO (ver loadInicio), pero visible desde
+// cualquier tab, no solo cuando el admin entra ahí a mirar.
+let _quotaAlerts = {};
+const QUOTA_ALERT_MODULES = [
+  ['gifs', s => s.gifs, l => l.gifs],
+  ['frases', s => s.frases, l => l.frases],
+];
+
+async function loadQuotaAlerts() {
+  const epoch = _loadEpoch;
+  try {
+    const stats = await apiFetch(`/api/server/${GUILD_ID}/stats`);
+    if (epoch !== _loadEpoch) return;
+    const lims = stats.limits || {};
+    const alerts = {};
+    for (const [key, getUsed, getCap] of QUOTA_ALERT_MODULES) {
+      const used = getUsed(stats);
+      const cap = getCap(lims);
+      if (cap && used >= cap * 0.9) {
+        alerts[key] = { full: used >= cap, pct: Math.min(100, Math.round((used / cap) * 100)) };
+      }
+    }
+    _quotaAlerts = alerts;
+    renderSidebar(currentTab());
+  } catch (e) {
+    // Aviso secundario: si falla, la sidebar se queda sin el punto y listo.
+  }
+}
 
 export function setServerPickerOpen(isOpen) {
   _serverPickerOpen = Boolean(isOpen);
@@ -975,12 +1007,15 @@ export function renderSidebar(activeTab) {
         class: 'dash-sidebar-item' + (isTabActive ? ' active' : ''),
       });
 
+      const quotaAlert = _quotaAlerts[m.key];
       const tabLink = el('a', {
         class: 'dash-tab' + (isTabActive ? ' active' : ''),
         'data-key': m.key,
         href: getDashboardUrl(GUILD_ID, m.key),
         'aria-current': isTabActive ? 'page' : null,
-        title: m.label,
+        title: quotaAlert
+          ? `${m.label} — ${quotaAlert.full ? 'cupo lleno' : `cerca del cupo (${quotaAlert.pct}%)`}`
+          : m.label,
         onclick: (ev) => {
           ev.preventDefault();
           closeMobileNav();
@@ -989,7 +1024,10 @@ export function renderSidebar(activeTab) {
       },
         icon(m.icon),
         el('span', { class: 'dash-tab-label' }, m.label),
-        m.badge ? el('span', { class: `badge badge-${m.badgeType || 'soon'} badge-xs` }, m.badge) : null
+        m.badge ? el('span', { class: `badge badge-${m.badgeType || 'soon'} badge-xs` }, m.badge) : null,
+        quotaAlert
+          ? el('span', { class: 'quota-alert-dot' + (quotaAlert.full ? ' is-full' : ''), 'aria-hidden': 'true' })
+          : null
       );
 
       item.append(tabLink);
@@ -1114,6 +1152,7 @@ export async function selectGuild(newGuildId) {
   setGuildId(newGuildId);
   clearGuildCaches();
   _loadEpoch++;
+  _quotaAlerts = {};
 
   const curTab = currentTab();
   history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
@@ -1127,6 +1166,7 @@ export async function selectGuild(newGuildId) {
   renderTopBar(_activeGuild);
 
   activate(curTab, false);
+  loadQuotaAlerts();
   toast(t('dash.init.switchingServer'), 'ok');
 }
 
@@ -1228,6 +1268,7 @@ export async function initDash() {
 
     _activeGuild = g;
     document.title = `${g.name} · Purgito`;
+    loadQuotaAlerts();
 
     if (tabs) tabs.hidden = false;
     renderTopBar(g);
@@ -1378,6 +1419,13 @@ addStrings({
     'dash.inicio.quotaFrases': 'frases especiales',
     'dash.inicio.quotaFullText': 'Has alcanzado el límite de {items}. Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.',
     'dash.inicio.quotaNearText': 'Estás cerca del cupo de {items}: al alcanzarlo, Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.',
+    'dash.inicio.onboardingTitle': 'Primeros pasos',
+    'dash.inicio.onboardingStepChannelsLabel': 'Elige de qué canales aprende',
+    'dash.inicio.onboardingStepChannelsBtn': 'Elegir canales',
+    'dash.inicio.onboardingStepCorpusLabel': 'Aprende del historial de esos canales',
+    'dash.inicio.onboardingStepCorpusHint': 'Se hace desde Discord con /setup o /refeed_channels.',
+    'dash.inicio.onboardingStepStyleLabel': 'Personaliza cómo se llama y se ve',
+    'dash.inicio.onboardingStepStyleBtn': 'Personalizar',
     'dash.inicio.statusTitle': 'Estado de Purgito en este servidor',
     'dash.inicio.quickActionsTitle': 'Acciones rápidas',
     'dash.inicio.qaChatTitle': 'Ajustes de Chat',
@@ -1441,6 +1489,13 @@ addStrings({
     'dash.inicio.quotaFrases': 'special phrases',
     'dash.inicio.quotaFullText': "You've reached the limit for {items}. Purgito automatically discards the oldest content to make room for new content.",
     'dash.inicio.quotaNearText': "You're close to the quota for {items}: once reached, Purgito will start discarding the oldest content to make room for new content.",
+    'dash.inicio.onboardingTitle': 'First steps',
+    'dash.inicio.onboardingStepChannelsLabel': 'Choose which channels it learns from',
+    'dash.inicio.onboardingStepChannelsBtn': 'Choose channels',
+    'dash.inicio.onboardingStepCorpusLabel': 'Learn from the history of those channels',
+    'dash.inicio.onboardingStepCorpusHint': 'Done from Discord with /setup or /refeed_channels.',
+    'dash.inicio.onboardingStepStyleLabel': 'Customize its name and look',
+    'dash.inicio.onboardingStepStyleBtn': 'Customize',
     'dash.inicio.statusTitle': "Purgito's status on this server",
     'dash.inicio.quickActionsTitle': 'Quick actions',
     'dash.inicio.qaChatTitle': 'Chat settings',
@@ -1483,6 +1538,49 @@ addStrings({
     'dash.stats.noData': 'Not enough data yet.',
   },
 });
+
+// Checklist de primeros pasos: solo con datos que loadInicio ya pide (style,
+// stats), sin endpoint nuevo. Se oculta sola apenas los tres pasos están
+// completos — no queda como un recordatorio permanente para un servidor ya
+// configurado.
+function buildOnboardingChecklist(stats, style) {
+  const steps = [
+    {
+      done: (stats.reading_channels || 0) > 0,
+      label: t('dash.inicio.onboardingStepChannelsLabel'),
+      actionLabel: t('dash.inicio.onboardingStepChannelsBtn'),
+      action: () => activate('canales', true),
+    },
+    {
+      done: (stats.corpus_total || 0) > 0,
+      label: t('dash.inicio.onboardingStepCorpusLabel'),
+      hint: t('dash.inicio.onboardingStepCorpusHint'),
+    },
+    {
+      done: Boolean(style.nick || style.avatar_url),
+      label: t('dash.inicio.onboardingStepStyleLabel'),
+      actionLabel: t('dash.inicio.onboardingStepStyleBtn'),
+      action: () => openStyleModal(style),
+    },
+  ];
+
+  if (steps.every(s => s.done)) return null;
+  const doneCount = steps.filter(s => s.done).length;
+
+  return el('div', { class: 'onboarding-checklist' },
+    el('div', { class: 'onboarding-checklist-header' },
+      el('h3', {}, t('dash.inicio.onboardingTitle')),
+      el('span', { class: 'dim' }, `${doneCount}/${steps.length}`)),
+    el('ul', { class: 'onboarding-checklist-list' },
+      ...steps.map(s => el('li', { class: 'onboarding-step' + (s.done ? ' done' : '') },
+        el('span', { class: 'onboarding-step-check' }, s.done ? icon('check') : null),
+        el('div', { class: 'onboarding-step-body' },
+          el('span', {}, s.label),
+          s.hint ? el('p', { class: 'dim text-sm' }, s.hint) : null),
+        (!s.done && s.action)
+          ? el('button', { class: 'btn btn-secondary btn-sm', onclick: s.action }, s.actionLabel)
+          : null))));
+}
 
 async function loadInicio() {
   const box = content();
@@ -1539,6 +1637,9 @@ async function loadInicio() {
       )
     );
     box.append(serverHero);
+
+    const onboardingChecklist = buildOnboardingChecklist(stats, style);
+    if (onboardingChecklist) box.append(onboardingChecklist);
 
     // 2. Avisos accionables de cuota (cuando requieren atención del administrador)
     const lims = stats.limits || {};
@@ -2147,13 +2248,11 @@ async function loadPlaygroundModule() {
           el('p', { class: 'dim' },
             t('dash.playground.moduleDesc')
           ),
-          el('div', { class: 'sim-empty-state' },
-            el('div', { class: 'sim-empty-state-icon' }, icon('lock')),
-            el('h3', { class: 'sim-empty-state-title' }, t('dash.playground.noChannels')),
-            el('p', { class: 'sim-empty-state-desc' },
-              t('dash.playground.noChannelsDesc')
-            )
-          )
+          richEmptyState({
+            icon: 'lock',
+            title: t('dash.playground.noChannels'),
+            desc: t('dash.playground.noChannelsDesc'),
+          })
         )
       );
       return;
@@ -2245,12 +2344,7 @@ async function loadPlaygroundModule() {
 
       // Solo cambia el resultado: loading localizado sin provocar scroll jumps ni recrear la página
       resultSlot.innerHTML = '';
-      resultSlot.append(
-        el('div', { class: 'sim-card sim-result-loading-card' },
-          spinner(),
-          el('div', { class: 'sim-result-loading-text' }, t('dash.playground.simulatingSpontaneous'))
-        )
-      );
+      resultSlot.append(loadingCard(t('dash.playground.simulatingSpontaneous')));
 
       try {
         const data = await apiFetch(`/api/server/${GUILD_ID}/chat/playground`, {
@@ -2813,9 +2907,9 @@ addStrings({
     'dash.reacciones.probLabel': 'Probabilidad de reaccionar con un emoji',
     'dash.reacciones.emojiCollectionLabel': 'Colección de emojis',
     'dash.prefijo.moduleTitle': 'Prefijo de comandos',
-    'dash.prefijo.moduleDesc': 'Los comandos de texto (como !dl) responden al símbolo de acá, o escribiendo "purgito" antes del comando.',
+    'dash.prefijo.moduleDesc': 'Los comandos de texto (como !dl) responden al símbolo de aquí, o escribiendo "purgito" antes del comando.',
     'dash.prefijo.label': 'Símbolo del prefijo',
-    'dash.prefijo.wordNote': 'Además del símbolo, "purgito" antes del comando siempre funciona (ej: "purgito dl <link>") -- eso no se cambia acá.',
+    'dash.prefijo.wordNote': 'Además del símbolo, "purgito" antes del comando siempre funciona (ej: "purgito dl <link>") -- eso no se cambia aquí.',
     'dash.prefijo.save': 'Guardar',
     'dash.prefijo.reset': 'Restablecer',
     'dash.prefijo.saved': 'Prefijo actualizado',
@@ -3072,16 +3166,16 @@ async function loadFrasesModule() {
 addStrings({
   es: {
     'dash.canalesModule.colSpeakShort': 'Habla',
-    'dash.canalesModule.colSpeakOn': 'habla por su cuenta acá',
-    'dash.canalesModule.colSpeakOff': 'ya no habla solo acá',
+    'dash.canalesModule.colSpeakOn': 'habla por su cuenta aquí',
+    'dash.canalesModule.colSpeakOff': 'ya no habla solo aquí',
     'dash.canalesModule.colSpeakHelp': 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
     'dash.canalesModule.colReplyShort': 'Responde',
-    'dash.canalesModule.colReplyOn': 'responde menciones acá',
-    'dash.canalesModule.colReplyOff': 'ya no responde menciones acá',
+    'dash.canalesModule.colReplyOn': 'responde menciones aquí',
+    'dash.canalesModule.colReplyOff': 'ya no responde menciones aquí',
     'dash.canalesModule.colReplyHelp': 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
     'dash.canalesModule.colLearnShort': 'Aprende',
-    'dash.canalesModule.colLearnOn': 'aprende de acá',
-    'dash.canalesModule.colLearnOff': 'ya no aprende de acá',
+    'dash.canalesModule.colLearnOn': 'aprende de aquí',
+    'dash.canalesModule.colLearnOff': 'ya no aprende de aquí',
     'dash.canalesModule.colLearnHelp': 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
     'dash.canalesModule.ovrEvery': 'Cada cuántos mensajes',
     'dash.canalesModule.ovrEverySuffix': 'mensajes',
@@ -3092,8 +3186,8 @@ addStrings({
     'dash.canalesModule.ovrMentionLimit': 'Menciones por hora',
     'dash.canalesModule.ovrMentionLimitSuffix': 'por usuario',
     'dash.canalesModule.matrixTitle': 'Matriz de canales',
-    'dash.canalesModule.silencedOne': 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.',
-    'dash.canalesModule.silencedMany': 'Hay {count} canales silenciados desde /settings: quedan fuera aunque los marques acá.',
+    'dash.canalesModule.silencedOne': 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques aquí.',
+    'dash.canalesModule.silencedMany': 'Hay {count} canales silenciados desde /settings: quedan fuera aunque los marques aquí.',
     'dash.canalesModule.exemptionsTitle': 'Exenciones de límites',
     'dash.canalesModule.exemptRolesLabel': 'Roles exentos de límites de menciones',
     'dash.canalesModule.noExemptRoles': 'Ningún rol exento: el límite aplica a todos por igual.',
@@ -3605,7 +3699,14 @@ function channelMatrix({ channels, cols, openOverrides }) {
   const filter = el('input', {
     type: 'search', placeholder: 'Filtrar canales…', class: 'chan-filter', autocomplete: 'off',
   });
+  const onlyConfigured = el('input', { type: 'checkbox' });
+  const filterBar = el('div', { class: 'chan-filter-bar' },
+    filter,
+    el('label', { class: 'chan-filter-toggle' }, onlyConfigured, 'Solo configurados'));
   const body = el('div', { class: 'chan-matrix-body' });
+  const noResults = emptyState('Ningún canal coincide con el filtro.');
+  noResults.classList.add('chan-matrix-no-results');
+  noResults.hidden = true;
 
   const head = el('div', { class: 'chan-matrix-head' },
     el('span', {}, 'Canal'),
@@ -3647,6 +3748,7 @@ function channelMatrix({ channels, cols, openOverrides }) {
             box.checked = !on;
             toast('No se pudo guardar, intenta de nuevo', 'err');
           }
+          applyFilter();
         };
         return el('label', { class: 'chan-matrix-cell', title: c.short }, box);
       }),
@@ -3656,12 +3758,24 @@ function channelMatrix({ channels, cols, openOverrides }) {
 
   const items = channels.map(ch => ({ ch, node: rowFor(ch) }));
   for (const it of items) body.append(it.node);
-  filter.oninput = () => {
-    const q = filter.value.trim().toLowerCase();
-    for (const it of items) it.node.hidden = q && !(it.ch.name || '').toLowerCase().includes(q);
-  };
 
-  wrap.append(filter, head, body);
+  function applyFilter() {
+    const q = filter.value.trim().toLowerCase();
+    let anyVisible = false;
+    for (const it of items) {
+      const matchesText = !q || (it.ch.name || '').toLowerCase().includes(q);
+      const matchesConfigured = !onlyConfigured.checked || cols.some(c => c.isSelected(it.ch.id));
+      const visible = matchesText && matchesConfigured;
+      it.node.hidden = !visible;
+      if (visible) anyVisible = true;
+    }
+    noResults.hidden = anyVisible || !items.length;
+  }
+  filter.oninput = applyFilter;
+  onlyConfigured.onchange = applyFilter;
+  applyFilter();
+
+  wrap.append(filterBar, head, body, noResults);
   return wrap;
 }
 
@@ -4262,26 +4376,26 @@ async function renderReacciones(box, pool) {
     for (const r of poolList) {
       const parsed = parseEmojiText(r.emoji_text);
       if (parsed.isCustom) {
-        poolContainer.append(el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
+        const chip = el('span', { class: 'emoji-pool-chip', title: `:${parsed.name}:` },
           el('img', { src: parsed.url, alt: parsed.name, class: 'emoji-chip-img', loading: 'lazy' }),
-          el('span', { class: 'emoji-chip-name' }, parsed.name),
-          el('button', {
-            type: 'button',
-            class: 'emoji-chip-x',
-            'aria-label': `Quitar :${parsed.name}:`,
-            onclick: () => removeReaction(box, r.id),
-          }, '✕')
-        ));
+          el('span', { class: 'emoji-chip-name' }, parsed.name));
+        chip.append(el('button', {
+          type: 'button',
+          class: 'emoji-chip-x',
+          'aria-label': `Quitar :${parsed.name}:`,
+          onclick: () => removeReactionChip(box, chip, r.id),
+        }, '✕'));
+        poolContainer.append(chip);
       } else {
-        poolContainer.append(el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
-          el('span', { class: 'emoji-chip-char' }, r.emoji_text),
-          el('button', {
-            type: 'button',
-            class: 'emoji-chip-x',
-            'aria-label': `Quitar ${r.emoji_text}`,
-            onclick: () => removeReaction(box, r.id),
-          }, '✕')
-        ));
+        const chip = el('span', { class: 'emoji-pool-chip emoji-pool-chip--unicode' },
+          el('span', { class: 'emoji-chip-char' }, r.emoji_text));
+        chip.append(el('button', {
+          type: 'button',
+          class: 'emoji-chip-x',
+          'aria-label': `Quitar ${r.emoji_text}`,
+          onclick: () => removeReactionChip(box, chip, r.id),
+        }, '✕'));
+        poolContainer.append(chip);
       }
     }
   }
@@ -4322,6 +4436,20 @@ async function removeReaction(box, id, modalOverlay = null) {
   } catch (e) {
     toast('No se pudo quitar el emoji, intenta de nuevo', 'err');
   }
+}
+
+// Variante con deshacer para el chip de la colección (no el selector del
+// modal, que se cierra al toque y ya tiene su propio "deshacer": volver a
+// tocar el emoji para agregarlo de nuevo).
+function removeReactionChip(box, chip, id) {
+  undoableDelete(chip, {
+    message: 'Emoji quitado',
+    errorMessage: 'No se pudo quitar el emoji, intenta de nuevo',
+    onDelete: async () => {
+      await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones/${id}`, { method: 'DELETE' });
+      reloadReacciones(box);
+    },
+  });
 }
 
 async function reloadReacciones(box) {
@@ -4786,10 +4914,17 @@ function renderFrases(box, frases, packs, limit) {
           },
         }, 'Editar');
 
-        const delBtn = confirmDelBtn('¿Eliminar esta frase? No se puede recuperar.', async () => {
-          try {
+        const actionsDiv = el('div', { class: 'frase-actions' }, editBtn);
+        const row = el('li', { class: 'frase-item' },
+          el('span', { class: 'frase-text' }, f.frase),
+          packSelect,
+          actionsDiv);
+
+        const delBtn = confirmDelBtn('¿Eliminar esta frase?', () => undoableDelete(row, {
+          message: 'Frase eliminada',
+          errorMessage: 'No se pudo quitar la frase, intenta de nuevo',
+          onDelete: async () => {
             await apiFetch(`/api/server/${GUILD_ID}/settings/frases/${f.id}`, { method: 'DELETE' });
-            toast('Frase quitada', 'ok');
             state.frases = state.frases.filter(item => item.id !== f.id);
             if (state.editingId === f.id) {
               state.editingId = null;
@@ -4797,18 +4932,11 @@ function renderFrases(box, frases, packs, limit) {
             }
             updateCupo();
             renderListAndPagination();
-          } catch (e) {
-            toast('No se pudo quitar la frase, intenta de nuevo', 'err');
-          }
-        });
+          },
+        }));
+        actionsDiv.append(delBtn);
 
-        list.append(
-          el('li', { class: 'frase-item' },
-            el('span', { class: 'frase-text' }, f.frase),
-            packSelect,
-            el('div', { class: 'frase-actions' }, editBtn, delBtn)
-          )
-        );
+        list.append(row);
       }
     }
 
@@ -5022,19 +5150,21 @@ function renderTriggers(box, data, channels, packs) {
   if (!triggersList.length) list.append(el('li', { class: 'dim' }, 'Todavía no configuraste ningún trigger.'));
   for (const trig of triggersList) {
     const d = describeTrigger(trig, channels, safePacks);
-    list.append(el('li', { class: 'trigger-card' },
+    const row = el('li', { class: 'trigger-card' },
       el('div', { class: 'trigger-card-main' },
         el('span', { class: 'badge trigger-chan-badge' }, d.channelLabel),
         el('span', {}, d.matchLabel, ' ', el('code', { class: 'cmd' }, `"${d.pattern}"`)),
         el('span', { class: 'trigger-arrow' }, '→'),
-        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : '')),
-      confirmDelBtn('¿Eliminar este trigger? Hay que volver a escribirlo desde cero.', async () => {
-        try {
-          await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
-          toast('Trigger eliminado', 'ok');
-        } catch (e) { toast('No se pudo eliminar el trigger, intenta de nuevo', 'err'); }
+        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : '')));
+    row.append(confirmDelBtn('¿Eliminar este trigger?', () => undoableDelete(row, {
+      message: 'Trigger eliminado',
+      errorMessage: 'No se pudo eliminar el trigger, intenta de nuevo',
+      onDelete: async () => {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/triggers/${trig.id}`, { method: 'DELETE' });
         reloadTriggers(box, channels, safePacks);
-      })));
+      },
+    })));
+    list.append(row);
   }
   box.append(list, triggerForm(box, channels, safePacks, safeData));
 }
@@ -5145,11 +5275,11 @@ const PLAYGROUND_AVISO_LABELS = {
   chat_desactivado:
     'El chat está desactivado: no responde a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch y siguen saliendo.',
   canal_sin_menciones:
-    'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan acá, avisa que solo contesta en los canales elegidos.',
+    'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan aquí, avisa que solo contesta en los canales elegidos.',
   canal_sin_espontaneo:
-    'Este canal no está en la lista de canales donde habla por su cuenta: acá nunca va a arrancar una charla solo.',
+    'Este canal no está en la lista de canales donde habla por su cuenta: aquí nunca va a arrancar una charla solo.',
   cupo_horario_agotado:
-    'Ya agotaste tu cupo de menciones de esta hora: a vos no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
+    'Ya agotaste tu cupo de menciones de esta hora: a ti no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
   cooldown_espontaneo:
     'Acabó de hablar solo en este canal: por el piso de silencio entre mensajes espontáneos no volvería a hacerlo todavía. No afecta a las menciones.',
 };

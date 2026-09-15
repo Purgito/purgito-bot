@@ -50,6 +50,7 @@ SLUG_MAP_ES_EN = {
     "terminos": "terms",
     "privacidad": "privacy",
     "reembolsos": "refunds",
+    "novedades": "changelog",
     "documentacion": "documentation",
     "documentacion/arquitectura": "documentation/architecture",
     "documentacion/discord": "documentation/discord",
@@ -147,6 +148,18 @@ PAGES = [
             "A quién queda asociado el premium: al servidor, no a la cuenta.",
         ],
     },
+    {
+        "slug": "novedades",
+        "src": "NOVEDADES.md",
+        "title": "Novedades",
+        "meta": "Qué cambió en Purgito: funciones nuevas, mejoras y arreglos, "
+        "resumidos en lenguaje simple.",
+        "toc": [
+            "Límites de uso visibles, Twitch, /mis_datos, plantillas exportables y más.",
+            "Memes, frases especiales, reacciones, YouTube y el panel /settings.",
+            "El lanzamiento: GIFs por servidor y generación de texto.",
+        ],
+    },
 ]
 
 # Mismo formato que PAGES, en inglés. slug via en_slug() -- nunca a mano --
@@ -200,6 +213,18 @@ PAGES_EN = [
             "When Premium access can be revoked.",
             "What happens to your saved content if the server loses Premium.",
             "Who Premium is tied to: the server, not the account.",
+        ],
+    },
+    {
+        "slug": en_slug("novedades"),
+        "src": "NOVEDADES.en.md",
+        "title": "Changelog",
+        "meta": "What changed in Purgito: new features, improvements, and "
+        "fixes, summarized in plain language.",
+        "toc": [
+            "Visible usage limits, Twitch, /mis_datos, exportable templates, and more.",
+            "Memes, special phrases, reactions, YouTube, and the /settings panel.",
+            "The launch: per-server GIFs and text generation.",
         ],
     },
 ]

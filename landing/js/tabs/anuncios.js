@@ -3,7 +3,7 @@
 
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, spinner, renderError, toast, autoGrow, icon,
+  el, spinner, renderError, toast, autoGrow, icon, richEmptyState,
 } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { getChannels, channelSelect, content } from '/js/panel-shell.js';
@@ -319,11 +319,11 @@ function renderAnunciosManager(container, initialData, channels) {
     }
 
     if (!announcementsList.length) {
-      const emptyBox = el('div', { class: 'card empty-state-card' },
-        el('div', { class: 'empty-icon-wrap' }, icon('layout')),
-        el('h3', {}, t('tabsAnuncios.emptyTitle')),
-        el('p', { class: 'dim' }, t('tabsAnuncios.emptyDesc')),
-        el('button', {
+      shellWrap.append(richEmptyState({
+        icon: 'layout',
+        title: t('tabsAnuncios.emptyTitle'),
+        desc: t('tabsAnuncios.emptyDesc'),
+        action: el('button', {
           type: 'button',
           class: 'btn btn-primary',
           disabled: limitReached,
@@ -332,9 +332,8 @@ function renderAnunciosManager(container, initialData, channels) {
             currentView = 'editor';
             refresh();
           },
-        }, t('tabsAnuncios.createFirstBtn'))
-      );
-      shellWrap.append(emptyBox);
+        }, t('tabsAnuncios.createFirstBtn')),
+      }));
       return;
     }
 

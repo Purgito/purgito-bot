@@ -47,6 +47,35 @@ porque el comportamiento de "lista vacía" es asimétrico entre columnas (ver
 `spontaneous_channels`/`mention_channels` vs. `corpus_allowed_channels` en
 `CLAUDE.md`) — no adivinable mirando la tabla sola.
 
+Filtro (`channelMatrix`, dash.js): input de texto por nombre + checkbox
+"Solo configurados" (un canal cuenta si `cols.some(c => c.isSelected(id))`),
+combinables. Si el filtro no deja ninguna fila visible se muestra
+`emptyState('Ningún canal coincide con el filtro.')` en vez de dejar la tabla
+en blanco sin explicación. `applyFilter()` se vuelve a llamar después de
+cada cambio de checkbox de la matriz (no solo al tipear), porque "Solo
+configurados" depende de ese estado.
+
+## Estados vacíos y de carga
+
+- **Una línea, tono atenuado**: `emptyState(msg)` (core/dom.js) — para avisos
+  breves ("Todavía no hay GIFs guardados…"). Es el default; no le agregues
+  ícono ni card a menos que el contexto lo pida.
+- **Ícono + título + descripción (+ acción opcional)**: `richEmptyState({icon,
+  title, desc, action})` (core/dom.js) — para un módulo vacío que merece más
+  contexto que una línea (Anuncios sin ningún anuncio, Playground sin
+  canales utilizables). Antes existían `.sim-empty-state` (playground) y
+  `.empty-state-card` (anuncios) duplicando el mismo layout con nombres
+  distintos; ahora es un único componente sobre `.card.empty-state-card`.
+- **Spinner solo**: `spinner()` — carga de una sección completa (reemplaza
+  todo el contenido de la caja mientras se pide al backend).
+- **Spinner + mensaje en card**: `loadingCard(msg)` — espera localizada que
+  no reemplaza toda la sección (ej. el resultado del simulador de CHAT
+  mientras corre una simulación), donde un spinner solo no explica qué está
+  pasando.
+
+No dupliques estos patrones bajo un nombre nuevo por módulo (`sim-*`,
+`*-card` ad hoc) — si el layout ya existe acá, importalo.
+
 ## Override por canal — mostrar el valor, no explicar de dónde sale
 
 `channelOverrideRow` (dash.js:547): el estado hereda/propio ya lo carga el
@@ -74,16 +103,69 @@ con una única ubicación coherente y canónica.
 - **Móviles (`<= 860px`)**: Se presenta mediante un selector desplegable accesible (`.dash-mobile-nav-toggle`),
   optimizando el espacio en pantallas pequeñas.
 
+## Checklist de primeros pasos (INICIO)
+
+`buildOnboardingChecklist(stats, style)` (dash.js) arma un checklist de 3
+pasos en la parte superior de INICIO, usando datos que esa pantalla ya pide
+(sin endpoint nuevo): canales de aprendizaje elegidos
+(`stats.reading_channels > 0`), si ya aprendió algo (`stats.corpus_total >
+0`) y si el estilo del bot fue personalizado (`style.nick` o
+`style.avatar_url`). Se autooculta apenas los tres están completos — no
+queda como recordatorio permanente en un servidor ya configurado.
+
+El paso de "aprender del historial" no tiene botón de acción: se hace con
+`/setup` o `/refeed_channels` en Discord, no hay equivalente en el panel
+web, así que el paso solo muestra esa instrucción como texto (`.dim`), sin
+prometer una acción que no existe aquí.
+
+## Aviso de cupo en la sidebar
+
+`loadQuotaAlerts()` (dash.js) pide `/api/server/:id/stats` al entrar al
+dashboard o cambiar de servidor (no solo al abrir INICIO, que ya mostraba
+este mismo aviso como texto) y guarda en `_quotaAlerts` qué módulos están al
+90% o más de su cupo. `renderSidebar` pinta un punto (`.quota-alert-dot`)
+sobre el ícono del módulo correspondiente — ámbar si está cerca, rojo
+(`.is-full`) si ya llegó al tope — con el detalle en el `title` del link.
+
+A diferencia de `.badge` (oculto en modo rail por `.dash-sidebar.collapsed
+.badge`), el punto se sigue viendo con la sidebar colapsada: un cupo por
+agotarse no debería depender de que el admin tenga el panel expandido.
+
+Cubre los cupos que además **bloquean** agregar más al llegar al tope
+(GIFs, frases) — no el corpus de mensajes aprendidos, que al llegar a su
+límite simplemente empieza a rotar los más viejos en vez de trabar nada, así
+que no hay una acción urgente que avisar ahí.
+
+## Borrado con deshacer
+
+`confirmDelBtn` (dom.js) pide confirmar en dos pasos antes de ejecutar una
+baja; eso evita el click accidental, pero hasta ahora una vez confirmada la
+baja era instantánea e irreversible. `undoableDelete(row, {message,
+onDelete, errorMessage})` (core/dom.js) agrega la segunda red: al confirmar,
+la fila se atenúa (`.is-pending-delete`) y un toast con acción "Deshacer"
+da unos segundos antes de recién ahí llamar a `onDelete` (el DELETE real).
+Deshacer solo cancela el temporizador y restaura la fila — nunca se llegó a
+tocar el backend, así que no hace falta un endpoint de "restaurar".
+
+En uso: frases y triggers (con `confirmDelBtn` + `undoableDelete` en
+cadena) y los chips de la colección de reacciones (un solo click, sin
+`confirmDelBtn` — perder un emoji es trivial de deshacer). Los packs de
+frases quedan solo con `confirmDelBtn`, sin `undoableDelete`: borrar un pack
+mueve sus frases al pool default del servidor, un efecto que "deshacer" no
+podría revertir limpiamente sin lógica de backend extra — ofrecer un botón
+de deshacer que no deshace todo sería peor que no ofrecerlo.
+
 ## Regla de uso de ⓘ (`helpIcon`)
 
 Un tooltip se agrega solo si su ausencia puede llevar a una decisión
-equivocada (ej.: "0 = sin límite" en un number field que si no lo sabés,
+equivocada (ej.: "0 = sin límite" en un number field que si no lo sabes,
 pensás que 0 es inválido). No se agrega si la interfaz ya lo dice sola (ej.:
 un campo llamado "Roles exentos del límite" no necesita un ⓘ aclarando que
 "exento" significa "no cuenta acá").
 
 ## Backlog (no implementar todavía — anotado para cuando duela)
 
-- **Canales → matriz**: con muchos canales (ej. 100) pierde legibilidad.
-  Eventualmente necesita búsqueda/filtro, quizás un toggle "solo
-  configurados".
+- **Canales → matriz**: filtro de texto + toggle "solo configurados" ya
+  implementados (ver arriba). Con cientos de canales el registro completo
+  igual se sigue enviando al cliente entero — si eso duele, el siguiente
+  paso es paginar o virtualizar la lista, no el filtro en sí.

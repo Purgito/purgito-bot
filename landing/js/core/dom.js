@@ -69,7 +69,27 @@ export function el(tag, attrs = {}, ...children) {
 
 export function spinner() { return el('div', { class: 'spinner' }); }
 
+// Spinner + mensaje dentro de una card, para una espera localizada (ej. el
+// resultado del simulador de CHAT) donde un spinner solo se siente mudo. Para
+// una carga de sección completa sigue usando spinner() a secas.
+export function loadingCard(msg) {
+  return el('div', { class: 'loading-card' }, spinner(), el('div', { class: 'loading-card-text' }, msg));
+}
+
 export function emptyState(msg) { return el('div', { class: 'empty-state' }, msg); }
+
+// Estado vacío "rico": ícono en círculo + título + descripción opcional +
+// acción opcional (ej. "Crear el primero"). Reemplaza los .sim-empty-state
+// (playground) y .empty-state-card sueltos que duplicaban el mismo layout
+// bajo nombres distintos — para un aviso de una sola línea sigue usando
+// emptyState().
+export function richEmptyState({ icon: iconName, title, desc, action } = {}) {
+  return el('div', { class: 'card empty-state-card' },
+    el('div', { class: 'empty-icon-wrap' }, icon(iconName)),
+    el('h3', {}, title),
+    desc ? el('p', { class: 'dim' }, desc) : null,
+    action || null);
+}
 
 export function flash(container, ok, msg) {
   const box = el('div', { class: 'flash ' + (ok ? 'flash-ok' : 'flash-err') }, msg);
@@ -172,6 +192,34 @@ export function confirmDelBtn(question, onConfirm, { label = 'Quitar' } = {}) {
   return wrap;
 }
 
+// Borrado con posibilidad de deshacer: la fila se atenúa al toque y una
+// cuenta regresiva corre antes de llamar a la API de borrado real. Mientras
+// corre, un toast ofrece "Deshacer" — cancela el temporizador y restaura la
+// fila sin haber llegado a tocar el backend. Pensado para acciones ya
+// confirmadas con confirmDelBtn (frases, triggers) o de un solo click
+// (chips de reacciones) que hasta ahora eran irreversibles al instante.
+export function undoableDelete(row, { message, onDelete, errorMessage, delayMs = 5000 } = {}) {
+  row.classList.add('is-pending-delete');
+  let cancelled = false;
+  const timer = setTimeout(async () => {
+    if (cancelled) return;
+    try {
+      await onDelete();
+    } catch (e) {
+      row.classList.remove('is-pending-delete');
+      toast(errorMessage || e.message || 'No se pudo eliminar, intenta de nuevo', 'err');
+    }
+  }, delayMs);
+  toast(message, 'warn', {
+    label: 'Deshacer',
+    onclick: () => {
+      cancelled = true;
+      clearTimeout(timer);
+      row.classList.remove('is-pending-delete');
+    },
+  });
+}
+
 // Imagen que se oculta sola si la URL no carga (igual que hace Discord).
 export function embedImg(attrs) {
   const img = el('img', attrs);
@@ -236,7 +284,7 @@ export function icon(name) {
 
 // Ícono "?" con tooltip nativo (title): para contexto breve donde un párrafo
 // .dim sería ruido — junto a un label compacto, un toggle en una fila densa.
-// Para explicaciones más largas seguí usando un <p class="dim"> como en el
+// Para explicaciones más largas sigue usando un <p class="dim"> como en el
 // resto del panel (ver formGroup/accordionGroup).
 export function helpIcon(msg) {
   const s = icon('info');
@@ -267,7 +315,7 @@ export function accordionGroup(title, open, ...children) {
 export function previewEmpty(msg) {
   return el('div', { class: 'preview-empty' },
     el('div', { class: 'caret', 'aria-hidden': 'true' }, '▍'),
-    el('div', {}, msg || 'Tu embed aparecerá acá…'));
+    el('div', {}, msg || 'Tu embed aparecerá aquí…'));
 }
 
 // Error de validación inline y persistente (a diferencia del toast). Vaciar con msg falsy.
