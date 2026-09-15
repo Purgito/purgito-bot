@@ -1500,10 +1500,11 @@ addStrings({
     'dash.inicio.onboardingTitle': 'Primeros pasos',
     'dash.inicio.onboardingStepChannelsLabel': 'Elige de qué canales aprende',
     'dash.inicio.onboardingStepChannelsBtn': 'Elegir canales',
-    'dash.inicio.onboardingStepCorpusLabel': 'Aprende del historial de esos canales',
-    'dash.inicio.onboardingStepCorpusHint': 'Se hace desde Discord con /setup o /refeed_channels.',
+    'dash.inicio.onboardingStepCorpusLabel': 'Aprende de los mensajes nuevos de esos canales',
+    'dash.inicio.onboardingStepCorpusHint': 'Pasa solo, con la charla nueva de esos canales. Para sumar de una los mensajes que ya existen ahí, sin esperar, corre /setup o /refeed_channels en Discord.',
     'dash.inicio.onboardingStepStyleLabel': 'Personaliza cómo se llama y se ve',
     'dash.inicio.onboardingStepStyleBtn': 'Personalizar',
+    'dash.inicio.onboardingDismiss': 'Ocultar esta guía',
     'dash.inicio.statusTitle': 'Estado de Purgito en este servidor',
     'dash.inicio.quickActionsTitle': 'Acciones rápidas',
     'dash.inicio.qaChatTitle': 'Ajustes de Chat',
@@ -1570,10 +1571,11 @@ addStrings({
     'dash.inicio.onboardingTitle': 'First steps',
     'dash.inicio.onboardingStepChannelsLabel': 'Choose which channels it learns from',
     'dash.inicio.onboardingStepChannelsBtn': 'Choose channels',
-    'dash.inicio.onboardingStepCorpusLabel': 'Learn from the history of those channels',
-    'dash.inicio.onboardingStepCorpusHint': 'Done from Discord with /setup or /refeed_channels.',
+    'dash.inicio.onboardingStepCorpusLabel': 'Learns from new messages in those channels',
+    'dash.inicio.onboardingStepCorpusHint': "Happens on its own, as new chat comes in. To pull in the messages already there instead of waiting, run /setup or /refeed_channels on Discord.",
     'dash.inicio.onboardingStepStyleLabel': 'Customize its name and look',
     'dash.inicio.onboardingStepStyleBtn': 'Customize',
+    'dash.inicio.onboardingDismiss': 'Dismiss this guide',
     'dash.inicio.statusTitle': "Purgito's status on this server",
     'dash.inicio.quickActionsTitle': 'Quick actions',
     'dash.inicio.qaChatTitle': 'Chat settings',
@@ -1621,10 +1623,38 @@ addStrings({
 // stats), sin endpoint nuevo. Se oculta sola apenas los tres pasos están
 // completos — no queda como un recordatorio permanente para un servidor ya
 // configurado.
-function buildOnboardingChecklist(stats, style) {
+// Descartar la guía es por servidor (no una vez para siempre): un admin con
+// varios servidores puede querer completarla en uno y saltarla en otro.
+const ONBOARDING_DISMISSED_KEY = 'purgito_onboarding_dismissed';
+
+function getDismissedOnboardingGuilds() {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_DISMISSED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function dismissOnboarding(guildId) {
+  try {
+    const list = getDismissedOnboardingGuilds();
+    if (!list.includes(guildId)) list.push(guildId);
+    localStorage.setItem(ONBOARDING_DISMISSED_KEY, JSON.stringify(list));
+  } catch (e) { /* sin localStorage no pasa nada */ }
+}
+
+function buildOnboardingChecklist(stats, style, corpusChannelsCount) {
+  if (getDismissedOnboardingGuilds().includes(GUILD_ID)) return null;
+
   const steps = [
     {
-      done: (stats.reading_channels || 0) > 0,
+      // corpus_allowed_channels (cuántos canales de aprendizaje hay
+      // elegidos), no reading_channels -- esa es una lista totalmente
+      // distinta (canales NO ignorados, ver "Configuración del chat" en
+      // CLAUDE.md) que no baja a 0 al sacar canales de acá, así que el paso
+      // se quedaba tildado para siempre apenas se tildó una vez.
+      done: corpusChannelsCount > 0,
       label: t('dash.inicio.onboardingStepChannelsLabel'),
       actionLabel: t('dash.inicio.onboardingStepChannelsBtn'),
       action: () => activate('canales', true),
@@ -1645,10 +1675,18 @@ function buildOnboardingChecklist(stats, style) {
   if (steps.every(s => s.done)) return null;
   const doneCount = steps.filter(s => s.done).length;
 
-  return el('div', { class: 'onboarding-checklist' },
+  const wrap = el('div', { class: 'onboarding-checklist' },
     el('div', { class: 'onboarding-checklist-header' },
       el('h3', {}, t('dash.inicio.onboardingTitle')),
-      el('span', { class: 'dim' }, `${doneCount}/${steps.length}`)),
+      el('div', { class: 'onboarding-checklist-header-right' },
+        el('span', { class: 'dim' }, `${doneCount}/${steps.length}`),
+        el('button', {
+          type: 'button',
+          class: 'onboarding-dismiss-btn',
+          title: t('dash.inicio.onboardingDismiss'),
+          'aria-label': t('dash.inicio.onboardingDismiss'),
+          onclick: () => { dismissOnboarding(GUILD_ID); wrap.remove(); },
+        }, icon('x')))),
     el('ul', { class: 'onboarding-checklist-list' },
       ...steps.map(s => el('li', { class: 'onboarding-step' + (s.done ? ' done' : '') },
         el('span', { class: 'onboarding-step-check' }, s.done ? icon('check') : null),
@@ -1658,6 +1696,7 @@ function buildOnboardingChecklist(stats, style) {
         (!s.done && s.action)
           ? el('button', { class: 'btn btn-secondary btn-sm', onclick: s.action }, s.actionLabel)
           : null))));
+  return wrap;
 }
 
 async function loadInicio() {
@@ -1669,11 +1708,12 @@ async function loadInicio() {
   const epoch = _loadEpoch;
 
   try {
-    const [styleRes, updatesRes, statsRes, channelsRes] = await Promise.allSettled([
+    const [styleRes, updatesRes, statsRes, channelsRes, corpusRes] = await Promise.allSettled([
       apiFetch(`/api/server/${GUILD_ID}/style`),
       apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
       apiFetch(`/api/server/${GUILD_ID}/stats`),
       getChannels({ force: true }),
+      apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
     ]);
 
     if (epoch !== _loadEpoch) return; // Rechaza respuestas desfasadas
@@ -1684,6 +1724,7 @@ async function loadInicio() {
     const updates = updatesRes.status === 'fulfilled' ? (updatesRes.value || {}) : {};
     const stats = statsRes.status === 'fulfilled' ? (statsRes.value || {}) : {};
     const channels = channelsRes.status === 'fulfilled' ? (channelsRes.value || []) : [];
+    const corpus = corpusRes.status === 'fulfilled' ? (corpusRes.value || {}) : {};
 
     // Si todas las llamadas de datos fallaron por auth o error fatal:
     if (styleRes.status === 'rejected' && statsRes.status === 'rejected' && channelsRes.status === 'rejected') {
@@ -1716,7 +1757,7 @@ async function loadInicio() {
     );
     box.append(serverHero);
 
-    const onboardingChecklist = buildOnboardingChecklist(stats, style);
+    const onboardingChecklist = buildOnboardingChecklist(stats, style, (corpus.channels || []).length);
     if (onboardingChecklist) box.append(onboardingChecklist);
 
     // 2. Avisos accionables de cuota (cuando requieren atención del administrador)

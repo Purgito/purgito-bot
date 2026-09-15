@@ -31,11 +31,13 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - When automatic memes can't post (no saved photos, or not enough conversation), Purgito now warns once in the channel instead of silently failing every few minutes.
 - CHAT and Channels now warn before you leave if a change is still saving or failed to save, so you don't lose it without noticing.
 - The channel matrix (speaks/replies/learns) now shows as readable cards on mobile instead of a cramped table with tiny checkboxes.
+- The First steps guide in INICIO can be dismissed even with steps left unfinished, and the step about learning new messages no longer reads like a repeat of choosing channels.
 
 ### Fixed
 - A channel with a lot of history no longer eats into the learned-message quota of other channels on the same server — the limit is now per channel.
 - Same fix for `/imitar`: a very active member no longer displaces another member's saved style.
 - Videos flagged as sensitive content by Instagram, TikTok, or Twitter can now only be uploaded with `!dl` in a channel marked NSFW.
+- The "Choose which channels it learns from" step in INICIO's First steps guide now correctly unchecks itself if you remove all learning channels — it used to stay marked as done forever.
 
 ## Version 1.1.0 — June 28, 2026
 

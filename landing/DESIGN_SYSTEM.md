@@ -105,18 +105,31 @@ con una única ubicación coherente y canónica.
 
 ## Checklist de primeros pasos (INICIO)
 
-`buildOnboardingChecklist(stats, style)` (dash.js) arma un checklist de 3
-pasos en la parte superior de INICIO, usando datos que esa pantalla ya pide
-(sin endpoint nuevo): canales de aprendizaje elegidos
-(`stats.reading_channels > 0`), si ya aprendió algo (`stats.corpus_total >
-0`) y si el estilo del bot fue personalizado (`style.nick` o
-`style.avatar_url`). Se autooculta apenas los tres están completos — no
-queda como recordatorio permanente en un servidor ya configurado.
+`buildOnboardingChecklist(stats, style, corpusChannelsCount)` (dash.js)
+arma un checklist de 3 pasos en la parte superior de INICIO: canales de
+aprendizaje elegidos (`corpusChannelsCount > 0`, de un fetch aparte a
+`/settings/corpus` en `loadInicio` — **no** `stats.reading_channels`, que
+cuenta canales NO ignorados, una lista totalmente distinta que no baja a 0
+al sacar canales del corpus; ver "Configuración del chat" en CLAUDE.md),
+si ya aprendió algo (`stats.corpus_total > 0`) y si el estilo del bot fue
+personalizado (`style.nick` o `style.avatar_url`). Se autooculta apenas los
+tres están completos — no queda como recordatorio permanente en un
+servidor ya configurado.
 
-El paso de "aprender del historial" no tiene botón de acción: se hace con
-`/setup` o `/refeed_channels` en Discord, no hay equivalente en el panel
-web, así que el paso solo muestra esa instrucción como texto (`.dim`), sin
-prometer una acción que no existe aquí.
+El paso de "aprende de los mensajes nuevos" no tiene botón de acción:
+pasa solo apenas hay canales elegidos, sin ningún comando — la instrucción
+de `/setup`/`/refeed_channels` que muestra como texto (`.dim`) es solo para
+adelantar el historial que ya existía antes de elegir el canal, no un paso
+obligatorio (por eso el copy no dice "historial" en el título, para no
+sonar como si repitiera el paso 1).
+
+No todos los admins quieren completar los 3 pasos (personalizar nombre/
+avatar, sobre todo, es opcional para muchos). `onboarding-dismiss-btn` en
+el header oculta el checklist a mano aunque falten pasos, guardado por
+servidor en `localStorage` (`purgito_onboarding_dismissed`, un array de
+guild IDs) — un admin con varios servidores puede descartarlo en uno y
+dejarlo en otro. Es aparte del autooculte por completar los 3 pasos: uno
+es "ya terminé", el otro es "no me interesa".
 
 ## Aviso de cupo en la sidebar
 

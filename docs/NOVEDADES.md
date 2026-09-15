@@ -31,11 +31,13 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Cuando los memes automáticos no pueden postear (sin fotos guardadas o sin suficiente conversación), Purgito avisa una vez en el canal en vez de fallar en silencio cada pocos minutos.
 - CHAT y Canales avisan antes de salir si un cambio se sigue guardando o no se pudo guardar, para no perderlo sin darte cuenta.
 - La matriz de canales (habla/responde/aprende) se ve como tarjetas legibles en el celular, en vez de una tabla apretada con casillas diminutas.
+- La guía de Primeros pasos en INICIO se puede ocultar aunque falten pasos, y el paso sobre aprender mensajes nuevos ya no se confunde con elegir canales.
 
 ### Corregido
 - Un canal con mucho historial ya no le come el cupo de mensajes aprendidos a los demás canales del mismo servidor — el límite ahora es por canal.
 - Mismo arreglo para `/imitar`: un miembro muy activo ya no desplaza el estilo guardado de otro miembro del servidor.
 - Videos marcados como contenido sensible por Instagram, TikTok o Twitter solo se pueden subir con `!dl` en un canal marcado como NSFW.
+- El paso "Elige de qué canales aprende" de Primeros pasos en INICIO ya refleja bien si sacas todos los canales de aprendizaje — antes quedaba marcado como hecho para siempre.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

@@ -3411,6 +3411,15 @@ iframe.gif-media { pointer-events: none; }
   font-size: 15px;
 }
 
+.onboarding-checklist-header-right { display: flex; align-items: center; gap: 10px; }
+.onboarding-dismiss-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--text-muted); cursor: pointer;
+  padding: 4px; border-radius: var(--radius-sm);
+}
+.onboarding-dismiss-btn:hover { color: var(--text); background: var(--surface-raised); }
+.onboarding-dismiss-btn .nav-icon { width: 14px; height: 14px; }
+
 .onboarding-checklist-list {
   list-style: none;
   margin: 0;
