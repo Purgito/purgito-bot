@@ -18,6 +18,7 @@ from cogs.memes import is_meme_trigger
 from config import (
     BOT_TRIGGER_NAME,
     REFEED_ALL_MAX_MESSAGES,
+    REFEED_GUILD_COOLDOWN_SECONDS,
     REFEED_MAX_MESSAGES,
     get_dashboard_url,
 )
@@ -72,6 +73,29 @@ def _refeed_task_running(guild_id: int) -> bool:
         t.type == "refeed_channels" and t.status in ("pending", "running")
         for t in get_task_manager().list_for_guild(guild_id)
     )
+
+
+# /refeed_channels es pesada (recorre todos los canales de aprendizaje del
+# guild, historial de Discord + escritura a DB en background) y no tenía
+# ningún freno más que "no hay ya una corrida activa" (_refeed_task_running,
+# arriba) -- nada impedía relanzarla en loop apenas terminaba la anterior.
+# Corto a propósito: el resultado del comando ya invita a reintentar de
+# inmediato para completar un backfill parcial o después de arreglar
+# permisos de un canal (ver refeed.done_footer_partial/problems en
+# locales/*.json), así que el cooldown solo tiene que frenar el mash
+# accidental o repetido, no esos reintentos legítimos.
+_refeed_channels_cooldowns: LRUDict = LRUDict(256)
+
+
+def _check_refeed_channels_cooldown(guild_id: int) -> int | None:
+    """None si se puede lanzar /refeed_channels ahora (y lo marca); si no,
+    segundos restantes de cooldown."""
+    now = time.monotonic()
+    last = _refeed_channels_cooldowns.get(guild_id)
+    if last is not None and now - last < REFEED_GUILD_COOLDOWN_SECONDS:
+        return int(REFEED_GUILD_COOLDOWN_SECONDS - (now - last))
+    _refeed_channels_cooldowns[guild_id] = now
+    return None
 
 
 # (guild_id, channel_id) con un _refeed_channel en curso -- _refeed_channel
@@ -2026,6 +2050,14 @@ class Chat(commands.Cog):
         if not has_admin_permission(interaction):
             await interaction.response.send_message(
                 i18n.t("general.error.no_permission", locale), ephemeral=True
+            )
+            return
+
+        remaining = _check_refeed_channels_cooldown(interaction.guild.id)
+        if remaining is not None:
+            await interaction.response.send_message(
+                i18n.t("chat.refeed_channels.cooldown", locale, seconds=remaining),
+                ephemeral=True,
             )
             return
 

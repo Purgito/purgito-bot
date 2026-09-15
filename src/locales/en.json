@@ -232,6 +232,7 @@
   "chat.refeed.result_incremental": "This channel was already up to date: {saved} new messages learned{gifs}.",
   "chat.refeed.result_complete": "Full history read: {saved} messages learned{gifs}.",
   "chat.refeed.result_partial": "Saved {saved} messages{gifs}.\nLimit of {limit} messages reached; run `/refeed` again to continue where it left off.",
+  "chat.refeed_channels.cooldown": "Wait {seconds} seconds before running /refeed_channels again.",
   "chat.refeed_channels.already_running": "Purgito is already learning in this server; wait for it to finish.",
   "chat.refeed_channels.starting": "Starting to read the channels' history…",
   "chat.refeed_channels.race_lost": "Purgito was already learning in this server (started just before); this invocation did nothing new.",
