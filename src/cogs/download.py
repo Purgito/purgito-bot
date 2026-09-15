@@ -1,5 +1,5 @@
-"""Comando "dl": descarga un video de Instagram, TikTok o Twitter/X y lo
-sube al mismo canal.
+"""Comando "dl": descarga un video de Instagram, TikTok, Twitter/X o
+Facebook y lo sube al mismo canal.
 
 Se invoca con cualquiera de los dos prefijos que resuelve bot.py:get_prefix
 -- el símbolo (custom por guild, default "!") o la palabra fija ("purgito
@@ -45,12 +45,18 @@ MAX_DL_VIDEO_BYTES = env_int("MAX_DL_VIDEO_BYTES", 100 * 1024 * 1024)
 
 # Dominios base: el chequeo de host también acepta cualquier subdominio
 # (".instagram.com", "vm.tiktok.com", etc.) -- ver _is_supported_url.
+# fb.watch es el dominio corto que usa Facebook específicamente para
+# compartir videos (no es un acortador genérico como t.co: no shortea
+# links a otros sitios), así que no tiene el mismo problema que descartó
+# a t.co.
 _ALLOWED_HOSTS = {
     "instagram.com",
     "instagr.am",
     "tiktok.com",
     "twitter.com",
     "x.com",
+    "facebook.com",
+    "fb.watch",
 }
 _URL_RE = re.compile(r"https?://\S+")
 _DL_COOLDOWN_SECONDS = 20

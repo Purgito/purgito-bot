@@ -139,7 +139,7 @@ Purgito uses external services for certain features. Each provider processes onl
 
 ## Social media video download (`!dl`)
 
-- **What it is and what it's used for**: The `!dl` command downloads a public video from Instagram, TikTok, or Twitter/X from a link a user pastes, and uploads it to the same Discord channel.
+- **What it is and what it's used for**: The `!dl` command downloads a public video from Instagram, TikTok, Twitter/X, or Facebook from a link a user pastes, and uploads it to the same Discord channel.
 - **What's processed**: Only the pasted URL and the video downloaded from it. The file is saved to a temporary process directory and deleted immediately after being sent to the channel — it isn't stored persistently or uploaded to Cloudflare R2.
 - **Responsibility**: Purgito doesn't verify whether whoever pastes the link has the right to redistribute that content (see "Redistributed third-party content" in the Terms of Service).
 
