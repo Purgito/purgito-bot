@@ -103,6 +103,21 @@ con una única ubicación coherente y canónica.
 - **Móviles (`<= 860px`)**: Se presenta mediante un selector desplegable accesible (`.dash-mobile-nav-toggle`),
   optimizando el espacio en pantallas pequeñas.
 
+## Checklist de primeros pasos (INICIO)
+
+`buildOnboardingChecklist(stats, style)` (dash.js) arma un checklist de 3
+pasos en la parte superior de INICIO, usando datos que esa pantalla ya pide
+(sin endpoint nuevo): canales de aprendizaje elegidos
+(`stats.reading_channels > 0`), si ya aprendió algo (`stats.corpus_total >
+0`) y si el estilo del bot fue personalizado (`style.nick` o
+`style.avatar_url`). Se autooculta apenas los tres están completos — no
+queda como recordatorio permanente en un servidor ya configurado.
+
+El paso de "aprender del historial" no tiene botón de acción: se hace con
+`/setup` o `/refeed_channels` en Discord, no hay equivalente en el panel
+web, así que el paso solo muestra esa instrucción como texto (`.dim`), sin
+prometer una acción que no existe aquí.
+
 ## Aviso de cupo en la sidebar
 
 `loadQuotaAlerts()` (dash.js) pide `/api/server/:id/stats` al entrar al
@@ -143,7 +158,7 @@ de deshacer que no deshace todo sería peor que no ofrecerlo.
 ## Regla de uso de ⓘ (`helpIcon`)
 
 Un tooltip se agrega solo si su ausencia puede llevar a una decisión
-equivocada (ej.: "0 = sin límite" en un number field que si no lo sabés,
+equivocada (ej.: "0 = sin límite" en un number field que si no lo sabes,
 pensás que 0 es inválido). No se agrega si la interfaz ya lo dice sola (ej.:
 un campo llamado "Roles exentos del límite" no necesita un ⓘ aclarando que
 "exento" significa "no cuenta acá").

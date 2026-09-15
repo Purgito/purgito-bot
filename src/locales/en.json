@@ -373,5 +373,5 @@
   "privacy.export.cooldown": "Wait {seconds} seconds before requesting your data again.",
   "privacy.export.error": "Couldn't generate the file. Try again later.",
   "privacy.export.empty": "We couldn't find any data of yours stored by Purgito.",
-  "privacy.export.result": "Here you go: {count} message(s) of your saved style across {guilds} server(s)."
+  "privacy.export.result": "{count} message(s) of your saved style across {guilds} server(s)."
 }

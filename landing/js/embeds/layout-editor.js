@@ -23,7 +23,7 @@ import { t, addStrings } from '../core/i18n.js';
 
 addStrings({
   es: {
-    'embedsLayout.noBlocksYet': 'Todavía no hay bloques. Agregá el primero con los botones de abajo.',
+    'embedsLayout.noBlocksYet': 'Todavía no hay bloques. Agrega el primero con los botones de abajo.',
     'embedsLayout.addText': '+ Texto',
     'embedsLayout.addSection': '+ Sección',
     'embedsLayout.addGallery': '+ Galería',

@@ -203,8 +203,8 @@
   "memes.pool_reason.oversized": "La imagen supera el límite de {mb} MB.",
   "memes.pool_reason.unsupported": "Ese formato no es compatible (acepto png, jpg, jpeg y webp).",
   "memes.pool_reason.no_image": "Ese mensaje no tiene ninguna imagen adjunta.",
-  "memes.auto_meme_muted.no_pool_images": "Quiero mandar memes automáticos acá, pero todavía no tengo fotos guardadas — reacciona con 🎯 a una imagen en cualquier mensaje para agregarla.",
-  "memes.auto_meme_muted.empty_corpus": "Quiero mandar memes automáticos acá, pero todavía no aprendí suficientes mensajes de este servidor. Cuando haya más conversación, lo vuelvo a intentar solo.",
+  "memes.auto_meme_muted.no_pool_images": "Quiero mandar memes automáticos aquí, pero todavía no tengo fotos guardadas — reacciona con 🎯 a una imagen en cualquier mensaje para agregarla.",
+  "memes.auto_meme_muted.empty_corpus": "Quiero mandar memes automáticos aquí, pero todavía no aprendí suficientes mensajes de este servidor. Cuando haya más conversación, lo vuelvo a intentar solo.",
   "layout_buttons.invalid_context": "Este botón no es válido en este contexto.",
   "layout_buttons.role_gone": "Ese rol ya no existe.",
   "layout_buttons.missing_permissions": "El bot no tiene permisos para asignar ese rol (falta \"Gestionar roles\" o el rol está por encima del bot en la jerarquía).",
@@ -373,5 +373,5 @@
   "privacy.export.cooldown": "Espera {seconds} segundos antes de pedir tus datos de nuevo.",
   "privacy.export.error": "No se pudo generar el archivo. Intenta de nuevo más tarde.",
   "privacy.export.empty": "No encontramos datos tuyos almacenados por Purgito.",
-  "privacy.export.result": "Acá tienes: {count} mensaje(s) de tu estilo guardado en {guilds} servidor(es)."
+  "privacy.export.result": "{count} mensaje(s) de tu estilo guardado en {guilds} servidor(es)."
 }

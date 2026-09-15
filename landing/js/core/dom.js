@@ -71,7 +71,7 @@ export function spinner() { return el('div', { class: 'spinner' }); }
 
 // Spinner + mensaje dentro de una card, para una espera localizada (ej. el
 // resultado del simulador de CHAT) donde un spinner solo se siente mudo. Para
-// una carga de sección completa seguí usando spinner() a secas.
+// una carga de sección completa sigue usando spinner() a secas.
 export function loadingCard(msg) {
   return el('div', { class: 'loading-card' }, spinner(), el('div', { class: 'loading-card-text' }, msg));
 }
@@ -81,7 +81,7 @@ export function emptyState(msg) { return el('div', { class: 'empty-state' }, msg
 // Estado vacío "rico": ícono en círculo + título + descripción opcional +
 // acción opcional (ej. "Crear el primero"). Reemplaza los .sim-empty-state
 // (playground) y .empty-state-card sueltos que duplicaban el mismo layout
-// bajo nombres distintos — para un aviso de una sola línea seguí usando
+// bajo nombres distintos — para un aviso de una sola línea sigue usando
 // emptyState().
 export function richEmptyState({ icon: iconName, title, desc, action } = {}) {
   return el('div', { class: 'card empty-state-card' },
@@ -284,7 +284,7 @@ export function icon(name) {
 
 // Ícono "?" con tooltip nativo (title): para contexto breve donde un párrafo
 // .dim sería ruido — junto a un label compacto, un toggle en una fila densa.
-// Para explicaciones más largas seguí usando un <p class="dim"> como en el
+// Para explicaciones más largas sigue usando un <p class="dim"> como en el
 // resto del panel (ver formGroup/accordionGroup).
 export function helpIcon(msg) {
   const s = icon('info');
@@ -315,7 +315,7 @@ export function accordionGroup(title, open, ...children) {
 export function previewEmpty(msg) {
   return el('div', { class: 'preview-empty' },
     el('div', { class: 'caret', 'aria-hidden': 'true' }, '▍'),
-    el('div', {}, msg || 'Tu embed aparecerá acá…'));
+    el('div', {}, msg || 'Tu embed aparecerá aquí…'));
 }
 
 // Error de validación inline y persistente (a diferencia del toast). Vaciar con msg falsy.

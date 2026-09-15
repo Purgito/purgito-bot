@@ -65,7 +65,7 @@ addStrings({
     'embedsShared.colorWhite': 'Blanco',
     'embedsShared.colorBlack': 'Negro',
     'embedsShared.rolesPingLabel': 'Roles que SÍ pueden ser pingueados (vacío = nadie; Ctrl+click para varios)',
-    'embedsShared.identityWarn': 'El bot no tiene permiso de "Gestionar webhooks" en este canal, así que nombre/avatar personalizado no va a funcionar acá — revisa los permisos del canal o vuelve a invitar al bot.',
+    'embedsShared.identityWarn': 'El bot no tiene permiso de "Gestionar webhooks" en este canal, así que nombre/avatar personalizado no va a funcionar aquí — revisa los permisos del canal o vuelve a invitar al bot.',
     'embedsShared.customIdentityLabel': 'Nombre y avatar personalizado',
     'embedsShared.customIdentityHint': 'Si completas alguno, el mensaje se manda con un webhook propio del canal en vez de como Purgito — los botones siguen funcionando igual.',
     'embedsShared.nameLabel': 'Nombre',

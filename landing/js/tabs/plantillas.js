@@ -34,7 +34,7 @@ addStrings({
     'tabsPlantillas.saving': 'Guardando…',
     'tabsPlantillas.savedSuccess': 'Plantilla guardada',
     'tabsPlantillas.cancelBtn': 'Cancelar',
-    'tabsPlantillas.emptyContentError': 'Escribí un mensaje o configurá un embed antes de guardar',
+    'tabsPlantillas.emptyContentError': 'Escribe un mensaje o configura un embed antes de guardar',
     'tabsPlantillas.exportBtn': 'Exportar',
     'tabsPlantillas.importBtn': 'Importar',
     'tabsPlantillas.importSuccess': 'Plantilla importada como una nueva',
@@ -42,7 +42,7 @@ addStrings({
     'tabsPlantillas.previewSectionLabel': 'Vista previa',
     'tabsPlantillas.previewBotTag': 'BOT',
     'tabsPlantillas.previewToday': 'HOY',
-    'tabsPlantillas.previewEmptyHint': 'Escribí un mensaje o configurá un embed para ver cómo queda',
+    'tabsPlantillas.previewEmptyHint': 'Escribe un mensaje o configura un embed para ver cómo queda',
   },
   en: {
     'tabsPlantillas.titleNew': 'New template',

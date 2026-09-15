@@ -1419,6 +1419,13 @@ addStrings({
     'dash.inicio.quotaFrases': 'frases especiales',
     'dash.inicio.quotaFullText': 'Has alcanzado el límite de {items}. Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.',
     'dash.inicio.quotaNearText': 'Estás cerca del cupo de {items}: al alcanzarlo, Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.',
+    'dash.inicio.onboardingTitle': 'Primeros pasos',
+    'dash.inicio.onboardingStepChannelsLabel': 'Elige de qué canales aprende',
+    'dash.inicio.onboardingStepChannelsBtn': 'Elegir canales',
+    'dash.inicio.onboardingStepCorpusLabel': 'Aprende del historial de esos canales',
+    'dash.inicio.onboardingStepCorpusHint': 'Se hace desde Discord con /setup o /refeed_channels.',
+    'dash.inicio.onboardingStepStyleLabel': 'Personaliza cómo se llama y se ve',
+    'dash.inicio.onboardingStepStyleBtn': 'Personalizar',
     'dash.inicio.statusTitle': 'Estado de Purgito en este servidor',
     'dash.inicio.quickActionsTitle': 'Acciones rápidas',
     'dash.inicio.qaChatTitle': 'Ajustes de Chat',
@@ -1482,6 +1489,13 @@ addStrings({
     'dash.inicio.quotaFrases': 'special phrases',
     'dash.inicio.quotaFullText': "You've reached the limit for {items}. Purgito automatically discards the oldest content to make room for new content.",
     'dash.inicio.quotaNearText': "You're close to the quota for {items}: once reached, Purgito will start discarding the oldest content to make room for new content.",
+    'dash.inicio.onboardingTitle': 'First steps',
+    'dash.inicio.onboardingStepChannelsLabel': 'Choose which channels it learns from',
+    'dash.inicio.onboardingStepChannelsBtn': 'Choose channels',
+    'dash.inicio.onboardingStepCorpusLabel': 'Learn from the history of those channels',
+    'dash.inicio.onboardingStepCorpusHint': 'Done from Discord with /setup or /refeed_channels.',
+    'dash.inicio.onboardingStepStyleLabel': 'Customize its name and look',
+    'dash.inicio.onboardingStepStyleBtn': 'Customize',
     'dash.inicio.statusTitle': "Purgito's status on this server",
     'dash.inicio.quickActionsTitle': 'Quick actions',
     'dash.inicio.qaChatTitle': 'Chat settings',
@@ -1524,6 +1538,49 @@ addStrings({
     'dash.stats.noData': 'Not enough data yet.',
   },
 });
+
+// Checklist de primeros pasos: solo con datos que loadInicio ya pide (style,
+// stats), sin endpoint nuevo. Se oculta sola apenas los tres pasos están
+// completos — no queda como un recordatorio permanente para un servidor ya
+// configurado.
+function buildOnboardingChecklist(stats, style) {
+  const steps = [
+    {
+      done: (stats.reading_channels || 0) > 0,
+      label: t('dash.inicio.onboardingStepChannelsLabel'),
+      actionLabel: t('dash.inicio.onboardingStepChannelsBtn'),
+      action: () => activate('canales', true),
+    },
+    {
+      done: (stats.corpus_total || 0) > 0,
+      label: t('dash.inicio.onboardingStepCorpusLabel'),
+      hint: t('dash.inicio.onboardingStepCorpusHint'),
+    },
+    {
+      done: Boolean(style.nick || style.avatar_url),
+      label: t('dash.inicio.onboardingStepStyleLabel'),
+      actionLabel: t('dash.inicio.onboardingStepStyleBtn'),
+      action: () => openStyleModal(style),
+    },
+  ];
+
+  if (steps.every(s => s.done)) return null;
+  const doneCount = steps.filter(s => s.done).length;
+
+  return el('div', { class: 'onboarding-checklist' },
+    el('div', { class: 'onboarding-checklist-header' },
+      el('h3', {}, t('dash.inicio.onboardingTitle')),
+      el('span', { class: 'dim' }, `${doneCount}/${steps.length}`)),
+    el('ul', { class: 'onboarding-checklist-list' },
+      ...steps.map(s => el('li', { class: 'onboarding-step' + (s.done ? ' done' : '') },
+        el('span', { class: 'onboarding-step-check' }, s.done ? icon('check') : null),
+        el('div', { class: 'onboarding-step-body' },
+          el('span', {}, s.label),
+          s.hint ? el('p', { class: 'dim text-sm' }, s.hint) : null),
+        (!s.done && s.action)
+          ? el('button', { class: 'btn btn-secondary btn-sm', onclick: s.action }, s.actionLabel)
+          : null))));
+}
 
 async function loadInicio() {
   const box = content();
@@ -1580,6 +1637,9 @@ async function loadInicio() {
       )
     );
     box.append(serverHero);
+
+    const onboardingChecklist = buildOnboardingChecklist(stats, style);
+    if (onboardingChecklist) box.append(onboardingChecklist);
 
     // 2. Avisos accionables de cuota (cuando requieren atención del administrador)
     const lims = stats.limits || {};
@@ -2847,9 +2907,9 @@ addStrings({
     'dash.reacciones.probLabel': 'Probabilidad de reaccionar con un emoji',
     'dash.reacciones.emojiCollectionLabel': 'Colección de emojis',
     'dash.prefijo.moduleTitle': 'Prefijo de comandos',
-    'dash.prefijo.moduleDesc': 'Los comandos de texto (como !dl) responden al símbolo de acá, o escribiendo "purgito" antes del comando.',
+    'dash.prefijo.moduleDesc': 'Los comandos de texto (como !dl) responden al símbolo de aquí, o escribiendo "purgito" antes del comando.',
     'dash.prefijo.label': 'Símbolo del prefijo',
-    'dash.prefijo.wordNote': 'Además del símbolo, "purgito" antes del comando siempre funciona (ej: "purgito dl <link>") -- eso no se cambia acá.',
+    'dash.prefijo.wordNote': 'Además del símbolo, "purgito" antes del comando siempre funciona (ej: "purgito dl <link>") -- eso no se cambia aquí.',
     'dash.prefijo.save': 'Guardar',
     'dash.prefijo.reset': 'Restablecer',
     'dash.prefijo.saved': 'Prefijo actualizado',
@@ -3106,16 +3166,16 @@ async function loadFrasesModule() {
 addStrings({
   es: {
     'dash.canalesModule.colSpeakShort': 'Habla',
-    'dash.canalesModule.colSpeakOn': 'habla por su cuenta acá',
-    'dash.canalesModule.colSpeakOff': 'ya no habla solo acá',
+    'dash.canalesModule.colSpeakOn': 'habla por su cuenta aquí',
+    'dash.canalesModule.colSpeakOff': 'ya no habla solo aquí',
     'dash.canalesModule.colSpeakHelp': 'Purgito puede arrancar una charla por su cuenta en este canal. Sin ningún canal marcado, puede hacerlo en todos.',
     'dash.canalesModule.colReplyShort': 'Responde',
-    'dash.canalesModule.colReplyOn': 'responde menciones acá',
-    'dash.canalesModule.colReplyOff': 'ya no responde menciones acá',
+    'dash.canalesModule.colReplyOn': 'responde menciones aquí',
+    'dash.canalesModule.colReplyOff': 'ya no responde menciones aquí',
     'dash.canalesModule.colReplyHelp': 'Purgito contesta cuando lo mencionan en este canal. Sin ningún canal marcado, responde en todos.',
     'dash.canalesModule.colLearnShort': 'Aprende',
-    'dash.canalesModule.colLearnOn': 'aprende de acá',
-    'dash.canalesModule.colLearnOff': 'ya no aprende de acá',
+    'dash.canalesModule.colLearnOn': 'aprende de aquí',
+    'dash.canalesModule.colLearnOff': 'ya no aprende de aquí',
     'dash.canalesModule.colLearnHelp': 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
     'dash.canalesModule.ovrEvery': 'Cada cuántos mensajes',
     'dash.canalesModule.ovrEverySuffix': 'mensajes',
@@ -3126,8 +3186,8 @@ addStrings({
     'dash.canalesModule.ovrMentionLimit': 'Menciones por hora',
     'dash.canalesModule.ovrMentionLimitSuffix': 'por usuario',
     'dash.canalesModule.matrixTitle': 'Matriz de canales',
-    'dash.canalesModule.silencedOne': 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques acá.',
-    'dash.canalesModule.silencedMany': 'Hay {count} canales silenciados desde /settings: quedan fuera aunque los marques acá.',
+    'dash.canalesModule.silencedOne': 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques aquí.',
+    'dash.canalesModule.silencedMany': 'Hay {count} canales silenciados desde /settings: quedan fuera aunque los marques aquí.',
     'dash.canalesModule.exemptionsTitle': 'Exenciones de límites',
     'dash.canalesModule.exemptRolesLabel': 'Roles exentos de límites de menciones',
     'dash.canalesModule.noExemptRoles': 'Ningún rol exento: el límite aplica a todos por igual.',
@@ -5215,11 +5275,11 @@ const PLAYGROUND_AVISO_LABELS = {
   chat_desactivado:
     'El chat está desactivado: no responde a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch y siguen saliendo.',
   canal_sin_menciones:
-    'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan acá, avisa que solo contesta en los canales elegidos.',
+    'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan aquí, avisa que solo contesta en los canales elegidos.',
   canal_sin_espontaneo:
-    'Este canal no está en la lista de canales donde habla por su cuenta: acá nunca va a arrancar una charla solo.',
+    'Este canal no está en la lista de canales donde habla por su cuenta: aquí nunca va a arrancar una charla solo.',
   cupo_horario_agotado:
-    'Ya agotaste tu cupo de menciones de esta hora: a vos no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
+    'Ya agotaste tu cupo de menciones de esta hora: a ti no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
   cooldown_espontaneo:
     'Acabó de hablar solo en este canal: por el piso de silencio entre mensajes espontáneos no volvería a hacerlo todavía. No afecta a las menciones.',
 };
