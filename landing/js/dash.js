@@ -3255,6 +3255,7 @@ addStrings({
     'dash.canalesModule.colLearnOn': 'aprende de aquí',
     'dash.canalesModule.colLearnOff': 'ya no aprende de aquí',
     'dash.canalesModule.colLearnHelp': 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
+    'dash.canalesModule.settingsLabel': 'Ajustes',
     'dash.canalesModule.ovrEvery': 'Cada cuántos mensajes',
     'dash.canalesModule.ovrEverySuffix': 'mensajes',
     'dash.canalesModule.ovrTalkProb': 'Probabilidad de hablar',
@@ -3285,6 +3286,7 @@ addStrings({
     'dash.canalesModule.colLearnOn': 'learns from here',
     'dash.canalesModule.colLearnOff': 'no longer learns from here',
     'dash.canalesModule.colLearnHelp': "Purgito saves messages from this channel to build its style. With no channel checked, it doesn't learn from any.",
+    'dash.canalesModule.settingsLabel': 'Settings',
     'dash.canalesModule.ovrEvery': 'Every how many messages',
     'dash.canalesModule.ovrEverySuffix': 'messages',
     'dash.canalesModule.ovrTalkProb': 'Probability of speaking',
@@ -3831,9 +3833,11 @@ function channelMatrix({ channels, cols, openOverrides }) {
           }
           applyFilter();
         };
-        return el('label', { class: 'chan-matrix-cell', title: c.short }, box);
+        return el('label', { class: 'chan-matrix-cell', title: c.short, 'data-label': c.short }, box);
       }),
-      el('span', { class: 'chan-matrix-cell' }, gear));
+      el('span', { class: 'chan-matrix-cell' },
+        el('span', { class: 'chan-matrix-cell-label' }, t('dash.canalesModule.settingsLabel')),
+        gear));
     return el('div', { class: 'chan-matrix-item' }, row, panel);
   }
 

@@ -30,6 +30,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Special phrases and configurable reactions are no longer Premium-only: available on every server.
 - When automatic memes can't post (no saved photos, or not enough conversation), Purgito now warns once in the channel instead of silently failing every few minutes.
 - CHAT and Channels now warn before you leave if a change is still saving or failed to save, so you don't lose it without noticing.
+- The channel matrix (speaks/replies/learns) now shows as readable cards on mobile instead of a cramped table with tiny checkboxes.
 
 ### Fixed
 - A channel with a lot of history no longer eats into the learned-message quota of other channels on the same server — the limit is now per channel.

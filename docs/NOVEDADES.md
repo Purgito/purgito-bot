@@ -30,6 +30,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Frases especiales y reacciones configurables dejaron de ser función Premium: disponibles en todos los servidores.
 - Cuando los memes automáticos no pueden postear (sin fotos guardadas o sin suficiente conversación), Purgito avisa una vez en el canal en vez de fallar en silencio cada pocos minutos.
 - CHAT y Canales avisan antes de salir si un cambio se sigue guardando o no se pudo guardar, para no perderlo sin darte cuenta.
+- La matriz de canales (habla/responde/aprende) se ve como tarjetas legibles en el celular, en vez de una tabla apretada con casillas diminutas.
 
 ### Corregido
 - Un canal con mucho historial ya no le come el cupo de mensajes aprendidos a los demás canales del mismo servidor — el límite ahora es por canal.
