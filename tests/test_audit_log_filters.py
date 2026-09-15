@@ -91,6 +91,16 @@ def test_list_audit_log_filters_and_search(memory_db):
         assert len(entries) == 2
         assert all(e["action"].startswith("frases.") for e in entries)
 
+        # cat:chat incluye excluded_users (gestión de quién interactúa/aprende)
+        await db.log_audit(
+            guild_id, 101, "Frambuesa", "excluded_users.add", "excluyó a alguien"
+        )
+        entries, _ = await db.list_audit_log_page(guild_id, action="cat:chat")
+        assert any(e["action"] == "excluded_users.add" for e in entries)
+        entries, _ = await db.list_audit_log_page(guild_id, action="excluded_users.")
+        assert len(entries) == 1
+        assert entries[0]["action"] == "excluded_users.add"
+
         # 7. Combinación de filtros (usuario + búsqueda)
         entries, _ = await db.list_audit_log_page(guild_id, user_id=101, q="editada")
         assert len(entries) == 1

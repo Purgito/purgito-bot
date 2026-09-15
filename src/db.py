@@ -5451,7 +5451,7 @@ async def list_audit_log_page(
                 )
             elif cat == "chat":
                 conditions.append(
-                    "(action LIKE 'chat.%' OR action LIKE 'channel_settings%' OR action LIKE 'mention_channels%' OR action LIKE 'exempt_%' OR action LIKE 'spontaneous_%' OR action LIKE 'updates_channel%' OR action LIKE 'corpus%')"
+                    "(action LIKE 'chat.%' OR action LIKE 'channel_settings%' OR action LIKE 'mention_channels%' OR action LIKE 'exempt_%' OR action LIKE 'spontaneous_%' OR action LIKE 'updates_channel%' OR action LIKE 'corpus%' OR action LIKE 'excluded_users%')"
                 )
             elif cat == "multimedia":
                 conditions.append("action LIKE 'gifs%'")

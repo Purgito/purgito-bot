@@ -81,6 +81,13 @@ addStrings({
     'tabsHistorial.action.rss.remove': 'Eliminó un feed RSS',
     'tabsHistorial.action.rss.update_mention_role': 'Cambió el rol de mención de RSS',
     'tabsHistorial.optRss': 'RSS / Feeds',
+    'tabsHistorial.optTwitch': 'Twitch',
+    'tabsHistorial.optFraseChannels': 'Canales de frases',
+    'tabsHistorial.optMentionChannels': 'Canales de menciones',
+    'tabsHistorial.optSpontaneousChannels': 'Participación espontánea',
+    'tabsHistorial.optUpdatesChannel': 'Canal de novedades',
+    'tabsHistorial.optExcludedUsers': 'Exclusiones de usuarios',
+    'tabsHistorial.optPrefix': 'Prefijo de comandos',
     'tabsHistorial.emptyState': 'Todavía no hay cambios registrados en este servidor.',
     'tabsHistorial.searchPlaceholder': 'Buscar cambios por texto, usuario o acción…',
     'tabsHistorial.searchAria': 'Buscar cambios',
@@ -205,6 +212,13 @@ addStrings({
     'tabsHistorial.action.rss.remove': 'Removed an RSS feed',
     'tabsHistorial.action.rss.update_mention_role': 'Changed the RSS mention role',
     'tabsHistorial.optRss': 'RSS / Feeds',
+    'tabsHistorial.optTwitch': 'Twitch',
+    'tabsHistorial.optFraseChannels': 'Phrase channels',
+    'tabsHistorial.optMentionChannels': 'Mention channels',
+    'tabsHistorial.optSpontaneousChannels': 'Spontaneous participation',
+    'tabsHistorial.optUpdatesChannel': 'Updates channel',
+    'tabsHistorial.optExcludedUsers': 'User exclusions',
+    'tabsHistorial.optPrefix': 'Command prefix',
     'tabsHistorial.emptyState': 'No changes recorded on this server yet.',
     'tabsHistorial.searchPlaceholder': 'Search changes by text, user, or action…',
     'tabsHistorial.searchAria': 'Search changes',
@@ -494,6 +508,7 @@ export async function loadHistorial() {
         el('option', { value: 'cat:contenido' }, t('tabsHistorial.optAllContent')),
         el('option', { value: 'frases.' }, t('tabsHistorial.optFrases')),
         el('option', { value: 'frase_packs.' }, t('tabsHistorial.optFrasePacks')),
+        el('option', { value: 'frase_channels.' }, t('tabsHistorial.optFraseChannels')),
         el('option', { value: 'triggers.' }, t('tabsHistorial.optTriggers')),
         el('option', { value: 'reactions.' }, t('tabsHistorial.optReactions'))
       ),
@@ -502,7 +517,11 @@ export async function loadHistorial() {
         el('option', { value: 'chat.' }, t('tabsHistorial.optChatSettings')),
         el('option', { value: 'channel_settings.' }, t('tabsHistorial.optChannelSettings')),
         el('option', { value: 'corpus.' }, t('tabsHistorial.optCorpus')),
-        el('option', { value: 'exempt_' }, t('tabsHistorial.optExempt'))
+        el('option', { value: 'exempt_' }, t('tabsHistorial.optExempt')),
+        el('option', { value: 'mention_channels.' }, t('tabsHistorial.optMentionChannels')),
+        el('option', { value: 'spontaneous_channels.' }, t('tabsHistorial.optSpontaneousChannels')),
+        el('option', { value: 'excluded_users.' }, t('tabsHistorial.optExcludedUsers')),
+        el('option', { value: 'updates_channel.' }, t('tabsHistorial.optUpdatesChannel'))
       ),
       el('optgroup', { label: t('tabsHistorial.groupMultimedia') },
         el('option', { value: 'gifs.' }, t('tabsHistorial.optGifs'))
@@ -512,10 +531,12 @@ export async function loadHistorial() {
       ),
       el('optgroup', { label: t('tabsHistorial.groupIntegrations') },
         el('option', { value: 'youtube.' }, t('tabsHistorial.optYoutube')),
+        el('option', { value: 'twitch.' }, t('tabsHistorial.optTwitch')),
         el('option', { value: 'rss.' }, t('tabsHistorial.optRss'))
       ),
       el('optgroup', { label: t('tabsHistorial.groupGeneral') },
-        el('option', { value: 'style.' }, t('tabsHistorial.optStyle'))
+        el('option', { value: 'style.' }, t('tabsHistorial.optStyle')),
+        el('option', { value: 'prefix.' }, t('tabsHistorial.optPrefix'))
       )
     );
 
