@@ -1099,9 +1099,12 @@ def changelog_section_title(name):
     m = re.match(r"^(.+?)\s+—\s+(.+)$", name)
     if not m:
         return html.escape(name)
-    return '<span class="changelog-version">%s</span> <span class="changelog-date-inline">%s</span>' % (
-        html.escape(m.group(1)),
-        html.escape(m.group(2)),
+    return (
+        '<span class="changelog-version">%s</span> <span class="changelog-date-inline">%s</span>'
+        % (
+            html.escape(m.group(1)),
+            html.escape(m.group(2)),
+        )
     )
 
 
@@ -1117,7 +1120,9 @@ def build_page(page, nav, footer, lang="es"):
     is_changelog = page.get("changelog", False)
     blocks = []
     for i, (name, body) in enumerate(sections, 1):
-        title_html = changelog_section_title(name) if is_changelog else html.escape(name)
+        title_html = (
+            changelog_section_title(name) if is_changelog else html.escape(name)
+        )
         blocks.append(
             '  <section class="box doc-sec" id="seccion-%d">\n'
             '    <h2 class="doc-sec-title">%s</h2>\n'
