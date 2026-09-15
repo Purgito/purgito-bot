@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Last updated:** August 15, 2026
+**Last updated:** September 14, 2026
 
 By inviting **Purgito** to a Discord server or interacting with it, you accept these Terms of Service, as well as Discord's [Terms of Service](https://discord.com/terms) and [Privacy Policy](https://discord.com/privacy).
 
@@ -43,6 +43,12 @@ Because of the probabilistic nature of these systems:
 - The developer doesn't manually review every response or meme the bot generates.
 
 Server administrators are responsible for moderating the bot's use within their community.
+
+## Redistributed third-party content (`!dl`)
+
+The `!dl` command downloads a public video from Instagram, TikTok, or Twitter/X from a link a user pastes, and uploads it to the same Discord channel.
+
+Purgito doesn't verify the ownership of rights to that content: whoever uses the command is responsible for having the right to redistribute it. The developer may disable this feature at any time, without prior notice, in response to a change in those sites' terms or a copyright claim.
 
 ---
 
