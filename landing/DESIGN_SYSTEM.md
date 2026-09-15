@@ -103,6 +103,24 @@ con una única ubicación coherente y canónica.
 - **Móviles (`<= 860px`)**: Se presenta mediante un selector desplegable accesible (`.dash-mobile-nav-toggle`),
   optimizando el espacio en pantallas pequeñas.
 
+## Aviso de cupo en la sidebar
+
+`loadQuotaAlerts()` (dash.js) pide `/api/server/:id/stats` al entrar al
+dashboard o cambiar de servidor (no solo al abrir INICIO, que ya mostraba
+este mismo aviso como texto) y guarda en `_quotaAlerts` qué módulos están al
+90% o más de su cupo. `renderSidebar` pinta un punto (`.quota-alert-dot`)
+sobre el ícono del módulo correspondiente — ámbar si está cerca, rojo
+(`.is-full`) si ya llegó al tope — con el detalle en el `title` del link.
+
+A diferencia de `.badge` (oculto en modo rail por `.dash-sidebar.collapsed
+.badge`), el punto se sigue viendo con la sidebar colapsada: un cupo por
+agotarse no debería depender de que el admin tenga el panel expandido.
+
+Cubre los cupos que además **bloquean** agregar más al llegar al tope
+(GIFs, frases) — no el corpus de mensajes aprendidos, que al llegar a su
+límite simplemente empieza a rotar los más viejos en vez de trabar nada, así
+que no hay una acción urgente que avisar ahí.
+
 ## Borrado con deshacer
 
 `confirmDelBtn` (dom.js) pide confirmar en dos pasos antes de ejecutar una

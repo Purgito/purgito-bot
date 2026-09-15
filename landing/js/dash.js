@@ -400,6 +400,38 @@ let _loadEpoch = 0;
 let _activeGuild = null;
 export let _serverPickerOpen = false;
 
+// Avisos de cupo para la sidebar: { [moduleKey]: { full: bool, pct } }. Se
+// llenan con loadQuotaAlerts() y se pintan como un punto sobre el ícono del
+// módulo (quotaAlertDot en renderSidebar) — el mismo dato que ya se mostraba
+// como aviso de texto dentro de INICIO (ver loadInicio), pero visible desde
+// cualquier tab, no solo cuando el admin entra ahí a mirar.
+let _quotaAlerts = {};
+const QUOTA_ALERT_MODULES = [
+  ['gifs', s => s.gifs, l => l.gifs],
+  ['frases', s => s.frases, l => l.frases],
+];
+
+async function loadQuotaAlerts() {
+  const epoch = _loadEpoch;
+  try {
+    const stats = await apiFetch(`/api/server/${GUILD_ID}/stats`);
+    if (epoch !== _loadEpoch) return;
+    const lims = stats.limits || {};
+    const alerts = {};
+    for (const [key, getUsed, getCap] of QUOTA_ALERT_MODULES) {
+      const used = getUsed(stats);
+      const cap = getCap(lims);
+      if (cap && used >= cap * 0.9) {
+        alerts[key] = { full: used >= cap, pct: Math.min(100, Math.round((used / cap) * 100)) };
+      }
+    }
+    _quotaAlerts = alerts;
+    renderSidebar(currentTab());
+  } catch (e) {
+    // Aviso secundario: si falla, la sidebar se queda sin el punto y listo.
+  }
+}
+
 export function setServerPickerOpen(isOpen) {
   _serverPickerOpen = Boolean(isOpen);
 }
@@ -975,12 +1007,15 @@ export function renderSidebar(activeTab) {
         class: 'dash-sidebar-item' + (isTabActive ? ' active' : ''),
       });
 
+      const quotaAlert = _quotaAlerts[m.key];
       const tabLink = el('a', {
         class: 'dash-tab' + (isTabActive ? ' active' : ''),
         'data-key': m.key,
         href: getDashboardUrl(GUILD_ID, m.key),
         'aria-current': isTabActive ? 'page' : null,
-        title: m.label,
+        title: quotaAlert
+          ? `${m.label} — ${quotaAlert.full ? 'cupo lleno' : `cerca del cupo (${quotaAlert.pct}%)`}`
+          : m.label,
         onclick: (ev) => {
           ev.preventDefault();
           closeMobileNav();
@@ -989,7 +1024,10 @@ export function renderSidebar(activeTab) {
       },
         icon(m.icon),
         el('span', { class: 'dash-tab-label' }, m.label),
-        m.badge ? el('span', { class: `badge badge-${m.badgeType || 'soon'} badge-xs` }, m.badge) : null
+        m.badge ? el('span', { class: `badge badge-${m.badgeType || 'soon'} badge-xs` }, m.badge) : null,
+        quotaAlert
+          ? el('span', { class: 'quota-alert-dot' + (quotaAlert.full ? ' is-full' : ''), 'aria-hidden': 'true' })
+          : null
       );
 
       item.append(tabLink);
@@ -1114,6 +1152,7 @@ export async function selectGuild(newGuildId) {
   setGuildId(newGuildId);
   clearGuildCaches();
   _loadEpoch++;
+  _quotaAlerts = {};
 
   const curTab = currentTab();
   history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
@@ -1127,6 +1166,7 @@ export async function selectGuild(newGuildId) {
   renderTopBar(_activeGuild);
 
   activate(curTab, false);
+  loadQuotaAlerts();
   toast(t('dash.init.switchingServer'), 'ok');
 }
 
@@ -1228,6 +1268,7 @@ export async function initDash() {
 
     _activeGuild = g;
     document.title = `${g.name} · Purgito`;
+    loadQuotaAlerts();
 
     if (tabs) tabs.hidden = false;
     renderTopBar(g);

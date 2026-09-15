@@ -3111,6 +3111,7 @@ iframe.gif-media { pointer-events: none; }
   font-weight: 500;
   text-decoration: none;
   transition: color var(--transition), background var(--transition);
+  position: relative;
 }
 
 .dash-tab .nav-icon {
@@ -3167,6 +3168,22 @@ iframe.gif-media { pointer-events: none; }
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent-2);
 }
+
+/* loadQuotaAlerts (dash.js): a diferencia de .badge, este punto no se oculta
+   en modo rail colapsado — un cupo por agotarse debe seguir viéndose aunque
+   la sidebar esté en modo ícono solo. */
+.quota-alert-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--premium);
+  border: 1.5px solid var(--surface-card);
+}
+.quota-alert-dot.is-full { background: var(--danger); }
+.dash-sidebar.collapsed .quota-alert-dot { top: 2px; right: 2px; }
 
 /* Estado colapsado (rail) */
 .dash-sidebar.collapsed .dash-tab {
