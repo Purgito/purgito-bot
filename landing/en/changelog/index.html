@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/changelog">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/novedades">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=e2dfb3fa">
+<link rel="stylesheet" href="/style.css?v=5c5f63c1">
 </head>
 <body>
 
@@ -362,7 +362,14 @@
   </div>
 </nav>
 
-<main id="contenido" class="doc wrap changelog-page">
+<div class="docs-shell wrap">
+<details class="docs-sidebar changelog-sidebar" open aria-label="Changelog">
+  <summary>Years</summary>
+  <ul>
+    <li><a href="#year-2026">2026</a></li>
+  </ul>
+</details>
+  <main id="contenido" class="changelog-content">
   <header class="doc-head">
     <h1 class="doc-title">Changelog</h1>
     <p class="doc-date">Last updated: September 15, 2026</p>
@@ -370,40 +377,36 @@
 <p>A plain-language summary of Purgito&#x27;s new features, improvements, and fixes. The full technical detail, for anyone who wants to read it, lives in the <a href="https://github.com/punkyyy01/bot-discord-purg" target="_blank" rel="noopener">GitHub repository</a>.</p>
     </div>
   </header>
-  <nav class="box doc-toc" aria-labelledby="indice">
-    <h2 id="indice">Index</h2>
-    <ol>
-      <li><a href="#seccion-1"><span class="toc-t">Recent updates</span><span class="toc-d">Visible usage limits, Twitch, /mis_datos, exportable templates, and more.</span></a></li>
-      <li><a href="#seccion-2"><span class="toc-t">Version 1.1.0 — June 28, 2026</span><span class="toc-d">Memes, special phrases, reactions, YouTube, and the /settings panel.</span></a></li>
-      <li><a href="#seccion-3"><span class="toc-t">Version 1.0.0 — June 1, 2026</span><span class="toc-d">The launch: per-server GIFs and text generation.</span></a></li>
-    </ol>
-  </nav>
-  <section class="box doc-sec" id="seccion-1">
-    <h2 class="doc-sec-title">Recent updates</h2>
-    <div class="doc-body">
-<h3 class="changelog-tag changelog-tag--new">New</h3>
+  <section class="changelog-year" id="year-2026">
+    <h2 class="changelog-year-title">2026</h2>
+    <details class="box changelog-entry" open>
+      <summary class="changelog-entry-summary">Recent updates</summary>
+      <div class="doc-body">
+<h4 class="changelog-tag changelog-tag--new">New</h4>
 <ul><li>Visible usage limits per server: learned messages, GIFs, and meme images each have a cap, and the dashboard warns when a server is getting close to it.</li><li><strong>Phrases</strong> category in <code class="cmd">/settings</code>: add, view, and delete special phrases straight from Discord, without opening the dashboard.</li><li><strong>YouTube</strong> and <strong>Automatic memes</strong> expanded in <code class="cmd">/settings</code>: you can now add subscriptions and turn on automatic memes right from the Discord panel, not just remove them.</li><li>Button to wipe a server&#x27;s corpus from <code class="cmd">/settings</code>, with a required confirmation before deleting.</li><li><code class="cmd">/mis_datos</code>: download everything Purgito saved of your writing style as a file.</li><li><code class="cmd">/imitar_mezcla</code>: blends two members&#x27; styles into a single generated message.</li><li>Export and import embed templates as a file, to reuse them across servers.</li><li>Scheduled announcements: weekly mode (pick specific weekdays and a fixed time), in addition to interval or daily.</li><li>Live Twitch alerts: same idea as YouTube notifications, with optional role mentions.</li><li><code class="cmd">!dl &lt;link&gt;</code> / <code class="cmd">purgito dl &lt;link&gt;</code>: downloads a video from Instagram, TikTok, or Twitter/X and uploads it to the channel.</li><li>Per-server custom text command prefix (it used to be fixed at <code class="cmd">!</code>).</li><li>The dashboard&#x27;s GIFs tab now shows who sent each GIF, with a view to see just one person&#x27;s.</li><li>Expanded Stats tab: activity over the last 14 days, who fed the corpus the most, and the most frequent words.</li></ul>
-<h3 class="changelog-tag changelog-tag--improved">Improved</h3>
+<h4 class="changelog-tag changelog-tag--improved">Improved</h4>
 <ul><li>The welcome message no longer mentions memes on non-Premium servers.</li><li>Special phrases and configurable reactions are no longer Premium-only: available on every server.</li><li>When automatic memes can&#x27;t post (no saved photos, or not enough conversation), Purgito now warns once in the channel instead of silently failing every few minutes.</li></ul>
-<h3 class="changelog-tag changelog-tag--fixed">Fixed</h3>
+<h4 class="changelog-tag changelog-tag--fixed">Fixed</h4>
 <ul><li>A channel with a lot of history no longer eats into the learned-message quota of other channels on the same server — the limit is now per channel.</li><li>Same fix for <code class="cmd">/imitar</code>: a very active member no longer displaces another member&#x27;s saved style.</li><li>Videos flagged as sensitive content by Instagram, TikTok, or Twitter can now only be uploaded with <code class="cmd">!dl</code> in a channel marked NSFW.</li></ul>
-    </div>
-  </section>
-  <section class="box doc-sec" id="seccion-2">
-    <h2 class="doc-sec-title"><span class="changelog-version">Version 1.1.0</span> <span class="changelog-date-inline">June 28, 2026</span></h2>
-    <div class="doc-body">
-<h3 class="changelog-tag changelog-tag--new">New</h3>
+      </div>
+    </details>
+    <details class="box changelog-entry">
+      <summary class="changelog-entry-summary"><span class="changelog-version">Version 1.1.0</span> <span class="changelog-date-inline">June 28, 2026</span></summary>
+      <div class="doc-body">
+<h4 class="changelog-tag changelog-tag--new">New</h4>
 <ul><li>Meme generation with <code class="cmd">/momo</code> and <code class="cmd">/meme</code>, with AI-generated captions and an automatic fallback when there&#x27;s no connection.</li><li>Image collection for memes: reacting with 🎯 on a photo saves it as a template.</li><li>Schedulable automatic memes per channel.</li><li>Configurable special phrases, with a low chance of appearing and a minimum time between each.</li><li>Configurable automatic reactions to chat messages.</li><li>YouTube notifications when a channel uploads a new video.</li><li>Chat mode: Purgito replies automatically when mentioned or replied to.</li><li><code class="cmd">/imitar @user</code>: generates a message imitating a specific member&#x27;s style.</li><li>Welcome message when the bot is added to a new server.</li><li><code class="cmd">/settings</code> configuration panel, organized by category.</li><li><code class="cmd">/setup</code>: step-by-step guide to set up a new server.</li></ul>
-    </div>
-  </section>
-  <section class="box doc-sec" id="seccion-3">
-    <h2 class="doc-sec-title"><span class="changelog-version">Version 1.0.0</span> <span class="changelog-date-inline">June 1, 2026</span></h2>
-    <div class="doc-body">
-<h3 class="changelog-tag changelog-tag--new">New</h3>
+      </div>
+    </details>
+    <details class="box changelog-entry">
+      <summary class="changelog-entry-summary"><span class="changelog-version">Version 1.0.0</span> <span class="changelog-date-inline">June 1, 2026</span></summary>
+      <div class="doc-body">
+<h4 class="changelog-tag changelog-tag--new">New</h4>
 <ul><li>First public release: per-server GIF collection and text generation from what the bot learns in chat.</li></ul>
-    </div>
+      </div>
+    </details>
   </section>
-</main>
+  </main>
+</div>
 
 <footer class="footer">
   <div class="wrap foot-inner">
