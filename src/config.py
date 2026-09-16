@@ -90,6 +90,9 @@ WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
 
 REFEED_MAX_MESSAGES = env_int("REFEED_MAX_MESSAGES", 80_000)
 REFEED_ALL_MAX_MESSAGES = env_int("REFEED_ALL_MAX_MESSAGES", 20_000)
+# Cooldown de /refeed_channels por guild -- corto a propósito, ver el
+# comentario junto a _check_refeed_channels_cooldown en cogs/chat.py.
+REFEED_GUILD_COOLDOWN_SECONDS = env_int("REFEED_GUILD_COOLDOWN_SECONDS", 60)
 MARKOV_TRAINING_MESSAGES = env_int("MARKOV_TRAINING_MESSAGES", 5_000)
 USER_MARKOV_TRAINING_MESSAGES = env_int("USER_MARKOV_TRAINING_MESSAGES", 2_000)
 

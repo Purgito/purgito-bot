@@ -9,6 +9,7 @@ import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, richEmptyState, loadingCard, renderError, guildIcon, toast, formGroup,
   confirmDelBtn, undoableDelete, helpIcon, accordionGroup,
+  trackSave, markSavePending, hasUnsavedWork, onUnsavedWorkChange, clearUnsavedWork,
 } from '/js/core/dom.js';
 import {
   GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
@@ -42,8 +43,6 @@ addStrings({
     'dash.mod.stats.desc': 'Métricas de uso, memoria del bot, canales y actividad acumulada',
     'dash.mod.chat.label': 'Ajustes de Chat',
     'dash.mod.chat.desc': 'Comportamiento, probabilidades, canales y límites del chat',
-    'dash.mod.estilo.label': 'Personalización',
-    'dash.mod.estilo.desc': 'Apariencia de Purgito en este servidor: nick, avatar y banner',
     'dash.mod.playground.label': 'Simulador de Chat',
     'dash.mod.playground.desc': 'Simula y prueba cómo respondería Purgito en vivo según las reglas y corpus del canal',
     'dash.mod.historial.label': 'Auditoría',
@@ -74,10 +73,8 @@ addStrings({
     'dash.mod.memes.desc': 'Generación automática de memes y plantillas',
     'dash.mod.canales.label': 'Canales y Permisos',
     'dash.mod.canales.desc': 'Matriz de lectura/respuesta y canales o roles ignorados',
-    'dash.mod.amnesia.label': 'Limpieza',
-    'dash.mod.amnesia.desc': 'Borra mensajes y estilo aprendidos en las últimas 24 horas',
-    'dash.mod.prefijo.label': 'Prefijo de comandos',
-    'dash.mod.prefijo.desc': 'Cambia el símbolo con el que se invocan los comandos de texto, como !dl',
+    'dash.mod.general.label': 'General',
+    'dash.mod.general.desc': 'Prefijo de comandos, borrado rápido de memoria reciente y el rol de Gestor',
   },
   en: {
     'dash.cat.principal': 'Main',
@@ -92,8 +89,6 @@ addStrings({
     'dash.mod.stats.desc': 'Usage metrics, bot memory, channels, and accumulated activity',
     'dash.mod.chat.label': 'Chat settings',
     'dash.mod.chat.desc': 'Behavior, probabilities, channels, and chat limits',
-    'dash.mod.estilo.label': 'Customization',
-    'dash.mod.estilo.desc': "Purgito's appearance on this server: nickname, avatar, and banner",
     'dash.mod.playground.label': 'Chat Simulator',
     'dash.mod.playground.desc': "Simulate and test how Purgito would reply live, based on the channel's rules and corpus",
     'dash.mod.historial.label': 'Audit log',
@@ -124,10 +119,8 @@ addStrings({
     'dash.mod.memes.desc': 'Automatic meme generation and templates',
     'dash.mod.canales.label': 'Channels and Permissions',
     'dash.mod.canales.desc': 'Read/reply matrix and ignored channels or roles',
-    'dash.mod.amnesia.label': 'Cleanup',
-    'dash.mod.amnesia.desc': 'Deletes messages and style learned in the last 24 hours',
-    'dash.mod.prefijo.label': 'Command prefix',
-    'dash.mod.prefijo.desc': 'Change the symbol used to invoke text commands, like !dl',
+    'dash.mod.general.label': 'General',
+    'dash.mod.general.desc': 'Command prefix, quick recent-memory cleanup, and the Manager role',
   },
 });
 
@@ -173,15 +166,6 @@ export const MODULES = [
     desc: t('dash.mod.chat.desc'),
     keywords: ['chat', 'ajustes', 'markov', 'probabilidad', 'menciones', 'espontaneo', 'comportamiento'],
     load: loadChatTab,
-  },
-  {
-    key: 'estilo',
-    cat: 'principal',
-    label: t('dash.mod.estilo.label'),
-    icon: 'palette',
-    desc: t('dash.mod.estilo.desc'),
-    keywords: ['estilo', 'personalizacion', 'nick', 'apodo', 'avatar', 'banner', 'foto', 'apariencia'],
-    load: loadEstiloModule,
   },
   {
     key: 'playground',
@@ -238,15 +222,6 @@ export const MODULES = [
     desc: t('dash.mod.anuncios.desc'),
     keywords: ['anuncios', 'programados', 'intervalo', 'diario', 'cadencia', 'mensajes', 'publicaciones', 'automatico', 'auto-delete'],
     load: loadAnunciosTab,
-  },
-  {
-    key: 'updates',
-    cat: 'anuncios',
-    label: t('dash.mod.updates.label'),
-    icon: 'bell',
-    desc: t('dash.mod.updates.desc'),
-    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal', 'updates'],
-    load: loadUpdatesModule,
   },
 
   // Plantillas
@@ -315,6 +290,15 @@ export const MODULES = [
     keywords: ['rss', 'atom', 'feeds', 'noticias', 'blogs', 'articulos', 'alertas'],
     load: loadRss,
   },
+  {
+    key: 'updates',
+    cat: 'automatizacion',
+    label: t('dash.mod.updates.label'),
+    icon: 'bell',
+    desc: t('dash.mod.updates.desc'),
+    keywords: ['novedades', 'actualizaciones', 'anuncios', 'bot', 'canal', 'updates'],
+    load: loadUpdatesModule,
+  },
 
   // Contenido
   {
@@ -347,22 +331,13 @@ export const MODULES = [
     load: loadCanalesModule,
   },
   {
-    key: 'amnesia',
+    key: 'general',
     cat: 'servidor',
-    label: t('dash.mod.amnesia.label'),
-    icon: 'trash',
-    desc: t('dash.mod.amnesia.desc'),
-    keywords: ['amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset'],
-    load: loadAmnesiaModule,
-  },
-  {
-    key: 'prefijo',
-    cat: 'servidor',
-    label: t('dash.mod.prefijo.label'),
-    icon: 'zap',
-    desc: t('dash.mod.prefijo.desc'),
-    keywords: ['prefijo', 'prefix', 'comandos', 'dl', 'instagram', 'purgito'],
-    load: loadPrefijoModule,
+    label: t('dash.mod.general.label'),
+    icon: 'settings',
+    desc: t('dash.mod.general.desc'),
+    keywords: ['prefijo', 'prefix', 'comandos', 'dl', 'instagram', 'purgito', 'amnesia', 'limpieza', 'borrar', 'corpus', '24 horas', 'reset', 'general'],
+    load: loadGeneralModule,
   },
 
   // Purgito Premium (Módulo especial)
@@ -378,6 +353,36 @@ export const MODULES = [
     load: loadPremium,
   },
 ];
+
+// Módulos que un Gestor (rol delegado, sin MANAGE_GUILD — ver
+// check_guild_manager_access/guild_api_manager en webapi.py) puede ver.
+// Tiene que reflejar EXACTAMENTE la misma lista que decide ahí qué
+// endpoints aceptan ese nivel reducido: si un módulo entra acá pero su
+// endpoint sigue en @guild_api a secas, un Gestor lo ve en la sidebar y se
+// lleva un 403 al abrirlo; al revés, si el endpoint es @guild_api_manager
+// pero el módulo no está acá, un Gestor legítimo no tiene cómo llegar.
+const GESTOR_ALLOWED_MODULES = new Set([
+  'anuncios', 'embeds', 'frases', 'triggers', 'reacciones', 'gifs',
+  'youtube', 'twitch', 'rss',
+]);
+
+function isGestorGuild() {
+  return Boolean(_activeGuild && _activeGuild.access === 'manager');
+}
+
+function isModuleAllowed(key) {
+  return !isGestorGuild() || GESTOR_ALLOWED_MODULES.has(key);
+}
+
+// Primer módulo utilizable para el nivel de acceso actual. INICIO no sirve
+// de default para un Gestor: carga /stats, /style, /settings/updates y
+// /settings/corpus, los cuatro admin-only, así que le saldría vacía o con
+// errores en vez de decir claramente "no tenés acceso a esto".
+function defaultModuleKey() {
+  if (!isGestorGuild()) return 'inicio';
+  const first = MODULES.find(m => GESTOR_ALLOWED_MODULES.has(m.key));
+  return first ? first.key : 'inicio';
+}
 
 const SIDEBAR_COLLAPSED_KEY = 'purgito_dash_sidebar_collapsed';
 
@@ -399,6 +404,11 @@ let _sidebarCollapsed = getStoredSidebarCollapsed();
 let _loadEpoch = 0;
 let _activeGuild = null;
 export let _serverPickerOpen = false;
+// Tab realmente pintado en pantalla ahora mismo — lo usa el aviso de
+// cambios sin guardar para devolver la URL a su lugar si el usuario cancela
+// una navegación disparada por atrás/adelante del navegador (ahí la URL ya
+// cambió antes de que activate() pudiera preguntar).
+let _activeModuleKey = null;
 
 // Avisos de cupo para la sidebar: { [moduleKey]: { full: bool, pct } }. Se
 // llenan con loadQuotaAlerts() y se pintan como un punto sobre el ícono del
@@ -457,7 +467,8 @@ export function toggleSidebarCollapse() {
 function currentTab() {
   const m = location.pathname.match(/\/dashboard\/\d{1,25}\/([a-zA-Z0-9_-]+)/);
   const seg = m ? m[1] : (location.pathname.split('/')[4] || 'inicio');
-  return MODULES.some(mod => mod.key === seg) ? seg : 'inicio';
+  const valid = MODULES.some(mod => mod.key === seg) && isModuleAllowed(seg);
+  return valid ? seg : defaultModuleKey();
 }
 
 // ---------------- PERSISTENCIA DE CATEGORÍAS EN SIDEBAR ----------------
@@ -758,6 +769,7 @@ function openCommandPalette() {
     resultsList.innerHTML = '';
 
     matches = MODULES.filter(m => {
+      if (!isModuleAllowed(m.key)) return false;
       if (!q) return true;
       if (m.label.toLowerCase().includes(q)) return true;
       if (m.desc.toLowerCase().includes(q)) return true;
@@ -880,6 +892,67 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ---------------- AVISO DE CAMBIOS SIN GUARDAR ----------------
+// CHAT y Canales autoguardan cada campo (ver saveTunable, channelOverrideRow
+// y channelMatrix más abajo) — no hay botón "Guardar" que retenga cambios.
+// Lo único que se puede perder de verdad es un guardado que sigue en vuelo
+// (debounce de 500 ms) o que falló y no se reintentó: trackSave() lo cuenta
+// (core/dom.js) y acá solo se pinta el aviso y se bloquea salir mientras
+// quede alguno.
+
+addStrings({
+  es: {
+    'dash.unsaved.saving': 'Guardando…',
+    'dash.unsaved.saveFailed': 'No se pudo guardar un cambio',
+    'dash.unsaved.confirmLeave': 'Hay un cambio sin guardar que se pierde si sales. ¿Seguro que quieres salir?',
+  },
+  en: {
+    'dash.unsaved.saving': 'Saving…',
+    'dash.unsaved.saveFailed': "A change couldn't be saved",
+    'dash.unsaved.confirmLeave': "There's an unsaved change that will be lost if you leave. Leave anyway?",
+  },
+});
+
+let _unsavedBannerEl = null;
+function unsavedBanner() {
+  if (!_unsavedBannerEl) {
+    _unsavedBannerEl = el('div', { class: 'unsaved-banner', role: 'status', 'aria-live': 'polite' });
+    document.body.append(_unsavedBannerEl);
+  }
+  return _unsavedBannerEl;
+}
+
+onUnsavedWorkChange(({ pending, failed }) => {
+  const banner = unsavedBanner();
+  if (failed > 0) {
+    banner.className = 'unsaved-banner show is-error';
+    banner.textContent = t('dash.unsaved.saveFailed');
+  } else if (pending > 0) {
+    banner.className = 'unsaved-banner show is-pending';
+    banner.textContent = t('dash.unsaved.saving');
+  } else {
+    banner.className = 'unsaved-banner';
+  }
+});
+
+// Cierre real de pestaña/recarga/URL externa: el único aviso que el
+// navegador deja personalizar es mostrar o no su diálogo nativo.
+window.addEventListener('beforeunload', (e) => {
+  if (!hasUnsavedWork()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+// Navegación dentro del panel (sidebar, paleta de comandos, cambio de
+// servidor, atrás/adelante): todas pasan por activate(), así que se
+// pregunta una sola vez ahí en vez de repetir el guard en cada disparador.
+function confirmDiscardUnsaved() {
+  if (!hasUnsavedWork()) return true;
+  const ok = window.confirm(t('dash.unsaved.confirmLeave'));
+  if (ok) clearUnsavedWork();
+  return ok;
+}
+
 // ---------------- RENDERIZADO DE SIDEBAR ----------------
 
 addStrings({
@@ -976,7 +1049,7 @@ export function renderSidebar(activeTab) {
   const collapsedCats = getCollapsedCategories();
 
   for (const cat of CATEGORIES) {
-    const catModules = MODULES.filter(m => m.cat === cat.key);
+    const catModules = MODULES.filter(m => m.cat === cat.key && isModuleAllowed(m.key));
     if (!catModules.length) continue;
 
     const hasActiveModule = catModules.some(m => m.key === activeTab);
@@ -1040,7 +1113,7 @@ export function renderSidebar(activeTab) {
 
   // 4. Sección dedicada para Purgito Premium
   const premiumMod = MODULES.find(m => m.key === 'premium');
-  if (premiumMod) {
+  if (premiumMod && isModuleAllowed('premium')) {
     const isPremiumActive = activeTab === 'premium';
     const premiumGroup = el('div', { class: 'dash-sidebar-premium-section' },
       el('div', { class: 'dash-sidebar-divider' }),
@@ -1148,14 +1221,18 @@ addStrings({
 
 export async function selectGuild(newGuildId) {
   if (!newGuildId || newGuildId === GUILD_ID) return;
+  if (!confirmDiscardUnsaved()) return;
+
+  // Segmento de la URL vieja, antes de tocar nada -- se revalida más abajo
+  // contra el acceso del guild DESTINO, no el de origen (un Gestor en un
+  // servidor y admin en otro no debe arrastrar una tab admin-only al saltar
+  // entre los dos).
+  const requestedTab = currentTab();
 
   setGuildId(newGuildId);
   clearGuildCaches();
   _loadEpoch++;
   _quotaAlerts = {};
-
-  const curTab = currentTab();
-  history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
 
   const data = await fetchUserGuilds();
   const configured = (data && data.configured) || [];
@@ -1163,6 +1240,8 @@ export async function selectGuild(newGuildId) {
   if (_activeGuild) {
     document.title = `${_activeGuild.name} · Purgito`;
   }
+  const curTab = isModuleAllowed(requestedTab) ? requestedTab : defaultModuleKey();
+  history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
   renderTopBar(_activeGuild);
 
   activate(curTab, false);
@@ -1173,6 +1252,23 @@ export async function selectGuild(newGuildId) {
 // ---------------- ACTIVACIÓN DE MÓDULO ----------------
 
 export function activate(key, push) {
+  if (!confirmDiscardUnsaved()) {
+    // Atrás/adelante del navegador ya movió la URL antes de poder preguntar
+    // (push=false): la devolvemos a la tab que se sigue mostrando en vez de
+    // dejar la barra de direcciones desincronizada del contenido.
+    if (!push) {
+      history.pushState({}, '', getDashboardUrl(GUILD_ID, _activeModuleKey || defaultModuleKey()));
+    }
+    return;
+  }
+  // Bookmark viejo, paleta de comandos o un link a mano hacia un módulo que
+  // el nivel de acceso actual no puede usar (ver GESTOR_ALLOWED_MODULES):
+  // mejor mandarlo a algo que sí funciona que dejarlo pedir datos a
+  // endpoints admin-only y comerse un 403 silencioso.
+  if (!isModuleAllowed(key)) {
+    key = defaultModuleKey();
+  }
+  _activeModuleKey = key;
   renderSidebar(key);
 
   if (push) {
@@ -1295,6 +1391,23 @@ export async function initDash() {
 window.onpopstate = async () => {
   const rawGuild = parseGuildId();
   if (rawGuild && rawGuild !== GUILD_ID) {
+    // Atrás/adelante cruzando de servidor: a diferencia de un cambio de tab
+    // dentro del mismo guild, esto no puede resolverse dejando que
+    // activate() pregunte -- para cuando activate() correría, GUILD_ID ya
+    // tendría que haber cambiado para poder pintar el guild nuevo, y de ahí
+    // en más un "cancelar" en el aviso de cambios sin guardar dejaría el
+    // contenido pintado (guild viejo) desincronizado del GUILD_ID real
+    // (guild nuevo): cualquier autoguardado que dispare esa pantalla vieja
+    // terminaría escribiendo en el guild equivocado. Por eso se pregunta
+    // ACÁ, antes de tocar nada, con el guild viejo todavía activo.
+    const oldGuildId = GUILD_ID;
+    const oldTab = _activeModuleKey || currentTab();
+    if (!confirmDiscardUnsaved()) {
+      // El browser ya movió la URL a la del guild nuevo -- la devolvemos a
+      // la del guild viejo, que es el que se sigue mostrando en pantalla.
+      history.pushState({}, '', getDashboardUrl(oldGuildId, oldTab));
+      return;
+    }
     setGuildId(rawGuild);
     clearGuildCaches();
     _loadEpoch++;
@@ -1422,10 +1535,11 @@ addStrings({
     'dash.inicio.onboardingTitle': 'Primeros pasos',
     'dash.inicio.onboardingStepChannelsLabel': 'Elige de qué canales aprende',
     'dash.inicio.onboardingStepChannelsBtn': 'Elegir canales',
-    'dash.inicio.onboardingStepCorpusLabel': 'Aprende del historial de esos canales',
-    'dash.inicio.onboardingStepCorpusHint': 'Se hace desde Discord con /setup o /refeed_channels.',
+    'dash.inicio.onboardingStepCorpusLabel': 'Aprende de los mensajes nuevos de esos canales',
+    'dash.inicio.onboardingStepCorpusHint': 'Pasa solo, con la charla nueva de esos canales. Para sumar de una los mensajes que ya existen ahí, sin esperar, corre /setup o /refeed_channels en Discord.',
     'dash.inicio.onboardingStepStyleLabel': 'Personaliza cómo se llama y se ve',
     'dash.inicio.onboardingStepStyleBtn': 'Personalizar',
+    'dash.inicio.onboardingDismiss': 'Ocultar esta guía',
     'dash.inicio.statusTitle': 'Estado de Purgito en este servidor',
     'dash.inicio.quickActionsTitle': 'Acciones rápidas',
     'dash.inicio.qaChatTitle': 'Ajustes de Chat',
@@ -1445,7 +1559,6 @@ addStrings({
     'dash.inicio.quickStyleTitle': 'Personalización rápida',
     'dash.inicio.previewText': 'Así se ve Purgito en este servidor',
     'dash.inicio.editStyle': 'Editar estilo',
-    'dash.inicio.viewOptions': 'Ver opciones →',
     'dash.inicio.activityTitle': 'Actividad histórica',
     'dash.inicio.activityDesc': 'Actividad acumulada en este servidor desde que se unió Purgito.',
     'dash.inicio.gifsSent': 'GIFs enviados',
@@ -1492,10 +1605,11 @@ addStrings({
     'dash.inicio.onboardingTitle': 'First steps',
     'dash.inicio.onboardingStepChannelsLabel': 'Choose which channels it learns from',
     'dash.inicio.onboardingStepChannelsBtn': 'Choose channels',
-    'dash.inicio.onboardingStepCorpusLabel': 'Learn from the history of those channels',
-    'dash.inicio.onboardingStepCorpusHint': 'Done from Discord with /setup or /refeed_channels.',
+    'dash.inicio.onboardingStepCorpusLabel': 'Learns from new messages in those channels',
+    'dash.inicio.onboardingStepCorpusHint': "Happens on its own, as new chat comes in. To pull in the messages already there instead of waiting, run /setup or /refeed_channels on Discord.",
     'dash.inicio.onboardingStepStyleLabel': 'Customize its name and look',
     'dash.inicio.onboardingStepStyleBtn': 'Customize',
+    'dash.inicio.onboardingDismiss': 'Dismiss this guide',
     'dash.inicio.statusTitle': "Purgito's status on this server",
     'dash.inicio.quickActionsTitle': 'Quick actions',
     'dash.inicio.qaChatTitle': 'Chat settings',
@@ -1515,7 +1629,6 @@ addStrings({
     'dash.inicio.quickStyleTitle': 'Quick customization',
     'dash.inicio.previewText': "This is how Purgito looks on this server",
     'dash.inicio.editStyle': 'Edit style',
-    'dash.inicio.viewOptions': 'View options →',
     'dash.inicio.activityTitle': 'Historical activity',
     'dash.inicio.activityDesc': "Activity accumulated on this server since Purgito joined.",
     'dash.inicio.gifsSent': 'GIFs sent',
@@ -1543,10 +1656,38 @@ addStrings({
 // stats), sin endpoint nuevo. Se oculta sola apenas los tres pasos están
 // completos — no queda como un recordatorio permanente para un servidor ya
 // configurado.
-function buildOnboardingChecklist(stats, style) {
+// Descartar la guía es por servidor (no una vez para siempre): un admin con
+// varios servidores puede querer completarla en uno y saltarla en otro.
+const ONBOARDING_DISMISSED_KEY = 'purgito_onboarding_dismissed';
+
+function getDismissedOnboardingGuilds() {
+  try {
+    const raw = localStorage.getItem(ONBOARDING_DISMISSED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function dismissOnboarding(guildId) {
+  try {
+    const list = getDismissedOnboardingGuilds();
+    if (!list.includes(guildId)) list.push(guildId);
+    localStorage.setItem(ONBOARDING_DISMISSED_KEY, JSON.stringify(list));
+  } catch (e) { /* sin localStorage no pasa nada */ }
+}
+
+function buildOnboardingChecklist(stats, style, corpusChannelsCount) {
+  if (getDismissedOnboardingGuilds().includes(GUILD_ID)) return null;
+
   const steps = [
     {
-      done: (stats.reading_channels || 0) > 0,
+      // corpus_allowed_channels (cuántos canales de aprendizaje hay
+      // elegidos), no reading_channels -- esa es una lista totalmente
+      // distinta (canales NO ignorados, ver "Configuración del chat" en
+      // CLAUDE.md) que no baja a 0 al sacar canales de acá, así que el paso
+      // se quedaba tildado para siempre apenas se tildó una vez.
+      done: corpusChannelsCount > 0,
       label: t('dash.inicio.onboardingStepChannelsLabel'),
       actionLabel: t('dash.inicio.onboardingStepChannelsBtn'),
       action: () => activate('canales', true),
@@ -1567,10 +1708,18 @@ function buildOnboardingChecklist(stats, style) {
   if (steps.every(s => s.done)) return null;
   const doneCount = steps.filter(s => s.done).length;
 
-  return el('div', { class: 'onboarding-checklist' },
+  const wrap = el('div', { class: 'onboarding-checklist' },
     el('div', { class: 'onboarding-checklist-header' },
       el('h3', {}, t('dash.inicio.onboardingTitle')),
-      el('span', { class: 'dim' }, `${doneCount}/${steps.length}`)),
+      el('div', { class: 'onboarding-checklist-header-right' },
+        el('span', { class: 'dim' }, `${doneCount}/${steps.length}`),
+        el('button', {
+          type: 'button',
+          class: 'onboarding-dismiss-btn',
+          title: t('dash.inicio.onboardingDismiss'),
+          'aria-label': t('dash.inicio.onboardingDismiss'),
+          onclick: () => { dismissOnboarding(GUILD_ID); wrap.remove(); },
+        }, icon('x')))),
     el('ul', { class: 'onboarding-checklist-list' },
       ...steps.map(s => el('li', { class: 'onboarding-step' + (s.done ? ' done' : '') },
         el('span', { class: 'onboarding-step-check' }, s.done ? icon('check') : null),
@@ -1580,6 +1729,7 @@ function buildOnboardingChecklist(stats, style) {
         (!s.done && s.action)
           ? el('button', { class: 'btn btn-secondary btn-sm', onclick: s.action }, s.actionLabel)
           : null))));
+  return wrap;
 }
 
 async function loadInicio() {
@@ -1591,11 +1741,12 @@ async function loadInicio() {
   const epoch = _loadEpoch;
 
   try {
-    const [styleRes, updatesRes, statsRes, channelsRes] = await Promise.allSettled([
+    const [styleRes, updatesRes, statsRes, channelsRes, corpusRes] = await Promise.allSettled([
       apiFetch(`/api/server/${GUILD_ID}/style`),
       apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
       apiFetch(`/api/server/${GUILD_ID}/stats`),
       getChannels({ force: true }),
+      apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
     ]);
 
     if (epoch !== _loadEpoch) return; // Rechaza respuestas desfasadas
@@ -1606,6 +1757,7 @@ async function loadInicio() {
     const updates = updatesRes.status === 'fulfilled' ? (updatesRes.value || {}) : {};
     const stats = statsRes.status === 'fulfilled' ? (statsRes.value || {}) : {};
     const channels = channelsRes.status === 'fulfilled' ? (channelsRes.value || []) : [];
+    const corpus = corpusRes.status === 'fulfilled' ? (corpusRes.value || {}) : {};
 
     // Si todas las llamadas de datos fallaron por auth o error fatal:
     if (styleRes.status === 'rejected' && statsRes.status === 'rejected' && channelsRes.status === 'rejected') {
@@ -1638,7 +1790,7 @@ async function loadInicio() {
     );
     box.append(serverHero);
 
-    const onboardingChecklist = buildOnboardingChecklist(stats, style);
+    const onboardingChecklist = buildOnboardingChecklist(stats, style, (corpus.channels || []).length);
     if (onboardingChecklist) box.append(onboardingChecklist);
 
     // 2. Avisos accionables de cuota (cuando requieren atención del administrador)
@@ -1674,7 +1826,7 @@ async function loadInicio() {
     // 3. Acciones rápidas (Quick Actions)
     const quickActionsGrid = el('div', { class: 'quick-actions-grid' },
       quickActionCard('chat', t('dash.inicio.qaChatTitle'), t('dash.inicio.qaChatDesc'), () => activate('chat', true)),
-      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => activate('estilo', true)),
+      quickActionCard('palette', t('dash.inicio.qaStyleTitle'), t('dash.inicio.qaStyleDesc'), () => openStyleModal(style)),
       quickActionCard('layout', t('dash.inicio.qaEmbedsTitle'), t('dash.inicio.qaEmbedsDesc'), () => activate('embeds', true)),
       quickActionCard('film', t('dash.inicio.qaGifsTitle'), t('dash.inicio.qaGifsDesc'), () => activate('gifs', true)),
       quickActionCard('zap', t('dash.inicio.qaTriggersTitle'), t('dash.inicio.qaTriggersDesc'), () => activate('triggers', true)),
@@ -1701,11 +1853,7 @@ async function loadInicio() {
           el('button', {
             class: 'btn btn-secondary',
             onclick: () => openStyleModal(style),
-          }, t('dash.inicio.editStyle')),
-          el('button', {
-            class: 'btn btn-secondary',
-            onclick: () => activate('estilo', true),
-          }, t('dash.inicio.viewOptions'))
+          }, t('dash.inicio.editStyle'))
         )
       )
     );
@@ -1931,10 +2079,6 @@ addStrings({
     'dash.styleModal.bannerToggle': 'Modificar banner',
     'dash.styleModal.bannerDesc': 'Banner del perfil de Purgito en este servidor.',
     'dash.styleModal.title': 'Editar apariencia en este servidor',
-    'dash.styleModal.moduleTitle': 'Personalización de Purgito',
-    'dash.styleModal.moduleDesc': 'Modifica cómo se presenta Purgito exclusivamente en este servidor (apodo, avatar y banner de perfil).',
-    'dash.styleModal.modulePreview': 'Vista previa del bot en este servidor',
-    'dash.styleModal.editAppearance': 'Editar apariencia',
   },
   en: {
     'dash.styleModal.imageHelp': 'PNG, JPG, GIF, or WEBP. Max 10 MB.',
@@ -1950,10 +2094,6 @@ addStrings({
     'dash.styleModal.bannerToggle': 'Change banner',
     'dash.styleModal.bannerDesc': "Purgito's profile banner on this server.",
     'dash.styleModal.title': 'Edit appearance on this server',
-    'dash.styleModal.moduleTitle': 'Customize Purgito',
-    'dash.styleModal.moduleDesc': "Change how Purgito presents itself exclusively on this server (nickname, avatar, and profile banner).",
-    'dash.styleModal.modulePreview': "Preview of the bot on this server",
-    'dash.styleModal.editAppearance': 'Edit appearance',
   },
 });
 
@@ -2107,7 +2247,6 @@ export function openStyleModal(style = {}) {
         if (res && res.warning) toast(res.warning, 'warn');
         if (modal) modal.remove();
         if (currentTab() === 'inicio') loadInicio();
-        else if (currentTab() === 'estilo') loadEstiloModule();
       } catch (e) {
         toast(e.message || t('dash.styleModal.saveError'), 'err');
       } finally {
@@ -2140,41 +2279,6 @@ export function openStyleModal(style = {}) {
   );
 
   modal = panelModal(t('dash.styleModal.title'), modalBody);
-}
-
-async function loadEstiloModule() {
-  const box = content();
-  if (box) {
-    box.innerHTML = '';
-    box.append(spinner());
-  }
-  try {
-    const style = await apiFetch(`/api/server/${GUILD_ID}/style`);
-    if (!box) return;
-    box.innerHTML = '';
-
-    const avatar = (style && (style.avatar_url || style.current_avatar_url)) || null;
-    const nick = (style && (style.nick || style.current_nick)) || 'Purgito';
-
-    box.append(
-      formGroup(t('dash.styleModal.moduleTitle'),
-        el('p', { class: 'dim' }, t('dash.styleModal.moduleDesc')),
-        el('div', { class: 'style-card' },
-          el('div', { class: 'style-preview' },
-            avatar ? el('img', { class: 'style-avatar', src: avatar, alt: '' }) : null,
-            el('div', {},
-              el('div', { class: 'style-nick' }, nick, el('span', { class: 'dm-badge' }, 'BOT')),
-              el('div', { class: 'dim' }, t('dash.styleModal.modulePreview'))
-            )
-          ),
-          el('button', {
-            class: 'btn btn-primary',
-            onclick: () => openStyleModal(style || {}),
-          }, t('dash.styleModal.editAppearance'))
-        )
-      )
-    );
-  } catch (e) { if (box) renderError(box, e); }
 }
 
 addStrings({
@@ -2915,6 +3019,18 @@ addStrings({
     'dash.prefijo.saved': 'Prefijo actualizado',
     'dash.prefijo.errorSave': 'No se pudo guardar el prefijo',
     'dash.prefijo.errorEmpty': 'El prefijo no puede estar vacío',
+    'dash.amnesia.moduleTitle': 'Limpieza de memoria reciente',
+    'dash.amnesia.moduleDesc': 'Borra el corpus (mensajes aprendidos y estilo por usuario) de las últimas 24 horas de todo el servidor. Esta acción es irreversible.',
+    'dash.amnesia.btnLabel': 'Borrar corpus de las últimas 24h',
+    'dash.amnesia.confirmQuestion': 'Esto borra mensajes y estilo por usuario de las últimas 24 horas y no se puede deshacer. ¿Seguro?',
+    'dash.amnesia.successMsg': 'Borrados {corpus} mensajes y {user} de estilo por usuario',
+    'dash.amnesia.errorMsg': 'No se pudo borrar el corpus reciente, intenta de nuevo',
+    'dash.managerRole.title': 'Rol de Gestor',
+    'dash.managerRole.desc': 'Cualquier miembro con este rol entra al panel con acceso a Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS — sin acceso a Premium, Canales, Chat, Estadísticas, Historial ni este módulo. No hace falta que tenga el permiso de Discord "Gestionar servidor".',
+    'dash.managerRole.label': 'Rol',
+    'dash.managerRole.none': 'Ninguno — nadie entra como Gestor',
+    'dash.managerRole.saved': 'Rol de Gestor actualizado',
+    'dash.managerRole.errorSave': 'No se pudo guardar el rol de Gestor',
   },
   en: {
     'dash.updates.moduleTitle': 'Updates Channel',
@@ -2934,6 +3050,18 @@ addStrings({
     'dash.prefijo.saved': 'Prefix updated',
     'dash.prefijo.errorSave': "Couldn't save the prefix",
     'dash.prefijo.errorEmpty': "The prefix can't be empty",
+    'dash.amnesia.moduleTitle': 'Clean up recent memory',
+    'dash.amnesia.moduleDesc': "Deletes the corpus (learned messages and per-user style) from the last 24 hours across the whole server. This action can't be undone.",
+    'dash.amnesia.btnLabel': 'Delete corpus from the last 24h',
+    'dash.amnesia.confirmQuestion': "This deletes messages and per-user style from the last 24 hours and can't be undone. Are you sure?",
+    'dash.amnesia.successMsg': 'Deleted {corpus} messages and {user} per-user style entries',
+    'dash.amnesia.errorMsg': "Couldn't delete the recent corpus, try again",
+    'dash.managerRole.title': 'Manager role',
+    'dash.managerRole.desc': "Any member with this role gets panel access to Anuncios, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS — no access to Premium, Channels, Chat, Stats, History, or this module. They don't need the Discord \"Manage Server\" permission.",
+    'dash.managerRole.label': 'Role',
+    'dash.managerRole.none': "None — nobody gets Manager access",
+    'dash.managerRole.saved': 'Manager role updated',
+    'dash.managerRole.errorSave': "Couldn't save the Manager role",
   },
 });
 
@@ -2960,16 +3088,21 @@ async function loadUpdatesModule() {
   } catch (e) { if (box) renderError(box, e); }
 }
 
-async function loadPrefijoModule() {
+// Prefijo de comandos y limpieza de memoria reciente: dos ajustes chicos
+// y sin relación entre sí, cada uno con su propio módulo de sidebar hasta
+// acá (~15-50 líneas de contenido real cada uno, casi todo boilerplate de
+// un solo campo o un solo botón). Se unifican en una sola página general
+// de servidor en vez de gastar dos entradas de sidebar en algo tan chico.
+async function loadGeneralModule() {
   const box = content();
   if (box) {
     box.innerHTML = '';
     box.append(spinner());
   }
+
+  let prefixSection;
   try {
     const data = await apiFetch(`/api/server/${GUILD_ID}/settings/prefix`);
-    if (!box) return;
-    box.innerHTML = '';
 
     const input = el('input', {
       type: 'text',
@@ -3001,16 +3134,56 @@ async function loadPrefijoModule() {
     };
     resetBtn.onclick = () => persist(null);
 
-    box.append(
-      formGroup(t('dash.prefijo.moduleTitle'),
-        el('p', { class: 'dim' }, t('dash.prefijo.moduleDesc')),
-        el('div', { class: 'field' },
-          el('label', {}, t('dash.prefijo.label'), helpIcon(t('dash.prefijo.wordNote'))),
-          el('div', { class: 'chain-fields' }, input, saveBtn, resetBtn)
-        )
+    prefixSection = formGroup(t('dash.prefijo.moduleTitle'),
+      el('p', { class: 'dim' }, t('dash.prefijo.moduleDesc')),
+      el('div', { class: 'field' },
+        el('label', {}, t('dash.prefijo.label'), helpIcon(t('dash.prefijo.wordNote'))),
+        el('div', { class: 'chain-fields' }, input, saveBtn, resetBtn)
       )
     );
-  } catch (e) { if (box) renderError(box, e); }
+  } catch (e) {
+    prefixSection = formGroup(t('dash.prefijo.moduleTitle'), el('p', { class: 'error' }, e.message));
+  }
+
+  let managerRoleSection;
+  try {
+    const [managerData, roles] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/manager-role`),
+      getRoles(),
+    ]);
+    const select = roleSelect(roles, managerData.role_id, t('dash.managerRole.none'));
+    const saveBtn = el('button', { class: 'btn btn-primary' }, t('dash.common.save'));
+    saveBtn.onclick = async () => {
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/manager-role`, {
+          method: 'PUT', body: { role_id: select.value || null },
+        });
+        toast(t('dash.managerRole.saved'), 'ok');
+      } catch (e) {
+        toast(humanError(e) || t('dash.managerRole.errorSave'), 'err');
+      }
+    };
+    managerRoleSection = formGroup(t('dash.managerRole.title'),
+      el('p', { class: 'dim' }, t('dash.managerRole.desc')),
+      el('div', { class: 'field' },
+        el('label', {}, t('dash.managerRole.label')),
+        el('div', { class: 'chain-fields' }, select, saveBtn)
+      )
+    );
+  } catch (e) {
+    managerRoleSection = formGroup(t('dash.managerRole.title'), el('p', { class: 'error' }, e.message));
+  }
+
+  if (!box) return;
+  box.innerHTML = '';
+  box.append(
+    prefixSection,
+    formGroup(t('dash.amnesia.moduleTitle'),
+      el('p', { class: 'dim' }, t('dash.amnesia.moduleDesc')),
+      amnesiaButton()
+    ),
+    managerRoleSection
+  );
 }
 
 async function loadTriggersModule() {
@@ -3177,6 +3350,7 @@ addStrings({
     'dash.canalesModule.colLearnOn': 'aprende de aquí',
     'dash.canalesModule.colLearnOff': 'ya no aprende de aquí',
     'dash.canalesModule.colLearnHelp': 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
+    'dash.canalesModule.settingsLabel': 'Ajustes',
     'dash.canalesModule.ovrEvery': 'Cada cuántos mensajes',
     'dash.canalesModule.ovrEverySuffix': 'mensajes',
     'dash.canalesModule.ovrTalkProb': 'Probabilidad de hablar',
@@ -3207,6 +3381,7 @@ addStrings({
     'dash.canalesModule.colLearnOn': 'learns from here',
     'dash.canalesModule.colLearnOff': 'no longer learns from here',
     'dash.canalesModule.colLearnHelp': "Purgito saves messages from this channel to build its style. With no channel checked, it doesn't learn from any.",
+    'dash.canalesModule.settingsLabel': 'Settings',
     'dash.canalesModule.ovrEvery': 'Every how many messages',
     'dash.canalesModule.ovrEverySuffix': 'messages',
     'dash.canalesModule.ovrTalkProb': 'Probability of speaking',
@@ -3252,6 +3427,7 @@ async function loadCanalesModule() {
 
     const cols = [
       {
+        key: 'spontaneous',
         short: t('dash.canalesModule.colSpeakShort'), onLabel: t('dash.canalesModule.colSpeakOn'), offLabel: t('dash.canalesModule.colSpeakOff'),
         help: t('dash.canalesModule.colSpeakHelp'),
         isSelected: id => spontaneousSelected.has(id),
@@ -3267,6 +3443,7 @@ async function loadCanalesModule() {
         },
       },
       {
+        key: 'mention',
         short: t('dash.canalesModule.colReplyShort'), onLabel: t('dash.canalesModule.colReplyOn'), offLabel: t('dash.canalesModule.colReplyOff'),
         help: t('dash.canalesModule.colReplyHelp'),
         isSelected: id => mentionSelected.has(id),
@@ -3282,6 +3459,7 @@ async function loadCanalesModule() {
         },
       },
       {
+        key: 'corpus',
         short: t('dash.canalesModule.colLearnShort'), onLabel: t('dash.canalesModule.colLearnOn'), offLabel: t('dash.canalesModule.colLearnOff'),
         help: t('dash.canalesModule.colLearnHelp'),
         isSelected: id => corpusSelected.has(id),
@@ -3397,19 +3575,6 @@ async function loadCanalesModule() {
   } catch (e) { renderError(box, e); }
 }
 
-async function loadAmnesiaModule() {
-  const box = content();
-  box.innerHTML = '';
-  box.append(
-    formGroup('Limpieza de memoria reciente',
-      el('p', { class: 'dim' },
-        'Borra el corpus (mensajes aprendidos y estilo por usuario) de las últimas 24 horas de todo el servidor. Esta acción es irreversible.'
-      ),
-      amnesiaButton()
-    )
-  );
-}
-
 // ---------------- CONFIGURACIÓN DEL CHAT (SUBTABS) ----------------
 
 function channelToggleList({ channels, selected, isSelected, add, remove, listBelow }) {
@@ -3477,40 +3642,28 @@ function channelToggleList({ channels, selected, isSelected, add, remove, listBe
 }
 
 function amnesiaButton() {
-  const wrap = el('div', {});
-
-  function showButton() {
-    wrap.innerHTML = '';
-    wrap.append(el('button', {
-      class: 'btn btn-danger', onclick: showConfirm,
-    }, 'Borrar corpus de las últimas 24h'));
-  }
-
-  function showConfirm() {
-    wrap.innerHTML = '';
-    wrap.append(el('div', { class: 'gif-confirm' },
-      'Esto borra mensajes y estilo por usuario de las últimas 24 horas y no se puede deshacer. ¿Seguro?',
-      el('button', { class: 'btn btn-danger btn-sm', onclick: doAmnesia }, '✓ Sí, borrar'),
-      el('button', { class: 'btn btn-secondary btn-sm', onclick: showButton }, '✗ Cancelar')));
-  }
-
-  async function doAmnesia() {
-    try {
-      const data = await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/amnesia`, {
-        method: 'POST',
-      });
-      toast(
-        `Borrados ${data.deleted.corpus_messages} mensajes y ${data.deleted.user_corpus} de estilo por usuario`,
-        'ok',
-      );
-    } catch (e) {
-      toast('No se pudo borrar el corpus reciente, intenta de nuevo', 'err');
-    }
-    showButton();
-  }
-
-  showButton();
-  return wrap;
+  // confirmDelBtn trae la clase .gif-actions de fábrica, pensada para el pie
+  // angosto de una card de GIF (botones a ~50% de ancho, texto chico) -- acá
+  // el botón está solo en una página de ajustes con espacio de sobra, así
+  // que .amnesia-confirm resetea ese tamaño en dash.css.
+  return el('div', { class: 'amnesia-confirm' },
+    confirmDelBtn(t('dash.amnesia.confirmQuestion'), async () => {
+      try {
+        const data = await apiFetch(`/api/server/${GUILD_ID}/settings/corpus/amnesia`, {
+          method: 'POST',
+        });
+        toast(
+          t('dash.amnesia.successMsg', {
+            corpus: data.deleted.corpus_messages,
+            user: data.deleted.user_corpus,
+          }),
+          'ok',
+        );
+      } catch (e) {
+        toast(t('dash.amnesia.errorMsg'), 'err');
+      }
+    }, { label: t('dash.amnesia.btnLabel') })
+  );
 }
 
 function debounce(fn, delayMs) {
@@ -3525,9 +3678,9 @@ const TUNABLE_SAVE_DEBOUNCE_MS = 500;
 
 async function saveTunable(key, value, label, onSaved) {
   try {
-    const r = await apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
+    const r = await trackSave(`tunable:${key}`, () => apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
       method: 'PUT', body: { [key]: value },
-    });
+    }));
     if (onSaved && r.saved && r.saved[key] !== undefined) onSaved(r.saved[key]);
     toast(`${label} actualizado`, 'ok');
   } catch (e) {
@@ -3540,11 +3693,17 @@ function numberField(label, help, { key, value, min, max, step, suffix, save = s
     type: 'number', value: String(value), min: String(min),
     max: String(max), step: String(step || 1), class: 'num-input',
   });
-  input.onchange = debounce(() => {
+  const scheduleSave = debounce(() => {
     save(key, Number(input.value), label, (saved) => {
       input.value = String(saved);
     });
   }, TUNABLE_SAVE_DEBOUNCE_MS);
+  input.onchange = () => {
+    // Marca "pendiente" YA, no cuando el debounce termine -- ver
+    // markSavePending en core/dom.js.
+    markSavePending(`tunable:${key}`);
+    scheduleSave();
+  };
   return el('div', { class: 'field' },
     el('label', {}, label),
     el('div', { class: 'num-row' }, input, suffix ? el('span', { class: 'dim' }, suffix) : null),
@@ -3557,7 +3716,7 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
     type: 'number', min: '0', max: '100', step: '1', value: String(pct), class: 'num-input',
   });
   const bar = el('progress', { class: 'prob-bar', value: String(pct), max: '100' });
-  input.onchange = debounce(() => {
+  const scheduleSave = debounce(() => {
     const clamped = Math.max(0, Math.min(100, Number(input.value) || 0));
     save(key, clamped / 100, label, (saved) => {
       const back = Math.round(saved * 100);
@@ -3565,6 +3724,10 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
       bar.value = back;
     });
   }, TUNABLE_SAVE_DEBOUNCE_MS);
+  input.onchange = () => {
+    markSavePending(`tunable:${key}`);
+    scheduleSave();
+  };
   return el('div', { class: 'field' },
     el('label', {}, label),
     el('div', { class: 'prob-row' }, input, el('span', { class: 'dim' }, '%')),
@@ -3616,9 +3779,9 @@ function channelOverrideRow(channelId, spec) {
   async function save(raw) {
     const prev = override;
     try {
-      const r = await apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
+      const r = await trackSave(`override:${channelId}:${key}`, () => apiFetch(`/api/guilds/${GUILD_ID}/channels/${channelId}/settings`, {
         method: 'PUT', body: { [key]: raw === null ? null : toApi(raw) },
-      });
+      }));
       override = raw === null ? null : r.saved[key];
       paint();
       toast(raw === null ? `${label}: vuelve al valor del servidor` : `${label} actualizado en este canal`, 'ok');
@@ -3629,11 +3792,15 @@ function channelOverrideRow(channelId, spec) {
     }
   }
 
-  input.onchange = debounce(() => {
+  const scheduleSave = debounce(() => {
     const lo = kind === 'percent' ? 0 : min;
     const hi = kind === 'percent' ? 100 : max;
     save(Math.max(lo, Math.min(hi, Number(input.value) || 0)));
   }, TUNABLE_SAVE_DEBOUNCE_MS);
+  input.onchange = () => {
+    markSavePending(`override:${channelId}:${key}`);
+    scheduleSave();
+  };
 
   paint();
   return row;
@@ -3742,7 +3909,7 @@ function channelMatrix({ channels, cols, openOverrides }) {
         box.onchange = async () => {
           const on = box.checked;
           try {
-            if (on) await c.add(ch); else await c.remove(ch);
+            await trackSave(`matrix:${c.key}:${ch.id}`, () => (on ? c.add(ch) : c.remove(ch)));
             toast(`#${ch.name}: ${on ? c.onLabel : c.offLabel}`, 'ok');
           } catch (e) {
             box.checked = !on;
@@ -3750,9 +3917,11 @@ function channelMatrix({ channels, cols, openOverrides }) {
           }
           applyFilter();
         };
-        return el('label', { class: 'chan-matrix-cell', title: c.short }, box);
+        return el('label', { class: 'chan-matrix-cell', title: c.short, 'data-label': c.short }, box);
       }),
-      el('span', { class: 'chan-matrix-cell' }, gear));
+      el('span', { class: 'chan-matrix-cell' },
+        el('span', { class: 'chan-matrix-cell-label' }, t('dash.canalesModule.settingsLabel')),
+        gear));
     return el('div', { class: 'chan-matrix-item' }, row, panel);
   }
 
@@ -4142,6 +4311,25 @@ function openEditExcludedUserModal(user, onRefresh) {
   modal = panelModal(`Editar exclusión: ${user.user_name}`, modalBody);
 }
 
+addStrings({
+  es: {
+    'dash.chat.exportBtn': 'Exportar configuración',
+    'dash.chat.importBtn': 'Importar configuración',
+    'dash.chat.exportImportHelp': 'Exporta o importa solo el comportamiento y las probabilidades de esta tab (activado, frecuencia, límites). No incluye canales, frases, triggers ni reacciones: esas dependen de IDs propios de este servidor y no tendría sentido copiarlas a otro.',
+    'dash.chat.importSuccess': 'Configuración importada',
+    'dash.chat.importInvalidFile': 'Ese archivo no es una configuración válida de Purgito',
+    'dash.chat.importError': 'No se pudo importar la configuración',
+  },
+  en: {
+    'dash.chat.exportBtn': 'Export settings',
+    'dash.chat.importBtn': 'Import settings',
+    'dash.chat.exportImportHelp': "Exports or imports only this tab's behavior and probabilities (enabled, frequency, limits). It doesn't include channels, phrases, triggers, or reactions: those depend on IDs specific to this server, so copying them to another one wouldn't make sense.",
+    'dash.chat.importSuccess': 'Settings imported',
+    'dash.chat.importInvalidFile': "That file isn't a valid Purgito configuration",
+    'dash.chat.importError': "Couldn't import the settings",
+  },
+});
+
 async function loadChatTab() {
   // Manejo de compatibilidad con hashes antiguos (#reacciones, #contenido, etc.)
   const hash = location.hash.slice(1);
@@ -4150,7 +4338,7 @@ async function loadChatTab() {
   if (hash === 'triggers') { activate('triggers', true); return; }
   if (hash === 'canales') { activate('canales', true); return; }
   if (hash === 'datos' || hash === 'corpus') { activate('canales', true); return; }
-  if (hash === 'amnesia') { activate('amnesia', true); return; }
+  if (hash === 'amnesia') { activate('general', true); return; }
   if (hash === 'playground') { activate('playground', true); return; }
 
   const box = content();
@@ -4175,9 +4363,9 @@ async function loadChatTab() {
     const check = el('input', { type: 'checkbox', checked: chat.enabled });
     check.onchange = async () => {
       try {
-        await apiFetch(`/api/server/${GUILD_ID}/settings/chat`, {
+        await trackSave('chat:enabled', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat`, {
           method: 'PUT', body: { enabled: check.checked },
-        });
+        }));
         toast(check.checked ? 'Chat activado' : 'Chat desactivado', 'ok');
       } catch (e) {
         check.checked = !check.checked;
@@ -4187,6 +4375,91 @@ async function loadChatTab() {
     box.append(el('div', { class: 'chat-master' },
       el('label', { class: 'toggle' }, check, 'Chat activado'),
       helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch.')));
+
+    // Exportar/importar comportamiento y probabilidades entre servidores.
+    // A propósito NO incluye canales, frases, triggers ni reacciones: esas
+    // listas guardan IDs de canal/rol que solo existen en este servidor —
+    // importarlas tal cual en otro server dejaría referencias colgantes en
+    // vez de portar algo útil. Lo que sí es 100% portable son los números
+    // de esta tab (activado + las 6 probabilidades/límites), así que es lo
+    // único que exporta. Mismo patrón (Blob + <a download>, <input
+    // type=file> oculto) que ya usa exportar/importar plantillas de embeds
+    // en tabs/plantillas.js — reusa los mismos dos endpoints PUT que ya
+    // usa cada campo individual, nada nuevo del lado del servidor.
+    const exportChatBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      title: t('dash.chat.exportBtn'),
+      onclick: () => {
+        const payload = {
+          purgito_chat_config: true,
+          enabled: chat.enabled,
+          auto_generate_every: chat.auto_generate_every,
+          auto_generate_probability: chat.auto_generate_probability,
+          gif_response_probability: chat.gif_response_probability,
+          frase_probability: chat.frase_probability,
+          reaction_probability: chat.reaction_probability,
+          mention_rate_limit: chat.mention_rate_limit,
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = el('a', { href: url, download: 'purgito-comportamiento-chat.json' });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      },
+    }, icon('download'), t('dash.chat.exportBtn'));
+
+    const importChatInput = el('input', { type: 'file', accept: 'application/json', style: 'display: none;' });
+    importChatInput.onchange = async () => {
+      const file = importChatInput.files && importChatInput.files[0];
+      importChatInput.value = '';
+      if (!file) return;
+      let payload;
+      try {
+        payload = JSON.parse(await file.text());
+      } catch (e) {
+        toast(t('dash.chat.importInvalidFile'), 'err');
+        return;
+      }
+      if (!payload || typeof payload !== 'object' || !payload.purgito_chat_config) {
+        toast(t('dash.chat.importInvalidFile'), 'err');
+        return;
+      }
+      try {
+        await trackSave('chat:enabled', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat`, {
+          method: 'PUT', body: { enabled: Boolean(payload.enabled) },
+        }));
+        const tunableBody = {};
+        for (const k of ['auto_generate_every', 'auto_generate_probability', 'gif_response_probability', 'frase_probability', 'reaction_probability', 'mention_rate_limit']) {
+          if (typeof payload[k] === 'number') tunableBody[k] = payload[k];
+        }
+        // Si el archivo solo traía `enabled` (sin ninguno de los 6 campos
+        // numéricos), el PUT de tunables con body vacío lo rechaza el
+        // backend (400 "ningún valor válido para guardar") -- eso tiraría
+        // el catch de abajo y mostraría "no se pudo importar" aunque
+        // `enabled` ya se haya guardado bien arriba. Se salta directamente
+        // en vez de mandar un PUT que se sabe de antemano que va a fallar.
+        if (Object.keys(tunableBody).length > 0) {
+          await trackSave('tunables:import', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
+            method: 'PUT', body: tunableBody,
+          }));
+        }
+        toast(t('dash.chat.importSuccess'), 'ok');
+        loadChatTab();
+      } catch (e) {
+        toast(humanError(e) || t('dash.chat.importError'), 'err');
+      }
+    };
+    const importChatBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      title: t('dash.chat.importBtn'),
+      onclick: () => importChatInput.click(),
+    }, icon('upload'), t('dash.chat.importBtn'));
+
+    box.append(el('div', { class: 'chat-import-export' },
+      exportChatBtn, importChatBtn, importChatInput,
+      helpIcon(t('dash.chat.exportImportHelp'))));
 
     // Cadena de comportamiento
     const comportamientoSection = formGroup('Comportamiento y probabilidades',

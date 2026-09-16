@@ -24,16 +24,24 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Per-server custom text command prefix (it used to be fixed at `!`).
 - The dashboard's GIFs tab now shows who sent each GIF, with a view to see just one person's.
 - Expanded Stats tab: activity over the last 14 days, who fed the corpus the most, and the most frequent words.
+- Manager role (Server tab → General): delegate a Discord role with access to Announcements, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS, without giving out Administrator or full "Manage Server".
+- Export and import the chat's behavior settings (enabled, frequency, and probabilities) as a file, to reuse it on another server.
+- A heads-up in the updates channel when a server is getting close to or hits the cap for saved GIFs or special phrases.
 
 ### Improved
 - The welcome message no longer mentions memes on non-Premium servers.
 - Special phrases and configurable reactions are no longer Premium-only: available on every server.
 - When automatic memes can't post (no saved photos, or not enough conversation), Purgito now warns once in the channel instead of silently failing every few minutes.
+- CHAT and Channels now warn before you leave if a change is still saving or failed to save, so you don't lose it without noticing.
+- The channel matrix (speaks/replies/learns) now shows as readable cards on mobile instead of a cramped table with tiny checkboxes.
+- The First steps guide in INICIO can be dismissed even with steps left unfinished, and the step about learning new messages no longer reads like a repeat of choosing channels.
+- Fewer redundant dashboard modules: Customization is now edited directly from INICIO (it used to lead to a separate page with the same thing), and Command prefix + Memory cleanup were merged into one module, General. The bot's updates channel setting moved to Automation, alongside YouTube/Twitch/RSS.
 
 ### Fixed
 - A channel with a lot of history no longer eats into the learned-message quota of other channels on the same server — the limit is now per channel.
 - Same fix for `/imitar`: a very active member no longer displaces another member's saved style.
 - Videos flagged as sensitive content by Instagram, TikTok, or Twitter can now only be uploaded with `!dl` in a channel marked NSFW.
+- The "Choose which channels it learns from" step in INICIO's First steps guide now correctly unchecks itself if you remove all learning channels — it used to stay marked as done forever.
 
 ## Version 1.1.0 — June 28, 2026
 

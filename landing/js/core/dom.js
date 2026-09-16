@@ -220,6 +220,70 @@ export function undoableDelete(row, { message, onDelete, errorMessage, delayMs =
   });
 }
 
+// ---------------- Guardado pendiente (autoguardado) ----------------
+// CHAT y Canales autoguardan cada campo al cambiar (ver saveTunable /
+// channelOverrideRow / channelMatrix en dash.js) — no hay botón "Guardar" ni
+// un estado "sucio" tradicional. El único momento real en que se puede
+// perder un cambio es entre que el usuario lo hace y el PUT/POST termina de
+// confirmarse: el debounce de medio segundo, o un guardado que falló y
+// todavía no se reintentó con éxito. trackSave() lleva la cuenta de eso por
+// campo — `key` debe ser estable por campo para que un reintento exitoso
+// limpie solo su propio fallo, sin tocar el de otro campo.
+const _pendingSaveKeys = new Set();
+const _failedSaveKeys = new Set();
+const _unsavedListeners = new Set();
+
+function notifyUnsavedListeners() {
+  const state = { pending: _pendingSaveKeys.size, failed: _failedSaveKeys.size };
+  for (const fn of _unsavedListeners) fn(state);
+}
+
+export function hasUnsavedWork() {
+  return _pendingSaveKeys.size > 0 || _failedSaveKeys.size > 0;
+}
+
+// fn(state) se llama de entrada y cada vez que cambia pending/failed.
+export function onUnsavedWorkChange(fn) {
+  _unsavedListeners.add(fn);
+  return () => _unsavedListeners.delete(fn);
+}
+
+// El caller confirmó que quiere salir igual: limpia todo para no dejar un
+// aviso fantasma bloqueando la próxima navegación (los guardados que sigan
+// en vuelo en segundo plano ya no le importan a la pantalla que se abandona).
+export function clearUnsavedWork() {
+  _pendingSaveKeys.clear();
+  _failedSaveKeys.clear();
+  notifyUnsavedListeners();
+}
+
+// Marca `key` como pendiente ANTES de que exista una promesa que trackear
+// (p.ej. mientras el debounce de 500ms de un campo todavía no disparó el
+// PUT real). Sin esto, cerrar la pestaña durante ese debounce no avisaba
+// nada -- trackSave() recién se entera del guardado cuando el timer termina
+// y el fetch arranca, no cuando el usuario tocó el campo.
+export function markSavePending(key) {
+  _pendingSaveKeys.add(key);
+  notifyUnsavedListeners();
+}
+
+export async function trackSave(key, fn) {
+  _pendingSaveKeys.add(key);
+  notifyUnsavedListeners();
+  try {
+    const result = await fn();
+    _pendingSaveKeys.delete(key);
+    _failedSaveKeys.delete(key);
+    notifyUnsavedListeners();
+    return result;
+  } catch (e) {
+    _pendingSaveKeys.delete(key);
+    _failedSaveKeys.add(key);
+    notifyUnsavedListeners();
+    throw e;
+  }
+}
+
 // Imagen que se oculta sola si la URL no carga (igual que hace Discord).
 export function embedImg(attrs) {
   const img = el('img', attrs);

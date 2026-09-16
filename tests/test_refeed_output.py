@@ -107,6 +107,7 @@ def _clean_tasks_and_guards(monkeypatch):
     tm._locks.clear()
     tm._expires_at.clear()
     chat_mod._refeeding_channels.clear()
+    chat_mod._refeed_channels_cooldowns.clear()
 
     async def _default_locale(gid):
         return "es"

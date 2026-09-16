@@ -232,6 +232,7 @@
   "chat.refeed.result_incremental": "Este canal ya estaba al día: {saved} mensajes nuevos aprendidos{gifs}.",
   "chat.refeed.result_complete": "Historial completado: {saved} mensajes aprendidos{gifs}.",
   "chat.refeed.result_partial": "Se aprendieron {saved} mensajes{gifs}.\nLímite de {limit} mensajes alcanzado; ejecuta `/refeed` de nuevo para continuar donde quedó.",
+  "chat.refeed_channels.cooldown": "Espera {seconds} segundos antes de correr /refeed_channels de nuevo.",
   "chat.refeed_channels.already_running": "Purgito ya está aprendiendo en este servidor. Espera a que termine.",
   "chat.refeed_channels.starting": "Empezando a leer el historial de los canales…",
   "chat.refeed_channels.race_lost": "Purgito ya estaba aprendiendo en este servidor (arrancó justo antes); esta invocación no hizo nada nuevo.",
@@ -373,5 +374,9 @@
   "privacy.export.cooldown": "Espera {seconds} segundos antes de pedir tus datos de nuevo.",
   "privacy.export.error": "No se pudo generar el archivo. Intenta de nuevo más tarde.",
   "privacy.export.empty": "No encontramos datos tuyos almacenados por Purgito.",
-  "privacy.export.result": "{count} mensaje(s) de tu estilo guardado en {guilds} servidor(es)."
+  "privacy.export.result": "{count} mensaje(s) de tu estilo guardado en {guilds} servidor(es).",
+  "quota_alerts.near": "⚠️ Te estás quedando sin cupo de {quota}: llevas {used} de {cap}. Al llegar al tope no vas a poder agregar más hasta borrar algo.",
+  "quota_alerts.full": "🚫 Llegaste al tope de {quota} ({used}/{cap}). Borra algo o mejora a Premium para seguir agregando.",
+  "quota_alerts.type.gifs": "GIFs guardados",
+  "quota_alerts.type.frases": "frases especiales"
 }

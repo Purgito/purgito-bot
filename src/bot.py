@@ -61,6 +61,7 @@ EXTENSIONS = [
     "cogs.layout_buttons",
     "cogs.privacy",
     "cogs.updates",
+    "cogs.quota_alerts",
     "cogs.events",
 ]
 

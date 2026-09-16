@@ -24,16 +24,24 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Prefijo de comandos de texto personalizable por servidor (antes era fijo, `!`).
 - La tab GIFs del dashboard ahora muestra quién mandó cada GIF, con una vista para ver solo los de una persona puntual.
 - Tab Estadísticas ampliada: actividad de los últimos 14 días, quién alimentó más el corpus y las palabras más frecuentes.
+- Rol de Gestor (tab Servidor → General): delega un rol de Discord con acceso a Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS, sin darle Administrador ni "Gestionar servidor" completo.
+- Exportar e importar el comportamiento del chat (activado, frecuencia y probabilidades) como archivo, para reutilizarlo en otro servidor.
+- Aviso en el canal de actualizaciones cuando un servidor se acerca o llega al tope de GIFs o frases especiales guardadas.
 
 ### Mejorado
 - El mensaje de bienvenida ya no menciona memes en servidores sin Premium.
 - Frases especiales y reacciones configurables dejaron de ser función Premium: disponibles en todos los servidores.
 - Cuando los memes automáticos no pueden postear (sin fotos guardadas o sin suficiente conversación), Purgito avisa una vez en el canal en vez de fallar en silencio cada pocos minutos.
+- CHAT y Canales avisan antes de salir si un cambio se sigue guardando o no se pudo guardar, para no perderlo sin darte cuenta.
+- La matriz de canales (habla/responde/aprende) se ve como tarjetas legibles en el celular, en vez de una tabla apretada con casillas diminutas.
+- La guía de Primeros pasos en INICIO se puede ocultar aunque falten pasos, y el paso sobre aprender mensajes nuevos ya no se confunde con elegir canales.
+- Menos módulos redundantes en el dashboard: Personalización se edita directo desde INICIO (antes llevaba a una página aparte con lo mismo), y Prefijo de comandos + Limpieza de memoria se unieron en un solo módulo, General. El canal de novedades del bot se movió a Automatización, junto a YouTube/Twitch/RSS.
 
 ### Corregido
 - Un canal con mucho historial ya no le come el cupo de mensajes aprendidos a los demás canales del mismo servidor — el límite ahora es por canal.
 - Mismo arreglo para `/imitar`: un miembro muy activo ya no desplaza el estilo guardado de otro miembro del servidor.
 - Videos marcados como contenido sensible por Instagram, TikTok o Twitter solo se pueden subir con `!dl` en un canal marcado como NSFW.
+- El paso "Elige de qué canales aprende" de Primeros pasos en INICIO ya refleja bien si sacas todos los canales de aprendizaje — antes quedaba marcado como hecho para siempre.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

@@ -232,6 +232,7 @@
   "chat.refeed.result_incremental": "This channel was already up to date: {saved} new messages learned{gifs}.",
   "chat.refeed.result_complete": "Full history read: {saved} messages learned{gifs}.",
   "chat.refeed.result_partial": "Saved {saved} messages{gifs}.\nLimit of {limit} messages reached; run `/refeed` again to continue where it left off.",
+  "chat.refeed_channels.cooldown": "Wait {seconds} seconds before running /refeed_channels again.",
   "chat.refeed_channels.already_running": "Purgito is already learning in this server; wait for it to finish.",
   "chat.refeed_channels.starting": "Starting to read the channels' history…",
   "chat.refeed_channels.race_lost": "Purgito was already learning in this server (started just before); this invocation did nothing new.",
@@ -373,5 +374,9 @@
   "privacy.export.cooldown": "Wait {seconds} seconds before requesting your data again.",
   "privacy.export.error": "Couldn't generate the file. Try again later.",
   "privacy.export.empty": "We couldn't find any data of yours stored by Purgito.",
-  "privacy.export.result": "{count} message(s) of your saved style across {guilds} server(s)."
+  "privacy.export.result": "{count} message(s) of your saved style across {guilds} server(s).",
+  "quota_alerts.near": "⚠️ You're running low on {quota}: {used} of {cap} used. Once you hit the cap, you won't be able to add more until you delete something.",
+  "quota_alerts.full": "🚫 You've hit the {quota} cap ({used}/{cap}). Delete something or upgrade to Premium to keep adding.",
+  "quota_alerts.type.gifs": "saved GIFs",
+  "quota_alerts.type.frases": "special phrases"
 }

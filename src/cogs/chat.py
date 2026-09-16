@@ -18,6 +18,7 @@ from cogs.memes import is_meme_trigger
 from config import (
     BOT_TRIGGER_NAME,
     REFEED_ALL_MAX_MESSAGES,
+    REFEED_GUILD_COOLDOWN_SECONDS,
     REFEED_MAX_MESSAGES,
     get_dashboard_url,
 )
@@ -72,6 +73,39 @@ def _refeed_task_running(guild_id: int) -> bool:
         t.type == "refeed_channels" and t.status in ("pending", "running")
         for t in get_task_manager().list_for_guild(guild_id)
     )
+
+
+# /refeed_channels es pesada (recorre todos los canales de aprendizaje del
+# guild, historial de Discord + escritura a DB en background) y no tenía
+# ningún freno más que "no hay ya una corrida activa" (_refeed_task_running,
+# arriba) -- nada impedía relanzarla en loop apenas terminaba la anterior.
+# Corto a propósito: el resultado del comando ya invita a reintentar de
+# inmediato para completar un backfill parcial o después de arreglar
+# permisos de un canal (ver refeed.done_footer_partial/problems en
+# locales/*.json), así que el cooldown solo tiene que frenar el mash
+# accidental o repetido, no esos reintentos legítimos.
+_refeed_channels_cooldowns: LRUDict = LRUDict(256)
+
+
+def _check_refeed_channels_cooldown(guild_id: int) -> int | None:
+    """None si se puede lanzar /refeed_channels ahora; si no, segundos
+    restantes de cooldown. A propósito NO marca el cooldown -- eso lo hace
+    _mark_refeed_channels_cooldown, y solo cuando el comando realmente va a
+    lanzar una corrida (ver refeed_channels más abajo). Si esto marcara acá,
+    un /refeed_channels que rebota contra "ya hay una corrida activa"
+    (_refeed_task_running) gastaría el cooldown igual que uno que sí
+    arrancó, y el reintento legítimo que ese mismo mensaje invita a hacer
+    apenas termine la corrida en curso se encontraría con el cooldown
+    puesto."""
+    now = time.monotonic()
+    last = _refeed_channels_cooldowns.get(guild_id)
+    if last is not None and now - last < REFEED_GUILD_COOLDOWN_SECONDS:
+        return int(REFEED_GUILD_COOLDOWN_SECONDS - (now - last))
+    return None
+
+
+def _mark_refeed_channels_cooldown(guild_id: int) -> None:
+    _refeed_channels_cooldowns[guild_id] = time.monotonic()
 
 
 # (guild_id, channel_id) con un _refeed_channel en curso -- _refeed_channel
@@ -2029,6 +2063,14 @@ class Chat(commands.Cog):
             )
             return
 
+        remaining = _check_refeed_channels_cooldown(interaction.guild.id)
+        if remaining is not None:
+            await interaction.response.send_message(
+                i18n.t("chat.refeed_channels.cooldown", locale, seconds=remaining),
+                ephemeral=True,
+            )
+            return
+
         if _refeed_task_running(interaction.guild.id):
             await interaction.response.send_message(
                 i18n.t("chat.refeed_channels.already_running", locale),
@@ -2053,7 +2095,14 @@ class Chat(commands.Cog):
         started = self.start_refeed_channels(
             interaction.guild, progress_msg, interaction.channel
         )
-        if not started:
+        if started:
+            # Recién acá, no antes de start_refeed_channels: si se marcara al
+            # entrar al comando, una invocación que pierde la carrera de abajo
+            # (started=False) igual gastaría el cooldown de la que sí arrancó,
+            # y el reintento legítimo que race_lost invita a hacer se
+            # encontraría con el cooldown puesto sin haber lanzado nada él.
+            _mark_refeed_channels_cooldown(interaction.guild.id)
+        else:
             # El chequeo de _refeed_task_running de arriba no tiene await
             # entre medio y una escritura, así que no es atómico con el
             # registro real (adentro de start_refeed_channels, vía

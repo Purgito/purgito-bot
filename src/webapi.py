@@ -144,6 +144,7 @@ from db import (
     get_gif_by_id,
     get_gif_by_url,
     get_guild_prefix,
+    get_manager_role,
     get_premium_subscription,
     get_random_gif_candidates,
     get_scheduled_announcement,
@@ -207,6 +208,7 @@ from db import (
     set_chat_mode,
     set_chat_tunables,
     set_guild_prefix,
+    set_manager_role,
     set_rss_mention_role_by_id,
     set_server_event,
     set_updates_channel,
@@ -484,6 +486,40 @@ async def _fetch_manage_guilds(
     return manage
 
 
+async def _fetch_manager_guilds(
+    request: web.Request, manage_ids: set[int]
+) -> list[discord.Guild]:
+    """Guilds donde el usuario NO tiene MANAGE_GUILD pero sí el rol de
+    Gestor que el admin real de ese guild eligió (settings.manager_role_id).
+
+    A diferencia de _fetch_manage_guilds no depende de la lista de guilds de
+    la sesión OAuth ni tiene TTL de cache propio: recorre los guilds donde
+    el BOT está (un conjunto chico para un bot de este tamaño) y, de esos,
+    solo hace fetch_member en los que de verdad tienen un manager_role_id
+    configurado -- la mayoría no, así que el costo real es proporcional a
+    cuántos guilds delegan Gestor, no al total de guilds del bot.
+    """
+    session = await get_session(request)
+    user_id = session.get("user_id")
+    if not user_id:
+        return []
+    bot = request.app["bot"]
+    result = []
+    for guild in bot.guilds:
+        if guild.id in manage_ids:
+            continue
+        role_id = await get_manager_role(guild.id)
+        if role_id is None:
+            continue
+        try:
+            member = await guild.fetch_member(int(user_id))
+        except discord.HTTPException:
+            continue
+        if any(r.id == role_id for r in member.roles):
+            result.append(guild)
+    return result
+
+
 async def _session_logged_in(session) -> bool:
     """True si la sesión tiene un usuario Y su sid no fue revocado por logout.
 
@@ -541,6 +577,125 @@ def guild_api(handler):
             # user_id, no IP: ya hay sesión válida acá, y es más preciso que
             # la IP (varios admins detrás del mismo NAT no comparten cupo,
             # y una IP que rota no lo resetea).
+            key = str(session.get("user_id") or _client_ip(request))
+            if not _rate_ok(_rate_guild_api_write, key, 60):
+                return web.json_response(
+                    {"error": "demasiadas solicitudes"}, status=429
+                )
+        return await handler(request, guild_id)
+
+    return wrapper
+
+
+def _set_gestor_access(request: web.Request, value: bool) -> None:
+    """request[...] es la MutableMapping que aiohttp expone para colgar
+    estado propio en la request real -- pero los FakeRequest a mano que usan
+    los tests (docenas de archivos, ninguno pensado para esto) son objetos
+    planos sin esa interfaz. El fallback a setattr los deja seguir sirviendo
+    sin tocar cada uno."""
+    try:
+        request["is_gestor_access"] = value
+    except TypeError:
+        request.is_gestor_access = value
+
+
+def _get_gestor_access(request: web.Request) -> bool:
+    try:
+        return bool(request["is_gestor_access"])
+    except (TypeError, KeyError):
+        return bool(getattr(request, "is_gestor_access", False))
+
+
+async def check_guild_manager_access(
+    request: web.Request, guild_id: int
+) -> web.Response | None:
+    """None si el usuario puede administrar el guild (check_guild_access) O
+    es Gestor ahí: tiene, en ese guild puntual, el rol de Discord que el
+    admin real eligió como manager_role_id (ver settings.manager_role_id).
+
+    Gestor es un nivel reducido, no una MANAGE_GUILD alternativa: no mira
+    los permisos de Discord de la sesión en absoluto, solo si el usuario
+    tiene ese rol puntual como miembro real del guild ahora mismo (fetch_member,
+    no la sesión ni ningún cache de OAuth) -- mismo criterio de
+    "el permiso amplio no implica el alcance puntual" que ya documenta
+    _member_can_view_channel más abajo, aplicado a la inversa: acá el
+    alcance puntual (un rol) tampoco puede inferirse de nada cacheado.
+    """
+    denied = await check_guild_access(request, guild_id)
+    if denied is None:
+        # Ya es admin real (MANAGE_GUILD/owner): ve el guild entero, no solo
+        # lo que él mismo puede ver en Discord (ver is_gestor_access, más
+        # abajo, para el caso contrario).
+        _set_gestor_access(request, False)
+        return None
+
+    session = await get_session(request)
+    if not await _session_logged_in(session):
+        return web.json_response({"error": "no autenticado"}, status=401)
+
+    bot_guild = _bot_guild(request, guild_id)
+    if bot_guild is None:
+        return web.json_response(
+            {"error": "el bot no está en ese servidor"}, status=404
+        )
+
+    role_id = await get_manager_role(guild_id)
+    if role_id is None:
+        return denied
+
+    try:
+        member = await bot_guild.fetch_member(int(session["user_id"]))
+    except discord.HTTPException:
+        return denied
+
+    if any(r.id == role_id for r in member.roles):
+        # A diferencia de MANAGE_GUILD, el rol de Gestor no implica que el
+        # usuario pueda ver todos los canales del guild en Discord (puede
+        # haber canales privados de staff que ni el bot le muestra a él).
+        # is_gestor_access le dice a los endpoints que listan/usan canales
+        # (_api_channels, _resolve_target_channel) que filtren por lo que
+        # ESTE miembro puntual puede ver, no por lo que ve el bot -- mismo
+        # criterio que _member_can_view_channel ya aplica para corpus, pero
+        # acá scoped a Gestor en vez de a todo guild_api (un admin real SÍ
+        # necesita ver canales que él personalmente tiene ocultos, para
+        # poder auditarlos).
+        _set_gestor_access(request, True)
+        return None
+    return denied
+
+
+def guild_api_manager(handler):
+    """Como guild_api, pero además acepta al Gestor del guild (ver
+    check_guild_manager_access). Usar SOLO en los endpoints que de verdad
+    corresponden a las áreas que el admin real le puede delegar a un Gestor
+    (Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs, YouTube/Twitch/
+    RSS, más /channels y /roles como utilidades de solo lectura que esas
+    áreas necesitan) -- todo lo demás (Premium, Canales, Prefijo, Limpieza,
+    Chat, Estilo, Historial, Estadísticas, Eventos) sigue con @guild_api a
+    secas, admin-only, sin excepción.
+
+    Cuerpo casi idéntico a guild_api a propósito: se prefirió duplicar estas
+    ~15 líneas antes que agregarle un parámetro a guild_api y arriesgar los
+    ~90 endpoints que ya lo usan sin querer tocarlos. La única diferencia
+    real es check_guild_manager_access en vez de check_guild_access.
+    """
+
+    async def wrapper(request: web.Request) -> web.StreamResponse:
+        session = await get_session(request)
+        if not await _session_logged_in(session):
+            return web.json_response({"error": "no autenticado"}, status=401)
+        try:
+            guild_id = int(request.match_info["guild_id"])
+        except (KeyError, ValueError):
+            return web.json_response({"error": "guild_id inválido"}, status=400)
+        denied = await check_guild_manager_access(request, guild_id)
+        if denied is not None:
+            return denied
+        if _bot_guild(request, guild_id) is None:
+            return web.json_response(
+                {"error": "el bot no está en ese servidor"}, status=404
+            )
+        if getattr(request, "method", "GET") in _GUILD_API_WRITE_METHODS:
             key = str(session.get("user_id") or _client_ip(request))
             if not _rate_ok(_rate_guild_api_write, key, 60):
                 return web.json_response(
@@ -645,6 +800,54 @@ async def _member_can_view_channel(request: web.Request, guild, channel) -> bool
     except discord.HTTPException:
         return False
     return channel.permissions_for(member).view_channel
+
+
+async def _gestor_channel_visibility(request: web.Request, guild):
+    """None si la request no es de un Gestor (ver is_gestor_access en
+    check_guild_manager_access) -- un admin real no se filtra, ve el guild
+    completo igual que antes. Si SÍ es de un Gestor, filtra a este miembro
+    puntual: a diferencia de MANAGE_GUILD, tener el rol de Gestor no implica
+    que Discord le muestre a este usuario todos los canales del servidor
+    (puede haber canales de staff que ni el bot le expone) -- mismo criterio
+    que _member_can_view_channel, pero un solo fetch_member acá en vez de
+    uno por canal (_api_channels puede listar decenas)."""
+    if not _get_gestor_access(request):
+        return None
+    session = await get_session(request)
+    try:
+        member = await guild.fetch_member(int(session["user_id"]))
+    except discord.HTTPException:
+        return lambda channel: False
+    return lambda channel: bool(
+        getattr(channel, "permissions_for", None)
+        and channel.permissions_for(member).view_channel
+    )
+
+
+async def _reject_gestor_hidden_channel(
+    request: web.Request, guild, channel_id: int | None
+) -> web.Response | None:
+    """None si `channel_id` es válido como destino; si no, la respuesta de
+    error. Mismo criterio que _api_channels/_resolve_target_channel (ver
+    _gestor_channel_visibility) pero para los endpoints que reciben un
+    channel_id directo en el body en vez de resolverlo con esa función
+    compartida: frase_channels, frase_pack_channels, triggers, YouTube,
+    Twitch y RSS también dejan elegir a qué canal postea el bot, y sin esto
+    un Gestor podía apuntar cualquiera de esos a un canal que él mismo no
+    ve en Discord con solo conocer/adivinar el ID -- la UI no se lo iba a
+    ofrecer (el picker ya sale filtrado por _api_channels), pero nada
+    impedía mandar el request a mano."""
+    if channel_id is None:
+        return None
+    visible = await _gestor_channel_visibility(request, guild)
+    if visible is None:
+        return None
+    channel = guild.get_channel(channel_id) if guild else None
+    if channel is None or not visible(channel):
+        return web.json_response(
+            {"error": "ese canal no existe en este servidor"}, status=400
+        )
+    return None
 
 
 async def _log_audit(
@@ -925,6 +1128,7 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
                     # distinga "premium otorgado por Purgito" de "premium por
                     # una suscripción de OTRO usuario" sin exponer de quién es.
                     "is_permanent": gid in PERMANENT_PREMIUM_GUILD_IDS,
+                    "access": "admin",
                 }
             )
         else:
@@ -936,6 +1140,30 @@ async def _api_me_guilds(request: web.Request) -> web.Response:
                     "invite_url": get_invite_url(str(gid)),
                 }
             )
+
+    # Guilds donde el usuario no tiene MANAGE_GUILD pero sí el rol de Gestor
+    # que el admin real eligió -- solo pueden caer en "configured" (el bot ya
+    # está ahí, ver _fetch_manager_guilds), nunca en "available".
+    manage_ids = {int(g["id"]) for g in manage}
+    for guild in await _fetch_manager_guilds(request, manage_ids):
+        icon_url = None
+        if guild.icon is not None:
+            try:
+                icon_url = guild.icon.with_size(128).url
+            except Exception:
+                icon_url = str(getattr(guild.icon, "url", None) or "") or None
+        configured.append(
+            {
+                "id": str(guild.id),
+                "name": guild.name or "",
+                "icon_url": icon_url,
+                "member_count": guild.member_count,
+                "is_premium": is_premium_guild(guild.id),
+                "is_permanent": guild.id in PERMANENT_PREMIUM_GUILD_IDS,
+                "access": "manager",
+            }
+        )
+
     # no-store por el mismo motivo que /api/me: la respuesta es por usuario y
     # delante hay Cloudflare. Sin esto el "Recargar" podría comerse una copia
     # cacheada y no cambiar nada.
@@ -1021,12 +1249,19 @@ async def is_channel_eligible_for_chat_simulation(
     return True, None
 
 
-@guild_api
+@guild_api_manager
 async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
-    # guild_api ya garantiza que el bot está en el guild.
+    # guild_api_manager ya garantiza que el bot está en el guild.
     guild = _bot_guild(request, guild_id)
     channels = []
     raw_channels = list(guild.text_channels)
+    # Un Gestor (a diferencia de un admin real) no necesariamente ve todo el
+    # servidor en Discord -- sin este filtro, listaba acá canales privados de
+    # staff que ni siquiera puede abrir, y con el ID podía después mandarles
+    # un embed/anuncio a través de este mismo panel (ver _resolve_target_channel).
+    visible = await _gestor_channel_visibility(request, guild)
+    if visible is not None:
+        raw_channels = [c for c in raw_channels if visible(c)]
     try:
         raw_channels.sort(
             key=lambda c: (
@@ -1088,7 +1323,7 @@ async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"channels": channels})
 
 
-@guild_api
+@guild_api_manager
 async def _api_roles(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
     roles = [
@@ -2118,6 +2353,82 @@ async def _api_prefix_put(request: web.Request, guild_id: int) -> web.Response:
 
 
 @guild_api
+async def _api_manager_role_get(request: web.Request, guild_id: int) -> web.Response:
+    """Rol de Discord elegido como "Gestor" (tab Servidor → General):
+    cualquier miembro con ese rol entra al dashboard con el acceso reducido
+    de guild_api_manager, sin necesitar MANAGE_GUILD. Admin-only a
+    propósito: delegar quién es Gestor es en sí una decisión de admin real,
+    no algo que un Gestor pueda tocar (ver check_guild_manager_access)."""
+    role_id = await get_manager_role(guild_id)
+    role_name = None
+    if role_id is not None:
+        guild = _bot_guild(request, guild_id)
+        role = guild.get_role(role_id) if guild else None
+        role_name = role.name if role else None
+    return web.json_response(
+        {
+            "role_id": str(role_id) if role_id is not None else None,
+            "role_name": role_name,
+        }
+    )
+
+
+@guild_api
+async def _api_manager_role_put(request: web.Request, guild_id: int) -> web.Response:
+    data = await _json_body(request)
+    if data is None:
+        return web.json_response({"error": "body inválido"}, status=400)
+
+    raw_role_id = data.get("role_id")
+    if raw_role_id is None or raw_role_id == "":
+        await set_manager_role(guild_id, None)
+        await _log_audit(request, guild_id, "manager_role.clear")
+        return web.json_response({"ok": True, "role_id": None})
+
+    role_id = _to_int(raw_role_id)
+    if role_id is None:
+        return web.json_response({"error": "role_id inválido"}, status=400)
+
+    guild = _bot_guild(request, guild_id)
+    if guild is None:
+        return web.json_response(
+            {"error": "el bot no está en ese servidor"}, status=404
+        )
+    role = guild.get_role(role_id)
+    if role is None:
+        return web.json_response(
+            {"error": "ese rol no existe en este servidor"}, status=400
+        )
+    # @everyone (role.id == guild.id en el modelo de Discord) le daría acceso
+    # de Gestor a TODO el servidor con un solo click -- un error de
+    # configuración fácil de cometer sin querer, no solo un ataque, así que
+    # se bloquea acá en vez de confiar en que el admin se dé cuenta solo.
+    if role.id == guild.id:
+        return web.json_response(
+            {
+                "error": "no puedes elegir @everyone: le daría acceso de Gestor a todo el servidor"
+            },
+            status=400,
+        )
+    # Rol gestionado por una integración (bot, Nitro Booster, etc.): Discord
+    # se lo asigna/quita solo por motivos ajenos a "quién administra
+    # contenido acá", así que tampoco es una elección segura.
+    if role.managed:
+        return web.json_response(
+            {
+                "error": "ese rol lo gestiona una integración (bot, Nitro Booster, etc.) y no se puede elegir como Gestor"
+            },
+            status=400,
+        )
+
+    await set_manager_role(guild_id, role_id)
+    await _log_audit(request, guild_id, "manager_role.set", detail=role.name)
+    return web.json_response(
+        {"ok": True, "role_id": str(role_id), "role_name": role.name}
+    )
+
+
+@guild_api
 async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
     """Métricas del bot en el guild para la tab INICIO del dashboard.
 
@@ -2367,13 +2678,13 @@ async def _api_style_put(request: web.Request, guild_id: int) -> web.Response:
 # ---------------- API: reacciones ----------------
 
 
-@guild_api
+@guild_api_manager
 async def _api_reacciones_get(request: web.Request, guild_id: int) -> web.Response:
     pool = await list_reaction_pool(guild_id)
     return web.json_response({"reactions": pool})
 
 
-@guild_api
+@guild_api_manager
 async def _api_reacciones_post(request: web.Request, guild_id: int) -> web.Response:
     # A diferencia de frases/packs/triggers/embed templates, reaction_pool no
     # tiene cuota (MAX_*_PER_GUILD) -- es la única tabla de este estilo sin
@@ -2393,7 +2704,7 @@ async def _api_reacciones_post(request: web.Request, guild_id: int) -> web.Respo
     return web.json_response({"added": added})
 
 
-@guild_api
+@guild_api_manager
 async def _api_reacciones_delete(request: web.Request, guild_id: int) -> web.Response:
     reaction_id = _to_int(request.match_info.get("reaction_id"))
     if reaction_id is None:
@@ -2409,7 +2720,7 @@ async def _api_reacciones_delete(request: web.Request, guild_id: int) -> web.Res
 # ---------------- API: frases ----------------
 
 
-@guild_api
+@guild_api_manager
 async def _api_frases_get(request: web.Request, guild_id: int) -> web.Response:
     frases = await list_frases_especiales(guild_id)
     return web.json_response(
@@ -2429,7 +2740,7 @@ async def _api_frases_get(request: web.Request, guild_id: int) -> web.Response:
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_frases_post(request: web.Request, guild_id: int) -> web.Response:
     data = await _json_body(request)
     frase = (data.get("frase") or "").strip() if data else ""
@@ -2460,7 +2771,7 @@ async def _api_frases_post(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"added": added})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frases_delete(request: web.Request, guild_id: int) -> web.Response:
     frase_id = _to_int(request.match_info.get("frase_id"))
     if frase_id is None:
@@ -2473,7 +2784,7 @@ async def _api_frases_delete(request: web.Request, guild_id: int) -> web.Respons
     return web.json_response({"deleted": deleted})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frases_patch(request: web.Request, guild_id: int) -> web.Response:
     """Edita el texto y/o el pack de una frase existente (pack_id null la vuelve al
     pool default del servidor)."""
@@ -2536,7 +2847,7 @@ async def _api_frases_patch(request: web.Request, guild_id: int) -> web.Response
 # ---------------- API: canales permitidos para frases especiales ----------
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_channels_get(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
     channels = [
@@ -2546,12 +2857,17 @@ async def _api_frase_channels_get(request: web.Request, guild_id: int) -> web.Re
     return web.json_response({"channels": channels})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_channels_post(request: web.Request, guild_id: int) -> web.Response:
     data = await _json_body(request)
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), channel_id
+    )
+    if denied is not None:
+        return denied
     added = await add_frase_channel(guild_id, channel_id)
     if added:
         await _log_audit(
@@ -2560,7 +2876,7 @@ async def _api_frase_channels_post(request: web.Request, guild_id: int) -> web.R
     return web.json_response({"added": added})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_channels_delete(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2581,7 +2897,7 @@ async def _api_frase_channels_delete(
 # ---------------- API: packs de frases especiales --------------------------
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_packs_get(request: web.Request, guild_id: int) -> web.Response:
     packs = await list_frase_packs(guild_id)
     return web.json_response(
@@ -2589,7 +2905,7 @@ async def _api_frase_packs_get(request: web.Request, guild_id: int) -> web.Respo
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_packs_post(request: web.Request, guild_id: int) -> web.Response:
     data = await _json_body(request)
     name = (data.get("name") or "").strip() if data else ""
@@ -2605,7 +2921,7 @@ async def _api_frase_packs_post(request: web.Request, guild_id: int) -> web.Resp
     return web.json_response({"id": pack_id})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_packs_delete(request: web.Request, guild_id: int) -> web.Response:
     pack_id = _to_int(request.match_info.get("pack_id"))
     if pack_id is None:
@@ -2618,7 +2934,7 @@ async def _api_frase_packs_delete(request: web.Request, guild_id: int) -> web.Re
     return web.json_response({"deleted": deleted})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_pack_channels_get(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2633,7 +2949,7 @@ async def _api_frase_pack_channels_get(
     return web.json_response({"channels": channels})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_pack_channels_post(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2644,6 +2960,11 @@ async def _api_frase_pack_channels_post(
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), channel_id
+    )
+    if denied is not None:
+        return denied
     ok = await assign_pack_to_channel(guild_id, channel_id, pack_id)
     if not ok:
         return web.json_response({"error": "pack no encontrado"}, status=404)
@@ -2656,7 +2977,7 @@ async def _api_frase_pack_channels_post(
     return web.json_response({"ok": True})
 
 
-@guild_api
+@guild_api_manager
 async def _api_frase_pack_channels_delete(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2678,7 +2999,7 @@ async def _api_frase_pack_channels_delete(
 # ---------------- API: triggers de canal ------------------------------------
 
 
-@guild_api
+@guild_api_manager
 async def _api_triggers_get(request: web.Request, guild_id: int) -> web.Response:
     triggers = await list_guild_triggers(guild_id)
     return web.json_response(
@@ -2692,7 +3013,7 @@ async def _api_triggers_get(request: web.Request, guild_id: int) -> web.Response
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Response:
     if not _rate_ok(_rate_post, _client_ip(request), 5):
         return web.json_response({"error": "demasiadas solicitudes"}, status=429)
@@ -2702,6 +3023,11 @@ async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Respons
     channel_id = _to_int(data.get("channel_id"))
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), channel_id
+    )
+    if denied is not None:
+        return denied
     match_type = data.get("match_type")
     if match_type not in TRIGGER_MATCH_TYPES:
         return web.json_response(
@@ -2755,7 +3081,7 @@ async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Respons
     return web.json_response({"id": trigger_id})
 
 
-@guild_api
+@guild_api_manager
 async def _api_triggers_delete(request: web.Request, guild_id: int) -> web.Response:
     trigger_id = _to_int(request.match_info.get("trigger_id"))
     if trigger_id is None:
@@ -2771,7 +3097,7 @@ async def _api_triggers_delete(request: web.Request, guild_id: int) -> web.Respo
 # ---------------- API: gifs por guild ----------------
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_get(request: web.Request, guild_id: int) -> web.Response:
     gifs = await list_gif_urls(guild_id)
     # `limit` da el denominador del contador de la pestaña, y `auto_removed_30d`
@@ -2802,7 +3128,7 @@ async def _api_server_gifs_get(request: web.Request, guild_id: int) -> web.Respo
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_senders_get(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2817,7 +3143,7 @@ async def _api_server_gifs_senders_get(
     return web.json_response({"senders": senders})
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_by_user_get(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2839,26 +3165,26 @@ async def _api_server_gifs_by_user_get(
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_post(request: web.Request, guild_id: int) -> web.Response:
     return await _gif_add_impl(request, guild_id)
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_delete(request: web.Request, guild_id: int) -> web.Response:
     return await _gif_delete_impl(
         request, guild_id, request.match_info.get("gif_id", "")
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_block(request: web.Request, guild_id: int) -> web.Response:
     return await _gif_block_impl(
         request, guild_id, request.match_info.get("gif_id", "")
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_blocked_get(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -2866,7 +3192,7 @@ async def _api_server_gifs_blocked_get(
     return web.json_response({"blocked": blocked, "total": len(blocked)})
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_unblock(request: web.Request, guild_id: int) -> web.Response:
     # key es el content_hash o, para GIFs sin hash (tenor/giphy), la url --
     # lo que haya identificado la fila en list_blocked_gifs (aiohttp ya la
@@ -2895,7 +3221,7 @@ async def _run_gif_health_check_task(guild_id: int, task_id: str) -> None:
         await task_manager.complete(task_id)
 
 
-@guild_api
+@guild_api_manager
 async def _api_server_gifs_verify(request: web.Request, guild_id: int) -> web.Response:
     # Dispara el chequeo en background: con cientos/miles de GIFs y el
     # espaciado entre requests (HEALTH_CHECK_DELAY) esto puede tardar
@@ -2960,7 +3286,7 @@ def _youtube_sub_json(guild, s: dict) -> dict:
     }
 
 
-@guild_api
+@guild_api_manager
 async def _api_youtube_get(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
     subs = await list_youtube_subs(guild_id)
@@ -2969,7 +3295,7 @@ async def _api_youtube_get(request: web.Request, guild_id: int) -> web.Response:
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_post, ip, 5):
@@ -2981,6 +3307,11 @@ async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response
         return web.json_response(
             {"error": "channel_id y discord_channel_id son obligatorios"}, status=400
         )
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), discord_channel_id
+    )
+    if denied is not None:
+        return denied
     resolved = await resolve_youtube_channel(channel_id)
     if resolved is None:
         return web.json_response(
@@ -3001,7 +3332,7 @@ async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response
     return web.json_response({"added": added})
 
 
-@guild_api
+@guild_api_manager
 async def _api_youtube_delete(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_delete, ip, 3):
@@ -3015,7 +3346,7 @@ async def _api_youtube_delete(request: web.Request, guild_id: int) -> web.Respon
     return web.json_response({"removed": removed})
 
 
-@guild_api
+@guild_api_manager
 async def _api_youtube_patch(request: web.Request, guild_id: int) -> web.Response:
     sub_id = _to_int(request.match_info.get("sub_id"))
     if sub_id is None:
@@ -3064,7 +3395,7 @@ def _twitch_sub_json(guild, s: dict) -> dict:
     }
 
 
-@guild_api
+@guild_api_manager
 async def _api_twitch_get(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
     subs = await list_twitch_subs(guild_id)
@@ -3076,7 +3407,7 @@ async def _api_twitch_get(request: web.Request, guild_id: int) -> web.Response:
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_twitch_post(request: web.Request, guild_id: int) -> web.Response:
     if not twitch_is_configured():
         return web.json_response(
@@ -3094,6 +3425,11 @@ async def _api_twitch_post(request: web.Request, guild_id: int) -> web.Response:
             {"error": "channel_login y discord_channel_id son obligatorios"},
             status=400,
         )
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), discord_channel_id
+    )
+    if denied is not None:
+        return denied
     try:
         resolved = await resolve_twitch_channel(channel_login)
     except TwitchNotConfigured:
@@ -3114,7 +3450,7 @@ async def _api_twitch_post(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"added": added})
 
 
-@guild_api
+@guild_api_manager
 async def _api_twitch_delete(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_delete, ip, 3):
@@ -3128,7 +3464,7 @@ async def _api_twitch_delete(request: web.Request, guild_id: int) -> web.Respons
     return web.json_response({"removed": removed})
 
 
-@guild_api
+@guild_api_manager
 async def _api_twitch_patch(request: web.Request, guild_id: int) -> web.Response:
     sub_id = _to_int(request.match_info.get("sub_id"))
     if sub_id is None:
@@ -3169,14 +3505,14 @@ def _rss_sub_json(guild, s: dict) -> dict:
     }
 
 
-@guild_api
+@guild_api_manager
 async def _api_rss_get(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
     subs = await list_rss_subs(guild_id)
     return web.json_response({"subscriptions": [_rss_sub_json(guild, s) for s in subs]})
 
 
-@guild_api
+@guild_api_manager
 async def _api_rss_post(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_post, ip, 5):
@@ -3188,6 +3524,11 @@ async def _api_rss_post(request: web.Request, guild_id: int) -> web.Response:
         return web.json_response(
             {"error": "feed_url y discord_channel_id son obligatorios"}, status=400
         )
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), discord_channel_id
+    )
+    if denied is not None:
+        return denied
     resolved = await resolve_rss_feed(feed_url)
     if resolved is None:
         return web.json_response(
@@ -3203,7 +3544,7 @@ async def _api_rss_post(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"added": added})
 
 
-@guild_api
+@guild_api_manager
 async def _api_rss_delete(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_delete, ip, 3):
@@ -3217,7 +3558,7 @@ async def _api_rss_delete(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"removed": removed})
 
 
-@guild_api
+@guild_api_manager
 async def _api_rss_patch(request: web.Request, guild_id: int) -> web.Response:
     sub_id = _to_int(request.match_info.get("sub_id"))
     if sub_id is None:
@@ -3693,6 +4034,16 @@ async def _resolve_target_channel(
         return None, web.json_response(
             {"error": "el canal no existe en este servidor"}, status=400
         )
+    if guild is not None:
+        # Mismo motivo que el filtro de _api_channels: un Gestor no tiene por
+        # qué poder ver todo lo que el bot ve, así que no puede mandarle un
+        # embed/anuncio a un canal que él mismo no puede abrir en Discord,
+        # aunque conozca su ID (p.ej. porque quedó en un link viejo).
+        visible = await _gestor_channel_visibility(request, guild)
+        if visible is not None and not visible(channel):
+            return None, web.json_response(
+                {"error": "el canal no existe en este servidor"}, status=400
+            )
     me = (guild.me if guild else None) or (
         guild.get_member(request.app["bot"].user.id)
         if guild and request.app.get("bot") and request.app["bot"].user
@@ -3720,7 +4071,7 @@ async def _embed_target_channel(
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_send(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_post, ip, 5):
@@ -3867,7 +4218,7 @@ def _parse_announcement_schedule(
     return mode, interval_minutes, hour, minute, weekdays
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Response:
     """Programa un embed como anuncio (misma tabla/worker que los anuncios de
     texto de /settings, con embed_json en la columna nueva)."""
@@ -3942,7 +4293,7 @@ async def _api_embeds_schedule(request: web.Request, guild_id: int) -> web.Respo
     return web.json_response({"id": new_id})
 
 
-@guild_api
+@guild_api_manager
 async def _api_anuncios_get(request: web.Request, guild_id: int) -> web.Response:
     announcements = await list_scheduled_announcements(guild_id)
     announcements = [_with_str_channel_id(a) for a in announcements]
@@ -3960,7 +4311,7 @@ async def _api_anuncios_get(request: web.Request, guild_id: int) -> web.Response
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_anuncio_get(request: web.Request, guild_id: int) -> web.Response:
     announcement_id = _to_int(request.match_info.get("announcement_id"))
     if announcement_id is None:
@@ -3975,7 +4326,7 @@ async def _api_anuncio_get(request: web.Request, guild_id: int) -> web.Response:
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Response:
     data = await _json_body(request)
     if data is None:
@@ -4047,7 +4398,7 @@ async def _api_anuncios_post(request: web.Request, guild_id: int) -> web.Respons
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
     announcement_id = _to_int(request.match_info.get("announcement_id"))
     if announcement_id is None:
@@ -4126,7 +4477,7 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
     )
 
 
-@guild_api
+@guild_api_manager
 async def _api_anuncio_delete(request: web.Request, guild_id: int) -> web.Response:
     announcement_id = _to_int(request.match_info.get("announcement_id"))
     if announcement_id is None:
@@ -4152,7 +4503,7 @@ def _valid_share_id(share_id: str) -> bool:
     return share_id.isalnum() and 4 <= len(share_id) <= 32
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_share(request: web.Request, guild_id: int) -> web.Response:
     """Genera un link compartible con el contenido del editor. Mismo shape de
     body que /embeds/send (embeds + send_options), misma validación."""
@@ -4229,7 +4580,7 @@ def _template_row_to_json(t: dict, used_by: list[str] | None = None) -> dict:
     return out
 
 
-@guild_api
+@guild_api_manager
 async def _api_embed_templates_get(request: web.Request, guild_id: int) -> web.Response:
     templates = await list_embed_templates(guild_id)
     usage = await get_templates_usage_map(guild_id)
@@ -4323,7 +4674,7 @@ def _template_body(
     return name, payload, content_mode, None
 
 
-@guild_api
+@guild_api_manager
 async def _api_embed_templates_post(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -4343,7 +4694,7 @@ async def _api_embed_templates_post(
     return web.json_response({"id": new_id})
 
 
-@guild_api
+@guild_api_manager
 async def _api_embed_template_put(request: web.Request, guild_id: int) -> web.Response:
     template_id = _to_int(request.match_info.get("template_id"))
     if template_id is None:
@@ -4361,7 +4712,7 @@ async def _api_embed_template_put(request: web.Request, guild_id: int) -> web.Re
     return web.json_response({"updated": True})
 
 
-@guild_api
+@guild_api_manager
 async def _api_embed_template_delete(
     request: web.Request, guild_id: int
 ) -> web.Response:
@@ -4908,7 +5259,7 @@ async def _api_server_event_delete(request: web.Request, guild_id: int) -> web.R
 # ---------------- API: emojis, validación en vivo y subida de imágenes ------
 
 
-@guild_api
+@guild_api_manager
 async def _api_emojis(request: web.Request, guild_id: int) -> web.Response:
     """Emojis custom del guild, para la pestaña Emoji del popover de inserción."""
     guild = _bot_guild(request, guild_id)
@@ -4919,7 +5270,7 @@ async def _api_emojis(request: web.Request, guild_id: int) -> web.Response:
     return web.json_response({"emojis": emojis})
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_validate(request: web.Request, guild_id: int) -> web.Response:
     """Validación en vivo para el modo JSON del editor: corre el mismo
     validador del backend (una sola fuente de verdad, sin duplicar el schema
@@ -4970,7 +5321,7 @@ _rate_playground: LRUDict = LRUDict(512)
 _rate_premium_checkout: LRUDict = LRUDict(512)
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_upload(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_upload, ip, 10):
@@ -5008,7 +5359,7 @@ async def _api_embeds_upload(request: web.Request, guild_id: int) -> web.Respons
     return web.json_response({"url": url})
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_uploads_get(request: web.Request, guild_id: int) -> web.Response:
     """Últimas imágenes subidas desde el editor de este guild, para el
     selector de reutilización — R2 ya dedupe por contenido, esto es solo el
@@ -5016,7 +5367,7 @@ async def _api_embeds_uploads_get(request: web.Request, guild_id: int) -> web.Re
     return web.json_response({"urls": await list_uploaded_images(guild_id)})
 
 
-@guild_api
+@guild_api_manager
 async def _api_embeds_resolve_gif(request: web.Request, guild_id: int) -> web.Response:
     """Resuelve un link de tenor.com/view/... al .gif animado real (Fase 4)
     — el navegador no puede pegarle a tenor.com directo por CORS, así que
@@ -5072,7 +5423,7 @@ def _prune_pending_layout_files() -> None:
         del _pending_layout_files[k]
 
 
-@guild_api
+@guild_api_manager
 async def _api_layout_file_upload(request: web.Request, guild_id: int) -> web.Response:
     ip = _client_ip(request)
     if not _rate_ok(_rate_upload, ip, 10):
@@ -6051,6 +6402,8 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_put(f"{base}/settings/updates", _api_updates_put)
         app.router.add_get(f"{base}/settings/prefix", _api_prefix_get)
         app.router.add_put(f"{base}/settings/prefix", _api_prefix_put)
+        app.router.add_get(f"{base}/settings/manager-role", _api_manager_role_get)
+        app.router.add_put(f"{base}/settings/manager-role", _api_manager_role_put)
         app.router.add_get(f"{base}/settings/gifs", _api_server_gifs_get)
         app.router.add_post(f"{base}/settings/gifs", _api_server_gifs_post)
         app.router.add_get(

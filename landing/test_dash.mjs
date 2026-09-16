@@ -774,7 +774,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
     assert.equal(count, 1, `El módulo ${key} solo debe existir una vez en MODULES`);
   }
 
-  // Bienvenidas, Despedidas, Boosts, Anuncios y Updates deben estar en Anuncios
+  // Bienvenidas, Despedidas, Boosts y Anuncios deben estar en Anuncios
   const welcomeMod = MODULES.find(m => m.key === 'welcome');
   assert.equal(welcomeMod.cat, 'anuncios', 'Bienvenidas debe estar en Anuncios');
 
@@ -787,8 +787,12 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const anunciosMod = MODULES.find(m => m.key === 'anuncios');
   assert.equal(anunciosMod.cat, 'anuncios', 'Anuncios debe estar en Anuncios');
 
+  // Updates vive con YouTube/Twitch/RSS: las cuatro son "una señal externa
+  // dispara un post automático", a diferencia de Anuncios (contenido
+  // escrito por el admin) o Bienvenidas/Despedidas/Boosts (eventos del
+  // propio servidor).
   const updatesMod = MODULES.find(m => m.key === 'updates');
-  assert.equal(updatesMod.cat, 'anuncios', 'Updates debe estar en Anuncios');
+  assert.equal(updatesMod.cat, 'automatizacion', 'Updates debe estar en Automatización, junto a YouTube/Twitch/RSS');
 
   // Triggers, Reacciones, Frases y YouTube deben estar en Automatización
   const youtubeMod = MODULES.find(m => m.key === 'youtube');
@@ -1357,7 +1361,7 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   const tabs = [
     'inicio', 'stats', 'chat', 'welcome', 'goodbye', 'boost', 'anuncios',
     'updates', 'gifs', 'memes', 'triggers', 'reacciones', 'frases',
-    'canales', 'amnesia', 'historial', 'premium', 'youtube', 'embeds'
+    'canales', 'general', 'historial', 'premium', 'youtube', 'embeds'
   ];
   for (const t of tabs) {
     assert.equal(getDashboardUrl('123', t, null, 'en'), `/en/dashboard/123/${t}`);
@@ -1763,6 +1767,60 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   assert.match(contentText, /Copiar/, 'Debe incluir botón Copiar');
 
   console.log('✓ Test 33: Naming Embeds en Sidebar y Sección Variables en Embeds');
+}
+
+// ── Test 34: Rol de Gestor -- sidebar filtrada y redirect en módulos vedados ────
+{
+  setupDOM();
+  setGuildId('999');
+  global.location.pathname = '/es/dashboard/999/triggers';
+
+  const mockGuilds = {
+    configured: [{ id: '999', name: 'Servidor Gestor', access: 'manager' }],
+    available: [],
+  };
+  const mockTriggersData = {
+    triggers: [], total: 0, limit: 10,
+    match_types: ['exact', 'starts_with', 'regex'],
+    actions: ['frase_de_pack', 'markov', 'mezcla'],
+  };
+
+  fetchHandlers = [
+    (url) => {
+      if (url.includes('/api/me/guilds')) return jsonResp(mockGuilds);
+      if (url.includes('/api/server/999/settings/triggers')) return jsonResp(mockTriggersData);
+      if (url.includes('/api/server/999/frases/packs')) return jsonResp({ packs: [], total: 0, limit: 5 });
+      if (url.includes('/api/server/999/channels')) return jsonResp({ channels: [] });
+      return jsonResp({});
+    },
+  ];
+
+  await fetchUserGuilds(true);
+  await initDash();
+  await new Promise(r => setTimeout(r, 50));
+
+  // Un módulo permitido (Triggers, vía GESTOR_ALLOWED_MODULES) carga normal.
+  const contentText = elementsById.catContent.text();
+  assert.match(contentText, /Triggers de canal/, 'Un módulo permitido debe cargar para el Gestor');
+
+  // La sidebar solo muestra módulos permitidos -- nada admin-only.
+  const sidebarText = elementsById.dashTabs.text();
+  assert.match(sidebarText, /YouTube/, 'YouTube debe verse para el Gestor');
+  assert.doesNotMatch(sidebarText, /Canales y Permisos/, 'Canales NO debe verse para el Gestor');
+  assert.doesNotMatch(sidebarText, /Ajustes de Chat/, 'Chat NO debe verse para el Gestor');
+  assert.doesNotMatch(sidebarText, /Purgito Premium/, 'Premium NO debe verse para el Gestor');
+  assert.doesNotMatch(sidebarText, /^General$/m, 'General NO debe verse para el Gestor');
+
+  // Pedir un módulo vedado a mano (bookmark viejo, URL escrita a mano) no
+  // debe dejarlo cargar: activate() lo redirige al primer módulo permitido.
+  activate('canales', true);
+  await new Promise(r => setTimeout(r, 50));
+  assert.ok(
+    !global.location.pathname.endsWith('/canales'),
+    'activate() no debe dejar la URL en un módulo vedado para el Gestor'
+  );
+
+  console.log('✓ Test 34: Rol de Gestor filtra la sidebar y redirige módulos vedados');
 }
 
 console.log('\n========================================');

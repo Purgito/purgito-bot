@@ -1001,6 +1001,12 @@ iframe.gif-media { pointer-events: none; }
   font-size: 11.5px;
   height: 28px;
 }
+/* Ver amnesiaButton() en dash.js: revierte el tamaño de .gif-actions .btn
+   (pensado para el pie angosto de una card de GIF) al de un botón normal. */
+.amnesia-confirm .gif-actions .btn {
+  flex: none; min-width: auto; padding-inline: 1rem; height: 2.25rem; font-size: var(--t-sm);
+}
+
 .gif-confirm {
   display: flex;
   align-items: center;
@@ -2019,6 +2025,38 @@ iframe.gif-media { pointer-events: none; }
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Aviso de guardado pendiente/fallido (dash.js: trackSave + activate()).
+   Esquina opuesta al #toast (abajo a la izquierda) para que uno nunca tape
+   al otro si coinciden — este es persistente mientras dure el estado, el
+   toast siempre se autooculta. */
+.unsaved-banner {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  max-width: min(320px, calc(100vw - 40px));
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font-size: var(--t-sm);
+  padding: 10px 14px;
+  z-index: 9998;
+}
+.unsaved-banner.show { display: flex; }
+.unsaved-banner::before { font-weight: 700; line-height: 1; }
+.unsaved-banner.is-pending { border-left-color: var(--accent-soft); }
+.unsaved-banner.is-pending::before { content: '↻'; color: var(--accent-2); }
+.unsaved-banner.is-error {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--popover));
+}
+.unsaved-banner.is-error::before { content: '⚠'; color: var(--danger); }
 
 /* ---------- Responsive ---------- */
 
@@ -3379,6 +3417,15 @@ iframe.gif-media { pointer-events: none; }
   font-size: 15px;
 }
 
+.onboarding-checklist-header-right { display: flex; align-items: center; gap: 10px; }
+.onboarding-dismiss-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--text-muted); cursor: pointer;
+  padding: 4px; border-radius: var(--radius-sm);
+}
+.onboarding-dismiss-btn:hover { color: var(--text); background: var(--surface-raised); }
+.onboarding-dismiss-btn .nav-icon { width: 14px; height: 14px; }
+
 .onboarding-checklist-list {
   list-style: none;
   margin: 0;
@@ -3532,6 +3579,7 @@ iframe.gif-media { pointer-events: none; }
 
 /* Switch maestro del chat */
 .chat-master { display: flex; align-items: center; gap: 6px; margin-bottom: var(--space-4); }
+.chat-import-export { display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-5); }
 
 @media (max-width: 860px) {
   .dash-layout,
@@ -3949,6 +3997,9 @@ iframe.gif-media { pointer-events: none; }
 .chan-matrix-row.open { background: var(--surface-card); border-color: var(--border); border-bottom-color: transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
 .chan-matrix-cell { display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .chan-matrix-cell input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+/* Visible solo en la card de mobile (≤860px): en la grilla de escritorio el
+   rótulo ya lo da la cabecera compartida, así que acá no ocupa lugar. */
+.chan-matrix-cell-label { display: none; }
 .chan-gear {
   background: none; border: 0; color: var(--text-muted); cursor: pointer;
   font-size: 15px; line-height: 1; padding: 3px 6px; border-radius: var(--radius-sm);
@@ -3980,31 +4031,51 @@ iframe.gif-media { pointer-events: none; }
 }
 .ovr-reset:hover { color: var(--accent-2); background: var(--surface-raised); }
 
-@media (max-width: 720px) {
-  /* Columnas más angostas, pero la cabecera NO se oculta: sin ella las tres
-     casillas quedan sin ninguna etiqueta y no hay forma de saber cuál es
-     cuál. Lo que se cae son los ⓘ, que son el extra, no el rótulo. */
-  .chan-matrix-head,
-  .chan-matrix-row { grid-template-columns: minmax(0, 1fr) repeat(4, 52px); gap: 4px; padding-inline: 6px; }
-  .chan-matrix-head { font-size: 9px; letter-spacing: 0; }
-  .chan-matrix-head .help-icon { display: none; }
-  .chan-matrix-row > .chan-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+/* ≤860px (mismo corte que usa el nav para pasar a selector móvil): la
+   grilla de 3 columnas por canal ya no entra sin angostar los checkboxes a
+   ~16px sin ninguna etiqueta visible — antes esto se resolvía angostando
+   columnas en pasos (720/480/360px) hasta llegar ahí. En vez de seguir
+   ese camino, cada canal pasa a ser una card apilada con una fila por
+   permiso (etiqueta + valor), que es el mismo patrón que .trigger-card usa
+   para lo mismo en mobile. */
+@media (max-width: 860px) {
+  .chan-matrix-head { display: none; }
+  .chan-matrix-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-card);
+  }
+  .chan-matrix-row.open { border-color: var(--accent-soft); border-radius: var(--radius-sm); }
+  .chan-matrix-row > .chan-name {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 14px; font-weight: 600; margin-bottom: 2px;
+  }
+  /* Cada celda se estira a lo ancho de la card: la etiqueta (de cols[].short,
+     ya traducida) sale por ::before vía data-label -- el checkbox solo,
+     sin esto, no dice qué permiso es una vez que ya no comparte fila con la
+     cabecera. La celda del gear no tiene data-label: queda como está. */
+  .chan-matrix-cell {
+    justify-content: space-between;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .chan-matrix-cell::before { content: attr(data-label); font-size: 13px; color: var(--text-muted); }
+  .chan-matrix-cell input { width: 20px; height: 20px; }
+  .chan-matrix-cell-label { display: inline; font-size: 13px; color: var(--text-muted); }
+  .chan-gear { font-size: 16px; padding: 6px; }
+  .chan-matrix-panel {
+    margin-top: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .chan-matrix-item + .chan-matrix-item { margin-top: 8px; }
   /* Los ajustes del canal en una sola columna: dos no entran. */
   .ovr-grid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 480px) {
-  .chan-matrix-head,
-  .chan-matrix-row { grid-template-columns: minmax(0, 1fr) repeat(4, 40px); gap: 2px; padding-inline: 4px; }
-  .chan-matrix-head { font-size: 8.5px; }
-  .chan-matrix-cell input { width: 16px; height: 16px; }
-  .chan-gear { font-size: 13px; padding: 2px 4px; }
-}
-
-@media (max-width: 360px) {
-  .chan-matrix-head,
-  .chan-matrix-row { grid-template-columns: minmax(0, 1fr) repeat(3, 36px) 30px; gap: 2px; padding-inline: 2px; }
-  .chan-matrix-head { font-size: 8px; }
 }
 /* CHAT: ajustes numéricos (frecuencia, tope de menciones) */
 .num-row { display: flex; align-items: center; gap: 8px; }
