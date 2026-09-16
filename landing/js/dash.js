@@ -475,13 +475,18 @@ function currentTab() {
 
 const CAT_STORAGE_KEY = 'purgito_dash_collapsed_cats';
 
+// Sin preferencia guardada, arrancan todas colapsadas (menos la de la tab
+// activa, forzada abierta por `hasActiveModule` en renderSidebar) — con las
+// 6 categorías y 19 módulos, todo expandido de entrada excede la altura de
+// casi cualquier viewport y fuerza el scroll propio de .dash-sidebar.
 function getCollapsedCategories() {
   try {
     const raw = localStorage.getItem(CAT_STORAGE_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    if (raw !== null) return new Set(JSON.parse(raw));
   } catch (e) {
-    return new Set();
+    // localStorage corrupto o inaccesible: cae al default de abajo.
   }
+  return new Set(CATEGORIES.map(c => c.key));
 }
 
 function saveCollapsedCategories(set) {

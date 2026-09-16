@@ -2528,7 +2528,13 @@ iframe.gif-media { pointer-events: none; }
   background: rgba(255, 255, 255, 0.22);
 }
 
-/* Sidebar persistente sticky en desktop */
+/* Sidebar persistente sticky en desktop. Con las categorías colapsadas por
+   defecto (ver getCollapsedCategories en dash.js) el contenido normalmente
+   entra entero y esto no scrollea: overflow-y/height acá son una red de
+   seguridad para cuando el usuario expande varias categorías a la vez en un
+   viewport bajo, no el comportamiento esperado en el uso normal (si lo
+   fuera, tendríamos dos scrolls compitiendo — el de la sidebar y el de la
+   página — que es justo lo que este defecto de colapso evita). */
 .dash-sidebar {
   position: sticky;
   top: 5.5rem;
