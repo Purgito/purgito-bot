@@ -1823,6 +1823,50 @@ const { GUILD_ID, setGuildId } = await import('./js/core/config.js');
   console.log('✓ Test 34: Rol de Gestor filtra la sidebar y redirige módulos vedados');
 }
 
+// ── Test 35: Modal de "Añadir emoji" se queda abierto tras agregar uno ──────
+{
+  setupDOM();
+  setGuildId('123456789');
+
+  let postCount = 0;
+  fetchHandlers = [
+    (url, opts) => {
+      if (url.includes('/api/server/123456789/settings/reacciones') && opts?.method === 'POST') {
+        postCount++;
+        return jsonResp({ added: true });
+      }
+      if (url.includes('/api/server/123456789/settings/reacciones')) {
+        return jsonResp({ reactions: postCount > 0 ? [{ id: 1, emoji_text: '😀' }] : [] });
+      }
+      return jsonResp({});
+    },
+  ];
+
+  const { openAddEmojiModal } = await import('/js/dash.js');
+  const dummyBox = new FakeElement('div');
+  const overlay = await openAddEmojiModal(dummyBox, []);
+
+  const freqBtn = overlay.findByClass('emoji-frequent-btn')[0];
+  assert.ok(freqBtn, 'Debe haber al menos un emoji frecuente para clickear');
+  freqBtn.click();
+
+  await new Promise(r => setTimeout(r, 60));
+
+  assert.equal(postCount, 1, 'Clickear un emoji frecuente debe agregarlo (un solo POST)');
+  assert.ok(
+    overlay.findByClass('emoji-modal-tabs').length > 0,
+    'El modal no debe cerrarse (overlay.remove()) después de agregar un emoji'
+  );
+
+  // Se puede seguir agregando sin reabrir el modal.
+  const freqBtn2 = overlay.findByClass('emoji-frequent-btn')[1];
+  freqBtn2.click();
+  await new Promise(r => setTimeout(r, 60));
+  assert.equal(postCount, 2, 'Debe poder agregarse un segundo emoji sin reabrir el modal');
+
+  console.log('✓ Test 35: Modal de reacciones se queda abierto y permite agregar varios emojis seguidos');
+}
+
 console.log('\n========================================');
 console.log('✓ TODOS LOS TESTS DEL DASHBOARD PASARON');
 console.log('========================================\n');

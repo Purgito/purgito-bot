@@ -965,15 +965,11 @@ addStrings({
     'dash.sidebar.showNav': 'Mostrar navegación',
     'dash.sidebar.hideNav': 'Ocultar navegación',
     'dash.sidebar.openMobileNav': 'Abrir navegación del dashboard',
-    'dash.sidebar.searchModule': 'Buscar módulo (Ctrl + K)',
-    'dash.sidebar.searchModuleShort': 'Buscar módulo…',
   },
   en: {
     'dash.sidebar.showNav': 'Show navigation',
     'dash.sidebar.hideNav': 'Hide navigation',
     'dash.sidebar.openMobileNav': 'Open dashboard navigation',
-    'dash.sidebar.searchModule': 'Search module (Ctrl + K)',
-    'dash.sidebar.searchModuleShort': 'Search module…',
   },
 });
 
@@ -1032,25 +1028,9 @@ export function renderSidebar(activeTab) {
       selectGuild(newGuildId);
     });
     inner.append(serverPickerNode);
-
-    // 2. Buscador rápido de módulos (Ctrl + K)
-    const cmdSearchBtn = el('button', {
-      type: 'button',
-      class: 'dash-cmd-search-btn',
-      title: t('dash.sidebar.searchModule'),
-      onclick: () => {
-        closeMobileNav();
-        openCommandPalette();
-      },
-    },
-      icon('search'),
-      el('span', { class: 'dash-cmd-search-text' }, t('dash.sidebar.searchModuleShort')),
-      el('kbd', { class: 'dash-cmd-search-badge' }, '⌘K')
-    );
-    inner.append(cmdSearchBtn);
   }
 
-  // 3. Categorías y módulos
+  // 2. Categorías y módulos
   const collapsedCats = getCollapsedCategories();
 
   for (const cat of CATEGORIES) {
@@ -1116,7 +1096,7 @@ export function renderSidebar(activeTab) {
     inner.append(catGroup);
   }
 
-  // 4. Sección dedicada para Purgito Premium
+  // 3. Sección dedicada para Purgito Premium
   const premiumMod = MODULES.find(m => m.key === 'premium');
   if (premiumMod && isModuleAllowed('premium')) {
     const isPremiumActive = activeTab === 'premium';
@@ -1973,31 +1953,29 @@ export async function loadStatsModule() {
     const byChannel = stats.corpus_by_channel || [];
     const maxChannelCount = Math.max(1, ...byChannel.map(c => c.count || 0));
     const byChannelGroup = formGroup(t('dash.stats.byChannelTitle'),
-      el('div', { class: 'stat-by-channel' },
-        el('p', {}, t('dash.stats.byChannelDesc')),
-        byChannel.length
-          ? el('div', { class: 'stat-channels' },
-              ...byChannel.map(c => el('div', { class: 'stat-channel-row' },
-                c.name
-                  ? el('span', { class: 'stat-chan-name' }, `#${c.name}`)
-                  : el('span', { class: 'stat-chan-unavailable' },
-                      el('span', { class: 'stat-chan-unavail-title' }, t('dash.stats.channelUnavailable')),
-                      el('span', { class: 'stat-chan-id' }, c.channel_id)
-                    ),
-                el('div', { style: 'display:flex;align-items:center;gap:8px;' },
-                  el('progress', {
-                    class: 'prob-bar',
-                    style: 'max-width:8rem;',
-                    value: String(c.count || 0),
-                    max: String(maxChannelCount),
-                  }),
-                  el('span', { class: 'dim', style: 'font-size:12px;min-width:2.5em;text-align:right;' },
-                    Number(c.count || 0).toLocaleString('es'))
-                )
-              ))
-            )
-          : el('p', { class: 'dim' }, t('dash.stats.noData'))
-      )
+      el('p', { class: 'dim' }, t('dash.stats.byChannelDesc')),
+      byChannel.length
+        ? el('div', { class: 'stat-channels' },
+            ...byChannel.map(c => el('div', { class: 'stat-channel-row' },
+              c.name
+                ? el('span', { class: 'stat-chan-name' }, `#${c.name}`)
+                : el('span', { class: 'stat-chan-unavailable' },
+                    el('span', { class: 'stat-chan-unavail-title' }, t('dash.stats.channelUnavailable')),
+                    el('span', { class: 'stat-chan-id' }, c.channel_id)
+                  ),
+              el('div', { style: 'display:flex;align-items:center;gap:8px;' },
+                el('progress', {
+                  class: 'prob-bar',
+                  style: 'max-width:8rem;',
+                  value: String(c.count || 0),
+                  max: String(maxChannelCount),
+                }),
+                el('span', { class: 'dim', style: 'font-size:12px;min-width:2.5em;text-align:right;' },
+                  Number(c.count || 0).toLocaleString('es'))
+              )
+            ))
+          )
+        : el('p', { class: 'dim' }, t('dash.stats.noData'))
     );
 
     // 4. Actividad reciente (mensajes/día, top contribuyentes, palabras) --
@@ -2293,7 +2271,7 @@ addStrings({
     'dash.playground.noChannels': 'No hay canales disponibles para simular.',
     'dash.playground.noChannelsDesc': 'Purgito necesita permisos suficientes para acceder y responder en un canal.',
     'dash.playground.sandboxBadge': 'Sandbox seguro — Sin envíos a Discord',
-    'dash.playground.sandboxDesc': 'Simula una interacción espontánea en este canal usando la configuración real de Purgito. Nada se enviará a Discord.',
+    'dash.playground.sandboxDesc': 'Simula una interacción espontánea en este canal usando la configuración real de Purgito.',
     'dash.playground.simulate': 'Simular interacción',
     'dash.playground.testChannelTitle': 'Canal de prueba',
     'dash.playground.testChannelDesc': 'Selecciona un canal para previsualizar cómo respondería Purgito usando su generación espontánea.',
@@ -2314,7 +2292,7 @@ addStrings({
     'dash.playground.noChannels': 'No channels available to simulate.',
     'dash.playground.noChannelsDesc': 'Purgito needs sufficient permissions to access and reply in a channel.',
     'dash.playground.sandboxBadge': 'Safe sandbox — Nothing sent to Discord',
-    'dash.playground.sandboxDesc': "Simulate a spontaneous interaction in this channel using Purgito's real configuration. Nothing will be sent to Discord.",
+    'dash.playground.sandboxDesc': "Simulate a spontaneous interaction in this channel using Purgito's real configuration.",
     'dash.playground.simulate': 'Simulate interaction',
     'dash.playground.testChannelTitle': 'Test channel',
     'dash.playground.testChannelDesc': "Select a channel to preview how Purgito would reply using its spontaneous generation.",
@@ -3031,7 +3009,7 @@ addStrings({
     'dash.amnesia.successMsg': 'Borrados {corpus} mensajes y {user} de estilo por usuario',
     'dash.amnesia.errorMsg': 'No se pudo borrar el corpus reciente, intenta de nuevo',
     'dash.managerRole.title': 'Rol de Gestor',
-    'dash.managerRole.desc': 'Cualquier miembro con este rol entra al panel con acceso a Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS — sin acceso a Premium, Canales, Chat, Estadísticas, Historial ni este módulo. No hace falta que tenga el permiso de Discord "Gestionar servidor".',
+    'dash.managerRole.desc': 'Los miembros con este rol entran al panel sin necesitar el permiso de Discord "Gestionar servidor". Pueden manejar Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS; el resto —Premium, Canales, Chat, Estadísticas, Historial y este módulo— queda fuera de su alcance.',
     'dash.managerRole.label': 'Rol',
     'dash.managerRole.none': 'Ninguno — nadie entra como Gestor',
     'dash.managerRole.saved': 'Rol de Gestor actualizado',
@@ -3062,7 +3040,7 @@ addStrings({
     'dash.amnesia.successMsg': 'Deleted {corpus} messages and {user} per-user style entries',
     'dash.amnesia.errorMsg': "Couldn't delete the recent corpus, try again",
     'dash.managerRole.title': 'Manager role',
-    'dash.managerRole.desc': "Any member with this role gets panel access to Anuncios, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS — no access to Premium, Channels, Chat, Stats, History, or this module. They don't need the Discord \"Manage Server\" permission.",
+    'dash.managerRole.desc': 'Members with this role get panel access without needing the Discord "Manage Server" permission. They can manage Anuncios, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS; everything else — Premium, Channels, Chat, Stats, History, and this module — stays out of reach.',
     'dash.managerRole.label': 'Role',
     'dash.managerRole.none': "None — nobody gets Manager access",
     'dash.managerRole.saved': 'Manager role updated',
@@ -4688,7 +4666,7 @@ async function renderReacciones(box, pool) {
   box.append(poolWrap);
 }
 
-async function addEmojiToPool(box, emojiText, modalOverlay = null) {
+async function addEmojiToPool(box, emojiText, onSuccess = null) {
   try {
     await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`, {
       method: 'POST', body: { emoji: emojiText },
@@ -4698,19 +4676,19 @@ async function addEmojiToPool(box, emojiText, modalOverlay = null) {
       saveRecentEmoji(emojiText);
     }
     toast('Emoji agregado', 'ok');
-    if (modalOverlay) modalOverlay.remove();
     reloadReacciones(box);
+    if (onSuccess) onSuccess();
   } catch (e) {
     toast(e.message || 'No se pudo agregar el emoji, intenta de nuevo', 'err');
   }
 }
 
-async function removeReaction(box, id, modalOverlay = null) {
+async function removeReaction(box, id, onSuccess = null) {
   try {
     await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones/${id}`, { method: 'DELETE' });
     toast('Emoji quitado', 'ok');
-    if (modalOverlay) modalOverlay.remove();
     reloadReacciones(box);
+    if (onSuccess) onSuccess();
   } catch (e) {
     toast('No se pudo quitar el emoji, intenta de nuevo', 'err');
   }
@@ -4743,6 +4721,22 @@ export async function openAddEmojiModal(box, pool) {
     : (Array.isArray(pool) ? pool : []);
   const inPool = new Map(poolList.map(r => [r.emoji_text, r.id]));
   const modalBody = el('div', { class: 'emoji-modal-box' });
+
+  // Refresca el pool y re-renderiza el tab activo sin cerrar el modal --
+  // dejarlo abierto es lo que permite agregar varios emojis seguidos en una
+  // sola sesión en vez de tener que volver a abrir "Añadir emoji" por cada uno.
+  async function refreshModal() {
+    try {
+      const fresh = await apiFetch(`/api/server/${GUILD_ID}/settings/reacciones`);
+      const freshList = (fresh && fresh.reactions) || [];
+      inPool.clear();
+      for (const r of freshList) inPool.set(r.emoji_text, r.id);
+    } catch (e) {
+      // Si falla el refresh, seguimos con el inPool anterior (queda algo
+      // desactualizado, pero el modal no se rompe por esto).
+    }
+    renderTabContent();
+  }
 
   let activeTab = 'unicode';
   let customSearchQuery = '';
@@ -4789,7 +4783,7 @@ export async function openAddEmojiModal(box, pool) {
           if (e.key === 'Enter') {
             e.preventDefault();
             const val = input.value.trim();
-            if (val) addEmojiToPool(box, val, overlay);
+            if (val) addEmojiToPool(box, val, refreshModal);
           }
         },
       });
@@ -4801,7 +4795,7 @@ export async function openAddEmojiModal(box, pool) {
           class: 'btn btn-primary',
           onclick: () => {
             const val = input.value.trim();
-            if (val) addEmojiToPool(box, val, overlay);
+            if (val) addEmojiToPool(box, val, refreshModal);
           },
         }, 'Agregar')
       );
@@ -4816,7 +4810,7 @@ export async function openAddEmojiModal(box, pool) {
             class: 'emoji-frequent-btn',
             title: ch,
             'aria-label': ch,
-            onclick: () => addEmojiToPool(box, ch, overlay),
+            onclick: () => addEmojiToPool(box, ch, refreshModal),
           }, ch));
         }
         recentsSection = el('div', {},
@@ -4832,7 +4826,7 @@ export async function openAddEmojiModal(box, pool) {
           class: 'emoji-frequent-btn',
           title: ch,
           'aria-label': ch,
-          onclick: () => addEmojiToPool(box, ch, overlay),
+          onclick: () => addEmojiToPool(box, ch, refreshModal),
         }, ch));
       }
 
@@ -4910,9 +4904,9 @@ export async function openAddEmojiModal(box, pool) {
             onclick: () => {
               if (selected) {
                 const reactionId = inPool.get(text);
-                if (reactionId) removeReaction(box, reactionId, overlay);
+                if (reactionId) removeReaction(box, reactionId, refreshModal);
               } else {
-                addEmojiToPool(box, text, overlay);
+                addEmojiToPool(box, text, refreshModal);
               }
             },
           },

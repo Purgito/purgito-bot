@@ -218,3 +218,35 @@ def test_api_stats_activity_sin_datos_no_rompe(memory_db):
     assert data["by_day"] == []
     assert data["top_contributors"] == []
     assert data["top_words"] == []
+
+
+# ─── _api_stats: reading_channels ───────────────────────────────────────────
+
+
+def test_api_stats_reading_channels_usa_corpus_allowed_channels(memory_db, monkeypatch):
+    """reading_channels tiene que reflejar corpus_allowed_channels (la
+    allowlist real de aprendizaje), no "canales de texto menos ignorados" --
+    ese criterio viejo hacía que un servidor con 4 canales habilitados para
+    aprender mostrara igual "37 de 37" si ninguno estaba en ignored_channels.
+    """
+
+    async def _run():
+        await db.add_corpus_channel(_GUILD, 1)
+        await db.add_corpus_channel(_GUILD, 2)
+        await db.add_corpus_channel(_GUILD, 3)
+        await db.add_ignored_channel(_GUILD, 2)  # habilitado pero mudo: no cuenta
+        channels = [
+            SimpleNamespace(id=1, is_nsfw=lambda: False),
+            SimpleNamespace(id=2, is_nsfw=lambda: False),
+            SimpleNamespace(id=3, is_nsfw=lambda: True),  # NSFW: nunca aprende
+            SimpleNamespace(id=4, is_nsfw=lambda: False),  # ni habilitado
+        ]
+        guild = SimpleNamespace(text_channels=channels, member_count=10)
+        monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: guild)
+        return await webapi._api_stats(FakeRequest())
+
+    resp = asyncio.run(_run())
+    assert resp.status == 200
+    data = json.loads(resp.body)
+    assert data["text_channels"] == 4
+    assert data["reading_channels"] == 1

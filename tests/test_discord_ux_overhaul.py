@@ -297,6 +297,8 @@ def test_build_dm_welcome_embed():
 def test_empty_corpus_reply():
     msg = generation.empty_corpus_reply(_GUILD_ID, "es", throttle=False)
     assert "/setup" in msg
-    assert "Todavía no he aprendido de este servidor" in msg
-    # No debe contener menciones al dashboard como requisito obligatorio
+    assert "Un administrador puede usar" in msg
+    # No debe narrar el estado interno del bot en primera persona antes de
+    # la instrucción, ni mencionar el motor de generación como detalle interno.
+    assert "Todavía no he aprendido" not in msg
     assert "Markov" not in msg

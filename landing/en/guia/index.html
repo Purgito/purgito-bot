@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-H/adk0YGYX2cY2MubyTgL6LPgQQMNyTC5v6XrEkx9vk='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-ecos2brSBJ4QCGr65yAxhkrLxMCkIf1hCNWov0kqRe8='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Purgito Guide — How the bot works — Purgito</title>
 <meta name="description" content="Learn how Purgito works, from the learning system and Chat to GIFs, memes, embeds, YouTube, and Premium.">
@@ -30,7 +30,7 @@
 <link rel="alternate" hreflang="en" href="https://purgito.app/en/guia">
 <link rel="alternate" hreflang="x-default" href="https://purgito.app/es/guia">
 <link rel="icon" href="/assets/icon.png">
-<link rel="stylesheet" href="/style.css?v=5c5f63c1">
+<link rel="stylesheet" href="/style.css?v=ab3ab0f2">
 </head>
 <body>
 
@@ -523,7 +523,7 @@
     <h2 class="guia-sec-title">How Purgito learns</h2>
   </div>
   <p class="guia-lead">
-    Purgito's normal response generation runs locally through Markov chains that link real words and idioms from your server. For the specific meme-caption feature, there's an optional integration with Groq (with automatic fallback to Markov if it's not configured or doesn't respond).
+    Purgito's normal response generation runs locally through Markov chains that link real words and idioms from your server. For meme captions, Purgito also uses Groq, a language model that gives better results than Markov chains.
   </p>
 
   <div class="guia-pipeline" aria-label="Learning flow">
@@ -688,7 +688,7 @@
         <span>Automatic rotation (FIFO)</span>
       </div>
       <p class="guia-card-p">
-        Once the storage limit is reached (10,000 messages on the Free plan / 50,000 on Premium), the system drops the oldest messages proportionally across channels.
+        Once the storage limit is reached (15,000 messages on the Free plan / 50,000 on Premium), the system drops the oldest messages proportionally across channels.
       </p>
     </div>
 
@@ -1278,7 +1278,7 @@
     <h2 class="guia-sec-title">Have more questions or need help?</h2>
   </div>
   <p class="guia-lead">
-    We're here to help you get the most out of Purgito in your community.
+    Get help in the support server or check the technical documentation.
   </p>
 
   <div class="docs-cards">

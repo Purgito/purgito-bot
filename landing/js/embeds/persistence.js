@@ -18,7 +18,7 @@ addStrings({
   es: {
     'embedsPersistence.historyLayoutSummary': 'Layout con {count} bloque(s)',
     'embedsPersistence.historyEmbedSummary': '{count} embed(s)',
-    'embedsPersistence.historyEmpty': 'Todavía no hay versiones guardadas — se van a guardar solas a medida que editás.',
+    'embedsPersistence.historyEmpty': 'Todavía no hay versiones guardadas — se van a guardar solas a medida que editas.',
     'embedsPersistence.view': 'Ver',
     'embedsPersistence.restore': 'Restaurar',
     'embedsPersistence.historyTitle': 'Historial local',

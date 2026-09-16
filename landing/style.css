@@ -3126,6 +3126,7 @@ body.no-scroll {
   max-height: calc(100dvh - 7rem);
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: rgba(19, 196, 216, .6) transparent;
 }
 
 .docs-sidebar.guia-sidebar summary {

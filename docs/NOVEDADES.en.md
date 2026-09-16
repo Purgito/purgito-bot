@@ -29,6 +29,10 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - A heads-up in the updates channel when a server is getting close to or hits the cap for saved GIFs or special phrases.
 
 ### Improved
+- The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
+- The server switcher in the dashboard no longer looks cramped against the sidebar's edge.
+- A single module search in the dashboard: there used to be two doing the same thing, and the sidebar one disappeared when you collapsed it.
+- More consistent spacing between title, description, and content within the Stats tab.
 - The welcome message no longer mentions memes on non-Premium servers.
 - Special phrases and configurable reactions are no longer Premium-only: available on every server.
 - When automatic memes can't post (no saved photos, or not enough conversation), Purgito now warns once in the channel instead of silently failing every few minutes.
@@ -39,6 +43,9 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The dashboard's sidebar now starts with its categories collapsed (only the one for the module you're viewing opens), so it no longer has its own scroll separate from the rest of the page.
 
 ### Fixed
+- The dashboard's YouTube module showed an error ("emptyState is not defined") instead of the subscription list.
+- Stats showed every text channel as "read" even when only a few were actually enabled to learn from.
+- In Automatic reactions, adding an emoji closed the modal (you had to reopen it for each one) and adding several in a row often got blocked for too many requests.
 - A channel with a lot of history no longer eats into the learned-message quota of other channels on the same server — the limit is now per channel.
 - Same fix for `/imitar`: a very active member no longer displaces another member's saved style.
 - Videos flagged as sensitive content by Instagram, TikTok, or Twitter can now only be uploaded with `!dl` in a channel marked NSFW.
@@ -47,7 +54,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 ## Version 1.1.0 — June 28, 2026
 
 ### New
-- Meme generation with `/momo` and `/meme`, with AI-generated captions and an automatic fallback when there's no connection.
+- Meme generation with `/momo` and `/meme`, with AI-generated captions.
 - Image collection for memes: reacting with 🎯 on a photo saves it as a template.
 - Schedulable automatic memes per channel.
 - Configurable special phrases, with a low chance of appearing and a minimum time between each.

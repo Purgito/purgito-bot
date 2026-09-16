@@ -259,6 +259,12 @@ _rate_post: LRUDict = LRUDict(512)
 _rate_delete: LRUDict = LRUDict(512)
 _rate_gif_verify: LRUDict = LRUDict(512)
 _rate_status_search: LRUDict = LRUDict(512)
+# Bucket propio en vez de compartir _rate_post: armar la colección de
+# reacciones es agregar emojis de a uno en un modal que se queda abierto
+# (varios clics seguidos en la misma sesión), no una acción puntual como el
+# resto de los POST que comparten _rate_post -- con el límite genérico de 5
+# se bloqueaba todo el tiempo sin ser abuso real.
+_rate_reacciones: LRUDict = LRUDict(512)
 # Sin esto, /auth/callback no tenía ningún límite: cada hit con un `state`
 # válido (basta con pedir /auth/login primero, gratis) dispara un POST real a
 # discord.com/oauth2/token con nuestro client_id/client_secret. Discord
@@ -2441,11 +2447,23 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
     ignored = set(await list_ignored_channels(guild_id))
     text_channels = list(getattr(guild, "text_channels", []))
     mention_channels = await list_mention_channels(guild_id)
+    corpus_channels = set(await list_corpus_channels(guild_id))
     return web.json_response(
         {
             "corpus_total": await count_guild_corpus_messages(guild_id),
-            # Canales que el bot lee = los de texto menos los ignorados.
-            "reading_channels": len([c for c in text_channels if c.id not in ignored]),
+            # Canales que el bot lee = allowlist del corpus, menos ignorados y
+            # NSFW -- el mismo criterio que aplica _save_message_to_corpus en
+            # cogs/chat.py. Lista vacía de corpus_allowed_channels = no lee
+            # ninguno, no "todos menos los ignorados".
+            "reading_channels": len(
+                [
+                    c
+                    for c in text_channels
+                    if c.id in corpus_channels
+                    and c.id not in ignored
+                    and not c.is_nsfw()
+                ]
+            ),
             "text_channels": len(text_channels),
             # Lista vacía = responde en todos (ver mention_channels en cogs/chat.py).
             "reply_channels": len(mention_channels) or len(text_channels),
@@ -2690,9 +2708,9 @@ async def _api_reacciones_post(request: web.Request, guild_id: int) -> web.Respo
     # tiene cuota (MAX_*_PER_GUILD) -- es la única tabla de este estilo sin
     # ningún tope. Cada fila es ínfima y esto no toca el ThreadPoolExecutor,
     # así que no amerita una cuota nueva en limits.env (eso sí sería
-    # funcionalidad nueva); el rate limit por IP ya establecido para el resto
-    # de los POST de settings alcanza para cerrar el hueco.
-    if not _rate_ok(_rate_post, _client_ip(request), 5):
+    # funcionalidad nueva); el rate limit por IP alcanza para cerrar el hueco
+    # (bucket propio, ver _rate_reacciones más arriba).
+    if not _rate_ok(_rate_reacciones, _client_ip(request), 20):
         return web.json_response({"error": "demasiadas solicitudes"}, status=429)
     data = await _json_body(request)
     emoji = (data.get("emoji") or "").strip() if data else ""
@@ -5875,12 +5893,7 @@ async def _api_premium_checkout(request: web.Request, guild_id: int) -> web.Resp
                 POLAR_SERVER,
             )
             return web.json_response(
-                {
-                    "error": (
-                        "Polar rechazó la creación del checkout por permisos "
-                        "insuficientes del token"
-                    )
-                },
+                {"error": "no se pudo iniciar el pago, intenta de nuevo más tarde"},
                 status=502,
             )
         log.exception(

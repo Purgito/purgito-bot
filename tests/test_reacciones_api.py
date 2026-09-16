@@ -56,7 +56,7 @@ def allow_guild_access(monkeypatch):
     monkeypatch.setattr(webapi, "get_session", fake_get_session)
     monkeypatch.setattr(webapi, "check_guild_access", fake_check_guild_access)
     monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: object())
-    monkeypatch.setattr(webapi, "_rate_post", webapi.LRUDict(64))
+    monkeypatch.setattr(webapi, "_rate_reacciones", webapi.LRUDict(64))
 
 
 def _run(request):
@@ -72,7 +72,7 @@ def test_agrega_una_reaccion_al_pool(memory_db):
 
 
 def test_respeta_el_rate_limit(memory_db):
-    for i in range(5):
+    for i in range(20):
         resp = _run(FakeRequest(emoji=f"emoji{i}"))
         assert resp.status == 200
 
