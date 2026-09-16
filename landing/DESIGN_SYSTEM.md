@@ -188,6 +188,43 @@ pensás que 0 es inválido). No se agrega si la interfaz ya lo dice sola (ej.:
 un campo llamado "Roles exentos del límite" no necesita un ⓘ aclarando que
 "exento" significa "no cuenta acá").
 
+## Nivel de acceso "Gestor" (co-admin sin MANAGE_GUILD)
+
+El dashboard tenía un solo nivel de acceso: MANAGE_GUILD/owner de Discord
+(`check_guild_access`/`@guild_api` en webapi.py), todo o nada. "Gestor" es
+un segundo nivel, más chico, que el admin real delega eligiendo un ROL de
+Discord (tab Servidor → General → "Rol de Gestor", `settings.manager_role_id`)
+— cualquier miembro con ese rol entra al panel sin necesitar el permiso de
+Discord "Gestionar servidor".
+
+Alcance fijo, no configurable por módulo: Anuncios, Embeds, Frases,
+Triggers, Reacciones, GIFs, YouTube, Twitch, RSS (+ `/channels` y `/roles`
+de solo lectura, que esas áreas necesitan para sus selectores). Todo lo
+demás — Premium, Canales, Chat, Estilo, Estadísticas, Historial, Updates,
+el propio General — sigue admin-only. Se decidió así (un nivel fijo, no
+permisos granulares por módulo) para no multiplicar la superficie de
+autorización: una tabla de permisos por módulo es mucho más código y mucho
+más fácil de dejar mal configurada que una lista fija y auditable.
+
+`GESTOR_ALLOWED_MODULES` en dash.js (sidebar/paleta de comandos/redirect en
+`activate()`) tiene que reflejar EXACTAMENTE la misma lista de módulos que
+`guild_api_manager` en webapi.py acepta del lado del servidor — son dos
+listas independientes a propósito (frontend no es el límite de seguridad
+real, solo evita que un Gestor vea un link que le va a tirar 403), pero
+tienen que coincidir o alguien legítimo no encuentra cómo llegar a algo que
+sí puede usar, o ve un link a algo que no puede.
+
+`guild_api_manager` es casi una copia de `guild_api` (mismo cuerpo, cambia
+`check_guild_access` por `check_guild_manager_access`) a propósito: se
+prefirió duplicar ~15 líneas antes que agregarle un parámetro a `guild_api`
+y arriesgar los ~90 endpoints que ya lo usaban. `check_guild_manager_access`
+nunca mira permisos de Discord (a diferencia de MANAGE_GUILD): solo si el
+usuario tiene, ahora mismo, el rol puntual configurado (`fetch_member`, no
+sesión ni cache OAuth). Al guardar el rol, `_api_manager_role_put` rechaza
+@everyone (le daría Gestor a todo el servidor de un click) y roles
+`managed` (Nitro Booster, integraciones) — no son errores de tipeo, son
+casos reales que un admin puede elegir sin querer.
+
 ## Backlog (no implementar todavía — anotado para cuando duela)
 
 - **Canales → matriz**: filtro de texto + toggle "solo configurados" ya

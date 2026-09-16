@@ -74,7 +74,7 @@ addStrings({
     'dash.mod.canales.label': 'Canales y Permisos',
     'dash.mod.canales.desc': 'Matriz de lectura/respuesta y canales o roles ignorados',
     'dash.mod.general.label': 'General',
-    'dash.mod.general.desc': 'Prefijo de comandos y borrado rápido de memoria reciente',
+    'dash.mod.general.desc': 'Prefijo de comandos, borrado rápido de memoria reciente y el rol de Gestor',
   },
   en: {
     'dash.cat.principal': 'Main',
@@ -120,7 +120,7 @@ addStrings({
     'dash.mod.canales.label': 'Channels and Permissions',
     'dash.mod.canales.desc': 'Read/reply matrix and ignored channels or roles',
     'dash.mod.general.label': 'General',
-    'dash.mod.general.desc': 'Command prefix and quick recent-memory cleanup',
+    'dash.mod.general.desc': 'Command prefix, quick recent-memory cleanup, and the Manager role',
   },
 });
 
@@ -354,6 +354,36 @@ export const MODULES = [
   },
 ];
 
+// Módulos que un Gestor (rol delegado, sin MANAGE_GUILD — ver
+// check_guild_manager_access/guild_api_manager en webapi.py) puede ver.
+// Tiene que reflejar EXACTAMENTE la misma lista que decide ahí qué
+// endpoints aceptan ese nivel reducido: si un módulo entra acá pero su
+// endpoint sigue en @guild_api a secas, un Gestor lo ve en la sidebar y se
+// lleva un 403 al abrirlo; al revés, si el endpoint es @guild_api_manager
+// pero el módulo no está acá, un Gestor legítimo no tiene cómo llegar.
+const GESTOR_ALLOWED_MODULES = new Set([
+  'anuncios', 'embeds', 'frases', 'triggers', 'reacciones', 'gifs',
+  'youtube', 'twitch', 'rss',
+]);
+
+function isGestorGuild() {
+  return Boolean(_activeGuild && _activeGuild.access === 'manager');
+}
+
+function isModuleAllowed(key) {
+  return !isGestorGuild() || GESTOR_ALLOWED_MODULES.has(key);
+}
+
+// Primer módulo utilizable para el nivel de acceso actual. INICIO no sirve
+// de default para un Gestor: carga /stats, /style, /settings/updates y
+// /settings/corpus, los cuatro admin-only, así que le saldría vacía o con
+// errores en vez de decir claramente "no tenés acceso a esto".
+function defaultModuleKey() {
+  if (!isGestorGuild()) return 'inicio';
+  const first = MODULES.find(m => GESTOR_ALLOWED_MODULES.has(m.key));
+  return first ? first.key : 'inicio';
+}
+
 const SIDEBAR_COLLAPSED_KEY = 'purgito_dash_sidebar_collapsed';
 
 function getStoredSidebarCollapsed() {
@@ -437,7 +467,8 @@ export function toggleSidebarCollapse() {
 function currentTab() {
   const m = location.pathname.match(/\/dashboard\/\d{1,25}\/([a-zA-Z0-9_-]+)/);
   const seg = m ? m[1] : (location.pathname.split('/')[4] || 'inicio');
-  return MODULES.some(mod => mod.key === seg) ? seg : 'inicio';
+  const valid = MODULES.some(mod => mod.key === seg) && isModuleAllowed(seg);
+  return valid ? seg : defaultModuleKey();
 }
 
 // ---------------- PERSISTENCIA DE CATEGORÍAS EN SIDEBAR ----------------
@@ -738,6 +769,7 @@ function openCommandPalette() {
     resultsList.innerHTML = '';
 
     matches = MODULES.filter(m => {
+      if (!isModuleAllowed(m.key)) return false;
       if (!q) return true;
       if (m.label.toLowerCase().includes(q)) return true;
       if (m.desc.toLowerCase().includes(q)) return true;
@@ -1017,7 +1049,7 @@ export function renderSidebar(activeTab) {
   const collapsedCats = getCollapsedCategories();
 
   for (const cat of CATEGORIES) {
-    const catModules = MODULES.filter(m => m.cat === cat.key);
+    const catModules = MODULES.filter(m => m.cat === cat.key && isModuleAllowed(m.key));
     if (!catModules.length) continue;
 
     const hasActiveModule = catModules.some(m => m.key === activeTab);
@@ -1081,7 +1113,7 @@ export function renderSidebar(activeTab) {
 
   // 4. Sección dedicada para Purgito Premium
   const premiumMod = MODULES.find(m => m.key === 'premium');
-  if (premiumMod) {
+  if (premiumMod && isModuleAllowed('premium')) {
     const isPremiumActive = activeTab === 'premium';
     const premiumGroup = el('div', { class: 'dash-sidebar-premium-section' },
       el('div', { class: 'dash-sidebar-divider' }),
@@ -1191,13 +1223,16 @@ export async function selectGuild(newGuildId) {
   if (!newGuildId || newGuildId === GUILD_ID) return;
   if (!confirmDiscardUnsaved()) return;
 
+  // Segmento de la URL vieja, antes de tocar nada -- se revalida más abajo
+  // contra el acceso del guild DESTINO, no el de origen (un Gestor en un
+  // servidor y admin en otro no debe arrastrar una tab admin-only al saltar
+  // entre los dos).
+  const requestedTab = currentTab();
+
   setGuildId(newGuildId);
   clearGuildCaches();
   _loadEpoch++;
   _quotaAlerts = {};
-
-  const curTab = currentTab();
-  history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
 
   const data = await fetchUserGuilds();
   const configured = (data && data.configured) || [];
@@ -1205,6 +1240,8 @@ export async function selectGuild(newGuildId) {
   if (_activeGuild) {
     document.title = `${_activeGuild.name} · Purgito`;
   }
+  const curTab = isModuleAllowed(requestedTab) ? requestedTab : defaultModuleKey();
+  history.pushState({}, '', getDashboardUrl(newGuildId, curTab));
   renderTopBar(_activeGuild);
 
   activate(curTab, false);
@@ -1220,9 +1257,16 @@ export function activate(key, push) {
     // (push=false): la devolvemos a la tab que se sigue mostrando en vez de
     // dejar la barra de direcciones desincronizada del contenido.
     if (!push) {
-      history.pushState({}, '', getDashboardUrl(GUILD_ID, _activeModuleKey || 'inicio'));
+      history.pushState({}, '', getDashboardUrl(GUILD_ID, _activeModuleKey || defaultModuleKey()));
     }
     return;
+  }
+  // Bookmark viejo, paleta de comandos o un link a mano hacia un módulo que
+  // el nivel de acceso actual no puede usar (ver GESTOR_ALLOWED_MODULES):
+  // mejor mandarlo a algo que sí funciona que dejarlo pedir datos a
+  // endpoints admin-only y comerse un 403 silencioso.
+  if (!isModuleAllowed(key)) {
+    key = defaultModuleKey();
   }
   _activeModuleKey = key;
   renderSidebar(key);
@@ -2964,6 +3008,12 @@ addStrings({
     'dash.amnesia.confirmQuestion': 'Esto borra mensajes y estilo por usuario de las últimas 24 horas y no se puede deshacer. ¿Seguro?',
     'dash.amnesia.successMsg': 'Borrados {corpus} mensajes y {user} de estilo por usuario',
     'dash.amnesia.errorMsg': 'No se pudo borrar el corpus reciente, intenta de nuevo',
+    'dash.managerRole.title': 'Rol de Gestor',
+    'dash.managerRole.desc': 'Cualquier miembro con este rol entra al panel con acceso a Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS — sin acceso a Premium, Canales, Chat, Estadísticas, Historial ni este módulo. No hace falta que tenga el permiso de Discord "Gestionar servidor".',
+    'dash.managerRole.label': 'Rol',
+    'dash.managerRole.none': 'Ninguno — nadie entra como Gestor',
+    'dash.managerRole.saved': 'Rol de Gestor actualizado',
+    'dash.managerRole.errorSave': 'No se pudo guardar el rol de Gestor',
   },
   en: {
     'dash.updates.moduleTitle': 'Updates Channel',
@@ -2989,6 +3039,12 @@ addStrings({
     'dash.amnesia.confirmQuestion': "This deletes messages and per-user style from the last 24 hours and can't be undone. Are you sure?",
     'dash.amnesia.successMsg': 'Deleted {corpus} messages and {user} per-user style entries',
     'dash.amnesia.errorMsg': "Couldn't delete the recent corpus, try again",
+    'dash.managerRole.title': 'Manager role',
+    'dash.managerRole.desc': "Any member with this role gets panel access to Anuncios, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS — no access to Premium, Channels, Chat, Stats, History, or this module. They don't need the Discord \"Manage Server\" permission.",
+    'dash.managerRole.label': 'Role',
+    'dash.managerRole.none': "None — nobody gets Manager access",
+    'dash.managerRole.saved': 'Manager role updated',
+    'dash.managerRole.errorSave': "Couldn't save the Manager role",
   },
 });
 
@@ -3072,6 +3128,35 @@ async function loadGeneralModule() {
     prefixSection = formGroup(t('dash.prefijo.moduleTitle'), el('p', { class: 'error' }, e.message));
   }
 
+  let managerRoleSection;
+  try {
+    const [managerData, roles] = await Promise.all([
+      apiFetch(`/api/server/${GUILD_ID}/settings/manager-role`),
+      getRoles(),
+    ]);
+    const select = roleSelect(roles, managerData.role_id, t('dash.managerRole.none'));
+    const saveBtn = el('button', { class: 'btn btn-primary' }, t('dash.common.save'));
+    saveBtn.onclick = async () => {
+      try {
+        await apiFetch(`/api/server/${GUILD_ID}/settings/manager-role`, {
+          method: 'PUT', body: { role_id: select.value || null },
+        });
+        toast(t('dash.managerRole.saved'), 'ok');
+      } catch (e) {
+        toast(humanError(e) || t('dash.managerRole.errorSave'), 'err');
+      }
+    };
+    managerRoleSection = formGroup(t('dash.managerRole.title'),
+      el('p', { class: 'dim' }, t('dash.managerRole.desc')),
+      el('div', { class: 'field' },
+        el('label', {}, t('dash.managerRole.label')),
+        el('div', { class: 'chain-fields' }, select, saveBtn)
+      )
+    );
+  } catch (e) {
+    managerRoleSection = formGroup(t('dash.managerRole.title'), el('p', { class: 'error' }, e.message));
+  }
+
   if (!box) return;
   box.innerHTML = '';
   box.append(
@@ -3079,7 +3164,8 @@ async function loadGeneralModule() {
     formGroup(t('dash.amnesia.moduleTitle'),
       el('p', { class: 'dim' }, t('dash.amnesia.moduleDesc')),
       amnesiaButton()
-    )
+    ),
+    managerRoleSection
   );
 }
 
@@ -4194,6 +4280,25 @@ function openEditExcludedUserModal(user, onRefresh) {
   modal = panelModal(`Editar exclusión: ${user.user_name}`, modalBody);
 }
 
+addStrings({
+  es: {
+    'dash.chat.exportBtn': 'Exportar configuración',
+    'dash.chat.importBtn': 'Importar configuración',
+    'dash.chat.exportImportHelp': 'Exporta o importa solo el comportamiento y las probabilidades de esta tab (activado, frecuencia, límites). No incluye canales, frases, triggers ni reacciones: esas dependen de IDs propios de este servidor y no tendría sentido copiarlas a otro.',
+    'dash.chat.importSuccess': 'Configuración importada',
+    'dash.chat.importInvalidFile': 'Ese archivo no es una configuración válida de Purgito',
+    'dash.chat.importError': 'No se pudo importar la configuración',
+  },
+  en: {
+    'dash.chat.exportBtn': 'Export settings',
+    'dash.chat.importBtn': 'Import settings',
+    'dash.chat.exportImportHelp': "Exports or imports only this tab's behavior and probabilities (enabled, frequency, limits). It doesn't include channels, phrases, triggers, or reactions: those depend on IDs specific to this server, so copying them to another one wouldn't make sense.",
+    'dash.chat.importSuccess': 'Settings imported',
+    'dash.chat.importInvalidFile': "That file isn't a valid Purgito configuration",
+    'dash.chat.importError': "Couldn't import the settings",
+  },
+});
+
 async function loadChatTab() {
   // Manejo de compatibilidad con hashes antiguos (#reacciones, #contenido, etc.)
   const hash = location.hash.slice(1);
@@ -4239,6 +4344,83 @@ async function loadChatTab() {
     box.append(el('div', { class: 'chat-master' },
       el('label', { class: 'toggle' }, check, 'Chat activado'),
       helpIcon('Apaga las respuestas a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch.')));
+
+    // Exportar/importar comportamiento y probabilidades entre servidores.
+    // A propósito NO incluye canales, frases, triggers ni reacciones: esas
+    // listas guardan IDs de canal/rol que solo existen en este servidor —
+    // importarlas tal cual en otro server dejaría referencias colgantes en
+    // vez de portar algo útil. Lo que sí es 100% portable son los números
+    // de esta tab (activado + las 6 probabilidades/límites), así que es lo
+    // único que exporta. Mismo patrón (Blob + <a download>, <input
+    // type=file> oculto) que ya usa exportar/importar plantillas de embeds
+    // en tabs/plantillas.js — reusa los mismos dos endpoints PUT que ya
+    // usa cada campo individual, nada nuevo del lado del servidor.
+    const exportChatBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      title: t('dash.chat.exportBtn'),
+      onclick: () => {
+        const payload = {
+          purgito_chat_config: true,
+          enabled: chat.enabled,
+          auto_generate_every: chat.auto_generate_every,
+          auto_generate_probability: chat.auto_generate_probability,
+          gif_response_probability: chat.gif_response_probability,
+          frase_probability: chat.frase_probability,
+          reaction_probability: chat.reaction_probability,
+          mention_rate_limit: chat.mention_rate_limit,
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = el('a', { href: url, download: 'purgito-comportamiento-chat.json' });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      },
+    }, icon('download'), t('dash.chat.exportBtn'));
+
+    const importChatInput = el('input', { type: 'file', accept: 'application/json', style: 'display: none;' });
+    importChatInput.onchange = async () => {
+      const file = importChatInput.files && importChatInput.files[0];
+      importChatInput.value = '';
+      if (!file) return;
+      let payload;
+      try {
+        payload = JSON.parse(await file.text());
+      } catch (e) {
+        toast(t('dash.chat.importInvalidFile'), 'err');
+        return;
+      }
+      if (!payload || typeof payload !== 'object' || !payload.purgito_chat_config) {
+        toast(t('dash.chat.importInvalidFile'), 'err');
+        return;
+      }
+      try {
+        await trackSave('chat:enabled', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat`, {
+          method: 'PUT', body: { enabled: Boolean(payload.enabled) },
+        }));
+        const tunableBody = {};
+        for (const k of ['auto_generate_every', 'auto_generate_probability', 'gif_response_probability', 'frase_probability', 'reaction_probability', 'mention_rate_limit']) {
+          if (typeof payload[k] === 'number') tunableBody[k] = payload[k];
+        }
+        await trackSave('tunables:import', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
+          method: 'PUT', body: tunableBody,
+        }));
+        toast(t('dash.chat.importSuccess'), 'ok');
+        loadChatTab();
+      } catch (e) {
+        toast(humanError(e) || t('dash.chat.importError'), 'err');
+      }
+    };
+    const importChatBtn = el('button', {
+      type: 'button', class: 'btn btn-secondary btn-sm',
+      title: t('dash.chat.importBtn'),
+      onclick: () => importChatInput.click(),
+    }, icon('upload'), t('dash.chat.importBtn'));
+
+    box.append(el('div', { class: 'chat-import-export' },
+      exportChatBtn, importChatBtn, importChatInput,
+      helpIcon(t('dash.chat.exportImportHelp'))));
 
     // Cadena de comportamiento
     const comportamientoSection = formGroup('Comportamiento y probabilidades',

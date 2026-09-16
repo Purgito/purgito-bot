@@ -24,6 +24,9 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Per-server custom text command prefix (it used to be fixed at `!`).
 - The dashboard's GIFs tab now shows who sent each GIF, with a view to see just one person's.
 - Expanded Stats tab: activity over the last 14 days, who fed the corpus the most, and the most frequent words.
+- Manager role (Server tab → General): delegate a Discord role with access to Announcements, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS, without giving out Administrator or full "Manage Server".
+- Export and import the chat's behavior settings (enabled, frequency, and probabilities) as a file, to reuse it on another server.
+- A heads-up in the updates channel when a server is getting close to or hits the cap for saved GIFs or special phrases.
 
 ### Improved
 - The welcome message no longer mentions memes on non-Premium servers.

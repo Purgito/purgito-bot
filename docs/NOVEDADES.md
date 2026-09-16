@@ -24,6 +24,9 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Prefijo de comandos de texto personalizable por servidor (antes era fijo, `!`).
 - La tab GIFs del dashboard ahora muestra quién mandó cada GIF, con una vista para ver solo los de una persona puntual.
 - Tab Estadísticas ampliada: actividad de los últimos 14 días, quién alimentó más el corpus y las palabras más frecuentes.
+- Rol de Gestor (tab Servidor → General): delega un rol de Discord con acceso a Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS, sin darle Administrador ni "Gestionar servidor" completo.
+- Exportar e importar el comportamiento del chat (activado, frecuencia y probabilidades) como archivo, para reutilizarlo en otro servidor.
+- Aviso en el canal de actualizaciones cuando un servidor se acerca o llega al tope de GIFs o frases especiales guardadas.
 
 ### Mejorado
 - El mensaje de bienvenida ya no menciona memes en servidores sin Premium.

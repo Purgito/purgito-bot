@@ -3579,6 +3579,7 @@ iframe.gif-media { pointer-events: none; }
 
 /* Switch maestro del chat */
 .chat-master { display: flex; align-items: center; gap: 6px; margin-bottom: var(--space-4); }
+.chat-import-export { display: flex; align-items: center; gap: 8px; margin-bottom: var(--space-5); }
 
 @media (max-width: 860px) {
   .dash-layout,

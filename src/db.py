@@ -848,6 +848,15 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna custom_prefix ya existe en settings")
+    # Rol de Discord que el admin real del guild elige como "Gestor": acceso
+    # de dashboard a Anuncios/Embeds/Frases/Triggers/Reacciones/GIFs/
+    # YouTube/Twitch/RSS sin MANAGE_GUILD (ver guild_api_manager en
+    # webapi.py). NULL = nadie tiene ese nivel reducido, solo admins reales.
+    try:
+        await _db.execute("ALTER TABLE settings ADD COLUMN manager_role_id INTEGER")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna manager_role_id ya existe en settings")
     # Anti-farmeo: interacciones por hora y por usuario. Los servidores que ya
     # existen quedan con el default (10), igual que uno nuevo.
     try:
@@ -3542,6 +3551,27 @@ async def list_all_updates_channels() -> list[dict]:
     ) as cursor:
         rows = await cursor.fetchall()
     return [{"guild_id": row[0], "channel_id": row[1]} for row in rows]
+
+
+async def get_manager_role(guild_id: int) -> int | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT manager_role_id FROM settings WHERE guild_id=?", (guild_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row[0] if row else None
+
+
+async def set_manager_role(guild_id: int, role_id: int | None) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO settings (guild_id, manager_role_id) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "    manager_role_id=excluded.manager_role_id",
+            (guild_id, role_id),
+        )
+        await db.commit()
 
 
 async def count_corpus_by_channel(guild_id: int) -> list[dict]:
