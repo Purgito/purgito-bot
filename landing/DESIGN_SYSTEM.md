@@ -225,6 +225,21 @@ sesión ni cache OAuth). Al guardar el rol, `_api_manager_role_put` rechaza
 `managed` (Nitro Booster, integraciones) — no son errores de tipeo, son
 casos reales que un admin puede elegir sin querer.
 
+Tener el rol de Gestor NO implica ver todo el servidor en Discord (a
+diferencia de MANAGE_GUILD): puede haber canales de staff privados que ni
+el bot le muestra a ese miembro puntual. `_gestor_channel_visibility`
+(webapi.py) filtra eso — `None` si la request es de un admin real (sin
+filtrar, ve todo como siempre), o una función que solo deja pasar los
+canales que ESE miembro puntual puede ver en Discord si es Gestor. Se
+aplica en los dos lugares donde un canal entra por ID: `_api_channels`
+(la lista que alimenta todos los selectores de canal del panel) y
+`_reject_gestor_hidden_channel` (el mismo criterio, pero para los
+handlers que reciben un channel_id directo en el body en vez de pasar por
+`_resolve_target_channel` — frase_channels, frase_pack_channels,
+triggers, YouTube, Twitch, RSS). Sin esto, ocultarle el canal en el
+picker no alcanzaba: un Gestor que ya conocía o adivinaba el ID podía
+mandar el request a mano igual.
+
 ## Backlog (no implementar todavía — anotado para cuando duela)
 
 - **Canales → matriz**: filtro de texto + toggle "solo configurados" ya

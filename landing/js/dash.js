@@ -9,7 +9,7 @@ import { apiFetch, humanError } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, richEmptyState, loadingCard, renderError, guildIcon, toast, formGroup,
   confirmDelBtn, undoableDelete, helpIcon, accordionGroup,
-  trackSave, hasUnsavedWork, onUnsavedWorkChange, clearUnsavedWork,
+  trackSave, markSavePending, hasUnsavedWork, onUnsavedWorkChange, clearUnsavedWork,
 } from '/js/core/dom.js';
 import {
   GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
@@ -1391,6 +1391,23 @@ export async function initDash() {
 window.onpopstate = async () => {
   const rawGuild = parseGuildId();
   if (rawGuild && rawGuild !== GUILD_ID) {
+    // Atrás/adelante cruzando de servidor: a diferencia de un cambio de tab
+    // dentro del mismo guild, esto no puede resolverse dejando que
+    // activate() pregunte -- para cuando activate() correría, GUILD_ID ya
+    // tendría que haber cambiado para poder pintar el guild nuevo, y de ahí
+    // en más un "cancelar" en el aviso de cambios sin guardar dejaría el
+    // contenido pintado (guild viejo) desincronizado del GUILD_ID real
+    // (guild nuevo): cualquier autoguardado que dispare esa pantalla vieja
+    // terminaría escribiendo en el guild equivocado. Por eso se pregunta
+    // ACÁ, antes de tocar nada, con el guild viejo todavía activo.
+    const oldGuildId = GUILD_ID;
+    const oldTab = _activeModuleKey || currentTab();
+    if (!confirmDiscardUnsaved()) {
+      // El browser ya movió la URL a la del guild nuevo -- la devolvemos a
+      // la del guild viejo, que es el que se sigue mostrando en pantalla.
+      history.pushState({}, '', getDashboardUrl(oldGuildId, oldTab));
+      return;
+    }
     setGuildId(rawGuild);
     clearGuildCaches();
     _loadEpoch++;
@@ -3676,11 +3693,17 @@ function numberField(label, help, { key, value, min, max, step, suffix, save = s
     type: 'number', value: String(value), min: String(min),
     max: String(max), step: String(step || 1), class: 'num-input',
   });
-  input.onchange = debounce(() => {
+  const scheduleSave = debounce(() => {
     save(key, Number(input.value), label, (saved) => {
       input.value = String(saved);
     });
   }, TUNABLE_SAVE_DEBOUNCE_MS);
+  input.onchange = () => {
+    // Marca "pendiente" YA, no cuando el debounce termine -- ver
+    // markSavePending en core/dom.js.
+    markSavePending(`tunable:${key}`);
+    scheduleSave();
+  };
   return el('div', { class: 'field' },
     el('label', {}, label),
     el('div', { class: 'num-row' }, input, suffix ? el('span', { class: 'dim' }, suffix) : null),
@@ -3693,7 +3716,7 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
     type: 'number', min: '0', max: '100', step: '1', value: String(pct), class: 'num-input',
   });
   const bar = el('progress', { class: 'prob-bar', value: String(pct), max: '100' });
-  input.onchange = debounce(() => {
+  const scheduleSave = debounce(() => {
     const clamped = Math.max(0, Math.min(100, Number(input.value) || 0));
     save(key, clamped / 100, label, (saved) => {
       const back = Math.round(saved * 100);
@@ -3701,6 +3724,10 @@ function probabilityField(label, help, { key, value, save = saveTunable }) {
       bar.value = back;
     });
   }, TUNABLE_SAVE_DEBOUNCE_MS);
+  input.onchange = () => {
+    markSavePending(`tunable:${key}`);
+    scheduleSave();
+  };
   return el('div', { class: 'field' },
     el('label', {}, label),
     el('div', { class: 'prob-row' }, input, el('span', { class: 'dim' }, '%')),
@@ -3765,11 +3792,15 @@ function channelOverrideRow(channelId, spec) {
     }
   }
 
-  input.onchange = debounce(() => {
+  const scheduleSave = debounce(() => {
     const lo = kind === 'percent' ? 0 : min;
     const hi = kind === 'percent' ? 100 : max;
     save(Math.max(lo, Math.min(hi, Number(input.value) || 0)));
   }, TUNABLE_SAVE_DEBOUNCE_MS);
+  input.onchange = () => {
+    markSavePending(`override:${channelId}:${key}`);
+    scheduleSave();
+  };
 
   paint();
   return row;
@@ -4403,9 +4434,17 @@ async function loadChatTab() {
         for (const k of ['auto_generate_every', 'auto_generate_probability', 'gif_response_probability', 'frase_probability', 'reaction_probability', 'mention_rate_limit']) {
           if (typeof payload[k] === 'number') tunableBody[k] = payload[k];
         }
-        await trackSave('tunables:import', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
-          method: 'PUT', body: tunableBody,
-        }));
+        // Si el archivo solo traía `enabled` (sin ninguno de los 6 campos
+        // numéricos), el PUT de tunables con body vacío lo rechaza el
+        // backend (400 "ningún valor válido para guardar") -- eso tiraría
+        // el catch de abajo y mostraría "no se pudo importar" aunque
+        // `enabled` ya se haya guardado bien arriba. Se salta directamente
+        // en vez de mandar un PUT que se sabe de antemano que va a fallar.
+        if (Object.keys(tunableBody).length > 0) {
+          await trackSave('tunables:import', () => apiFetch(`/api/server/${GUILD_ID}/settings/chat/tunables`, {
+            method: 'PUT', body: tunableBody,
+          }));
+        }
         toast(t('dash.chat.importSuccess'), 'ok');
         loadChatTab();
       } catch (e) {

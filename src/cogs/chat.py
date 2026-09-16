@@ -88,14 +88,24 @@ _refeed_channels_cooldowns: LRUDict = LRUDict(256)
 
 
 def _check_refeed_channels_cooldown(guild_id: int) -> int | None:
-    """None si se puede lanzar /refeed_channels ahora (y lo marca); si no,
-    segundos restantes de cooldown."""
+    """None si se puede lanzar /refeed_channels ahora; si no, segundos
+    restantes de cooldown. A propósito NO marca el cooldown -- eso lo hace
+    _mark_refeed_channels_cooldown, y solo cuando el comando realmente va a
+    lanzar una corrida (ver refeed_channels más abajo). Si esto marcara acá,
+    un /refeed_channels que rebota contra "ya hay una corrida activa"
+    (_refeed_task_running) gastaría el cooldown igual que uno que sí
+    arrancó, y el reintento legítimo que ese mismo mensaje invita a hacer
+    apenas termine la corrida en curso se encontraría con el cooldown
+    puesto."""
     now = time.monotonic()
     last = _refeed_channels_cooldowns.get(guild_id)
     if last is not None and now - last < REFEED_GUILD_COOLDOWN_SECONDS:
         return int(REFEED_GUILD_COOLDOWN_SECONDS - (now - last))
-    _refeed_channels_cooldowns[guild_id] = now
     return None
+
+
+def _mark_refeed_channels_cooldown(guild_id: int) -> None:
+    _refeed_channels_cooldowns[guild_id] = time.monotonic()
 
 
 # (guild_id, channel_id) con un _refeed_channel en curso -- _refeed_channel
@@ -2067,6 +2077,8 @@ class Chat(commands.Cog):
                 ephemeral=True,
             )
             return
+
+        _mark_refeed_channels_cooldown(interaction.guild.id)
 
         await interaction.response.send_message(
             i18n.t("chat.refeed_channels.starting", locale)

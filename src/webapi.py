@@ -604,9 +604,11 @@ async def check_guild_manager_access(
     """
     denied = await check_guild_access(request, guild_id)
     if denied is None:
-        return (
-            None  # ya es admin real (MANAGE_GUILD/owner) -- no hace falta mirar el rol
-        )
+        # Ya es admin real (MANAGE_GUILD/owner): ve el guild entero, no solo
+        # lo que él mismo puede ver en Discord (ver is_gestor_access, más
+        # abajo, para el caso contrario).
+        request["is_gestor_access"] = False
+        return None
 
     session = await get_session(request)
     if not await _session_logged_in(session):
@@ -628,6 +630,17 @@ async def check_guild_manager_access(
         return denied
 
     if any(r.id == role_id for r in member.roles):
+        # A diferencia de MANAGE_GUILD, el rol de Gestor no implica que el
+        # usuario pueda ver todos los canales del guild en Discord (puede
+        # haber canales privados de staff que ni el bot le muestra a él).
+        # is_gestor_access le dice a los endpoints que listan/usan canales
+        # (_api_channels, _resolve_target_channel) que filtren por lo que
+        # ESTE miembro puntual puede ver, no por lo que ve el bot -- mismo
+        # criterio que _member_can_view_channel ya aplica para corpus, pero
+        # acá scoped a Gestor en vez de a todo guild_api (un admin real SÍ
+        # necesita ver canales que él personalmente tiene ocultos, para
+        # poder auditarlos).
+        request["is_gestor_access"] = True
         return None
     return denied
 
@@ -768,6 +781,54 @@ async def _member_can_view_channel(request: web.Request, guild, channel) -> bool
     except discord.HTTPException:
         return False
     return channel.permissions_for(member).view_channel
+
+
+async def _gestor_channel_visibility(request: web.Request, guild):
+    """None si la request no es de un Gestor (ver is_gestor_access en
+    check_guild_manager_access) -- un admin real no se filtra, ve el guild
+    completo igual que antes. Si SÍ es de un Gestor, filtra a este miembro
+    puntual: a diferencia de MANAGE_GUILD, tener el rol de Gestor no implica
+    que Discord le muestre a este usuario todos los canales del servidor
+    (puede haber canales de staff que ni el bot le expone) -- mismo criterio
+    que _member_can_view_channel, pero un solo fetch_member acá en vez de
+    uno por canal (_api_channels puede listar decenas)."""
+    if not request.get("is_gestor_access"):
+        return None
+    session = await get_session(request)
+    try:
+        member = await guild.fetch_member(int(session["user_id"]))
+    except discord.HTTPException:
+        return lambda channel: False
+    return lambda channel: bool(
+        getattr(channel, "permissions_for", None)
+        and channel.permissions_for(member).view_channel
+    )
+
+
+async def _reject_gestor_hidden_channel(
+    request: web.Request, guild, channel_id: int | None
+) -> web.Response | None:
+    """None si `channel_id` es válido como destino; si no, la respuesta de
+    error. Mismo criterio que _api_channels/_resolve_target_channel (ver
+    _gestor_channel_visibility) pero para los endpoints que reciben un
+    channel_id directo en el body en vez de resolverlo con esa función
+    compartida: frase_channels, frase_pack_channels, triggers, YouTube,
+    Twitch y RSS también dejan elegir a qué canal postea el bot, y sin esto
+    un Gestor podía apuntar cualquiera de esos a un canal que él mismo no
+    ve en Discord con solo conocer/adivinar el ID -- la UI no se lo iba a
+    ofrecer (el picker ya sale filtrado por _api_channels), pero nada
+    impedía mandar el request a mano."""
+    if channel_id is None:
+        return None
+    visible = await _gestor_channel_visibility(request, guild)
+    if visible is None:
+        return None
+    channel = guild.get_channel(channel_id) if guild else None
+    if channel is None or not visible(channel):
+        return web.json_response(
+            {"error": "ese canal no existe en este servidor"}, status=400
+        )
+    return None
 
 
 async def _log_audit(
@@ -1171,10 +1232,17 @@ async def is_channel_eligible_for_chat_simulation(
 
 @guild_api_manager
 async def _api_channels(request: web.Request, guild_id: int) -> web.Response:
-    # guild_api ya garantiza que el bot está en el guild.
+    # guild_api_manager ya garantiza que el bot está en el guild.
     guild = _bot_guild(request, guild_id)
     channels = []
     raw_channels = list(guild.text_channels)
+    # Un Gestor (a diferencia de un admin real) no necesariamente ve todo el
+    # servidor en Discord -- sin este filtro, listaba acá canales privados de
+    # staff que ni siquiera puede abrir, y con el ID podía después mandarles
+    # un embed/anuncio a través de este mismo panel (ver _resolve_target_channel).
+    visible = await _gestor_channel_visibility(request, guild)
+    if visible is not None:
+        raw_channels = [c for c in raw_channels if visible(c)]
     try:
         raw_channels.sort(
             key=lambda c: (
@@ -2776,6 +2844,11 @@ async def _api_frase_channels_post(request: web.Request, guild_id: int) -> web.R
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), channel_id
+    )
+    if denied is not None:
+        return denied
     added = await add_frase_channel(guild_id, channel_id)
     if added:
         await _log_audit(
@@ -2868,6 +2941,11 @@ async def _api_frase_pack_channels_post(
     channel_id = _to_int(data.get("channel_id")) if data else None
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), channel_id
+    )
+    if denied is not None:
+        return denied
     ok = await assign_pack_to_channel(guild_id, channel_id, pack_id)
     if not ok:
         return web.json_response({"error": "pack no encontrado"}, status=404)
@@ -2926,6 +3004,11 @@ async def _api_triggers_post(request: web.Request, guild_id: int) -> web.Respons
     channel_id = _to_int(data.get("channel_id"))
     if channel_id is None:
         return web.json_response({"error": "channel_id inválido"}, status=400)
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), channel_id
+    )
+    if denied is not None:
+        return denied
     match_type = data.get("match_type")
     if match_type not in TRIGGER_MATCH_TYPES:
         return web.json_response(
@@ -3205,6 +3288,11 @@ async def _api_youtube_post(request: web.Request, guild_id: int) -> web.Response
         return web.json_response(
             {"error": "channel_id y discord_channel_id son obligatorios"}, status=400
         )
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), discord_channel_id
+    )
+    if denied is not None:
+        return denied
     resolved = await resolve_youtube_channel(channel_id)
     if resolved is None:
         return web.json_response(
@@ -3318,6 +3406,11 @@ async def _api_twitch_post(request: web.Request, guild_id: int) -> web.Response:
             {"error": "channel_login y discord_channel_id son obligatorios"},
             status=400,
         )
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), discord_channel_id
+    )
+    if denied is not None:
+        return denied
     try:
         resolved = await resolve_twitch_channel(channel_login)
     except TwitchNotConfigured:
@@ -3412,6 +3505,11 @@ async def _api_rss_post(request: web.Request, guild_id: int) -> web.Response:
         return web.json_response(
             {"error": "feed_url y discord_channel_id son obligatorios"}, status=400
         )
+    denied = await _reject_gestor_hidden_channel(
+        request, _bot_guild(request, guild_id), discord_channel_id
+    )
+    if denied is not None:
+        return denied
     resolved = await resolve_rss_feed(feed_url)
     if resolved is None:
         return web.json_response(
@@ -3917,6 +4015,16 @@ async def _resolve_target_channel(
         return None, web.json_response(
             {"error": "el canal no existe en este servidor"}, status=400
         )
+    if guild is not None:
+        # Mismo motivo que el filtro de _api_channels: un Gestor no tiene por
+        # qué poder ver todo lo que el bot ve, así que no puede mandarle un
+        # embed/anuncio a un canal que él mismo no puede abrir en Discord,
+        # aunque conozca su ID (p.ej. porque quedó en un link viejo).
+        visible = await _gestor_channel_visibility(request, guild)
+        if visible is not None and not visible(channel):
+            return None, web.json_response(
+                {"error": "el canal no existe en este servidor"}, status=400
+            )
     me = (guild.me if guild else None) or (
         guild.get_member(request.app["bot"].user.id)
         if guild and request.app.get("bot") and request.app["bot"].user

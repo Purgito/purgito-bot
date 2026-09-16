@@ -257,6 +257,16 @@ export function clearUnsavedWork() {
   notifyUnsavedListeners();
 }
 
+// Marca `key` como pendiente ANTES de que exista una promesa que trackear
+// (p.ej. mientras el debounce de 500ms de un campo todavía no disparó el
+// PUT real). Sin esto, cerrar la pestaña durante ese debounce no avisaba
+// nada -- trackSave() recién se entera del guardado cuando el timer termina
+// y el fetch arranca, no cuando el usuario tocó el campo.
+export function markSavePending(key) {
+  _pendingSaveKeys.add(key);
+  notifyUnsavedListeners();
+}
+
 export async function trackSave(key, fn) {
   _pendingSaveKeys.add(key);
   notifyUnsavedListeners();
