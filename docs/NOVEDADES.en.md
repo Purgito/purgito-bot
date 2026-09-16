@@ -1,6 +1,6 @@
 # Changelog
 
-**Last updated:** September 15, 2026
+**Last updated:** September 16, 2026
 
 A plain-language summary of Purgito's new features, improvements, and
 fixes. The full technical detail, for anyone who wants to read it, lives
@@ -20,13 +20,17 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Export and import embed templates as a file, to reuse them across servers.
 - Scheduled announcements: weekly mode (pick specific weekdays and a fixed time), in addition to interval or daily.
 - Live Twitch alerts: same idea as YouTube notifications, with optional role mentions.
-- `!dl <link>` / `purgito dl <link>`: downloads a video from Instagram, TikTok, or Twitter/X and uploads it to the channel.
+- `!dl <link>` / `purgito dl <link>`: downloads a video from Instagram, TikTok, Twitter/X, or Facebook and uploads it to the channel — also works by replying to a message that has the link, no need to repeat it.
 - Per-server custom text command prefix (it used to be fixed at `!`).
 - The dashboard's GIFs tab now shows who sent each GIF, with a view to see just one person's.
 - Expanded Stats tab: activity over the last 14 days, who fed the corpus the most, and the most frequent words.
 - Manager role (Server tab → General): delegate a Discord role with access to Announcements, Embeds, Phrases, Triggers, Reactions, GIFs, and YouTube/Twitch/RSS, without giving out Administrator or full "Manage Server".
 - Export and import the chat's behavior settings (enabled, frequency, and probabilities) as a file, to reuse it on another server.
 - A heads-up in the updates channel when a server is getting close to or hits the cap for saved GIFs or special phrases.
+- First steps checklist in INICIO: three steps (choosing learning channels, having something learned already, customizing the style) that check themselves off as they're completed, and the checklist hides itself once they're done.
+- Public Changelog page (`/en/changelog`, `/es/novedades`): a plain-language summary of what's changed in Purgito — linked from Resources in the site menu.
+- Filter to show only already-configured channels in the channel matrix, on top of searching by name.
+- Undo when deleting a phrase, trigger, or reaction: a prompt gives you a few seconds to cancel before it's actually deleted.
 
 ### Improved
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
@@ -41,6 +45,8 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The First steps guide in INICIO can be dismissed even with steps left unfinished, and the step about learning new messages no longer reads like a repeat of choosing channels.
 - Fewer redundant dashboard modules: Customization is now edited directly from INICIO (it used to lead to a separate page with the same thing), and Command prefix + Memory cleanup were merged into one module, General. The bot's updates channel setting moved to Automation, alongside YouTube/Twitch/RSS.
 - The dashboard's sidebar now starts with its categories collapsed (only the one for the module you're viewing opens), so it no longer has its own scroll separate from the rest of the page.
+- `/refeed_channels` now has a 60-second per-server cooldown, so it can't be accidentally relaunched several times in a row.
+- HISTORIAL's action filter now has specific options for more change types (user exclusions, command prefix, Twitch, mention channels, updates channel, phrases), instead of lumping them all under "All actions".
 
 ### Fixed
 - The dashboard's YouTube module showed an error ("emptyState is not defined") instead of the subscription list.
@@ -50,6 +56,8 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Same fix for `/imitar`: a very active member no longer displaces another member's saved style.
 - Videos flagged as sensitive content by Instagram, TikTok, or Twitter can now only be uploaded with `!dl` in a channel marked NSFW.
 - The "Choose which channels it learns from" step in INICIO's First steps guide now correctly unchecks itself if you remove all learning channels — it used to stay marked as done forever.
+- Adding a special phrase identical to one that already exists in the same pool is now rejected instead of saving a duplicate.
+- A new GIF with a thumbnail similar to another server's no longer gets mistaken for that server's content.
 
 ## Version 1.1.0 — June 28, 2026
 

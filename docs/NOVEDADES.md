@@ -1,6 +1,6 @@
 # Novedades
 
-**Última actualización:** 15 de septiembre de 2026
+**Última actualización:** 16 de septiembre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
@@ -20,13 +20,17 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Exportar e importar plantillas de embeds como archivo, para reutilizarlas entre servidores.
 - Anuncios programados: modo semanal (elegir días de la semana y una hora fija), además de por intervalo o diario.
 - Avisos de Twitch en vivo: misma idea que las notificaciones de YouTube, con mención por rol opcional.
-- `!dl <link>` / `purgito dl <link>`: descarga un video de Instagram, TikTok o Twitter/X y lo sube al canal.
+- `!dl <link>` / `purgito dl <link>`: descarga un video de Instagram, TikTok, Twitter/X o Facebook y lo sube al canal — también funciona respondiendo a un mensaje que tiene el link, sin tener que repetirlo.
 - Prefijo de comandos de texto personalizable por servidor (antes era fijo, `!`).
 - La tab GIFs del dashboard ahora muestra quién mandó cada GIF, con una vista para ver solo los de una persona puntual.
 - Tab Estadísticas ampliada: actividad de los últimos 14 días, quién alimentó más el corpus y las palabras más frecuentes.
 - Rol de Gestor (tab Servidor → General): delega un rol de Discord con acceso a Anuncios, Embeds, Frases, Triggers, Reacciones, GIFs y YouTube/Twitch/RSS, sin darle Administrador ni "Gestionar servidor" completo.
 - Exportar e importar el comportamiento del chat (activado, frecuencia y probabilidades) como archivo, para reutilizarlo en otro servidor.
 - Aviso en el canal de actualizaciones cuando un servidor se acerca o llega al tope de GIFs o frases especiales guardadas.
+- Checklist de Primeros pasos en INICIO: tres pasos (elegir canales de aprendizaje, que el servidor ya tenga algo aprendido, personalizar el estilo) que se marcan solos a medida que se cumplen, y el checklist se esconde cuando terminan.
+- Página pública de Novedades (`/es/novedades`, `/en/changelog`): resume en lenguaje simple qué cambió en Purgito — enlazada desde Recursos en el menú del sitio.
+- Filtro para ver solo los canales ya configurados en la matriz de canales, además de buscar por nombre.
+- Deshacer al borrar una frase, un trigger o una reacción: un aviso da unos segundos para cancelar antes de borrarlo de verdad.
 
 ### Mejorado
 - El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
@@ -41,6 +45,8 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - La guía de Primeros pasos en INICIO se puede ocultar aunque falten pasos, y el paso sobre aprender mensajes nuevos ya no se confunde con elegir canales.
 - Menos módulos redundantes en el dashboard: Personalización se edita directo desde INICIO (antes llevaba a una página aparte con lo mismo), y Prefijo de comandos + Limpieza de memoria se unieron en un solo módulo, General. El canal de novedades del bot se movió a Automatización, junto a YouTube/Twitch/RSS.
 - El menú lateral del dashboard arranca con las categorías colapsadas (solo se abre la del módulo que estás viendo), para que no tenga su propio scroll separado del resto de la página.
+- `/refeed_channels` tiene un cooldown de 60 segundos por servidor, para evitar relanzarlo sin querer varias veces seguidas.
+- El filtro de HISTORIAL por tipo de acción suma opciones específicas para más cambios (exclusión de usuarios, prefijo de comandos, Twitch, canales de menciones, canal de novedades, frases), antes solo visibles agrupados en "Todas las acciones".
 
 ### Corregido
 - El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.
@@ -50,6 +56,8 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Mismo arreglo para `/imitar`: un miembro muy activo ya no desplaza el estilo guardado de otro miembro del servidor.
 - Videos marcados como contenido sensible por Instagram, TikTok o Twitter solo se pueden subir con `!dl` en un canal marcado como NSFW.
 - El paso "Elige de qué canales aprende" de Primeros pasos en INICIO ya refleja bien si sacas todos los canales de aprendizaje — antes quedaba marcado como hecho para siempre.
+- Agregar una frase especial idéntica a otra que ya existe en el mismo pool ahora se rechaza, en vez de guardarla duplicada.
+- Un GIF nuevo con una miniatura parecida a la de otro servidor ya no se confunde con contenido de ese servidor.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 
