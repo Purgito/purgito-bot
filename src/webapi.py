@@ -587,6 +587,25 @@ def guild_api(handler):
     return wrapper
 
 
+def _set_gestor_access(request: web.Request, value: bool) -> None:
+    """request[...] es la MutableMapping que aiohttp expone para colgar
+    estado propio en la request real -- pero los FakeRequest a mano que usan
+    los tests (docenas de archivos, ninguno pensado para esto) son objetos
+    planos sin esa interfaz. El fallback a setattr los deja seguir sirviendo
+    sin tocar cada uno."""
+    try:
+        request["is_gestor_access"] = value
+    except TypeError:
+        request.is_gestor_access = value
+
+
+def _get_gestor_access(request: web.Request) -> bool:
+    try:
+        return bool(request["is_gestor_access"])
+    except (TypeError, KeyError):
+        return bool(getattr(request, "is_gestor_access", False))
+
+
 async def check_guild_manager_access(
     request: web.Request, guild_id: int
 ) -> web.Response | None:
@@ -607,7 +626,7 @@ async def check_guild_manager_access(
         # Ya es admin real (MANAGE_GUILD/owner): ve el guild entero, no solo
         # lo que él mismo puede ver en Discord (ver is_gestor_access, más
         # abajo, para el caso contrario).
-        request["is_gestor_access"] = False
+        _set_gestor_access(request, False)
         return None
 
     session = await get_session(request)
@@ -640,7 +659,7 @@ async def check_guild_manager_access(
         # acá scoped a Gestor en vez de a todo guild_api (un admin real SÍ
         # necesita ver canales que él personalmente tiene ocultos, para
         # poder auditarlos).
-        request["is_gestor_access"] = True
+        _set_gestor_access(request, True)
         return None
     return denied
 
@@ -792,7 +811,7 @@ async def _gestor_channel_visibility(request: web.Request, guild):
     (puede haber canales de staff que ni el bot le expone) -- mismo criterio
     que _member_can_view_channel, pero un solo fetch_member acá en vez de
     uno por canal (_api_channels puede listar decenas)."""
-    if not request.get("is_gestor_access"):
+    if not _get_gestor_access(request):
         return None
     session = await get_session(request)
     try:

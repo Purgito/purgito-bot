@@ -2078,8 +2078,6 @@ class Chat(commands.Cog):
             )
             return
 
-        _mark_refeed_channels_cooldown(interaction.guild.id)
-
         await interaction.response.send_message(
             i18n.t("chat.refeed_channels.starting", locale)
         )
@@ -2097,7 +2095,14 @@ class Chat(commands.Cog):
         started = self.start_refeed_channels(
             interaction.guild, progress_msg, interaction.channel
         )
-        if not started:
+        if started:
+            # Recién acá, no antes de start_refeed_channels: si se marcara al
+            # entrar al comando, una invocación que pierde la carrera de abajo
+            # (started=False) igual gastaría el cooldown de la que sí arrancó,
+            # y el reintento legítimo que race_lost invita a hacer se
+            # encontraría con el cooldown puesto sin haber lanzado nada él.
+            _mark_refeed_channels_cooldown(interaction.guild.id)
+        else:
             # El chequeo de _refeed_task_running de arriba no tiene await
             # entre medio y una escritura, así que no es atómico con el
             # registro real (adentro de start_refeed_channels, vía

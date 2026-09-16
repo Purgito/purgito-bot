@@ -200,6 +200,7 @@ def _clean_task_manager():
     tm._tasks.clear()
     tm._locks.clear()
     tm._expires_at.clear()
+    chat_mod._refeed_channels_cooldowns.clear()
     yield
 
 

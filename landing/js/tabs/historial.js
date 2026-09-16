@@ -59,6 +59,8 @@ addStrings({
     'tabsHistorial.action.gifs.remove': 'Eliminó un GIF',
     'tabsHistorial.action.gifs.block': 'Bloqueó un GIF',
     'tabsHistorial.action.gifs.unblock': 'Desbloqueó un GIF',
+    'tabsHistorial.action.manager_role.set': 'Configuró el rol de Gestor',
+    'tabsHistorial.action.manager_role.clear': 'Quitó el rol de Gestor',
     'tabsHistorial.action.mention_channels.add': 'Agregó un canal de menciones',
     'tabsHistorial.action.mention_channels.remove': 'Quitó un canal de menciones',
     'tabsHistorial.action.prefix.reset': 'Restableció el prefijo de comandos',
@@ -88,6 +90,7 @@ addStrings({
     'tabsHistorial.optUpdatesChannel': 'Canal de novedades',
     'tabsHistorial.optExcludedUsers': 'Exclusiones de usuarios',
     'tabsHistorial.optPrefix': 'Prefijo de comandos',
+    'tabsHistorial.optManagerRole': 'Rol de Gestor',
     'tabsHistorial.emptyState': 'Todavía no hay cambios registrados en este servidor.',
     'tabsHistorial.searchPlaceholder': 'Buscar cambios por texto, usuario o acción…',
     'tabsHistorial.searchAria': 'Buscar cambios',
@@ -190,6 +193,8 @@ addStrings({
     'tabsHistorial.action.gifs.remove': 'Deleted a GIF',
     'tabsHistorial.action.gifs.block': 'Blocked a GIF',
     'tabsHistorial.action.gifs.unblock': 'Unblocked a GIF',
+    'tabsHistorial.action.manager_role.set': 'Set the Manager role',
+    'tabsHistorial.action.manager_role.clear': 'Removed the Manager role',
     'tabsHistorial.action.mention_channels.add': 'Added a mention channel',
     'tabsHistorial.action.mention_channels.remove': 'Removed a mention channel',
     'tabsHistorial.action.prefix.reset': 'Reset the command prefix',
@@ -219,6 +224,7 @@ addStrings({
     'tabsHistorial.optUpdatesChannel': 'Updates channel',
     'tabsHistorial.optExcludedUsers': 'User exclusions',
     'tabsHistorial.optPrefix': 'Command prefix',
+    'tabsHistorial.optManagerRole': 'Manager role',
     'tabsHistorial.emptyState': 'No changes recorded on this server yet.',
     'tabsHistorial.searchPlaceholder': 'Search changes by text, user, or action…',
     'tabsHistorial.searchAria': 'Search changes',
@@ -312,6 +318,8 @@ const ACTION_LABELS = {
   'gifs.remove': t('tabsHistorial.action.gifs.remove'),
   'gifs.block': t('tabsHistorial.action.gifs.block'),
   'gifs.unblock': t('tabsHistorial.action.gifs.unblock'),
+  'manager_role.clear': t('tabsHistorial.action.manager_role.clear'),
+  'manager_role.set': t('tabsHistorial.action.manager_role.set'),
   'mention_channels.add': t('tabsHistorial.action.mention_channels.add'),
   'mention_channels.remove': t('tabsHistorial.action.mention_channels.remove'),
   'prefix.reset': t('tabsHistorial.action.prefix.reset'),
@@ -536,7 +544,8 @@ export async function loadHistorial() {
       ),
       el('optgroup', { label: t('tabsHistorial.groupGeneral') },
         el('option', { value: 'style.' }, t('tabsHistorial.optStyle')),
-        el('option', { value: 'prefix.' }, t('tabsHistorial.optPrefix'))
+        el('option', { value: 'prefix.' }, t('tabsHistorial.optPrefix')),
+        el('option', { value: 'manager_role.' }, t('tabsHistorial.optManagerRole'))
       )
     );
 
