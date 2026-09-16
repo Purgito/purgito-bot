@@ -68,7 +68,7 @@ def test_premium_checkout_insufficient_scope(monkeypatch):
 
     assert resp.status == 502
     assert json.loads(resp.text) == {
-        "error": "Polar rechazó la creación del checkout por permisos insuficientes del token"
+        "error": "no se pudo iniciar el pago, intenta de nuevo más tarde"
     }
     assert len(fake_polar.calls) == 1
 

@@ -18,19 +18,19 @@ addStrings({
   es: {
     // Bienvenidas
     'tabsWelcome.title': 'Bienvenidas',
-    'tabsWelcome.subtitle': 'Decidí cuándo y dónde Purgito da la bienvenida a los nuevos miembros.',
+    'tabsWelcome.subtitle': 'Decide cuándo y dónde Purgito da la bienvenida a los nuevos miembros.',
     'tabsWelcome.toggleLabel': 'Activar bienvenida',
     'tabsWelcome.channelLabel': 'Canal de bienvenida',
 
     // Despedidas
     'tabsGoodbye.title': 'Despedidas',
-    'tabsGoodbye.subtitle': 'Decidí cuándo y dónde Purgito se despide de los miembros que se van.',
+    'tabsGoodbye.subtitle': 'Decide cuándo y dónde Purgito se despide de los miembros que se van.',
     'tabsGoodbye.toggleLabel': 'Activar despedida',
     'tabsGoodbye.channelLabel': 'Canal de despedida',
 
     // Boosts
     'tabsBoost.title': 'Boosts',
-    'tabsBoost.subtitle': 'Decidí cuándo y dónde Purgito agradece los boosts al servidor.',
+    'tabsBoost.subtitle': 'Decide cuándo y dónde Purgito agradece los boosts al servidor.',
     'tabsBoost.toggleLabel': 'Activar mensaje de boost',
     'tabsBoost.channelLabel': 'Canal de boosts',
 

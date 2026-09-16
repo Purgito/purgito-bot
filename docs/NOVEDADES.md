@@ -29,6 +29,10 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Aviso en el canal de actualizaciones cuando un servidor se acerca o llega al tope de GIFs o frases especiales guardadas.
 
 ### Mejorado
+- El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
+- El selector para cambiar de servidor en el dashboard ya no se ve apretado contra el borde del menú.
+- Un solo buscador de módulos en el dashboard: antes había dos que hacían lo mismo, y el de la barra lateral se perdía al colapsarla.
+- Espaciado más consistente entre título, descripción y contenido dentro de la tab Estadísticas.
 - El mensaje de bienvenida ya no menciona memes en servidores sin Premium.
 - Frases especiales y reacciones configurables dejaron de ser función Premium: disponibles en todos los servidores.
 - Cuando los memes automáticos no pueden postear (sin fotos guardadas o sin suficiente conversación), Purgito avisa una vez en el canal en vez de fallar en silencio cada pocos minutos.
@@ -39,6 +43,9 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El menú lateral del dashboard arranca con las categorías colapsadas (solo se abre la del módulo que estás viendo), para que no tenga su propio scroll separado del resto de la página.
 
 ### Corregido
+- El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.
+- Estadísticas mostraba todos los canales de texto como "leídos" aunque solo unos pocos estuvieran habilitados para aprender.
+- En Reacciones automáticas, agregar un emoji cerraba el modal (había que reabrirlo para cada uno) y se bloqueaba seguido por exceso de solicitudes al agregar varios de una sentada.
 - Un canal con mucho historial ya no le come el cupo de mensajes aprendidos a los demás canales del mismo servidor — el límite ahora es por canal.
 - Mismo arreglo para `/imitar`: un miembro muy activo ya no desplaza el estilo guardado de otro miembro del servidor.
 - Videos marcados como contenido sensible por Instagram, TikTok o Twitter solo se pueden subir con `!dl` en un canal marcado como NSFW.
@@ -47,7 +54,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 ## Versión 1.1.0 — 28 de junio de 2026
 
 ### Nuevo
-- Generación de memes con `/momo` y `/meme`, con textos generados por IA y respaldo automático si no hay conexión.
+- Generación de memes con `/momo` y `/meme`, con textos generados por IA.
 - Colección de imágenes para memes: reaccionar con 🎯 a una foto la guarda como plantilla.
 - Memes automáticos programables por canal.
 - Frases especiales configurables, con una probabilidad baja de aparecer y un tiempo mínimo entre una y otra.

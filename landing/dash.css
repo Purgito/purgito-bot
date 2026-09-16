@@ -228,6 +228,11 @@ textarea { width: 100%; min-height: 70px; resize: vertical; }
   font-size: 13px;
   line-height: 1;
 }
+/* Párrafo de descripción justo debajo de un título de grupo (ej. "Resumen de
+   actividad acumulada..."): mismo espacio antes del contenido en todas las
+   secciones, en vez de que cada bloque de contenido compense (o no) por su
+   cuenta con su propio margin-top. */
+.form-group-title + p { margin-bottom: 8px; }
 
 /* Error de validación inline (persistente), mismo lenguaje de borde-izquierdo
    que .embed-warn pero en rojo — reemplaza al toast que desaparecía. */
@@ -2685,8 +2690,8 @@ iframe.gif-media { pointer-events: none; }
   top: calc(100% + 6px);
   left: 0;
   width: 100%;
-  min-width: 260px;
-  max-width: 320px;
+  min-width: 300px;
+  max-width: 340px;
   background: var(--surface-raised);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
@@ -2838,54 +2843,6 @@ iframe.gif-media { pointer-events: none; }
   text-align: center;
 }
 .server-dropdown-manage-link:hover { text-decoration: underline; }
-
-/* ---------- BOTÓN BUSCADOR DE MÓDULOS (Ctrl + K) ---------- */
-.dash-cmd-search-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 9px;
-  background: var(--surface-card);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-sm);
-  color: var(--text-dim);
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-
-.dash-cmd-search-btn:hover {
-  border-color: rgba(255, 255, 255, 0.1);
-  color: var(--text);
-  background: var(--surface-raised);
-}
-
-.dash-cmd-search-btn .nav-icon {
-  width: 13px;
-  height: 13px;
-  flex: none;
-  color: var(--text-dim);
-}
-
-.dash-cmd-search-btn:hover .nav-icon {
-  color: var(--accent);
-}
-
-.dash-cmd-search-text {
-  flex: 1;
-  text-align: left;
-}
-
-.dash-cmd-search-badge {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 1px 5px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 3px;
-  color: var(--text-dim);
-}
 
 /* ---------- PALETA DE COMANDOS MODAL (Ctrl + K) ---------- */
 .cmd-palette-backdrop {
@@ -3885,9 +3842,6 @@ iframe.gif-media { pointer-events: none; }
 .stat-num-cap { font-size: 11.5px; font-weight: 400; color: var(--text-dim); }
 .stat-quota-msg { margin: 12px 0 16px; font-size: 13px; line-height: 1.5; }
 
-/* Desglose por canal */
-.stat-by-channel { margin-top: 12px; }
-.stat-by-channel > p { margin-bottom: 8px; font-size: 13px; color: var(--text-dim); }
 .stat-channels { display: flex; flex-direction: column; gap: 6px; }
 .stat-channel-row {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
@@ -3901,7 +3855,7 @@ iframe.gif-media { pointer-events: none; }
 .stat-chan-full { color: var(--premium); font-weight: 600; font-size: 12px; }
 .stat-chan-warn { color: var(--accent); font-size: 12px; }
 
-.stat-words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.stat-words { display: flex; flex-wrap: wrap; gap: 6px; }
 .stat-word-chip {
   background: var(--surface-card); border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--text-dim);

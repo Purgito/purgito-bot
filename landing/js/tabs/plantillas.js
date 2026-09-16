@@ -528,7 +528,7 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
     contentCard.append(contentBlock, buttonsBlock);
   } else {
     contentCard.append(el('div', { class: 'cfg-block' },
-      el('p', { class: 'dim text-sm' }, 'Esta plantilla usa Layout V2 (bloques avanzados). Para editarla, abrí Plantillas → Crear / Enviar → Mis plantillas → Cargar en editor.')
+      el('p', { class: 'dim text-sm' }, 'Esta plantilla usa Layout V2 (bloques avanzados). Para editarla, abre Plantillas → Crear / Enviar → Mis plantillas → Cargar en editor.')
     ));
   }
 

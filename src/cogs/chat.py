@@ -1720,11 +1720,7 @@ class Chat(commands.Cog):
         locale = await i18n.guild_locale(guild.id)
         allowed_channel_ids = await list_corpus_channels(guild.id)
         if not allowed_channel_ids:
-            msg = (
-                i18n.t("setup.status_no_channels", locale)
-                + " "
-                + i18n.t("chat.empty_reply.full", locale)
-            )
+            msg = i18n.t("chat.empty_reply.full", locale)
             edited = False
             if progress_msg is not None:
                 try:
