@@ -922,7 +922,7 @@ def import_map_hash() -> str:
 
 
 # Cubre lo que el sitio realmente carga: fonts.googleapis.com/gstatic.com
-# (@import de fuentes en style.css), tenor.com (iframe de preview de GIFs en
+# (el <link> de fuentes del <head>, ver SHELL), tenor.com (iframe de preview de GIFs en
 # la tab de gifs del dashboard), img-src ancho porque las imágenes salen de
 # hosts variables según guild (avatares e emojis de Discord, GIFs de Giphy,
 # el bucket R2 configurado por env var). El primer hash cubre el único
@@ -986,7 +986,10 @@ SHELL = (
 
 <link rel="canonical" href="{canonical_url}">
 {hreflang}<link rel="icon" href="/assets/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@600;700&family=Outfit:wght@400;500;600&family=Noto+Sans+JP:wght@400;600&family=Fira+Code:wght@400;500&display=swap">
 {head}</head>
 <body>
 
