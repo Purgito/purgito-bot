@@ -458,6 +458,71 @@ def test_chat_forbidden_attachment_falls_back_to_text_cleanly(memory_db, monkeyp
     asyncio.run(run())
 
 
+def test_chat_deleted_original_message_does_not_crash(memory_db, monkeypatch):
+    """Si el mensaje original se borra entre on_message y que termine de generarse
+    la respuesta Markov, Discord rechaza el message_reference (400/50035 Unknown
+    message). El bot debe loguear y seguir, nunca propagar la excepción ni
+    contar un mensaje que nunca se mandó."""
+
+    async def run():
+        chat_mod._muted_reply_cooldowns.clear()
+        chat_mod._recent_message_ids.clear()
+        chat_mod._spontaneous_cooldowns.clear()
+
+        async def fake_effective(guild_id, channel_id):
+            return {
+                "enabled": True,
+                "channel_id": None,
+                "mention_rate_limit": 0,
+                "auto_generate_every": 15,
+                "auto_generate_probability": 0.6,
+                "reaction_probability": 0.0,
+                "gif_response_probability": 0.0,
+                "frase_probability": 0.0,
+            }
+
+        monkeypatch.setattr(chat_mod, "get_effective_chat_settings", fake_effective)
+        monkeypatch.setattr(chat_mod, "is_channel_ignored", lambda *a: _async_false())
+        monkeypatch.setattr(chat_mod, "is_corpus_allowed", lambda *a: _async_true())
+        monkeypatch.setattr(chat_mod, "list_mention_channels", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "list_exempt_roles", lambda *a: _async_list())
+        monkeypatch.setattr(chat_mod, "list_exempt_channels", lambda *a: _async_list())
+
+        bumped = []
+
+        async def track_bump(guild_id, name):
+            bumped.append(name)
+
+        monkeypatch.setattr(chat_mod, "bump_counter", track_bump)
+
+        async def fake_gen(guild_id, channel_id, **kwargs):
+            return "texto generado de markov", False
+
+        monkeypatch.setattr(chat_mod.generation, "generate_response", fake_gen)
+
+        bot = SimpleNamespace(user=SimpleNamespace(id=9999))
+        chat_cog = Chat(bot)
+
+        class DeletedRefMessage(FakeMessage):
+            async def reply(self, content=None, *, file=None, **kwargs):
+                resp = SimpleNamespace(status=400, reason="Bad Request")
+                raise discord.HTTPException(
+                    resp, "In message_reference: Unknown message"
+                )
+
+        msg = DeletedRefMessage(content="hola <@9999>", channel_id=10, guild_id=_GUILD)
+        msg.raw_mentions = [9999]
+
+        # No debe propagar la excepción -- on_message la tiene que atajar.
+        await chat_cog.on_message(msg)
+
+        # Nada se mandó realmente, así que no se cuenta como enviado.
+        assert msg.replies == []
+        assert "mensajes_enviados" not in bumped
+
+    asyncio.run(run())
+
+
 # ─── Tests del requisito MIN_GIFS_PER_GUILD ──────────────────────────────────
 
 

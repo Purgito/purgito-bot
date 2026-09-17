@@ -1043,8 +1043,20 @@ class Chat(commands.Cog):
             )
         else:
             reply = generation.post_process_reply(text)
-        for chunk in chunk_message(reply):
-            await message.reply(chunk, allowed_mentions=_SAFE_MENTIONS)
+        try:
+            for chunk in chunk_message(reply):
+                await message.reply(chunk, allowed_mentions=_SAFE_MENTIONS)
+        except (discord.Forbidden, discord.HTTPException) as e:
+            # El mensaje original puede borrarse entre on_message y que termine
+            # de generarse la respuesta Markov -- ahí Discord rechaza el
+            # message_reference con "Unknown message" (400/50035).
+            log.warning(
+                "No se pudo responder en canal %s (guild %s): %s",
+                message.channel.id,
+                message.guild.id,
+                e,
+            )
+            return
         await bump_counter(message.guild.id, "mensajes_enviados")
 
     async def _send_trigger_reply(self, message: discord.Message, text: str) -> None:
