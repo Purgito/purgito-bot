@@ -397,5 +397,18 @@
   "help.cat.imagen.cmd.flop": "Mirrors it horizontally",
   "help.cat.imagen.cmd.circle": "Crops the image into a circle",
   "help.cat.imagen.cmd.blur": "Blurs it",
-  "help.cat.imagen.cmd.sharpen": "Sharpens edges and detail"
+  "help.cat.imagen.cmd.sharpen": "Sharpens edges and detail",
+  "help.cat.imagen.cmd.triggered": "Makes a short GIF with the \"triggered\" effect (shake + text)",
+  "help.cat.imagen.cmd.wasted": "Slaps GTA's black-and-white \"WASTED\" screen on it",
+  "help.cat.imagen.cmd.trash": "Puts it in a trash can",
+  "help.cat.imagen.cmd.communism": "Tints it red with a hammer and sickle",
+  "help.cat.imagen.cmd.gay": "Overlays a translucent rainbow flag",
+  "help.cat.imagen.cmd.jail": "Puts jail bars over it",
+  "help.cat.imagen.cmd.wanted": "Turns it into an old-west \"WANTED\" poster",
+  "help.cat.imagen.cmd.rip": "Puts it on a tombstone with \"R.I.P.\"",
+  "help.cat.imagen.cmd.america": "Overlays a translucent American flag",
+  "help.cat.imagen.cmd.polaroid": "Adds a white Polaroid-style frame",
+  "help.cat.imagen.cmd.poster": "Reduces it to a few flat color tones (optional level)",
+  "help.cat.imagen.cmd.threshold": "Converts it to pure black and white by a threshold (optional)",
+  "help.cat.imagen.cmd.emboss": "Embosses it, like it's stamped in metal"
 }

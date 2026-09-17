@@ -94,7 +94,11 @@ class ImageFx(commands.Cog):
         self.bot = bot
 
     async def _run_filter(
-        self, ctx: commands.Context, fn: Callable[..., bytes], *args
+        self,
+        ctx: commands.Context,
+        fn: Callable[..., bytes],
+        *args,
+        filename: str = "purgito.png",
     ) -> None:
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
         remaining = _check_fx_cooldown(ctx.author.id)
@@ -124,7 +128,7 @@ class ImageFx(commands.Cog):
             await ctx.reply(t("general.error.generic", locale))
             return
 
-        await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.png"))
+        await ctx.reply(file=discord.File(io.BytesIO(result), filename=filename))
 
     @commands.command(name="caption")
     async def caption_cmd(self, ctx: commands.Context, *, texto: str | None = None):
@@ -185,6 +189,60 @@ class ImageFx(commands.Cog):
     @commands.command(name="sharpen")
     async def sharpen_cmd(self, ctx: commands.Context):
         await self._run_filter(ctx, image_filters.sharpen)
+
+    # ── Fase 2: overlays y efectos de un solo chiste ─────────────────────────
+
+    @commands.command(name="triggered")
+    async def triggered_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.triggered, filename="purgito.gif")
+
+    @commands.command(name="wasted")
+    async def wasted_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.wasted)
+
+    @commands.command(name="trash")
+    async def trash_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.trash)
+
+    @commands.command(name="communism")
+    async def communism_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.communism)
+
+    @commands.command(name="gay")
+    async def gay_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.gay)
+
+    @commands.command(name="jail")
+    async def jail_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.jail)
+
+    @commands.command(name="wanted")
+    async def wanted_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.wanted)
+
+    @commands.command(name="rip")
+    async def rip_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.rip)
+
+    @commands.command(name="america")
+    async def america_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.america)
+
+    @commands.command(name="polaroid")
+    async def polaroid_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.polaroid)
+
+    @commands.command(name="poster")
+    async def poster_cmd(self, ctx: commands.Context, bits: int = 2):
+        await self._run_filter(ctx, image_filters.poster, bits)
+
+    @commands.command(name="threshold")
+    async def threshold_cmd(self, ctx: commands.Context, level: int = 128):
+        await self._run_filter(ctx, image_filters.threshold, level)
+
+    @commands.command(name="emboss")
+    async def emboss_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.emboss)
 
     async def cog_command_error(self, ctx: commands.Context, error: Exception):
         error = getattr(error, "original", error)

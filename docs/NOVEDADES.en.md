@@ -21,7 +21,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Scheduled announcements: weekly mode (pick specific weekdays and a fixed time), in addition to interval or daily.
 - Live Twitch alerts: same idea as YouTube notifications, with optional role mentions.
 - `!dl <link>` / `purgito dl <link>`: downloads a video from Instagram, TikTok, Twitter/X, or Facebook and uploads it to the channel — also works by replying to a message that has the link, no need to repeat it.
-- Image-editing commands (`!deepfry`, `!caption`, `!invert`, `!pixelate`, and more — full list in `/help`): applied to the image you upload, the one you're replying to, or your avatar if there's neither. Work with `!` or `purgito` in front, same as `!dl`.
+- Image-editing commands (`!deepfry`, `!caption`, `!triggered`, `!wasted`, `!wanted`, and more — full list in `/help`): applied to the image you upload, the one you're replying to, or your avatar if there's neither. Work with `!` or `purgito` in front, same as `!dl`.
 - Per-server custom text command prefix (it used to be fixed at `!`).
 - The dashboard's GIFs tab now shows who sent each GIF, with a view to see just one person's.
 - Expanded Stats tab: activity over the last 14 days, who fed the corpus the most, and the most frequent words.

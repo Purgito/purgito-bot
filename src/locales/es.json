@@ -397,5 +397,18 @@
   "help.cat.imagen.cmd.flop": "La refleja horizontalmente",
   "help.cat.imagen.cmd.circle": "Recorta la imagen en un círculo",
   "help.cat.imagen.cmd.blur": "Le aplica desenfoque",
-  "help.cat.imagen.cmd.sharpen": "Realza bordes y detalles"
+  "help.cat.imagen.cmd.sharpen": "Realza bordes y detalles",
+  "help.cat.imagen.cmd.triggered": "Genera un GIF corto con el efecto \"triggered\" (temblor + texto)",
+  "help.cat.imagen.cmd.wasted": "Le pone el cartel \"WASTED\" de GTA, en blanco y negro",
+  "help.cat.imagen.cmd.trash": "La mete en un tacho de basura",
+  "help.cat.imagen.cmd.communism": "Le da un tono rojo con hoz y martillo",
+  "help.cat.imagen.cmd.gay": "Le pone una bandera arcoíris semi-transparente encima",
+  "help.cat.imagen.cmd.jail": "Le pone rejas de cárcel encima",
+  "help.cat.imagen.cmd.wanted": "La convierte en un cartel de \"WANTED\" del viejo oeste",
+  "help.cat.imagen.cmd.rip": "La pone en una lápida con \"R.I.P.\"",
+  "help.cat.imagen.cmd.america": "Le pone la bandera de Estados Unidos semi-transparente encima",
+  "help.cat.imagen.cmd.polaroid": "Le agrega un marco blanco tipo foto Polaroid",
+  "help.cat.imagen.cmd.poster": "Reduce los colores a unos pocos tonos planos (nivel opcional)",
+  "help.cat.imagen.cmd.threshold": "La convierte a blanco y negro puro según un umbral (opcional)",
+  "help.cat.imagen.cmd.emboss": "Le da relieve, como si estuviera grabada en metal"
 }

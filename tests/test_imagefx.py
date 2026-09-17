@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import discord
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 
 import cogs.imagefx as imagefx_mod
 import image_filters
@@ -25,7 +25,21 @@ def _png_bytes(size=(200, 120), color=(10, 120, 200)) -> bytes:
     return buf.getvalue()
 
 
-# ── image_filters: los 14 filtros no rompen y devuelven una imagen válida ────
+def _png_bytes_with_shape(size=(200, 120)) -> bytes:
+    """A diferencia de _png_bytes, no es un color plano -- necesario para
+    probar cosas como triggered() donde un recorte desplazado de una imagen
+    de un solo color da bytes idénticos sin importar el desplazamiento."""
+    img = Image.new("RGB", size, (10, 120, 200))
+    draw = ImageDraw.Draw(img)
+    w, h = size
+    draw.ellipse((w * 0.2, h * 0.2, w * 0.8, h * 0.8), fill=(250, 200, 30))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+# ── image_filters: los filtros de imagen estática no rompen y devuelven una
+# imagen válida (todos menos triggered, que devuelve un GIF -- ver más abajo) ─
 
 _ALL_FILTERS = [
     (image_filters.caption, ("ARRIBA|ABAJO",)),
@@ -42,6 +56,18 @@ _ALL_FILTERS = [
     (image_filters.circle, ()),
     (image_filters.blur, ()),
     (image_filters.sharpen, ()),
+    (image_filters.wasted, ()),
+    (image_filters.trash, ()),
+    (image_filters.communism, ()),
+    (image_filters.gay, ()),
+    (image_filters.jail, ()),
+    (image_filters.wanted, ()),
+    (image_filters.rip, ()),
+    (image_filters.america, ()),
+    (image_filters.polaroid, ()),
+    (image_filters.poster, ()),
+    (image_filters.threshold, ()),
+    (image_filters.emboss, ()),
 ]
 
 
@@ -106,6 +132,34 @@ def test_circle_recorta_las_esquinas_transparentes():
         assert w == h  # se recorta a cuadrado antes de aplicar la máscara
         assert img.getpixel((0, 0))[3] == 0  # esquina: transparente
         assert img.getpixel((w // 2, h // 2))[3] == 255  # centro: opaco
+
+
+def test_triggered_devuelve_gif_animado():
+    out = image_filters.triggered(_png_bytes_with_shape())
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.format == "GIF"
+        assert img.is_animated
+        assert img.n_frames >= 2
+
+
+def test_threshold_solo_produce_negro_o_blanco():
+    out = image_filters.threshold(_png_bytes(), level=128)
+    with Image.open(io.BytesIO(out)) as img:
+        colors = {
+            img.convert("RGB").getpixel((x, y))
+            for x in (0, img.width - 1)
+            for y in (0, img.height - 1)
+        }
+        assert colors <= {(0, 0, 0), (255, 255, 255)}
+
+
+def test_polaroid_agrega_marco_mas_grueso_abajo():
+    w, h = 200, 120
+    out = image_filters.polaroid(_png_bytes(size=(w, h)))
+    with Image.open(io.BytesIO(out)) as img:
+        side_border = (img.width - w) // 2
+        bottom_border = img.height - h - side_border
+        assert bottom_border > side_border
 
 
 # ── cogs/imagefx.py: resolución de la imagen fuente ──────────────────────────
@@ -268,6 +322,26 @@ def test_deepfry_camino_feliz_responde_con_archivo():
 
     assert len(ctx.reply_files) == 1
     assert ctx.replies == []
+
+
+def test_triggered_responde_con_un_gif():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(data=_png_bytes_with_shape())])
+
+    asyncio.run(cog.triggered_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_wasted_camino_feliz_responde_con_archivo():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(data=_png_bytes())])
+
+    asyncio.run(cog.wasted_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.png"
 
 
 def test_caption_sin_texto_pide_el_texto():
