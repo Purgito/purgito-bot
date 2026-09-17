@@ -2,18 +2,22 @@
 que transforman la imagen/GIF/video adjunto al mensaje, el del mensaje
 respondido, o (solo para imagen) el avatar de quien invoca -- mismo
 mecanismo de "adjunto propio -> reply" que ya usa cogs/download.py para
-"purgito dl"."""
+"purgito dl". "!gif" además acepta un link propio o del mensaje
+respondido igual que "!dl" (mismo allowlist de hosts, mismo módulo)
+cuando no hay ningún video adjunto."""
 
 import asyncio
 import io
 import logging
 import os
+import shutil
 import time
 from typing import Callable
 
 import discord
 from discord.ext import commands
 
+import cogs.download as download_mod
 import image_filters
 import video_filters
 from cogs.gifs import is_valid_gif_bytes
@@ -336,7 +340,7 @@ class ImageFx(commands.Cog):
 
     @commands.command(name="gif")
     @commands.max_concurrency(1, per=commands.BucketType.guild, wait=False)
-    async def gif_cmd(self, ctx: commands.Context):
+    async def gif_cmd(self, ctx: commands.Context, *, url: str | None = None):
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
         remaining = _check_gif_convert_cooldown(ctx.author.id)
         if remaining is not None:
@@ -354,36 +358,85 @@ class ImageFx(commands.Cog):
             await ctx.reply(t("general.error.generic", locale))
             return
 
-        if data is None:
-            await ctx.reply(t("imagefx.video_missing", locale))
-            return
-
-        max_output = IMAGEFX_MAX_BYTES
-        if ctx.guild is not None:
-            max_output = min(max_output, ctx.guild.filesize_limit)
-
-        async with ctx.typing():
-            try:
-                result = await asyncio.to_thread(
-                    video_filters.convert_video_to_gif,
-                    data,
-                    GIF_MAX_DURATION_SECONDS,
-                    max_output,
-                )
-            except video_filters.GifTooLarge as e:
-                await ctx.reply(
-                    t(
-                        "imagefx.gif_output_too_large",
-                        locale,
-                        mb=e.max_bytes // (1024 * 1024),
+        tmp_dir = None
+        try:
+            async with ctx.typing():
+                if data is None:
+                    # Sin adjunto: mismo mecanismo que "!dl" -- link propio o
+                    # del mensaje respondido, mismo allowlist de hosts
+                    # (Instagram/TikTok/Twitter-X/Facebook) y las mismas
+                    # protecciones de SSRF ya auditadas en cogs/download.py.
+                    match = download_mod._URL_RE.search(url or "")
+                    link = (
+                        match.group(0)
+                        if match
+                        else await download_mod._reply_target_url(ctx)
                     )
-                )
-                return
-            except video_filters.VideoConversionFailed:
-                await ctx.reply(t("imagefx.video_conversion_failed", locale))
-                return
+                    if not link:
+                        await ctx.reply(t("imagefx.video_missing", locale))
+                        return
+                    if not download_mod._is_supported_url(link):
+                        await ctx.reply(t("download.dl.unsupported_site", locale))
+                        return
 
-        await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
+                    try:
+                        path, is_sensitive = await asyncio.to_thread(
+                            download_mod._download_video,
+                            link,
+                            MAX_GIF_SOURCE_VIDEO_BYTES,
+                        )
+                    except download_mod.DownloadTooLarge as e:
+                        await ctx.reply(
+                            t(
+                                "imagefx.video_too_large",
+                                locale,
+                                mb=e.max_bytes // (1024 * 1024),
+                            )
+                        )
+                        return
+                    except download_mod.DownloadFailed:
+                        await ctx.reply(t("download.dl.failed", locale))
+                        return
+
+                    tmp_dir = os.path.dirname(path)
+                    channel_is_nsfw = getattr(ctx.channel, "is_nsfw", lambda: False)()
+                    if is_sensitive and not channel_is_nsfw:
+                        await ctx.reply(t("download.dl.nsfw_channel_required", locale))
+                        return
+
+                    with open(path, "rb") as f:
+                        data = f.read()
+
+                max_output = IMAGEFX_MAX_BYTES
+                if ctx.guild is not None:
+                    max_output = min(max_output, ctx.guild.filesize_limit)
+
+                try:
+                    result = await asyncio.to_thread(
+                        video_filters.convert_video_to_gif,
+                        data,
+                        GIF_MAX_DURATION_SECONDS,
+                        max_output,
+                    )
+                except video_filters.GifTooLarge as e:
+                    await ctx.reply(
+                        t(
+                            "imagefx.gif_output_too_large",
+                            locale,
+                            mb=e.max_bytes // (1024 * 1024),
+                        )
+                    )
+                    return
+                except video_filters.VideoConversionFailed:
+                    await ctx.reply(t("imagefx.video_conversion_failed", locale))
+                    return
+
+            await ctx.reply(
+                file=discord.File(io.BytesIO(result), filename="purgito.gif")
+            )
+        finally:
+            if tmp_dir is not None:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
     @gif_cmd.error
     async def gif_cmd_error(self, ctx: commands.Context, error: Exception):

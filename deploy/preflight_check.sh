@@ -84,6 +84,42 @@ else
     bad "$VENV_PY no existe o no es ejecutable -- correr: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 fi
 
+# Que el venv exista no garantiza que TODO lo que el código importa esté
+# instalado ahí: si requirements.txt suma una dependencia nueva (ej.
+# imageio-ffmpeg en la Fase 4 de cogs/imagefx.py) y el deploy corre
+# "git pull" + restart sin "pip install -r requirements.txt" antes, el bot
+# carga bien varias extensiones y recién explota al llegar a la que use la
+# dependencia faltante -- ModuleNotFoundError, systemd reinicia en loop
+# (ver troubleshooting en DEPLOY.md). Probar de importar cada extensión de
+# bot.py:EXTENSIONS (+ webapi, que bot.py también importa al arrancar) acá
+# lo detecta ANTES del restart, no después mirando journalctl.
+BOT_PY="$REPO_DIR/src/bot.py"
+if [ ! -x "$VENV_PY" ]; then
+    skip "import de extensiones y webapi" "no hay venv todavía para probar"
+elif [ ! -f "$BOT_PY" ]; then
+    skip "import de extensiones y webapi" "no se encontró $BOT_PY"
+else
+    modules=(webapi)
+    while IFS= read -r ext; do
+        modules+=("$ext")
+    done < <(sed -n '/^EXTENSIONS = \[/,/^\]/p' "$BOT_PY" | grep -oE '"[a-zA-Z0-9_.]+"' | tr -d '"')
+
+    for mod in "${modules[@]}"; do
+        import_err="$("$VENV_PY" -c "
+import sys
+sys.path.insert(0, '$REPO_DIR/src')
+import importlib
+importlib.import_module('$mod')
+" 2>&1)"
+        if [ $? -eq 0 ]; then
+            ok "'$mod' importa sin errores"
+        else
+            bad "'$mod' falla al importar -- probablemente falta 'pip install -r requirements.txt' tras un cambio a requirements.txt:"
+            echo "$import_err" | tail -n 5 | sed 's/^/       /'
+        fi
+    done
+fi
+
 # src/config.py arma ANNOUNCEMENTS_TIMEZONE con zoneinfo.ZoneInfo() al nivel
 # de módulo -- si el sistema no tiene los datos de esa zona horaria (tzdata),
 # el import de config.py revienta con ZoneInfoNotFoundError y el bot no

@@ -9,7 +9,9 @@ discord.py, con un FakeContext basado en SimpleNamespace.
 
 import asyncio
 import io
+import os
 import subprocess
+import tempfile
 from types import SimpleNamespace
 
 import discord
@@ -17,6 +19,7 @@ import imageio_ffmpeg
 import pytest
 from PIL import Image, ImageDraw, ImageSequence
 
+import cogs.download as download_mod
 import cogs.imagefx as imagefx_mod
 import image_filters
 import video_filters
@@ -333,6 +336,7 @@ class FakeContext:
         author=None,
         guild_id=1,
         guild_filesize_limit=25 * 1024 * 1024,
+        channel_is_nsfw=False,
     ):
         self.guild = (
             SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
@@ -343,7 +347,9 @@ class FakeContext:
         self.message = SimpleNamespace(
             attachments=attachments or [], reference=reference
         )
-        self.channel = SimpleNamespace(fetch_message=self._fetch_message)
+        self.channel = SimpleNamespace(
+            fetch_message=self._fetch_message, is_nsfw=lambda: channel_is_nsfw
+        )
         self.command = "fake_command"
         self.replies: list[str] = []
         self.reply_files: list = []
@@ -823,3 +829,158 @@ def test_gif_cmd_tiene_su_propio_cooldown_separado_del_resto(monkeypatch):
     asyncio.run(cog.gif_cmd.callback(cog, ctx2))
 
     assert len(ctx2.reply_files) == 1
+
+
+# ── "!gif" con link, igual que "!dl" (sin adjunto de video) ──────────────────
+
+
+def _fake_download_video_factory(seen=None, is_sensitive=False):
+    """Mismo patrón que test_download_cog.py: crea un archivo temporal real
+    (necesario porque gif_cmd hace open(path, "rb") sobre el resultado) y
+    anota los argumentos con los que se lo llamó."""
+
+    def fake(url, max_bytes):
+        if seen is not None:
+            seen["url"] = url
+            seen["max_bytes"] = max_bytes
+        tmp_dir = tempfile.mkdtemp(prefix="purgito_gif_test_")
+        path = os.path.join(tmp_dir, "video.mp4")
+        with open(path, "wb") as f:
+            f.write(_make_test_video_bytes(duration=0.3, fps=6))
+        return path, is_sensitive
+
+    return fake
+
+
+def test_gif_cmd_usa_link_propio(monkeypatch):
+    seen: dict = {}
+    monkeypatch.setattr(
+        download_mod, "_download_video", _fake_download_video_factory(seen)
+    )
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert seen["url"] == "https://instagram.com/reel/xyz"
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_usa_link_del_mensaje_respondido(monkeypatch):
+    seen: dict = {}
+    monkeypatch.setattr(
+        download_mod, "_download_video", _fake_download_video_factory(seen)
+    )
+    cog = _cog()
+    referenced = SimpleNamespace(
+        content="mira este reel https://instagram.com/reel/xyz", attachments=[]
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://instagram.com/reel/xyz"
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_prioriza_el_adjunto_sobre_el_link(monkeypatch):
+    def fake_download(url, max_bytes):
+        raise AssertionError("no debería llamarse: hay un adjunto de video")
+
+    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    cog = _cog()
+    video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)]
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_rechaza_link_de_sitio_no_soportado():
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://youtube.com/watch?v=abc"))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_link_descarga_fallida(monkeypatch):
+    def fake_download(url, max_bytes):
+        raise download_mod.DownloadFailed("privado o borrado")
+
+    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_link_descarga_demasiado_grande(monkeypatch):
+    def fake_download(url, max_bytes):
+        raise download_mod.DownloadTooLarge(max_bytes)
+
+    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_link_video_sensible_bloqueado_fuera_de_nsfw(monkeypatch):
+    monkeypatch.setattr(
+        download_mod, "_download_video", _fake_download_video_factory(is_sensitive=True)
+    )
+    cog = _cog()
+    ctx = FakeContext(channel_is_nsfw=False)
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_link_video_sensible_permitido_en_nsfw(monkeypatch):
+    monkeypatch.setattr(
+        download_mod, "_download_video", _fake_download_video_factory(is_sensitive=True)
+    )
+    cog = _cog()
+    ctx = FakeContext(channel_is_nsfw=True)
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.replies == []
+
+
+def test_gif_cmd_link_limpia_el_directorio_temporal(monkeypatch):
+    created_dirs: list[str] = []
+
+    def fake_download(url, max_bytes):
+        tmp_dir = tempfile.mkdtemp(prefix="purgito_gif_test_")
+        created_dirs.append(tmp_dir)
+        path = os.path.join(tmp_dir, "video.mp4")
+        with open(path, "wb") as f:
+            f.write(_make_test_video_bytes(duration=0.3, fps=6))
+        return path, False
+
+    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.reply_files) == 1
+    assert len(created_dirs) == 1
+    assert not os.path.exists(created_dirs[0])
