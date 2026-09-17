@@ -1,5 +1,6 @@
-"""Filtros de imagen tipo NotSoBot (Fase 1): image_filters.py (funciones
-Pillow puras) y cogs/imagefx.py (resolución de la imagen fuente + comandos).
+"""Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4): image_filters.py y
+video_filters.py (funciones puras) y cogs/imagefx.py (resolución de la
+imagen/GIF/video fuente + comandos).
 
 Mismo patrón que test_download_cog.py: se llama directo a
 Cog.<comando>.callback(cog, ctx, ...) para saltear los decoradores de
@@ -8,15 +9,28 @@ discord.py, con un FakeContext basado en SimpleNamespace.
 
 import asyncio
 import io
+import subprocess
 from types import SimpleNamespace
 
 import discord
+import imageio_ffmpeg
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageSequence
 
 import cogs.imagefx as imagefx_mod
 import image_filters
-from cogs.imagefx import ImageFx, ImageTooLarge, _find_attachment, _resolve_image_bytes
+import video_filters
+from cogs.imagefx import (
+    _GIF_EXTS,
+    _IMAGE_EXTS,
+    _VIDEO_EXTS,
+    ImageFx,
+    SourceTooLarge,
+    _find_attachment,
+    _resolve_gif_bytes,
+    _resolve_image_bytes,
+    _resolve_video_bytes,
+)
 
 
 def _png_bytes(size=(200, 120), color=(10, 120, 200)) -> bytes:
@@ -36,6 +50,42 @@ def _png_bytes_with_shape(size=(200, 120)) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _gif_bytes(colors=((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0))) -> bytes:
+    """GIF animado real con frames de colores distintos (para poder verificar
+    orden/cantidad de frames, no solo que el archivo "no rompe")."""
+    frames = [Image.new("RGB", (40, 40), c) for c in colors]
+    buf = io.BytesIO()
+    frames[0].save(
+        buf, format="GIF", save_all=True, append_images=frames[1:], duration=100, loop=0
+    )
+    return buf.getvalue()
+
+
+def _make_test_video_bytes(duration=0.5, size="64x64", fps=8) -> bytes:
+    """Video real y chico generado con el mismo binario de ffmpeg que
+    convert_video_to_gif usa en producción (imageio-ffmpeg) -- así el test de
+    integración de "!gif" no depende de ningún archivo de fixture ni de red."""
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    proc = subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc=duration={duration}:size={size}:rate={fps}",
+            "-f",
+            "mp4",
+            "-movflags",
+            "frag_keyframe+empty_moov",
+            "pipe:1",
+        ],
+        capture_output=True,
+        check=True,
+    )
+    return proc.stdout
 
 
 # ── image_filters: los filtros de imagen estática no rompen y devuelven una
@@ -162,6 +212,81 @@ def test_polaroid_agrega_marco_mas_grueso_abajo():
         assert bottom_border > side_border
 
 
+# ── image_filters: edición de un GIF existente (Fase 4) ──────────────────────
+
+
+def test_gif_caption_devuelve_gif_con_la_misma_cantidad_de_frames():
+    out = image_filters.gif_caption(_gif_bytes(), "ARRIBA|ABAJO")
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.format == "GIF"
+        assert img.n_frames == 4
+
+
+def test_gif_speed_acelera_reduce_la_duracion_de_cada_frame():
+    out = image_filters.gif_speed(_gif_bytes(), factor=2.0)
+    with Image.open(io.BytesIO(out)) as img:
+        durations = [f.info.get("duration") for f in ImageSequence.Iterator(img)]
+        assert all(d == 50 for d in durations)  # 100 / 2.0
+
+
+def test_gif_reverse_invierte_el_orden_de_los_frames():
+    out = image_filters.gif_reverse(_gif_bytes())
+    with Image.open(io.BytesIO(out)) as img:
+        first_pixel = img.convert("RGB").getpixel((0, 0))
+        assert first_pixel == (255, 255, 0)  # último color de _gif_bytes
+
+
+def test_gif_wide_estira_todos_los_frames():
+    out = image_filters.gif_wide(_gif_bytes(), factor=2.0)
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.size == (80, 40)
+        assert img.n_frames == 4
+
+
+# ── video_filters: conversión de video a GIF (Fase 4) ────────────────────────
+
+
+def test_convert_video_to_gif_produce_un_gif_animado():
+    video_bytes = _make_test_video_bytes(duration=0.6, fps=10)
+
+    out = video_filters.convert_video_to_gif(
+        video_bytes, max_seconds=2.0, max_output_bytes=5 * 1024 * 1024
+    )
+
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.format == "GIF"
+        assert img.is_animated
+        assert img.n_frames >= 2
+
+
+def test_convert_video_to_gif_trunca_a_max_seconds():
+    video_bytes = _make_test_video_bytes(duration=3.0, fps=10)
+
+    out = video_filters.convert_video_to_gif(
+        video_bytes, max_seconds=0.5, max_output_bytes=5 * 1024 * 1024
+    )
+
+    with Image.open(io.BytesIO(out)) as img:
+        # A 10fps, 3s enteros serían ~30 frames -- truncado a 0.5s da ~5.
+        assert img.n_frames < 15
+
+
+def test_convert_video_to_gif_rechaza_salida_demasiado_grande():
+    video_bytes = _make_test_video_bytes(duration=0.5)
+
+    with pytest.raises(video_filters.GifTooLarge):
+        video_filters.convert_video_to_gif(
+            video_bytes, max_seconds=1.0, max_output_bytes=10
+        )
+
+
+def test_convert_video_to_gif_rechaza_contenido_invalido():
+    with pytest.raises(video_filters.VideoConversionFailed):
+        video_filters.convert_video_to_gif(
+            b"esto no es un video", max_seconds=1.0, max_output_bytes=5 * 1024 * 1024
+        )
+
+
 # ── cogs/imagefx.py: resolución de la imagen fuente ──────────────────────────
 
 
@@ -192,9 +317,28 @@ class FakeAuthor:
         self.display_avatar = FakeAvatarAsset(avatar_bytes or _png_bytes())
 
 
+class _FakeTyping:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 class FakeContext:
-    def __init__(self, attachments=None, reference=None, author=None, guild_id=1):
-        self.guild = SimpleNamespace(id=guild_id) if guild_id is not None else None
+    def __init__(
+        self,
+        attachments=None,
+        reference=None,
+        author=None,
+        guild_id=1,
+        guild_filesize_limit=25 * 1024 * 1024,
+    ):
+        self.guild = (
+            SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
+            if guild_id is not None
+            else None
+        )
         self.author = author or FakeAuthor()
         self.message = SimpleNamespace(
             attachments=attachments or [], reference=reference
@@ -216,6 +360,9 @@ class FakeContext:
             raise discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "")
         return self._fetch_message_result
 
+    def typing(self):
+        return _FakeTyping()
+
 
 @pytest.fixture(autouse=True)
 def fake_locale(monkeypatch):
@@ -229,10 +376,13 @@ def fake_locale(monkeypatch):
 def reset_cooldowns():
     # _fx_cooldowns es compartido por todos los comandos del cog (a propósito,
     # ver el comentario junto a _check_fx_cooldown) -- y también entre tests,
-    # así que hay que limpiarlo para que no interfieran entre sí.
+    # así que hay que limpiarlo para que no interfieran entre sí. Mismo motivo
+    # para _gif_convert_cooldowns, el pool aparte de "!gif".
     imagefx_mod._fx_cooldowns.clear()
+    imagefx_mod._gif_convert_cooldowns.clear()
     yield
     imagefx_mod._fx_cooldowns.clear()
+    imagefx_mod._gif_convert_cooldowns.clear()
 
 
 def _cog():
@@ -242,7 +392,7 @@ def _cog():
 def test_find_attachment_usa_el_adjunto_propio():
     ctx = FakeContext(attachments=[FakeAttachment(data=b"propio")])
 
-    attachment = asyncio.run(_find_attachment(ctx))
+    attachment = asyncio.run(_find_attachment(ctx, _IMAGE_EXTS))
 
     assert attachment is not None
     assert asyncio.run(attachment.read()) == b"propio"
@@ -251,14 +401,31 @@ def test_find_attachment_usa_el_adjunto_propio():
 def test_find_attachment_ignora_extensiones_no_soportadas():
     ctx = FakeContext(attachments=[FakeAttachment(filename="video.mp4")])
 
-    assert asyncio.run(_find_attachment(ctx)) is None
+    assert asyncio.run(_find_attachment(ctx, _IMAGE_EXTS)) is None
+
+
+def test_find_attachment_respeta_el_set_de_extensiones_pedido():
+    # Mismo helper que usan los filtros de imagen, pero para GIFs y videos --
+    # generalizado en la Fase 4 para no triplicar la lógica de reply/fetch.
+    ctx = FakeContext(
+        attachments=[
+            FakeAttachment(filename="foto.png", data=b"imagen"),
+            FakeAttachment(filename="animado.gif", data=b"gif"),
+        ]
+    )
+
+    gif_attachment = asyncio.run(_find_attachment(ctx, _GIF_EXTS))
+    video_attachment = asyncio.run(_find_attachment(ctx, _VIDEO_EXTS))
+
+    assert asyncio.run(gif_attachment.read()) == b"gif"
+    assert video_attachment is None
 
 
 def test_find_attachment_usa_el_adjunto_del_mensaje_respondido():
     referenced = SimpleNamespace(attachments=[FakeAttachment(data=b"del reply")])
     ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
 
-    attachment = asyncio.run(_find_attachment(ctx))
+    attachment = asyncio.run(_find_attachment(ctx, _IMAGE_EXTS))
 
     assert asyncio.run(attachment.read()) == b"del reply"
 
@@ -270,7 +437,7 @@ def test_find_attachment_prioriza_el_adjunto_propio_sobre_el_reply():
         reference=SimpleNamespace(resolved=referenced, message_id=1),
     )
 
-    attachment = asyncio.run(_find_attachment(ctx))
+    attachment = asyncio.run(_find_attachment(ctx, _IMAGE_EXTS))
 
     assert asyncio.run(attachment.read()) == b"propio"
 
@@ -282,7 +449,7 @@ def test_find_attachment_ignora_reply_borrado():
         )
     )
 
-    assert asyncio.run(_find_attachment(ctx)) is None
+    assert asyncio.run(_find_attachment(ctx, _IMAGE_EXTS)) is None
 
 
 def test_find_attachment_busca_con_fetch_si_el_reply_no_esta_en_cache():
@@ -291,7 +458,7 @@ def test_find_attachment_busca_con_fetch_si_el_reply_no_esta_en_cache():
         attachments=[FakeAttachment(data=b"fetch")]
     )
 
-    attachment = asyncio.run(_find_attachment(ctx))
+    attachment = asyncio.run(_find_attachment(ctx, _IMAGE_EXTS))
 
     assert asyncio.run(attachment.read()) == b"fetch"
 
@@ -307,8 +474,55 @@ def test_resolve_image_bytes_usa_el_avatar_si_no_hay_adjunto():
 def test_resolve_image_bytes_rechaza_adjunto_demasiado_grande():
     ctx = FakeContext(attachments=[FakeAttachment(size=999_999_999)])
 
-    with pytest.raises(ImageTooLarge):
+    with pytest.raises(SourceTooLarge):
         asyncio.run(_resolve_image_bytes(ctx))
+
+
+def test_resolve_gif_bytes_sin_adjunto_ni_reply_devuelve_none():
+    # A diferencia de _resolve_image_bytes, acá no hay fallback a avatar.
+    ctx = FakeContext()
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) is None
+
+
+def test_resolve_gif_bytes_usa_el_adjunto_gif():
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=b"un gif")])
+
+    data = asyncio.run(_resolve_gif_bytes(ctx))
+
+    assert data == b"un gif"
+
+
+def test_resolve_gif_bytes_rechaza_adjunto_demasiado_grande():
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", size=999_999_999)])
+
+    with pytest.raises(SourceTooLarge):
+        asyncio.run(_resolve_gif_bytes(ctx))
+
+
+def test_resolve_video_bytes_sin_adjunto_ni_reply_devuelve_none():
+    ctx = FakeContext()
+
+    assert asyncio.run(_resolve_video_bytes(ctx)) is None
+
+
+def test_resolve_video_bytes_usa_el_adjunto_de_video():
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=b"un video")]
+    )
+
+    data = asyncio.run(_resolve_video_bytes(ctx))
+
+    assert data == b"un video"
+
+
+def test_resolve_video_bytes_rechaza_adjunto_demasiado_grande():
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", size=999_999_999)]
+    )
+
+    with pytest.raises(SourceTooLarge):
+        asyncio.run(_resolve_video_bytes(ctx))
 
 
 # ── cogs/imagefx.py: comandos end-to-end ─────────────────────────────────────
@@ -434,3 +648,178 @@ def test_cog_command_error_generico_no_revienta():
     asyncio.run(cog.cog_command_error(ctx, ValueError("boom")))
 
     assert len(ctx.replies) == 1
+
+
+# ── Fase 4: comandos de edición de GIF end-to-end ────────────────────────────
+
+
+def test_gifcaption_camino_feliz_responde_con_archivo():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.gifcaption_cmd.callback(cog, ctx, texto="ARRIBA|ABAJO"))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gifcaption_sin_texto_pide_el_texto():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.gifcaption_cmd.callback(cog, ctx, texto=None))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gifspeed_camino_feliz_responde_con_archivo():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.gifspeed_cmd.callback(cog, ctx, factor=2.0))
+
+    assert len(ctx.reply_files) == 1
+
+
+def test_gifreverse_camino_feliz_responde_con_archivo():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.gifreverse_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+
+
+def test_gifwide_camino_feliz_responde_con_archivo():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.gifwide_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_edit_sin_adjunto_ni_reply_pide_un_gif():
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gifreverse_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_edit_rechaza_contenido_que_no_es_gif_valido():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_png_bytes())])
+
+    asyncio.run(cog.gifreverse_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+# ── Fase 4: "!gif" (video -> GIF) end-to-end ─────────────────────────────────
+
+
+def test_gif_cmd_camino_feliz_convierte_un_video_real():
+    # Única prueba que corre ffmpeg de verdad (las demás mockean
+    # video_filters.convert_video_to_gif) -- confirma que el cableado
+    # completo funciona, no solo cada pieza por separado.
+    cog = _cog()
+    video_bytes = _make_test_video_bytes(duration=0.5, fps=8)
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)]
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_sin_video_pide_un_video():
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_rechaza_video_demasiado_grande():
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", size=999_999_999)]
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_avisa_si_la_conversion_falla(monkeypatch):
+    def fake_convert(data, max_seconds, max_output_bytes):
+        raise video_filters.VideoConversionFailed("boom")
+
+    monkeypatch.setattr(imagefx_mod.video_filters, "convert_video_to_gif", fake_convert)
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="clip.mp4", data=b"x")])
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_avisa_si_el_gif_resultante_es_demasiado_grande(monkeypatch):
+    def fake_convert(data, max_seconds, max_output_bytes):
+        raise video_filters.GifTooLarge(max_output_bytes)
+
+    monkeypatch.setattr(imagefx_mod.video_filters, "convert_video_to_gif", fake_convert)
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="clip.mp4", data=b"x")])
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_error_max_concurrency():
+    from discord.ext import commands
+
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(
+        cog.gif_cmd_error(
+            ctx, commands.MaxConcurrencyReached(1, commands.BucketType.guild)
+        )
+    )
+
+    assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_tiene_su_propio_cooldown_separado_del_resto(monkeypatch):
+    """ "!gif" es mucho más caro (ffmpeg de verdad) que el resto de los
+    filtros -- su cooldown NO debería compartirse con _fx_cooldowns ni
+    viceversa."""
+
+    def fake_convert(data, max_seconds, max_output_bytes):
+        return _gif_bytes()
+
+    monkeypatch.setattr(imagefx_mod.video_filters, "convert_video_to_gif", fake_convert)
+    cog = _cog()
+
+    ctx1 = FakeContext(attachments=[FakeAttachment(data=_png_bytes())])
+    asyncio.run(cog.deepfry_cmd.callback(cog, ctx1))
+    assert len(ctx1.reply_files) == 1
+
+    ctx2 = FakeContext(attachments=[FakeAttachment(filename="clip.mp4", data=b"x")])
+    asyncio.run(cog.gif_cmd.callback(cog, ctx2))
+
+    assert len(ctx2.reply_files) == 1

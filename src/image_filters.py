@@ -1,13 +1,22 @@
-"""Filtros de imagen tipo NotSoBot (Fases 1 y 2): transformaciones Pillow
-puras sobre bytes de una imagen ya resuelta. La resolución de la fuente
-(adjunto, mensaje respondido o avatar) vive en cogs/imagefx.py -- este
-módulo no sabe nada de discord.py."""
+"""Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4): transformaciones Pillow
+puras sobre bytes de una imagen o GIF ya resuelto. La resolución de la
+fuente (adjunto, mensaje respondido o avatar) vive en cogs/imagefx.py --
+este módulo no sabe nada de discord.py. La conversión de video a GIF (que
+necesita ffmpeg, no solo Pillow) vive aparte, en video_filters.py."""
 
 import io
 import os
 import textwrap
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from PIL import (
+    Image,
+    ImageDraw,
+    ImageEnhance,
+    ImageFilter,
+    ImageFont,
+    ImageOps,
+    ImageSequence,
+)
 
 from meme_generator import _ALLOWED_FORMATS
 
@@ -501,3 +510,69 @@ def threshold(image_bytes: bytes, level: int = 128) -> bytes:
 
 def emboss(image_bytes: bytes) -> bytes:
     return _png_bytes(_open_rgb(image_bytes).filter(ImageFilter.EMBOSS))
+
+
+# ── Fase 4: edición de un GIF ya existente (no video -- eso es
+# video_filters.convert_video_to_gif) ────────────────────────────────────────
+
+
+def _iter_gif_frames(image_bytes: bytes) -> tuple[list[Image.Image], list[int]]:
+    """RGBA (no RGB): algunas transformaciones de acá abajo pueden introducir
+    transparencia (ninguna hoy, pero es el modo seguro por default para
+    recomponer frames). formats=("GIF",) restringe el decoder igual que
+    _ALLOWED_FORMATS restringe a PNG/JPEG/WEBP en el resto del módulo --
+    mismo principio, allowlist distinta porque acá el input SÍ es un GIF."""
+    img = Image.open(io.BytesIO(image_bytes), formats=("GIF",))
+    frames, durations = [], []
+    for frame in ImageSequence.Iterator(img):
+        frames.append(frame.convert("RGBA"))
+        durations.append(frame.info.get("duration", 80))
+    return frames, durations
+
+
+def _save_gif(frames: list[Image.Image], durations: list[int]) -> bytes:
+    buf = io.BytesIO()
+    frames[0].save(
+        buf,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=durations,
+        loop=0,
+        disposal=2,
+    )
+    return buf.getvalue()
+
+
+def gif_caption(image_bytes: bytes, text: str) -> bytes:
+    frames, durations = _iter_gif_frames(image_bytes)
+    top, _, bottom = text.upper().partition("|")
+    top, bottom = top.strip(), bottom.strip()
+    for frame in frames:
+        if top:
+            _draw_outlined_text(frame, top, "top")
+        if bottom:
+            _draw_outlined_text(frame, bottom, "bottom")
+    return _save_gif(frames, durations)
+
+
+def gif_speed(image_bytes: bytes, factor: float = 2.0) -> bytes:
+    factor = max(0.25, min(factor, 4.0))
+    frames, durations = _iter_gif_frames(image_bytes)
+    new_durations = [max(20, int(d / factor)) for d in durations]
+    return _save_gif(frames, new_durations)
+
+
+def gif_reverse(image_bytes: bytes) -> bytes:
+    frames, durations = _iter_gif_frames(image_bytes)
+    return _save_gif(list(reversed(frames)), list(reversed(durations)))
+
+
+def gif_wide(image_bytes: bytes, factor: float = 2.0) -> bytes:
+    factor = max(1.2, min(factor, 4.0))
+    frames, durations = _iter_gif_frames(image_bytes)
+    resized = []
+    for frame in frames:
+        w, h = frame.size
+        resized.append(frame.resize((int(w * factor), h), Image.Resampling.LANCZOS))
+    return _save_gif(resized, durations)

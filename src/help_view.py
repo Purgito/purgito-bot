@@ -101,6 +101,11 @@ CATEGORIES = {
             ("!poster", "help.cat.imagen.cmd.poster"),
             ("!threshold", "help.cat.imagen.cmd.threshold"),
             ("!emboss", "help.cat.imagen.cmd.emboss"),
+            ("!gif", "help.cat.imagen.cmd.gif"),
+            ("!gifcaption <arriba>|<abajo>", "help.cat.imagen.cmd.gifcaption"),
+            ("!gifspeed <factor>", "help.cat.imagen.cmd.gifspeed"),
+            ("!gifreverse", "help.cat.imagen.cmd.gifreverse"),
+            ("!gifwide", "help.cat.imagen.cmd.gifwide"),
         ],
     },
 }

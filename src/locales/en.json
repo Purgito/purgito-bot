@@ -410,5 +410,17 @@
   "help.cat.imagen.cmd.polaroid": "Adds a white Polaroid-style frame",
   "help.cat.imagen.cmd.poster": "Reduces it to a few flat color tones (optional level)",
   "help.cat.imagen.cmd.threshold": "Converts it to pure black and white by a threshold (optional)",
-  "help.cat.imagen.cmd.emboss": "Embosses it, like it's stamped in metal"
+  "help.cat.imagen.cmd.emboss": "Embosses it, like it's stamped in metal",
+  "imagefx.gif_missing": "I need a GIF: attach one or reply to a message that has one.",
+  "imagefx.invalid_gif": "That's not a valid GIF.",
+  "imagefx.video_missing": "I need a video: attach one or reply to a message that has one.",
+  "imagefx.video_too_large": "That video is over {mb}MB.",
+  "imagefx.video_conversion_failed": "Couldn't convert that video to a GIF. The format might not be supported.",
+  "imagefx.gif_output_too_large": "The resulting GIF is over {mb}MB, too big for this channel.",
+  "imagefx.gif_busy": "There's already a video conversion running in this server, wait for it to finish.",
+  "help.cat.imagen.cmd.gif": "Converts a video (attached or from the message you're replying to) into a GIF",
+  "help.cat.imagen.cmd.gifcaption": "Adds text on top and bottom to a GIF",
+  "help.cat.imagen.cmd.gifspeed": "Changes a GIF's playback speed",
+  "help.cat.imagen.cmd.gifreverse": "Plays a GIF backwards",
+  "help.cat.imagen.cmd.gifwide": "Stretches a GIF horizontally"
 }

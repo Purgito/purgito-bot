@@ -410,5 +410,17 @@
   "help.cat.imagen.cmd.polaroid": "Le agrega un marco blanco tipo foto Polaroid",
   "help.cat.imagen.cmd.poster": "Reduce los colores a unos pocos tonos planos (nivel opcional)",
   "help.cat.imagen.cmd.threshold": "La convierte a blanco y negro puro según un umbral (opcional)",
-  "help.cat.imagen.cmd.emboss": "Le da relieve, como si estuviera grabada en metal"
+  "help.cat.imagen.cmd.emboss": "Le da relieve, como si estuviera grabada en metal",
+  "imagefx.gif_missing": "Necesito un GIF: adjúntalo o responde a un mensaje que tenga uno.",
+  "imagefx.invalid_gif": "Eso no es un GIF válido.",
+  "imagefx.video_missing": "Necesito un video: adjúntalo o responde a un mensaje que tenga uno.",
+  "imagefx.video_too_large": "Ese video pesa más de {mb}MB.",
+  "imagefx.video_conversion_failed": "No pude convertir ese video a GIF. Puede que el formato no sea compatible.",
+  "imagefx.gif_output_too_large": "El GIF resultante pesa más de {mb}MB, no entra en este canal.",
+  "imagefx.gif_busy": "Ya hay una conversión de video en curso en este servidor, espera a que termine.",
+  "help.cat.imagen.cmd.gif": "Convierte un video (adjunto o del mensaje que respondas) en GIF",
+  "help.cat.imagen.cmd.gifcaption": "Agrega texto arriba y abajo a un GIF",
+  "help.cat.imagen.cmd.gifspeed": "Cambia la velocidad de reproducción de un GIF",
+  "help.cat.imagen.cmd.gifreverse": "Reproduce un GIF al revés",
+  "help.cat.imagen.cmd.gifwide": "Estira un GIF horizontalmente"
 }
