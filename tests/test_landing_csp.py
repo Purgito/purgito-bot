@@ -60,8 +60,24 @@ def test_el_hash_cubre_el_onerror_inline_que_usa_el_sitio():
 
 
 def test_permite_las_fuentes_y_el_iframe_de_tenor_que_usa_el_sitio():
-    style_css = (LANDING / "style.css").read_text("utf-8")
-    assert "fonts.googleapis.com" in style_css  # @import de las fuentes
+    # Las fuentes se cargan con un <link> en el <head> (ver SHELL en
+    # build_docs.py), no con @import en style.css -- se comprueba el <link>
+    # en una página generada y en los dos index.html a mano (build_docs.py
+    # no los regenera, ver INDEX_FILE), no un substring cualquiera en el
+    # CSS: un comentario que mencione "fonts.googleapis.com" ahí haría
+    # pasar esto igual sin decir nada de si el sitio en verdad pide la
+    # fuente -- justo lo que pasó acá cuando el <link> se agregó a SHELL
+    # pero se olvidó en los index.html a mano.
+    font_href = "https://fonts.googleapis.com/css2?family=Lexend"
+    for path in [
+        LANDING / "es" / "dashboard" / "index.html",
+        LANDING / "index.html",
+        LANDING / "index.en.html",
+    ]:
+        html = path.read_text("utf-8")
+        assert f'<link rel="stylesheet" href="{font_href}' in html, path
+        assert '<link rel="preconnect" href="https://fonts.gstatic.com"' in html, path
+
     assert "fonts.googleapis.com" in build_docs.LANDING_CSP
     assert "fonts.gstatic.com" in build_docs.LANDING_CSP
 
