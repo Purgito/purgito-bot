@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@600;700&family=Outfit:wght@400;500;600&family=Noto+Sans+JP:wght@400;600&family=Fira+Code:wght@400;500&display=swap');
+/* Las fuentes de Google se cargan desde el <head> (ver SHELL en
+   build_docs.py), no con @import acá: un @import en CSS no lo detecta el
+   preload scanner del navegador hasta que este archivo ya bajó y se
+   parseó -- recién ahí arrancaba la conexión a fonts.googleapis.com y, en
+   cascada, a fonts.gstatic.com. Con el <link> en el HTML esas conexiones
+   arrancan en paralelo con todo lo demás del <head>. */
 
 /* ══════════════════════════════════════════════════════════
    SISTEMA DE DISEÑO — purgito.app

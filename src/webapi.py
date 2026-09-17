@@ -2443,14 +2443,38 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
     acumulados históricos de lo que el bot mandó.
     """
     guild = _bot_guild(request, guild_id)
-    per_channel = await count_corpus_by_channel(guild_id)
-    ignored = set(await list_ignored_channels(guild_id))
     text_channels = list(getattr(guild, "text_channels", []))
-    mention_channels = await list_mention_channels(guild_id)
-    corpus_channels = set(await list_corpus_channels(guild_id))
+    # Las 9 son independientes entre sí (ninguna necesita el resultado de
+    # otra) -- gather() no las hace correr más rápido en la base en sí, la
+    # única conexión aiosqlite del proceso las sigue sirviendo una por una
+    # en su propio hilo, pero sí evita pagar el ida-y-vuelta del event loop
+    # de a una por vez, que con 9 awaits en serie se nota.
+    (
+        per_channel,
+        ignored_list,
+        mention_channels,
+        corpus_channels_list,
+        corpus_total,
+        counters,
+        reaction_pool,
+        gifs_total,
+        frases,
+    ) = await asyncio.gather(
+        count_corpus_by_channel(guild_id),
+        list_ignored_channels(guild_id),
+        list_mention_channels(guild_id),
+        list_corpus_channels(guild_id),
+        count_guild_corpus_messages(guild_id),
+        get_counters(guild_id),
+        list_reaction_pool(guild_id),
+        count_gif_urls(guild_id),
+        list_frases_especiales(guild_id),
+    )
+    ignored = set(ignored_list)
+    corpus_channels = set(corpus_channels_list)
     return web.json_response(
         {
-            "corpus_total": await count_guild_corpus_messages(guild_id),
+            "corpus_total": corpus_total,
             # Canales que el bot lee = allowlist del corpus, menos ignorados y
             # NSFW -- el mismo criterio que aplica _save_message_to_corpus en
             # cogs/chat.py. Lista vacía de corpus_allowed_channels = no lee
@@ -2467,7 +2491,7 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
             "text_channels": len(text_channels),
             # Lista vacía = responde en todos (ver mention_channels en cogs/chat.py).
             "reply_channels": len(mention_channels) or len(text_channels),
-            "counters": await get_counters(guild_id),
+            "counters": counters,
             "corpus_by_channel": [
                 {
                     "channel_id": str(r["channel_id"]),
@@ -2476,9 +2500,9 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
                 }
                 for r in per_channel[:8]
             ],
-            "reactions": len(await list_reaction_pool(guild_id)),
-            "gifs": await count_gif_urls(guild_id),
-            "frases": len(await list_frases_especiales(guild_id)),
+            "reactions": len(reaction_pool),
+            "gifs": gifs_total,
+            "frases": len(frases),
             "member_count": getattr(guild, "member_count", None),
             # Denominadores de las tarjetas de estado: sin esto el dashboard
             # muestra "14.982 mensajes" sin decir que el tope está en 15.000 y

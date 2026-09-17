@@ -16,18 +16,38 @@ import {
   getDashboardUrl, getPerfilUrl, getLoginUrl, parseGuildId,
 } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, roleSelect, content } from '/js/panel-shell.js';
-import { loadGifs } from '/js/tabs/gifs.js';
-import { loadPremium } from '/js/tabs/premium.js';
-import { loadYoutube } from '/js/tabs/youtube.js';
-import { loadTwitch } from '/js/tabs/twitch.js';
-import { loadRss } from '/js/tabs/rss.js';
-import { loadHistorial } from '/js/tabs/historial.js';
-import { loadWelcomeTab, loadGoodbyeTab, loadBoostTab } from '/js/tabs/eventos.js';
-import { loadAnunciosTab } from '/js/tabs/anuncios.js';
 import {
   loadEmbeds, loadSharedEmbed, panelModal, getEmojis, uploadImageBlob,
 } from '/js/embeds/shared-ui.js';
 import { t, addStrings } from '/js/core/i18n.js';
+
+// GIFs/Premium/YouTube/Twitch/RSS/Historial/Eventos/Anuncios no se importan
+// estáticos: son ~210 KB sin minificar que antes bajaban en CADA visita al
+// dashboard aunque el usuario no abriera esa tab. Cada entrada de MODULES
+// que usa lazyTab() pide su archivo recién al activarse -- el import map ya
+// versiona estos módulos igual que a los de arriba (build_docs.py arma el
+// mapa listando landing/js/**, no seteando qué imports son estáticos), y el
+// navegador cachea el import por URL, así que volver a una tab ya abierta en
+// esta misma carga de página no repite el fetch.
+//
+// Embeds queda afuera de este tratamiento: panelModal/getEmojis/
+// uploadImageBlob de shared-ui.js los usan también tabs propias de este
+// archivo (estilo, exclusión de usuarios, reacciones), no solo la tab
+// Embeds, así que no hay un límite de módulo limpio para diferirlo sin
+// tocar esos otros flujos.
+function lazyTab(modulePath, exportName) {
+  return async () => {
+    const box = content();
+    if (box) box.append(spinner());
+    try {
+      const mod = await import(modulePath);
+      await mod[exportName]();
+    } catch (e) {
+      const errBox = document.getElementById('catContent');
+      if (errBox) renderError(errBox, e);
+    }
+  };
+}
 
 addStrings({
   es: {
@@ -183,7 +203,7 @@ export const MODULES = [
     icon: 'history',
     desc: t('dash.mod.historial.desc'),
     keywords: ['auditoria', 'historial', 'logs', 'registro', 'cambios', 'seguridad'],
-    load: loadHistorial,
+    load: lazyTab('/js/tabs/historial.js', 'loadHistorial'),
   },
 
   // Anuncios
@@ -194,7 +214,7 @@ export const MODULES = [
     icon: 'logIn',
     desc: t('dash.mod.welcome.desc'),
     keywords: ['bienvenidas', 'welcome', 'bienvenida', 'saludo', 'nuevo', 'miembro', 'entradas'],
-    load: loadWelcomeTab,
+    load: lazyTab('/js/tabs/eventos.js', 'loadWelcomeTab'),
   },
   {
     key: 'goodbye',
@@ -203,7 +223,7 @@ export const MODULES = [
     icon: 'logOut',
     desc: t('dash.mod.goodbye.desc'),
     keywords: ['despedidas', 'goodbye', 'despedida', 'salidas', 'abandono'],
-    load: loadGoodbyeTab,
+    load: lazyTab('/js/tabs/eventos.js', 'loadGoodbyeTab'),
   },
   {
     key: 'boost',
@@ -212,7 +232,7 @@ export const MODULES = [
     icon: 'star',
     desc: t('dash.mod.boost.desc'),
     keywords: ['boosts', 'boost', 'mejora', 'agradecimiento', 'servidor', 'nitro'],
-    load: loadBoostTab,
+    load: lazyTab('/js/tabs/eventos.js', 'loadBoostTab'),
   },
   {
     key: 'anuncios',
@@ -221,7 +241,7 @@ export const MODULES = [
     icon: 'megaphone',
     desc: t('dash.mod.anuncios.desc'),
     keywords: ['anuncios', 'programados', 'intervalo', 'diario', 'cadencia', 'mensajes', 'publicaciones', 'automatico', 'auto-delete'],
-    load: loadAnunciosTab,
+    load: lazyTab('/js/tabs/anuncios.js', 'loadAnunciosTab'),
   },
 
   // Plantillas
@@ -270,7 +290,7 @@ export const MODULES = [
     icon: 'youtube',
     desc: t('dash.mod.youtube.desc'),
     keywords: ['youtube', 'videos', 'notificaciones', 'canales', 'alertas'],
-    load: loadYoutube,
+    load: lazyTab('/js/tabs/youtube.js', 'loadYoutube'),
   },
   {
     key: 'twitch',
@@ -279,7 +299,7 @@ export const MODULES = [
     icon: 'twitch',
     desc: t('dash.mod.twitch.desc'),
     keywords: ['twitch', 'en vivo', 'live', 'stream', 'transmision', 'alertas'],
-    load: loadTwitch,
+    load: lazyTab('/js/tabs/twitch.js', 'loadTwitch'),
   },
   {
     key: 'rss',
@@ -288,7 +308,7 @@ export const MODULES = [
     icon: 'rss',
     desc: t('dash.mod.rss.desc'),
     keywords: ['rss', 'atom', 'feeds', 'noticias', 'blogs', 'articulos', 'alertas'],
-    load: loadRss,
+    load: lazyTab('/js/tabs/rss.js', 'loadRss'),
   },
   {
     key: 'updates',
@@ -308,7 +328,7 @@ export const MODULES = [
     icon: 'film',
     desc: t('dash.mod.gifs.desc'),
     keywords: ['gifs', 'galeria', 'animaciones', 'tenor', 'giphy', 'entretenimiento'],
-    load: loadGifs,
+    load: lazyTab('/js/tabs/gifs.js', 'loadGifs'),
   },
   {
     key: 'memes',
@@ -350,7 +370,7 @@ export const MODULES = [
     badgeType: 'premium',
     desc: t('dash.mod.premium.desc'),
     keywords: ['premium', 'suscripcion', 'polar', 'planes', 'limites', 'cupo', '50000'],
-    load: loadPremium,
+    load: lazyTab('/js/tabs/premium.js', 'loadPremium'),
   },
 ];
 
@@ -421,10 +441,30 @@ const QUOTA_ALERT_MODULES = [
   ['frases', s => s.frases, l => l.frases],
 ];
 
+// Dedupea el /stats concurrente entre loadQuotaAlerts() y loadInicio(): al
+// entrar al dashboard, initDash() dispara loadQuotaAlerts() (para el punto
+// de la sidebar) y activate() dispara loadInicio() (para el resumen de
+// INICIO) casi en el mismo instante, y ambos pedían este mismo endpoint por
+// separado. No cachea el resultado en el tiempo -- se limpia apenas
+// resuelve -- así que solo evita el segundo fetch mientras el primero sigue
+// en vuelo; una visita posterior a INICIO vuelve a pedir datos frescos.
+let _statsInFlight = null;
+function fetchStats() {
+  if (_statsInFlight && _statsInFlight.epoch === _loadEpoch) {
+    return _statsInFlight.promise;
+  }
+  const epoch = _loadEpoch;
+  const promise = apiFetch(`/api/server/${GUILD_ID}/stats`).finally(() => {
+    if (_statsInFlight && _statsInFlight.promise === promise) _statsInFlight = null;
+  });
+  _statsInFlight = { epoch, promise };
+  return promise;
+}
+
 async function loadQuotaAlerts() {
   const epoch = _loadEpoch;
   try {
-    const stats = await apiFetch(`/api/server/${GUILD_ID}/stats`);
+    const stats = await fetchStats();
     if (epoch !== _loadEpoch) return;
     const lims = stats.limits || {};
     const alerts = {};
@@ -1729,7 +1769,7 @@ async function loadInicio() {
     const [styleRes, updatesRes, statsRes, channelsRes, corpusRes] = await Promise.allSettled([
       apiFetch(`/api/server/${GUILD_ID}/style`),
       apiFetch(`/api/server/${GUILD_ID}/settings/updates`),
-      apiFetch(`/api/server/${GUILD_ID}/stats`),
+      fetchStats(),
       getChannels({ force: true }),
       apiFetch(`/api/server/${GUILD_ID}/settings/corpus`),
     ]);

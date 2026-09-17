@@ -1,6 +1,6 @@
 # Changelog
 
-**Last updated:** September 16, 2026
+**Last updated:** September 17, 2026
 
 A plain-language summary of Purgito's new features, improvements, and
 fixes. The full technical detail, for anyone who wants to read it, lives
@@ -47,6 +47,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The dashboard's sidebar now starts with its categories collapsed (only the one for the module you're viewing opens), so it no longer has its own scroll separate from the rest of the page.
 - `/refeed_channels` now has a 60-second per-server cooldown, so it can't be accidentally relaunched several times in a row.
 - HISTORIAL's action filter now has specific options for more change types (user exclusions, command prefix, Twitch, mention channels, updates channel, phrases), instead of lumping them all under "All actions".
+- The dashboard now loads faster, especially the first time you open it in a session.
 
 ### Fixed
 - The dashboard's YouTube module showed an error ("emptyState is not defined") instead of the subscription list.
