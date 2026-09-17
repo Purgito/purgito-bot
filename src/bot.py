@@ -57,6 +57,7 @@ EXTENSIONS = [
     "cogs.anuncios",
     "cogs.general",
     "cogs.download",
+    "cogs.imagefx",
     "cogs.settings",
     "cogs.layout_buttons",
     "cogs.privacy",

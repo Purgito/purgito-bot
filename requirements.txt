@@ -11,6 +11,10 @@ yt-dlp==2026.8.19
 regex==2026.9.10
 Pillow==12.3.0
 imagehash==4.3.2
+# !gif (cogs/imagefx.py): convierte un video adjunto a GIF. Trae un binario
+# de ffmpeg propio empaquetado (ffmpeg-linux-x86_64 en este wheel) -- no hace
+# falta instalar ffmpeg de sistema ni tocar DEPLOY.md/preflight_check.sh.
+imageio-ffmpeg==0.6.0
 groq==1.7.0
 aiohttp-session[secure]==2.12.1
 # cryptography no es dependencia directa (la trae el extra [secure] de

@@ -110,6 +110,7 @@ AUTO_GENERATE_EVERY = 15
 AUTO_GENERATE_PROBABILITY = float(os.getenv("AUTO_GENERATE_PROBABILITY", "0.6"))
 
 MEME_MAX_BYTES = 10 * 1024 * 1024
+IMAGEFX_MAX_BYTES = 10 * 1024 * 1024
 
 # Timezone para los anuncios programados en modo "hora fija" (cogs/anuncios.py).
 ANNOUNCEMENTS_TIMEZONE = ZoneInfo(

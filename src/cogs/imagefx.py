@@ -1,0 +1,428 @@
+"""Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4): comandos con prefijo
+que transforman la imagen/GIF/video adjunto al mensaje, el del mensaje
+respondido, o (solo para imagen) el avatar de quien invoca -- mismo
+mecanismo de "adjunto propio -> reply" que ya usa cogs/download.py para
+"purgito dl"."""
+
+import asyncio
+import io
+import logging
+import os
+import time
+from typing import Callable
+
+import discord
+from discord.ext import commands
+
+import image_filters
+import video_filters
+from cogs.gifs import is_valid_gif_bytes
+from config import IMAGEFX_MAX_BYTES, env_int
+from i18n import guild_locale, t
+from meme_generator import is_valid_image
+from utils import LRUDict
+
+log = logging.getLogger(__name__)
+
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+_GIF_EXTS = {".gif"}
+_VIDEO_EXTS = {".mp4", ".mov", ".webm"}
+
+# Tope del video FUENTE de "!gif", antes de convertirlo -- deliberadamente
+# más chico que MAX_DL_VIDEO_BYTES (cogs/download.py): un gif es un clip
+# corto, no tiene sentido aceptar un archivo enorme solo para truncarlo a
+# GIF_MAX_DURATION_SECONDS después.
+MAX_GIF_SOURCE_VIDEO_BYTES = env_int("MAX_GIF_SOURCE_VIDEO_BYTES", 25 * 1024 * 1024)
+GIF_MAX_DURATION_SECONDS = 8
+
+# Cooldown compartido por TODOS los filtros de imagen/GIF de este cog, no uno
+# por comando: son ~30 comandos de costo parecido, así que un cooldown por
+# nombre de comando (lo que da @commands.cooldown por default) se evade
+# rotando entre ellos -- mismo problema que ya resolvió _check_meme_cooldown
+# en cogs/memes.py para /momo vs. el trigger de texto.
+_FX_COOLDOWN_SECONDS = 6
+_fx_cooldowns: LRUDict = LRUDict(1024)
+
+# "!gif" tiene su propio cooldown, más largo: a diferencia del resto (Pillow
+# puro, milisegundos), acá hay un proceso de ffmpeg de verdad -- mismo orden
+# de costo que "!dl" (yt-dlp), por eso el mismo valor que _DL_COOLDOWN_SECONDS.
+_GIF_CONVERT_COOLDOWN_SECONDS = 20
+_gif_convert_cooldowns: LRUDict = LRUDict(256)
+
+
+class SourceTooLarge(Exception):
+    """El adjunto/reply encontrado (imagen, GIF o video fuente de "!gif")
+    supera el tope de tamaño correspondiente."""
+
+    def __init__(self, max_bytes: int):
+        self.max_bytes = max_bytes
+
+
+def _check_fx_cooldown(user_id: int) -> int | None:
+    now = time.monotonic()
+    elapsed = now - _fx_cooldowns.get(user_id, 0.0)
+    if elapsed < _FX_COOLDOWN_SECONDS:
+        return int(_FX_COOLDOWN_SECONDS - elapsed) or 1
+    _fx_cooldowns[user_id] = now
+    return None
+
+
+def _check_gif_convert_cooldown(user_id: int) -> int | None:
+    now = time.monotonic()
+    elapsed = now - _gif_convert_cooldowns.get(user_id, 0.0)
+    if elapsed < _GIF_CONVERT_COOLDOWN_SECONDS:
+        return int(_GIF_CONVERT_COOLDOWN_SECONDS - elapsed) or 1
+    _gif_convert_cooldowns[user_id] = now
+    return None
+
+
+async def _find_attachment(
+    ctx: commands.Context, exts: set[str]
+) -> discord.Attachment | None:
+    def _matches(attachment: discord.Attachment) -> bool:
+        return os.path.splitext(attachment.filename.lower())[1] in exts
+
+    for attachment in ctx.message.attachments:
+        if _matches(attachment):
+            return attachment
+
+    reference = ctx.message.reference
+    if reference is None:
+        return None
+    resolved = reference.resolved
+    if isinstance(resolved, discord.DeletedReferencedMessage):
+        return None
+    if resolved is None:
+        if reference.message_id is None:
+            return None
+        try:
+            resolved = await ctx.channel.fetch_message(reference.message_id)
+        except discord.HTTPException:
+            return None
+    for attachment in resolved.attachments:
+        if _matches(attachment):
+            return attachment
+    return None
+
+
+async def _resolve_image_bytes(ctx: commands.Context) -> bytes:
+    """Adjunto propio -> adjunto del mensaje respondido -> avatar de quien
+    invoca. with_static_format fuerza un PNG estático incluso si el avatar
+    es animado -- is_valid_image no acepta GIF (ver _ALLOWED_FORMATS en
+    meme_generator.py)."""
+    attachment = await _find_attachment(ctx, _IMAGE_EXTS)
+    if attachment is not None:
+        if attachment.size > IMAGEFX_MAX_BYTES:
+            raise SourceTooLarge(IMAGEFX_MAX_BYTES)
+        return await attachment.read()
+    avatar = ctx.author.display_avatar.with_static_format("png")
+    return await avatar.read()
+
+
+async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
+    """Adjunto propio -> adjunto del mensaje respondido. A diferencia de
+    _resolve_image_bytes, sin fallback a avatar (no hay "avatar en GIF" que
+    tenga sentido usar acá) -- None significa "no hay nada para editar"."""
+    attachment = await _find_attachment(ctx, _GIF_EXTS)
+    if attachment is None:
+        return None
+    if attachment.size > IMAGEFX_MAX_BYTES:
+        raise SourceTooLarge(IMAGEFX_MAX_BYTES)
+    return await attachment.read()
+
+
+async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
+    """Igual que _resolve_gif_bytes pero para el video fuente de "!gif"."""
+    attachment = await _find_attachment(ctx, _VIDEO_EXTS)
+    if attachment is None:
+        return None
+    if attachment.size > MAX_GIF_SOURCE_VIDEO_BYTES:
+        raise SourceTooLarge(MAX_GIF_SOURCE_VIDEO_BYTES)
+    return await attachment.read()
+
+
+class ImageFx(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    async def _run_filter(
+        self,
+        ctx: commands.Context,
+        fn: Callable[..., bytes],
+        *args,
+        filename: str = "purgito.png",
+    ) -> None:
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        remaining = _check_fx_cooldown(ctx.author.id)
+        if remaining is not None:
+            await ctx.reply(t("general.error.cooldown", locale, seconds=remaining))
+            return
+
+        try:
+            data = await _resolve_image_bytes(ctx)
+        except SourceTooLarge as e:
+            await ctx.reply(
+                t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
+            )
+            return
+        except discord.HTTPException:
+            await ctx.reply(t("general.error.generic", locale))
+            return
+
+        if not is_valid_image(data):
+            await ctx.reply(t("imagefx.invalid_image", locale))
+            return
+
+        try:
+            result = await asyncio.to_thread(fn, data, *args)
+        except Exception:
+            log.exception("Error aplicando filtro de imagen (%s)", fn.__name__)
+            await ctx.reply(t("general.error.generic", locale))
+            return
+
+        await ctx.reply(file=discord.File(io.BytesIO(result), filename=filename))
+
+    async def _run_gif_filter(
+        self, ctx: commands.Context, fn: Callable[..., bytes], *args
+    ) -> None:
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        remaining = _check_fx_cooldown(ctx.author.id)
+        if remaining is not None:
+            await ctx.reply(t("general.error.cooldown", locale, seconds=remaining))
+            return
+
+        try:
+            data = await _resolve_gif_bytes(ctx)
+        except SourceTooLarge as e:
+            await ctx.reply(
+                t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
+            )
+            return
+        except discord.HTTPException:
+            await ctx.reply(t("general.error.generic", locale))
+            return
+
+        if data is None:
+            await ctx.reply(t("imagefx.gif_missing", locale))
+            return
+        if not is_valid_gif_bytes(data):
+            await ctx.reply(t("imagefx.invalid_gif", locale))
+            return
+
+        try:
+            result = await asyncio.to_thread(fn, data, *args)
+        except Exception:
+            log.exception("Error aplicando filtro de GIF (%s)", fn.__name__)
+            await ctx.reply(t("general.error.generic", locale))
+            return
+
+        await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
+
+    @commands.command(name="caption")
+    async def caption_cmd(self, ctx: commands.Context, *, texto: str | None = None):
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        if not texto:
+            await ctx.reply(t("imagefx.caption.missing_text", locale))
+            return
+        await self._run_filter(ctx, image_filters.caption, texto)
+
+    @commands.command(name="deepfry")
+    async def deepfry_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.deepfry)
+
+    @commands.command(name="wide")
+    async def wide_cmd(self, ctx: commands.Context, factor: float = 2.0):
+        await self._run_filter(ctx, image_filters.wide, factor)
+
+    @commands.command(name="squish")
+    async def squish_cmd(self, ctx: commands.Context, factor: float = 0.5):
+        await self._run_filter(ctx, image_filters.squish, factor)
+
+    @commands.command(name="invert")
+    async def invert_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.invert)
+
+    @commands.command(name="greyscale", aliases=["grayscale"])
+    async def greyscale_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.greyscale)
+
+    @commands.command(name="sepia")
+    async def sepia_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.sepia)
+
+    @commands.command(name="pixelate")
+    async def pixelate_cmd(self, ctx: commands.Context, block_size: int = 12):
+        await self._run_filter(ctx, image_filters.pixelate, block_size)
+
+    @commands.command(name="rotate")
+    async def rotate_cmd(self, ctx: commands.Context, degrees: int = 90):
+        await self._run_filter(ctx, image_filters.rotate, degrees)
+
+    @commands.command(name="flip")
+    async def flip_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.flip)
+
+    @commands.command(name="flop")
+    async def flop_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.flop)
+
+    @commands.command(name="circle")
+    async def circle_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.circle)
+
+    @commands.command(name="blur")
+    async def blur_cmd(self, ctx: commands.Context, radius: int = 6):
+        await self._run_filter(ctx, image_filters.blur, radius)
+
+    @commands.command(name="sharpen")
+    async def sharpen_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.sharpen)
+
+    # ── Fase 2: overlays y efectos de un solo chiste ─────────────────────────
+
+    @commands.command(name="triggered")
+    async def triggered_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.triggered, filename="purgito.gif")
+
+    @commands.command(name="wasted")
+    async def wasted_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.wasted)
+
+    @commands.command(name="trash")
+    async def trash_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.trash)
+
+    @commands.command(name="communism")
+    async def communism_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.communism)
+
+    @commands.command(name="gay")
+    async def gay_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.gay)
+
+    @commands.command(name="jail")
+    async def jail_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.jail)
+
+    @commands.command(name="wanted")
+    async def wanted_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.wanted)
+
+    @commands.command(name="rip")
+    async def rip_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.rip)
+
+    @commands.command(name="america")
+    async def america_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.america)
+
+    @commands.command(name="polaroid")
+    async def polaroid_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.polaroid)
+
+    @commands.command(name="poster")
+    async def poster_cmd(self, ctx: commands.Context, bits: int = 2):
+        await self._run_filter(ctx, image_filters.poster, bits)
+
+    @commands.command(name="threshold")
+    async def threshold_cmd(self, ctx: commands.Context, level: int = 128):
+        await self._run_filter(ctx, image_filters.threshold, level)
+
+    @commands.command(name="emboss")
+    async def emboss_cmd(self, ctx: commands.Context):
+        await self._run_filter(ctx, image_filters.emboss)
+
+    # ── Fase 4: video -> GIF y edición de un GIF existente ───────────────────
+
+    @commands.command(name="gif")
+    @commands.max_concurrency(1, per=commands.BucketType.guild, wait=False)
+    async def gif_cmd(self, ctx: commands.Context):
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        remaining = _check_gif_convert_cooldown(ctx.author.id)
+        if remaining is not None:
+            await ctx.reply(t("general.error.cooldown", locale, seconds=remaining))
+            return
+
+        try:
+            data = await _resolve_video_bytes(ctx)
+        except SourceTooLarge as e:
+            await ctx.reply(
+                t("imagefx.video_too_large", locale, mb=e.max_bytes // (1024 * 1024))
+            )
+            return
+        except discord.HTTPException:
+            await ctx.reply(t("general.error.generic", locale))
+            return
+
+        if data is None:
+            await ctx.reply(t("imagefx.video_missing", locale))
+            return
+
+        max_output = IMAGEFX_MAX_BYTES
+        if ctx.guild is not None:
+            max_output = min(max_output, ctx.guild.filesize_limit)
+
+        async with ctx.typing():
+            try:
+                result = await asyncio.to_thread(
+                    video_filters.convert_video_to_gif,
+                    data,
+                    GIF_MAX_DURATION_SECONDS,
+                    max_output,
+                )
+            except video_filters.GifTooLarge as e:
+                await ctx.reply(
+                    t(
+                        "imagefx.gif_output_too_large",
+                        locale,
+                        mb=e.max_bytes // (1024 * 1024),
+                    )
+                )
+                return
+            except video_filters.VideoConversionFailed:
+                await ctx.reply(t("imagefx.video_conversion_failed", locale))
+                return
+
+        await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
+
+    @gif_cmd.error
+    async def gif_cmd_error(self, ctx: commands.Context, error: Exception):
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        if isinstance(error, commands.MaxConcurrencyReached):
+            await ctx.reply(t("imagefx.gif_busy", locale))
+            return
+        log.error("Error en comando !gif", exc_info=error)
+        await ctx.reply(t("general.error.generic", locale))
+
+    @commands.command(name="gifcaption")
+    async def gifcaption_cmd(self, ctx: commands.Context, *, texto: str | None = None):
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        if not texto:
+            await ctx.reply(t("imagefx.caption.missing_text", locale))
+            return
+        await self._run_gif_filter(ctx, image_filters.gif_caption, texto)
+
+    @commands.command(name="gifspeed")
+    async def gifspeed_cmd(self, ctx: commands.Context, factor: float = 2.0):
+        await self._run_gif_filter(ctx, image_filters.gif_speed, factor)
+
+    @commands.command(name="gifreverse")
+    async def gifreverse_cmd(self, ctx: commands.Context):
+        await self._run_gif_filter(ctx, image_filters.gif_reverse)
+
+    @commands.command(name="gifwide")
+    async def gifwide_cmd(self, ctx: commands.Context, factor: float = 2.0):
+        await self._run_gif_filter(ctx, image_filters.gif_wide, factor)
+
+    async def cog_command_error(self, ctx: commands.Context, error: Exception):
+        error = getattr(error, "original", error)
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        if isinstance(error, commands.BadArgument):
+            await ctx.reply(t("general.error.missing_argument", locale))
+            return
+        log.error("Error en comando de imagefx (%s)", ctx.command, exc_info=error)
+        await ctx.reply(t("general.error.generic", locale))
+
+
+async def setup(bot: commands.Bot) -> None:
+    await bot.add_cog(ImageFx(bot))
