@@ -146,7 +146,10 @@ function classifyGif(gif) {
   if (u.includes('giphy.com/gifs/')) {
     const parts = u.split('/gifs/').pop().split('-');
     const id = parts[parts.length - 1];
-    return { type: 'img', src: `https://media.giphy.com/media/${id}/giphy.gif` };
+    // 200w: la rendition angosta de Giphy para preview, no el .gif original
+    // (varias veces más pesado) -- acá solo hace falta una miniatura, el
+    // link de abajo sigue yendo al giphy.com de tamaño completo.
+    return { type: 'img', src: `https://media.giphy.com/media/${id}/200w.gif` };
   }
   if (u.includes('tenor.com/view/')) {
     const parts = u.split('/');

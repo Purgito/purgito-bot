@@ -642,6 +642,45 @@ server {
     # más arriba de una sola vez, si se prefiere no repetirlo acá.
     server_tokens off;
 
+    # ── Compresión + cache de estáticos ────────────────────────────
+    # Sin esto, dash.js (232 KB) + dash.css (168 KB) + el resto de los
+    # módulos de landing/js/ viajan sin comprimir en cada visita al
+    # dashboard. Cloudflare comprime en el borde por default cuando el
+    # origin no manda ya Content-Encoding, pero no conviene depender solo de
+    # eso para el origin. gzip alcanza acá sin sumar el módulo de brotli (no
+    # viene compilado en el nginx de los paquetes de Oracle Linux/Ubuntu por
+    # default). gzip_proxied any además de lo estático cubre las respuestas
+    # JSON de /api/ (proxy_pass): sin esto nginx NO comprime lo que viene de
+    # un proxy salvo que se pida explícito.
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_min_length 512;
+    gzip_types text/css text/javascript application/javascript application/json image/svg+xml;
+
+    # Todo lo que sale con ?v=<hash> (style.css, dash.css, script.js y cada
+    # módulo de landing/js/, ver import_map()/stamp() en build_docs.py) es
+    # contenido inmutable por diseño: si el archivo cambia, el hash cambia y
+    # la URL con él. Cachear un año en el navegador (y que Cloudflare cachee
+    # más que su default de 4 h para .js) es seguro porque nada en el sitio
+    # pide estos paths SIN el ?v= -- la única forma de ver una versión vieja
+    # sería tipear la URL pelada a mano, y el peor caso ahí es CSS/JS viejo,
+    # no un dato incorrecto. Va ANTES del location ~ ^/(es|en|ru|ja|de)/ de
+    # más abajo: nginx evalúa los location por regex en el orden del archivo
+    # y usa el primero que matchee (mismo motivo que el location del
+    # dashboard, ver su comentario un poco más abajo).
+    location ~* \.(?:css|m?js|png|jpe?g|webp|svg|gif|ico|woff2?)$ {
+        # add_header NO hereda del server{} de arriba apenas este location
+        # define el suyo propio (así es nginx) -- se repiten acá para no
+        # perder las cabeceras de seguridad justo en los estáticos.
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
     # ── Dinámico: proxy a la app (rutas registradas en webapi.py) ──
     location /auth/     { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
     location /api/      { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
