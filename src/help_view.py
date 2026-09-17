@@ -69,6 +69,27 @@ CATEGORIES = {
         "intro_key": "help.cat.panel.intro",
         "commands": [],
     },
+    "imagen": {
+        "emoji": "🖼️",
+        "row": 1,
+        "intro_key": "help.cat.imagen.intro",
+        "commands": [
+            ("!caption <arriba>|<abajo>", "help.cat.imagen.cmd.caption"),
+            ("!deepfry", "help.cat.imagen.cmd.deepfry"),
+            ("!wide", "help.cat.imagen.cmd.wide"),
+            ("!squish", "help.cat.imagen.cmd.squish"),
+            ("!invert", "help.cat.imagen.cmd.invert"),
+            ("!greyscale", "help.cat.imagen.cmd.greyscale"),
+            ("!sepia", "help.cat.imagen.cmd.sepia"),
+            ("!pixelate", "help.cat.imagen.cmd.pixelate"),
+            ("!rotate <grados>", "help.cat.imagen.cmd.rotate"),
+            ("!flip", "help.cat.imagen.cmd.flip"),
+            ("!flop", "help.cat.imagen.cmd.flop"),
+            ("!circle", "help.cat.imagen.cmd.circle"),
+            ("!blur", "help.cat.imagen.cmd.blur"),
+            ("!sharpen", "help.cat.imagen.cmd.sharpen"),
+        ],
+    },
 }
 
 
