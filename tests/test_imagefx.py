@@ -365,6 +365,8 @@ class FakeContext:
         guild_id=1,
         guild_filesize_limit=25 * 1024 * 1024,
         channel_is_nsfw=False,
+        channel_id=None,
+        bot=None,
     ):
         self.guild = (
             SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
@@ -376,8 +378,11 @@ class FakeContext:
             attachments=attachments or [], reference=reference, content=content, embeds=embeds or []
         )
         self.channel = SimpleNamespace(
-            fetch_message=self._fetch_message, is_nsfw=lambda: channel_is_nsfw
+            fetch_message=self._fetch_message,
+            is_nsfw=lambda: channel_is_nsfw,
+            id=channel_id,
         )
+        self.bot = bot or SimpleNamespace(get_channel=lambda _channel_id: None)
         self.command = "fake_command"
         self.replies: list[str] = []
         self.reply_files: list = []
@@ -610,6 +615,73 @@ def test_resolve_video_bytes_usa_el_video_embebido_del_mensaje_respondido(monkey
     data = asyncio.run(_resolve_video_bytes(ctx))
 
     assert data == b"video del embed"
+
+
+def test_resolve_video_bytes_usa_proxy_url_cuando_el_embed_no_expone_url(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://media.discordapp.net/attachments/1/2/clip.mp4"
+        return b"video desde proxy"
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url=None,
+                    proxy_url="https://media.discordapp.net/attachments/1/2/clip.mp4",
+                )
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    assert asyncio.run(_resolve_video_bytes(ctx)) == b"video desde proxy"
+
+
+def test_resolve_video_bytes_prueba_el_siguiente_recurso_del_embed(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        if url.endswith("no-disponible.mp4"):
+            return None
+        assert url.endswith("disponible.mp4")
+        return b"video disponible"
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(video=SimpleNamespace(url="https://cdn.test/no-disponible.mp4")),
+            SimpleNamespace(video=SimpleNamespace(url="https://cdn.test/disponible.mp4")),
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    assert asyncio.run(_resolve_video_bytes(ctx)) == b"video disponible"
+
+
+def test_resolve_video_bytes_busca_el_reply_en_su_canal_original(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        return b"video de otro canal"
+
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[SimpleNamespace(video=SimpleNamespace(url="https://cdn.test/clip.mp4"))],
+    )
+
+    async def fetch_message(message_id):
+        assert message_id == 42
+        return referenced
+
+    reference_channel = SimpleNamespace(fetch_message=fetch_message)
+    bot = SimpleNamespace(get_channel=lambda channel_id: reference_channel)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    ctx = FakeContext(
+        reference=SimpleNamespace(resolved=None, message_id=42, channel_id=200),
+        channel_id=100,
+        bot=bot,
+    )
+
+    assert asyncio.run(_resolve_video_bytes(ctx)) == b"video de otro canal"
 
 
 def test_resolve_video_bytes_prioriza_el_adjunto_sobre_el_video_embebido(monkeypatch):
@@ -1129,6 +1201,32 @@ def test_gif_cmd_usa_la_url_del_embed_si_el_mensaje_respondido_no_tiene_texto(
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
 
     assert seen["url"] == "https://instagram.com/reel/xyz"
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_usa_url_dentro_del_payload_de_un_embed(monkeypatch):
+    seen: dict = {}
+
+    async def fake_fetch(url, max_bytes):
+        seen["url"] = url
+        return _make_test_video_bytes(duration=0.3, fps=6)
+
+    class PayloadEmbed:
+        url = None
+        title = None
+        description = None
+
+        def to_dict(self):
+            return {"provider": {"media_url": "https://cdn.example.test/video.mp4"}}
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(content="", attachments=[], embeds=[PayloadEmbed()])
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://cdn.example.test/video.mp4"
     assert len(ctx.reply_files) == 1
 
 

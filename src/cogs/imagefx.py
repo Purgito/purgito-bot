@@ -77,8 +77,19 @@ async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
         message_id = getattr(reference, "message_id", None)
         if message_id is None:
             return None
+        channel = ctx.channel
+        reference_channel_id = getattr(reference, "channel_id", None)
+        if reference_channel_id and reference_channel_id != getattr(channel, "id", None):
+            channel = ctx.bot.get_channel(reference_channel_id)
+            if channel is None:
+                try:
+                    channel = await ctx.bot.fetch_channel(reference_channel_id)
+                except discord.HTTPException:
+                    return None
+        if not hasattr(channel, "fetch_message"):
+            return None
         try:
-            resolved = await ctx.channel.fetch_message(message_id)
+            resolved = await channel.fetch_message(message_id)
         except discord.HTTPException:
             return None
     return resolved
@@ -93,14 +104,55 @@ async def _source_messages(ctx: commands.Context) -> list[discord.Message]:
     return messages
 
 
-def _embed_media_url(message: discord.Message, attribute: str) -> str | None:
-    """Busca el recurso directo de un embed (video, image o thumbnail)."""
+def _embed_media_urls(message: discord.Message, attributes: tuple[str, ...]):
+    """Entrega todas las URLs de medio que Discord expone en sus embeds.
+
+    Los embeds no tienen una forma unica: segun el proveedor y el tipo,
+    discord.py puede poner el archivo en ``url`` o en ``proxy_url``. Se
+    recorren ambos y todos los embeds en vez de descartar el mensaje tras el
+    primer recurso que falle.
+    """
+    seen: set[str] = set()
     for embed in getattr(message, "embeds", ()):
-        media = getattr(embed, attribute, None)
-        url = getattr(media, "url", None)
-        if url:
-            return url
-    return None
+        for attribute in attributes:
+            media = getattr(embed, attribute, None)
+            for name in ("url", "proxy_url"):
+                url = getattr(media, name, None)
+                if url and url not in seen:
+                    seen.add(url)
+                    yield url
+
+
+def _embed_url_texts(message: discord.Message):
+    """Expone las URLs y texto serializado de cualquier variante de embed.
+
+    ``Embed.video`` es la via normal, pero los proveedores pueden publicar el
+    recurso en una imagen, thumbnail, descripcion, campo o payload que no se
+    proyecta a un atributo concreto de discord.py. ``to_dict`` conserva el
+    payload recibido de Discord, por lo que recorrerlo evita que el resolver
+    dependa de un tipo de embed especifico.
+    """
+    def walk(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for child in value.values():
+                yield from walk(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                yield from walk(child)
+
+    for embed in getattr(message, "embeds", ()):
+        for attribute in ("url", "title", "description"):
+            value = getattr(embed, attribute, None)
+            if isinstance(value, str):
+                yield value
+        to_dict = getattr(embed, "to_dict", None)
+        if callable(to_dict):
+            try:
+                yield from walk(to_dict())
+            except Exception:
+                log.debug("No se pudo serializar embed para !gif", exc_info=True)
 
 
 async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) -> bytes | None:
@@ -241,8 +293,7 @@ async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
         return await attachment.read()
 
     for message in await _source_messages(ctx):
-        video_url = _embed_media_url(message, "video")
-        if video_url:
+        for video_url in _embed_media_urls(message, ("video",)):
             data = await _fetch_media_bytes(video_url, MAX_GIF_SOURCE_VIDEO_BYTES)
             if data is not None:
                 return data
@@ -263,12 +314,10 @@ async def _resolve_gif_source_image_bytes(ctx: commands.Context) -> bytes | None
         return await attachment.read()
 
     for message in await _source_messages(ctx):
-        for attribute in ("image", "thumbnail"):
-            image_url = _embed_media_url(message, attribute)
-            if image_url:
-                data = await _fetch_media_bytes(image_url, IMAGEFX_MAX_BYTES)
-                if data is not None:
-                    return data
+        for image_url in _embed_media_urls(message, ("image", "thumbnail")):
+            data = await _fetch_media_bytes(image_url, IMAGEFX_MAX_BYTES)
+            if data is not None:
+                return data
     return None
 
 
@@ -284,10 +333,7 @@ async def _resolve_url_source_bytes(
     candidates = [url or ""]
     for message in await _source_messages(ctx):
         candidates.append(getattr(message, "content", "") or "")
-        candidates.extend(
-            getattr(embed, "url", "") or ""
-            for embed in getattr(message, "embeds", ())
-        )
+        candidates.extend(_embed_url_texts(message))
     for candidate in candidates:
         match = _MEDIA_URL_RE.search(candidate)
         if match:
