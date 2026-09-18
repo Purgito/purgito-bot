@@ -1990,3 +1990,157 @@ def test_gif_cmd_sin_link_de_sitio_soportado_no_llama_a_yt_dlp(monkeypatch):
 
     assert ctx.reply_files == []
     assert len(ctx.replies) == 1
+
+
+# ── "!gif" con Components V2 (sin message.embeds) ────────────────────────────
+# Caso reportado: un bot (ej. NotSoBot) postea su resultado con la UI nueva
+# de Discord (Container > MediaGallery/File, layout_v2.py) en vez de un
+# embed clásico. Un mensaje así tiene message.embeds SIEMPRE vacío (son
+# excluyentes vía IS_COMPONENTS_V2) -- _embed_video_urls/_embed_media_urls
+# no tienen nada que recorrer y "!gif" pedía un video igual, aunque hubiera
+# uno a la vista. Los SimpleNamespace de acá reproducen la forma real de
+# discord.py 2.7.1 (Container.children, MediaGallery.items,
+# MediaGalleryItem.media.url, FileComponent.media.url -- verificado contra
+# el código fuente de la librería, no adivinado).
+
+
+def _fake_media_gallery(*urls):
+    return SimpleNamespace(
+        items=[SimpleNamespace(media=SimpleNamespace(url=u)) for u in urls]
+    )
+
+
+def _fake_file_component(url):
+    return SimpleNamespace(media=SimpleNamespace(url=url))
+
+
+def _fake_container(*children):
+    return SimpleNamespace(children=list(children))
+
+
+def test_component_media_urls_encuentra_media_gallery_en_un_container():
+    message = SimpleNamespace(
+        embeds=[],
+        components=[
+            _fake_container(_fake_media_gallery("https://cdn.notsobot.com/result.gif"))
+        ],
+    )
+    urls = list(imagefx_mod._component_media_urls(message))
+    assert urls == ["https://cdn.notsobot.com/result.gif"]
+
+
+def test_component_media_urls_encuentra_file_component_anidado():
+    message = SimpleNamespace(
+        embeds=[],
+        components=[
+            _fake_container(
+                SimpleNamespace(content="Invoked by @Frambuesa"),
+                _fake_file_component("https://cdn.notsobot.com/result.mp4"),
+            )
+        ],
+    )
+    urls = list(imagefx_mod._component_media_urls(message))
+    assert urls == ["https://cdn.notsobot.com/result.mp4"]
+
+
+def test_component_media_urls_via_to_dict_si_no_hay_atributos_directos():
+    """Cubre el caso en que el objeto de discord.py solo expone to_dict()
+    (o cambió de nombre de atributo interno) -- mismo mecanismo defensivo
+    que _embed_url_texts_single ya usa para embeds."""
+
+    class OnlyToDict:
+        def to_dict(self):
+            return {
+                "type": 17,
+                "components": [
+                    {
+                        "type": 12,
+                        "items": [{"media": {"url": "https://cdn.notsobot.com/x.gif"}}],
+                    }
+                ],
+            }
+
+    message = SimpleNamespace(embeds=[], components=[OnlyToDict()])
+    urls = list(imagefx_mod._component_media_urls(message))
+    assert urls == ["https://cdn.notsobot.com/x.gif"]
+
+
+def test_component_media_urls_sin_components_no_rompe():
+    message = SimpleNamespace(embeds=[], content="")
+    assert list(imagefx_mod._component_media_urls(message)) == []
+
+
+def test_gif_cmd_encuentra_video_en_components_v2_sin_embeds(monkeypatch):
+    """El caso reportado en producción: se responde con "!gif" a un mensaje
+    de otro bot que muestra su resultado con Components V2, sin ningún
+    embed clásico ni adjunto de Discord -- el medio vive en una URL externa
+    (el propio CDN del bot) dentro de un MediaGallery."""
+    video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
+    requested_urls = []
+
+    async def fake_fetch(url, max_bytes):
+        requested_urls.append(url)
+        if url == "https://cdn.notsobot.com/result.gif":
+            return video_bytes
+        return None
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[],
+        components=[
+            _fake_container(_fake_media_gallery("https://cdn.notsobot.com/result.gif"))
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert "https://cdn.notsobot.com/result.gif" in requested_urls
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_resuelve_attachment_scheme_de_components_v2(monkeypatch):
+    """Un bloque File de Components V2 que referencia un adjunto real del
+    propio mensaje usa el esquema "attachment://<filename>" (ver
+    layout_v2.py) -- eso no es una URL HTTP: hay que resolverlo contra
+    message.attachments en vez de intentar un GET. Extensión .gif a
+    propósito (no .mp4): tiene que no matchear _find_attachment (que busca
+    video por extensión/content-type) para probar de verdad la resolución
+    por Components V2, no la del adjunto de video de siempre."""
+
+    async def fail_fetch(url, max_bytes):
+        raise AssertionError("no debería intentar un GET: es attachment://")
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fail_fetch)
+    video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[FakeAttachment(filename="clip.gif", data=video_bytes)],
+        embeds=[],
+        components=[_fake_container(_fake_file_component("attachment://clip.gif"))],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_sin_embeds_ni_components_sigue_pidiendo_video(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        return None
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(content="", attachments=[], embeds=[], components=[])
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1

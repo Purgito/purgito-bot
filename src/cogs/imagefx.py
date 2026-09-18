@@ -1,21 +1,31 @@
 """Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4).
 
 "!gif" resuelve sus fuentes en varios pasos, de más barato a más caro:
-adjuntos, medios de embeds y URLs directas (todo con un GET simple, desde
-el mensaje actual o el respondido) y, solo si nada de eso encontró nada
-descargable, un link a Instagram/TikTok/Twitter-X/Facebook resuelto con el
-mismo extractor que usa "!dl" (yt-dlp, cogs/download.py).
+adjuntos, medios de embeds O de Components V2 (ver _component_media_urls --
+un mensaje tiene una cosa o la otra, nunca las dos, así que hay que mirar
+las dos formas) y URLs directas (todo con un GET simple, desde el mensaje
+actual o el respondido) y, solo si nada de eso encontró nada descargable,
+un link a Instagram/TikTok/Twitter-X/Facebook resuelto con el mismo
+extractor que usa "!dl" (yt-dlp, cogs/download.py).
 
-Ese último paso no es opcional: para esos cuatro sitios, Discord expone el
-video en el embed pero el CDN de origen no sirve el archivo con un GET
-anónimo (pide headers o sesión que un bot no tiene) -- es exactamente el
-caso de "el video está en el embed pero !gif no lo encuentra". Un intento
-anterior de arreglar esto sacó por completo la reutilización de !dl en vez
-de solucionar el bug real (que un solo intento fallido de host directo
-cortaba toda la cadena sin nunca llegar a yt-dlp) -- si volvés a tocar esto,
-no repitas ese error: los pasos de GET directo (_embed_video_urls,
-_fetch_media_bytes) siguen sin poder nada contra esos cuatro sitios, así
-que sacar este último paso reintroduce el bug reportado.
+Ninguno de estos pasos es opcional -- cada uno cubre un caso real que ya
+rompió en producción cuando faltaba:
+
+- Components V2: muchos bots (y Purgito mismo, ver layout_v2.py) postean su
+  resultado con la UI nueva de Discord en vez de un embed clásico -- un
+  mensaje así tiene message.embeds vacío SIEMPRE (son excluyentes), así que
+  sin _component_media_urls ninguno de los pasos de embed encuentra nada,
+  aunque el video esté a la vista.
+- yt-dlp: para Instagram/TikTok/Twitter-X/Facebook, el CDN de origen no
+  sirve el archivo con un GET anónimo (pide headers o sesión que un bot no
+  tiene) -- un intento anterior de arreglar esto sacó por completo la
+  reutilización de !dl en vez de solucionar el bug real, y los pasos de GET
+  directo (_embed_video_urls, _fetch_media_bytes) siguen sin poder nada
+  contra esos cuatro sitios.
+
+Si volvés a tocar esto: no saques ninguno de los dos, ambos ya se sacaron
+una vez por error y reintrodujeron el bug reportado ("!gif" pide un video
+aunque el mensaje tenga uno a la vista).
 """
 
 import asyncio
@@ -268,6 +278,73 @@ def _embed_video_urls(message: discord.Message):
                 yield from _yield_url(match.group(0))
 
 
+def _component_media_urls(message: discord.Message):
+    """Toda URL de medio dentro de message.components (Components V2:
+    Container/Section/MediaGallery/File anidados en cualquier profundidad,
+    ver layout_v2.py). Un mensaje NO puede tener embeds clásicos y
+    Components V2 a la vez -- son excluyentes vía el flag IS_COMPONENTS_V2
+    (layout_v2.py) -- así que cuando message.embeds viene vacío pero el
+    mensaje sí muestra algo (ej. un bot posteando su resultado con esta UI
+    en vez de un embed clásico), esto es la ÚNICA fuente posible de medio
+    embebido; sin este paso, _embed_video_urls/_embed_media_urls (que solo
+    miran message.embeds) no tienen nada que recorrer y "!gif" falla aunque
+    el video esté ahí, a la vista.
+
+    Recorre TANTO el dict crudo (to_dict(), como _embed_url_texts_single con
+    los embeds: el campo "media"/"file" con una "url" adentro es el schema
+    de Discord, estable pase lo que pase con el nombre de atributo Python de
+    turno) COMO los atributos directos del objeto (.media/.file y
+    .items/.children/.components/.accessory para bajar un nivel) -- no hay
+    forma de instalar discord.py acá para confirmar cuál de los dos expone
+    cada clase de Components V2 recibida, así que se prueban los dos en vez
+    de apostar a uno solo y fallar en silencio si se apostó mal."""
+    seen: set[str] = set()
+
+    def yield_media_url(media):
+        url = (
+            media.get("url") if isinstance(media, dict) else getattr(media, "url", None)
+        )
+        if isinstance(url, str) and url and url not in seen:
+            seen.add(url)
+            yield url
+
+    def walk(node):
+        if node is None or isinstance(node, str):
+            return
+        if isinstance(node, dict):
+            for key in ("media", "file"):
+                sub = node.get(key)
+                if sub is not None:
+                    yield from yield_media_url(sub)
+            for child in node.values():
+                yield from walk(child)
+            return
+        if isinstance(node, (list, tuple)):
+            for item in node:
+                yield from walk(item)
+            return
+
+        # Objeto de discord.py (no dict/list/str): mismos dos campos por
+        # atributo directo, más to_dict() y los contenedores conocidos.
+        for key in ("media", "file"):
+            sub = getattr(node, key, None)
+            if sub is not None:
+                yield from yield_media_url(sub)
+        to_dict = getattr(node, "to_dict", None)
+        if callable(to_dict):
+            try:
+                yield from walk(to_dict())
+            except Exception:
+                log.debug("No se pudo serializar componente para !gif", exc_info=True)
+        for attr in ("items", "children", "components", "accessory"):
+            sub = getattr(node, attr, None)
+            if sub is not None:
+                yield from walk(sub)
+
+    for component in getattr(message, "components", None) or ():
+        yield from walk(component)
+
+
 async def _fetch_media_bytes(
     url: str, max_bytes: int, timeout: float = 15.0
 ) -> bytes | None:
@@ -319,6 +396,26 @@ async def _fetch_media_bytes(
             return None
 
     return await asyncio.to_thread(_download)
+
+
+async def _resolve_component_media_bytes(
+    message: discord.Message, url: str, max_bytes: int
+) -> bytes | None:
+    """Como _fetch_media_bytes, pero entiende "attachment://<filename>" --
+    el esquema que usa un bloque File/MediaGallery de Components V2 cuando
+    el medio no es una URL externa sino un adjunto real del mismo mensaje
+    (ver layout_v2.py). Ese archivo ya viene en message.attachments; un GET
+    HTTP a ese "url" literal fallaría (no es http/https), así que hay que
+    resolverlo ahí en vez de pasarlo a _fetch_media_bytes."""
+    if url.startswith("attachment://"):
+        filename = url[len("attachment://") :]
+        for attachment in getattr(message, "attachments", ()):
+            if getattr(attachment, "filename", None) == filename:
+                if attachment.size > max_bytes:
+                    raise SourceTooLarge(max_bytes)
+                return await attachment.read()
+        return None
+    return await _fetch_media_bytes(url, max_bytes)
 
 
 def _check_fx_cooldown(user_id: int) -> int | None:
@@ -469,6 +566,9 @@ async def _resolve_video_bytes(
        - embed.video (url y proxy_url)
        - embed.url (clave en embeds de tipo rich, link, etc. que envían bots)
        - URLs en description, fields o payload serializado del embed
+    2b. Video en los Components V2 del mensaje (Container/MediaGallery/File
+        anidados) cuando ese mensaje no tiene embeds -- son excluyentes,
+        ver _component_media_urls.
     3. URL provista como argumento o presente en el texto del mensaje.
     4. Link a Instagram/TikTok/Twitter-X/Facebook resuelto vía yt-dlp
        (_resolve_social_video_bytes) -- únicamente si nada de lo anterior
@@ -487,11 +587,16 @@ async def _resolve_video_bytes(
 
     seen_urls: set[str] = set()
     for message in await _source_messages(ctx):
-        for video_url in _embed_video_urls(message):
+        media_urls = list(_embed_video_urls(message)) + list(
+            _component_media_urls(message)
+        )
+        for video_url in media_urls:
             if video_url in seen_urls:
                 continue
             seen_urls.add(video_url)
-            data = await _fetch_media_bytes(video_url, MAX_GIF_SOURCE_VIDEO_BYTES)
+            data = await _resolve_component_media_bytes(
+                message, video_url, MAX_GIF_SOURCE_VIDEO_BYTES
+            )
             if data is not None:
                 if is_valid_image(data):
                     continue
@@ -520,7 +625,8 @@ async def _resolve_gif_source_image_bytes(
 ) -> bytes | None:
     """Fuente de imagen para "!gif" cuando NO hubo ningún video:
     1. Adjunto de imagen propio o del mensaje respondido
-    2. Imagen o thumbnail embebidos en el mensaje
+    2. Imagen o thumbnail embebidos en el mensaje (embed clásico o, si no
+       tiene embeds, Components V2 -- ver _component_media_urls)
     3. URL directa o presente en el texto del mensaje
     """
     attachment = await _find_attachment(ctx, _IMAGE_EXTS, content_type_prefix="image/")
@@ -534,11 +640,16 @@ async def _resolve_gif_source_image_bytes(
 
     seen_urls: set[str] = set()
     for message in await _source_messages(ctx):
-        for image_url in _embed_media_urls(message, ("image", "thumbnail")):
+        media_urls = list(_embed_media_urls(message, ("image", "thumbnail"))) + list(
+            _component_media_urls(message)
+        )
+        for image_url in media_urls:
             if image_url in seen_urls:
                 continue
             seen_urls.add(image_url)
-            data = await _fetch_media_bytes(image_url, IMAGEFX_MAX_BYTES)
+            data = await _resolve_component_media_bytes(
+                message, image_url, IMAGEFX_MAX_BYTES
+            )
             if data is not None:
                 return data
 
