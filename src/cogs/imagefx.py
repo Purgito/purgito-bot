@@ -1,9 +1,21 @@
 """Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4).
 
-"!gif" resuelve sus fuentes de forma independiente de "!dl": adjuntos,
-URLs y medios de embeds, desde el mensaje actual o el mensaje respondido.
-Así no hereda las restricciones ni los mensajes propios del descargador de
-redes sociales.
+"!gif" resuelve sus fuentes en varios pasos, de más barato a más caro:
+adjuntos, medios de embeds y URLs directas (todo con un GET simple, desde
+el mensaje actual o el respondido) y, solo si nada de eso encontró nada
+descargable, un link a Instagram/TikTok/Twitter-X/Facebook resuelto con el
+mismo extractor que usa "!dl" (yt-dlp, cogs/download.py).
+
+Ese último paso no es opcional: para esos cuatro sitios, Discord expone el
+video en el embed pero el CDN de origen no sirve el archivo con un GET
+anónimo (pide headers o sesión que un bot no tiene) -- es exactamente el
+caso de "el video está en el embed pero !gif no lo encuentra". Un intento
+anterior de arreglar esto sacó por completo la reutilización de !dl en vez
+de solucionar el bug real (que un solo intento fallido de host directo
+cortaba toda la cadena sin nunca llegar a yt-dlp) -- si volvés a tocar esto,
+no repitas ese error: los pasos de GET directo (_embed_video_urls,
+_fetch_media_bytes) siguen sin poder nada contra esos cuatro sitios, así
+que sacar este último paso reintroduce el bug reportado.
 """
 
 import asyncio
@@ -11,6 +23,7 @@ import io
 import logging
 import os
 import re
+import shutil
 import time
 from typing import Callable
 from urllib.parse import urlparse
@@ -22,6 +35,7 @@ from discord.ext import commands
 import image_filters
 import r2
 import video_filters
+from cogs import download as download_mod
 from cogs.gifs import is_valid_gif_bytes
 from config import IMAGEFX_MAX_BYTES, env_int
 from i18n import guild_locale, t
@@ -69,13 +83,26 @@ class SourceTooLarge(Exception):
         self.max_bytes = max_bytes
 
 
+class SensitiveContentBlocked(Exception):
+    """El link de Instagram/TikTok/Twitter-X/Facebook resuelto vía yt-dlp
+    viene marcado +18 (info.age_limit) y el canal no es NSFW -- mismo gate
+    que "!dl" (cogs/download.py:dl), reutilizado acá porque el video sale
+    del mismo extractor."""
+
+
 def _clean_url(url: str) -> str:
     """Limpia caracteres de cierre de markdown o puntuación residual de una URL."""
     url = url.strip()
-    for start_char, end_char in (("<", ">"), ("(", ")"), ("[", "]"), ('"', '"'), ("'", "'")):
+    for start_char, end_char in (
+        ("<", ">"),
+        ("(", ")"),
+        ("[", "]"),
+        ('"', '"'),
+        ("'", "'"),
+    ):
         if url.startswith(start_char) and url.endswith(end_char):
             url = url[1:-1].strip()
-    while url and url[-1] in (")", "]", ">", "\"", "'", ",", ";", "."):
+    while url and url[-1] in (")", "]", ">", '"', "'", ",", ";", "."):
         url = url[:-1]
     return url
 
@@ -104,7 +131,11 @@ async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
         channel = ctx.channel
         reference_channel_id = getattr(reference, "channel_id", None)
         bot = getattr(ctx, "bot", None)
-        if reference_channel_id and reference_channel_id != getattr(channel, "id", None) and bot is not None:
+        if (
+            reference_channel_id
+            and reference_channel_id != getattr(channel, "id", None)
+            and bot is not None
+        ):
             channel = getattr(bot, "get_channel", lambda _: None)(reference_channel_id)
             if channel is None and hasattr(bot, "fetch_channel"):
                 try:
@@ -237,7 +268,9 @@ def _embed_video_urls(message: discord.Message):
                 yield from _yield_url(match.group(0))
 
 
-async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) -> bytes | None:
+async def _fetch_media_bytes(
+    url: str, max_bytes: int, timeout: float = 15.0
+) -> bytes | None:
     """Baja una URL HTTP(S) de medios con límite y protección SSRF."""
     try:
         parsed = urlparse(url)
@@ -272,7 +305,9 @@ async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) ->
                         raise SourceTooLarge(max_bytes)
                     chunks.append(chunk)
                 data = b"".join(chunks)
-                if data.lstrip().startswith((b"<!DOCTYPE", b"<!doctype", b"<html", b"<HTML", b"<?xml")):
+                if data.lstrip().startswith(
+                    (b"<!DOCTYPE", b"<!doctype", b"<html", b"<HTML", b"<?xml")
+                ):
                     return None
                 return data
             finally:
@@ -365,6 +400,66 @@ async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
     return await attachment.read()
 
 
+async def _resolve_social_video_bytes(
+    ctx: commands.Context, url: str | None
+) -> bytes | None:
+    """Último recurso de "!gif": un link a Instagram/TikTok/Twitter-X/Facebook
+    (URL propia, texto del mensaje actual o del respondido, o el Embed.url
+    que Discord genera al desempaquetarlo) resuelto con el mismo extractor
+    que "!dl" (yt_dlp, vía cogs/download.py). Los pasos anteriores de
+    _resolve_video_bytes (GET directo a embed.video/proxy_url/embed.url) NO
+    alcanzan para estos cuatro sitios -- el CDN de origen no sirve el
+    archivo a un GET anónimo -- así que hace falta la misma extracción real
+    que ya usa "!dl", no otro intento de adivinar una URL descargable.
+
+    Prueba cada link reconocido (download_mod._is_supported_url) hasta que
+    uno descargue; None si ninguno lo es o ninguno se pudo bajar. Puede
+    levantar SourceTooLarge o SensitiveContentBlocked -- mismas excepciones
+    que _resolve_video_bytes, el caller ya las maneja igual."""
+    seen: set[str] = set()
+    candidates: list[str] = [url] if url else []
+    for message in await _source_messages(ctx):
+        content = getattr(message, "content", "") or ""
+        if content:
+            candidates.append(content)
+        for embed in getattr(message, "embeds", ()):
+            embed_url = getattr(embed, "url", None)
+            if embed_url:
+                candidates.append(embed_url)
+
+    social_urls: list[str] = []
+    for candidate in candidates:
+        for match in _MEDIA_URL_RE.finditer(candidate):
+            clean = _clean_url(match.group(0))
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            if download_mod._is_supported_url(clean):
+                social_urls.append(clean)
+
+    for social_url in social_urls:
+        try:
+            path, is_sensitive = await asyncio.to_thread(
+                download_mod._download_video, social_url, MAX_GIF_SOURCE_VIDEO_BYTES
+            )
+        except download_mod.DownloadTooLarge as e:
+            raise SourceTooLarge(e.max_bytes) from e
+        except download_mod.DownloadFailed:
+            continue
+
+        tmp_dir = os.path.dirname(path)
+        try:
+            channel_is_nsfw = getattr(ctx.channel, "is_nsfw", lambda: False)()
+            if is_sensitive and not channel_is_nsfw:
+                raise SensitiveContentBlocked()
+            with open(path, "rb") as f:
+                return f.read()
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return None
+
+
 async def _resolve_video_bytes(
     ctx: commands.Context, url: str | None = None
 ) -> bytes | None:
@@ -375,6 +470,9 @@ async def _resolve_video_bytes(
        - embed.url (clave en embeds de tipo rich, link, etc. que envían bots)
        - URLs en description, fields o payload serializado del embed
     3. URL provista como argumento o presente en el texto del mensaje.
+    4. Link a Instagram/TikTok/Twitter-X/Facebook resuelto vía yt-dlp
+       (_resolve_social_video_bytes) -- únicamente si nada de lo anterior
+       encontró nada descargable.
     """
     attachment = await _find_attachment(ctx, _VIDEO_EXTS, content_type_prefix="video/")
     if attachment is not None:
@@ -414,7 +512,7 @@ async def _resolve_video_bytes(
             if data is not None and not is_valid_image(data):
                 return data
 
-    return None
+    return await _resolve_social_video_bytes(ctx, url)
 
 
 async def _resolve_gif_source_image_bytes(
@@ -672,6 +770,9 @@ class ImageFx(commands.Cog):
                 t("imagefx.video_too_large", locale, mb=e.max_bytes // (1024 * 1024))
             )
             return
+        except SensitiveContentBlocked:
+            await ctx.reply(t("download.dl.nsfw_channel_required", locale))
+            return
         except discord.HTTPException:
             await ctx.reply(t("general.error.generic", locale))
             return
@@ -718,7 +819,9 @@ class ImageFx(commands.Cog):
                 log.exception("Error convirtiendo imagen a GIF en !gif")
                 await ctx.reply(t("general.error.generic", locale))
                 return
-            await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
+            await ctx.reply(
+                file=discord.File(io.BytesIO(result), filename="purgito.gif")
+            )
             return
 
         async with ctx.typing():
