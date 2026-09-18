@@ -222,6 +222,15 @@ class RSS(commands.Cog):
     async def _wait_ready(self):
         await self.bot.wait_until_ready()
 
+    @check_rss.error
+    async def _on_check_rss_error(self, error: BaseException) -> None:
+        # discord.ext.tasks solo reintenta un set fijo de excepciones de red
+        # (ver Loop._valid_exception); cualquier otra -- p.ej. un
+        # OperationalError de SQLite -- mata el loop para siempre sin este
+        # handler, sin que nadie se entere hasta que falten avisos de RSS.
+        log.exception("check_rss se cayó, reiniciando el loop", exc_info=error)
+        self.check_rss.restart()
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(RSS(bot))
