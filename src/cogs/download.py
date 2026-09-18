@@ -238,38 +238,51 @@ def _embed_video_url(message: discord.Message) -> str | None:
     return None
 
 
-# Hosts desde los que "purgito gif" puede bajar un video EMBEBIDO
-# (Embed.video) como archivo directo, sin pasar por yt-dlp: el CDN propio de
-# Discord, donde termina viviendo cualquier adjunto o resultado que otro bot
-# ya subió (ej. NotSoBot reposteando su propio resultado). A diferencia de
-# _ALLOWED_HOSTS (páginas que yt-dlp sabe scrapear), esto son hosts que ya
-# sirven el archivo de video resuelto -- no hace falta (ni tiene sentido)
-# pasarlos por yt-dlp.
-_DIRECT_VIDEO_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
+def _embed_image_url(message: discord.Message) -> str | None:
+    """Igual que _embed_video_url pero para una imagen estática: Embed.image
+    en vez de Embed.video -- mismo caso (otro bot postea su resultado
+    directo en el embed), pero cuando lo que posteó es una imagen, no un
+    video. Usado por "purgito gif" cuando no hay ningún video para
+    convertir (ver _resolve_gif_source_image_bytes en cogs/imagefx.py)."""
+    for embed in message.embeds:
+        image = getattr(embed, "image", None)
+        if image and image.url:
+            return image.url
+    return None
 
 
-def _is_direct_video_host(url: str) -> bool:
+# Hosts desde los que "purgito gif" puede bajar un video o imagen EMBEBIDOS
+# (Embed.video / Embed.image) como archivo directo, sin pasar por yt-dlp: el
+# CDN propio de Discord, donde termina viviendo cualquier adjunto o
+# resultado que otro bot ya subió (ej. NotSoBot reposteando su propio
+# resultado). A diferencia de _ALLOWED_HOSTS (páginas que yt-dlp sabe
+# scrapear), esto son hosts que ya sirven el archivo resuelto -- no hace
+# falta (ni tiene sentido) pasarlos por yt-dlp.
+_DIRECT_MEDIA_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
+
+
+def _is_direct_media_host(url: str) -> bool:
     try:
         host = (urlparse(url).hostname or "").lower()
     except ValueError:
         return False
     if not host:
         return False
-    return host in _DIRECT_VIDEO_HOSTS or host.endswith(
-        tuple(f".{h}" for h in _DIRECT_VIDEO_HOSTS)
+    return host in _DIRECT_MEDIA_HOSTS or host.endswith(
+        tuple(f".{h}" for h in _DIRECT_MEDIA_HOSTS)
     )
 
 
-async def _fetch_direct_video_bytes(
+async def _fetch_direct_media_bytes(
     url: str, max_bytes: int, timeout: float = 15.0
 ) -> bytes | None:
-    """Descarga bytes de un archivo de video directo (no una página) desde
-    un host de confianza (_is_direct_video_host), protegido contra SSRF vía
-    r2.fetch_public_url -- mismo mecanismo que fetch_gif_bytes en
+    """Descarga bytes de un archivo directo (video o imagen, no una página)
+    desde un host de confianza (_is_direct_media_host), protegido contra
+    SSRF vía r2.fetch_public_url -- mismo mecanismo que fetch_gif_bytes en
     cogs/gifs.py. None si el host no es de confianza, la descarga falla, o
     supera max_bytes (mismo criterio "no distinguir el motivo" que ya usa
     fetch_gif_bytes: el caller solo necesita saber si hay bytes o no)."""
-    if not _is_direct_video_host(url):
+    if not _is_direct_media_host(url):
         return None
 
     def _download():
@@ -301,7 +314,7 @@ async def _fetch_direct_video_bytes(
             resp.close()
             return b"".join(chunks)
         except Exception:
-            log.debug("Fallo descargando video directo de %s", url, exc_info=True)
+            log.debug("Fallo descargando archivo directo de %s", url, exc_info=True)
             return None
 
     return await asyncio.to_thread(_download)

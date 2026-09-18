@@ -50,6 +50,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - `/refeed_channels` tiene un cooldown de 60 segundos por servidor, para evitar relanzarlo sin querer varias veces seguidas.
 - El filtro de HISTORIAL por tipo de acción suma opciones específicas para más cambios (exclusión de usuarios, prefijo de comandos, Twitch, canales de menciones, canal de novedades, frases), antes solo visibles agrupados en "Todas las acciones".
 - El dashboard carga más rápido, sobre todo la primera vez que se abre en una sesión.
+- `!gif` ahora también convierte una imagen (PNG, JPG o WEBP) en GIF, no solo un video -- adjunta, del mensaje que respondas, o embebida en el resultado de otro bot.
 
 ### Corregido
 - El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.

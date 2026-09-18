@@ -544,6 +544,16 @@ def _save_gif(frames: list[Image.Image], durations: list[int]) -> bytes:
     return buf.getvalue()
 
 
+def image_to_gif(image_bytes: bytes) -> bytes:
+    """Empaqueta una imagen estática (PNG/JPEG/WEBP) como un GIF de un solo
+    frame -- fuente alternativa de "!gif" cuando no hay ningún video para
+    convertir (ver _resolve_gif_source_image_bytes en cogs/imagefx.py). No
+    hace falta ffmpeg: un GIF de un solo frame es un archivo válido como
+    cualquier otro."""
+    frame = _open(image_bytes).convert("RGBA")
+    return _save_gif([frame], [80])
+
+
 def gif_caption(image_bytes: bytes, text: str) -> bytes:
     frames, durations = _iter_gif_frames(image_bytes)
     top, _, bottom = text.upper().partition("|")
