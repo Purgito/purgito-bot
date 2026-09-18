@@ -264,6 +264,14 @@ class Twitch(commands.Cog):
     async def _wait_ready(self):
         await self.bot.wait_until_ready()
 
+    @check_twitch.error
+    async def _on_check_twitch_error(self, error: BaseException) -> None:
+        # Mismo motivo que check_rss/check_youtube: sin este handler, una
+        # excepción fuera del set que discord.py reintenta solo mata el loop
+        # para siempre en silencio.
+        log.exception("check_twitch se cayó, reiniciando el loop", exc_info=error)
+        self.check_twitch.restart()
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Twitch(bot))

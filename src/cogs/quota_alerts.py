@@ -136,6 +136,14 @@ class QuotaAlerts(commands.Cog):
     async def _wait_ready(self):
         await self.bot.wait_until_ready()
 
+    @check_quotas.error
+    async def _on_check_quotas_error(self, error: BaseException) -> None:
+        # Sin este handler, una excepción fuera del set que discord.py
+        # reintenta solo (ver Loop._valid_exception) mata el loop para
+        # siempre en silencio -- acá tarda hasta 6h en notarse.
+        log.exception("check_quotas se cayó, reiniciando el loop", exc_info=error)
+        self.check_quotas.restart()
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(QuotaAlerts(bot))

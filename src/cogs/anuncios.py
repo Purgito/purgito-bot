@@ -164,6 +164,16 @@ class Anuncios(commands.Cog):
     async def _wait_ready(self):
         await self.bot.wait_until_ready()
 
+    @check_announcements.error
+    async def _on_check_announcements_error(self, error: BaseException) -> None:
+        # Sin este handler, una excepción fuera del set que discord.py
+        # reintenta solo mata el loop para siempre en silencio y los
+        # anuncios programados dejan de salir sin ningún aviso visible.
+        log.exception(
+            "check_announcements se cayó, reiniciando el loop", exc_info=error
+        )
+        self.check_announcements.restart()
+
     @tasks.loop(seconds=30)
     async def sweep_pending_deletions(self):
         due = await get_due_pending_deletions()
@@ -192,6 +202,17 @@ class Anuncios(commands.Cog):
     @sweep_pending_deletions.before_loop
     async def _wait_ready_sweep(self):
         await self.bot.wait_until_ready()
+
+    @sweep_pending_deletions.error
+    async def _on_sweep_pending_deletions_error(self, error: BaseException) -> None:
+        # Mismo motivo que check_announcements: sin este handler el sweep
+        # muere en silencio y los mensajes con delete_after enviados por
+        # webhook (que no tienen el borrado nativo de discord.py) quedan
+        # sin borrar para siempre tras el primer fallo no reconocido.
+        log.exception(
+            "sweep_pending_deletions se cayó, reiniciando el loop", exc_info=error
+        )
+        self.sweep_pending_deletions.restart()
 
 
 async def setup(bot: commands.Bot) -> None:

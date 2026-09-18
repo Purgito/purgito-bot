@@ -612,6 +612,14 @@ class Memes(commands.Cog):
     async def _wait_ready(self):
         await self.bot.wait_until_ready()
 
+    @auto_meme_task.error
+    async def _on_auto_meme_task_error(self, error: BaseException) -> None:
+        # Sin este handler, una excepción fuera del set que discord.py
+        # reintenta solo mata el loop para siempre en silencio y los memes
+        # automáticos programados dejan de postearse sin ningún aviso.
+        log.exception("auto_meme_task se cayó, reiniciando el loop", exc_info=error)
+        self.auto_meme_task.restart()
+
     async def _momo_impl(self, interaction: discord.Interaction) -> None:
         locale = await guild_locale(interaction.guild_id)
         if not is_premium_guild(interaction.guild_id):

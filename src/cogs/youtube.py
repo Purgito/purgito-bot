@@ -325,6 +325,14 @@ class YouTube(commands.Cog):
     async def _wait_ready(self):
         await self.bot.wait_until_ready()
 
+    @check_youtube.error
+    async def _on_check_youtube_error(self, error: BaseException) -> None:
+        # Mismo motivo que check_rss: sin este handler, cualquier excepción
+        # fuera del set que discord.py reintenta solo (ver
+        # Loop._valid_exception) mata el loop para siempre en silencio.
+        log.exception("check_youtube se cayó, reiniciando el loop", exc_info=error)
+        self.check_youtube.restart()
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(YouTube(bot))
