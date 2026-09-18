@@ -5,8 +5,11 @@ mecanismo de "adjunto propio -> reply" que ya usa cogs/download.py para
 "purgito dl". "!gif" prueba, en orden: adjunto propio o del mensaje
 respondido (extensión o content-type de video), video EMBEBIDO en el
 mensaje respondido (Embed.video -- bots como NotSoBot postean su resultado
-así, no como adjunto) y, por último, un link propio o del mensaje
-respondido igual que "!dl" (mismo allowlist de hosts, mismo módulo)."""
+así, no como adjunto); si no hay ningún video, una imagen estática por las
+mismas tres vías (Embed.image en vez de Embed.video) se empaqueta como GIF
+de un solo frame sin pasar por ffmpeg; y, por último, un link propio o del
+mensaje respondido igual que "!dl" (mismo allowlist de hosts, mismo
+módulo)."""
 
 import asyncio
 import io
@@ -86,18 +89,24 @@ async def _find_attachment(
     ctx: commands.Context, exts: set[str], content_type_prefix: str | None = None
 ) -> discord.Attachment | None:
     """content_type_prefix es un fallback además de la extensión (no en su
-    reemplazo) -- lo usa _resolve_video_bytes porque algunos clientes suben
-    video con una extensión que no está en _VIDEO_EXTS (ej. .mkv) pero sí
-    content_type="video/...", mismo patrón que ya usa
-    cogs/gifs.py.save_gif_candidates para adjuntos GIF."""
+    reemplazo) -- lo usa _resolve_video_bytes/_resolve_gif_source_image_bytes
+    porque algunos clientes suben el archivo con una extensión que no está
+    en el set (ej. .mkv), pero sí content_type="video/..." o "image/...",
+    mismo patrón que ya usa cogs/gifs.py.save_gif_candidates para adjuntos
+    GIF. getattr en vez de attachment.content_type directo: un
+    discord.Attachment real siempre tiene el atributo (None si Discord no
+    reportó uno), pero no vale la pena exigirlo de cualquier objeto que
+    llegue acá -- mismo criterio que _embed_video_url/_embed_image_url en
+    cogs/download.py."""
 
     def _matches(attachment: discord.Attachment) -> bool:
         if os.path.splitext(attachment.filename.lower())[1] in exts:
             return True
+        content_type = getattr(attachment, "content_type", None)
         return bool(
             content_type_prefix
-            and attachment.content_type
-            and attachment.content_type.lower().startswith(content_type_prefix)
+            and content_type
+            and content_type.lower().startswith(content_type_prefix)
         )
 
     for attachment in ctx.message.attachments:
@@ -146,7 +155,8 @@ async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
     respondido (Embed.video) -- así alcanza con responder al resultado de
     otro bot (ej. NotSoBot) aunque lo haya mandado como embed y no como
     adjunto. None si ninguna de las dos tiene nada; a partir de ahí gif_cmd
-    todavía prueba un link de página antes de rendirse."""
+    todavía prueba una imagen y, después, un link de página antes de
+    rendirse."""
     attachment = await _find_attachment(ctx, _VIDEO_EXTS, content_type_prefix="video/")
     if attachment is not None:
         if attachment.size > MAX_GIF_SOURCE_VIDEO_BYTES:
@@ -159,9 +169,31 @@ async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
     video_url = download_mod._embed_video_url(resolved)
     if video_url is None:
         return None
-    return await download_mod._fetch_direct_video_bytes(
+    return await download_mod._fetch_direct_media_bytes(
         video_url, MAX_GIF_SOURCE_VIDEO_BYTES
     )
+
+
+async def _resolve_gif_source_image_bytes(ctx: commands.Context) -> bytes | None:
+    """Fuente de imagen para "!gif" cuando no hay ningún video (ver
+    _resolve_video_bytes): mismas tres vías -- adjunto propio, adjunto del
+    mensaje respondido, o imagen EMBEBIDA del mensaje respondido
+    (Embed.image, mismo caso que Embed.video pero para una imagen estática).
+    Una imagen no necesita convertirse de verdad -- se empaqueta como GIF de
+    un solo frame en image_filters.image_to_gif, sin pasar por ffmpeg."""
+    attachment = await _find_attachment(ctx, _IMAGE_EXTS, content_type_prefix="image/")
+    if attachment is not None:
+        if attachment.size > IMAGEFX_MAX_BYTES:
+            raise SourceTooLarge(IMAGEFX_MAX_BYTES)
+        return await attachment.read()
+
+    resolved = await download_mod._resolve_reference(ctx)
+    if resolved is None:
+        return None
+    image_url = download_mod._embed_image_url(resolved)
+    if image_url is None:
+        return None
+    return await download_mod._fetch_direct_media_bytes(image_url, IMAGEFX_MAX_BYTES)
 
 
 class ImageFx(commands.Cog):
@@ -377,16 +409,51 @@ class ImageFx(commands.Cog):
             await ctx.reply(t("general.error.generic", locale))
             return
 
+        if data is None:
+            # Sin ningún video (_resolve_video_bytes ya probó adjunto y
+            # embed): una imagen estática alcanza igual -- se empaqueta como
+            # GIF de un solo frame, sin pasar por ffmpeg ni por el resto de
+            # este método. Mismas tres vías que el video, por eso mismas
+            # excepciones; solo se intenta si no hubo ningún video, así que
+            # sigue ganando el video cuando hay los dos.
+            try:
+                image_data = await _resolve_gif_source_image_bytes(ctx)
+            except SourceTooLarge as e:
+                await ctx.reply(
+                    t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
+                )
+                return
+            except discord.HTTPException:
+                await ctx.reply(t("general.error.generic", locale))
+                return
+
+            if image_data is not None:
+                if not is_valid_image(image_data):
+                    await ctx.reply(t("imagefx.invalid_image", locale))
+                    return
+                try:
+                    result = await asyncio.to_thread(
+                        image_filters.image_to_gif, image_data
+                    )
+                except Exception:
+                    log.exception("Error convirtiendo imagen a GIF en !gif")
+                    await ctx.reply(t("general.error.generic", locale))
+                    return
+                await ctx.reply(
+                    file=discord.File(io.BytesIO(result), filename="purgito.gif")
+                )
+                return
+
         tmp_dir = None
         try:
             async with ctx.typing():
                 if data is None:
-                    # Sin adjunto ni video embebido (_resolve_video_bytes ya
-                    # probó las dos cosas): mismo mecanismo que "!dl" -- link
-                    # propio o del mensaje respondido, mismo allowlist de
-                    # hosts (Instagram/TikTok/Twitter-X/Facebook) y las
-                    # mismas protecciones de SSRF ya auditadas en
-                    # cogs/download.py.
+                    # Sin video (adjunto, embed o imagen -- las tres ya se
+                    # probaron arriba, esta rama es solo si ninguna tuvo
+                    # nada): mismo mecanismo que "!dl" -- link propio o del
+                    # mensaje respondido, mismo allowlist de hosts
+                    # (Instagram/TikTok/Twitter-X/Facebook) y las mismas
+                    # protecciones de SSRF ya auditadas en cogs/download.py.
                     match = download_mod._URL_RE.search(url or "")
                     link = (
                         match.group(0)
