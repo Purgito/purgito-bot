@@ -1,29 +1,26 @@
-"""Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4): comandos con prefijo
-que transforman la imagen/GIF/video adjunto al mensaje, el del mensaje
-respondido, o (solo para imagen) el avatar de quien invoca -- mismo
-mecanismo de "adjunto propio -> reply" que ya usa cogs/download.py para
-"purgito dl". "!gif" prueba, en orden: adjunto propio o del mensaje
-respondido (extensión o content-type de video), video EMBEBIDO en el
-mensaje respondido (Embed.video -- bots como NotSoBot postean su resultado
-así, no como adjunto); si no hay ningún video, una imagen estática por las
-mismas tres vías (Embed.image en vez de Embed.video) se empaqueta como GIF
-de un solo frame sin pasar por ffmpeg; y, por último, un link propio o del
-mensaje respondido igual que "!dl" (mismo allowlist de hosts, mismo
-módulo)."""
+"""Filtros de imagen tipo NotSoBot (Fases 1, 2 y 4).
+
+"!gif" resuelve sus fuentes de forma independiente de "!dl": adjuntos,
+URLs y medios de embeds, desde el mensaje actual o el mensaje respondido.
+Así no hereda las restricciones ni los mensajes propios del descargador de
+redes sociales.
+"""
 
 import asyncio
 import io
 import logging
 import os
-import shutil
+import re
 import time
 from typing import Callable
+from urllib.parse import urlparse
 
 import discord
+import requests
 from discord.ext import commands
 
-import cogs.download as download_mod
 import image_filters
+import r2
 import video_filters
 from cogs.gifs import is_valid_gif_bytes
 from config import IMAGEFX_MAX_BYTES, env_int
@@ -36,6 +33,7 @@ log = logging.getLogger(__name__)
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 _GIF_EXTS = {".gif"}
 _VIDEO_EXTS = {".mp4", ".mov", ".webm"}
+_MEDIA_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
 # Tope del video FUENTE de "!gif", antes de convertirlo -- deliberadamente
 # más chico que MAX_DL_VIDEO_BYTES (cogs/download.py): un gif es un clip
@@ -65,6 +63,87 @@ class SourceTooLarge(Exception):
 
     def __init__(self, max_bytes: int):
         self.max_bytes = max_bytes
+
+
+async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
+    """Obtiene el mensaje respondido sin depender del handler de !dl."""
+    reference = getattr(ctx.message, "reference", None)
+    if reference is None:
+        return None
+    resolved = getattr(reference, "resolved", None)
+    if isinstance(resolved, discord.DeletedReferencedMessage):
+        return None
+    if resolved is None:
+        message_id = getattr(reference, "message_id", None)
+        if message_id is None:
+            return None
+        try:
+            resolved = await ctx.channel.fetch_message(message_id)
+        except discord.HTTPException:
+            return None
+    return resolved
+
+
+async def _source_messages(ctx: commands.Context) -> list[discord.Message]:
+    """Mensaje actual primero y, si existe, el mensaje al que se responde."""
+    messages = [ctx.message]
+    referenced = await _resolve_reference(ctx)
+    if referenced is not None:
+        messages.append(referenced)
+    return messages
+
+
+def _embed_media_url(message: discord.Message, attribute: str) -> str | None:
+    """Busca el recurso directo de un embed (video, image o thumbnail)."""
+    for embed in getattr(message, "embeds", ()):
+        media = getattr(embed, attribute, None)
+        url = getattr(media, "url", None)
+        if url:
+            return url
+    return None
+
+
+async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) -> bytes | None:
+    """Baja una URL HTTP(S) de medios con limite y proteccion SSRF."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+
+    def _download() -> bytes | None:
+        try:
+            response = r2.fetch_public_url(
+                requests.get,
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; PurgitoBot)"},
+                timeout=timeout,
+                stream=True,
+            )
+            try:
+                if response.status_code != 200:
+                    return None
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > max_bytes:
+                    raise SourceTooLarge(max_bytes)
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in response.iter_content(chunk_size=262144):
+                    total += len(chunk)
+                    if total > max_bytes:
+                        raise SourceTooLarge(max_bytes)
+                    chunks.append(chunk)
+                return b"".join(chunks)
+            finally:
+                response.close()
+        except SourceTooLarge:
+            raise
+        except Exception:
+            log.debug("No se pudo bajar medio para !gif: %s", url, exc_info=True)
+            return None
+
+    return await asyncio.to_thread(_download)
 
 
 def _check_fx_cooldown(user_id: int) -> int | None:
@@ -113,12 +192,10 @@ async def _find_attachment(
         if _matches(attachment):
             return attachment
 
-    resolved = await download_mod._resolve_reference(ctx)
-    if resolved is None:
-        return None
-    for attachment in resolved.attachments:
-        if _matches(attachment):
-            return attachment
+    for message in (await _source_messages(ctx))[1:]:
+        for attachment in getattr(message, "attachments", ()):
+            if _matches(attachment):
+                return attachment
     return None
 
 
@@ -163,15 +240,13 @@ async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
             raise SourceTooLarge(MAX_GIF_SOURCE_VIDEO_BYTES)
         return await attachment.read()
 
-    resolved = await download_mod._resolve_reference(ctx)
-    if resolved is None:
-        return None
-    video_url = download_mod._embed_video_url(resolved)
-    if video_url is None:
-        return None
-    return await download_mod._fetch_direct_media_bytes(
-        video_url, MAX_GIF_SOURCE_VIDEO_BYTES
-    )
+    for message in await _source_messages(ctx):
+        video_url = _embed_media_url(message, "video")
+        if video_url:
+            data = await _fetch_media_bytes(video_url, MAX_GIF_SOURCE_VIDEO_BYTES)
+            if data is not None:
+                return data
+    return None
 
 
 async def _resolve_gif_source_image_bytes(ctx: commands.Context) -> bytes | None:
@@ -187,13 +262,39 @@ async def _resolve_gif_source_image_bytes(ctx: commands.Context) -> bytes | None
             raise SourceTooLarge(IMAGEFX_MAX_BYTES)
         return await attachment.read()
 
-    resolved = await download_mod._resolve_reference(ctx)
-    if resolved is None:
-        return None
-    image_url = download_mod._embed_image_url(resolved)
-    if image_url is None:
-        return None
-    return await download_mod._fetch_direct_media_bytes(image_url, IMAGEFX_MAX_BYTES)
+    for message in await _source_messages(ctx):
+        for attribute in ("image", "thumbnail"):
+            image_url = _embed_media_url(message, attribute)
+            if image_url:
+                data = await _fetch_media_bytes(image_url, IMAGEFX_MAX_BYTES)
+                if data is not None:
+                    return data
+    return None
+
+
+async def _resolve_url_source_bytes(
+    ctx: commands.Context, url: str | None
+) -> bytes | None:
+    """Busca una URL de medio en el comando, su mensaje o el mensaje reply.
+
+    Este es el fallback de !gif despues de adjuntos y recursos de embeds. No
+    filtra por red social: cualquier URL HTTP(S) publica puede ser un archivo
+    de video o imagen; el contenido se valida al convertirlo.
+    """
+    candidates = [url or ""]
+    for message in await _source_messages(ctx):
+        candidates.append(getattr(message, "content", "") or "")
+        candidates.extend(
+            getattr(embed, "url", "") or ""
+            for embed in getattr(message, "embeds", ())
+        )
+    for candidate in candidates:
+        match = _MEDIA_URL_RE.search(candidate)
+        if match:
+            data = await _fetch_media_bytes(match.group(0), MAX_GIF_SOURCE_VIDEO_BYTES)
+            if data is not None:
+                return data
+    return None
 
 
 class ImageFx(commands.Cog):
@@ -444,87 +545,57 @@ class ImageFx(commands.Cog):
                 )
                 return
 
-        tmp_dir = None
         try:
-            async with ctx.typing():
-                if data is None:
-                    # Sin video (adjunto, embed o imagen -- las tres ya se
-                    # probaron arriba, esta rama es solo si ninguna tuvo
-                    # nada): mismo mecanismo que "!dl" -- link propio o del
-                    # mensaje respondido, mismo allowlist de hosts
-                    # (Instagram/TikTok/Twitter-X/Facebook) y las mismas
-                    # protecciones de SSRF ya auditadas en cogs/download.py.
-                    match = download_mod._URL_RE.search(url or "")
-                    link = (
-                        match.group(0)
-                        if match
-                        else await download_mod._reply_target_url(ctx)
-                    )
-                    if not link:
-                        await ctx.reply(t("imagefx.video_missing", locale))
-                        return
-                    if not download_mod._is_supported_url(link):
-                        await ctx.reply(t("download.dl.unsupported_site", locale))
-                        return
-
-                    try:
-                        path, is_sensitive = await asyncio.to_thread(
-                            download_mod._download_video,
-                            link,
-                            MAX_GIF_SOURCE_VIDEO_BYTES,
-                        )
-                    except download_mod.DownloadTooLarge as e:
-                        await ctx.reply(
-                            t(
-                                "imagefx.video_too_large",
-                                locale,
-                                mb=e.max_bytes // (1024 * 1024),
-                            )
-                        )
-                        return
-                    except download_mod.DownloadFailed:
-                        await ctx.reply(t("download.dl.failed", locale))
-                        return
-
-                    tmp_dir = os.path.dirname(path)
-                    channel_is_nsfw = getattr(ctx.channel, "is_nsfw", lambda: False)()
-                    if is_sensitive and not channel_is_nsfw:
-                        await ctx.reply(t("download.dl.nsfw_channel_required", locale))
-                        return
-
-                    with open(path, "rb") as f:
-                        data = f.read()
-
-                max_output = IMAGEFX_MAX_BYTES
-                if ctx.guild is not None:
-                    max_output = min(max_output, ctx.guild.filesize_limit)
-
-                try:
-                    result = await asyncio.to_thread(
-                        video_filters.convert_video_to_gif,
-                        data,
-                        GIF_MAX_DURATION_SECONDS,
-                        max_output,
-                    )
-                except video_filters.GifTooLarge as e:
-                    await ctx.reply(
-                        t(
-                            "imagefx.gif_output_too_large",
-                            locale,
-                            mb=e.max_bytes // (1024 * 1024),
-                        )
-                    )
-                    return
-                except video_filters.VideoConversionFailed:
-                    await ctx.reply(t("imagefx.video_conversion_failed", locale))
-                    return
-
+            if data is None:
+                data = await _resolve_url_source_bytes(ctx, url)
+            if data is None:
+                await ctx.reply(t("imagefx.video_missing", locale))
+                return
+        except SourceTooLarge as e:
             await ctx.reply(
-                file=discord.File(io.BytesIO(result), filename="purgito.gif")
+                t("imagefx.video_too_large", locale, mb=e.max_bytes // (1024 * 1024))
             )
-        finally:
-            if tmp_dir is not None:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
+            return
+
+        # Una URL puede apuntar a una imagen aunque no haya llegado como
+        # adjunto o Embed.image. La misma conversion de un frame que usamos
+        # arriba mantiene !gif util para ambos tipos de recurso.
+        if is_valid_image(data):
+            try:
+                result = await asyncio.to_thread(image_filters.image_to_gif, data)
+            except Exception:
+                log.exception("Error convirtiendo imagen desde URL a GIF")
+                await ctx.reply(t("general.error.generic", locale))
+                return
+            await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
+            return
+
+        async with ctx.typing():
+            max_output = IMAGEFX_MAX_BYTES
+            if ctx.guild is not None:
+                max_output = min(max_output, ctx.guild.filesize_limit)
+
+            try:
+                result = await asyncio.to_thread(
+                    video_filters.convert_video_to_gif,
+                    data,
+                    GIF_MAX_DURATION_SECONDS,
+                    max_output,
+                )
+            except video_filters.GifTooLarge as e:
+                await ctx.reply(
+                    t(
+                        "imagefx.gif_output_too_large",
+                        locale,
+                        mb=e.max_bytes // (1024 * 1024),
+                    )
+                )
+                return
+            except video_filters.VideoConversionFailed:
+                await ctx.reply(t("imagefx.video_conversion_failed", locale))
+                return
+
+        await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
 
     @gif_cmd.error
     async def gif_cmd_error(self, ctx: commands.Context, error: Exception):

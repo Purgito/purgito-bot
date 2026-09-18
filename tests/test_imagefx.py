@@ -19,7 +19,6 @@ import imageio_ffmpeg
 import pytest
 from PIL import Image, ImageDraw, ImageSequence
 
-import cogs.download as download_mod
 import cogs.imagefx as imagefx_mod
 import image_filters
 import video_filters
@@ -360,6 +359,8 @@ class FakeContext:
         self,
         attachments=None,
         reference=None,
+        content="",
+        embeds=None,
         author=None,
         guild_id=1,
         guild_filesize_limit=25 * 1024 * 1024,
@@ -372,7 +373,7 @@ class FakeContext:
         )
         self.author = author or FakeAuthor()
         self.message = SimpleNamespace(
-            attachments=attachments or [], reference=reference
+            attachments=attachments or [], reference=reference, content=content, embeds=embeds or []
         )
         self.channel = SimpleNamespace(
             fetch_message=self._fetch_message, is_nsfw=lambda: channel_is_nsfw
@@ -593,7 +594,7 @@ def test_resolve_video_bytes_usa_el_video_embebido_del_mensaje_respondido(monkey
         assert max_bytes == imagefx_mod.MAX_GIF_SOURCE_VIDEO_BYTES
         return b"video del embed"
 
-    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     referenced = SimpleNamespace(
         attachments=[],
         embeds=[
@@ -615,7 +616,7 @@ def test_resolve_video_bytes_prioriza_el_adjunto_sobre_el_video_embebido(monkeyp
     async def fake_fetch(url, max_bytes):
         raise AssertionError("no debería llamarse: hay un adjunto de video")
 
-    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     referenced = SimpleNamespace(
         attachments=[],
         embeds=[
@@ -641,7 +642,11 @@ def test_resolve_video_bytes_ignora_embed_sin_video():
     assert asyncio.run(_resolve_video_bytes(ctx)) is None
 
 
-def test_resolve_video_bytes_no_confia_en_video_embebido_de_host_no_confiable():
+def test_resolve_video_bytes_ignora_un_video_embebido_que_no_se_puede_bajar(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        return None
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     # _embed_video_url encuentra la URL, pero _fetch_direct_media_bytes (sin
     # mockear acá) la rechaza por host -- _resolve_video_bytes no debe
     # devolver nada, no reventar.
@@ -714,7 +719,7 @@ def test_resolve_gif_source_image_bytes_usa_la_imagen_embebida_del_mensaje_respo
         assert max_bytes == imagefx_mod.IMAGEFX_MAX_BYTES
         return b"imagen del embed"
 
-    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     referenced = SimpleNamespace(
         attachments=[],
         embeds=[
@@ -739,7 +744,11 @@ def test_resolve_gif_source_image_bytes_ignora_embed_sin_imagen():
     assert asyncio.run(_resolve_gif_source_image_bytes(ctx)) is None
 
 
-def test_resolve_gif_source_image_bytes_no_confia_en_imagen_embebida_de_host_no_confiable():
+def test_resolve_gif_source_image_bytes_ignora_una_imagen_embebida_que_no_se_puede_bajar(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        return None
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     referenced = SimpleNamespace(
         attachments=[],
         embeds=[SimpleNamespace(image=SimpleNamespace(url="https://evil.com/x.webp"))],
@@ -1052,20 +1061,16 @@ def test_gif_cmd_tiene_su_propio_cooldown_separado_del_resto(monkeypatch):
 # ── "!gif" con link, igual que "!dl" (sin adjunto de video) ──────────────────
 
 
-def _fake_download_video_factory(seen=None, is_sensitive=False):
+def _fake_fetch_media_factory(seen=None, is_sensitive=False):
     """Mismo patrón que test_download_cog.py: crea un archivo temporal real
     (necesario porque gif_cmd hace open(path, "rb") sobre el resultado) y
     anota los argumentos con los que se lo llamó."""
 
-    def fake(url, max_bytes):
+    async def fake(url, max_bytes):
         if seen is not None:
             seen["url"] = url
             seen["max_bytes"] = max_bytes
-        tmp_dir = tempfile.mkdtemp(prefix="purgito_gif_test_")
-        path = os.path.join(tmp_dir, "video.mp4")
-        with open(path, "wb") as f:
-            f.write(_make_test_video_bytes(duration=0.3, fps=6))
-        return path, is_sensitive
+        return _make_test_video_bytes(duration=0.3, fps=6)
 
     return fake
 
@@ -1073,7 +1078,7 @@ def _fake_download_video_factory(seen=None, is_sensitive=False):
 def test_gif_cmd_usa_link_propio(monkeypatch):
     seen: dict = {}
     monkeypatch.setattr(
-        download_mod, "_download_video", _fake_download_video_factory(seen)
+        imagefx_mod, "_fetch_media_bytes", _fake_fetch_media_factory(seen)
     )
     cog = _cog()
     ctx = FakeContext()
@@ -1088,7 +1093,7 @@ def test_gif_cmd_usa_link_propio(monkeypatch):
 def test_gif_cmd_usa_link_del_mensaje_respondido(monkeypatch):
     seen: dict = {}
     monkeypatch.setattr(
-        download_mod, "_download_video", _fake_download_video_factory(seen)
+        imagefx_mod, "_fetch_media_bytes", _fake_fetch_media_factory(seen)
     )
     cog = _cog()
     referenced = SimpleNamespace(
@@ -1111,7 +1116,7 @@ def test_gif_cmd_usa_la_url_del_embed_si_el_mensaje_respondido_no_tiene_texto(
     de texto ni adjunto de Discord -- ver docstring de _reply_target_url."""
     seen: dict = {}
     monkeypatch.setattr(
-        download_mod, "_download_video", _fake_download_video_factory(seen)
+        imagefx_mod, "_fetch_media_bytes", _fake_fetch_media_factory(seen)
     )
     cog = _cog()
     referenced = SimpleNamespace(
@@ -1142,8 +1147,7 @@ def test_gif_cmd_usa_el_video_embebido_si_el_mensaje_respondido_no_tiene_adjunto
     def fail_download(url, max_bytes):
         raise AssertionError("no debería llamarse: el video vino del embed")
 
-    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
-    monkeypatch.setattr(download_mod, "_download_video", fail_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     cog = _cog()
     referenced = SimpleNamespace(
         content="",
@@ -1164,11 +1168,41 @@ def test_gif_cmd_usa_el_video_embebido_si_el_mensaje_respondido_no_tiene_adjunto
     assert ctx.reply_files[0].filename == "purgito.gif"
 
 
+def test_gif_cmd_usa_el_video_embebido_en_el_mensaje_actual(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://media.example.test/notso.mp4"
+        return _make_test_video_bytes(duration=0.3, fps=6)
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    cog = _cog()
+    ctx = FakeContext(
+        embeds=[SimpleNamespace(video=SimpleNamespace(url="https://media.example.test/notso.mp4"))]
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_convierte_una_imagen_desde_url(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://images.example.test/foto.png"
+        return _png_bytes()
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://images.example.test/foto.png"))
+
+    assert len(ctx.reply_files) == 1
+
+
 def test_gif_cmd_prioriza_el_adjunto_sobre_el_link(monkeypatch):
     def fake_download(url, max_bytes):
         raise AssertionError("no debería llamarse: hay un adjunto de video")
 
-    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_download)
     cog = _cog()
     video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
     ctx = FakeContext(
@@ -1180,21 +1214,25 @@ def test_gif_cmd_prioriza_el_adjunto_sobre_el_link(monkeypatch):
     assert len(ctx.reply_files) == 1
 
 
-def test_gif_cmd_rechaza_link_de_sitio_no_soportado():
+def test_gif_cmd_acepta_una_url_de_cualquier_host_publico(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://youtube.com/watch?v=abc"
+        return _make_test_video_bytes(duration=0.3, fps=6)
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     cog = _cog()
     ctx = FakeContext()
 
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://youtube.com/watch?v=abc"))
 
-    assert ctx.reply_files == []
-    assert len(ctx.replies) == 1
+    assert len(ctx.reply_files) == 1
 
 
 def test_gif_cmd_link_descarga_fallida(monkeypatch):
-    def fake_download(url, max_bytes):
-        raise download_mod.DownloadFailed("privado o borrado")
+    async def fake_download(url, max_bytes):
+        return None
 
-    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_download)
     cog = _cog()
     ctx = FakeContext()
 
@@ -1205,10 +1243,10 @@ def test_gif_cmd_link_descarga_fallida(monkeypatch):
 
 
 def test_gif_cmd_link_descarga_demasiado_grande(monkeypatch):
-    def fake_download(url, max_bytes):
-        raise download_mod.DownloadTooLarge(max_bytes)
+    async def fake_download(url, max_bytes):
+        raise SourceTooLarge(max_bytes)
 
-    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_download)
     cog = _cog()
     ctx = FakeContext()
 
@@ -1218,22 +1256,21 @@ def test_gif_cmd_link_descarga_demasiado_grande(monkeypatch):
     assert len(ctx.replies) == 1
 
 
-def test_gif_cmd_link_video_sensible_bloqueado_fuera_de_nsfw(monkeypatch):
+def test_gif_cmd_no_hereda_la_politica_nsfw_de_dl(monkeypatch):
     monkeypatch.setattr(
-        download_mod, "_download_video", _fake_download_video_factory(is_sensitive=True)
+        imagefx_mod, "_fetch_media_bytes", _fake_fetch_media_factory(is_sensitive=True)
     )
     cog = _cog()
     ctx = FakeContext(channel_is_nsfw=False)
 
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
 
-    assert ctx.reply_files == []
-    assert len(ctx.replies) == 1
+    assert len(ctx.reply_files) == 1
 
 
-def test_gif_cmd_link_video_sensible_permitido_en_nsfw(monkeypatch):
+def test_gif_cmd_funciona_tambien_en_un_canal_nsfw(monkeypatch):
     monkeypatch.setattr(
-        download_mod, "_download_video", _fake_download_video_factory(is_sensitive=True)
+        imagefx_mod, "_fetch_media_bytes", _fake_fetch_media_factory(is_sensitive=True)
     )
     cog = _cog()
     ctx = FakeContext(channel_is_nsfw=True)
@@ -1244,26 +1281,17 @@ def test_gif_cmd_link_video_sensible_permitido_en_nsfw(monkeypatch):
     assert ctx.replies == []
 
 
-def test_gif_cmd_link_limpia_el_directorio_temporal(monkeypatch):
-    created_dirs: list[str] = []
+def test_gif_cmd_link_no_crea_archivos_temporales(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        return _make_test_video_bytes(duration=0.3, fps=6)
 
-    def fake_download(url, max_bytes):
-        tmp_dir = tempfile.mkdtemp(prefix="purgito_gif_test_")
-        created_dirs.append(tmp_dir)
-        path = os.path.join(tmp_dir, "video.mp4")
-        with open(path, "wb") as f:
-            f.write(_make_test_video_bytes(duration=0.3, fps=6))
-        return path, False
-
-    monkeypatch.setattr(download_mod, "_download_video", fake_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     cog = _cog()
     ctx = FakeContext()
 
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
 
     assert len(ctx.reply_files) == 1
-    assert len(created_dirs) == 1
-    assert not os.path.exists(created_dirs[0])
 
 
 # ── "!gif" con una imagen estática (sin video en ningún lado) ────────────────
@@ -1308,8 +1336,7 @@ def test_gif_cmd_usa_la_imagen_embebida_si_el_mensaje_respondido_no_tiene_adjunt
     def fail_download(url, max_bytes):
         raise AssertionError("no debería llamarse: la imagen vino del embed")
 
-    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
-    monkeypatch.setattr(download_mod, "_download_video", fail_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
     cog = _cog()
     referenced = SimpleNamespace(
         content="",
@@ -1353,7 +1380,7 @@ def test_gif_cmd_prioriza_una_imagen_adjunta_sobre_un_link(monkeypatch):
     def fail_download(url, max_bytes):
         raise AssertionError("no debería llamarse: hay una imagen adjunta")
 
-    monkeypatch.setattr(download_mod, "_download_video", fail_download)
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fail_download)
     cog = _cog()
     ctx = FakeContext(
         attachments=[FakeAttachment(filename="foto.webp", data=_png_bytes())]

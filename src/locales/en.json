@@ -413,7 +413,7 @@
   "help.cat.imagen.cmd.emboss": "Embosses it, like it's stamped in metal",
   "imagefx.gif_missing": "I need a GIF: attach one or reply to a message that has one.",
   "imagefx.invalid_gif": "That's not a valid GIF.",
-  "imagefx.video_missing": "I need a video or an image: attach one, add an Instagram/TikTok/Twitter-X/Facebook link, or reply to a message that has any of the three.",
+  "imagefx.video_missing": "I need a video or image: attach one, add a URL, or reply to a message with media.",
   "imagefx.video_too_large": "That video is over {mb}MB.",
   "imagefx.video_conversion_failed": "Couldn't convert that video to a GIF. The format might not be supported.",
   "imagefx.gif_output_too_large": "The resulting GIF is over {mb}MB, too big for this channel.",
