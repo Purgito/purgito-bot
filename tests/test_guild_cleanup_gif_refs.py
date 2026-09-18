@@ -28,6 +28,21 @@ class _FakeBot:
         return object() if guild_id in self._active else None
 
 
+class _RejoiningBot:
+    """get_guild devuelve None (guild ausente) en las primeras `flip_after`
+    consultas y pasa a "activo" de ahí en adelante -- simula un guild que se
+    reincorpora A MITAD del loop de liberación de GIFs, no antes de que
+    arranque (eso ya lo cubre _FakeBot / el test de más abajo)."""
+
+    def __init__(self, flip_after):
+        self._calls = 0
+        self._flip_after = flip_after
+
+    def get_guild(self, guild_id):
+        self._calls += 1
+        return object() if self._calls > self._flip_after else None
+
+
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
@@ -213,3 +228,65 @@ def test_guild_cleanup_no_purga_un_guild_que_volvio_a_estar_activo(temp_db, fake
     # (clear_guild_departure es responsabilidad de on_guild_join, no de esta
     # tarea -- este test solo cubre que la purga se saltee, no que la
     # limpie; en producción on_guild_join ya la habría limpiado.)
+
+
+def test_guild_cleanup_aborta_a_mitad_del_loop_si_el_guild_reaparece(temp_db, fake_r2):
+    """Sección 3, cuarta pasada: el test de arriba solo cubre un rejoin ANTES
+    de que el loop de liberación arranque. Acá el guild sigue ausente en ese
+    primer chequeo (pasa el guard de arriba) pero vuelve a aparecer DESPUÉS
+    de liberar el primer GIF y ANTES del segundo -- justo el hueco que un
+    único chequeo al principio no puede ver, porque liberar cada GIF es un
+    await real (a R2) que le da tiempo al bot de reconectarse mientras tanto.
+
+    Sin el re-chequeo por ítem, los tres GIFs se liberarían igual y
+    purge_guild_data correría igual, borrando de forma irreversible el
+    corpus de un guild que ya está activo de nuevo. Con el fix, el daño
+    queda acotado al primer GIF (la ventana que un único await todavía deja
+    abierta, documentada en el propio código) y ni corpus_gifs ni el resto
+    de la DB del guild se tocan."""
+    guild_id = 444
+    hashes = ["1" * 64, "2" * 64, "3" * 64]
+    urls = [f"https://cdn.example.com/{r2.gif_key(h)}" for h in hashes]
+
+    async def run():
+        conn = await db.get_db()
+        for h, u in zip(hashes, urls):
+            await conn.execute(
+                "INSERT INTO corpus_gifs (guild_id, url, content_hash) VALUES (?, ?, ?)",
+                (guild_id, u, h),
+            )
+            await conn.execute(
+                "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes) "
+                "VALUES (?, ?, 1, 10)",
+                (h, r2.gif_key(h)),
+            )
+        await conn.commit()
+        await _mark_departed(conn, guild_id)
+
+        # flip_after=2: el chequeo de arriba del loop (llamada 1) y el
+        # re-chequeo antes del primer GIF (llamada 2) todavía ven al guild
+        # ausente -- recién la llamada 3 (antes del segundo GIF) lo ve activo
+        # de nuevo, simulando el rejoin ocurriendo mientras se liberaba el
+        # primero.
+        cog = General(bot=_RejoiningBot(flip_after=2))
+        await cog.guild_cleanup_task.coro(cog)
+
+        async with conn.execute(
+            "SELECT COUNT(*) FROM corpus_gifs WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            gif_count = (await cur.fetchone())[0]
+        async with conn.execute("SELECT content_hash FROM gif_objects") as cur:
+            remaining_objects = {r[0] for r in await cur.fetchall()}
+        return gif_count, remaining_objects
+
+    gif_count, remaining_objects = asyncio.run(run())
+
+    # Solo el primer GIF se liberó (y su objeto de R2 se borró de verdad);
+    # el segundo y el tercero nunca se tocaron.
+    assert fake_r2["delete_key"] == [r2.gif_key(hashes[0])]
+    assert remaining_objects == {hashes[1], hashes[2]}
+    # purge_guild_data NUNCA corrió: las tres filas de corpus_gifs siguen
+    # ahí, aunque la primera ya apunte a un objeto de R2 borrado -- ese
+    # residuo puntual es el precio de detectar el rejoin por ítem en vez de
+    # solo al principio, no una purga completa perdida.
+    assert gif_count == 3

@@ -21,6 +21,7 @@ from discord.ext import commands
 
 import db
 from i18n import guild_locale, t
+from utils import SafeModal, SafeView
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ async def _role_toggle(
         )
 
 
-class DynamicLayoutModal(discord.ui.Modal):
+class DynamicLayoutModal(SafeModal):
     def __init__(
         self,
         title: str,
@@ -216,7 +217,7 @@ def _dispatcher_view(rows: list[dict]) -> discord.ui.View:
     """Un botón "dummy" por fila (mismo custom_id, callback real) — nunca se
     muestra en ningún mensaje, solo existe para que discord.py tenga adónde
     despachar el click cuando llega la interacción."""
-    view = discord.ui.View(timeout=None)
+    view = SafeView(timeout=None)
     for row in rows:
         action_type = row.get("action_type")
         if action_type == "role_toggle":

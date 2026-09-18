@@ -17,7 +17,7 @@ import generation
 from db import export_user_data
 from help_view import PURGITO_COLOR
 from i18n import guild_locale, t
-from utils import LRUDict
+from utils import LRUDict, SafeView
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ _EXPORT_COOLDOWN_SECONDS = 60
 _export_cooldowns: LRUDict = LRUDict(1024)
 
 
-class _ConfirmDeleteView(discord.ui.View):
+class _ConfirmDeleteView(SafeView):
     """Confirmación de dos pasos sobre el MISMO botón: el primer click en
     "Eliminar mis datos" solo lo arma (lo relabelea y pide un segundo click)
     -- ningún click aislado dispara el borrado real. Mismo timeout/patrón de

@@ -195,6 +195,25 @@ class General(commands.Cog):
                     )
                     continue
                 try:
+                    # Sección 3, cuarta pasada: el chequeo de arriba es un
+                    # único punto en el tiempo, pero lo que sigue no es
+                    # instantáneo -- un guild con muchos GIFs puede tardar
+                    # varios minutos en liberar referencias (un await a R2 por
+                    # ítem). Si el guild vuelve a unirse DURANTE ese lapso, el
+                    # chequeo de arriba ya pasó y no lo detecta: sin volver a
+                    # preguntar acá, se le siguen liberando referencias a un
+                    # guild que ya está activo de nuevo -- si algún content_hash
+                    # llega a ref_count 0, el objeto de R2 se borra de verdad
+                    # aunque la fila de corpus_gifs de ese guild (todavía vivo,
+                    # nunca purgada) siga apuntando a esa key, dejándola con un
+                    # link roto sin que purge_guild_data haya corrido. Re-chequear
+                    # bot.get_guild antes de CADA ítem no cierra la ventana del
+                    # todo (sigue quedando el tamaño de un único await, mismo
+                    # residuo que release_gif_reference ya documenta y que
+                    # cerrarlo de verdad necesitaría un lease sobre R2), pero la
+                    # achica de "todo el loop" a "un solo ítem" -- máximo una
+                    # referencia mal liberada en vez de todo el pool del guild.
+                    rejoined = False
                     if r2.available() and r2.public_url():
                         # release_gif_reference, NO r2.delete_url: los GIFs con
                         # content_hash son objetos content-addressed compartidos
@@ -205,11 +224,27 @@ class General(commands.Cog):
                         # imágenes sí son 1:1 por guild (key con {guild_id}/
                         # de prefijo) así que esas siguen borrándose por url.
                         for item in await list_gif_urls(guild_id):
+                            if self.bot.get_guild(guild_id) is not None:
+                                rejoined = True
+                                break
                             await release_gif_reference(
                                 item["content_hash"], item["url"]
                             )
-                        for img_url in await list_image_urls(guild_id):
-                            await r2.delete_url(img_url)
+                        if not rejoined:
+                            for img_url in await list_image_urls(guild_id):
+                                if self.bot.get_guild(guild_id) is not None:
+                                    rejoined = True
+                                    break
+                                await r2.delete_url(img_url)
+                    if rejoined or self.bot.get_guild(guild_id) is not None:
+                        log.warning(
+                            "guild_cleanup: guild %s volvió a estar activo a "
+                            "mitad de la purga -- se aborta sin tocar la DB, "
+                            "pero puede haber perdido alguna referencia de R2 "
+                            "liberada antes de detectarlo",
+                            guild_id,
+                        )
+                        continue
                     await purge_guild_data(guild_id)
                     discard_premium_guild(guild_id)
                     purged += 1

@@ -37,6 +37,15 @@ GIF que un servidor afectado quiso guardar originalmente (nunca llegó a
 subirse a R2, y el link de Discord ya expiró): lo único que --apply puede
 hacer es dejar de servirle a ese servidor el contenido ajeno. El servidor
 vuelve a tener su propio GIF recién cuando alguien lo vuelva a postear.
+
+--apply abre su propia conexión a bot.db con sqlite3 (fuera de _db_lock y
+del proceso del bot) y recalcula ref_count contando corpus_gifs en el mismo
+UPDATE, así que no puede quedar desincronizado con lo que el bot escriba
+mientras tanto -- pero sigue siendo una segunda conexión escribiendo la
+misma base. Conviene parar el bot mientras se corre --apply, igual que con
+reconcile_gif_objects.py y backfill_gif_phashes.py: sin eso, en el peor caso
+la escritura del script puede toparse con "database is locked" por
+contención con el proceso del bot, no corromper nada.
 """
 
 import argparse

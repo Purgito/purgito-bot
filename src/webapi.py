@@ -431,6 +431,46 @@ async def _cors_middleware(request: web.Request, handler) -> web.StreamResponse:
     return resp
 
 
+@web.middleware
+async def _error_middleware(request: web.Request, handler) -> web.StreamResponse:
+    """Red de contención para excepciones no atajadas en un handler.
+
+    Sin esto, aiohttp responde por su cuenta ante cualquier excepción sin
+    capturar: 500 con `Content-Type: text/plain` y el body literal "500
+    Internal Server Error\\n\\nServer got itself in trouble" (confirmado
+    contra un server aiohttp mínimo) -- ni remotamente el JSON que el resto
+    de esta API siempre devuelve (`Web: aiohttp puro, solo JSON`, ver
+    CLAUDE.md). El dashboard (`apiFetch` en panel.js) espera poder hacerle
+    `.json()` a cualquier respuesta de error para leer su campo `error`; con
+    un body de texto plano eso tira una excepción de parseo en el navegador,
+    así que el usuario ni siquiera llega a ver el "Error 500" pelado que ya
+    señalaba el hallazgo #10 de AUDITORIA_UX.md -- ve una pantalla rota sin
+    ningún mensaje.
+
+    `web.HTTPException` (404, redirects de /auth/*, 401 propios, etc.) se
+    deja pasar tal cual: son respuestas deliberadas de un handler, no bugs.
+    Solo lo que llega acá como una excepción cualquiera (un bug real) se
+    homogeniza a JSON.
+
+    Colocado DESPUÉS de `_cors_middleware`/`_security_headers_middleware` en
+    la lista de `web.Application(middlewares=[...])` -- aiohttp encadena esa
+    lista como capas anidadas en orden, así que este queda como la capa más
+    interna, la más cercana al handler real. La respuesta 500 que arma sigue
+    pasando hacia afuera por los otros dos middlewares, así que llega con
+    cabeceras CORS y de seguridad como cualquier otra respuesta, en vez de
+    quedar pelada."""
+    try:
+        return await handler(request)
+    except web.HTTPException:
+        raise
+    except Exception:
+        log.exception("Excepción no atajada en %s %s", request.method, request.path)
+        return web.json_response(
+            {"error": "ocurrió un error inesperado, intenta de nuevo más tarde"},
+            status=500,
+        )
+
+
 # ---------------- Permisos por guild ----------------
 
 
@@ -6291,7 +6331,13 @@ async def start_web_server(bot: commands.Bot) -> None:
     global _runner
     if _runner is not None:
         return
-    app = web.Application(middlewares=[_security_headers_middleware, _cors_middleware])
+    app = web.Application(
+        middlewares=[
+            _security_headers_middleware,
+            _cors_middleware,
+            _error_middleware,
+        ]
+    )
     app["bot"] = bot
     # Sesión HTTP compartida para llamadas a la API de Discord, con timeout global.
     app["http"] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
