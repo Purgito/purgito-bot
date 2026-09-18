@@ -568,6 +568,47 @@ def test_embed_video_url_tolera_embeds_sin_atributo_video():
     assert download_mod._embed_video_url(message) is None
 
 
+def test_embed_video_url_prioriza_proxy_url_sobre_url():
+    # Caso reportado: un bot (ej. NotSoBot) postea un embed cuyo video vive
+    # en SU propio CDN, no en Discord -- Embed.video.url apunta ahí y
+    # _is_direct_video_host lo va a rechazar. Pero Discord igual lo sirve al
+    # cliente a través de su proxy de media (por eso "se ve perfecto" en la
+    # captura del reporte), y ESE host sí está en _DIRECT_VIDEO_HOSTS.
+    message = SimpleNamespace(
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.notsobot.com/results/clip.mp4",
+                    proxy_url="https://media.discordapp.net/external/abc/clip.mp4",
+                )
+            )
+        ]
+    )
+
+    assert (
+        download_mod._embed_video_url(message)
+        == "https://media.discordapp.net/external/abc/clip.mp4"
+    )
+
+
+def test_embed_video_url_cae_a_url_si_proxy_url_esta_vacio():
+    message = SimpleNamespace(
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.discordapp.com/attachments/1/2/clip.mp4",
+                    proxy_url=None,
+                )
+            )
+        ]
+    )
+
+    assert (
+        download_mod._embed_video_url(message)
+        == "https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+    )
+
+
 @pytest.mark.parametrize(
     "url",
     [
