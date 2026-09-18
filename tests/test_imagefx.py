@@ -1552,3 +1552,166 @@ def test_gif_cmd_sin_nada_sigue_pidiendo_video_o_imagen():
 
     assert ctx.reply_files == []
     assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_prioriza_video_de_embed_sobre_thumbnail_en_mensaje_respondido(monkeypatch):
+    video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
+    thumb_bytes = _png_bytes()
+    called = {}
+
+    async def fake_fetch(url, max_bytes):
+        if "clip.mp4" in url:
+            return video_bytes
+        if "thumb.jpg" in url:
+            return thumb_bytes
+        return None
+
+    def fake_video_to_gif(data, max_dur, max_out):
+        called["converter"] = "video"
+        return b"GIF_VIDEO"
+
+    def fail_image_to_gif(data):
+        called["converter"] = "image"
+        raise AssertionError("no deberia llamarse image_to_gif cuando hay un video en el embed")
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    monkeypatch.setattr(imagefx_mod.video_filters, "convert_video_to_gif", fake_video_to_gif)
+    monkeypatch.setattr(imagefx_mod.image_filters, "image_to_gif", fail_image_to_gif)
+
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(url="https://cdn.discordapp.com/attachments/1/2/clip.mp4"),
+                thumbnail=SimpleNamespace(url="https://images.discordapp.net/thumb.jpg"),
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert called.get("converter") == "video"
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_extrae_video_de_embed_rich_de_otro_bot_sin_embed_video(monkeypatch):
+    video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
+    thumb_bytes = _png_bytes()
+    called = {}
+
+    async def fake_fetch(url, max_bytes):
+        if "output.mp4" in url:
+            return video_bytes
+        if "preview.png" in url:
+            return thumb_bytes
+        return None
+
+    def fake_video_to_gif(data, max_dur, max_out):
+        called["converter"] = "video"
+        return b"GIF_VIDEO"
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    monkeypatch.setattr(imagefx_mod.video_filters, "convert_video_to_gif", fake_video_to_gif)
+
+    # Embed creado por un bot (tipo rich): Discord API no permite setear embed.video,
+    # por lo que el bot envía la URL del video en embed.url y una miniatura en embed.thumbnail
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=None,
+                url="https://cdn.bot.test/output.mp4",
+                thumbnail=SimpleNamespace(url="https://cdn.bot.test/preview.png"),
+                description="Meme generado",
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert called.get("converter") == "video"
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_extrae_video_de_embed_markdown_description(monkeypatch):
+    video_bytes = _make_test_video_bytes(duration=0.3, fps=6)
+    requested_urls = []
+
+    async def fake_fetch(url, max_bytes):
+        requested_urls.append(url)
+        if url == "https://cdn.bot.test/clip.mp4":
+            return video_bytes
+        return None
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=None,
+                url=None,
+                thumbnail=SimpleNamespace(url="https://cdn.bot.test/thumb.jpg"),
+                description="Descarga tu video: [Click aqui](https://cdn.bot.test/clip.mp4)",
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    cog = _cog()
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert "https://cdn.bot.test/clip.mp4" in requested_urls
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_resolve_reference_refetches_when_resolved_lacks_embeds_and_attachments():
+    fetched_message = SimpleNamespace(
+        attachments=[],
+        embeds=[SimpleNamespace(video=SimpleNamespace(url="https://cdn.example.test/video.mp4"))],
+    )
+
+    async def fake_fetch_message(message_id):
+        assert message_id == 12345
+        return fetched_message
+
+    ctx = FakeContext()
+    ctx.channel = SimpleNamespace(id=999, fetch_message=fake_fetch_message)
+    partial_resolved = SimpleNamespace(attachments=[], embeds=[])
+    ctx.message.reference = SimpleNamespace(
+        message_id=12345, channel_id=999, resolved=partial_resolved
+    )
+
+    resolved = asyncio.run(imagefx_mod._resolve_reference(ctx))
+    assert resolved is fetched_message
+    assert len(resolved.embeds) == 1
+
+
+def test_fetch_media_bytes_rechaza_html(monkeypatch):
+    class FakeResponse:
+        status_code = 200
+        headers = {"Content-Type": "text/html; charset=utf-8"}
+
+        def iter_content(self, chunk_size=262144):
+            yield b"<!DOCTYPE html><html><body>Player page</body></html>"
+
+        def close(self):
+            pass
+
+    def fake_fetch_public_url(method, url, **kwargs):
+        return FakeResponse()
+
+    monkeypatch.setattr(imagefx_mod.r2, "fetch_public_url", fake_fetch_public_url)
+
+    result = asyncio.run(imagefx_mod._fetch_media_bytes("https://example.com/player", 1024 * 1024))
+    assert result is None
+

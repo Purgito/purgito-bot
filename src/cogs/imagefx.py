@@ -33,7 +33,11 @@ log = logging.getLogger(__name__)
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 _GIF_EXTS = {".gif"}
 _VIDEO_EXTS = {".mp4", ".mov", ".webm"}
-_MEDIA_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+_MEDIA_URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 
 # Tope del video FUENTE de "!gif", antes de convertirlo -- deliberadamente
 # más chico que MAX_DL_VIDEO_BYTES (cogs/download.py): un gif es un clip
@@ -65,33 +69,55 @@ class SourceTooLarge(Exception):
         self.max_bytes = max_bytes
 
 
+def _clean_url(url: str) -> str:
+    """Limpia caracteres de cierre de markdown o puntuación residual de una URL."""
+    url = url.strip()
+    for start_char, end_char in (("<", ">"), ("(", ")"), ("[", "]"), ('"', '"'), ("'", "'")):
+        if url.startswith(start_char) and url.endswith(end_char):
+            url = url[1:-1].strip()
+    while url and url[-1] in (")", "]", ">", "\"", "'", ",", ";", "."):
+        url = url[:-1]
+    return url
+
+
 async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
-    """Obtiene el mensaje respondido sin depender del handler de !dl."""
+    """Obtiene el mensaje respondido sin depender del handler de !dl.
+
+    Si Discord mandó un snapshot parcial en `referenced_message` o el mensaje
+    estaba en caché antes de que Discord generase los embeds (unfurl
+    asíncrono), intenta un `fetch_message` para obtener la versión completa con
+    embeds y adjuntos.
+    """
     reference = getattr(ctx.message, "reference", None)
     if reference is None:
         return None
     resolved = getattr(reference, "resolved", None)
     if isinstance(resolved, discord.DeletedReferencedMessage):
         return None
-    if resolved is None:
-        message_id = getattr(reference, "message_id", None)
-        if message_id is None:
-            return None
+
+    message_id = getattr(reference, "message_id", None)
+    needs_fetch = resolved is None or (
+        not getattr(resolved, "attachments", None)
+        and not getattr(resolved, "embeds", None)
+    )
+    if needs_fetch and message_id is not None:
         channel = ctx.channel
         reference_channel_id = getattr(reference, "channel_id", None)
-        if reference_channel_id and reference_channel_id != getattr(channel, "id", None):
-            channel = ctx.bot.get_channel(reference_channel_id)
-            if channel is None:
+        bot = getattr(ctx, "bot", None)
+        if reference_channel_id and reference_channel_id != getattr(channel, "id", None) and bot is not None:
+            channel = getattr(bot, "get_channel", lambda _: None)(reference_channel_id)
+            if channel is None and hasattr(bot, "fetch_channel"):
                 try:
-                    channel = await ctx.bot.fetch_channel(reference_channel_id)
+                    channel = await bot.fetch_channel(reference_channel_id)
                 except discord.HTTPException:
-                    return None
-        if not hasattr(channel, "fetch_message"):
-            return None
-        try:
-            resolved = await channel.fetch_message(message_id)
-        except discord.HTTPException:
-            return None
+                    channel = None
+        if channel is not None and hasattr(channel, "fetch_message"):
+            try:
+                fetched = await channel.fetch_message(message_id)
+                if fetched is not None:
+                    resolved = fetched
+            except discord.HTTPException:
+                pass
     return resolved
 
 
@@ -107,7 +133,7 @@ async def _source_messages(ctx: commands.Context) -> list[discord.Message]:
 def _embed_media_urls(message: discord.Message, attributes: tuple[str, ...]):
     """Entrega todas las URLs de medio que Discord expone en sus embeds.
 
-    Los embeds no tienen una forma unica: segun el proveedor y el tipo,
+    Los embeds no tienen una forma única: según el proveedor y el tipo,
     discord.py puede poner el archivo en ``url`` o en ``proxy_url``. Se
     recorren ambos y todos los embeds en vez de descartar el mensaje tras el
     primer recurso que falle.
@@ -118,45 +144,101 @@ def _embed_media_urls(message: discord.Message, attributes: tuple[str, ...]):
             media = getattr(embed, attribute, None)
             for name in ("url", "proxy_url"):
                 url = getattr(media, name, None)
-                if url and url not in seen:
-                    seen.add(url)
-                    yield url
+                if url:
+                    url = _clean_url(url)
+                    if url and url not in seen:
+                        seen.add(url)
+                        yield url
 
 
-def _embed_url_texts(message: discord.Message):
-    """Expone las URLs y texto serializado de cualquier variante de embed.
-
-    ``Embed.video`` es la via normal, pero los proveedores pueden publicar el
-    recurso en una imagen, thumbnail, descripcion, campo o payload que no se
-    proyecta a un atributo concreto de discord.py. ``to_dict`` conserva el
-    payload recibido de Discord, por lo que recorrerlo evita que el resolver
-    dependa de un tipo de embed especifico.
-    """
-    def walk(value):
+def _embed_url_texts_single(embed: discord.Embed):
+    def walk(key, value):
+        # Evitar imágenes/iconos que nunca son el video
+        if key in ("thumbnail", "author", "footer", "icon"):
+            return
         if isinstance(value, str):
             yield value
         elif isinstance(value, dict):
-            for child in value.values():
-                yield from walk(child)
+            for k, child in value.items():
+                yield from walk(k, child)
         elif isinstance(value, (list, tuple)):
             for child in value:
-                yield from walk(child)
+                yield from walk(key, child)
+
+    for attribute in ("title", "description"):
+        value = getattr(embed, attribute, None)
+        if isinstance(value, str):
+            yield value
+
+    for field in getattr(embed, "fields", ()):
+        if isinstance(field, dict):
+            name = field.get("name")
+            val = field.get("value")
+        else:
+            name = getattr(field, "name", None)
+            val = getattr(field, "value", None)
+        if isinstance(name, str):
+            yield name
+        if isinstance(val, str):
+            yield val
+
+    author = getattr(embed, "author", None)
+    author_url = getattr(author, "url", None)
+    if isinstance(author_url, str):
+        yield author_url
+
+    to_dict = getattr(embed, "to_dict", None)
+    if callable(to_dict):
+        try:
+            yield from walk("", to_dict())
+        except Exception:
+            log.debug("No se pudo serializar embed para !gif", exc_info=True)
+
+
+def _embed_url_texts(message: discord.Message):
+    """Expone las URLs y texto serializado de cualquier variante de embed."""
+    for embed in getattr(message, "embeds", ()):
+        yield from _embed_url_texts_single(embed)
+
+
+def _embed_video_urls(message: discord.Message):
+    """Entrega todas las URLs potenciales de video de los embeds del mensaje.
+
+    Cubre todas las variantes de embeds de Discord:
+    1. Embeds con reproductor de video (type='video', 'gifv'):
+       - embed.video.url y embed.video.proxy_url
+    2. Embeds con URL principal (type='rich', 'link', 'article', etc.):
+       - embed.url
+    3. URLs encontradas en description, fields o to_dict() del embed
+    """
+    seen: set[str] = set()
+
+    def _yield_url(raw: str | None):
+        if not raw or not isinstance(raw, str):
+            return
+        cleaned = _clean_url(raw)
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            yield cleaned
 
     for embed in getattr(message, "embeds", ()):
-        for attribute in ("url", "title", "description"):
-            value = getattr(embed, attribute, None)
-            if isinstance(value, str):
-                yield value
-        to_dict = getattr(embed, "to_dict", None)
-        if callable(to_dict):
-            try:
-                yield from walk(to_dict())
-            except Exception:
-                log.debug("No se pudo serializar embed para !gif", exc_info=True)
+        # 1. Video explícito del embed
+        video = getattr(embed, "video", None)
+        if video is not None:
+            for name in ("url", "proxy_url"):
+                yield from _yield_url(getattr(video, name, None))
+
+        # 2. URL principal del embed (clave en embeds tipo 'rich', 'link', 'article')
+        yield from _yield_url(getattr(embed, "url", None))
+
+        # 3. URLs en texto serializado del embed
+        for text in _embed_url_texts_single(embed):
+            for match in _MEDIA_URL_RE.finditer(text):
+                yield from _yield_url(match.group(0))
 
 
 async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) -> bytes | None:
-    """Baja una URL HTTP(S) de medios con limite y proteccion SSRF."""
+    """Baja una URL HTTP(S) de medios con límite y protección SSRF."""
     try:
         parsed = urlparse(url)
     except ValueError:
@@ -169,12 +251,15 @@ async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) ->
             response = r2.fetch_public_url(
                 requests.get,
                 url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; PurgitoBot)"},
+                headers={"User-Agent": _BROWSER_UA},
                 timeout=timeout,
                 stream=True,
             )
             try:
                 if response.status_code != 200:
+                    return None
+                content_type = response.headers.get("Content-Type", "").lower()
+                if content_type.startswith("text/html"):
                     return None
                 content_length = response.headers.get("Content-Length")
                 if content_length and int(content_length) > max_bytes:
@@ -186,7 +271,10 @@ async def _fetch_media_bytes(url: str, max_bytes: int, timeout: float = 15.0) ->
                     if total > max_bytes:
                         raise SourceTooLarge(max_bytes)
                     chunks.append(chunk)
-                return b"".join(chunks)
+                data = b"".join(chunks)
+                if data.lstrip().startswith((b"<!DOCTYPE", b"<!doctype", b"<html", b"<HTML", b"<?xml")):
+                    return None
+                return data
             finally:
                 response.close()
         except SourceTooLarge:
@@ -277,69 +365,101 @@ async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
     return await attachment.read()
 
 
-async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
-    """Fuente del video para "!gif": adjunto propio o del mensaje
-    respondido primero (como _resolve_gif_bytes, pero también por
-    content-type). Si no hay adjunto, prueba el video EMBEBIDO del mensaje
-    respondido (Embed.video) -- así alcanza con responder al resultado de
-    otro bot (ej. NotSoBot) aunque lo haya mandado como embed y no como
-    adjunto. None si ninguna de las dos tiene nada; a partir de ahí gif_cmd
-    todavía prueba una imagen y, después, un link de página antes de
-    rendirse."""
+async def _resolve_video_bytes(
+    ctx: commands.Context, url: str | None = None
+) -> bytes | None:
+    """Fuente del video para "!gif":
+    1. Adjunto de video propio o del mensaje respondido (extensión o video/*).
+    2. Video en los embeds del mensaje actual o del respondido:
+       - embed.video (url y proxy_url)
+       - embed.url (clave en embeds de tipo rich, link, etc. que envían bots)
+       - URLs en description, fields o payload serializado del embed
+    3. URL provista como argumento o presente en el texto del mensaje.
+    """
     attachment = await _find_attachment(ctx, _VIDEO_EXTS, content_type_prefix="video/")
     if attachment is not None:
         if attachment.size > MAX_GIF_SOURCE_VIDEO_BYTES:
             raise SourceTooLarge(MAX_GIF_SOURCE_VIDEO_BYTES)
         return await attachment.read()
 
+    # Si el comando tiene un adjunto propio (aunque sea imagen), ese adjunto
+    # local tiene prioridad sobre links o descargas web.
+    if ctx.message.attachments:
+        return None
+
+    seen_urls: set[str] = set()
     for message in await _source_messages(ctx):
-        for video_url in _embed_media_urls(message, ("video",)):
+        for video_url in _embed_video_urls(message):
+            if video_url in seen_urls:
+                continue
+            seen_urls.add(video_url)
             data = await _fetch_media_bytes(video_url, MAX_GIF_SOURCE_VIDEO_BYTES)
             if data is not None:
+                if is_valid_image(data):
+                    continue
                 return data
+
+    candidates: list[str] = [url] if url else []
+    for message in await _source_messages(ctx):
+        content = getattr(message, "content", "") or ""
+        if content:
+            candidates.append(content)
+    for candidate in candidates:
+        for match in _MEDIA_URL_RE.finditer(candidate):
+            clean = _clean_url(match.group(0))
+            if not clean or clean in seen_urls:
+                continue
+            seen_urls.add(clean)
+            data = await _fetch_media_bytes(clean, MAX_GIF_SOURCE_VIDEO_BYTES)
+            if data is not None and not is_valid_image(data):
+                return data
+
     return None
 
 
-async def _resolve_gif_source_image_bytes(ctx: commands.Context) -> bytes | None:
-    """Fuente de imagen para "!gif" cuando no hay ningún video (ver
-    _resolve_video_bytes): mismas tres vías -- adjunto propio, adjunto del
-    mensaje respondido, o imagen EMBEBIDA del mensaje respondido
-    (Embed.image, mismo caso que Embed.video pero para una imagen estática).
-    Una imagen no necesita convertirse de verdad -- se empaqueta como GIF de
-    un solo frame en image_filters.image_to_gif, sin pasar por ffmpeg."""
+async def _resolve_gif_source_image_bytes(
+    ctx: commands.Context, url: str | None = None
+) -> bytes | None:
+    """Fuente de imagen para "!gif" cuando NO hubo ningún video:
+    1. Adjunto de imagen propio o del mensaje respondido
+    2. Imagen o thumbnail embebidos en el mensaje
+    3. URL directa o presente en el texto del mensaje
+    """
     attachment = await _find_attachment(ctx, _IMAGE_EXTS, content_type_prefix="image/")
     if attachment is not None:
         if attachment.size > IMAGEFX_MAX_BYTES:
             raise SourceTooLarge(IMAGEFX_MAX_BYTES)
         return await attachment.read()
 
+    if ctx.message.attachments:
+        return None
+
+    seen_urls: set[str] = set()
     for message in await _source_messages(ctx):
         for image_url in _embed_media_urls(message, ("image", "thumbnail")):
+            if image_url in seen_urls:
+                continue
+            seen_urls.add(image_url)
             data = await _fetch_media_bytes(image_url, IMAGEFX_MAX_BYTES)
             if data is not None:
                 return data
-    return None
 
-
-async def _resolve_url_source_bytes(
-    ctx: commands.Context, url: str | None
-) -> bytes | None:
-    """Busca una URL de medio en el comando, su mensaje o el mensaje reply.
-
-    Este es el fallback de !gif despues de adjuntos y recursos de embeds. No
-    filtra por red social: cualquier URL HTTP(S) publica puede ser un archivo
-    de video o imagen; el contenido se valida al convertirlo.
-    """
-    candidates = [url or ""]
+    candidates: list[str] = [url] if url else []
     for message in await _source_messages(ctx):
-        candidates.append(getattr(message, "content", "") or "")
+        content = getattr(message, "content", "") or ""
+        if content:
+            candidates.append(content)
         candidates.extend(_embed_url_texts(message))
     for candidate in candidates:
-        match = _MEDIA_URL_RE.search(candidate)
-        if match:
-            data = await _fetch_media_bytes(match.group(0), MAX_GIF_SOURCE_VIDEO_BYTES)
+        for match in _MEDIA_URL_RE.finditer(candidate):
+            clean = _clean_url(match.group(0))
+            if not clean or clean in seen_urls:
+                continue
+            seen_urls.add(clean)
+            data = await _fetch_media_bytes(clean, IMAGEFX_MAX_BYTES)
             if data is not None:
                 return data
+
     return None
 
 
@@ -546,7 +666,7 @@ class ImageFx(commands.Cog):
             return
 
         try:
-            data = await _resolve_video_bytes(ctx)
+            data = await _resolve_video_bytes(ctx, url=url)
         except SourceTooLarge as e:
             await ctx.reply(
                 t("imagefx.video_too_large", locale, mb=e.max_bytes // (1024 * 1024))
@@ -557,14 +677,11 @@ class ImageFx(commands.Cog):
             return
 
         if data is None:
-            # Sin ningún video (_resolve_video_bytes ya probó adjunto y
-            # embed): una imagen estática alcanza igual -- se empaqueta como
-            # GIF de un solo frame, sin pasar por ffmpeg ni por el resto de
-            # este método. Mismas tres vías que el video, por eso mismas
-            # excepciones; solo se intenta si no hubo ningún video, así que
-            # sigue ganando el video cuando hay los dos.
+            # Sin ningún video (adjunto, embed o URL): se busca una imagen
+            # estática como fallback (adjunto, embed o URL) y se empaqueta
+            # como GIF de un solo frame.
             try:
-                image_data = await _resolve_gif_source_image_bytes(ctx)
+                image_data = await _resolve_gif_source_image_bytes(ctx, url=url)
             except SourceTooLarge as e:
                 await ctx.reply(
                     t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
@@ -591,26 +708,14 @@ class ImageFx(commands.Cog):
                 )
                 return
 
-        try:
-            if data is None:
-                data = await _resolve_url_source_bytes(ctx, url)
-            if data is None:
-                await ctx.reply(t("imagefx.video_missing", locale))
-                return
-        except SourceTooLarge as e:
-            await ctx.reply(
-                t("imagefx.video_too_large", locale, mb=e.max_bytes // (1024 * 1024))
-            )
+            await ctx.reply(t("imagefx.video_missing", locale))
             return
 
-        # Una URL puede apuntar a una imagen aunque no haya llegado como
-        # adjunto o Embed.image. La misma conversion de un frame que usamos
-        # arriba mantiene !gif util para ambos tipos de recurso.
         if is_valid_image(data):
             try:
                 result = await asyncio.to_thread(image_filters.image_to_gif, data)
             except Exception:
-                log.exception("Error convirtiendo imagen desde URL a GIF")
+                log.exception("Error convirtiendo imagen a GIF en !gif")
                 await ctx.reply(t("general.error.generic", locale))
                 return
             await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
