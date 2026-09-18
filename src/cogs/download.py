@@ -230,24 +230,10 @@ def _embed_video_url(message: discord.Message) -> str | None:
     como link en el texto. getattr en vez de embed.video directo: un
     discord.Embed real siempre tiene el atributo (un EmbedProxy vacío si no
     hay video), pero no vale la pena exigirlo de cualquier objeto que
-    llegue acá.
-
-    proxy_url antes que url: cuando el video vive en un host de terceros
-    (ej. el CDN propio de NotSoBot, no Discord), Discord igual lo sirve al
-    cliente a través de su propio proxy de media (media.discordapp.net) --
-    por eso "se ve perfecto" en Discord aunque el host original no esté en
-    _DIRECT_MEDIA_HOSTS. video.url en ese caso sigue siendo el host de
-    terceros (lo que _is_direct_media_host va a rechazar más abajo); url
-    queda como fallback para cuando el video YA es de Discord (proxy_url
-    puede venir vacío ahí) y para objetos de prueba que no definen proxy_url."""
+    llegue acá."""
     for embed in message.embeds:
         video = getattr(embed, "video", None)
-        if not video:
-            continue
-        proxy_url = getattr(video, "proxy_url", None)
-        if proxy_url:
-            return proxy_url
-        if video.url:
+        if video and video.url:
             return video.url
     return None
 
@@ -257,35 +243,21 @@ def _embed_image_url(message: discord.Message) -> str | None:
     en vez de Embed.video -- mismo caso (otro bot postea su resultado
     directo en el embed), pero cuando lo que posteó es una imagen, no un
     video. Usado por "purgito gif" cuando no hay ningún video para
-    convertir (ver _resolve_gif_source_image_bytes en cogs/imagefx.py).
-
-    Mismo criterio de proxy_url que _embed_video_url (ver ese docstring):
-    si la imagen vive en el host de un tercero, Discord la sirve al cliente
-    a través de su propio proxy de media, y ese host es el que
-    _is_direct_media_host reconoce -- el .url original del tercero no."""
+    convertir (ver _resolve_gif_source_image_bytes en cogs/imagefx.py)."""
     for embed in message.embeds:
         image = getattr(embed, "image", None)
-        if not image:
-            continue
-        proxy_url = getattr(image, "proxy_url", None)
-        if proxy_url:
-            return proxy_url
-        if image.url:
+        if image and image.url:
             return image.url
     return None
 
 
 # Hosts desde los que "purgito gif" puede bajar un video o imagen EMBEBIDOS
-# (Embed.video / Embed.image) como archivo directo, sin pasar por yt-dlp. Dos
-# casos distintos conviven acá: cdn.discordapp.com es donde vive de verdad un
-# adjunto que otro bot ya subió a Discord (ej. NotSoBot reposteando su propio
-# resultado como adjunto); media.discordapp.net es el proxy de media de
-# Discord, que sirve CUALQUIER embed con video o imagen sin importar dónde
-# esté alojado el original -- así es como el cliente de Discord lo muestra,
-# y por eso _embed_video_url/_embed_image_url prefieren el proxy_url del
-# embed sobre su url. A diferencia de _ALLOWED_HOSTS (páginas que yt-dlp
-# sabe scrapear), esto son hosts que ya sirven el archivo resuelto -- no
-# hace falta (ni tiene sentido) pasarlos por yt-dlp.
+# (Embed.video / Embed.image) como archivo directo, sin pasar por yt-dlp: el
+# CDN propio de Discord, donde termina viviendo cualquier adjunto o
+# resultado que otro bot ya subió (ej. NotSoBot reposteando su propio
+# resultado). A diferencia de _ALLOWED_HOSTS (páginas que yt-dlp sabe
+# scrapear), esto son hosts que ya sirven el archivo resuelto -- no hace
+# falta (ni tiene sentido) pasarlos por yt-dlp.
 _DIRECT_MEDIA_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
 
 

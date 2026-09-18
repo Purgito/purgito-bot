@@ -62,7 +62,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The "Choose which channels it learns from" step in INICIO's First steps guide now correctly unchecks itself if you remove all learning channels — it used to stay marked as done forever.
 - Adding a special phrase identical to one that already exists in the same pool is now rejected instead of saving a duplicate.
 - A new GIF with a thumbnail similar to another server's no longer gets mistaken for that server's content.
-- `!dl` and `!gif` find the video when replying to another bot's message, whether it shows it as a link preview, a file attachment, or a video embedded in the message (e.g. another meme bot's result) — `!gif` used to ask for a video anyway, even when it looked perfectly fine in Discord.
+- `!dl` and `!gif` find the video when replying to another bot's message that shows it as a link preview or a file attachment; `!gif` now also finds it when that bot posts the video directly in the embed, with no link or attachment (e.g. another meme bot's result) — it used to ask for a video even when one was right there.
 
 ## Version 1.1.0 — June 28, 2026
 
