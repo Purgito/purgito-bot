@@ -486,15 +486,61 @@ async def _resolve_image_bytes(ctx: commands.Context) -> bytes:
 
 
 async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
-    """Adjunto propio -> adjunto del mensaje respondido. A diferencia de
-    _resolve_image_bytes, sin fallback a avatar (no hay "avatar en GIF" que
-    tenga sentido usar acá) -- None significa "no hay nada para editar"."""
-    attachment = await _find_attachment(ctx, _GIF_EXTS)
-    if attachment is None:
+    """Adjunto propio -> adjunto del mensaje respondido -> GIF embebido
+    (embed clásico, Components V2, o URL en el texto/embed) del mensaje
+    actual o del respondido -- ej. un GIF mandado con el selector de Tenor
+    de Discord no llega como adjunto real, llega como embed, así que sin
+    este fallback "responder a un mensaje con un GIF" fallaba para
+    !gifwide/!gifspeed/!gifreverse/!gifcaption aunque el GIF estuviera a la
+    vista (mismo bug que _resolve_video_bytes/_resolve_gif_source_image_bytes
+    ya cubren para "!gif"). Cada candidato se valida con is_valid_gif_bytes
+    antes de aceptarlo, para no colar un video o una imagen estática
+    embebidos en el mismo mensaje. A diferencia de _resolve_image_bytes, sin
+    fallback a avatar (no hay "avatar en GIF" que tenga sentido usar acá) --
+    None significa "no hay nada para editar"."""
+    attachment = await _find_attachment(ctx, _GIF_EXTS, content_type_prefix="image/gif")
+    if attachment is not None:
+        if attachment.size > IMAGEFX_MAX_BYTES:
+            raise SourceTooLarge(IMAGEFX_MAX_BYTES)
+        return await attachment.read()
+
+    if ctx.message.attachments:
         return None
-    if attachment.size > IMAGEFX_MAX_BYTES:
-        raise SourceTooLarge(IMAGEFX_MAX_BYTES)
-    return await attachment.read()
+
+    seen_urls: set[str] = set()
+    for message in await _source_messages(ctx):
+        media_urls = (
+            list(_embed_media_urls(message, ("image", "thumbnail")))
+            + list(_embed_video_urls(message))
+            + list(_component_media_urls(message))
+        )
+        for media_url in media_urls:
+            if media_url in seen_urls:
+                continue
+            seen_urls.add(media_url)
+            data = await _resolve_component_media_bytes(
+                message, media_url, IMAGEFX_MAX_BYTES
+            )
+            if data is not None and is_valid_gif_bytes(data):
+                return data
+
+    candidates: list[str] = []
+    for message in await _source_messages(ctx):
+        content = getattr(message, "content", "") or ""
+        if content:
+            candidates.append(content)
+        candidates.extend(_embed_url_texts(message))
+    for candidate in candidates:
+        for match in _MEDIA_URL_RE.finditer(candidate):
+            clean = _clean_url(match.group(0))
+            if not clean or clean in seen_urls:
+                continue
+            seen_urls.add(clean)
+            data = await _fetch_media_bytes(clean, IMAGEFX_MAX_BYTES)
+            if data is not None and is_valid_gif_bytes(data):
+                return data
+
+    return None
 
 
 async def _resolve_social_video_bytes(

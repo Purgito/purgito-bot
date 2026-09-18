@@ -543,6 +543,85 @@ def test_resolve_gif_bytes_rechaza_adjunto_demasiado_grande():
         asyncio.run(_resolve_gif_bytes(ctx))
 
 
+def test_resolve_gif_bytes_detecta_por_content_type():
+    attachment = FakeAttachment(filename="sin_extension", data=_gif_bytes())
+    attachment.content_type = "image/gif"
+    ctx = FakeContext(attachments=[attachment])
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) == attachment._data
+
+
+def test_resolve_gif_bytes_usa_el_gif_embebido_del_mensaje_respondido(monkeypatch):
+    # Ej. un GIF mandado con el selector de Tenor de Discord llega como
+    # embed (Embed.image), no como adjunto -- ver docstring de
+    # _resolve_gif_bytes.
+    gif_data = _gif_bytes()
+
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://media.discordapp.net/attachments/1/2/tenor.gif"
+        assert max_bytes == imagefx_mod.IMAGEFX_MAX_BYTES
+        return gif_data
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                image=SimpleNamespace(
+                    url="https://media.discordapp.net/attachments/1/2/tenor.gif"
+                ),
+                video=None,
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) == gif_data
+
+
+def test_resolve_gif_bytes_ignora_un_embed_que_no_es_un_gif_valido(monkeypatch):
+    # El embed tiene una imagen, pero no es un GIF real (ej. un thumbnail
+    # PNG) -- no debe colarse como si lo fuera.
+    async def fake_fetch(url, max_bytes):
+        return _png_bytes()
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                image=SimpleNamespace(url="https://cdn.discordapp.com/x.png"),
+                video=None,
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) is None
+
+
+def test_resolve_gif_bytes_prioriza_el_adjunto_sobre_el_gif_embebido(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        raise AssertionError("no debería llamarse: hay un adjunto propio")
+
+    monkeypatch.setattr(imagefx_mod, "_fetch_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                image=SimpleNamespace(url="https://cdn.discordapp.com/x.gif"),
+                video=None,
+            )
+        ],
+    )
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="a.gif", data=b"adjunto propio")],
+        reference=SimpleNamespace(resolved=referenced, message_id=1),
+    )
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) == b"adjunto propio"
+
+
 def test_resolve_video_bytes_sin_adjunto_ni_reply_devuelve_none():
     ctx = FakeContext()
 
@@ -585,9 +664,9 @@ def test_find_attachment_detecta_video_por_content_type_aunque_la_extension_no_m
 
 
 def test_find_attachment_content_type_no_afecta_a_quien_no_lo_pide():
-    # _resolve_image_bytes/_resolve_gif_bytes no pasan content_type_prefix --
-    # un adjunto con extensión no soportada sigue sin matchear aunque su
-    # content_type diga "video/...".
+    # _resolve_image_bytes no pasa content_type_prefix -- un adjunto con
+    # extensión no soportada sigue sin matchear aunque su content_type diga
+    # "video/...".
     attachment = FakeAttachment(filename="clip.mkv", data=b"video raro")
     attachment.content_type = "video/x-matroska"
     ctx = FakeContext(attachments=[attachment])
