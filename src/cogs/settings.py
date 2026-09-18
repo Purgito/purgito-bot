@@ -52,6 +52,7 @@ from db import (
 )
 from i18n import t
 from tasks import get_task_manager
+from utils import SafeModal, SafeView
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +131,7 @@ class CategorySelect(discord.ui.Select):
         await self.panel.refresh(interaction)
 
 
-class SettingsPanel(discord.ui.View):
+class SettingsPanel(SafeView):
     """Vista navegable: select de categorías (fila 0) + componentes de la categoría actual."""
 
     def __init__(
@@ -512,7 +513,7 @@ class DatosCategory(SettingsCategory):
             row=1,
         )
 
-        class WipeConfirmModal(discord.ui.Modal):
+        class WipeConfirmModal(SafeModal):
             def __init__(self):
                 super().__init__(
                     title=t("settings.corpus.wipe_modal_title", panel.locale)
@@ -547,7 +548,7 @@ class DatosCategory(SettingsCategory):
             row=2,
         )
 
-        class WipeGifsConfirmModal(discord.ui.Modal):
+        class WipeGifsConfirmModal(SafeModal):
             def __init__(self):
                 super().__init__(
                     title=t("settings.corpus.wipe_gifs_modal_title", panel.locale)
@@ -679,7 +680,7 @@ class YouTubeCategory(SettingsCategory):
                 row=2,
             )
 
-            class AddChannelModal(discord.ui.Modal):
+            class AddChannelModal(SafeModal):
                 def __init__(self):
                     super().__init__(
                         title=t("settings.youtube.add_modal_title", panel.locale)
@@ -849,7 +850,7 @@ class TwitchCategory(SettingsCategory):
                 row=2,
             )
 
-            class AddChannelModal(discord.ui.Modal):
+            class AddChannelModal(SafeModal):
                 def __init__(self):
                     super().__init__(
                         title=t("settings.twitch.add_modal_title", panel.locale)
@@ -1010,7 +1011,7 @@ class MemesCategory(SettingsCategory):
                 row=2,
             )
 
-            class ActivateModal(discord.ui.Modal):
+            class ActivateModal(SafeModal):
                 def __init__(self):
                     super().__init__(
                         title=t("settings.memes.activate_modal_title", panel.locale)
@@ -1153,7 +1154,7 @@ class AnunciosCategory(SettingsCategory):
                 row=2,
             )
 
-            class IntervalModal(discord.ui.Modal):
+            class IntervalModal(SafeModal):
                 def __init__(self):
                     super().__init__(
                         title=t("settings.anuncios.modal_title_interval", panel.locale)
@@ -1220,7 +1221,7 @@ class AnunciosCategory(SettingsCategory):
                 row=2,
             )
 
-            class DailyModal(discord.ui.Modal):
+            class DailyModal(SafeModal):
                 def __init__(self):
                     super().__init__(
                         title=t("settings.anuncios.modal_title_daily", panel.locale)
@@ -1301,7 +1302,7 @@ CATEGORIES: list[SettingsCategory] = [
 # ─── Onboarding interactivo (/setup) ─────────────────────────────────────────
 
 
-class SetupView(discord.ui.View):
+class SetupView(SafeView):
     """Panel interactivo de onboarding y configuración de canales en Discord."""
 
     def __init__(self, guild: discord.Guild, locale: str, invoker_id: int):
@@ -1563,7 +1564,7 @@ def build_welcome_embed(guild: discord.Guild, locale: str) -> discord.Embed:
     )
 
 
-class WelcomeView(discord.ui.View):
+class WelcomeView(SafeView):
     """Botón principal de bienvenida (abre el panel de setup)
     + botón secundario de link directo al dashboard."""
 

@@ -7,6 +7,7 @@ import discord
 
 from config import PANEL_URL
 from i18n import DEFAULT_LOCALE, t
+from utils import SafeView
 
 PURGITO_COLOR = 0x8B00FF  # color de marca usado en todo el proyecto
 
@@ -145,7 +146,7 @@ def build_category_embed(
     return embed
 
 
-class HelpView(discord.ui.View):
+class HelpView(SafeView):
     def __init__(
         self,
         author_id: int,
