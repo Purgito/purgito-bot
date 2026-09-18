@@ -63,6 +63,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Adding a special phrase identical to one that already exists in the same pool is now rejected instead of saving a duplicate.
 - A new GIF with a thumbnail similar to another server's no longer gets mistaken for that server's content.
 - `!dl` and `!gif` find the video when replying to another bot's message, whether it shows it as a link preview, a file attachment, or a video embedded in the message (e.g. another meme bot's result) — `!gif` used to ask for a video anyway, even when it looked perfectly fine in Discord.
+- `!gif` no longer depends on the link being from Instagram, TikTok, Twitter-X, or Facebook: it accepts any direct link to a video or image. It also now finds a genuinely attached video in the message you're replying to, a case that used to fall into that same "only those platforms" error.
 
 ## Version 1.1.0 — June 28, 2026
 

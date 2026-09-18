@@ -1,15 +1,23 @@
 """Comando "dl": descarga un video de Instagram, TikTok, Twitter/X o
-Facebook y lo sube al mismo canal.
+Facebook y lo sube al mismo canal -- SOLO esas plataformas, vía yt-dlp
+(scraping real de la página, necesario porque ninguna de ellas expone un
+link directo al archivo). Esto es lo que separa a "purgito dl" de "purgito
+gif" (cogs/imagefx.py): "gif" convierte a GIF lo que YA está disponible en
+Discord (adjunto, embed, o un link directo a un archivo) sin depender de
+ninguna plataforma puntual ni de yt-dlp -- ver el docstring de ese cog. Este
+módulo no le presta a "gif" nada de lo de acá abajo (_ALLOWED_HOSTS,
+_download_video, yt_dlp); lo único que comparten es discord_media.py, que
+es puro Discord (qué hay en el mensaje), no scraping de ningún sitio.
 
 Se invoca con cualquiera de los dos prefijos que resuelve bot.py:get_prefix
 -- el símbolo (custom por guild, default "!") o la palabra fija ("purgito
 dl <link>", sin importar mayúsculas/minúsculas: bot.py:get_prefix devuelve
 el prefijo con el casing exacto que escribió el usuario). Si el comando se
 invoca sin link propio pero respondiendo a un mensaje, usa el link de ese
-mensaje (_reply_target_url) -- así alcanza con "purgito dl" en respuesta a
-un mensaje que ya tiene el video. YouTube queda deliberadamente afuera:
-bloquea activamente la descarga por fuera del navegador (throttling, a
-veces pide cookies de sesión) -- ver discusión en el PR.
+mensaje (discord_media.reply_target_url) -- así alcanza con "purgito dl" en
+respuesta a un mensaje que ya tiene el video. YouTube queda deliberadamente
+afuera: bloquea activamente la descarga por fuera del navegador
+(throttling, a veces pide cookies de sesión) -- ver discusión en el PR.
 
 Nada de SSRF nuevo acá pese a que yt-dlp termina haciendo requests de red a
 partir de un link que manda el usuario: a diferencia de r2.py (que sí
@@ -24,7 +32,6 @@ hueco que esta allowlist existe para cerrar.
 import asyncio
 import logging
 import os
-import re
 import shutil
 import tempfile
 from urllib.parse import urlparse
@@ -33,7 +40,7 @@ import discord
 import yt_dlp
 from discord.ext import commands
 
-import r2
+import discord_media
 from config import env_int
 from i18n import guild_locale, t
 
@@ -59,7 +66,6 @@ _ALLOWED_HOSTS = {
     "facebook.com",
     "fb.watch",
 }
-_URL_RE = re.compile(r"https?://\S+")
 _DL_COOLDOWN_SECONDS = 20
 
 
@@ -178,176 +184,6 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
     return path, is_sensitive
 
 
-async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
-    """Resuelve el mensaje al que responde ctx, si lo hay. `resolved` ya
-    viene poblado en la mayoría de los casos (Discord lo manda junto con el
-    mensaje de reply), pero si no -- mensaje viejo fuera de caché -- se busca
-    con un fetch aparte. Compartido con cogs/imagefx.py: "purgito dl" y
-    "purgito gif" necesitan lo mismo (adjunto/link/embed del mensaje
-    respondido)."""
-    reference = ctx.message.reference
-    if reference is None:
-        return None
-    resolved = reference.resolved
-    if isinstance(resolved, discord.DeletedReferencedMessage):
-        return None
-    if resolved is None:
-        if reference.message_id is None:
-            return None
-        try:
-            resolved = await ctx.channel.fetch_message(reference.message_id)
-        except discord.HTTPException:
-            return None
-    return resolved
-
-
-async def _reply_target_url(ctx: commands.Context) -> str | None:
-    """Si el comando se invocó sin link propio pero respondiendo a un
-    mensaje, busca un link ahí -- así "purgito dl" alcanza como respuesta a
-    un mensaje con un video, sin tener que repetir la URL.
-
-    Además del texto plano, revisa los embeds del mensaje: bots que postean
-    un preview del video (ej. NotSoBot) suelen mandarlo como embed puro, sin
-    el link en el texto -- Embed.url es la página de origen en ese caso."""
-    resolved = await _resolve_reference(ctx)
-    if resolved is None:
-        return None
-    match = _URL_RE.search(resolved.content or "")
-    if match:
-        return match.group(0)
-    for embed in resolved.embeds:
-        if embed.url:
-            return embed.url
-    return None
-
-
-def _embed_video_url(message: discord.Message) -> str | None:
-    """Busca una URL de video directa en los embeds de un mensaje. A
-    diferencia de Embed.url (la página de origen, lo que usa
-    _reply_target_url), esto es el archivo reproducible en sí: bots que
-    postean su propio resultado (ej. NotSoBot) o un GIF de Tenor/Giphy
-    (embeds tipo "gifv") lo exponen en Embed.video, no como adjunto ni
-    como link en el texto. getattr en vez de embed.video directo: un
-    discord.Embed real siempre tiene el atributo (un EmbedProxy vacío si no
-    hay video), pero no vale la pena exigirlo de cualquier objeto que
-    llegue acá.
-
-    proxy_url antes que url: cuando el video vive en un host de terceros
-    (ej. el CDN propio de NotSoBot, no Discord), Discord igual lo sirve al
-    cliente a través de su propio proxy de media (media.discordapp.net) --
-    por eso "se ve perfecto" en Discord aunque el host original no esté en
-    _DIRECT_MEDIA_HOSTS. video.url en ese caso sigue siendo el host de
-    terceros (lo que _is_direct_media_host va a rechazar más abajo); url
-    queda como fallback para cuando el video YA es de Discord (proxy_url
-    puede venir vacío ahí) y para objetos de prueba que no definen proxy_url."""
-    for embed in message.embeds:
-        video = getattr(embed, "video", None)
-        if not video:
-            continue
-        proxy_url = getattr(video, "proxy_url", None)
-        if proxy_url:
-            return proxy_url
-        if video.url:
-            return video.url
-    return None
-
-
-def _embed_image_url(message: discord.Message) -> str | None:
-    """Igual que _embed_video_url pero para una imagen estática: Embed.image
-    en vez de Embed.video -- mismo caso (otro bot postea su resultado
-    directo en el embed), pero cuando lo que posteó es una imagen, no un
-    video. Usado por "purgito gif" cuando no hay ningún video para
-    convertir (ver _resolve_gif_source_image_bytes en cogs/imagefx.py).
-
-    Mismo criterio de proxy_url que _embed_video_url (ver ese docstring):
-    si la imagen vive en el host de un tercero, Discord la sirve al cliente
-    a través de su propio proxy de media, y ese host es el que
-    _is_direct_media_host reconoce -- el .url original del tercero no."""
-    for embed in message.embeds:
-        image = getattr(embed, "image", None)
-        if not image:
-            continue
-        proxy_url = getattr(image, "proxy_url", None)
-        if proxy_url:
-            return proxy_url
-        if image.url:
-            return image.url
-    return None
-
-
-# Hosts desde los que "purgito gif" puede bajar un video o imagen EMBEBIDOS
-# (Embed.video / Embed.image) como archivo directo, sin pasar por yt-dlp. Dos
-# casos distintos conviven acá: cdn.discordapp.com es donde vive de verdad un
-# adjunto que otro bot ya subió a Discord (ej. NotSoBot reposteando su propio
-# resultado como adjunto); media.discordapp.net es el proxy de media de
-# Discord, que sirve CUALQUIER embed con video o imagen sin importar dónde
-# esté alojado el original -- así es como el cliente de Discord lo muestra,
-# y por eso _embed_video_url/_embed_image_url prefieren el proxy_url del
-# embed sobre su url. A diferencia de _ALLOWED_HOSTS (páginas que yt-dlp
-# sabe scrapear), esto son hosts que ya sirven el archivo resuelto -- no
-# hace falta (ni tiene sentido) pasarlos por yt-dlp.
-_DIRECT_MEDIA_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
-
-
-def _is_direct_media_host(url: str) -> bool:
-    try:
-        host = (urlparse(url).hostname or "").lower()
-    except ValueError:
-        return False
-    if not host:
-        return False
-    return host in _DIRECT_MEDIA_HOSTS or host.endswith(
-        tuple(f".{h}" for h in _DIRECT_MEDIA_HOSTS)
-    )
-
-
-async def _fetch_direct_media_bytes(
-    url: str, max_bytes: int, timeout: float = 15.0
-) -> bytes | None:
-    """Descarga bytes de un archivo directo (video o imagen, no una página)
-    desde un host de confianza (_is_direct_media_host), protegido contra
-    SSRF vía r2.fetch_public_url -- mismo mecanismo que fetch_gif_bytes en
-    cogs/gifs.py. None si el host no es de confianza, la descarga falla, o
-    supera max_bytes (mismo criterio "no distinguir el motivo" que ya usa
-    fetch_gif_bytes: el caller solo necesita saber si hay bytes o no)."""
-    if not _is_direct_media_host(url):
-        return None
-
-    def _download():
-        import requests
-
-        try:
-            resp = r2.fetch_public_url(
-                requests.get,
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; bot)"},
-                timeout=timeout,
-                stream=True,
-            )
-            if resp.status_code != 200:
-                resp.close()
-                return None
-            cl = resp.headers.get("Content-Length")
-            if cl and int(cl) > max_bytes:
-                resp.close()
-                return None
-            chunks = []
-            total = 0
-            for chunk in resp.iter_content(chunk_size=262144):
-                total += len(chunk)
-                if total > max_bytes:
-                    resp.close()
-                    return None
-                chunks.append(chunk)
-            resp.close()
-            return b"".join(chunks)
-        except Exception:
-            log.debug("Fallo descargando archivo directo de %s", url, exc_info=True)
-            return None
-
-    return await asyncio.to_thread(_download)
-
-
 class Download(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -357,8 +193,8 @@ class Download(commands.Cog):
     @commands.max_concurrency(1, per=commands.BucketType.guild, wait=False)
     async def dl(self, ctx: commands.Context, *, url: str | None = None):
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
-        match = _URL_RE.search(url or "")
-        link = match.group(0) if match else await _reply_target_url(ctx)
+        match = discord_media.URL_RE.search(url or "")
+        link = match.group(0) if match else await discord_media.reply_target_url(ctx)
         if not link:
             await ctx.reply(t("download.dl.missing_url", locale))
             return
