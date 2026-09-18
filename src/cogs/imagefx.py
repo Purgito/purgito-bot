@@ -40,6 +40,7 @@ from urllib.parse import urlparse
 
 import discord
 import requests
+from discord import app_commands
 from discord.ext import commands
 
 import image_filters
@@ -957,9 +958,36 @@ class ImageFx(commands.Cog):
 
     # ── Fase 4: video -> GIF y edición de un GIF existente ───────────────────
 
-    @commands.command(name="gif")
+    # hybrid_command (mismo motivo que "dl" en cogs/download.py: /gif con
+    # installation type "user" y context "private channel" es la única forma
+    # de que esto funcione fuera de un servidor, incluido un Group DM). El
+    # parámetro "archivo" es nuevo acá porque en un slash command no existe
+    # "mandar un adjunto junto al mensaje" -- discord.py convierte un
+    # parámetro discord.Attachment en la opción de subida del slash Y, del
+    # lado de invocación por interacción, lo agrega solo a
+    # ctx.message.attachments (ver discord.ext.commands.context.Context.
+    # from_interaction), así que _resolve_video_bytes/_resolve_gif_source_
+    # image_bytes de más abajo lo encuentran sin ningún cambio adicional. Va
+    # ANTES del "*, url" (keyword-only): discord.py corta el parseo de texto
+    # en el primer parámetro keyword-only que encuentra, así que uno después
+    # de "url" nunca se poblaría al invocar como "!gif"/"purgito gif".
+    @commands.hybrid_command(
+        name="gif", description="Convierte un video o una imagen a GIF."
+    )
+    @app_commands.describe(
+        url="Link del video/imagen a convertir, o del post de Instagram/TikTok/X/Facebook.",
+        archivo="Video o imagen para convertir (alternativa a un link).",
+    )
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @commands.max_concurrency(1, per=commands.BucketType.guild, wait=False)
-    async def gif_cmd(self, ctx: commands.Context, *, url: str | None = None):
+    async def gif_cmd(
+        self,
+        ctx: commands.Context,
+        archivo: discord.Attachment | None = None,
+        *,
+        url: str | None = None,
+    ):
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
         remaining = _check_gif_convert_cooldown(ctx.author.id)
         if remaining is not None:

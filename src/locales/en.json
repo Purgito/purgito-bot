@@ -371,6 +371,8 @@
   "privacy.delete.result_empty": "We couldn't find any data of yours stored by Purgito.",
   "privacy.delete.result_success": "Done. Deleted {user_corpus_deleted} message(s) of your saved style across {guilds} server(s). Your original Discord messages weren't touched.",
   "commands.mis_datos.description": "Downloads your saved style and the messages Purgito learned from you as JSON.",
+  "commands.dl.description": "Downloads a video from Instagram, TikTok, X or Facebook.",
+  "commands.gif.description": "Converts a video or an image to a GIF.",
   "privacy.export.cooldown": "Wait {seconds} seconds before requesting your data again.",
   "privacy.export.error": "Couldn't generate the file. Try again later.",
   "privacy.export.empty": "We couldn't find any data of yours stored by Purgito.",

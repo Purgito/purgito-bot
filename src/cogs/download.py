@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 
 import discord
 import yt_dlp
+from discord import app_commands
 from discord.ext import commands
 
 import r2
@@ -324,7 +325,24 @@ class Download(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="dl")
+    # hybrid_command (no @commands.command) para que "dl" también exista como
+    # /dl -- necesario para usarlo fuera de un servidor. Un bot "normal" ya no
+    # puede unirse a un Group DM para leer sus mensajes (Discord lo restringe
+    # hace años salvo whitelist especial), así que "purgito dl"/"!dl" nunca
+    # van a andar ahí: la única puerta es un slash command con installation
+    # type "user" y context "private channel" (allowed_installs/
+    # allowed_contexts abajo), que sí llega a cualquier DM o Group DM donde
+    # el usuario haya instalado la app. El resto del comando no necesita
+    # cambios: ya usa "ctx.guild is not None" antes de tocar cualquier cosa
+    # específica de servidor (ver max_bytes abajo).
+    @commands.hybrid_command(
+        name="dl", description="Descarga un video de Instagram, TikTok, X o Facebook."
+    )
+    @app_commands.describe(
+        url="Link del video a descargar (Instagram, TikTok, X/Twitter o Facebook)."
+    )
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @commands.cooldown(1, _DL_COOLDOWN_SECONDS, commands.BucketType.user)
     @commands.max_concurrency(1, per=commands.BucketType.guild, wait=False)
     async def dl(self, ctx: commands.Context, *, url: str | None = None):
