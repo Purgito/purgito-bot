@@ -371,6 +371,8 @@
   "privacy.delete.result_empty": "No encontramos datos tuyos almacenados por Purgito.",
   "privacy.delete.result_success": "Listo. Se eliminaron {user_corpus_deleted} mensaje(s) de tu estilo guardado en {guilds} servidor(es). Tus mensajes originales de Discord no se tocaron.",
   "commands.mis_datos.description": "Descarga en JSON tu estilo guardado y los mensajes que Purgito aprendió de ti.",
+  "commands.dl.description": "Descarga un video de Instagram, TikTok, X o Facebook.",
+  "commands.gif.description": "Convierte un video o una imagen a GIF.",
   "privacy.export.cooldown": "Espera {seconds} segundos antes de pedir tus datos de nuevo.",
   "privacy.export.error": "No se pudo generar el archivo. Intenta de nuevo más tarde.",
   "privacy.export.empty": "No encontramos datos tuyos almacenados por Purgito.",
