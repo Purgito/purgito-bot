@@ -67,6 +67,12 @@ class Anuncios(commands.Cog):
                     return
                 perms = channel.permissions_for(channel.guild.me)
                 if not perms.send_messages:
+                    log.warning(
+                        "Anuncio %s: sin permiso para enviar mensajes en canal %s (guild %s), se saltea",
+                        item["id"],
+                        item["channel_id"],
+                        item["guild_id"],
+                    )
                     return
                 # delete_after= es el camino rápido (asyncio.sleep interno de
                 # discord.py, vive en memoria); add_pending_deletion de abajo
@@ -79,6 +85,12 @@ class Anuncios(commands.Cog):
                 if item.get("embed_json") and item.get("content_mode") == "layout_v2":
                     # Layout Components V2 armado en el editor del panel.
                     if not perms.embed_links:
+                        log.warning(
+                            "Anuncio %s: sin permiso para incrustar (Layout V2) en canal %s (guild %s), se saltea",
+                            item["id"],
+                            item["channel_id"],
+                            item["guild_id"],
+                        )
                         return
                     view = build_layout_view(json.loads(item["embed_json"]))
                     options = extract_send_options(item["embed_json"])
@@ -100,6 +112,12 @@ class Anuncios(commands.Cog):
                     # admite hasta 10); normalize_embeds_json envuelve el formato
                     # viejo de un solo dict, así que este branch no las distingue.
                     if not perms.embed_links:
+                        log.warning(
+                            "Anuncio %s: sin permiso para incrustar embeds en canal %s (guild %s), se saltea",
+                            item["id"],
+                            item["channel_id"],
+                            item["guild_id"],
+                        )
                         return
                     embeds = [
                         discord.Embed.from_dict(e)
@@ -127,6 +145,10 @@ class Anuncios(commands.Cog):
                     raw_msg = item.get("message") or ""
                     final_msg = resolve_placeholders(raw_msg, ctx)
                     if not final_msg.strip():
+                        log.warning(
+                            "Anuncio %s: mensaje vacío tras resolver variables, se saltea",
+                            item["id"],
+                        )
                         return
                     msg = await channel.send(final_msg, **delete_kwarg)
             except Exception:

@@ -344,6 +344,12 @@ function renderAnunciosManager(container, initialData, channels) {
       const ch = channels.find(c => String(c.id) === String(ann.channel_id));
       const channelLabel = ch ? '#' + ch.name : t('tabsAnuncios.channelMissing');
       const isChannelError = !ch;
+      // ch ya trae can_send calculado contra los permisos reales de Discord
+      // (getChannels() -> /api/server/:id/channels) -- reusarlo acá evita
+      // que un anuncio con el canal correcto pero sin permiso de escritura
+      // (alguien reordenó permisos después de programarlo) se vea idéntico a
+      // uno que sí va a salir, con el badge fijo en verde sin ningún indicio.
+      const isPermsError = !isChannelError && ch.can_send === false;
 
       // Cadence description
       let cadenceText = '';
@@ -391,12 +397,14 @@ function renderAnunciosManager(container, initialData, channels) {
             el('strong', { class: 'anuncio-title-text' }, titleSnippet)
           ),
           el('div', { class: 'anuncio-card-badges' },
-            el('span', { class: 'badge badge-ok' }, `● ${t('tabsAnuncios.statusActive')}`)
+            isPermsError
+              ? el('span', { class: 'badge badge-warn', title: t('tabsAnuncios.noPermsWarning') }, t('tabsAnuncios.noPerms'))
+              : el('span', { class: 'badge badge-ok' }, `● ${t('tabsAnuncios.statusActive')}`)
           )
         ),
         el('div', { class: 'anuncio-card-body' },
           el('div', { class: 'anuncio-meta-row' },
-            el('span', { class: 'meta-item ' + (isChannelError ? 'meta-error' : '') },
+            el('span', { class: 'meta-item ' + ((isChannelError || isPermsError) ? 'meta-error' : '') },
               icon('chat'),
               el('span', {}, channelLabel)
             ),

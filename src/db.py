@@ -704,6 +704,7 @@ CREATE TABLE IF NOT EXISTS server_events (
     message TEXT,
     embed_json TEXT,
     template_id INTEGER DEFAULT NULL,
+    last_error TEXT DEFAULT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(guild_id, event_type)
@@ -936,6 +937,17 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna template_id ya existe en server_events")
+    # Motivo del último fallo al despachar el evento (join/leave/boost real,
+    # no la prueba manual) -- NULL mientras no se haya intentado nunca o el
+    # intento más reciente haya salido bien. Ver dispatch_server_event y
+    # set_server_event_error en cogs/events.py.
+    try:
+        await _db.execute(
+            "ALTER TABLE server_events ADD COLUMN last_error TEXT DEFAULT NULL"
+        )
+        await _db.commit()
+    except Exception:
+        log.debug("Columna last_error ya existe en server_events")
     # embed_templates gana su propia columna message para poder guardar
     # plantillas de texto plano, igual que ya soporta server_events.
     try:
@@ -4218,7 +4230,7 @@ async def get_server_event(
     db = await get_db()
     async with db.execute(
         "SELECT id, guild_id, event_type, enabled, channel_id, content_mode, "
-        "message, embed_json, template_id, created_at, updated_at "
+        "message, embed_json, template_id, last_error, created_at, updated_at "
         "FROM server_events WHERE guild_id=? AND event_type=?",
         (guild_id, event_type),
     ) as cursor:
@@ -4235,8 +4247,9 @@ async def get_server_event(
         "message": r[6],
         "embed_json": r[7],
         "template_id": r[8],
-        "created_at": r[9],
-        "updated_at": r[10],
+        "last_error": r[9],
+        "created_at": r[10],
+        "updated_at": r[11],
     }
     if resolve_template and ev["template_id"] is not None:
         tpl = await get_embed_template(ev["template_id"], guild_id)
@@ -4258,7 +4271,7 @@ async def list_server_events(guild_id: int) -> dict[str, dict]:
     db = await get_db()
     async with db.execute(
         "SELECT id, guild_id, event_type, enabled, channel_id, content_mode, "
-        "message, embed_json, template_id, created_at, updated_at "
+        "message, embed_json, template_id, last_error, created_at, updated_at "
         "FROM server_events WHERE guild_id=?",
         (guild_id,),
     ) as cursor:
@@ -4275,8 +4288,9 @@ async def list_server_events(guild_id: int) -> dict[str, dict]:
             "message": r[6],
             "embed_json": r[7],
             "template_id": r[8],
-            "created_at": r[9],
-            "updated_at": r[10],
+            "last_error": r[9],
+            "created_at": r[10],
+            "updated_at": r[11],
         }
     return res
 
@@ -4329,6 +4343,9 @@ async def set_server_event(
             "message=excluded.message, "
             "embed_json=excluded.embed_json, "
             "template_id=excluded.template_id, "
+            # Guardar cuenta como "probemos de nuevo": si el problema persiste,
+            # el próximo join/leave/boost real lo vuelve a marcar.
+            "last_error=NULL, "
             "updated_at=datetime('now')",
             (
                 guild_id,
@@ -4344,6 +4361,25 @@ async def set_server_event(
         await db.commit()
     ev = await get_server_event(guild_id, event_type, resolve_template=False)
     return ev or {}
+
+
+async def set_server_event_error(
+    guild_id: int, event_type: str, error: str | None
+) -> None:
+    """Guarda el motivo del último fallo al despachar un evento real (join/leave/
+    boost -- no la prueba manual), o lo limpia con error=None cuando el envío
+    más reciente salió bien. Se llama en cada evento real, no en un poll
+    periódico como youtube/twitch/rss, así que a diferencia de esos no hace
+    falta comparar contra el valor anterior para evitar escrituras redundantes:
+    el volumen ya está acotado por la actividad real del servidor. No-op si el
+    evento no está configurado (nada que actualizar)."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE server_events SET last_error=? WHERE guild_id=? AND event_type=?",
+            (error, guild_id, event_type),
+        )
+        await db.commit()
 
 
 async def toggle_server_event(guild_id: int, event_type: str, enabled: bool) -> bool:

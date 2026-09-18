@@ -16,8 +16,14 @@ import {
 import { t, addStrings } from '/js/core/i18n.js';
 
 addStrings({
-  es: { 'panelShell.channelUnavailable': 'Canal no disponible (ID: {id})' },
-  en: { 'panelShell.channelUnavailable': 'Channel not available (ID: {id})' },
+  es: {
+    'panelShell.channelUnavailable': 'Canal no disponible (ID: {id})',
+    'panelShell.roleUnavailable': 'Rol ya no existe (ID: {id})',
+  },
+  en: {
+    'panelShell.channelUnavailable': 'Channel not available (ID: {id})',
+    'panelShell.roleUnavailable': 'Role no longer exists (ID: {id})',
+  },
 });
 
 // Cacheados por la vida de la página (viven en core/config.js para que
@@ -70,10 +76,20 @@ export function channelSelect(channels, selectedId, noneLabel) {
 export function roleSelect(roles, selectedId, noneLabel) {
   const sel = el('select', {});
   if (noneLabel !== undefined) sel.append(el('option', { value: '' }, noneLabel));
+  let hasSelected = false;
   const list = Array.isArray(roles) ? roles : [];
   for (const r of list) {
     if (!r) continue;
+    if (String(r.id) === String(selectedId)) hasSelected = true;
     sel.append(el('option', { value: r.id }, '@' + (r.name || r.id)));
+  }
+  // Sin esto, un rol borrado (rol de Gestor, mención de YouTube/Twitch/RSS,
+  // botón de rol de Layout V2) deja el <select> sin ninguna opción
+  // seleccionada -- se ve idéntico a "nunca se configuró nada acá" en vez de
+  // "esto se rompió, elegí un rol nuevo" (mismo motivo que channelUnavailable
+  // arriba, para canales).
+  if (selectedId && !hasSelected) {
+    sel.append(el('option', { value: selectedId }, t('panelShell.roleUnavailable', { id: selectedId })));
   }
   sel.value = selectedId || '';
   return sel;

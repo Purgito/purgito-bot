@@ -5,7 +5,7 @@
 // Reutiliza los loaders de GIFS, EMBEDS, PREMIUM, YOUTUBE e HISTORIAL sin
 // tocar su lógica.
 
-import { apiFetch, humanError } from '/js/core/api.js';
+import { apiFetch } from '/js/core/api.js';
 import {
   el, icon, spinner, emptyState, richEmptyState, loadingCard, renderError, guildIcon, toast, formGroup,
   confirmDelBtn, undoableDelete, helpIcon, accordionGroup,
@@ -90,7 +90,6 @@ addStrings({
     'dash.mod.embeds.label': 'Embeds',
     'dash.mod.embeds.desc': 'Crea y edita mensajes reutilizables: texto, embeds y bloques Layout V2. Bienvenidas, Despedidas y Boosts los usan.',
     'dash.mod.gifs.desc': 'Galería de GIFs del servidor para respuestas y comandos',
-    'dash.mod.memes.desc': 'Generación automática de memes y plantillas',
     'dash.mod.canales.label': 'Canales y Permisos',
     'dash.mod.canales.desc': 'Matriz de lectura/respuesta y canales o roles ignorados',
     'dash.mod.general.label': 'General',
@@ -136,7 +135,6 @@ addStrings({
     'dash.mod.embeds.label': 'Embeds',
     'dash.mod.embeds.desc': 'Create and edit reusable messages: text, embeds, and Layout V2 blocks. Welcome, Goodbye, and Boosts use them.',
     'dash.mod.gifs.desc': "The server's GIF gallery for replies and commands",
-    'dash.mod.memes.desc': 'Automatic meme generation and templates',
     'dash.mod.canales.label': 'Channels and Permissions',
     'dash.mod.canales.desc': 'Read/reply matrix and ignored channels or roles',
     'dash.mod.general.label': 'General',
@@ -329,15 +327,6 @@ export const MODULES = [
     desc: t('dash.mod.gifs.desc'),
     keywords: ['gifs', 'galeria', 'animaciones', 'tenor', 'giphy', 'entretenimiento'],
     load: lazyTab('/js/tabs/gifs.js', 'loadGifs'),
-  },
-  {
-    key: 'memes',
-    cat: 'contenido',
-    label: 'Memes',
-    icon: 'image',
-    desc: t('dash.mod.memes.desc'),
-    keywords: ['memes', 'imagenes', 'generador', 'plantillas', 'entretenimiento'],
-    load: loadMemes,
   },
 
   // Servidor
@@ -3146,7 +3135,7 @@ async function loadGeneralModule() {
         resetBtn.disabled = res.prefix === data.default_prefix;
         toast(t('dash.prefijo.saved'), 'ok');
       } catch (e) {
-        toast(humanError(e) || t('dash.prefijo.errorSave'), 'err');
+        toast(e.message || t('dash.prefijo.errorSave'), 'err');
       }
     }
 
@@ -3183,7 +3172,7 @@ async function loadGeneralModule() {
         });
         toast(t('dash.managerRole.saved'), 'ok');
       } catch (e) {
-        toast(humanError(e) || t('dash.managerRole.errorSave'), 'err');
+        toast(e.message || t('dash.managerRole.errorSave'), 'err');
       }
     };
     managerRoleSection = formGroup(t('dash.managerRole.title'),
@@ -4015,7 +4004,7 @@ function renderExcludedUsersList(container, users, onRefresh) {
               toast('Exclusión eliminada', 'ok');
               await onRefresh();
             } catch (err) {
-              toast(humanError(err) || 'No se pudo quitar la exclusión', 'err');
+              toast(err.message || 'No se pudo quitar la exclusión', 'err');
             }
           })
         )
@@ -4196,7 +4185,7 @@ function openAddExcludedUserModal(onRefresh) {
         await onRefresh();
       } catch (err) {
         saveBtn.disabled = false;
-        toast(humanError(err) || 'No se pudo guardar la exclusión', 'err');
+        toast(err.message || 'No se pudo guardar la exclusión', 'err');
       }
     },
   }, 'Guardar exclusión');
@@ -4301,7 +4290,7 @@ function openEditExcludedUserModal(user, onRefresh) {
         await onRefresh();
       } catch (err) {
         saveBtn.disabled = false;
-        toast(humanError(err) || 'No se pudo actualizar la exclusión', 'err');
+        toast(err.message || 'No se pudo actualizar la exclusión', 'err');
       }
     },
   }, 'Guardar cambios');
@@ -4471,7 +4460,7 @@ async function loadChatTab() {
         toast(t('dash.chat.importSuccess'), 'ok');
         loadChatTab();
       } catch (e) {
-        toast(humanError(e) || t('dash.chat.importError'), 'err');
+        toast(e.message || t('dash.chat.importError'), 'err');
       }
     };
     const importChatBtn = el('button', {
@@ -5732,13 +5721,4 @@ function buildPlaygroundChannelPicker(channels, selectedId, onSelect) {
   dropdown.append(searchWrap, listWrap);
   wrap.append(trigger, dropdown);
   return wrap;
-}
-
-
-
-// ---------------- MEMES ----------------
-
-function loadMemes() {
-  const box = content();
-  box.append(emptyState('Generación de memes en proceso.'));
 }

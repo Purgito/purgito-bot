@@ -39,6 +39,7 @@ addStrings({
     'tabsEventos.statusInactive': 'Desactivado',
     'tabsEventos.channelSelectPlaceholder': 'Elige un canal…',
     'tabsEventos.noPermsWarning': '⚠ Purgito no puede enviar mensajes en este canal.',
+    'tabsEventos.lastErrorNotice': '⚠ El último intento de enviar este mensaje falló: {reason}',
     'tabsEventos.eventDisabledNotice': 'La bienvenida está desactivada. Actívala arriba para enviar mensajes automáticamente.',
     'tabsEventos.eventDisabledNoticeGoodbye': 'Las despedidas están desactivadas. Actívalas arriba para enviar mensajes automáticamente.',
     'tabsEventos.eventDisabledNoticeBoost': 'Los mensajes de boost están desactivados. Actívalos arriba para enviar mensajes automáticamente.',
@@ -133,6 +134,7 @@ addStrings({
     'tabsEventos.statusInactive': 'Disabled',
     'tabsEventos.channelSelectPlaceholder': 'Choose a channel…',
     'tabsEventos.noPermsWarning': '⚠ Purgito cannot send messages in this channel.',
+    'tabsEventos.lastErrorNotice': '⚠ The last attempt to send this message failed: {reason}',
     'tabsEventos.eventDisabledNotice': 'Welcome is disabled. Enable it above to automatically send messages.',
     'tabsEventos.eventDisabledNoticeGoodbye': 'Goodbyes are disabled. Enable it above to automatically send messages.',
     'tabsEventos.eventDisabledNoticeBoost': 'Boost messages are disabled. Enable it above to automatically send messages.',
@@ -315,11 +317,23 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
     style: isEnabled ? 'display: none;' : 'display: flex;',
   }, icon('info'), el('span', {}, t(cfg.disabledNoticeKey)));
 
+  // El último intento real (join/leave/boost) falló -- no la prueba manual,
+  // que ya reporta su propio resultado al toque. Sin esto, un canal que
+  // pierde permisos después de configurado queda "Activado" para siempre sin
+  // ningún indicio (ver cogs/events.py _dispatch_and_track). Se oculta junto
+  // con el resto de los avisos de canal si el evento está desactivado: ahí
+  // ya prioriza decir "actívalo arriba".
+  const lastErrorNotice = el('div', {
+    class: 'cfg-disabled-hint',
+    style: (isEnabled && evConfig.last_error) ? 'display: flex;' : 'display: none;',
+  }, icon('info'), el('span', {}, t('tabsEventos.lastErrorNotice', { reason: evConfig.last_error || '' })));
+
   toggleChk.onchange = () => {
     isEnabled = toggleChk.checked;
     toggleStatusBadge.className = 'badge ' + (isEnabled ? 'badge-ok' : 'badge-dim');
     toggleStatusBadge.textContent = isEnabled ? `● ${t('tabsEventos.statusActive')}` : `○ ${t('tabsEventos.statusInactive')}`;
     disabledNotice.style.display = isEnabled ? 'none' : 'flex';
+    lastErrorNotice.style.display = (isEnabled && evConfig.last_error) ? 'flex' : 'none';
   };
 
   const headerBlock = el('div', { class: 'cfg-block' },
@@ -341,6 +355,7 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
     el('label', { class: 'cfg-field-label' }, icon('chat'), t(cfg.channelLabelKey)),
     channelSel,
     channelWarning,
+    lastErrorNotice,
     disabledNotice
   );
 

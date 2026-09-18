@@ -737,7 +737,7 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
     assert "dash-mobile-nav-toggle" in dash_js
     assert "dash-mobile-nav-current" in dash_js
 
-    # Iconos coherentes en todas las 8 secciones principales. MODULES (no la
+    # Iconos coherentes en todas las 7 secciones principales. MODULES (no la
     # antigua TABS, eliminada por dead code) usa un objeto multilínea por
     # entrada, así que key/icon no comparten línea — se busca el icon dentro
     # del mismo objeto (antes del próximo "key:").
@@ -746,7 +746,6 @@ def test_dashboard_sidebar_contextual_sticky_navigation():
         ("inicio", "home"),
         ("chat", "chat"),
         ("gifs", "film"),
-        ("memes", "image"),
         ("embeds", "layout"),
         ("premium", "star"),
         ("youtube", "youtube"),

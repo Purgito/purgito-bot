@@ -15,6 +15,7 @@ from db import (
     purge_guild_data,
     record_member_boost,
     set_server_event,
+    set_server_event_error,
     toggle_server_event,
 )
 
@@ -192,6 +193,54 @@ def test_purge_guild_data_clears_channel_webhooks_and_events(memory_db):
         assert await get_server_event(guild_id, "welcome") is None
         assert await get_channel_webhook(guild_id, channel_id) is None
         assert await is_boost_processed(guild_id, 123, "2026-08-21T10:00:00") is False
+
+    asyncio.run(_test())
+
+
+def test_server_event_last_error_tracking(memory_db):
+    """last_error es lo que cogs/events.py._dispatch_and_track persiste en
+    cada join/leave/boost real para que el dashboard lo muestre -- ver
+    tests/test_server_events_cogs.py para el flujo completo desde el cog."""
+
+    async def _test():
+        guild_id = 321
+        await set_server_event(
+            guild_id=guild_id,
+            event_type="welcome",
+            enabled=True,
+            channel_id=111,
+            content_mode="plain_text",
+            message="Hola {user}!",
+        )
+        assert (await get_server_event(guild_id, "welcome"))["last_error"] is None
+
+        reason = "Purgito no tiene permiso para enviar mensajes en ese canal"
+        await set_server_event_error(guild_id, "welcome", reason)
+        assert (await get_server_event(guild_id, "welcome"))["last_error"] == reason
+        # También visible desde list_server_events (lo que alimenta la tab
+        # de Eventos completa, no solo el fetch de un tipo puntual).
+        assert (await list_server_events(guild_id))["welcome"]["last_error"] == reason
+
+        # Un envío real posterior que sale bien limpia el error.
+        await set_server_event_error(guild_id, "welcome", None)
+        assert (await get_server_event(guild_id, "welcome"))["last_error"] is None
+
+        # Guardar la config de nuevo desde el panel también limpia un error
+        # viejo -- no hace falta esperar al próximo join/leave/boost real.
+        await set_server_event_error(guild_id, "welcome", reason)
+        await set_server_event(
+            guild_id=guild_id,
+            event_type="welcome",
+            enabled=True,
+            channel_id=222,
+            content_mode="plain_text",
+            message="Hola de nuevo {user}!",
+        )
+        assert (await get_server_event(guild_id, "welcome"))["last_error"] is None
+
+        # No-op si el evento no está configurado (nada que actualizar).
+        await set_server_event_error(999, "goodbye", reason)
+        assert await get_server_event(999, "goodbye") is None
 
     asyncio.run(_test())
 

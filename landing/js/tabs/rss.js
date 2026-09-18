@@ -8,6 +8,7 @@ addStrings({
   es: {
     'tabsRss.errNoPermission': '⚠️ Purgito no tiene permiso para escribir en este canal',
     'tabsRss.errChannelGone': '⚠️ el canal configurado ya no existe',
+    'tabsRss.errFeedGone': '⚠️ no se pudo leer este feed (¿cambió de URL?)',
     'tabsRss.removeBtn': 'Quitar',
     'tabsRss.confirmQuestion': '¿Seguro?',
     'tabsRss.subNotFound': 'No se encontró esa suscripción',
@@ -32,6 +33,7 @@ addStrings({
   en: {
     'tabsRss.errNoPermission': '⚠️ Purgito doesn\'t have permission to post in this channel',
     'tabsRss.errChannelGone': '⚠️ the configured channel no longer exists',
+    'tabsRss.errFeedGone': "⚠️ couldn't read this feed (did the URL change?)",
     'tabsRss.removeBtn': 'Remove',
     'tabsRss.confirmQuestion': 'Are you sure?',
     'tabsRss.subNotFound': 'That subscription wasn\'t found',
@@ -58,6 +60,7 @@ addStrings({
 function errorNote(lastError) {
   if (lastError === 'sin_permiso') return t('tabsRss.errNoPermission');
   if (lastError === 'canal_no_encontrado') return t('tabsRss.errChannelGone');
+  if (lastError === 'feed_no_encontrado') return t('tabsRss.errFeedGone');
   return null;
 }
 

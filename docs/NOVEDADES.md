@@ -68,6 +68,12 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - `!gif` ahora también funciona al responder a un link de Instagram, TikTok, Twitter/X o Facebook que Discord mostró como vista previa con video — antes pedía un video aunque el link estuviera ahí, porque esos sitios no dejan bajar el archivo directo desde la vista previa (`!dl` con el mismo link sí funcionaba).
 - `!gif` ahora también encuentra el video o GIF al responder al resultado de otro bot, aunque ese bot arme su mensaje con el diseño de tarjetas más nuevo de Discord en vez del recuadro de vista previa clásico — antes se quedaba pidiendo un video aunque estuviera a la vista.
 - `!gifwide`, `!gifspeed`, `!gifreverse` y `!gifcaption` ahora encuentran el GIF al responder a un mensaje con uno mandado desde el selector de GIFs de Discord — antes pedían un GIF aunque hubiera uno a la vista, porque ese GIF no llega como archivo adjunto.
+- Bienvenida, despedida y avisos de boost: si Purgito pierde el permiso para escribir en el canal elegido, o se borra la plantilla asignada, el panel ahora te avisa en el módulo de Eventos en vez de dejar de mandar mensajes sin ningún indicio.
+- Un anuncio programado que se queda sin permiso para publicar en su canal ahora se marca en la lista de Anuncios, en vez de seguir viéndose activo como si todo estuviera bien.
+- RSS: si un feed cambia de URL o deja de existir, ahora se marca en la lista igual que ya pasaba con un canal borrado o sin permiso.
+- Guardar el prefijo de comandos, el rol de Gestor, una exclusión de usuario o importar la configuración del chat mostraba un mensaje de error confuso cuando algo fallaba, en vez de explicar qué pasó.
+- Los selectores de rol (rol de Gestor, mención de YouTube/Twitch/RSS, botones de rol de Layout V2) avisan si el rol elegido se borró, en vez de verse como si nunca hubieras elegido ninguno.
+- Se quitó del menú del dashboard el módulo Memes, que no mostraba ninguna función real.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

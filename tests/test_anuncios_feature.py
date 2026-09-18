@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -622,3 +623,79 @@ def test_anuncios_legacy_embed_runtime_resilience(memory_db):
     kwargs = fake_channel.send.await_args[1]
     assert "embeds" in kwargs
     assert kwargs["embeds"][0].title == "Legacy Embed"
+
+
+def test_anuncios_sin_permiso_de_envio_loguea_y_no_publica(memory_db, caplog):
+    """Antes de este fix, perder send_messages en el canal hacía que _send_one
+    volviera en silencio total -- ni un log. El anuncio quedaba "activo" en el
+    panel para siempre sin publicar nunca, sin ningún rastro ni en el bot ni
+    en el dashboard (que ahora sí lo marca -- ver anuncios.js)."""
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = _CHANNEL_ID
+    perms = MagicMock()
+    perms.send_messages = False
+    fake_channel.permissions_for = MagicMock(return_value=perms)
+    fake_channel.send = AsyncMock()
+
+    fake_guild = MagicMock(spec=discord.Guild)
+    fake_guild.id = _GUILD
+    fake_channel.guild = fake_guild
+
+    fake_bot = MagicMock()
+    fake_bot.get_channel.return_value = fake_channel
+
+    asyncio.run(
+        db.add_scheduled_announcement(
+            guild_id=_GUILD,
+            channel_id=_CHANNEL_ID,
+            message="Hola a todos",
+            mode="interval",
+            created_by=int(_USER_ID),
+            interval_minutes=30,
+        )
+    )
+
+    cog = Anuncios(fake_bot)
+    with caplog.at_level(logging.WARNING, logger="cogs.anuncios"):
+        asyncio.run(cog.check_announcements.coro(cog))
+
+    assert not fake_channel.send.called
+    assert "sin permiso para enviar mensajes" in caplog.text
+
+
+def test_anuncios_sin_permiso_de_embeds_loguea_y_no_publica(memory_db, caplog):
+    fake_channel = MagicMock(spec=discord.TextChannel)
+    fake_channel.id = _CHANNEL_ID
+    perms = MagicMock()
+    perms.send_messages = True
+    perms.embed_links = False
+    fake_channel.permissions_for = MagicMock(return_value=perms)
+    fake_channel.send = AsyncMock()
+
+    fake_guild = MagicMock(spec=discord.Guild)
+    fake_guild.id = _GUILD
+    fake_channel.guild = fake_guild
+
+    fake_bot = MagicMock()
+    fake_bot.get_channel.return_value = fake_channel
+
+    embed_payload = json.dumps([{"title": "Anuncio", "description": "Contenido"}])
+    asyncio.run(
+        db.add_scheduled_announcement(
+            guild_id=_GUILD,
+            channel_id=_CHANNEL_ID,
+            message="Snippet",
+            mode="interval",
+            created_by=int(_USER_ID),
+            interval_minutes=30,
+            embed_json=embed_payload,
+            content_mode="classic_embed",
+        )
+    )
+
+    cog = Anuncios(fake_bot)
+    with caplog.at_level(logging.WARNING, logger="cogs.anuncios"):
+        asyncio.run(cog.check_announcements.coro(cog))
+
+    assert not fake_channel.send.called
+    assert "sin permiso para incrustar embeds" in caplog.text
