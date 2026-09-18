@@ -33,6 +33,7 @@ from cogs.imagefx import (
     _resolve_gif_bytes,
     _resolve_gif_source_image_bytes,
     _resolve_image_bytes,
+    _resolve_image_or_gif_bytes,
     _resolve_video_bytes,
 )
 
@@ -1023,6 +1024,150 @@ def test_cooldown_distingue_usuarios_distintos():
     asyncio.run(cog.deepfry_cmd.callback(cog, ctx2))
 
     assert len(ctx2.reply_files) == 1
+
+
+# ── image_filters.apply_per_frame: filtros de imagen estática aplicados a
+# cada frame de un GIF (Fase 1/2 ahora también aceptan GIF, no solo imagen) ──
+
+
+def test_apply_per_frame_conserva_la_cantidad_y_orden_de_frames():
+    out = image_filters.apply_per_frame(image_filters.invert, _gif_bytes())
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.format == "GIF"
+        assert img.n_frames == 4
+
+
+def test_apply_per_frame_aplica_el_filtro_a_cada_frame():
+    # El primer frame de _gif_bytes() es rojo puro (255,0,0); invertido
+    # debería ser cian (0,255,255) -- confirma que el filtro corrió sobre
+    # el frame real, no que solo se copió el GIF de entrada.
+    out = image_filters.apply_per_frame(image_filters.invert, _gif_bytes())
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.convert("RGB").getpixel((0, 0)) == (0, 255, 255)
+
+
+def test_apply_per_frame_conserva_las_duraciones_originales():
+    out = image_filters.apply_per_frame(image_filters.invert, _gif_bytes())
+    with Image.open(io.BytesIO(out)) as img:
+        durations = [f.info.get("duration") for f in ImageSequence.Iterator(img)]
+        assert durations == [100, 100, 100, 100]
+
+
+def test_apply_per_frame_pasa_argumentos_extra_al_filtro():
+    out = image_filters.apply_per_frame(image_filters.wide, _gif_bytes(), 2.0)
+    with Image.open(io.BytesIO(out)) as img:
+        assert img.size == (80, 40)
+        assert img.n_frames == 4
+
+
+# ── cogs/imagefx.py: _resolve_image_or_gif_bytes (fuente ampliada de los
+# comandos de "Filtros de imagen": GIF primero, imagen estática si no hay) ───
+
+
+def test_resolve_image_or_gif_bytes_prioriza_el_gif_si_hay_uno():
+    gif_data = _gif_bytes()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=gif_data)])
+
+    data, is_gif = asyncio.run(_resolve_image_or_gif_bytes(ctx))
+
+    assert is_gif is True
+    assert data == gif_data
+
+
+def test_resolve_image_or_gif_bytes_cae_a_imagen_estatica_sin_gif():
+    png_data = _png_bytes()
+    ctx = FakeContext(attachments=[FakeAttachment(data=png_data)])
+
+    data, is_gif = asyncio.run(_resolve_image_or_gif_bytes(ctx))
+
+    assert is_gif is False
+    assert data == png_data
+
+
+def test_resolve_image_or_gif_bytes_sin_nada_cae_al_avatar():
+    ctx = FakeContext(author=FakeAuthor(avatar_bytes=b"avatar-bytes"))
+
+    data, is_gif = asyncio.run(_resolve_image_or_gif_bytes(ctx))
+
+    assert is_gif is False
+    assert data == b"avatar-bytes"
+
+
+def test_resolve_image_or_gif_bytes_allow_gif_false_ignora_el_gif_adjunto():
+    # Lo usa "!triggered" -- ver su docstring en cogs/imagefx.py.
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())],
+        author=FakeAuthor(avatar_bytes=b"avatar-bytes"),
+    )
+
+    data, is_gif = asyncio.run(_resolve_image_or_gif_bytes(ctx, allow_gif=False))
+
+    assert is_gif is False
+    assert data == b"avatar-bytes"
+
+
+# ── cogs/imagefx.py: comandos de "Filtros de imagen" (Fase 1/2) aceptando
+# GIF además de imagen estática, end-to-end ──────────────────────────────────
+
+
+def test_invert_acepta_un_gif_y_responde_con_un_gif():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.invert_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+    assert ctx.replies == []
+
+
+def test_caption_acepta_un_gif_y_responde_con_un_gif():
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())])
+
+    asyncio.run(cog.caption_cmd.callback(cog, ctx, texto="ARRIBA|ABAJO"))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_filtro_sin_gif_de_por_medio_sigue_devolviendo_png():
+    # Comportamiento sin cambios cuando no hay ningún GIF en la fuente.
+    cog = _cog()
+    ctx = FakeContext(attachments=[FakeAttachment(data=_png_bytes())])
+
+    asyncio.run(cog.invert_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files[0].filename == "purgito.png"
+
+
+def test_filtro_rechaza_un_gif_adjunto_con_contenido_invalido():
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="a.gif", data=b"no es un gif")]
+    )
+
+    asyncio.run(cog.invert_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert len(ctx.replies) == 1
+
+
+def test_triggered_ignora_un_gif_adjunto_y_usa_su_propio_efecto_desde_el_avatar():
+    # triggered() ya genera su propio GIF corto (zoom + temblor) a partir de
+    # una imagen fija -- animatable=False en su _run_filter hace que un GIF
+    # adjunto no se use como fuente en absoluto (ver docstring de
+    # _resolve_image_or_gif_bytes).
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="a.gif", data=_gif_bytes())],
+        author=FakeAuthor(avatar_bytes=_png_bytes_with_shape()),
+    )
+
+    asyncio.run(cog.triggered_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
 
 
 # ── cog_command_error ─────────────────────────────────────────────────────────

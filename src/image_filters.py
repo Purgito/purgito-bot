@@ -7,6 +7,7 @@ necesita ffmpeg, no solo Pillow) vive aparte, en video_filters.py."""
 import io
 import os
 import textwrap
+from typing import Callable
 
 from PIL import (
     Image,
@@ -542,6 +543,27 @@ def _save_gif(frames: list[Image.Image], durations: list[int]) -> bytes:
         disposal=2,
     )
     return buf.getvalue()
+
+
+def apply_per_frame(fn: Callable[..., bytes], image_bytes: bytes, *args) -> bytes:
+    """Aplica un filtro de imagen estática (`fn`, con la firma de todos los
+    filtros de Fase 1/2 de más arriba: bytes de UNA imagen -> bytes de un
+    PNG) a cada frame de un GIF ya validado como tal (ver is_valid_gif_bytes
+    en cogs/gifs.py, verificado antes por el caller), recomponiendo un GIF
+    animado con las mismas duraciones -- así "!wide", "!invert", "!caption",
+    etc. también aceptan GIF como fuente sin necesitar una variante gif_*
+    de cada uno (a diferencia de gif_caption/gif_speed/gif_reverse/gif_wide,
+    que ya nacieron pensados para GIF).
+
+    Cada frame se pasa como PNG en RGBA (no aplanado a RGB antes): filtros
+    como circle()/rotate() usan la transparencia del frame, y el resto igual
+    la descarta al convertir a RGB internamente -- mismo comportamiento que
+    ya tiene cualquier imagen estática con alpha."""
+    frames, durations = _iter_gif_frames(image_bytes)
+    out_frames = [
+        _open(fn(_png_bytes(frame), *args)).convert("RGBA") for frame in frames
+    ]
+    return _save_gif(out_frames, durations)
 
 
 def image_to_gif(image_bytes: bytes) -> bytes:
