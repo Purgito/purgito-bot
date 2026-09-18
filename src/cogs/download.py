@@ -236,8 +236,8 @@ def _embed_video_url(message: discord.Message) -> str | None:
     (ej. el CDN propio de NotSoBot, no Discord), Discord igual lo sirve al
     cliente a través de su propio proxy de media (media.discordapp.net) --
     por eso "se ve perfecto" en Discord aunque el host original no esté en
-    _DIRECT_VIDEO_HOSTS. video.url en ese caso sigue siendo el host de
-    terceros (lo que _is_direct_video_host va a rechazar más abajo); url
+    _DIRECT_MEDIA_HOSTS. video.url en ese caso sigue siendo el host de
+    terceros (lo que _is_direct_media_host va a rechazar más abajo); url
     queda como fallback para cuando el video YA es de Discord (proxy_url
     puede venir vacío ahí) y para objetos de prueba que no definen proxy_url."""
     for embed in message.embeds:
@@ -252,42 +252,65 @@ def _embed_video_url(message: discord.Message) -> str | None:
     return None
 
 
-# Hosts desde los que "purgito gif" puede bajar un video EMBEBIDO
-# (Embed.video) como archivo directo, sin pasar por yt-dlp. Dos casos
-# distintos conviven acá: cdn.discordapp.com es donde vive de verdad un
-# adjunto que otro bot ya subió a Discord (ej. NotSoBot reposteando su
-# propio resultado como adjunto); media.discordapp.net es el proxy de media
-# de Discord, que sirve CUALQUIER embed con video sin importar dónde esté
-# alojado el original -- así es como el cliente de Discord lo muestra, y por
-# eso _embed_video_url prefiere Embed.video.proxy_url sobre Embed.video.url.
-# A diferencia de _ALLOWED_HOSTS (páginas que yt-dlp sabe scrapear), esto son
-# hosts que ya sirven el archivo de video resuelto -- no hace falta (ni
-# tiene sentido) pasarlos por yt-dlp.
-_DIRECT_VIDEO_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
+def _embed_image_url(message: discord.Message) -> str | None:
+    """Igual que _embed_video_url pero para una imagen estática: Embed.image
+    en vez de Embed.video -- mismo caso (otro bot postea su resultado
+    directo en el embed), pero cuando lo que posteó es una imagen, no un
+    video. Usado por "purgito gif" cuando no hay ningún video para
+    convertir (ver _resolve_gif_source_image_bytes en cogs/imagefx.py).
+
+    Mismo criterio de proxy_url que _embed_video_url (ver ese docstring):
+    si la imagen vive en el host de un tercero, Discord la sirve al cliente
+    a través de su propio proxy de media, y ese host es el que
+    _is_direct_media_host reconoce -- el .url original del tercero no."""
+    for embed in message.embeds:
+        image = getattr(embed, "image", None)
+        if not image:
+            continue
+        proxy_url = getattr(image, "proxy_url", None)
+        if proxy_url:
+            return proxy_url
+        if image.url:
+            return image.url
+    return None
 
 
-def _is_direct_video_host(url: str) -> bool:
+# Hosts desde los que "purgito gif" puede bajar un video o imagen EMBEBIDOS
+# (Embed.video / Embed.image) como archivo directo, sin pasar por yt-dlp. Dos
+# casos distintos conviven acá: cdn.discordapp.com es donde vive de verdad un
+# adjunto que otro bot ya subió a Discord (ej. NotSoBot reposteando su propio
+# resultado como adjunto); media.discordapp.net es el proxy de media de
+# Discord, que sirve CUALQUIER embed con video o imagen sin importar dónde
+# esté alojado el original -- así es como el cliente de Discord lo muestra,
+# y por eso _embed_video_url/_embed_image_url prefieren el proxy_url del
+# embed sobre su url. A diferencia de _ALLOWED_HOSTS (páginas que yt-dlp
+# sabe scrapear), esto son hosts que ya sirven el archivo resuelto -- no
+# hace falta (ni tiene sentido) pasarlos por yt-dlp.
+_DIRECT_MEDIA_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
+
+
+def _is_direct_media_host(url: str) -> bool:
     try:
         host = (urlparse(url).hostname or "").lower()
     except ValueError:
         return False
     if not host:
         return False
-    return host in _DIRECT_VIDEO_HOSTS or host.endswith(
-        tuple(f".{h}" for h in _DIRECT_VIDEO_HOSTS)
+    return host in _DIRECT_MEDIA_HOSTS or host.endswith(
+        tuple(f".{h}" for h in _DIRECT_MEDIA_HOSTS)
     )
 
 
-async def _fetch_direct_video_bytes(
+async def _fetch_direct_media_bytes(
     url: str, max_bytes: int, timeout: float = 15.0
 ) -> bytes | None:
-    """Descarga bytes de un archivo de video directo (no una página) desde
-    un host de confianza (_is_direct_video_host), protegido contra SSRF vía
-    r2.fetch_public_url -- mismo mecanismo que fetch_gif_bytes en
+    """Descarga bytes de un archivo directo (video o imagen, no una página)
+    desde un host de confianza (_is_direct_media_host), protegido contra
+    SSRF vía r2.fetch_public_url -- mismo mecanismo que fetch_gif_bytes en
     cogs/gifs.py. None si el host no es de confianza, la descarga falla, o
     supera max_bytes (mismo criterio "no distinguir el motivo" que ya usa
     fetch_gif_bytes: el caller solo necesita saber si hay bytes o no)."""
-    if not _is_direct_video_host(url):
+    if not _is_direct_media_host(url):
         return None
 
     def _download():
@@ -319,7 +342,7 @@ async def _fetch_direct_video_bytes(
             resp.close()
             return b"".join(chunks)
         except Exception:
-            log.debug("Fallo descargando video directo de %s", url, exc_info=True)
+            log.debug("Fallo descargando archivo directo de %s", url, exc_info=True)
             return None
 
     return await asyncio.to_thread(_download)
