@@ -19,6 +19,7 @@ import pytest
 import yt_dlp
 
 import cogs.download as download_mod
+import r2
 from cogs.download import Download, DownloadFailed, DownloadTooLarge, _is_supported_url
 
 
@@ -520,3 +521,186 @@ def test_download_video_no_deja_directorios_temporales_al_fallar(monkeypatch):
 
     assert len(created_dirs) == 2
     assert not any(os.path.exists(d) for d in created_dirs)
+
+
+# ── _embed_video_url / _is_direct_video_host / _fetch_direct_video_bytes ─────
+#
+# Usados por "purgito gif" (cogs/imagefx.py) para bajar el video EMBEBIDO de
+# un mensaje respondido (Embed.video) cuando no hay adjunto -- ej. NotSoBot
+# reposteando su propio resultado como embed en vez de como adjunto de
+# Discord. A diferencia de Embed.url (la página de origen que ya usa
+# _reply_target_url), esto es el archivo reproducible en sí.
+
+
+def test_embed_video_url_extrae_el_video_del_embed():
+    message = SimpleNamespace(
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+                )
+            )
+        ]
+    )
+
+    assert (
+        download_mod._embed_video_url(message)
+        == "https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+    )
+
+
+def test_embed_video_url_ignora_embeds_sin_video():
+    message = SimpleNamespace(embeds=[SimpleNamespace(video=None, url="https://x.com")])
+
+    assert download_mod._embed_video_url(message) is None
+
+
+def test_embed_video_url_sin_embeds_devuelve_none():
+    assert download_mod._embed_video_url(SimpleNamespace(embeds=[])) is None
+
+
+def test_embed_video_url_tolera_embeds_sin_atributo_video():
+    # Un discord.Embed real siempre tiene .video (un EmbedProxy vacío si no
+    # hay video) -- pero cualquier otro objeto con forma de embed no debería
+    # romper esto con un AttributeError.
+    message = SimpleNamespace(embeds=[SimpleNamespace(url="https://x.com")])
+
+    assert download_mod._embed_video_url(message) is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://cdn.discordapp.com/attachments/1/2/clip.mp4",
+        "https://media.discordapp.net/attachments/1/2/clip.mp4",
+        "https://sub.cdn.discordapp.com/attachments/1/2/clip.mp4",
+    ],
+)
+def test_is_direct_video_host_acepta_el_cdn_de_discord(url):
+    assert download_mod._is_direct_video_host(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.com/clip.mp4",
+        "https://discordapp.com.evil.com/clip.mp4",
+        "not-a-url",
+        "",
+    ],
+)
+def test_is_direct_video_host_rechaza_hosts_de_terceros(url):
+    assert not download_mod._is_direct_video_host(url)
+
+
+def test_fetch_direct_video_bytes_descarga_desde_un_host_de_confianza(monkeypatch):
+    class _Resp:
+        status_code = 200
+        headers = {}
+
+        def iter_content(self, chunk_size=None):
+            yield b"video-bytes"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
+
+    data = asyncio.run(
+        download_mod._fetch_direct_video_bytes(
+            "https://cdn.discordapp.com/attachments/1/2/clip.mp4", 1024
+        )
+    )
+
+    assert data == b"video-bytes"
+
+
+def test_fetch_direct_video_bytes_rechaza_host_no_confiable():
+    data = asyncio.run(
+        download_mod._fetch_direct_video_bytes("https://evil.com/clip.mp4", 1024)
+    )
+
+    assert data is None
+
+
+def test_fetch_direct_video_bytes_respeta_el_limite_de_tamano_por_content_length(
+    monkeypatch,
+):
+    class _Resp:
+        status_code = 200
+        headers = {"Content-Length": "2048"}
+
+        def iter_content(self, chunk_size=None):
+            yield b"x" * 2048
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
+
+    data = asyncio.run(
+        download_mod._fetch_direct_video_bytes(
+            "https://cdn.discordapp.com/attachments/1/2/clip.mp4", 1024
+        )
+    )
+
+    assert data is None
+
+
+def test_fetch_direct_video_bytes_respeta_el_limite_de_tamano_sin_content_length(
+    monkeypatch,
+):
+    # Sin Content-Length hay que cortar mientras se van sumando los chunks.
+    class _Resp:
+        status_code = 200
+        headers = {}
+
+        def iter_content(self, chunk_size=None):
+            yield b"x" * 2048
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
+
+    data = asyncio.run(
+        download_mod._fetch_direct_video_bytes(
+            "https://cdn.discordapp.com/attachments/1/2/clip.mp4", 1024
+        )
+    )
+
+    assert data is None
+
+
+def test_fetch_direct_video_bytes_devuelve_none_si_el_status_no_es_200(monkeypatch):
+    class _Resp:
+        status_code = 404
+        headers = {}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
+
+    data = asyncio.run(
+        download_mod._fetch_direct_video_bytes(
+            "https://cdn.discordapp.com/attachments/1/2/clip.mp4", 1024
+        )
+    )
+
+    assert data is None
+
+
+def test_fetch_direct_video_bytes_rechaza_ssrf():
+    # Mismo filtro que fetch_gif_bytes en cogs/gifs.py: r2.fetch_public_url
+    # bloquea IPs no públicamente enrutables, aunque el host esté en la
+    # allowlist -- acá lo confirmamos con hosts que no pasan _is_direct_video_host
+    # (127.0.0.1/metadata no son cdn.discordapp.com/media.discordapp.net).
+    assert (
+        asyncio.run(
+            download_mod._fetch_direct_video_bytes(
+                "http://127.0.0.1/internal.mp4", 1024
+            )
+        )
+        is None
+    )

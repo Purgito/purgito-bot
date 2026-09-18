@@ -1,6 +1,6 @@
 # Novedades
 
-**Última actualización:** 17 de septiembre de 2026
+**Última actualización:** 18 de septiembre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
@@ -61,7 +61,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El paso "Elige de qué canales aprende" de Primeros pasos en INICIO ya refleja bien si sacas todos los canales de aprendizaje — antes quedaba marcado como hecho para siempre.
 - Agregar una frase especial idéntica a otra que ya existe en el mismo pool ahora se rechaza, en vez de guardarla duplicada.
 - Un GIF nuevo con una miniatura parecida a la de otro servidor ya no se confunde con contenido de ese servidor.
-- `!dl` y `!gif` ahora también encuentran el video al responder a un mensaje de otro bot que lo muestra como vista previa (embed) en vez de un link de texto o un archivo adjunto — antes pedían un video aunque hubiera uno a la vista.
+- `!dl` y `!gif` encuentran el video al responder a un mensaje de otro bot que lo muestra como link de vista previa o archivo adjunto; `!gif` ahora también lo encuentra si ese bot postea el video directo en el embed, sin link ni adjunto (ej. el resultado de otro bot de memes) — antes pedía un video aunque hubiera uno a la vista.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

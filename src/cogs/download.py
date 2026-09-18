@@ -33,6 +33,7 @@ import discord
 import yt_dlp
 from discord.ext import commands
 
+import r2
 from config import env_int
 from i18n import guild_locale, t
 
@@ -177,17 +178,13 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
     return path, is_sensitive
 
 
-async def _reply_target_url(ctx: commands.Context) -> str | None:
-    """Si el comando se invocó sin link propio pero respondiendo a un
-    mensaje, busca un link ahí -- así "purgito dl" alcanza como respuesta a
-    un mensaje con un video, sin tener que repetir la URL. `resolved` ya
+async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
+    """Resuelve el mensaje al que responde ctx, si lo hay. `resolved` ya
     viene poblado en la mayoría de los casos (Discord lo manda junto con el
-    mensaje de reply), pero si no -- mensaje viejo fuera de caché -- se
-    busca con un fetch aparte.
-
-    Además del texto plano, revisa los embeds del mensaje: bots que postean
-    un preview del video (ej. NotSoBot) suelen mandarlo como embed puro, sin
-    el link en el texto -- Embed.url es la página de origen en ese caso."""
+    mensaje de reply), pero si no -- mensaje viejo fuera de caché -- se busca
+    con un fetch aparte. Compartido con cogs/imagefx.py: "purgito dl" y
+    "purgito gif" necesitan lo mismo (adjunto/link/embed del mensaje
+    respondido)."""
     reference = ctx.message.reference
     if reference is None:
         return None
@@ -201,6 +198,20 @@ async def _reply_target_url(ctx: commands.Context) -> str | None:
             resolved = await ctx.channel.fetch_message(reference.message_id)
         except discord.HTTPException:
             return None
+    return resolved
+
+
+async def _reply_target_url(ctx: commands.Context) -> str | None:
+    """Si el comando se invocó sin link propio pero respondiendo a un
+    mensaje, busca un link ahí -- así "purgito dl" alcanza como respuesta a
+    un mensaje con un video, sin tener que repetir la URL.
+
+    Además del texto plano, revisa los embeds del mensaje: bots que postean
+    un preview del video (ej. NotSoBot) suelen mandarlo como embed puro, sin
+    el link en el texto -- Embed.url es la página de origen en ese caso."""
+    resolved = await _resolve_reference(ctx)
+    if resolved is None:
+        return None
     match = _URL_RE.search(resolved.content or "")
     if match:
         return match.group(0)
@@ -208,6 +219,92 @@ async def _reply_target_url(ctx: commands.Context) -> str | None:
         if embed.url:
             return embed.url
     return None
+
+
+def _embed_video_url(message: discord.Message) -> str | None:
+    """Busca una URL de video directa en los embeds de un mensaje. A
+    diferencia de Embed.url (la página de origen, lo que usa
+    _reply_target_url), esto es el archivo reproducible en sí: bots que
+    postean su propio resultado (ej. NotSoBot) o un GIF de Tenor/Giphy
+    (embeds tipo "gifv") lo exponen en Embed.video, no como adjunto ni
+    como link en el texto. getattr en vez de embed.video directo: un
+    discord.Embed real siempre tiene el atributo (un EmbedProxy vacío si no
+    hay video), pero no vale la pena exigirlo de cualquier objeto que
+    llegue acá."""
+    for embed in message.embeds:
+        video = getattr(embed, "video", None)
+        if video and video.url:
+            return video.url
+    return None
+
+
+# Hosts desde los que "purgito gif" puede bajar un video EMBEBIDO
+# (Embed.video) como archivo directo, sin pasar por yt-dlp: el CDN propio de
+# Discord, donde termina viviendo cualquier adjunto o resultado que otro bot
+# ya subió (ej. NotSoBot reposteando su propio resultado). A diferencia de
+# _ALLOWED_HOSTS (páginas que yt-dlp sabe scrapear), esto son hosts que ya
+# sirven el archivo de video resuelto -- no hace falta (ni tiene sentido)
+# pasarlos por yt-dlp.
+_DIRECT_VIDEO_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
+
+
+def _is_direct_video_host(url: str) -> bool:
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    if not host:
+        return False
+    return host in _DIRECT_VIDEO_HOSTS or host.endswith(
+        tuple(f".{h}" for h in _DIRECT_VIDEO_HOSTS)
+    )
+
+
+async def _fetch_direct_video_bytes(
+    url: str, max_bytes: int, timeout: float = 15.0
+) -> bytes | None:
+    """Descarga bytes de un archivo de video directo (no una página) desde
+    un host de confianza (_is_direct_video_host), protegido contra SSRF vía
+    r2.fetch_public_url -- mismo mecanismo que fetch_gif_bytes en
+    cogs/gifs.py. None si el host no es de confianza, la descarga falla, o
+    supera max_bytes (mismo criterio "no distinguir el motivo" que ya usa
+    fetch_gif_bytes: el caller solo necesita saber si hay bytes o no)."""
+    if not _is_direct_video_host(url):
+        return None
+
+    def _download():
+        import requests
+
+        try:
+            resp = r2.fetch_public_url(
+                requests.get,
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; bot)"},
+                timeout=timeout,
+                stream=True,
+            )
+            if resp.status_code != 200:
+                resp.close()
+                return None
+            cl = resp.headers.get("Content-Length")
+            if cl and int(cl) > max_bytes:
+                resp.close()
+                return None
+            chunks = []
+            total = 0
+            for chunk in resp.iter_content(chunk_size=262144):
+                total += len(chunk)
+                if total > max_bytes:
+                    resp.close()
+                    return None
+                chunks.append(chunk)
+            resp.close()
+            return b"".join(chunks)
+        except Exception:
+            log.debug("Fallo descargando video directo de %s", url, exc_info=True)
+            return None
+
+    return await asyncio.to_thread(_download)
 
 
 class Download(commands.Cog):

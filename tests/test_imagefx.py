@@ -531,6 +531,102 @@ def test_resolve_video_bytes_rechaza_adjunto_demasiado_grande():
         asyncio.run(_resolve_video_bytes(ctx))
 
 
+def test_find_attachment_detecta_video_por_content_type_aunque_la_extension_no_matchee():
+    # Ej. .mkv no está en _VIDEO_EXTS pero algunos clientes lo suben con
+    # content_type="video/x-matroska" -- mismo patrón de fallback por
+    # content-type que ya usa save_gif_candidates en cogs/gifs.py.
+    attachment = FakeAttachment(filename="clip.mkv", data=b"video raro")
+    attachment.content_type = "video/x-matroska"
+    ctx = FakeContext(attachments=[attachment])
+
+    found = asyncio.run(
+        _find_attachment(ctx, _VIDEO_EXTS, content_type_prefix="video/")
+    )
+
+    assert found is not None
+    assert asyncio.run(found.read()) == b"video raro"
+
+
+def test_find_attachment_content_type_no_afecta_a_quien_no_lo_pide():
+    # _resolve_image_bytes/_resolve_gif_bytes no pasan content_type_prefix --
+    # un adjunto con extensión no soportada sigue sin matchear aunque su
+    # content_type diga "video/...".
+    attachment = FakeAttachment(filename="clip.mkv", data=b"video raro")
+    attachment.content_type = "video/x-matroska"
+    ctx = FakeContext(attachments=[attachment])
+
+    assert asyncio.run(_find_attachment(ctx, _VIDEO_EXTS)) is None
+
+
+def test_resolve_video_bytes_usa_el_video_embebido_del_mensaje_respondido(monkeypatch):
+    # Ej. NotSoBot reposteando su resultado como embed con Embed.video, no
+    # como adjunto de Discord -- ver docstring de _resolve_video_bytes.
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+        assert max_bytes == imagefx_mod.MAX_GIF_SOURCE_VIDEO_BYTES
+        return b"video del embed"
+
+    monkeypatch.setattr(download_mod, "_fetch_direct_video_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+                )
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    data = asyncio.run(_resolve_video_bytes(ctx))
+
+    assert data == b"video del embed"
+
+
+def test_resolve_video_bytes_prioriza_el_adjunto_sobre_el_video_embebido(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        raise AssertionError("no debería llamarse: hay un adjunto de video")
+
+    monkeypatch.setattr(download_mod, "_fetch_direct_video_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(url="https://cdn.discordapp.com/x.mp4")
+            )
+        ],
+    )
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=b"adjunto propio")],
+        reference=SimpleNamespace(resolved=referenced, message_id=1),
+    )
+
+    data = asyncio.run(_resolve_video_bytes(ctx))
+
+    assert data == b"adjunto propio"
+
+
+def test_resolve_video_bytes_ignora_embed_sin_video():
+    referenced = SimpleNamespace(attachments=[], embeds=[SimpleNamespace(video=None)])
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    assert asyncio.run(_resolve_video_bytes(ctx)) is None
+
+
+def test_resolve_video_bytes_no_confia_en_video_embebido_de_host_no_confiable():
+    # _embed_video_url encuentra la URL, pero _fetch_direct_video_bytes (sin
+    # mockear acá) la rechaza por host -- _resolve_video_bytes no debe
+    # devolver nada, no reventar.
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[SimpleNamespace(video=SimpleNamespace(url="https://evil.com/x.mp4"))],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    assert asyncio.run(_resolve_video_bytes(ctx)) is None
+
+
 # ── cogs/imagefx.py: comandos end-to-end ─────────────────────────────────────
 
 
@@ -907,6 +1003,43 @@ def test_gif_cmd_usa_la_url_del_embed_si_el_mensaje_respondido_no_tiene_texto(
 
     assert seen["url"] == "https://instagram.com/reel/xyz"
     assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_usa_el_video_embebido_si_el_mensaje_respondido_no_tiene_adjunto(
+    monkeypatch,
+):
+    """Caso reportado: responder "purgito gif" al resultado de otro bot (ej.
+    NotSoBot) que lo mandó como embed con Embed.video -- no un adjunto de
+    Discord ni un link de página. gif_cmd tiene que bajarlo directo, sin
+    pasar por yt-dlp/_download_video."""
+
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+        return _make_test_video_bytes(duration=0.3, fps=6)
+
+    def fail_download(url, max_bytes):
+        raise AssertionError("no debería llamarse: el video vino del embed")
+
+    monkeypatch.setattr(download_mod, "_fetch_direct_video_bytes", fake_fetch)
+    monkeypatch.setattr(download_mod, "_download_video", fail_download)
+    cog = _cog()
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+                )
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
 
 
 def test_gif_cmd_prioriza_el_adjunto_sobre_el_link(monkeypatch):
