@@ -183,7 +183,11 @@ async def _reply_target_url(ctx: commands.Context) -> str | None:
     un mensaje con un video, sin tener que repetir la URL. `resolved` ya
     viene poblado en la mayoría de los casos (Discord lo manda junto con el
     mensaje de reply), pero si no -- mensaje viejo fuera de caché -- se
-    busca con un fetch aparte."""
+    busca con un fetch aparte.
+
+    Además del texto plano, revisa los embeds del mensaje: bots que postean
+    un preview del video (ej. NotSoBot) suelen mandarlo como embed puro, sin
+    el link en el texto -- Embed.url es la página de origen en ese caso."""
     reference = ctx.message.reference
     if reference is None:
         return None
@@ -198,7 +202,12 @@ async def _reply_target_url(ctx: commands.Context) -> str | None:
         except discord.HTTPException:
             return None
     match = _URL_RE.search(resolved.content or "")
-    return match.group(0) if match else None
+    if match:
+        return match.group(0)
+    for embed in resolved.embeds:
+        if embed.url:
+            return embed.url
+    return None
 
 
 class Download(commands.Cog):

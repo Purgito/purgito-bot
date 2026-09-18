@@ -61,6 +61,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El paso "Elige de qué canales aprende" de Primeros pasos en INICIO ya refleja bien si sacas todos los canales de aprendizaje — antes quedaba marcado como hecho para siempre.
 - Agregar una frase especial idéntica a otra que ya existe en el mismo pool ahora se rechaza, en vez de guardarla duplicada.
 - Un GIF nuevo con una miniatura parecida a la de otro servidor ya no se confunde con contenido de ese servidor.
+- `!dl` y `!gif` ahora también encuentran el video al responder a un mensaje de otro bot que lo muestra como vista previa (embed) en vez de un link de texto o un archivo adjunto — antes pedían un video aunque hubiera uno a la vista.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 
