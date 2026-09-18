@@ -4,12 +4,14 @@ respondido, o (solo para imagen) el avatar de quien invoca -- mismo
 mecanismo de "adjunto propio -> reply" que ya usa cogs/download.py para
 "purgito dl". "!gif" prueba, en orden: adjunto propio o del mensaje
 respondido (extensión o content-type de video), video EMBEBIDO en el
-mensaje respondido (Embed.video -- bots como NotSoBot postean su resultado
-así, no como adjunto); si no hay ningún video, una imagen estática por las
-mismas tres vías (Embed.image en vez de Embed.video) se empaqueta como GIF
-de un solo frame sin pasar por ffmpeg; y, por último, un link propio o del
-mensaje respondido igual que "!dl" (mismo allowlist de hosts, mismo
-módulo)."""
+propio mensaje o en el respondido (Embed.video -- bots como NotSoBot
+postean su resultado así, no como adjunto; sirve tanto si ese video quedó
+alojado en Discord como si Discord solo lo está proxeando desde el host
+del otro bot, ver proxy_url en cogs/download.py:_embed_video_url); si no
+hay ningún video, una imagen estática por las mismas vías (Embed.image en
+vez de Embed.video) se empaqueta como GIF de un solo frame sin pasar por
+ffmpeg; y, por último, un link propio o del mensaje respondido igual que
+"!dl" (mismo allowlist de hosts, mismo módulo)."""
 
 import asyncio
 import io
@@ -151,24 +153,29 @@ async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
 async def _resolve_video_bytes(ctx: commands.Context) -> bytes | None:
     """Fuente del video para "!gif": adjunto propio o del mensaje
     respondido primero (como _resolve_gif_bytes, pero también por
-    content-type). Si no hay adjunto, prueba el video EMBEBIDO del mensaje
-    respondido (Embed.video) -- así alcanza con responder al resultado de
-    otro bot (ej. NotSoBot) aunque lo haya mandado como embed y no como
-    adjunto. None si ninguna de las dos tiene nada; a partir de ahí gif_cmd
-    todavía prueba una imagen y, después, un link de página antes de
-    rendirse."""
+    content-type). Si no hay adjunto, prueba el video EMBEBIDO -- del
+    propio mensaje primero (por si Discord ya desempaquetó un link que
+    mandó el usuario junto con el comando) y del mensaje respondido después
+    -- así alcanza con responder al resultado de otro bot (ej. NotSoBot)
+    aunque lo haya mandado como embed y no como adjunto, sea que ese embed
+    apunte a un adjunto propio de Discord o a un host de terceros (ver
+    proxy_url en _embed_video_url). None si ninguna tiene nada; a partir de
+    ahí gif_cmd todavía prueba una imagen y, después, un link de página
+    antes de rendirse."""
     attachment = await _find_attachment(ctx, _VIDEO_EXTS, content_type_prefix="video/")
     if attachment is not None:
         if attachment.size > MAX_GIF_SOURCE_VIDEO_BYTES:
             raise SourceTooLarge(MAX_GIF_SOURCE_VIDEO_BYTES)
         return await attachment.read()
 
-    resolved = await download_mod._resolve_reference(ctx)
-    if resolved is None:
-        return None
-    video_url = download_mod._embed_video_url(resolved)
+    video_url = download_mod._embed_video_url(ctx.message)
     if video_url is None:
-        return None
+        resolved = await download_mod._resolve_reference(ctx)
+        if resolved is None:
+            return None
+        video_url = download_mod._embed_video_url(resolved)
+        if video_url is None:
+            return None
     return await download_mod._fetch_direct_media_bytes(
         video_url, MAX_GIF_SOURCE_VIDEO_BYTES
     )

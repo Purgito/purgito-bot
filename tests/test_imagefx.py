@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageSequence
 import cogs.download as download_mod
 import cogs.imagefx as imagefx_mod
 import image_filters
+import r2
 import video_filters
 from cogs.imagefx import (
     _GIF_EXTS,
@@ -364,6 +365,7 @@ class FakeContext:
         guild_id=1,
         guild_filesize_limit=25 * 1024 * 1024,
         channel_is_nsfw=False,
+        own_embeds=None,
     ):
         self.guild = (
             SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
@@ -372,7 +374,7 @@ class FakeContext:
         )
         self.author = author or FakeAuthor()
         self.message = SimpleNamespace(
-            attachments=attachments or [], reference=reference
+            attachments=attachments or [], reference=reference, embeds=own_embeds or []
         )
         self.channel = SimpleNamespace(
             fetch_message=self._fetch_message, is_nsfw=lambda: channel_is_nsfw
@@ -652,6 +654,96 @@ def test_resolve_video_bytes_no_confia_en_video_embebido_de_host_no_confiable():
     ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
 
     assert asyncio.run(_resolve_video_bytes(ctx)) is None
+
+
+def test_resolve_video_bytes_usa_el_video_embebido_del_propio_mensaje(monkeypatch):
+    # Si Discord ya desempaquetó un link del propio mensaje del comando
+    # (ej. "purgito gif <link>") antes de que el bot lo procese, no hace
+    # falta ir a buscar un mensaje respondido -- ni siquiera hace falta que
+    # haya uno.
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://cdn.discordapp.com/attachments/1/2/propio.mp4"
+        return b"video del propio embed"
+
+    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
+    ctx = FakeContext(
+        own_embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.discordapp.com/attachments/1/2/propio.mp4"
+                )
+            )
+        ]
+    )
+
+    data = asyncio.run(_resolve_video_bytes(ctx))
+
+    assert data == b"video del propio embed"
+
+
+def test_resolve_video_bytes_prioriza_el_embed_propio_sobre_el_del_reply(monkeypatch):
+    async def fake_fetch(url, max_bytes):
+        assert url == "https://cdn.discordapp.com/propio.mp4"
+        return b"del propio"
+
+    monkeypatch.setattr(download_mod, "_fetch_direct_media_bytes", fake_fetch)
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(url="https://cdn.discordapp.com/del-reply.mp4")
+            )
+        ],
+    )
+    ctx = FakeContext(
+        own_embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(url="https://cdn.discordapp.com/propio.mp4")
+            )
+        ],
+        reference=SimpleNamespace(resolved=referenced, message_id=1),
+    )
+
+    data = asyncio.run(_resolve_video_bytes(ctx))
+
+    assert data == b"del propio"
+
+
+def test_resolve_video_bytes_usa_proxy_url_para_video_embebido_de_otro_bot(monkeypatch):
+    # Caso reportado: "purgito gif" respondiendo al resultado de otro bot
+    # (ej. NotSoBot) cuyo embed apunta a SU PROPIO CDN, no al de Discord --
+    # Embed.video.url por sí solo fallaría _is_direct_media_host. Discord
+    # igual lo sirve al cliente vía su proxy de media (por eso "se ve
+    # perfecto" en Discord), y _embed_video_url ya prefiere ese proxy_url.
+    # Sin mockear _fetch_direct_media_bytes: confirma que el flujo completo
+    # (incluido el chequeo real de host) acepta el resultado.
+    class _Resp:
+        status_code = 200
+        headers = {}
+
+        def iter_content(self, chunk_size=None):
+            yield b"video de otro bot"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
+    referenced = SimpleNamespace(
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.notsobot.com/results/clip.mp4",
+                    proxy_url="https://media.discordapp.net/external/abc/clip.mp4",
+                )
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    data = asyncio.run(_resolve_video_bytes(ctx))
+
+    assert data == b"video de otro bot"
 
 
 # ── cogs/imagefx.py: _resolve_gif_source_image_bytes (fuente de imagen de
@@ -1152,6 +1244,53 @@ def test_gif_cmd_usa_el_video_embebido_si_el_mensaje_respondido_no_tiene_adjunto
             SimpleNamespace(
                 video=SimpleNamespace(
                     url="https://cdn.discordapp.com/attachments/1/2/clip.mp4"
+                )
+            )
+        ],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_usa_proxy_url_para_video_de_otro_bot_alojado_fuera_de_discord(
+    monkeypatch,
+):
+    """Mismo caso reportado que el test anterior, pero sin mockear
+    _fetch_direct_media_bytes: el embed de NotSoBot apunta a SU PROPIO CDN
+    (no a Discord) en Embed.video.url, y solo Embed.video.proxy_url cae en
+    un host de Discord -- confirma que el comando completo (incluido el
+    chequeo real de _is_direct_media_host) usa ese proxy_url en vez de
+    fallar con "necesito un video"."""
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+
+        def iter_content(self, chunk_size=None):
+            yield _make_test_video_bytes(duration=0.3, fps=6)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(r2, "fetch_public_url", lambda *a, **k: _Resp())
+
+    def fail_download(url, max_bytes):
+        raise AssertionError("no debería llamarse: el video vino del embed")
+
+    monkeypatch.setattr(download_mod, "_download_video", fail_download)
+    cog = _cog()
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[
+            SimpleNamespace(
+                video=SimpleNamespace(
+                    url="https://cdn.notsobot.com/results/clip.mp4",
+                    proxy_url="https://media.discordapp.net/external/abc/clip.mp4",
                 )
             )
         ],
