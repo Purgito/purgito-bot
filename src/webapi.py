@@ -248,7 +248,7 @@ from message_options import (
     validate_send_options,
     wants_custom_identity,
 )
-from utils import LRUDict
+from utils import LRUDict, keep_task_alive
 from webhook_identity import WebhookIdentityError, send_via_webhook
 import r2
 
@@ -3315,7 +3315,7 @@ async def _api_server_gifs_verify(request: web.Request, guild_id: int) -> web.Re
     task_manager = get_task_manager()
     task = task_manager.create(guild_id=guild_id, type="gif_health_check")
     await task_manager.start(task.id)
-    asyncio.create_task(_run_gif_health_check_task(guild_id, task.id))
+    keep_task_alive(asyncio.create_task(_run_gif_health_check_task(guild_id, task.id)))
     return web.json_response(
         {"started": True, "total": total, "checking": min(total, HEALTH_CHECK_BATCH)}
     )

@@ -55,7 +55,7 @@ from db import (
     seed_corpus_allowed_channels,
     upsert_channel_refeed_status,
 )
-from utils import LRUDict, chunk_message, has_admin_permission
+from utils import LRUDict, chunk_message, has_admin_permission, keep_task_alive
 
 log = logging.getLogger(__name__)
 
@@ -1965,7 +1965,7 @@ class Chat(commands.Cog):
             else:
                 await task_manager.complete(task.id)
 
-        asyncio.create_task(runner())
+        keep_task_alive(asyncio.create_task(runner()))
         return True
 
     @app_commands.command(

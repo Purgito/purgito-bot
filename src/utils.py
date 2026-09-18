@@ -1,11 +1,31 @@
 """Utilidades pequeñas compartidas entre cogs."""
 
+import asyncio
 import logging
 from collections import OrderedDict
 
 import discord
 
 log = logging.getLogger(__name__)
+
+# Referencias fuertes a Tasks fire-and-forget para que el GC no las cancele a
+# mitad de camino -- ver keep_task_alive().
+_pinned_background_tasks: set[asyncio.Task] = set()
+
+
+def keep_task_alive(task: asyncio.Task) -> asyncio.Task:
+    """Retiene una referencia fuerte a una Task fire-and-forget hasta que termine.
+
+    asyncio solo mantiene una referencia débil a las Tasks en vuelo (ver la nota
+    de la doc de create_task): una que no esté referenciada en ningún otro lado
+    puede ser recolectada por el GC en cualquier momento, incluso antes de
+    terminar, perdiendo el trabajo sin ningún error visible. Se llama envolviendo
+    el resultado de create_task()/ensure_future() en el sitio donde ya se crean
+    -- así un test que intercepte asyncio.create_task en el módulo original
+    (monkeypatch sobre <módulo>.asyncio) sigue funcionando igual."""
+    _pinned_background_tasks.add(task)
+    task.add_done_callback(_pinned_background_tasks.discard)
+    return task
 
 
 class LRUDict(OrderedDict):

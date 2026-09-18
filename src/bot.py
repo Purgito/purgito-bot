@@ -18,6 +18,7 @@ from discord.ext import commands
 import config  # ejecuta load_dotenv() al importarse
 import i18n
 import r2
+import utils
 import webapi
 from db import (
     DEFAULT_COMMAND_PREFIX,
@@ -216,7 +217,10 @@ def _register_shutdown_handlers(loop: asyncio.AbstractEventLoop) -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
             loop.add_signal_handler(
-                sig, lambda s=sig: asyncio.ensure_future(_handle_shutdown_signal(s))
+                sig,
+                lambda s=sig: utils.keep_task_alive(
+                    asyncio.ensure_future(_handle_shutdown_signal(s))
+                ),
             )
         except NotImplementedError:
             # Windows: loop.add_signal_handler no está soportado ahí: Ctrl+C

@@ -28,7 +28,7 @@ from db import (
 )
 from i18n import guild_locale, t
 from tasks import get_task_manager
-from utils import has_admin_permission
+from utils import has_admin_permission, keep_task_alive
 
 log = logging.getLogger(__name__)
 
@@ -489,7 +489,9 @@ async def get_live_gif(
         if data and is_valid_gif_bytes(data):
             await record_gif_health_check(gif_id, "ok")
             if r2.available() and not content_hash:
-                asyncio.create_task(_promote_gif_to_r2(gif_id, guild_id, data))
+                keep_task_alive(
+                    asyncio.create_task(_promote_gif_to_r2(gif_id, guild_id, data))
+                )
             return discord.File(io.BytesIO(data), filename="purgito.gif")
 
         # Si no se obtuvieron bytes válidos, registrar el estado de salud tri-estado
