@@ -874,7 +874,32 @@ def test_gif_cmd_usa_link_del_mensaje_respondido(monkeypatch):
     )
     cog = _cog()
     referenced = SimpleNamespace(
-        content="mira este reel https://instagram.com/reel/xyz", attachments=[]
+        content="mira este reel https://instagram.com/reel/xyz",
+        attachments=[],
+        embeds=[],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://instagram.com/reel/xyz"
+    assert len(ctx.reply_files) == 1
+
+
+def test_gif_cmd_usa_la_url_del_embed_si_el_mensaje_respondido_no_tiene_texto(
+    monkeypatch,
+):
+    """Ej. NotSoBot posteando un preview del video como embed puro, sin link
+    de texto ni adjunto de Discord -- ver docstring de _reply_target_url."""
+    seen: dict = {}
+    monkeypatch.setattr(
+        download_mod, "_download_video", _fake_download_video_factory(seen)
+    )
+    cog = _cog()
+    referenced = SimpleNamespace(
+        content="",
+        attachments=[],
+        embeds=[SimpleNamespace(url="https://instagram.com/reel/xyz")],
     )
     ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
 

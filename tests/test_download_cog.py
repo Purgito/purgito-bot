@@ -157,7 +157,9 @@ def test_dl_sin_link_propio_usa_el_link_del_mensaje_respondido(monkeypatch):
     caso de uso típico: alguien manda un link y minutos después otra persona
     responde con "purgito dl"."""
     cog = _cog()
-    referenced = SimpleNamespace(content="mira esto https://instagram.com/reel/xyz")
+    referenced = SimpleNamespace(
+        content="mira esto https://instagram.com/reel/xyz", embeds=[]
+    )
     ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
     seen: dict = {}
     monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
@@ -170,7 +172,9 @@ def test_dl_sin_link_propio_usa_el_link_del_mensaje_respondido(monkeypatch):
 
 def test_dl_prioriza_el_link_propio_sobre_el_del_mensaje_respondido(monkeypatch):
     cog = _cog()
-    referenced = SimpleNamespace(content="https://instagram.com/reel/del-otro-mensaje")
+    referenced = SimpleNamespace(
+        content="https://instagram.com/reel/del-otro-mensaje", embeds=[]
+    )
     ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
     seen: dict = {}
     monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
@@ -182,7 +186,7 @@ def test_dl_prioriza_el_link_propio_sobre_el_del_mensaje_respondido(monkeypatch)
 
 def test_dl_sin_link_ni_en_el_mensaje_respondido_responde_con_instrucciones():
     cog = _cog()
-    referenced = SimpleNamespace(content="che mira esto")
+    referenced = SimpleNamespace(content="che mira esto", embeds=[])
     ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
 
     asyncio.run(cog.dl.callback(cog, ctx, url=None))
@@ -212,7 +216,7 @@ def test_dl_busca_el_mensaje_respondido_con_fetch_si_no_esta_en_cache(monkeypatc
     cog = _cog()
     ctx = FakeContext(reference=SimpleNamespace(resolved=None, message_id=42))
     ctx._fetch_message_result = SimpleNamespace(
-        content="https://tiktok.com/@user/video/123"
+        content="https://tiktok.com/@user/video/123", embeds=[]
     )
     seen: dict = {}
     monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
@@ -220,6 +224,52 @@ def test_dl_busca_el_mensaje_respondido_con_fetch_si_no_esta_en_cache(monkeypatc
     asyncio.run(cog.dl.callback(cog, ctx, url=None))
 
     assert seen["url"] == "https://tiktok.com/@user/video/123"
+
+
+def test_dl_sin_link_en_el_texto_usa_la_url_del_embed_del_mensaje_respondido(
+    monkeypatch,
+):
+    """Bots que postean un preview del video (ej. NotSoBot) suelen mandarlo
+    como embed puro, sin el link en el texto del mensaje -- Embed.url tiene
+    la página de origen en ese caso."""
+    cog = _cog()
+    referenced = SimpleNamespace(
+        content="",
+        embeds=[SimpleNamespace(url="https://tiktok.com/@user/video/123")],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    seen: dict = {}
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://tiktok.com/@user/video/123"
+
+
+def test_dl_prioriza_el_link_del_texto_sobre_el_del_embed(monkeypatch):
+    cog = _cog()
+    referenced = SimpleNamespace(
+        content="https://instagram.com/reel/del-texto",
+        embeds=[SimpleNamespace(url="https://tiktok.com/@user/video/del-embed")],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+    seen: dict = {}
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory(seen))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert seen["url"] == "https://instagram.com/reel/del-texto"
+
+
+def test_dl_ignora_embed_sin_url():
+    cog = _cog()
+    referenced = SimpleNamespace(content="", embeds=[SimpleNamespace(url=None)])
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert len(ctx.replies) == 1
+    assert ctx.reply_files == []
 
 
 def test_dl_rechaza_link_de_sitio_no_soportado():
