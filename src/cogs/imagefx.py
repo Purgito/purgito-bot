@@ -485,6 +485,30 @@ async def _resolve_image_bytes(ctx: commands.Context) -> bytes:
     return await avatar.read()
 
 
+async def _resolve_image_or_gif_bytes(
+    ctx: commands.Context, allow_gif: bool = True
+) -> tuple[bytes, bool]:
+    """Fuente de los ~25 comandos de "Filtros de imagen" (Fase 1/2), ahora
+    también con GIF: intenta primero resolver un GIF (adjunto, reply o
+    embebido -- reutiliza _resolve_gif_bytes, que ya cubre Tenor/embeds/
+    Components V2) y, si no hay ninguno, cae al flujo de imagen estática de
+    siempre (_resolve_image_bytes: adjunto propio -> adjunto del reply ->
+    avatar). Devuelve (bytes, es_gif) para que el caller (ImageFx._run_filter)
+    elija entre aplicar el filtro una vez (PNG) o frame por frame
+    (image_filters.apply_per_frame, GIF de salida).
+
+    allow_gif=False lo saltea del todo -- lo usa "!triggered", que ya genera
+    su propio GIF corto (zoom + temblor) a partir de una imagen fija: correr
+    ese efecto frame por frame sobre un GIF de entrada anidaría una
+    animación dentro de otra sin necesidad real, y con un costo mucho más
+    alto (frames del GIF fuente × 8 sub-frames de triggered)."""
+    if allow_gif:
+        gif_data = await _resolve_gif_bytes(ctx)
+        if gif_data is not None:
+            return gif_data, True
+    return await _resolve_image_bytes(ctx), False
+
+
 async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
     """Adjunto propio -> adjunto del mensaje respondido -> GIF embebido
     (embed clásico, Components V2, o URL en el texto/embed) del mensaje
@@ -728,6 +752,7 @@ class ImageFx(commands.Cog):
         fn: Callable[..., bytes],
         *args,
         filename: str = "purgito.png",
+        animatable: bool = True,
     ) -> None:
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
         remaining = _check_fx_cooldown(ctx.author.id)
@@ -736,7 +761,7 @@ class ImageFx(commands.Cog):
             return
 
         try:
-            data = await _resolve_image_bytes(ctx)
+            data, is_gif = await _resolve_image_or_gif_bytes(ctx, allow_gif=animatable)
         except SourceTooLarge as e:
             await ctx.reply(
                 t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
@@ -744,6 +769,25 @@ class ImageFx(commands.Cog):
             return
         except discord.HTTPException:
             await ctx.reply(t("general.error.generic", locale))
+            return
+
+        if is_gif:
+            if not is_valid_gif_bytes(data):
+                await ctx.reply(t("imagefx.invalid_gif", locale))
+                return
+            try:
+                result = await asyncio.to_thread(
+                    image_filters.apply_per_frame, fn, data, *args
+                )
+            except Exception:
+                log.exception(
+                    "Error aplicando filtro de imagen a un GIF (%s)", fn.__name__
+                )
+                await ctx.reply(t("general.error.generic", locale))
+                return
+            await ctx.reply(
+                file=discord.File(io.BytesIO(result), filename="purgito.gif")
+            )
             return
 
         if not is_valid_image(data):
@@ -859,7 +903,9 @@ class ImageFx(commands.Cog):
 
     @commands.command(name="triggered")
     async def triggered_cmd(self, ctx: commands.Context):
-        await self._run_filter(ctx, image_filters.triggered, filename="purgito.gif")
+        await self._run_filter(
+            ctx, image_filters.triggered, filename="purgito.gif", animatable=False
+        )
 
     @commands.command(name="wasted")
     async def wasted_cmd(self, ctx: commands.Context):

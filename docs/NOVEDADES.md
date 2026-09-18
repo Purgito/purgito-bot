@@ -51,6 +51,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El filtro de HISTORIAL por tipo de acción suma opciones específicas para más cambios (exclusión de usuarios, prefijo de comandos, Twitch, canales de menciones, canal de novedades, frases), antes solo visibles agrupados en "Todas las acciones".
 - El dashboard carga más rápido, sobre todo la primera vez que se abre en una sesión.
 - `!gif` ahora también convierte una imagen (PNG, JPG o WEBP) en GIF, no solo un video -- adjunta, del mensaje que respondas, o embebida en el resultado de otro bot.
+- Los comandos de edición de imagen (`!deepfry`, `!caption`, `!wide`, `!invert` y el resto -- lista completa en `/help`) ahora también aceptan un GIF como fuente, no solo una imagen fija: el efecto se aplica a cada cuadro y el resultado sale animado. `!triggered` sigue usando siempre una imagen fija, porque ya genera su propio GIF corto.
 
 ### Corregido
 - El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.
