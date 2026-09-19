@@ -14,7 +14,10 @@ PURGITO_COLOR = 0x8B00FF  # color de marca usado en todo el proyecto
 # Estructura (sin texto traducible): emoji, orden de los botones y, por
 # categoría, la lista de (comando literal, clave de i18n de su descripción).
 # El texto real (labels, intros, descripciones) vive en locales/{es,en}.json
-# bajo "help.cat.<key>.*" -- ver build_category_embed/HelpView.
+# bajo "help.cat.<key>.*" -- ver build_category_embed/HelpView. Los comandos
+# de prefijo usan el placeholder "{prefix}" en vez de "!" literal: el símbolo
+# es personalizable por guild (ver get_guild_prefix en db.py) y build_category_embed
+# lo resuelve con .format() antes de mostrarlo.
 CATEGORIES = {
     "chat": {
         "emoji": "💬",
@@ -25,7 +28,7 @@ CATEGORIES = {
             ("/imitar_mezcla", "help.cat.chat.cmd.imitar_mezcla"),
             ("/corpus_info", "help.cat.chat.cmd.corpus_info"),
             ("/settings", "help.cat.chat.cmd.settings"),
-            ("!dl <link> · purgito dl <link>", "help.cat.chat.cmd.dl"),
+            ("{prefix}dl <link> · purgito dl <link>", "help.cat.chat.cmd.dl"),
         ],
     },
     "admin": {
@@ -36,7 +39,7 @@ CATEGORIES = {
             ("/settings", "help.cat.admin.cmd.settings"),
             ("/refeed", "help.cat.admin.cmd.refeed"),
             ("/refeed_channels", "help.cat.admin.cmd.refeed_channels"),
-            ("!ping", "help.cat.admin.cmd.ping"),
+            ("{prefix}ping", "help.cat.admin.cmd.ping"),
         ],
     },
     "memes": {
@@ -75,38 +78,38 @@ CATEGORIES = {
         "row": 1,
         "intro_key": "help.cat.imagen.intro",
         "commands": [
-            ("!caption <arriba>|<abajo>", "help.cat.imagen.cmd.caption"),
-            ("!deepfry", "help.cat.imagen.cmd.deepfry"),
-            ("!wide", "help.cat.imagen.cmd.wide"),
-            ("!squish", "help.cat.imagen.cmd.squish"),
-            ("!invert", "help.cat.imagen.cmd.invert"),
-            ("!greyscale", "help.cat.imagen.cmd.greyscale"),
-            ("!sepia", "help.cat.imagen.cmd.sepia"),
-            ("!pixelate", "help.cat.imagen.cmd.pixelate"),
-            ("!rotate <grados>", "help.cat.imagen.cmd.rotate"),
-            ("!flip", "help.cat.imagen.cmd.flip"),
-            ("!flop", "help.cat.imagen.cmd.flop"),
-            ("!circle", "help.cat.imagen.cmd.circle"),
-            ("!blur", "help.cat.imagen.cmd.blur"),
-            ("!sharpen", "help.cat.imagen.cmd.sharpen"),
-            ("!triggered", "help.cat.imagen.cmd.triggered"),
-            ("!wasted", "help.cat.imagen.cmd.wasted"),
-            ("!trash", "help.cat.imagen.cmd.trash"),
-            ("!communism", "help.cat.imagen.cmd.communism"),
-            ("!gay", "help.cat.imagen.cmd.gay"),
-            ("!jail", "help.cat.imagen.cmd.jail"),
-            ("!wanted", "help.cat.imagen.cmd.wanted"),
-            ("!rip", "help.cat.imagen.cmd.rip"),
-            ("!america", "help.cat.imagen.cmd.america"),
-            ("!polaroid", "help.cat.imagen.cmd.polaroid"),
-            ("!poster", "help.cat.imagen.cmd.poster"),
-            ("!threshold", "help.cat.imagen.cmd.threshold"),
-            ("!emboss", "help.cat.imagen.cmd.emboss"),
-            ("!gif", "help.cat.imagen.cmd.gif"),
-            ("!gifcaption <arriba>|<abajo>", "help.cat.imagen.cmd.gifcaption"),
-            ("!gifspeed <factor>", "help.cat.imagen.cmd.gifspeed"),
-            ("!gifreverse", "help.cat.imagen.cmd.gifreverse"),
-            ("!gifwide", "help.cat.imagen.cmd.gifwide"),
+            ("{prefix}caption <arriba>|<abajo>", "help.cat.imagen.cmd.caption"),
+            ("{prefix}deepfry", "help.cat.imagen.cmd.deepfry"),
+            ("{prefix}wide", "help.cat.imagen.cmd.wide"),
+            ("{prefix}squish", "help.cat.imagen.cmd.squish"),
+            ("{prefix}invert", "help.cat.imagen.cmd.invert"),
+            ("{prefix}greyscale", "help.cat.imagen.cmd.greyscale"),
+            ("{prefix}sepia", "help.cat.imagen.cmd.sepia"),
+            ("{prefix}pixelate", "help.cat.imagen.cmd.pixelate"),
+            ("{prefix}rotate <grados>", "help.cat.imagen.cmd.rotate"),
+            ("{prefix}flip", "help.cat.imagen.cmd.flip"),
+            ("{prefix}flop", "help.cat.imagen.cmd.flop"),
+            ("{prefix}circle", "help.cat.imagen.cmd.circle"),
+            ("{prefix}blur", "help.cat.imagen.cmd.blur"),
+            ("{prefix}sharpen", "help.cat.imagen.cmd.sharpen"),
+            ("{prefix}triggered", "help.cat.imagen.cmd.triggered"),
+            ("{prefix}wasted", "help.cat.imagen.cmd.wasted"),
+            ("{prefix}trash", "help.cat.imagen.cmd.trash"),
+            ("{prefix}communism", "help.cat.imagen.cmd.communism"),
+            ("{prefix}gay", "help.cat.imagen.cmd.gay"),
+            ("{prefix}jail", "help.cat.imagen.cmd.jail"),
+            ("{prefix}wanted", "help.cat.imagen.cmd.wanted"),
+            ("{prefix}rip", "help.cat.imagen.cmd.rip"),
+            ("{prefix}america", "help.cat.imagen.cmd.america"),
+            ("{prefix}polaroid", "help.cat.imagen.cmd.polaroid"),
+            ("{prefix}poster", "help.cat.imagen.cmd.poster"),
+            ("{prefix}threshold", "help.cat.imagen.cmd.threshold"),
+            ("{prefix}emboss", "help.cat.imagen.cmd.emboss"),
+            ("{prefix}gif", "help.cat.imagen.cmd.gif"),
+            ("{prefix}gifcaption <arriba>|<abajo>", "help.cat.imagen.cmd.gifcaption"),
+            ("{prefix}gifspeed <factor>", "help.cat.imagen.cmd.gifspeed"),
+            ("{prefix}gifreverse", "help.cat.imagen.cmd.gifreverse"),
+            ("{prefix}gifwide", "help.cat.imagen.cmd.gifwide"),
         ],
     },
 }
@@ -129,15 +132,17 @@ def build_intro_embed(guild_name: str, locale: str = DEFAULT_LOCALE) -> discord.
 
 
 def build_category_embed(
-    key: str, guild_name: str, locale: str = DEFAULT_LOCALE
+    key: str, guild_name: str, prefix: str, locale: str = DEFAULT_LOCALE
 ) -> discord.Embed:
     cat = CATEGORIES[key]
     lines = []
     if "intro_key" in cat:
-        lines.append(t(cat["intro_key"], locale, url=PANEL_URL))
+        lines.append(t(cat["intro_key"], locale, url=PANEL_URL, prefix=prefix))
         lines.append("")
     for cmd, desc_key in cat["commands"]:
-        lines.append(f"`{cmd}` — {t(desc_key, locale)}")
+        lines.append(
+            f"`{cmd.format(prefix=prefix)}` — {t(desc_key, locale, prefix=prefix)}"
+        )
     title = f"{cat['emoji']} {t(f'help.cat.{key}.label', locale)}"
     embed = discord.Embed(
         title=title, description="\n".join(lines), color=PURGITO_COLOR
@@ -151,12 +156,14 @@ class HelpView(SafeView):
         self,
         author_id: int,
         guild_name: str,
+        prefix: str,
         locale: str = DEFAULT_LOCALE,
         timeout: float = 180.0,
     ):
         super().__init__(timeout=timeout)
         self.author_id = author_id
         self.guild_name = guild_name
+        self.prefix = prefix
         self.locale = locale
         self.message: discord.Message | None = None
 
@@ -188,7 +195,7 @@ class HelpView(SafeView):
 
     def _make_category_callback(self, key: str):
         async def callback(interaction: discord.Interaction):
-            embed = build_category_embed(key, self.guild_name, self.locale)
+            embed = build_category_embed(key, self.guild_name, self.prefix, self.locale)
             await interaction.response.edit_message(embed=embed, view=self)
 
         return callback
