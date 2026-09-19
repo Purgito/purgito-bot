@@ -510,24 +510,70 @@ async def _resolve_image_or_gif_bytes(
     return await _resolve_image_bytes(ctx), False
 
 
+async def _as_gif_bytes(data: bytes) -> bytes | None:
+    """Acepta `data` como fuente de "un GIF" para _resolve_gif_bytes: si ya
+    es un GIF real (firma GIF87a/GIF89a) se devuelve tal cual. Si no, se
+    descarta directo cuando es una imagen estática válida (evita que un
+    thumbnail PNG de un embed se cuele como si fuera video -- mismo criterio
+    que ya usa _resolve_video_bytes para no confundir la miniatura con el
+    video real) y, para cualquier otra cosa, se prueba la misma conversión
+    que usa "!gif" (video_filters.convert_video_to_gif): gran parte de lo
+    que la gente comparte como "un GIF" en Discord en realidad es un archivo
+    de video (mp4/webm) que loopea igual -- Twitter/Reddit transcodean a
+    video los GIFs que se suben, y esa es la copia que circula -- así que
+    sin este paso ese archivo se descartaba en silencio aunque el mensaje se
+    viera exactamente igual a un GIF real. VideoConversionFailed solo
+    significa que tampoco era un video utilizable: None, para que el caller
+    siga probando el próximo candidato. GifTooLarge se deja propagar -- acá
+    sí hay una fuente real, así que el caller la trata como error propio en
+    vez de como "no encontré nada"."""
+    if is_valid_gif_bytes(data):
+        return data
+    if is_valid_image(data):
+        return None
+    try:
+        return await asyncio.to_thread(
+            video_filters.convert_video_to_gif,
+            data,
+            GIF_MAX_DURATION_SECONDS,
+            IMAGEFX_MAX_BYTES,
+        )
+    except video_filters.VideoConversionFailed:
+        return None
+
+
 async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
-    """Adjunto propio -> adjunto del mensaje respondido -> GIF embebido
+    """Adjunto propio (GIF real o video que se ve como uno) -> mismo par de
+    opciones en el adjunto del mensaje respondido -> GIF o video embebido
     (embed clásico, Components V2, o URL en el texto/embed) del mensaje
     actual o del respondido -- ej. un GIF mandado con el selector de Tenor
     de Discord no llega como adjunto real, llega como embed, así que sin
     este fallback "responder a un mensaje con un GIF" fallaba para
     !gifwide/!gifspeed/!gifreverse/!gifcaption aunque el GIF estuviera a la
     vista (mismo bug que _resolve_video_bytes/_resolve_gif_source_image_bytes
-    ya cubren para "!gif"). Cada candidato se valida con is_valid_gif_bytes
-    antes de aceptarlo, para no colar un video o una imagen estática
-    embebidos en el mismo mensaje. A diferencia de _resolve_image_bytes, sin
-    fallback a avatar (no hay "avatar en GIF" que tenga sentido usar acá) --
-    None significa "no hay nada para editar"."""
+    ya cubren para "!gif"). Cada candidato pasa por _as_gif_bytes en vez de
+    un chequeo directo de is_valid_gif_bytes -- ver su docstring: además de
+    validar, ahí es donde se resuelve el caso de un video (mp4/webm) que
+    visualmente es indistinguible de un GIF (sin sonido, en loop) pero no
+    tiene el contenedor de GIF real, ej. algo re-subido desde Twitter/Reddit.
+    A diferencia de _resolve_image_bytes, sin fallback a avatar (no hay
+    "avatar en GIF" que tenga sentido usar acá) -- None significa "no hay
+    nada para editar"."""
     attachment = await _find_attachment(ctx, _GIF_EXTS, content_type_prefix="image/gif")
     if attachment is not None:
         if attachment.size > IMAGEFX_MAX_BYTES:
             raise SourceTooLarge(IMAGEFX_MAX_BYTES)
         return await attachment.read()
+
+    video_attachment = await _find_attachment(
+        ctx, _VIDEO_EXTS, content_type_prefix="video/"
+    )
+    if video_attachment is not None:
+        if video_attachment.size > MAX_GIF_SOURCE_VIDEO_BYTES:
+            raise SourceTooLarge(MAX_GIF_SOURCE_VIDEO_BYTES)
+        converted = await _as_gif_bytes(await video_attachment.read())
+        if converted is not None:
+            return converted
 
     if ctx.message.attachments:
         return None
@@ -546,8 +592,10 @@ async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
             data = await _resolve_component_media_bytes(
                 message, media_url, IMAGEFX_MAX_BYTES
             )
-            if data is not None and is_valid_gif_bytes(data):
-                return data
+            if data is not None:
+                converted = await _as_gif_bytes(data)
+                if converted is not None:
+                    return converted
 
     candidates: list[str] = []
     for message in await _source_messages(ctx):
@@ -562,8 +610,10 @@ async def _resolve_gif_bytes(ctx: commands.Context) -> bytes | None:
                 continue
             seen_urls.add(clean)
             data = await _fetch_media_bytes(clean, IMAGEFX_MAX_BYTES)
-            if data is not None and is_valid_gif_bytes(data):
-                return data
+            if data is not None:
+                converted = await _as_gif_bytes(data)
+                if converted is not None:
+                    return converted
 
     return None
 
@@ -768,6 +818,15 @@ class ImageFx(commands.Cog):
                 t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
             )
             return
+        except video_filters.GifTooLarge as e:
+            await ctx.reply(
+                t(
+                    "imagefx.gif_output_too_large",
+                    locale,
+                    mb=e.max_bytes // (1024 * 1024),
+                )
+            )
+            return
         except discord.HTTPException:
             await ctx.reply(t("general.error.generic", locale))
             return
@@ -818,6 +877,15 @@ class ImageFx(commands.Cog):
         except SourceTooLarge as e:
             await ctx.reply(
                 t("imagefx.too_large", locale, mb=e.max_bytes // (1024 * 1024))
+            )
+            return
+        except video_filters.GifTooLarge as e:
+            await ctx.reply(
+                t(
+                    "imagefx.gif_output_too_large",
+                    locale,
+                    mb=e.max_bytes // (1024 * 1024),
+                )
             )
             return
         except discord.HTTPException:

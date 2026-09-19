@@ -623,6 +623,97 @@ def test_resolve_gif_bytes_prioriza_el_adjunto_sobre_el_gif_embebido(monkeypatch
     assert asyncio.run(_resolve_gif_bytes(ctx)) == b"adjunto propio"
 
 
+def test_resolve_gif_bytes_convierte_un_adjunto_de_video_propio():
+    # El bug reportado: muchos archivos que se comparten como "un GIF" en
+    # Discord (loop, sin sonido) en realidad son un video -- típico de algo
+    # re-subido desde Twitter/Reddit, que transcodean a mp4/webm los GIFs
+    # que se suben. Antes de este fallback, _resolve_gif_bytes solo miraba
+    # la extensión ".gif"/content-type "image/gif" y esto se descartaba en
+    # silencio.
+    video_bytes = _make_test_video_bytes(duration=0.5, fps=8)
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)]
+    )
+
+    data = asyncio.run(_resolve_gif_bytes(ctx))
+
+    assert data is not None
+    with Image.open(io.BytesIO(data)) as img:
+        assert img.format == "GIF"
+        assert img.is_animated
+
+
+def test_resolve_gif_bytes_convierte_el_adjunto_de_video_del_mensaje_respondido():
+    # Mismo caso, como reply -- el escenario exacto del reporte:
+    # "!gifwide" respondiendo a un mensaje cuyo adjunto es un video que se ve
+    # como un GIF.
+    video_bytes = _make_test_video_bytes(duration=0.5, fps=8)
+    referenced = SimpleNamespace(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)],
+        embeds=[],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    data = asyncio.run(_resolve_gif_bytes(ctx))
+
+    assert data is not None
+    with Image.open(io.BytesIO(data)) as img:
+        assert img.format == "GIF"
+
+
+def test_resolve_gif_bytes_prioriza_el_gif_real_sobre_un_adjunto_de_video():
+    ctx = FakeContext(
+        attachments=[
+            FakeAttachment(filename="a.gif", data=_gif_bytes()),
+            FakeAttachment(filename="clip.mp4", data=b"no deberia leerse"),
+        ]
+    )
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) == _gif_bytes()
+
+
+def test_resolve_gif_bytes_ignora_un_adjunto_de_video_no_decodificable():
+    # Extensión/content-type de video pero contenido que ffmpeg no puede
+    # decodificar -- no debe reventar, sigue el flujo normal de "no
+    # encontré nada".
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=b"esto no es un video")]
+    )
+
+    assert asyncio.run(_resolve_gif_bytes(ctx)) is None
+
+
+def test_resolve_gif_bytes_rechaza_adjunto_de_video_demasiado_grande():
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", size=999_999_999)]
+    )
+
+    with pytest.raises(SourceTooLarge):
+        asyncio.run(_resolve_gif_bytes(ctx))
+
+
+def test_as_gif_bytes_no_reconvierte_un_gif_real(monkeypatch):
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("no deberia intentar convertir un GIF que ya es valido")
+
+    monkeypatch.setattr(video_filters, "convert_video_to_gif", fail_if_called)
+
+    gif_data = _gif_bytes()
+    assert asyncio.run(imagefx_mod._as_gif_bytes(gif_data)) == gif_data
+
+
+def test_as_gif_bytes_no_convierte_una_imagen_estatica(monkeypatch):
+    # Un thumbnail/imagen embebida no es "un video que parece un GIF" --
+    # sin este chequeo, ffmpeg puede decodificar un PNG como un video de un
+    # solo frame y colarlo como si fuera el GIF buscado.
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("no deberia intentar convertir una imagen estatica")
+
+    monkeypatch.setattr(video_filters, "convert_video_to_gif", fail_if_called)
+
+    assert asyncio.run(imagefx_mod._as_gif_bytes(_png_bytes())) is None
+
+
 def test_resolve_video_bytes_sin_adjunto_ni_reply_devuelve_none():
     ctx = FakeContext()
 
@@ -1131,6 +1222,26 @@ def test_caption_acepta_un_gif_y_responde_con_un_gif():
     assert ctx.reply_files[0].filename == "purgito.gif"
 
 
+def test_wide_acepta_un_video_que_se_ve_como_gif_en_vez_de_caer_al_avatar():
+    # Mismo caso que el bug reportado, para uno de los ~25 filtros de
+    # imagen (Fase 1/2): comparten _resolve_gif_bytes vía
+    # _resolve_image_or_gif_bytes, así que sin este fallback no fallaban con
+    # un error -- caían en silencio al avatar de quien invoca (peor: ningún
+    # aviso de que se ignoró el adjunto).
+    cog = _cog()
+    video_bytes = _make_test_video_bytes(duration=0.5, fps=8)
+    referenced = SimpleNamespace(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)],
+        embeds=[],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.wide_cmd.callback(cog, ctx, factor=2.0))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
 def test_filtro_sin_gif_de_por_medio_sigue_devolviendo_png():
     # Comportamiento sin cambios cuando no hay ningún GIF en la fuente.
     cog = _cog()
@@ -1240,6 +1351,24 @@ def test_gifwide_camino_feliz_responde_con_archivo():
 
     asyncio.run(cog.gifwide_cmd.callback(cog, ctx))
 
+    assert len(ctx.reply_files) == 1
+
+
+def test_gifwide_acepta_un_video_que_se_ve_como_gif_del_mensaje_respondido():
+    # Reproduce el bug reportado end-to-end: "!gifwide" respondiendo a un
+    # mensaje con un adjunto de video (no ".gif") debe generar el GIF, no
+    # pedir uno que en los hechos ya está ahí.
+    cog = _cog()
+    video_bytes = _make_test_video_bytes(duration=0.5, fps=8)
+    referenced = SimpleNamespace(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)],
+        embeds=[],
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.gifwide_cmd.callback(cog, ctx))
+
+    assert ctx.replies == []
     assert len(ctx.reply_files) == 1
 
 
