@@ -35,6 +35,7 @@ from cogs.imagefx import (
     _resolve_image_bytes,
     _resolve_image_or_gif_bytes,
     _resolve_video_bytes,
+    _source_messages,
 )
 
 
@@ -369,6 +370,7 @@ class FakeContext:
         channel_is_nsfw=False,
         channel_id=None,
         bot=None,
+        message_snapshots=None,
     ):
         self.guild = (
             SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
@@ -381,6 +383,10 @@ class FakeContext:
             reference=reference,
             content=content,
             embeds=embeds or [],
+            # Reenvío (botón "Reenviar mensaje"): el contenido reenviado va
+            # acá, no en attachments/embeds -- ver MessageSource en
+            # cogs/imagefx.py.
+            message_snapshots=message_snapshots or [],
         )
         self.channel = SimpleNamespace(
             fetch_message=self._fetch_message,
@@ -505,6 +511,47 @@ def test_find_attachment_busca_con_fetch_si_el_reply_no_esta_en_cache():
     attachment = asyncio.run(_find_attachment(ctx, _IMAGE_EXTS))
 
     assert asyncio.run(attachment.read()) == b"fetch"
+
+
+def test_source_messages_expande_los_message_snapshots_de_un_reenvio():
+    # El contenido de un mensaje reenviado (botón "Reenviar mensaje" de
+    # Discord) vive en message.message_snapshots, no en
+    # message.attachments/.embeds -- _source_messages tiene que exponer esos
+    # snapshots para que _find_attachment y el resto de los helpers (que ya
+    # leen .attachments/.embeds con getattr) los encuentren sin cambios
+    # propios.
+    own_snapshot = SimpleNamespace(attachments=[], embeds=[], content="propio")
+    ctx = FakeContext(message_snapshots=[own_snapshot])
+    ctx.message.content = "!gay"
+    referenced_snapshot = SimpleNamespace(attachments=[], embeds=[], content="reply")
+    referenced = SimpleNamespace(
+        attachments=[], embeds=[], message_snapshots=[referenced_snapshot]
+    )
+    ctx.message.reference = SimpleNamespace(resolved=referenced, message_id=1)
+
+    sources = asyncio.run(_source_messages(ctx))
+
+    assert sources == [ctx.message, own_snapshot, referenced, referenced_snapshot]
+
+
+def test_find_attachment_encuentra_el_adjunto_dentro_de_un_reenvio_respondido():
+    # El escenario exacto del reporte: "!gay" respondiendo a un mensaje (de
+    # otro bot, en el caso reportado) que reenvía un GIF. El mensaje
+    # respondido en sí no tiene attachments propios -- van en el
+    # MessageSnapshot de message_snapshots.
+    snapshot = SimpleNamespace(
+        attachments=[FakeAttachment(filename="a.gif", data=b"del reenvio")],
+        embeds=[],
+    )
+    referenced = SimpleNamespace(
+        attachments=[], embeds=[], message_snapshots=[snapshot]
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    attachment = asyncio.run(_find_attachment(ctx, _GIF_EXTS))
+
+    assert attachment is not None
+    assert asyncio.run(attachment.read()) == b"del reenvio"
 
 
 def test_resolve_image_bytes_usa_el_avatar_si_no_hay_adjunto():
@@ -1197,6 +1244,36 @@ def test_resolve_image_or_gif_bytes_allow_gif_false_ignora_el_gif_adjunto():
     assert data == b"avatar-bytes"
 
 
+def test_resolve_image_or_gif_bytes_reconoce_un_gif_con_extension_mentirosa():
+    # _resolve_gif_bytes solo encuentra un adjunto por ".gif"/"image/gif" (o
+    # un video convertible) -- un GIF real subido con una extensión de
+    # imagen estática (ej. Discord nombra "image.png" lo que se pega desde
+    # el portapapeles, sea cual sea el formato real) no matchea ninguno de
+    # esos casos y termina en _resolve_image_bytes bajo una extensión
+    # mentirosa. Antes de este chequeo, is_valid_image lo rechazaba (GIF no
+    # está en _ALLOWED_FORMATS de meme_generator.py) con "formato no
+    # compatible" en vez de aplicar el filtro.
+    gif_data = _gif_bytes()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="image.png", data=gif_data)])
+
+    data, is_gif = asyncio.run(_resolve_image_or_gif_bytes(ctx))
+
+    assert is_gif is True
+    assert data == gif_data
+
+
+def test_resolve_image_or_gif_bytes_allow_gif_false_ignora_el_gif_con_extension_mentirosa():
+    # Mismo caso que el anterior, pero con allow_gif=False ("!triggered"):
+    # no debe reconocer el GIF ni con la extensión mentirosa.
+    gif_data = _gif_bytes()
+    ctx = FakeContext(attachments=[FakeAttachment(filename="image.png", data=gif_data)])
+
+    data, is_gif = asyncio.run(_resolve_image_or_gif_bytes(ctx, allow_gif=False))
+
+    assert is_gif is False
+    assert data == gif_data
+
+
 # ── cogs/imagefx.py: comandos de "Filtros de imagen" (Fase 1/2) aceptando
 # GIF además de imagen estática, end-to-end ──────────────────────────────────
 
@@ -1240,6 +1317,67 @@ def test_wide_acepta_un_video_que_se_ve_como_gif_en_vez_de_caer_al_avatar():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gay_acepta_un_gif_reenviado_en_el_mensaje_respondido():
+    # El bug reportado: "!gay" respondiendo a un mensaje que reenvía (botón
+    # "Reenviar mensaje" de Discord) un GIF -- en el reporte, el mensaje de
+    # otro bot reenviándolo. Antes de este fix, el mensaje respondido no
+    # tenía attachments propios (van en message_snapshots), así que el
+    # filtro no encontraba nada, caía al flujo de imagen estática y
+    # terminaba respondiendo "formato no compatible" en vez de aplicar el
+    # filtro al GIF.
+    cog = _cog()
+    gif_data = _gif_bytes()
+    snapshot = SimpleNamespace(
+        attachments=[FakeAttachment(filename="a.gif", data=gif_data)], embeds=[]
+    )
+    referenced = SimpleNamespace(
+        attachments=[], embeds=[], message_snapshots=[snapshot]
+    )
+    ctx = FakeContext(reference=SimpleNamespace(resolved=referenced, message_id=1))
+
+    asyncio.run(cog.gay_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+    assert ctx.replies == []
+
+
+def test_gay_acepta_un_gif_reenviado_como_comentario_del_propio_comando():
+    # Mismo mecanismo que el test anterior, pero reenviando el GIF con
+    # "!gay" como comentario propio en vez de responder a otro mensaje --
+    # ahí el reenvío está en ctx.message.message_snapshots.
+    cog = _cog()
+    gif_data = _gif_bytes()
+    snapshot = SimpleNamespace(
+        attachments=[FakeAttachment(filename="a.gif", data=gif_data)], embeds=[]
+    )
+    ctx = FakeContext(content="!gay", message_snapshots=[snapshot])
+
+    asyncio.run(cog.gay_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gay_acepta_un_gif_subido_con_extension_de_imagen_estatica():
+    # Otra forma real de terminar sin un ".gif"/"image/gif" que matchee:
+    # el cliente sube el GIF con una extensión de imagen estática (ej.
+    # "image.png", lo típico al pegar desde el portapapeles en vez de
+    # adjuntar el archivo) -- el contenido SÍ es un GIF real, pero antes de
+    # este fix is_valid_image lo rechazaba (GIF no está en _ALLOWED_FORMATS)
+    # con el mismo "formato no compatible" del reporte.
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="image.png", data=_gif_bytes())]
+    )
+
+    asyncio.run(cog.gay_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+    assert ctx.replies == []
 
 
 def test_filtro_sin_gif_de_por_medio_sigue_devolviendo_png():

@@ -75,6 +75,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Role pickers (Manager role, YouTube/Twitch/RSS mention role, Layout V2 role buttons) now flag it when the chosen role gets deleted, instead of looking like nothing was ever picked.
 - Removed the Memes entry from the dashboard menu — it didn't show any real functionality.
 - `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption`, and the image-editing commands now recognize a GIF even when it's actually a video that looks the same (common with something reposted from Twitter or Reddit) — they used to ask for a GIF, or the image filters would silently use your avatar instead, even though the message showed exactly what a real GIF looks like.
+- The image-editing commands now recognize a GIF when replying to a message that forwards it (Discord's "Forward" feature) or one uploaded with an image extension instead of GIF (common when pasting it from the clipboard) — they used to silently use your avatar, or reject the file as an unsupported format, even though the GIF was right there.
 
 ## Version 1.1.0 — June 28, 2026
 

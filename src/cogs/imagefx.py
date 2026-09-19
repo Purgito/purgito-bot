@@ -22,10 +22,20 @@ rompió en producción cuando faltaba:
   reutilización de !dl en vez de solucionar el bug real, y los pasos de GET
   directo (_embed_video_urls, _fetch_media_bytes) siguen sin poder nada
   contra esos cuatro sitios.
+- Reenvíos (botón "Reenviar mensaje" de Discord): el contenido de un mensaje
+  reenviado no vive en message.attachments/.embeds/.content -- vacíos por
+  default en ese caso -- sino en message.message_snapshots (uno o más
+  MessageSnapshot con esos mismos campos). _source_messages ya expande esto
+  para el mensaje propio y el respondido, así que ningún otro helper
+  necesita distinguir un reenvío de un mensaje normal -- pero si algo deja
+  de pasar por _source_messages y lee message.attachments/.embeds directo,
+  "!gay" (o cualquier otro filtro) respondiendo a un reenvío de un GIF (ej.
+  el mensaje de otro bot reenviándolo) vuelve a fallar en silencio, como en
+  el bug reportado.
 
-Si volvés a tocar esto: no saques ninguno de los dos, ambos ya se sacaron
-una vez por error y reintrodujeron el bug reportado ("!gif" pide un video
-aunque el mensaje tenga uno a la vista).
+Si volvés a tocar esto: no saques ninguno de los tres, los primeros dos ya
+se sacaron una vez por error y reintrodujeron el bug reportado ("!gif" pide
+un video aunque el mensaje tenga uno a la vista).
 """
 
 import asyncio
@@ -54,6 +64,15 @@ from meme_generator import is_valid_image
 from utils import LRUDict
 
 log = logging.getLogger(__name__)
+
+# Elemento de _source_messages(): un discord.Message real o, cuando ese
+# mensaje es un reenvío (botón "Reenviar mensaje" de Discord), uno de sus
+# MessageSnapshot. Discord NO pone el contenido reenviado en
+# message.attachments/.embeds/.content -- eso queda vacío -- sino en
+# message.message_snapshots. MessageSnapshot expone esos mismos cuatro
+# atributos (.attachments/.embeds/.content/.components), así que todo lo que
+# ya los lee con getattr(...) funciona igual sin distinguir uno de otro.
+MessageSource = discord.Message | discord.MessageSnapshot
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 _GIF_EXTS = {".gif"}
@@ -124,7 +143,10 @@ async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
     Si Discord mandó un snapshot parcial en `referenced_message` o el mensaje
     estaba en caché antes de que Discord generase los embeds (unfurl
     asíncrono), intenta un `fetch_message` para obtener la versión completa con
-    embeds y adjuntos.
+    embeds y adjuntos. message_snapshots (plural, distinto del "snapshot
+    parcial" de arriba -- ver MessageSource) también cuenta como "ya está
+    completo": un mensaje que reenvía algo no tiene attachments/embeds
+    propios ni falta que tenerlos para estar completo.
     """
     reference = getattr(ctx.message, "reference", None)
     if reference is None:
@@ -137,6 +159,7 @@ async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
     needs_fetch = resolved is None or (
         not getattr(resolved, "attachments", None)
         and not getattr(resolved, "embeds", None)
+        and not getattr(resolved, "message_snapshots", None)
     )
     if needs_fetch and message_id is not None:
         channel = ctx.channel
@@ -163,16 +186,26 @@ async def _resolve_reference(ctx: commands.Context) -> discord.Message | None:
     return resolved
 
 
-async def _source_messages(ctx: commands.Context) -> list[discord.Message]:
-    """Mensaje actual primero y, si existe, el mensaje al que se responde."""
-    messages = [ctx.message]
-    referenced = await _resolve_reference(ctx)
-    if referenced is not None:
-        messages.append(referenced)
+async def _source_messages(ctx: commands.Context) -> list[MessageSource]:
+    """Mensaje actual primero (y, si es un reenvío, sus MessageSnapshot justo
+    después) y, si existe, el mensaje al que se responde (mismo trato: él
+    mismo y después sus propios MessageSnapshot si también es un reenvío).
+
+    Un MessageSnapshot no es un discord.Message real -- ver MessageSource --
+    pero expone .attachments/.embeds/.content/.components, así que agregarlo
+    acá alcanza para que _find_attachment y los demás helpers de este módulo
+    (todos leen esos campos con getattr) encuentren el contenido de un
+    reenvío sin ningún cambio propio."""
+    messages: list[MessageSource] = []
+    for message in (ctx.message, await _resolve_reference(ctx)):
+        if message is None:
+            continue
+        messages.append(message)
+        messages.extend(getattr(message, "message_snapshots", None) or ())
     return messages
 
 
-def _embed_media_urls(message: discord.Message, attributes: tuple[str, ...]):
+def _embed_media_urls(message: MessageSource, attributes: tuple[str, ...]):
     """Entrega todas las URLs de medio que Discord expone en sus embeds.
 
     Los embeds no tienen una forma única: según el proveedor y el tipo,
@@ -237,13 +270,13 @@ def _embed_url_texts_single(embed: discord.Embed):
             log.debug("No se pudo serializar embed para !gif", exc_info=True)
 
 
-def _embed_url_texts(message: discord.Message):
+def _embed_url_texts(message: MessageSource):
     """Expone las URLs y texto serializado de cualquier variante de embed."""
     for embed in getattr(message, "embeds", ()):
         yield from _embed_url_texts_single(embed)
 
 
-def _embed_video_urls(message: discord.Message):
+def _embed_video_urls(message: MessageSource):
     """Entrega todas las URLs potenciales de video de los embeds del mensaje.
 
     Cubre todas las variantes de embeds de Discord:
@@ -279,7 +312,7 @@ def _embed_video_urls(message: discord.Message):
                 yield from _yield_url(match.group(0))
 
 
-def _component_media_urls(message: discord.Message):
+def _component_media_urls(message: MessageSource):
     """Toda URL de medio dentro de message.components (Components V2:
     Container/Section/MediaGallery/File anidados en cualquier profundidad,
     ver layout_v2.py). Un mensaje NO puede tener embeds clásicos y
@@ -400,7 +433,7 @@ async def _fetch_media_bytes(
 
 
 async def _resolve_component_media_bytes(
-    message: discord.Message, url: str, max_bytes: int
+    message: MessageSource, url: str, max_bytes: int
 ) -> bytes | None:
     """Como _fetch_media_bytes, pero entiende "attachment://<filename>" --
     el esquema que usa un bloque File/MediaGallery de Components V2 cuando
@@ -461,11 +494,7 @@ async def _find_attachment(
             and content_type.lower().startswith(content_type_prefix)
         )
 
-    for attachment in ctx.message.attachments:
-        if _matches(attachment):
-            return attachment
-
-    for message in (await _source_messages(ctx))[1:]:
+    for message in await _source_messages(ctx):
         for attachment in getattr(message, "attachments", ()):
             if _matches(attachment):
                 return attachment
@@ -502,12 +531,27 @@ async def _resolve_image_or_gif_bytes(
     su propio GIF corto (zoom + temblor) a partir de una imagen fija: correr
     ese efecto frame por frame sobre un GIF de entrada anidaría una
     animación dentro de otra sin necesidad real, y con un costo mucho más
-    alto (frames del GIF fuente × 8 sub-frames de triggered)."""
+    alto (frames del GIF fuente × 8 sub-frames de triggered).
+
+    _resolve_image_bytes solo encuentra un adjunto por EXTENSIÓN de imagen
+    estática (.png/.jpg/.jpeg/.webp), sin mirar el contenido -- por eso un
+    GIF real subido con esa extensión (ej. Discord nombra "image.png" lo que
+    se pega desde el portapapeles, sea cual sea el formato real detrás) no
+    lo encuentra ninguno de los pasos de _resolve_gif_bytes (que sí exigen
+    ".gif"/"image/gif" o convierten un video) y termina acá con el
+    contenido real de un GIF bajo una extensión mentirosa. Sin este segundo
+    chequeo, ese caso rechazaba con "formato no compatible" en vez de
+    aplicar el filtro -- se confirma recién acá, no antes, porque hacerlo en
+    cada candidato de _resolve_image_bytes duplicaría el mismo chequeo por
+    cada llamada (adjunto propio, del reply, avatar)."""
     if allow_gif:
         gif_data = await _resolve_gif_bytes(ctx)
         if gif_data is not None:
             return gif_data, True
-    return await _resolve_image_bytes(ctx), False
+    data = await _resolve_image_bytes(ctx)
+    if allow_gif and is_valid_gif_bytes(data):
+        return data, True
+    return data, False
 
 
 async def _as_gif_bytes(data: bytes) -> bytes | None:
