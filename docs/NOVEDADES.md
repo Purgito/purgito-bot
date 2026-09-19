@@ -33,7 +33,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Página pública de Novedades (`/es/novedades`, `/en/changelog`): resume en lenguaje simple qué cambió en Purgito — enlazada desde Recursos en el menú del sitio.
 - Filtro para ver solo los canales ya configurados en la matriz de canales, además de buscar por nombre.
 - Deshacer al borrar una frase, un trigger o una reacción: un aviso da unos segundos para cancelar antes de borrarlo de verdad.
-- `/dl` y `/gif` ahora existen también como comando de barra, instalable en tu cuenta de Discord: se pueden usar en un mensaje directo con Purgito o en un grupo de DM, sin estar en un servidor. `/gif` suma la opción de subir directamente un video o imagen, además del link.
+- `/dl` ahora existe también como comando de barra, instalable en tu cuenta de Discord: se puede usar en un mensaje directo con Purgito o en un grupo de DM, sin estar en un servidor. `/gif` también es comando de barra ahora, pero se queda solo en servidores, con la opción de subir directamente un video o imagen además del link.
 
 ### Mejorado
 - El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
