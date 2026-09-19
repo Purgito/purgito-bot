@@ -75,6 +75,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Los selectores de rol (rol de Gestor, mención de YouTube/Twitch/RSS, botones de rol de Layout V2) avisan si el rol elegido se borró, en vez de verse como si nunca hubieras elegido ninguno.
 - Se quitó del menú del dashboard el módulo Memes, que no mostraba ninguna función real.
 - `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption` y los comandos de edición de imagen ahora reconocen un GIF aunque en los hechos sea un video que se ve igual (típico de algo reenviado desde Twitter o Reddit) — antes pedían un GIF, o los filtros de imagen usaban tu avatar sin avisar, aunque el mensaje mostrara exactamente lo mismo que uno real.
+- Los comandos de edición de imagen ahora reconocen un GIF al responder a un mensaje que lo reenvía (la función "Reenviar mensaje" de Discord) o uno subido con una extensión de imagen en vez de GIF (típico al pegarlo desde el portapapeles) — antes usaban tu avatar en silencio, o rechazaban el archivo como formato no compatible, aunque el GIF estuviera a la vista.
 - `/help` mostraba los comandos con `!` fijo aunque el servidor tuviera un prefijo personalizado — ahora usa el símbolo configurado.
 
 ## Versión 1.1.0 — 28 de junio de 2026
