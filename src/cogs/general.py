@@ -10,8 +10,10 @@ import r2
 from cogs.premium import discard_premium_guild
 from config import PERMANENT_PREMIUM_GUILD_IDS, PURGATORY_GUILD_ID, env_int
 from db import (
+    DEFAULT_COMMAND_PREFIX,
     clear_guild_departure,
     get_expired_departures,
+    get_guild_prefix,
     list_gif_urls,
     list_image_urls,
     mark_guild_departed,
@@ -57,9 +59,17 @@ class General(commands.Cog):
             if interaction.guild
             else t("general.help.default_guild_name", locale)
         )
+        prefix = DEFAULT_COMMAND_PREFIX
+        if interaction.guild:
+            prefix = (
+                await get_guild_prefix(interaction.guild.id) or DEFAULT_COMMAND_PREFIX
+            )
         embed = build_intro_embed(guild_name, locale)
         view = HelpView(
-            author_id=interaction.user.id, guild_name=guild_name, locale=locale
+            author_id=interaction.user.id,
+            guild_name=guild_name,
+            prefix=prefix,
+            locale=locale,
         )
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()

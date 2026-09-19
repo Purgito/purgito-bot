@@ -71,6 +71,14 @@ def fake_locale(monkeypatch):
     monkeypatch.setattr(download_mod, "guild_locale", fake_guild_locale)
 
 
+@pytest.fixture(autouse=True)
+def fake_prefix(monkeypatch):
+    async def fake_get_guild_prefix(guild_id):
+        return None
+
+    monkeypatch.setattr(download_mod, "get_guild_prefix", fake_get_guild_prefix)
+
+
 def _cog():
     return Download(SimpleNamespace())
 
@@ -148,6 +156,20 @@ def test_dl_sin_link_responde_con_instrucciones():
 
     assert len(ctx.replies) == 1
     assert ctx.reply_files == []
+
+
+def test_dl_sin_link_usa_el_prefix_custom_del_guild(monkeypatch):
+    async def fake_get_guild_prefix(guild_id):
+        return "$"
+
+    monkeypatch.setattr(download_mod, "get_guild_prefix", fake_get_guild_prefix)
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.dl.callback(cog, ctx, url=None))
+
+    assert "$dl" in ctx.replies[0]
+    assert "!dl" not in ctx.replies[0]
 
 
 # ── comando dl: link tomado del mensaje al que se responde ────────────────────

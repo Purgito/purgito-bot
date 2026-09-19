@@ -36,6 +36,7 @@ from discord.ext import commands
 
 import r2
 from config import env_int
+from db import DEFAULT_COMMAND_PREFIX, get_guild_prefix
 from i18n import guild_locale, t
 
 log = logging.getLogger(__name__)
@@ -350,7 +351,10 @@ class Download(commands.Cog):
         match = _URL_RE.search(url or "")
         link = match.group(0) if match else await _reply_target_url(ctx)
         if not link:
-            await ctx.reply(t("download.dl.missing_url", locale))
+            prefix = DEFAULT_COMMAND_PREFIX
+            if ctx.guild:
+                prefix = await get_guild_prefix(ctx.guild.id) or DEFAULT_COMMAND_PREFIX
+            await ctx.reply(t("download.dl.missing_url", locale, prefix=prefix))
             return
         if not _is_supported_url(link):
             await ctx.reply(t("download.dl.unsupported_site", locale))
