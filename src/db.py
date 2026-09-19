@@ -5661,11 +5661,11 @@ async def list_reaction_pool(guild_id: int) -> list[dict]:
 async def get_random_reaction(guild_id: int) -> dict | None:
     db = await get_db()
     async with db.execute(
-        "SELECT emoji_text FROM reaction_pool WHERE guild_id=? ORDER BY RANDOM() LIMIT 1",
+        "SELECT id, emoji_text FROM reaction_pool WHERE guild_id=? ORDER BY RANDOM() LIMIT 1",
         (guild_id,),
     ) as cursor:
         row = await cursor.fetchone()
-    return {"emoji_text": row[0]} if row else None
+    return {"id": row[0], "emoji_text": row[1]} if row else None
 
 
 # ─── Contadores de uso ───────────────────────────────────────────────────────
