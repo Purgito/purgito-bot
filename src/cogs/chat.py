@@ -51,6 +51,7 @@ from db import (
     list_spontaneous_channels,
     mark_migration_applied,
     remove_corpus_channel,
+    remove_reaction_from_pool,
     save_corpus_and_user_message,
     seed_corpus_allowed_channels,
     upsert_channel_refeed_status,
@@ -334,6 +335,11 @@ def _regex_search_with_timeout(pattern: str, content: str) -> bool:
 # necesita pinguear roles; los avisos que sí lo hacen a propósito (YouTube)
 # arman su propio AllowedMentions con el rol puntual configurado.
 _SAFE_MENTIONS = discord.AllowedMentions(everyone=False, roles=False)
+
+# Código real de Discord cuando el emoji custom de una reacción ya no existe
+# (se borró del servidor de origen desde que se guardó en reaction_pool). A
+# diferencia de Forbidden/rate limit, esto no se arregla solo reintentando.
+_UNKNOWN_EMOJI_CODE = 10014
 
 
 async def _trigger_matches(trigger: dict, content: str) -> bool:
@@ -853,12 +859,24 @@ class Chat(commands.Cog):
             if not ignored:
                 # Reacción aleatoria con emoji del pool configurable
                 if random.random() < settings["reaction_probability"]:
-                    try:
-                        reaction = await get_random_reaction(message.guild.id)
-                        if reaction:
+                    reaction = await get_random_reaction(message.guild.id)
+                    if reaction:
+                        try:
                             await message.add_reaction(reaction["emoji_text"])
-                    except Exception:
-                        log.exception("Error añadiendo reacción emoji")
+                        except (discord.Forbidden, discord.HTTPException) as e:
+                            if e.code == _UNKNOWN_EMOJI_CODE:
+                                # No va a volver a funcionar: se saca del pool
+                                # en vez de reintentar por siempre en cada roll.
+                                await remove_reaction_from_pool(
+                                    message.guild.id, reaction["id"]
+                                )
+                            log.warning(
+                                "No se pudo añadir la reacción %r en canal %s (guild %s): %s",
+                                reaction["emoji_text"],
+                                message.channel.id,
+                                message.guild.id,
+                                e,
+                            )
 
                 # Triggers configurados a mano (tab CHAT del dashboard): si
                 # matchea alguno, responde y corta acá -- no espera mención
