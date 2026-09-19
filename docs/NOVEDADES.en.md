@@ -33,7 +33,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Public Changelog page (`/en/changelog`, `/es/novedades`): a plain-language summary of what's changed in Purgito — linked from Resources in the site menu.
 - Filter to show only already-configured channels in the channel matrix, on top of searching by name.
 - Undo when deleting a phrase, trigger, or reaction: a prompt gives you a few seconds to cancel before it's actually deleted.
-- `/dl` and `/gif` now also exist as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` adds the option to upload a video or image directly, on top of a link.
+- `/dl` now also exists as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` is also a slash command now, but stays server-only, with the option to upload a video or image directly, on top of a link.
 
 ### Improved
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.

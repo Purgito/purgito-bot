@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw, ImageSequence
 
 import cogs.download as download_mod
 import cogs.imagefx as imagefx_mod
+import i18n
 import image_filters
 import video_filters
 from cogs.imagefx import (
@@ -1431,6 +1432,18 @@ def test_gif_cmd_rechaza_video_demasiado_grande():
 
     assert ctx.reply_files == []
     assert len(ctx.replies) == 1
+
+
+def test_gif_cmd_fuera_de_un_guild_responde_guild_only():
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=b"x")], guild_id=None
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert ctx.reply_files == []
+    assert ctx.replies == [i18n.t("general.guild_only", "es")]
 
 
 def test_gif_cmd_avisa_si_la_conversion_falla(monkeypatch):
