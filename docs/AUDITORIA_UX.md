@@ -181,6 +181,14 @@ archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
   `permissions_for(me).send_messages` en el canal destino y avisar en el
   momento; (c) si el envío del aviso falla N veces seguidas, notificar al
   admin o marcar la suscripción en el panel.
+- **Estado: ✅ resuelto.** `_resolve_handle_to_channel_id` (`cogs/youtube.py`)
+  acepta @handle, URL completa e ID crudo; `check_youtube` marca
+  `YOUTUBE_ERROR_NO_PERMISSION`/`_CHANNEL_NOT_FOUND` en `last_error` y el tab
+  YouTube del dashboard lo muestra (`errorNote()`). El mismo patrón se
+  replicó completo en Twitch y RSS al agregarse esas integraciones — la
+  única brecha que quedaba (2026-09-18) era que el tercer estado propio de
+  RSS, `feed_no_encontrado` (un feed que cambia de URL o se da de baja), no
+  estaba cableado en el frontend de esa tab; ya se agregó.
 
 ## 8. Memes automáticos configurados que nunca postean, sin aviso
 
@@ -198,6 +206,14 @@ archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
   imágenes en la colección? ¿hay historial suficiente?) y avisar ahí mismo;
   y/o publicar una única vez en el canal configurado "quiero mandar memes aquí
   pero todavía no tengo fotos — reaccioná con 🎯 a una imagen para dármelas".
+- **Estado: ✅ resuelto (2026-09-18).** `auto_meme_task` ahora avisa una sola
+  vez en el canal configurado cuando faltan imágenes o historial, en vez de
+  saltear el canal en silencio cada 10 minutos para siempre (ver
+  CHANGELOG.md). El módulo "Memes" que existía en el dashboard web era un
+  placeholder sin ninguna función real (`emptyState('Generación de memes en
+  proceso.')` fijo) y se quitó del menú en la misma sesión que cerró este
+  hallazgo — mismo espíritu que "revisa los logs": una pantalla que promete
+  una función que no existe es el mismo callejón sin salida en otro lugar.
 
 ## 9. El selector de idioma promete más de lo que cumple: casi todo el bot está hardcodeado en español
 
@@ -236,6 +252,15 @@ archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
   servidor donde esté Purgito"; en `apiFetch`, mapear códigos a mensajes
   humanos ("no se pudo guardar, probá de nuevo"); en la card premium, poner
   el link/medio de contacto real (servidor de soporte o Discord del owner).
+- **Estado: ✅ resuelto.** El panel viejo (`panel.js`/`src/pages/`) ya no
+  existe; en el reemplazo (`landing/`), `_auth_error` explica el permiso
+  que falta y `humanError()` (`core/api.js`) mapea HTTP a texto humano.
+  Hallazgo colateral (2026-09-18): 6 lugares de `dash.js` (guardar prefijo,
+  rol de Gestor, exclusión de usuarios ×3, importar config del chat) le
+  pasaban a `humanError()` el objeto `Error` entero en vez del status HTTP,
+  así que nunca matcheaba nada y el admin veía literal "código Error: ..." —
+  el mismo síntoma que este hallazgo original, reintroducido por mal uso del
+  propio fix. Se corrigió a `e.message` (que `apiFetch` ya arma humanizado).
 
 ## 11. Galería pública: botones de agregar/borrar visibles sin sesión → "Error de red"
 
@@ -253,6 +278,9 @@ archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
   requests de API, y que la galería, ante 401, muestre "necesitas iniciar
   sesión con Discord para agregar GIFs" con un botón a `/auth/login` — u
   ocultar el form/botones si no hay sesión.
+- **Estado: ✅ resuelto por eliminación.** `gif_gallery.py` (la galería
+  pública sin sesión) ya no existe; los GIFs del servidor se administran
+  solo desde la tab GIFs del dashboard autenticado.
 
 ## 12. Detalles del pool de imágenes 🎯: límites silenciosos y URLs que expiran
 
@@ -270,3 +298,7 @@ archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
   efímero/borrar-después con la causa: "la imagen supera 10 MB"); si R2 no
   está disponible, avisar en el momento en vez de guardar un link que va a
   expirar.
+- **Estado: ✅ resuelto.** `on_raw_reaction_add` (`cogs/memes.py`) distingue
+  oversized/formato no soportado/duplicado/error de guardado y responde con
+  ❌ + DM explicando la razón puntual; si R2 falla al subir, loguea y usa la
+  URL de Discord como fallback en vez de fallar en silencio.

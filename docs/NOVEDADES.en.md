@@ -68,6 +68,12 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - `!gif` now also works when replying to an Instagram, TikTok, Twitter/X, or Facebook link that Discord showed as a video preview — it used to ask for a video even though the link was right there, because those sites don't let you download the file straight from the preview (`!dl` with the same link already worked).
 - `!gif` now also finds the video or GIF when replying to another bot's result, even if that bot builds its message with Discord's newer card-style layout instead of the classic preview box — it used to keep asking for a video even when one was right there.
 - `!gifwide`, `!gifspeed`, `!gifreverse`, and `!gifcaption` now find the GIF when replying to a message with one sent from Discord's built-in GIF picker — it used to ask for a GIF even when one was right there, because that GIF doesn't arrive as a file attachment.
+- Welcome, goodbye, and boost messages: if Purgito loses permission to post in the chosen channel, or the assigned template gets deleted, the dashboard now flags it in the Events module instead of silently stopping with no indication at all.
+- A scheduled announcement that loses permission to post in its channel now gets flagged in the Announcements list, instead of still looking active as if nothing were wrong.
+- RSS: if a feed changes URL or stops existing, it's now flagged in the list the same way a deleted or permission-less channel already was.
+- Saving the command prefix, the Manager role, a user exclusion, or importing chat settings showed a confusing error message when something failed, instead of explaining what went wrong.
+- Role pickers (Manager role, YouTube/Twitch/RSS mention role, Layout V2 role buttons) now flag it when the chosen role gets deleted, instead of looking like nothing was ever picked.
+- Removed the Memes entry from the dashboard menu — it didn't show any real functionality.
 
 ## Version 1.1.0 — June 28, 2026
 

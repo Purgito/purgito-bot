@@ -20,6 +20,7 @@ from db import (
     extract_send_options,
     get_server_event,
     normalize_embeds_json,
+    set_server_event_error,
     try_record_member_boost,
 )
 from embeds_core import validate_embeds_payload
@@ -43,6 +44,13 @@ from placeholders import (
 from webhook_identity import WebhookIdentityError, send_via_webhook
 
 log = logging.getLogger(__name__)
+
+# Motivos de dispatch_server_event que NO son una falla real -- el admin
+# nunca configuró el evento, o lo desactivó a propósito. _dispatch_and_track
+# los filtra para no marcar last_error (ni loguear) en el caso normal de la
+# inmensa mayoría de los servidores, que no usan los tres eventos.
+_EVENT_NOT_CONFIGURED = "Evento no configurado"
+_EVENT_DISABLED = "Evento desactivado"
 
 
 class ServerEvents(commands.Cog):
@@ -70,13 +78,13 @@ class ServerEvents(commands.Cog):
             # plantilla (ver db.py); acá no hace falta ninguna rama nueva.
             config = content_override or await get_server_event(guild.id, event_type)
             if not config:
-                return False, "Evento no configurado"
+                return False, _EVENT_NOT_CONFIGURED
 
             if config.get("template_missing"):
                 return False, "La plantilla asociada a este evento ya no existe"
 
             if not is_test and not config.get("enabled"):
-                return False, "Evento desactivado"
+                return False, _EVENT_DISABLED
 
             target_channel_id = (
                 channel_override.id
@@ -541,17 +549,44 @@ class ServerEvents(commands.Cog):
             )
             return False, f"Error interno: {e}"
 
+    async def _dispatch_and_track(
+        self,
+        event_type: str,
+        guild: discord.Guild,
+        member: discord.Member | discord.User | None,
+        **kwargs: Any,
+    ) -> None:
+        """Envoltorio de dispatch_server_event para los tres listeners reales
+        (a diferencia de la prueba manual del panel, que ya reporta (ok, err)
+        directo en la respuesta HTTP): persiste el motivo del fallo -- o lo
+        limpia si salió bien -- para que el dashboard lo muestre (ver
+        landing/js/tabs/eventos.js), en vez de que la única señal sea un
+        `/eventos/<tipo>/test` que nadie vuelve a tocar una vez que "ya
+        andaba". "No configurado"/"desactivado" no cuentan como falla: son el
+        estado normal de la mayoría de los servidores."""
+        ok, err = await self.dispatch_server_event(event_type, guild, member, **kwargs)
+        if err in (_EVENT_NOT_CONFIGURED, _EVENT_DISABLED):
+            return
+        if not ok:
+            log.warning(
+                "[eventos] %s no se pudo enviar en guild=%s: %s",
+                event_type,
+                guild.id,
+                err,
+            )
+        await set_server_event_error(guild.id, event_type, None if ok else err)
+
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         if member.bot:
             return
-        await self.dispatch_server_event("welcome", member.guild, member)
+        await self._dispatch_and_track("welcome", member.guild, member)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
         if getattr(member, "bot", False):
             return
-        await self.dispatch_server_event("goodbye", member.guild, member)
+        await self._dispatch_and_track("goodbye", member.guild, member)
 
     @commands.Cog.listener()
     async def on_member_update(
@@ -565,7 +600,7 @@ class ServerEvents(commands.Cog):
             )
             if not won:
                 return
-            await self.dispatch_server_event(
+            await self._dispatch_and_track(
                 "boost",
                 after.guild,
                 after,

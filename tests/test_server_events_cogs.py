@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -202,6 +203,120 @@ def test_on_member_update_boost_transition_and_idempotency(memory_db):
         before_already.guild = guild
         await cog.on_member_update(before_already, after)
         assert not channel.send.called
+
+    asyncio.run(_test())
+
+
+def test_on_member_join_no_permission_sets_last_error_and_logs(memory_db, caplog):
+    """Un join real (a diferencia de dispatch_server_event llamado directo,
+    que usan la mayoría de los tests de este archivo) pasa por
+    _dispatch_and_track: antes de este fix, un canal sin permiso quedaba en
+    silencio total -- ni log, ni rastro para el dashboard."""
+
+    async def _test():
+        bot = MagicMock()
+        bot.user = MagicMock(id=999)
+        cog = ServerEvents(bot)
+
+        await db.set_server_event(
+            guild_id=_GUILD_ID,
+            event_type="welcome",
+            enabled=True,
+            channel_id=_CHANNEL_ID,
+            content_mode="plain_text",
+            message="Bienvenido {user}!",
+        )
+
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = _CHANNEL_ID
+        channel.guild = MagicMock(id=_GUILD_ID)
+        channel.permissions_for = MagicMock(
+            return_value=MagicMock(send_messages=False, embed_links=True)
+        )
+        channel.send = AsyncMock()
+
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = _GUILD_ID
+        guild.name = "Purgito Community"
+        guild.member_count = 10
+        guild.get_channel = MagicMock(return_value=channel)
+        guild.me = MagicMock()
+
+        member = MagicMock(spec=discord.Member)
+        member.id = 42
+        member.bot = False
+        member.name = "newbie"
+        member.mention = "<@42>"
+        member.display_name = "Newbie"
+        member.guild = guild
+
+        with caplog.at_level(logging.WARNING, logger="cogs.events"):
+            await cog.on_member_join(member)
+
+        assert not channel.send.called
+        ev = await db.get_server_event(_GUILD_ID, "welcome")
+        assert (
+            ev["last_error"]
+            == "Purgito no tiene permiso para enviar mensajes en ese canal"
+        )
+        assert "no se pudo enviar" in caplog.text
+
+        # Se recupera solo en cuanto un envío real sale bien -- mismo
+        # criterio que youtube/twitch/rss.
+        channel.permissions_for = MagicMock(
+            return_value=MagicMock(send_messages=True, embed_links=True)
+        )
+        await cog.on_member_join(member)
+        ev = await db.get_server_event(_GUILD_ID, "welcome")
+        assert ev["last_error"] is None
+
+    asyncio.run(_test())
+
+
+def test_on_member_join_skips_last_error_when_not_configured_or_disabled(
+    memory_db, caplog
+):
+    """'No configurado' y 'desactivado' son el estado normal de la inmensa
+    mayoría de los servidores -- no deben marcarse como falla ni loguearse,
+    o cada join en un servidor sin bienvenida configurada ensuciaría el log
+    y crearía una fila fantasma en server_events."""
+
+    async def _test():
+        bot = MagicMock()
+        bot.user = MagicMock(id=999)
+        cog = ServerEvents(bot)
+
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = _GUILD_ID
+        guild.get_channel = MagicMock(return_value=None)
+        guild.me = MagicMock()
+
+        member = MagicMock(spec=discord.Member)
+        member.id = 42
+        member.bot = False
+        member.guild = guild
+
+        # Nunca configurado.
+        with caplog.at_level(logging.WARNING, logger="cogs.events"):
+            await cog.on_member_join(member)
+        assert await db.get_server_event(_GUILD_ID, "welcome") is None
+        assert "no se pudo enviar" not in caplog.text
+
+        # Configurado pero desactivado.
+        await db.set_server_event(
+            guild_id=_GUILD_ID,
+            event_type="welcome",
+            enabled=False,
+            channel_id=_CHANNEL_ID,
+            content_mode="plain_text",
+            message="Hola {user}",
+        )
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="cogs.events"):
+            await cog.on_member_join(member)
+        ev = await db.get_server_event(_GUILD_ID, "welcome")
+        assert ev["last_error"] is None
+        assert "no se pudo enviar" not in caplog.text
 
     asyncio.run(_test())
 
