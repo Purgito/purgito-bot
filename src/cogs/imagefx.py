@@ -1070,19 +1070,20 @@ class ImageFx(commands.Cog):
 
     # ── Fase 4: video -> GIF y edición de un GIF existente ───────────────────
 
-    # hybrid_command (mismo motivo que "dl" en cogs/download.py: /gif con
-    # installation type "user" y context "private channel" es la única forma
-    # de que esto funcione fuera de un servidor, incluido un Group DM). El
-    # parámetro "archivo" es nuevo acá porque en un slash command no existe
-    # "mandar un adjunto junto al mensaje" -- discord.py convierte un
-    # parámetro discord.Attachment en la opción de subida del slash Y, del
-    # lado de invocación por interacción, lo agrega solo a
-    # ctx.message.attachments (ver discord.ext.commands.context.Context.
-    # from_interaction), así que _resolve_video_bytes/_resolve_gif_source_
-    # image_bytes de más abajo lo encuentran sin ningún cambio adicional. Va
-    # ANTES del "*, url" (keyword-only): discord.py corta el parseo de texto
-    # en el primer parámetro keyword-only que encuentra, así que uno después
-    # de "url" nunca se poblaría al invocar como "!gif"/"purgito gif".
+    # hybrid_command para que "gif" también exista como /gif, no solo por
+    # prefijo -- a diferencia de "dl" en cogs/download.py, esto se queda
+    # limitado a servidores (sin allowed_installs/allowed_contexts): no
+    # necesita andar en DM. El parámetro "archivo" es nuevo acá porque en un
+    # slash command no existe "mandar un adjunto junto al mensaje" --
+    # discord.py convierte un parámetro discord.Attachment en la opción de
+    # subida del slash Y, del lado de invocación por interacción, lo agrega
+    # solo a ctx.message.attachments (ver discord.ext.commands.context.
+    # Context.from_interaction), así que _resolve_video_bytes/_resolve_gif_
+    # source_image_bytes de más abajo lo encuentran sin ningún cambio
+    # adicional. Va ANTES del "*, url" (keyword-only): discord.py corta el
+    # parseo de texto en el primer parámetro keyword-only que encuentra, así
+    # que uno después de "url" nunca se poblaría al invocar como "!gif"/
+    # "purgito gif".
     @commands.hybrid_command(
         name="gif", description="Convierte un video o una imagen a GIF."
     )
@@ -1090,8 +1091,6 @@ class ImageFx(commands.Cog):
         url="Link del video/imagen a convertir, o del post de Instagram/TikTok/X/Facebook.",
         archivo="Video o imagen para convertir (alternativa a un link).",
     )
-    @app_commands.allowed_installs(guilds=True, users=True)
-    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @commands.max_concurrency(1, per=commands.BucketType.guild, wait=False)
     async def gif_cmd(
         self,
@@ -1101,6 +1100,10 @@ class ImageFx(commands.Cog):
         url: str | None = None,
     ):
         locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        if not ctx.guild:
+            await ctx.reply(t("general.guild_only", locale))
+            return
+
         remaining = _check_gif_convert_cooldown(ctx.author.id)
         if remaining is not None:
             await ctx.reply(t("general.error.cooldown", locale, seconds=remaining))
@@ -1168,9 +1171,7 @@ class ImageFx(commands.Cog):
             return
 
         async with ctx.typing():
-            max_output = IMAGEFX_MAX_BYTES
-            if ctx.guild is not None:
-                max_output = min(max_output, ctx.guild.filesize_limit)
+            max_output = min(IMAGEFX_MAX_BYTES, ctx.guild.filesize_limit)
 
             try:
                 result = await asyncio.to_thread(

@@ -33,7 +33,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Public Changelog page (`/en/changelog`, `/es/novedades`): a plain-language summary of what's changed in Purgito — linked from Resources in the site menu.
 - Filter to show only already-configured channels in the channel matrix, on top of searching by name.
 - Undo when deleting a phrase, trigger, or reaction: a prompt gives you a few seconds to cancel before it's actually deleted.
-- `/dl` and `/gif` now also exist as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` adds the option to upload a video or image directly, on top of a link.
+- `/dl` now also exists as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` is also a slash command now, but stays server-only, with the option to upload a video or image directly, on top of a link.
 
 ### Improved
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
@@ -76,6 +76,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Removed the Memes entry from the dashboard menu — it didn't show any real functionality.
 - `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption`, and the image-editing commands now recognize a GIF even when it's actually a video that looks the same (common with something reposted from Twitter or Reddit) — they used to ask for a GIF, or the image filters would silently use your avatar instead, even though the message showed exactly what a real GIF looks like.
 - The image-editing commands now recognize a GIF when replying to a message that forwards it (Discord's "Forward" feature) or one uploaded with an image extension instead of GIF (common when pasting it from the clipboard) — they used to silently use your avatar, or reject the file as an unsupported format, even though the GIF was right there.
+- `/help` showed commands with a fixed `!` even when the server had a custom prefix — it now uses the configured symbol.
 
 ## Version 1.1.0 — June 28, 2026
 
