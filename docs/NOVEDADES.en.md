@@ -1,6 +1,6 @@
 # Changelog
 
-**Last updated:** September 18, 2026
+**Last updated:** September 19, 2026
 
 A plain-language summary of Purgito's new features, improvements, and
 fixes. The full technical detail, for anyone who wants to read it, lives
@@ -74,6 +74,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - Saving the command prefix, the Manager role, a user exclusion, or importing chat settings showed a confusing error message when something failed, instead of explaining what went wrong.
 - Role pickers (Manager role, YouTube/Twitch/RSS mention role, Layout V2 role buttons) now flag it when the chosen role gets deleted, instead of looking like nothing was ever picked.
 - Removed the Memes entry from the dashboard menu — it didn't show any real functionality.
+- `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption`, and the image-editing commands now recognize a GIF even when it's actually a video that looks the same (common with something reposted from Twitter or Reddit) — they used to ask for a GIF, or the image filters would silently use your avatar instead, even though the message showed exactly what a real GIF looks like.
 
 ## Version 1.1.0 — June 28, 2026
 

@@ -1,6 +1,6 @@
 # Novedades
 
-**Última actualización:** 18 de septiembre de 2026
+**Última actualización:** 19 de septiembre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
@@ -74,6 +74,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Guardar el prefijo de comandos, el rol de Gestor, una exclusión de usuario o importar la configuración del chat mostraba un mensaje de error confuso cuando algo fallaba, en vez de explicar qué pasó.
 - Los selectores de rol (rol de Gestor, mención de YouTube/Twitch/RSS, botones de rol de Layout V2) avisan si el rol elegido se borró, en vez de verse como si nunca hubieras elegido ninguno.
 - Se quitó del menú del dashboard el módulo Memes, que no mostraba ninguna función real.
+- `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption` y los comandos de edición de imagen ahora reconocen un GIF aunque en los hechos sea un video que se ve igual (típico de algo reenviado desde Twitter o Reddit) — antes pedían un GIF, o los filtros de imagen usaban tu avatar sin avisar, aunque el mensaje mostrara exactamente lo mismo que uno real.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 
