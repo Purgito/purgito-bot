@@ -20,7 +20,13 @@ import yt_dlp
 
 import cogs.download as download_mod
 import r2
-from cogs.download import Download, DownloadFailed, DownloadTooLarge, _is_supported_url
+from cogs.download import (
+    Download,
+    DownloadFailed,
+    DownloadTooLarge,
+    NoVideoInPost,
+    _is_supported_url,
+)
 
 
 class _FakeTyping:
@@ -418,6 +424,21 @@ def test_dl_descarga_fallida(monkeypatch):
     assert ctx.reply_files == []
 
 
+def test_dl_post_sin_video_responde_mensaje_propio(monkeypatch):
+    cog = _cog()
+    ctx = FakeContext()
+
+    def fake(url, max_bytes):
+        raise NoVideoInPost("There is no video in this post")
+
+    monkeypatch.setattr(download_mod, "_download_video", fake)
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.replies) == 1
+    assert ctx.reply_files == []
+
+
 def test_dl_error_generico_no_revienta_y_responde_algo(monkeypatch):
     cog = _cog()
     ctx = FakeContext()
@@ -441,11 +462,19 @@ class _FakeYDL:
     extract_info/prepare_filename escribiendo un archivo real (para que los
     chequeos de os.path.getsize de _download_video funcionen)."""
 
-    def __init__(self, calls, should_fail, opts, age_limit=0):
+    def __init__(
+        self,
+        calls,
+        should_fail,
+        opts,
+        age_limit=0,
+        fail_message="NSFW tweet requires authentication",
+    ):
         self.calls = calls
         self.should_fail = should_fail
         self.opts = opts
         self.age_limit = age_limit
+        self.fail_message = fail_message
         calls.append(opts)
 
     def __enter__(self):
@@ -456,7 +485,7 @@ class _FakeYDL:
 
     def extract_info(self, url, download=True):
         if self.should_fail(self.opts):
-            raise yt_dlp.utils.DownloadError("NSFW tweet requires authentication")
+            raise yt_dlp.utils.DownloadError(self.fail_message)
         return {"id": "vid", "age_limit": self.age_limit}
 
     def prepare_filename(self, info):
@@ -467,12 +496,17 @@ class _FakeYDL:
         return path
 
 
-def _patch_ydl(monkeypatch, should_fail, age_limit=0):
+def _patch_ydl(
+    monkeypatch,
+    should_fail,
+    age_limit=0,
+    fail_message="NSFW tweet requires authentication",
+):
     calls: list[dict] = []
     monkeypatch.setattr(
         download_mod.yt_dlp,
         "YoutubeDL",
-        lambda opts: _FakeYDL(calls, should_fail, opts, age_limit),
+        lambda opts: _FakeYDL(calls, should_fail, opts, age_limit, fail_message),
     )
     return calls
 
@@ -513,6 +547,38 @@ def test_download_video_no_reintenta_en_sitios_que_no_son_twitter(monkeypatch):
 
     with pytest.raises(DownloadFailed):
         download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+    assert len(calls) == 1
+
+
+def test_download_video_detecta_post_sin_video_en_instagram(monkeypatch):
+    # Mensaje real que tira instagram.py cuando el post es una foto, sin
+    # ningún video adentro -- no debería confundirse con un DownloadFailed
+    # genérico (post privado/borrado/etc).
+    calls = _patch_ydl(
+        monkeypatch,
+        should_fail=lambda opts: True,
+        fail_message="There is no video in this post",
+    )
+
+    with pytest.raises(NoVideoInPost):
+        download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+    assert len(calls) == 1
+
+
+def test_download_video_detecta_post_sin_video_en_twitter_sin_reintentar(monkeypatch):
+    # Mismo caso que arriba pero en Twitter/X: message real de twitter.py.
+    # No tiene sentido reintentar con syndication -- el post no tiene video,
+    # no es un problema de login.
+    calls = _patch_ydl(
+        monkeypatch,
+        should_fail=lambda opts: True,
+        fail_message="No video could be found in this tweet",
+    )
+
+    with pytest.raises(NoVideoInPost):
+        download_mod._download_video("https://x.com/user/status/123", 1024 * 1024)
 
     assert len(calls) == 1
 
