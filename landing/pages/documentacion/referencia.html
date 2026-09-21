@@ -10,12 +10,14 @@
 <tr><td><code>DISCORD_TOKEN</code></td><td><code>string</code></td><td>Token secreto de autenticación del bot en el Gateway y API REST de Discord.</td></tr>
 <tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>Habilita el intent privilegiado de contenido de mensajes (<code>message_content</code>). Requerido para capturar el corpus.</td></tr>
 <tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>ID de servidor de desarrollo para sincronización instantánea de comandos slash durante pruebas locales.</td></tr>
+<tr><td><code>HOME_GUILD_ID</code></td><td><code>integer</code></td><td>ID del servidor propio del desarrollador o de soporte: recibe Premium automáticamente al migrarse a la tabla <code>premium_guilds</code>.</td></tr>
 <tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Nombre clave o palabra reservada que dispara la generación de memes y respuestas contextuales por texto.</td></tr>
 <tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>ID de usuario de Discord del propietario del bot con acceso a comandos de mantenimiento.</td></tr>
 <tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>Clave API de Groq para generación de captions de memes mediante modelos de visión por IA. Si no se define, se utiliza el motor de Markov.</td></tr>
+<tr><td><code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code></td><td><code>string</code></td><td>Credenciales de la app de Twitch para el cog <code>twitch</code>. Sin ellas, los avisos de transmisiones en vivo quedan desactivados sin afectar al resto del bot.</td></tr>
 <tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Límite máximo de mensajes leídos al reentrenar un canal individual con <code>/refeed</code>.</td></tr>
 <tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Límite máximo de mensajes acumulados al reentrenar todos los canales del servidor con <code>/refeed_all</code>.</td></tr>
-<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Tamaño de la muestra aleatoria de mensajes extraída de la tabla <code>corpus</code> para compilar el modelo de Markov del servidor.</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Tamaño de la muestra aleatoria de mensajes extraída de la tabla <code>corpus_messages</code> para compilar el modelo de Markov del servidor.</td></tr>
 <tr><td><code>USER_MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Tamaño de la muestra de mensajes para entrenar modelos específicos por usuario (comandos de imitación).</td></tr>
 <tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>Probabilidad base (0.0 a 1.0) de respuesta espontánea cuando el servidor no ha establecido un valor personalizado.</td></tr>
 <tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Días de período de gracia antes de purgar definitivamente los datos de un servidor que expulsó al bot (por defecto: 30).</td></tr>
@@ -28,6 +30,7 @@
 <tr><td><code>DASHBOARD_ENABLED</code></td><td><code>boolean</code></td><td>Interruptor maestro para habilitar o deshabilitar las rutas del dashboard web.</td></tr>
 <tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code></td><td><code>string</code></td><td>Token de API y secreto HMAC para validar la firma de los webhooks de facturación de Polar.</td></tr>
 <tr><td><code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td><code>string</code></td><td>Identificadores de producto en Polar para suscripciones mensual y anual.</td></tr>
+<tr><td><code>POLAR_SERVER</code></td><td><code>string</code></td><td>Entorno de Polar a usar: <code>sandbox</code> (por defecto, para pruebas) o <code>production</code>.</td></tr>
 <tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td><code>string</code></td><td>Zona horaria IANA por defecto utilizada para calcular los envíos de anuncios programados a hora fija.</td></tr>
 </table>
 
@@ -49,14 +52,20 @@
 <tr><th>Variable</th><th>Propósito</th></tr>
 <tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Límite máximo de mensajes en memoria conservados por canal (15.000 / 50.000).</td></tr>
 <tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Capacidad total máxima de mensajes del corpus por servidor (150.000 / 500.000).</td></tr>
-<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Límite máximo de mensajes almacenados por autor para modelos individuales (5.000 / 20.000).</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Límite máximo de mensajes almacenados por autor para modelos individuales (2.000 / 8.000).</td></tr>
 <tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de GIFs en el catálogo del servidor (1.500 / 4.000).</td></tr>
-<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Tamaño máximo en bytes permitido al descargar un GIF remoto (por defecto: 10 MB).</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Tamaño máximo en bytes permitido al descargar un GIF remoto (por defecto: 8 MB).</td></tr>
 <tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Nivel de compresión con pérdida aplicado al optimizar GIFs para almacenamiento en R2.</td></tr>
-<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de imágenes guardadas en el banco de memes del servidor (50 / 200).</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de imágenes guardadas en el banco de memes del servidor (75 / 200).</td></tr>
 <tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de anuncios automatizados programables en el servidor (3 / 10).</td></tr>
-<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de plantillas guardadas en el diseñador de mensajes (10 / 50).</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de plantillas guardadas en el diseñador de mensajes (20 / 50).</td></tr>
 <tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Tamaño máximo en bytes de imágenes subidas al editor de embeds (por defecto: 8 MB).</td></tr>
 <tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Límite diario de enlaces compartibles de plantillas que un servidor puede generar.</td></tr>
 <tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Tamaño máximo de archivos adjuntos subidos en un bloque "Archivo" de Layout V2.</td></tr>
+<tr><td><code>MAX_FRASES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de frases especiales guardadas por servidor (50 / 200).</td></tr>
+<tr><td><code>MAX_FRASE_PACKS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de packs de frases por servidor (5 / 20).</td></tr>
+<tr><td><code>MAX_CHANNEL_TRIGGERS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de triggers de auto-respuesta por servidor (10 / 30).</td></tr>
+<tr><td><code>MAX_DL_VIDEO_BYTES</code></td><td>Tamaño máximo en bytes de un video que <code>!dl</code> descarga antes de subirlo al canal (por defecto: 100 MB).</td></tr>
+<tr><td><code>MAX_GIF_SOURCE_VIDEO_BYTES</code></td><td>Tamaño máximo en bytes del video fuente que <code>!gif</code> acepta antes de convertirlo a GIF (por defecto: 25 MB).</td></tr>
+<tr><td><code>GIF_PHASH_MAX_DISTANCE</code></td><td>Distancia de Hamming máxima entre dos GIFs para considerarlos el mismo meme y fusionarlos (dedup perceptual).</td></tr>
 </table>

@@ -10,12 +10,14 @@
 <tr><td><code>DISCORD_TOKEN</code></td><td><code>string</code></td><td>Secret authentication token for the bot on Discord's Gateway and REST API.</td></tr>
 <tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>Enables the privileged Message Content intent (<code>message_content</code>). Required for corpus ingestion.</td></tr>
 <tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>Development guild ID used for instant slash command synchronization during local debugging.</td></tr>
+<tr><td><code>HOME_GUILD_ID</code></td><td><code>integer</code></td><td>The developer's or support server's own guild ID: it's automatically granted Premium when migrated into the <code>premium_guilds</code> table.</td></tr>
 <tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Trigger keyword or reserved word that invokes automatic meme rendering and contextual replies.</td></tr>
 <tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>Discord user ID of the bot operator with access to administrative commands.</td></tr>
 <tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>Groq API key for AI vision meme captioning. Falls back to the Markov engine if undefined.</td></tr>
+<tr><td><code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code></td><td><code>string</code></td><td>Twitch app credentials for the <code>twitch</code> cog. Without them, live-stream alerts stay disabled without affecting the rest of the bot.</td></tr>
 <tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Maximum messages read when re-indexing an individual channel via <code>/refeed</code>.</td></tr>
 <tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Maximum cumulative messages read when re-indexing all guild channels via <code>/refeed_all</code>.</td></tr>
-<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Random sample size extracted from the <code>corpus</code> table to compile the server's Markov model.</td></tr>
+<tr><td><code>MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Random sample size extracted from the <code>corpus_messages</code> table to compile the server's Markov model.</td></tr>
 <tr><td><code>USER_MARKOV_TRAINING_MESSAGES</code></td><td><code>integer</code></td><td>Sample size extracted to train per-user Markov models (imitation commands).</td></tr>
 <tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>Base probability (0.0 to 1.0) of spontaneous reply when a server has not set a custom override.</td></tr>
 <tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Grace period in days before permanently purging data from servers that removed the bot (default: 30).</td></tr>
@@ -28,6 +30,7 @@
 <tr><td><code>DASHBOARD_ENABLED</code></td><td><code>boolean</code></td><td>Master switch enabling or disabling web dashboard routes.</td></tr>
 <tr><td><code>POLAR_ACCESS_TOKEN</code>, <code>POLAR_WEBHOOK_SECRET</code></td><td><code>string</code></td><td>API token and HMAC secret used to verify incoming Polar billing webhooks.</td></tr>
 <tr><td><code>POLAR_PRODUCT_ID_MONTHLY</code>, <code>POLAR_PRODUCT_ID_ANNUAL</code></td><td><code>string</code></td><td>Polar product IDs for monthly and annual premium subscriptions.</td></tr>
+<tr><td><code>POLAR_SERVER</code></td><td><code>string</code></td><td>Which Polar environment to use: <code>sandbox</code> (default, for testing) or <code>production</code>.</td></tr>
 <tr><td><code>ANNOUNCEMENTS_TIMEZONE</code></td><td><code>string</code></td><td>Default IANA timezone used to calculate fixed-time announcement schedules.</td></tr>
 </table>
 
@@ -49,14 +52,20 @@
 <tr><th>Variable</th><th>Purpose</th></tr>
 <tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum messages retained per channel (15,000 / 50,000).</td></tr>
 <tr><td><code>MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_FREE</code> / <code>_PREMIUM</code></td><td>Maximum total corpus capacity across the entire guild (150,000 / 500,000).</td></tr>
-<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum messages stored per author for individual mimicry models (5,000 / 20,000).</td></tr>
+<tr><td><code>MAX_USER_CORPUS_MESSAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum messages stored per author for individual mimicry models (2,000 / 8,000).</td></tr>
 <tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum GIFs stored in the guild catalog (1,500 / 4,000).</td></tr>
-<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Maximum byte size accepted when downloading remote GIFs (default: 10 MB).</td></tr>
+<tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Maximum byte size accepted when downloading remote GIFs (default: 8 MB).</td></tr>
 <tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Lossy compression level applied when optimizing GIFs for R2 storage.</td></tr>
-<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum meme template images stored in the server image bank (50 / 200).</td></tr>
+<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum meme template images stored in the server image bank (75 / 200).</td></tr>
 <tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum scheduled automated announcements per server (3 / 10).</td></tr>
-<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum saved message designer templates (10 / 50).</td></tr>
+<tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum saved message designer templates (20 / 50).</td></tr>
 <tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Maximum byte size for images uploaded via the embed designer (default: 8 MB).</td></tr>
 <tr><td><code>MAX_SHARE_LINKS_PER_GUILD_DAY</code></td><td>Daily limit on shareable template links generated by a guild.</td></tr>
 <tr><td><code>MAX_LAYOUT_FILE_UPLOAD_BYTES</code></td><td>Maximum byte size for files uploaded in Layout V2 "File" blocks.</td></tr>
+<tr><td><code>MAX_FRASES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum special phrases saved per server (50 / 200).</td></tr>
+<tr><td><code>MAX_FRASE_PACKS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum phrase packs per server (5 / 20).</td></tr>
+<tr><td><code>MAX_CHANNEL_TRIGGERS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Maximum auto-reply triggers per server (10 / 30).</td></tr>
+<tr><td><code>MAX_DL_VIDEO_BYTES</code></td><td>Maximum byte size of a video that <code>!dl</code> downloads before uploading it to the channel (default: 100 MB).</td></tr>
+<tr><td><code>MAX_GIF_SOURCE_VIDEO_BYTES</code></td><td>Maximum byte size of the source video that <code>!gif</code> accepts before converting it to a GIF (default: 25 MB).</td></tr>
+<tr><td><code>GIF_PHASH_MAX_DISTANCE</code></td><td>Maximum Hamming distance between two GIFs to consider them the same meme and merge them (perceptual dedup).</td></tr>
 </table>

@@ -400,7 +400,7 @@
 <p>El bot y su API web se ejecutan juntos en un único proceso en Python 3.11+ dentro del mismo bucle de eventos asíncrono (<em>asyncio event loop</em>):</p>
 <ul>
   <li><strong>Gestión con systemd</strong>: El servicio <code>bot-purg.service</code> administra el ciclo de vida del proceso en el servidor, gestionando reinicios automáticos tras fallos y redirección de logs hacia <code>journald</code>.</li>
-  <li><strong>Aislamiento de red</strong>: La API HTTP (<code>aiohttp</code>) escucha exclusivamente en <code>127.0.0.1:WEB_PORT</code> (por defecto, puerto 8080/8081). Ningún socket de la aplicación Python está expuesto directamente a internet.</li>
+  <li><strong>Aislamiento de red</strong>: La API HTTP (<code>aiohttp</code>) escucha exclusivamente en <code>127.0.0.1:WEB_PORT</code> (por defecto, puerto 8080). Ningún socket de la aplicación Python está expuesto directamente a internet.</li>
 </ul>
 
 <h2 id="nginx">Topología de Nginx</h2>
@@ -439,8 +439,8 @@
   <li><strong>Mitigación DDoS y WAF</strong>: Filtra ataques de denegación de servicio a nivel de red y transporte antes de que alcancen el puerto de Nginx.</li>
 </ul>
 
-<h2 id="despliegue">Despliegue Continuo sin Paso de Compilación</h2>
-<p>La arquitectura de Purgito elimina la necesidad de pasos de compilación (<em>build steps</em>) pesados en el servidor:</p>
+<h2 id="despliegue">Despliegue Manual sin Paso de Compilación</h2>
+<p>El despliegue de Purgito es manual — no hay CI/CD que dispare un pipeline al hacer push, alguien lo ejecuta a mano por SSH — pero la arquitectura sí elimina la necesidad de pasos de compilación (<em>build steps</em>) pesados en el servidor:</p>
 <ol>
   <li>El código fuente, los scripts y las páginas pregeneradas por <code>landing/build_docs.py</code> están versionados directamente en el repositorio Git.</li>
   <li>El despliegue consiste en sincronizar los cambios con <code>git pull</code>.</li>

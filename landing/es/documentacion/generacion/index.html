@@ -406,10 +406,10 @@
 </ul>
 
 <h2 id="corpus">Gestión del Corpus y Aprendizaje</h2>
-<p>Cada servidor dispone de un corpus aislado almacenado en la tabla <code>corpus</code> de SQLite:</p>
+<p>Cada servidor dispone de un corpus aislado almacenado en la tabla <code>corpus_messages</code> de SQLite:</p>
 <ul>
   <li><strong>Sanitización en la ingesta</strong>: Antes de insertarse en la base de datos, los mensajes entrantes se filtran mediante expresiones regulares para eliminar menciones de usuarios (<code>&lt;@id&gt;</code>), menciones de roles (<code>&lt;@&amp;id&gt;</code>), enlaces a canales (<code>&lt;#id&gt;</code>), URLs HTTP/HTTPS y fragmentos de código.</li>
-  <li><strong>Control de canales</strong>: Solo los canales explícitamente marcados en la lista de lectura alimentan el corpus. Si un canal se añade a la lista de canales silenciados, se ignora por completo tanto para aprendizaje como para respuestas automáticas.</li>
+  <li><strong>Control de canales</strong>: Solo los canales en la lista de aprendizaje (<code>corpus_allowed_channels</code>) alimentan el corpus. Un canal en la lista de silenciados (<code>ignored_channels</code>) queda completamente mudo — ni aprende ni responde, gane lo que gane en las demás listas.</li>
   <li><strong>Corpus por usuario</strong>: Los mensajes también se etiquetan con el <code>user_id</code> del autor en una tabla complementaria (<code>user_corpus</code>), permitiendo entrenar modelos específicos para comandos que imitan a un miembro determinado del servidor.</li>
 </ul>
 
@@ -429,9 +429,9 @@
 <tr><th>Cuota</th><th>Plan Gratuito</th><th>Plan Premium</th><th>Mecanismo de recorte</th></tr>
 <tr><td>Mensajes por canal</td><td>15.000</td><td>50.000</td><td>FIFO: descarta los mensajes más antiguos del canal al insertar nuevos.</td></tr>
 <tr><td>Mensajes totales del servidor</td><td>150.000</td><td>500.000</td><td>Recorte proporcional: cuando el total excede el tope, se eliminan mensajes distribuidos equitativamente entre todos los canales para no vaciar ninguno.</td></tr>
-<tr><td>Mensajes por usuario</td><td>5.000</td><td>20.000</td><td>FIFO por autor.</td></tr>
+<tr><td>Mensajes por usuario</td><td>2.000</td><td>8.000</td><td>FIFO por autor.</td></tr>
 </table>
-<p>Las rutinas de recorte (<code>trim_corpus</code> y <code>trim_guild_total</code>) no se ejecutan en cada mensaje individual, sino de forma diferida en lotes periódicos para optimizar el rendimiento del disco.</p>
+<p>Las rutinas de recorte (<code>trim_corpus_if_needed</code> y <code>trim_guild_total_if_needed</code>) no se ejecutan en cada mensaje individual, sino de forma diferida en lotes periódicos para optimizar el rendimiento del disco.</p>
   </main>
 </div>
 

@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 14 de septiembre de 2026
+**Última actualización:** 21 de septiembre de 2026
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.
 
@@ -57,6 +57,12 @@ El nombre visible (Display Name) del usuario puede almacenarse junto con determi
 
 ---
 
+## Frases especiales
+
+Cuando un administrador agrega una frase especial desde el panel (pestaña Chat → Frases), Purgito guarda el ID de Discord y el nombre visible de quien la agregó, junto con el texto de la frase. A diferencia del registro de auditoría, esta atribución no tiene fecha de vencimiento: se conserva mientras la frase exista.
+
+---
+
 ## Inicio de sesión en el panel web
 
 Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) `identify`, `email` y `guilds`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras (el scope `guilds` es lo que permite saber en qué servidores tienes permisos de administración, para mostrarte solo esos en tu panel). Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
@@ -87,13 +93,12 @@ Sobre datos de pago, ver la sección **"Pagos y suscripciones"** más abajo: Pur
 
 Cuando un servidor contrata premium a través del dashboard (purgito.app), el pago lo procesa **Polar.sh**, no Purgito.
 
-**Purgito almacena únicamente:**
+**Purgito almacena:**
 
-- El ID del servidor (guild_id) que tiene premium activo.
-- La fecha en que se activó.
-- Una nota de texto identificando el plan (por ejemplo, "Polar — mensual" o "Polar — anual").
+- El ID del servidor (guild_id) que tiene premium activo, la fecha en que se activó y una nota de texto identificando el plan (por ejemplo, "Polar — mensual" o "Polar — anual").
+- El ID de Discord de quien inició la compra, junto con identificadores internos de la suscripción en Polar (IDs de cliente y de suscripción) y su estado (activa, en prueba, cancelada), sus fechas de período y de prueba, y si tiene una cancelación programada. Esto es lo que le permite a quien pagó ver el estado de su propia suscripción en `/perfil/facturacion` — nadie más del servidor puede ver esta información.
 
-Purgito **no almacena** número de tarjeta, datos de facturación, email ni nombre del comprador.
+Purgito **no almacena** número de tarjeta, datos de facturación, ni el email o nombre del comprador.
 
 **Polar.sh sí recolecta** los datos necesarios para procesar el pago (tarjeta, email, datos de facturación) bajo su propia [Política de Privacidad](https://polar.sh/legal/privacy). Esa relación de datos es entre quien compra y Polar.sh como procesador/Merchant of Record.
 

@@ -12,14 +12,15 @@
 </ul>
 
 <h2 id="schema">Schema and Data Isolation</h2>
-<p>The database features over 20 tables organized by operational domain. Guild multi-tenancy is enforced at schema level via indexed <code>guild_id</code> columns across every table:</p>
+<p>The database features over 40 tables organized by operational domain. Guild multi-tenancy is enforced at schema level via indexed <code>guild_id</code> columns across every table:</p>
 <ul>
-  <li><strong>Configuration and Customization</strong>: <code>guild_settings</code>, <code>guild_style</code>, <code>channel_settings</code>, <code>ignored_roles</code>, <code>silenced_channels</code>.</li>
-  <li><strong>Learning Corpus</strong>: <code>corpus</code> (channel messages) and <code>user_corpus</code> (author messages), both backed by composite indices on <code>(guild_id, created_at)</code> for rapid model sampling and trimming.</li>
-  <li><strong>Automation and Triggers</strong>: <code>triggers</code>, <code>custom_reactions</code>, <code>custom_phrases</code>, <code>phrase_packs</code>, <code>scheduled_announcements</code>.</li>
+  <li><strong>Configuration and Customization</strong>: <code>settings</code>, <code>guild_bot_style</code>, <code>channel_settings</code>, <code>ignored_channels</code>.</li>
+  <li><strong>Chat channel lists</strong>: <code>spontaneous_channels</code>, <code>mention_channels</code>, <code>corpus_allowed_channels</code> — three independent lists (where it talks on its own, where it replies to mentions, and what it learns from), see "Chat configuration" in the guide.</li>
+  <li><strong>Learning Corpus</strong>: <code>corpus_messages</code> (channel messages) and <code>user_corpus</code> (author messages), both backed by composite indices on <code>(guild_id, created_at)</code> for rapid model sampling and trimming.</li>
+  <li><strong>Automation and Triggers</strong>: <code>channel_triggers</code>, <code>reaction_pool</code>, <code>frases_especiales</code>, <code>frase_packs</code>, <code>scheduled_announcements</code>.</li>
   <li><strong>Server Events</strong>: <code>server_events</code> (welcome, goodbye, and boost configurations per guild), <code>member_boost_records</code> (idempotent boost timestamp tracking).</li>
-  <li><strong>Message Designer</strong>: <code>embed_templates</code>, <code>layout_v2_blocks</code>, <code>embed_share_links</code>.</li>
-  <li><strong>Security and Billing</strong>: <code>revoked_sessions</code>, <code>guild_premium</code>, <code>audit_log</code>.</li>
+  <li><strong>Message Designer</strong>: <code>embed_templates</code>, <code>layout_button_actions</code>, <code>shared_embeds</code>.</li>
+  <li><strong>Security and Billing</strong>: <code>revoked_sessions</code>, <code>premium_guilds</code>, <code>premium_subscriptions</code>, <code>audit_log</code>.</li>
 </ul>
 
 <h2 id="r2">Cloudflare R2 and Media Deduplication</h2>

@@ -407,14 +407,15 @@
 </ul>
 
 <h2 id="esquema">Esquema y Separación de Datos</h2>
-<p>La base de datos contiene más de 20 tablas organizadas por dominio. El aislamiento entre servidores se garantiza a nivel de esquema mediante columnas <code>guild_id</code> indexadas en cada tabla:</p>
+<p>La base de datos contiene más de 40 tablas organizadas por dominio. El aislamiento entre servidores se garantiza a nivel de esquema mediante columnas <code>guild_id</code> indexadas en cada tabla:</p>
 <ul>
-  <li><strong>Configuración y estilo</strong>: <code>guild_settings</code>, <code>guild_style</code>, <code>channel_settings</code>, <code>ignored_roles</code>, <code>silenced_channels</code>.</li>
-  <li><strong>Corpus de aprendizaje</strong>: <code>corpus</code> (mensajes por canal) y <code>user_corpus</code> (mensajes por autor), ambas con índices compuestos en <code>(guild_id, created_at)</code> para acelerar recortes y consultas de entrenamiento.</li>
-  <li><strong>Automatización y disparadores</strong>: <code>triggers</code>, <code>custom_reactions</code>, <code>custom_phrases</code>, <code>phrase_packs</code>, <code>scheduled_announcements</code>.</li>
+  <li><strong>Configuración y estilo</strong>: <code>settings</code>, <code>guild_bot_style</code>, <code>channel_settings</code>, <code>ignored_channels</code>.</li>
+  <li><strong>Listas de canales del chat</strong>: <code>spontaneous_channels</code>, <code>mention_channels</code>, <code>corpus_allowed_channels</code> — tres listas independientes (dónde habla, dónde responde a menciones y de dónde aprende), ver "Configuración del chat" en la guía.</li>
+  <li><strong>Corpus de aprendizaje</strong>: <code>corpus_messages</code> (mensajes por canal) y <code>user_corpus</code> (mensajes por autor), ambas con índices compuestos en <code>(guild_id, created_at)</code> para acelerar recortes y consultas de entrenamiento.</li>
+  <li><strong>Automatización y disparadores</strong>: <code>channel_triggers</code>, <code>reaction_pool</code>, <code>frases_especiales</code>, <code>frase_packs</code>, <code>scheduled_announcements</code>.</li>
   <li><strong>Eventos del servidor</strong>: <code>server_events</code> (configuración de bienvenidas, despedidas y boosts por guild), <code>member_boost_records</code> (registro idempotente de timestamps de boosts).</li>
-  <li><strong>Diseñador de mensajes</strong>: <code>embed_templates</code>, <code>layout_v2_blocks</code>, <code>embed_share_links</code>.</li>
-  <li><strong>Seguridad y facturación</strong>: <code>revoked_sessions</code>, <code>guild_premium</code>, <code>audit_log</code>.</li>
+  <li><strong>Diseñador de mensajes</strong>: <code>embed_templates</code>, <code>layout_button_actions</code>, <code>shared_embeds</code>.</li>
+  <li><strong>Seguridad y facturación</strong>: <code>revoked_sessions</code>, <code>premium_guilds</code>, <code>premium_subscriptions</code>, <code>audit_log</code>.</li>
 </ul>
 
 <h2 id="r2">Cloudflare R2 y Deduplicación de Medios</h2>

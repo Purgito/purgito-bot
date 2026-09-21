@@ -734,17 +734,22 @@ GUIA_SECTIONS = [
     ("como-aprende", "Cómo aprende Purgito"),
     ("chat", "Chat"),
     ("corpus", "Corpus"),
+    ("imitar", "Imitar a un usuario"),
     ("gifs", "GIFs"),
     ("memes", "Memes"),
+    ("descargas", "Descargas y filtros de imagen"),
     ("reacciones", "Reacciones"),
     ("frases-y-packs", "Frases y packs"),
     ("triggers", "Triggers"),
     ("embeds", "Embeds"),
     ("youtube", "YouTube"),
+    ("twitch", "Twitch"),
+    ("rss", "RSS"),
     ("anuncios", "Anuncios programados"),
     ("premium", "Premium"),
     ("dashboard", "Dashboard"),
     ("historial", "Historial"),
+    ("privacidad", "Privacidad y tus datos"),
 ]
 
 
@@ -754,17 +759,22 @@ GUIA_SECTIONS_EN = [
     ("how-purgito-learns", "How Purgito learns"),
     ("chat", "Chat"),
     ("corpus", "Corpus"),
+    ("impersonation", "Imitating a user"),
     ("gifs", "GIFs"),
     ("memes", "Memes"),
+    ("downloads", "Downloads and image filters"),
     ("reactions", "Reactions"),
     ("phrases-and-packs", "Phrases and packs"),
     ("triggers", "Triggers"),
     ("embeds", "Embeds"),
     ("youtube", "YouTube"),
+    ("twitch", "Twitch"),
+    ("rss", "RSS"),
     ("scheduled-announcements", "Scheduled announcements"),
     ("premium", "Premium"),
     ("dashboard", "Dashboard"),
     ("history", "History"),
+    ("privacy", "Privacy and your data"),
 ]
 
 
@@ -1504,7 +1514,7 @@ def main():
     # REFUNDS no tiene `# N.`: sus `## ` son las secciones.
     refunds = parse((DOCS / "REFUNDS.md").read_text("utf-8"))
     assert refunds[0] == "Políticas de reembolsos", refunds[0]
-    assert refunds[1] == "2 de agosto de 2026", refunds[1]
+    assert refunds[1] == "21 de septiembre de 2026", refunds[1]
     assert len(refunds[3]) == 6, len(refunds[3])
     assert refunds[3][0][0] == "Prueba gratuita (trial)", refunds[3][0][0]
     assert "<h3>" not in refunds[3][0][1], refunds[3][0][1]

@@ -400,7 +400,7 @@
 <p>The Discord bot and its web API run co-located in a single Python 3.11+ process within the same asynchronous event loop (<em>asyncio</em>):</p>
 <ul>
   <li><strong>systemd Service Management</strong>: The <code>bot-purg.service</code> unit file supervises process lifecycle, handling automatic crash recovery and structured logging to <code>journald</code>.</li>
-  <li><strong>Network Isolation</strong>: The HTTP API (<code>aiohttp</code>) binds strictly to <code>127.0.0.1:WEB_PORT</code> (default: port 8080/8081). No Python socket is exposed directly to the public internet.</li>
+  <li><strong>Network Isolation</strong>: The HTTP API (<code>aiohttp</code>) binds strictly to <code>127.0.0.1:WEB_PORT</code> (default: port 8080). No Python socket is exposed directly to the public internet.</li>
 </ul>
 
 <h2 id="nginx">Nginx Topology</h2>
@@ -439,8 +439,8 @@
   <li><strong>DDoS Mitigation &amp; WAF</strong>: Filters malicious traffic and volumetric denial-of-service attacks before packets reach the host Nginx port.</li>
 </ul>
 
-<h2 id="deployment">Continuous Deployment Without Build Steps</h2>
-<p>Purgito's architecture eliminates server-side build steps and compilation overhead:</p>
+<h2 id="deployment">Manual Deployment Without Build Steps</h2>
+<p>Deploying Purgito is a manual process — there's no CI/CD pipeline that triggers on push, someone runs it by hand over SSH — but the architecture still eliminates server-side build steps and compilation overhead:</p>
 <ol>
   <li>Source code, modular scripts, and pregenerated documentation pages from <code>landing/build_docs.py</code> are versioned directly in Git.</li>
   <li>Deployments consist of synchronizing repository state via <code>git pull</code>.</li>
