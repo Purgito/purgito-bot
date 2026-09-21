@@ -1,6 +1,6 @@
 # Políticas de reembolsos
 
-**Última actualización:** 2 de agosto de 2026
+**Última actualización:** 21 de septiembre de 2026
 
 Esta página resume cómo funcionan la prueba gratuita, la cancelación y
 los reembolsos del plan Premium de Purgito.
@@ -51,13 +51,17 @@ resuelto.
 
 Cuando un servidor deja de tener Premium (por cancelación, revocación, o
 fin del período pagado), el contenido que ya tenía guardado (corpus de
-mensajes, GIFs, plantillas de embeds, etc.) **no se borra**. Simplemente
-deja de poder seguir creciendo más allá de los límites del plan
-gratuito: si ya tenías más contenido guardado del que el plan gratuito
-permite, ese excedente se conserva tal cual hasta que, con el uso normal
-del bot, converge naturalmente al límite gratuito (por ejemplo, el
-sistema descarta lo más viejo a medida que se guarda contenido nuevo, en
-las categorías que ya funcionan así).
+mensajes, GIFs, imágenes para memes, plantillas de embeds, anuncios
+programados, frases especiales, etc.) **no se borra**. Simplemente deja
+de poder seguir creciendo más allá de los límites del plan gratuito.
+
+Cómo se comporta el excedente depende de la categoría. En mensajes de
+corpus, GIFs e imágenes para memes, el sistema descarta lo más viejo a
+medida que se guarda contenido nuevo, así que el excedente converge
+solo con el uso normal del bot. En plantillas de embeds, anuncios
+programados y frases especiales no hay descarte automático: simplemente
+no se puede crear ninguno nuevo hasta bajar del límite del plan gratuito
+borrando algo a mano.
 
 ## Titularidad del premium
 

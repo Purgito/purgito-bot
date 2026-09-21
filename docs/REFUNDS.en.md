@@ -1,6 +1,6 @@
 # Refund Policy
 
-**Last updated:** August 2, 2026
+**Last updated:** September 21, 2026
 
 This page summarizes how the free trial, cancellation, and refunds work
 for Purgito's Premium plan.
@@ -49,12 +49,17 @@ fraud, chargeback, or unresolved payment failure.
 
 When a server stops having Premium (due to cancellation, revocation, or
 the end of the paid period), the content it had already saved (message
-corpus, GIFs, embed templates, etc.) **isn't deleted**. It simply stops
-being able to keep growing beyond the free plan's limits: if you already
-had more content saved than the free plan allows, that surplus is kept
-as-is until, through normal use of the bot, it naturally converges to
-the free limit (for example, the system discards the oldest content as
-new content is saved, in the categories that already work that way).
+corpus, GIFs, meme images, embed templates, scheduled announcements,
+special phrases, etc.) **isn't deleted**. It simply stops being able to
+keep growing beyond the free plan's limits.
+
+How the surplus behaves depends on the category. For corpus messages,
+GIFs, and meme images, the system discards the oldest content as new
+content is saved, so the surplus converges on its own through normal use
+of the bot. For embed templates, scheduled announcements, and special
+phrases there's no automatic discarding: you simply can't create new
+ones until you drop below the free plan's limit by deleting something
+manually.
 
 ## Who Premium belongs to
 

@@ -1514,7 +1514,7 @@ def main():
     # REFUNDS no tiene `# N.`: sus `## ` son las secciones.
     refunds = parse((DOCS / "REFUNDS.md").read_text("utf-8"))
     assert refunds[0] == "Políticas de reembolsos", refunds[0]
-    assert refunds[1] == "2 de agosto de 2026", refunds[1]
+    assert refunds[1] == "21 de septiembre de 2026", refunds[1]
     assert len(refunds[3]) == 6, len(refunds[3])
     assert refunds[3][0][0] == "Prueba gratuita (trial)", refunds[3][0][0]
     assert "<h3>" not in refunds[3][0][1], refunds[3][0][1]

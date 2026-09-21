@@ -368,7 +368,7 @@
 <main id="contenido" class="doc wrap">
   <header class="doc-head">
     <h1 class="doc-title">Política de Privacidad (Privacy Policy)</h1>
-    <p class="doc-date">Última actualización: 14 de septiembre de 2026</p>
+    <p class="doc-date">Última actualización: 21 de septiembre de 2026</p>
     <div class="doc-body doc-intro">
 <p>Esta Política describe cómo <strong>Purgito</strong> recopila, utiliza, almacena y protege la información necesaria para ofrecer sus funcionalidades.</p>
 <p>Purgito es un bot público de Discord, usado por múltiples servidores. Los datos que recopilamos y cómo los tratamos son los mismos para todos los servidores donde el bot está presente.</p>
@@ -407,6 +407,8 @@
 <p>Para cada GIF guardado en la galería, el bot registra además quién lo mandó: ID de usuario, canal y mensaje de origen, y cuántas veces lo compartió (incluye el caso de volver a compartir un GIF que otra persona ya había guardado). El panel de administración muestra este dato en el catálogo de GIFs — con link directo al mensaje original y un filtro para ver los GIFs de una persona en particular — visible para los administradores del servidor.</p>
 <h3>Nombre visible</h3>
 <p>El nombre visible (Display Name) del usuario puede almacenarse junto con determinados mensajes para permitir funciones como la imitación de usuarios.</p>
+<h3>Frases especiales</h3>
+<p>Cuando un administrador agrega una frase especial desde el panel (pestaña Chat → Frases), Purgito guarda el ID de Discord y el nombre visible de quien la agregó, junto con el texto de la frase. A diferencia del registro de auditoría, esta atribución no tiene fecha de vencimiento: se conserva mientras la frase exista.</p>
 <h3>Inicio de sesión en el panel web</h3>
 <p>Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) <code class="cmd">identify</code>, <code class="cmd">email</code> y <code class="cmd">guilds</code>. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras (el scope <code class="cmd">guilds</code> es lo que permite saber en qué servidores tienes permisos de administración, para mostrarte solo esos en tu panel). Se guarda una cookie de sesión para mantenerte logueado mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.</p>
 <h3>Registro de auditoría del panel</h3>
@@ -418,9 +420,9 @@
 <p>Sobre datos de pago, ver la sección <strong>&quot;Pagos y suscripciones&quot;</strong> más abajo: Purgito no los almacena, pero el procesador de pagos (Polar.sh) sí los recolecta al procesar una compra.</p>
 <h3>Pagos y suscripciones</h3>
 <p>Cuando un servidor contrata premium a través del dashboard (purgito.app), el pago lo procesa <strong>Polar.sh</strong>, no Purgito.</p>
-<p><strong>Purgito almacena únicamente:</strong></p>
-<ul><li>El ID del servidor (guild_id) que tiene premium activo.</li><li>La fecha en que se activó.</li><li>Una nota de texto identificando el plan (por ejemplo, &quot;Polar — mensual&quot; o &quot;Polar — anual&quot;).</li></ul>
-<p>Purgito <strong>no almacena</strong> número de tarjeta, datos de facturación, email ni nombre del comprador.</p>
+<p><strong>Purgito almacena:</strong></p>
+<ul><li>El ID del servidor (guild_id) que tiene premium activo, la fecha en que se activó y una nota de texto identificando el plan (por ejemplo, &quot;Polar — mensual&quot; o &quot;Polar — anual&quot;).</li><li>El ID de Discord de quien inició la compra, junto con identificadores internos de la suscripción en Polar (IDs de cliente y de suscripción) y su estado (activa, en prueba, cancelada), sus fechas de período y de prueba, y si tiene una cancelación programada. Esto es lo que le permite a quien pagó ver el estado de su propia suscripción en <code class="cmd">/perfil/facturacion</code> — nadie más del servidor puede ver esta información.</li></ul>
+<p>Purgito <strong>no almacena</strong> número de tarjeta, datos de facturación, ni el email o nombre del comprador.</p>
 <p><strong>Polar.sh sí recolecta</strong> los datos necesarios para procesar el pago (tarjeta, email, datos de facturación) bajo su propia <a href="https://polar.sh/legal/privacy" target="_blank" rel="noopener">Política de Privacidad</a>. Esa relación de datos es entre quien compra y Polar.sh como procesador/Merchant of Record.</p>
     </div>
   </section>

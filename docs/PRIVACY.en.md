@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** September 14, 2026
+**Last updated:** September 21, 2026
 
 This Policy describes how **Purgito** collects, uses, stores, and protects the information it needs to provide its features.
 
@@ -57,6 +57,12 @@ A user's Display Name may be stored alongside certain messages to enable feature
 
 ---
 
+## Special phrases
+
+When an admin adds a special phrase from the panel (Chat tab → Phrases), Purgito stores the Discord ID and display name of whoever added it, along with the phrase's text. Unlike the audit log, this attribution has no expiration date: it's kept for as long as the phrase exists.
+
+---
+
 ## Logging in to the web panel
 
 When you log in to purgito.app with Discord, the `identify`, `email`, and `guilds` scopes are requested. This lets us show your username, avatar, and email within your own session, and link your Discord account to the servers you manage (the `guilds` scope is what lets us know which servers you have admin permissions on, so we only show you those in your dashboard). A session cookie is stored to keep you logged in while you browse the site; this cookie isn't used for advertising or cross-site tracking.
@@ -87,13 +93,12 @@ For payment data, see the **"Payments and subscriptions"** section below: Purgit
 
 When a server purchases Premium through the dashboard (purgito.app), the payment is processed by **Polar.sh**, not Purgito.
 
-**Purgito stores only:**
+**Purgito stores:**
 
-- The ID of the server (guild_id) with active Premium.
-- The date it was activated.
-- A text note identifying the plan (for example, "Polar — monthly" or "Polar — annual").
+- The ID of the server (guild_id) with active Premium, the date it was activated, and a text note identifying the plan (for example, "Polar — monthly" or "Polar — annual").
+- The Discord ID of whoever started the purchase, along with internal identifiers for the Polar subscription (customer and subscription IDs) and its status (active, trialing, canceled), its period and trial dates, and whether it has a scheduled cancellation. This is what lets whoever paid see their own subscription's status at `/perfil/facturacion` — no one else on the server can see this information.
 
-Purgito **does not store** the card number, billing details, email, or the buyer's name.
+Purgito **does not store** the card number, billing details, or the buyer's email or name.
 
 **Polar.sh does collect** the data needed to process the payment (card, email, billing details) under its own [Privacy Policy](https://polar.sh/legal/privacy). That data relationship is between the buyer and Polar.sh as processor/Merchant of Record.
 
