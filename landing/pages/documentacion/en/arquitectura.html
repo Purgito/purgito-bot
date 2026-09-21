@@ -61,7 +61,7 @@
 <ol>
   <li>Discord emits a <code>MESSAGE_CREATE</code> event across the Gateway WebSocket.</li>
   <li><code>cogs/chat.py</code> receives the event in <code>on_message</code>, filters out bots and unauthorized channels, and computes the channel's effective configuration.</li>
-  <li>If the channel is enabled for learning, text is cleaned (removing mentions, URLs, and markdown artifacts) and saved to the <code>corpus</code> table via <code>src/db.py</code>.</li>
+  <li>If the channel is enabled for learning, text is cleaned (removing mentions, URLs, and markdown artifacts) and saved to the <code>corpus_messages</code> table via <code>src/db.py</code>.</li>
   <li>If a trigger matches or response criteria are met (direct mention or spontaneous probability), an acquisition request is sent to the global generation semaphore.</li>
   <li>The Markov engine trains or retrieves the cached in-memory model, generates the response, applies formatting filters, and posts the message via Discord's REST API.</li>
 </ol>

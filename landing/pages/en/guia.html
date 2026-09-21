@@ -319,6 +319,36 @@
 
 <hr class="docs-divider" aria-hidden="true">
 
+<!-- ── IMITATING A USER ──────────────────────────────────────────── -->
+<section class="guia-section" id="impersonation">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Imitating a user</h2>
+  </div>
+  <p class="guia-lead">
+    Generate a message written in a specific member's style instead of the chat's general style.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>/imitar</span>
+      </div>
+      <p class="guia-card-p">Generates a message imitating a single member's style, using the sample of their own messages saved in the corpus.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>/imitar_mezcla</span>
+      </div>
+      <p class="guia-card-p">Combines two server members' styles into a single generated message.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
 <!-- ── 5. GIFS ─────────────────────────────────────────────────── -->
 <section class="guia-section" id="gifs">
   <div class="guia-sec-head">
@@ -408,6 +438,44 @@
       <p class="guia-card-p">
         If the server has the vision engine enabled, Purgito interprets the image's content to produce contextually funny punchlines.
       </p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── DOWNLOADS AND IMAGE FILTERS ───────────────────────────────── -->
+<section class="guia-section" id="downloads">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Downloads and image filters</h2>
+  </div>
+  <p class="guia-lead">
+    Text commands, with your server's prefix or the word "purgito", to download social media videos and apply filters to images and GIFs.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>!dl &lt;link&gt;</span>
+      </div>
+      <p class="guia-card-p">Downloads an Instagram, TikTok, Twitter/X, or Facebook video and uploads it to the channel. Also works by replying to a message that already has the link, without repeating it.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>Image filters</span>
+      </div>
+      <p class="guia-card-p"><code class="cmd">!deepfry</code>, <code class="cmd">!caption</code>, <code class="cmd">!triggered</code>, <code class="cmd">!wasted</code>, and others (full list in <code class="cmd">/help</code>) apply to the image you upload, the one you reply to, or your avatar if neither is present.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
+        <span>!gif and GIF editing</span>
+      </div>
+      <p class="guia-card-p"><code class="cmd">!gif</code> converts a video into a GIF. <code class="cmd">!gifcaption</code>, <code class="cmd">!gifspeed</code>, <code class="cmd">!gifreverse</code>, and <code class="cmd">!gifwide</code> edit a GIF you already have.</p>
     </div>
   </div>
 </section>
@@ -670,6 +738,74 @@
 
 <hr class="docs-divider" aria-hidden="true">
 
+<!-- ── TWITCH ALERTS ─────────────────────────────────────────────── -->
+<section class="guia-section" id="twitch">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Twitch alerts</h2>
+  </div>
+  <p class="guia-lead">
+    Get an automatic alert on your server the moment a Twitch channel you follow goes live.
+  </p>
+
+  <div class="guia-grid-3">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect width="14" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+        <span>Link a channel</span>
+      </div>
+      <p class="guia-card-p">Enter the Twitch channel name on the <strong>Twitch</strong> tab of the panel.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg>
+        <span>Destination channel</span>
+      </div>
+      <p class="guia-card-p">Choose the Discord text channel where Purgito will post the alert as soon as the stream starts.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Custom mentions</span>
+      </div>
+      <p class="guia-card-p">Set a role to mention alongside the alert, same as with YouTube.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── RSS ALERTS ────────────────────────────────────────────────── -->
+<section class="guia-section" id="rss">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">RSS alerts</h2>
+  </div>
+  <p class="guia-lead">
+    Same as YouTube and Twitch, but for any generic RSS or Atom feed — blogs, news, any site that publishes one.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        <span>Link a feed</span>
+      </div>
+      <p class="guia-card-p">Paste the RSS/Atom feed URL on the <strong>RSS</strong> tab of the panel.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Channel and mentions</span>
+      </div>
+      <p class="guia-card-p">Choose the destination channel and, if you want, a role to mention on every new post.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
 <!-- ── 12. ANUNCIOS PROGRAMADOS ────────────────────────────────── -->
 <section class="guia-section" id="scheduled-announcements">
   <div class="guia-sec-head">
@@ -879,6 +1015,36 @@
         <span>What changed</span>
       </div>
       <p class="guia-card-p">Details the previous value and the new value applied to the setting.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
+<!-- ── PRIVACY AND YOUR DATA ─────────────────────────────────────── -->
+<section class="guia-section" id="privacy">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Privacy and your data</h2>
+  </div>
+  <p class="guia-lead">
+    Anyone can request their own data or delete it, without depending on a server admin.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>/mis_datos</span>
+      </div>
+      <p class="guia-card-p">Downloads a file with everything Purgito saved of your writing style.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <span>/borrar_mis_datos</span>
+      </div>
+      <p class="guia-card-p">Permanently deletes your messages saved in the corpus across every server where Purgito is present. Asks for confirmation before deleting.</p>
     </div>
   </div>
 </section>

@@ -61,7 +61,7 @@
 <ol>
   <li>Discord emite un evento <code>MESSAGE_CREATE</code> por el WebSocket del Gateway.</li>
   <li><code>cogs/chat.py</code> recibe el evento en <code>on_message</code>, descarta mensajes de bots o canales no autorizados y resuelve la configuración efectiva del canal.</li>
-  <li>Si el canal tiene permitido el aprendizaje, el texto se limpia (eliminando menciones, URLs y caracteres especiales) y se persiste en la tabla <code>corpus</code> mediante <code>src/db.py</code>.</li>
+  <li>Si el canal tiene permitido el aprendizaje, el texto se limpia (eliminando menciones, URLs y caracteres especiales) y se persiste en la tabla <code>corpus_messages</code> mediante <code>src/db.py</code>.</li>
   <li>Si se activa un trigger o se cumplen las condiciones de respuesta (mención directa o probabilidad espontánea), se solicita un turno al semáforo de generación.</li>
   <li>El motor de Markov entrena o reutiliza el modelo cacheado en memoria, genera la respuesta, aplica filtros de formato y envía el mensaje de vuelta al canal mediante la API REST de Discord.</li>
 </ol>

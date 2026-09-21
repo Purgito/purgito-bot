@@ -406,10 +406,10 @@
 </ul>
 
 <h2 id="corpus">Corpus Management and Ingestion</h2>
-<p>Each server maintains an isolated corpus stored in the SQLite <code>corpus</code> table:</p>
+<p>Each server maintains an isolated corpus stored in the SQLite <code>corpus_messages</code> table:</p>
 <ul>
   <li><strong>Ingestion Sanitization</strong>: Before database insertion, incoming messages pass through regex filters stripping user mentions (<code>&lt;@id&gt;</code>), role mentions (<code>&lt;@&amp;id&gt;</code>), channel links (<code>&lt;#id&gt;</code>), HTTP/HTTPS URLs, and code blocks.</li>
-  <li><strong>Channel Allowlist</strong>: Only channels explicitly marked on the reading allowlist feed the corpus. If a channel is placed on the silenced list, it is ignored entirely for both learning and automatic replies.</li>
+  <li><strong>Channel Allowlist</strong>: Only channels on the learning list (<code>corpus_allowed_channels</code>) feed the corpus. A channel on the ignored list (<code>ignored_channels</code>) stays completely silent — it neither learns nor replies, whatever the other lists say.</li>
   <li><strong>Per-User Corpus</strong>: Messages are also tagged with the author's <code>user_id</code> in the <code>user_corpus</code> table, enabling dedicated models for commands that mimic specific community members.</li>
 </ul>
 
@@ -429,9 +429,9 @@
 <tr><th>Quota</th><th>Free Plan</th><th>Premium Plan</th><th>Trimming Behavior</th></tr>
 <tr><td>Messages per channel</td><td>15,000</td><td>50,000</td><td>FIFO: oldest messages in the channel are pruned as new ones arrive.</td></tr>
 <tr><td>Total server messages</td><td>150,000</td><td>500,000</td><td>Proportional trim: when the total limit is reached, messages are removed evenly across all active channels.</td></tr>
-<tr><td>Messages per user</td><td>5,000</td><td>20,000</td><td>FIFO per author.</td></tr>
+<tr><td>Messages per user</td><td>2,000</td><td>8,000</td><td>FIFO per author.</td></tr>
 </table>
-<p>Trimming routines (<code>trim_corpus</code> and <code>trim_guild_total</code>) run as periodic background tasks rather than on every single message insertion, maximizing disk I/O throughput.</p>
+<p>Trimming routines (<code>trim_corpus_if_needed</code> and <code>trim_guild_total_if_needed</code>) run as periodic background tasks rather than on every single message insertion, maximizing disk I/O throughput.</p>
   </main>
 </div>
 

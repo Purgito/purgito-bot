@@ -429,35 +429,42 @@
 </table>
 
 <h3>Guild Endpoints (<code>/api/server/{guild_id}/*</code>)</h3>
-<p>All routes under this prefix require an active session and verify in real time that the user holds the <code>Manage Server</code> permission on the target guild:</p>
+<p>All routes under this prefix require an active session and verify in real time that the user holds the <code>Manage Server</code> permission (or the more limited Manager role) on the target guild:</p>
 
 <ul>
+  <li><code>GET /api/server/{id}/channels</code>, <code>/roles</code>, <code>/emojis</code>: Raw guild lists feeding the panel's selectors.</li>
   <li><code>GET/POST /api/server/{id}/style</code>: Query and update Purgito's avatar, nickname, and banner on the server.</li>
-  <li><code>GET/POST /api/server/{id}/stats</code>: Detailed memory metrics for messages, GIFs, phrases, historical activity, and quotas.</li>
-  <li><code>GET/PUT /api/server/{id}/chat</code>: Generation parameters, spontaneous reply probabilities, and conversation limits.</li>
-  <li><code>GET/PUT /api/server/{id}/canales</code>: Matrix of reading channels, reply channels, silenced channels, and ignored roles.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/gifs</code>: GIF catalog, file uploads, and single/bulk deletion.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/memes</code>: Server meme image templates and assets.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/triggers</code>: Automatic triggers matching exact text, prefixes, or regular expressions.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/reacciones</code>: Automated emoji reaction rules.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/frases</code>: Custom static phrases and themed pack definitions.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/embeds</code>: Saved templates for classic embeds and interactive Layout V2 blocks.</li>
-  <li><code>POST /api/server/{id}/embeds/send</code>: Immediate dispatch of a designed message to a Discord channel.</li>
-  <li><code>GET/PUT/DELETE /api/server/{id}/events/{event_type}</code>: Query, configure (plain text, classic embed, Layout V2), and reset Welcome, Goodbye, and Boost server events with the placeholder engine.</li>
-  <li><code>POST /api/server/{id}/events/{event_type}/test</code>: Send a test event message with resolved placeholders to the configured channel.</li>
-  <li><code>GET/POST/DELETE /api/server/{id}/anuncios</code>: Automated announcement scheduling and management.</li>
-  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/youtube</code>: YouTube channel feed subscriptions and alert destinations.</li>
-  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/rss</code>: Generic RSS/Atom feed subscriptions and alert destinations.</li>
-  <li><code>POST /api/server/{id}/amnesia</code>: Purges messages and style learned within the last 24 hours.</li>
-  <li><code>GET /api/server/{id}/audit</code>: Audit log recording actions taken via the dashboard.</li>
+  <li><code>GET/POST /api/server/{id}/stats</code>, <code>GET .../stats/activity</code>: Memory metrics for messages, GIFs, phrases, historical activity, and quotas.</li>
+  <li><code>GET/PUT /api/server/{id}/settings/chat</code>, <code>PUT .../settings/chat/tunables</code>: Generation parameters, reply probabilities, and message limits.</li>
+  <li><code>POST /api/server/{id}/chat/playground</code>: Chat response simulator that doesn't post anything to Discord.</li>
+  <li><code>GET/PUT /api/guilds/{id}/channels/{channel_id}/settings</code>: Per-channel override of chat settings.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/spontaneous-channels</code>: Channels where the bot talks on its own.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/mention-channels</code>: Channels where it replies to mentions.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/corpus</code>, <code>POST .../settings/corpus/amnesia</code>: Channels it learns from, and corpus wipe. Fully silenced channels (<code>ignored_channels</code>) have no dedicated endpoint — they're managed via <code>/settings</code> in Discord.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/exempt-roles</code>, <code>.../settings/exempt-channels</code>: Roles and channels exempt from the mention rate limit.</li>
+  <li><code>GET/POST/PUT/DELETE /api/server/{id}/settings/excluded-users</code>: Users excluded from learning.</li>
+  <li><code>GET /api/server/{id}/members/search</code>: Member search for the panel's selectors.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/reacciones</code>: Automated emoji reaction rules.</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/settings/frases</code> (+ <code>/channels</code>) and <code>/api/server/{id}/frases/packs</code> (+ <code>/channels</code>): Special phrases, their assigned channels, and their packs.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/triggers</code>: Automatic triggers matching exact text, prefixes, or regular expressions.</li>
+  <li><code>GET/PUT /api/server/{id}/settings/updates</code>, <code>.../settings/prefix</code>, <code>.../settings/manager-role</code>: Updates channel, command prefix, and the server's Manager role.</li>
+  <li><code>GET/POST/DELETE /api/server/{id}/settings/gifs</code> (+ <code>/senders</code>, <code>/by-user/{user_id}</code>, <code>/verify</code>, <code>/blocked</code>, <code>/{gif_id}/block</code>): GIF catalog, per-user attribution, verification, and blocklist.</li>
+  <li><code>GET/POST/DELETE/PATCH /api/server/{id}/youtube</code>, <code>/twitch</code>, <code>/rss</code>: YouTube, Twitch, and generic RSS/Atom feed subscriptions and alert destinations.</li>
+  <li><code>POST /api/server/{id}/embeds/send</code>, <code>/share</code>, <code>/schedule</code>, <code>/validate</code>, <code>/upload</code>, <code>/upload-file/{filename}</code>, <code>/resolve-gif</code>, <code>GET .../uploads</code>: Embed editor — sending, share links, scheduling, validation, and file uploads.</li>
+  <li><code>GET/POST/PUT/DELETE /api/server/{id}/embeds/templates</code>: Saved message designer templates.</li>
+  <li><code>GET/POST/PUT/DELETE /api/server/{id}/anuncios</code>: Automated announcement scheduling and management.</li>
+  <li><code>GET/PUT/DELETE /api/server/{id}/events</code>, <code>/events/{event_type}</code>, <code>POST .../test</code>: Query, configure (plain text, classic embed, Layout V2), and test Welcome, Goodbye, and Boost server events with the placeholder engine.</li>
+  <li><code>GET /api/server/{id}/premium</code>, <code>POST .../premium/checkout</code>: The server's Premium status and starting a Polar checkout session.</li>
+  <li><code>GET /api/guilds/{id}/audit</code>: Audit log recording actions taken via the dashboard (note the <code>/guilds/</code> prefix, unlike the rest).</li>
 </ul>
+<p>There's no dedicated endpoint for meme bank images yet: that feature is managed entirely from Discord (reactions and commands), with no dashboard surface so far.</p>
 
 <h2 id="webhooks">Payment Webhooks (Polar)</h2>
 <p><code>POST /webhooks/polar</code> receives subscription and billing lifecycle events sent by Polar:</p>
 <ul>
   <li><strong>Signature verification</strong>: The <code>Webhook-Signature</code> header is validated against the <em>Standard Webhooks</em> specification (HMAC-SHA256) using <code>POLAR_WEBHOOK_SECRET</code>. Invalid or missing signatures return HTTP <code>400</code>.</li>
   <li><strong>Event ordering</strong>: Payload timestamps ensure out-of-order delivery over the network cannot overwrite newer subscription states.</li>
-  <li><strong>Supported events</strong>: <code>subscription.created</code>, <code>subscription.updated</code>, <code>subscription.active</code>, <code>subscription.canceled</code>, and <code>order.refunded</code>, updating the <code>guild_premium</code> table in real time.</li>
+  <li><strong>Supported events</strong>: <code>subscription.active</code> and <code>subscription.resumed</code> grant Premium; <code>subscription.paused</code> and <code>subscription.revoked</code> remove it; <code>subscription.created</code> with a <code>trialing</code> status counts as a new grant (starts the 7-day trial); <code>refund.created</code>/<code>refund.updated</code> revoke access once the refund is confirmed and the object carries <code>revoke_benefits</code>. All of this updates the <code>premium_guilds</code> table in real time. <code>subscription.updated</code>/<code>subscription.canceled</code> don't grant or remove access on their own, but do update the billing metadata in <code>premium_subscriptions</code> (plan, period, scheduled cancellation) that feeds <code>/perfil/facturacion</code>.</li>
 </ul>
   </main>
 </div>
