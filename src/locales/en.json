@@ -322,6 +322,7 @@
   "download.dl.unsupported_site": "Only downloads videos from Instagram, TikTok, Twitter/X, or Facebook for now.",
   "download.dl.too_large": "That video is over {mb}MB, too big for this channel.",
   "download.dl.failed": "Couldn't download that link. Make sure the post is public and still exists.",
+  "download.dl.no_video_in_post": "That post is a photo, not a video -- there's nothing to download there.",
   "download.dl.busy": "There's already a download running in this server, wait for it to finish.",
   "download.dl.nsfw_channel_required": "That video is flagged as sensitive content: it can only be posted in an NSFW channel.",
   "help.intro.title": "Purgito Help",

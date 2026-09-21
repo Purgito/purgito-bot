@@ -77,6 +77,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption`, and the image-editing commands now recognize a GIF even when it's actually a video that looks the same (common with something reposted from Twitter or Reddit) — they used to ask for a GIF, or the image filters would silently use your avatar instead, even though the message showed exactly what a real GIF looks like.
 - The image-editing commands now recognize a GIF when replying to a message that forwards it (Discord's "Forward" feature) or one uploaded with an image extension instead of GIF (common when pasting it from the clipboard) — they used to silently use your avatar, or reject the file as an unsupported format, even though the GIF was right there.
 - `/help` showed commands with a fixed `!` even when the server had a custom prefix — it now uses the configured symbol.
+- `!dl` replied "make sure the post is public and still exists" when the Instagram, TikTok, or Twitter/X link was a photo instead of a video — it now says that post has no video to download.
 
 ## Version 1.1.0 — June 28, 2026
 

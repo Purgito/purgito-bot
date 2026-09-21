@@ -75,6 +75,13 @@ class DownloadTooLarge(Exception):
         self.max_bytes = max_bytes
 
 
+class NoVideoInPost(Exception):
+    """El link es válido y el post existe, pero no tiene video (es una foto,
+    o un carrusel sin ningún video adentro) -- yt-dlp lo distingue de
+    DownloadFailed con su propio mensaje ("There is no video in this post",
+    "No video could be found in this tweet", etc., ver _is_no_video_error)."""
+
+
 def _is_supported_url(url: str) -> bool:
     try:
         host = (urlparse(url).hostname or "").lower()
@@ -96,6 +103,15 @@ def _is_twitter_url(url: str) -> bool:
     except ValueError:
         return False
     return host in _TWITTER_HOSTS or any(host.endswith(f".{h}") for h in _TWITTER_HOSTS)
+
+
+def _is_no_video_error(e: Exception) -> bool:
+    """Distingue el caso "el post existe pero no tiene video" del resto de
+    DownloadError -- yt-dlp usa ese mismo giro ("no video...") en varios
+    extractores (Instagram: "There is no video in this post", Twitter/X:
+    "No video could be found in this tweet") cuando el post es una foto o un
+    carrusel sin ningún video adentro."""
+    return "no video" in str(e).lower()
 
 
 def _attempt_download(
@@ -138,6 +154,8 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
     except yt_dlp.utils.DownloadError as e:
         if "max-filesize" in str(e).lower():
             raise DownloadTooLarge(max_bytes) from e
+        if _is_no_video_error(e):
+            raise NoVideoInPost(str(e)) from e
         if not _is_twitter_url(url):
             raise DownloadFailed(str(e)) from e
         # Sin cookies de una cuenta logueada, yt-dlp pega por default a la
@@ -159,6 +177,8 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
         except yt_dlp.utils.DownloadError as e2:
             if "max-filesize" in str(e2).lower():
                 raise DownloadTooLarge(max_bytes) from e2
+            if _is_no_video_error(e2):
+                raise NoVideoInPost(str(e2)) from e2
             raise DownloadFailed(str(e2)) from e2
         except Exception as e2:
             raise DownloadFailed(str(e2)) from e2
@@ -375,6 +395,9 @@ class Download(commands.Cog):
                 await ctx.reply(
                     t("download.dl.too_large", locale, mb=e.max_bytes // (1024 * 1024))
                 )
+                return
+            except NoVideoInPost:
+                await ctx.reply(t("download.dl.no_video_in_post", locale))
                 return
             except DownloadFailed:
                 await ctx.reply(t("download.dl.failed", locale))
