@@ -1,6 +1,6 @@
 # Novedades
 
-**Última actualización:** 19 de septiembre de 2026
+**Última actualización:** 23 de septiembre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
@@ -53,6 +53,9 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El dashboard carga más rápido, sobre todo la primera vez que se abre en una sesión.
 - `!gif` ahora también convierte una imagen (PNG, JPG o WEBP) en GIF, no solo un video -- adjunta, del mensaje que respondas, o embebida en el resultado de otro bot.
 - Los comandos de edición de imagen (`!deepfry`, `!caption`, `!wide`, `!invert` y el resto -- lista completa en `/help`) ahora también aceptan un GIF como fuente, no solo una imagen fija: el efecto se aplica a cada cuadro y el resultado sale animado. `!triggered` sigue usando siempre una imagen fija, porque ya genera su propio GIF corto.
+- Estadísticas ahora también muestra el cupo de Anuncios, Plantillas de embeds, Packs de frases y Triggers de canal, con el mismo aviso de cupo cercano o agotado que ya tenían los mensajes guardados, GIFs y frases.
+- La matriz de Canales marca los canales silenciados (ignorados desde `/settings`) para que no se vean idénticos a uno activo.
+- Deshacer al borrar ahora también cubre Anuncios y "Restablecer" en Bienvenidas/Despedidas/Boosts, igual que ya pasaba con frases, triggers y reacciones.
 
 ### Corregido
 - El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.
@@ -76,8 +79,13 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Se quitó del menú del dashboard el módulo Memes, que no mostraba ninguna función real.
 - `!gifwide`, `!gifspeed`, `!gifreverse`, `!gifcaption` y los comandos de edición de imagen ahora reconocen un GIF aunque en los hechos sea un video que se ve igual (típico de algo reenviado desde Twitter o Reddit) — antes pedían un GIF, o los filtros de imagen usaban tu avatar sin avisar, aunque el mensaje mostrara exactamente lo mismo que uno real.
 - Los comandos de edición de imagen ahora reconocen un GIF al responder a un mensaje que lo reenvía (la función "Reenviar mensaje" de Discord) o uno subido con una extensión de imagen en vez de GIF (típico al pegarlo desde el portapapeles) — antes usaban tu avatar en silencio, o rechazaban el archivo como formato no compatible, aunque el GIF estuviera a la vista.
-- `/help` mostraba los comandos con `!` fijo aunque el servidor tuviera un prefijo personalizado — ahora usa el símbolo configurado.
 - `!dl` respondía "revisa que el post sea público y siga existiendo" cuando el link de Instagram, TikTok o Twitter/X era una foto en vez de un video — ahora avisa que ese post no tiene video para descargar.
+- Editar un anuncio programado que ya tenía un embed guardado ya no lo borra al guardar otros cambios (como el canal o el horario).
+- Editar la plantilla de Bienvenida, Despedida o Boost cuando usa Layout V2 ya no termina en un error genérico: ahora lleva a editarla desde Embeds.
+- Editar desde Bienvenidas/Despedidas/Boosts una plantilla con más de un embed ya no borra en silencio los embeds extra, solo el primero.
+- Un Gestor que edita una plantilla clásica desde Embeds ya no ve etiquetas de texto sin traducir en vez del texto real.
+- El aviso de una suscripción de YouTube con el feed roto (cambió de URL o dejó de existir) ahora se muestra en el panel, igual que ya pasaba con Twitch y RSS.
+- El Simulador de Chat ahora muestra el motivo real por el que no generó una respuesta (por ejemplo, un trigger sin frases disponibles) y el error puntual del servidor cuando lo hay, en vez de un mensaje genérico siempre igual.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

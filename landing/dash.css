@@ -3898,6 +3898,10 @@ iframe.gif-media { pointer-events: none; }
 .chan-check { color: var(--accent-2); font-weight: 700; }
 .chan-name { display: inline-flex; align-items: center; gap: 6px; }
 .chan-noperm { color: var(--premium); }
+/* A diferencia de chan-noperm (algo roto, requiere atención), un canal
+   ignorado es una elección deliberada del admin desde /settings -- mismo
+   tono atenuado que .dim, no el color de advertencia. */
+.chan-ignored { color: var(--text-muted); }
 .chan-warn { font-size: 13px; }
 .chan-list { margin-bottom: 0; }
 
@@ -6038,6 +6042,15 @@ iframe.gif-media { pointer-events: none; }
   gap: 10px;
 }
 
+/* Restablecer usa confirmDelBtn (mismo deshacer que frases/triggers), que
+   trae de fábrica .gif-actions .btn pensado para el pie angosto de una card
+   de GIF -- acá está solo en la barra de acciones, con espacio de sobra
+   (mismo criterio que .amnesia-confirm). */
+.event-reset-confirm .gif-actions { flex: none; }
+.event-reset-confirm .gif-actions .btn {
+  flex: none; min-width: auto; padding-inline: 1rem; height: 2.25rem; font-size: var(--t-sm);
+}
+
 .btn-danger-soft {
   color: var(--danger, #ef4444);
   border-color: color-mix(in srgb, var(--danger, #ef4444) 30%, transparent);
@@ -6405,6 +6418,15 @@ iframe.gif-media { pointer-events: none; }
   margin-top: auto;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* El botón Eliminar usa confirmDelBtn (mismo deshacer que frases/triggers),
+   que trae de fábrica .gif-actions .btn pensado para el pie angosto de una
+   card de GIF -- acá hay lugar de sobra al lado de "Editar", así que se
+   revierte al tamaño normal (mismo criterio que .amnesia-confirm arriba). */
+.anuncio-card-actions .gif-actions { flex: none; }
+.anuncio-card-actions .gif-actions .btn {
+  flex: none; min-width: auto; padding-inline: 1rem; height: 2.25rem; font-size: var(--t-sm);
 }
 
 /* Anuncio Editor Nuevo - Formulario 2 columnas, jerarquía visual y switch deslizante */

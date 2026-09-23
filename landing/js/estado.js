@@ -2,6 +2,7 @@
 // Script self-contained con DOM nativo, sin dependencias de bundler.
 
 import { t, addStrings } from './core/i18n.js';
+import { formatNumber } from './core/config.js';
 
 addStrings({
   es: {
@@ -106,7 +107,7 @@ function fmtMemory(mb) {
 }
 
 function fmtNumber(n) {
-  return n == null ? '—' : n.toLocaleString('es');
+  return n == null ? '—' : formatNumber(n);
 }
 
 function setStatusClasses(el, status) {

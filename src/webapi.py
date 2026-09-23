@@ -2499,6 +2499,10 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
         reaction_pool,
         gifs_total,
         frases,
+        frase_packs,
+        embed_templates,
+        channel_triggers,
+        announcements_quota,
     ) = await asyncio.gather(
         count_corpus_by_channel(guild_id),
         list_ignored_channels(guild_id),
@@ -2509,7 +2513,12 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
         list_reaction_pool(guild_id),
         count_gif_urls(guild_id),
         list_frases_especiales(guild_id),
+        list_frase_packs(guild_id),
+        list_embed_templates(guild_id),
+        list_guild_triggers(guild_id),
+        get_scheduled_announcements_quota(guild_id),
     )
+    announcements_count, announcements_limit, _ = announcements_quota
     ignored = set(ignored_list)
     corpus_channels = set(corpus_channels_list)
     return web.json_response(
@@ -2543,15 +2552,29 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
             "reactions": len(reaction_pool),
             "gifs": gifs_total,
             "frases": len(frases),
+            "frase_packs": len(frase_packs),
+            "embed_templates": len(embed_templates),
+            "channel_triggers": len(channel_triggers),
+            "announcements": announcements_count,
             "member_count": getattr(guild, "member_count", None),
             # Denominadores de las tarjetas de estado: sin esto el dashboard
             # muestra "14.982 mensajes" sin decir que el tope está en 15.000 y
             # que a partir de ahí se van borrando los más viejos en silencio.
+            # frase_packs/embed_templates/channel_triggers/announcements se
+            # sumaron acá para que Estadísticas y el punto de cupo de la
+            # sidebar (loadQuotaAlerts) puedan avisar de esos 4 también --
+            # antes solo cubrían corpus/gifs/frases, así que un servidor free
+            # con el tope de anuncios (3) no tenía ninguna señal antes de que
+            # el alta del cuarto se rechazara en el propio módulo de Anuncios.
             "limits": {
                 "corpus_total": corpus_total_limit(guild_id),
                 "corpus_per_channel": corpus_channel_limit(guild_id),
                 "gifs": gifs_limit(guild_id),
                 "frases": frases_limit(guild_id),
+                "frase_packs": frase_pack_limit(guild_id),
+                "embed_templates": embed_template_limit(guild_id),
+                "channel_triggers": channel_triggers_limit(guild_id),
+                "announcements": announcements_limit,
             },
         }
     )
@@ -4537,8 +4560,12 @@ async def _api_anuncio_put(request: web.Request, guild_id: int) -> web.Response:
         interval_minutes=interval_minutes,
         hour=hour,
         minute=minute,
-        embed_json=None,
-        content_mode="plain_text",
+        # El formulario de Anuncios no tiene UI de embeds -- preservar lo que
+        # ya tenía en vez de forzar plain_text/None acá, para no borrar el
+        # embed de un anuncio viejo (de cuando este endpoint sí lo aceptaba)
+        # con solo tocar el canal o el horario.
+        embed_json=existing["embed_json"],
+        content_mode=existing["content_mode"],
         delete_after_seconds=delete_after,
         weekdays=weekdays,
     )

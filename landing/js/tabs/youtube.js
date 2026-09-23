@@ -8,6 +8,7 @@ addStrings({
   es: {
     'tabsYoutube.errNoPermission': '⚠️ Purgito no tiene permiso para escribir en este canal',
     'tabsYoutube.errChannelGone': '⚠️ el canal configurado ya no existe',
+    'tabsYoutube.errFeedGone': '⚠️ no se pudo leer este feed (¿cambió de URL?)',
     'tabsYoutube.removeBtn': 'Quitar',
     'tabsYoutube.confirmQuestion': '¿Seguro?',
     'tabsYoutube.subNotFound': 'No se encontró esa suscripción',
@@ -32,6 +33,7 @@ addStrings({
   en: {
     'tabsYoutube.errNoPermission': '⚠️ Purgito doesn\'t have permission to post in this channel',
     'tabsYoutube.errChannelGone': '⚠️ the configured channel no longer exists',
+    'tabsYoutube.errFeedGone': "⚠️ couldn't read this feed (did the URL change?)",
     'tabsYoutube.removeBtn': 'Remove',
     'tabsYoutube.confirmQuestion': 'Are you sure?',
     'tabsYoutube.subNotFound': 'That subscription wasn\'t found',
@@ -55,12 +57,13 @@ addStrings({
   },
 });
 
-// Mismos dos estados que cogs/youtube.py._check_one puede marcar en
+// Mismos tres estados que cogs/youtube.py._check_one puede marcar en
 // last_error (ver db.YOUTUBE_ERROR_*) y el mismo aviso que ya muestra la
 // categoría YouTube de /settings para cada uno.
 function errorNote(lastError) {
   if (lastError === 'sin_permiso') return t('tabsYoutube.errNoPermission');
   if (lastError === 'canal_no_encontrado') return t('tabsYoutube.errChannelGone');
+  if (lastError === 'feed_no_encontrado') return t('tabsYoutube.errFeedGone');
   return null;
 }
 

@@ -3,7 +3,7 @@
 
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, spinner, renderError, toast, autoGrow, icon, richEmptyState,
+  el, spinner, renderError, toast, autoGrow, icon, richEmptyState, confirmDelBtn, undoableDelete,
 } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { getChannels, channelSelect, content } from '/js/panel-shell.js';
@@ -431,22 +431,15 @@ function renderAnunciosManager(container, initialData, channels) {
               refresh();
             },
           }, icon('sliders'), t('tabsAnuncios.editBtn')),
-          el('button', {
-            type: 'button',
-            class: 'btn btn-secondary btn-danger-soft btn-sm',
-            onclick: async () => {
-              if (!confirm(t('tabsAnuncios.deleteConfirm'))) return;
-              try {
-                await apiFetch(`/api/server/${GUILD_ID}/anuncios/${ann.id}`, { method: 'DELETE' });
-                announcementsList = announcementsList.filter(a => a.id !== ann.id);
-                quotaCount = Math.max(0, quotaCount - 1);
-                toast(t('tabsAnuncios.deleteSuccess'), 'ok');
-                refresh();
-              } catch (err) {
-                toast(err.message || 'Error al eliminar', 'err');
-              }
+          confirmDelBtn(t('tabsAnuncios.deleteConfirm'), () => undoableDelete(card, {
+            message: t('tabsAnuncios.deleteSuccess'),
+            onDelete: async () => {
+              await apiFetch(`/api/server/${GUILD_ID}/anuncios/${ann.id}`, { method: 'DELETE' });
+              announcementsList = announcementsList.filter(a => a.id !== ann.id);
+              quotaCount = Math.max(0, quotaCount - 1);
+              refresh();
             },
-          }, icon('trash'), t('tabsAnuncios.deleteBtn'))
+          }), { label: t('tabsAnuncios.deleteBtn') })
         )
       );
 
