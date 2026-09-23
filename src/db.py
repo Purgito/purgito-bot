@@ -677,7 +677,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
     user_name TEXT NOT NULL,
     action TEXT NOT NULL,
     detail TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- NULL salvo en ajustes de un único valor (prefijo, rol de Gestor,
+    -- probabilidades, overrides, estilo) -- ver el ALTER TABLE más abajo en
+    -- init_db() para el porqué de tenerlo acá también (SCHEMA es lo que usan
+    -- los tests que arrancan la DB sin pasar por init_db()).
+    previous_detail TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_log_guild ON audit_log(guild_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(guild_id, user_id, id DESC);
@@ -992,6 +997,17 @@ async def init_db():
         await _db.commit()
     except Exception:
         log.debug("Columna last_error ya existe en meme_schedule")
+    # NULL en la inmensa mayoría de las filas (altas/bajas de listas -- un GIF
+    # agregado, una frase borrada -- no tienen un "antes" que mostrar, detail
+    # ya alcanza). Se llena solo para ajustes de un único valor (prefijo, rol
+    # de Gestor, probabilidades, overrides por canal, estilo, canal de
+    # novedades) -- ver historial.js: la Guía prometía un diff antes/después
+    # para todo el Historial y nunca se había implementado en ningún punto.
+    try:
+        await _db.execute("ALTER TABLE audit_log ADD COLUMN previous_detail TEXT")
+        await _db.commit()
+    except Exception:
+        log.debug("Columna previous_detail ya existe en audit_log")
     await _db.commit()
     flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
     if not os.path.exists(flag_path):
@@ -5176,13 +5192,26 @@ async def add_frase_pack(guild_id: int, name: str) -> int | None:
 
 
 async def list_frase_packs(guild_id: int) -> list[dict]:
+    """phrase_count viene de un LEFT JOIN, no de una segunda query: un pack
+    vacío es un callejón sin salida real (un Trigger o el pool de un canal
+    que apunte ahí matchea pero no manda nada, sin ningún aviso -- ver
+    AUDITORIA_UX) y el frontend necesita el número para avisarlo donde se
+    elige el pack, no solo al abrirlo."""
     db = await get_db()
     async with db.execute(
-        "SELECT id, name, created_at FROM frase_packs WHERE guild_id=? ORDER BY name",
+        "SELECT fp.id, fp.name, fp.created_at, COUNT(fe.id) "
+        "FROM frase_packs fp "
+        "LEFT JOIN frases_especiales fe ON fe.pack_id = fp.id AND fe.guild_id = fp.guild_id "
+        "WHERE fp.guild_id=? "
+        "GROUP BY fp.id, fp.name, fp.created_at "
+        "ORDER BY fp.name",
         (guild_id,),
     ) as cursor:
         rows = await cursor.fetchall()
-    return [{"id": r[0], "name": r[1], "created_at": r[2]} for r in rows]
+    return [
+        {"id": r[0], "name": r[1], "created_at": r[2], "phrase_count": r[3]}
+        for r in rows
+    ]
 
 
 async def delete_frase_pack(guild_id: int, pack_id: int) -> bool:
@@ -5418,13 +5447,19 @@ async def log_audit(
     user_name: str,
     action: str,
     detail: str | None = None,
+    previous_detail: str | None = None,
 ) -> None:
+    """previous_detail queda NULL salvo que el caller lo arme explícitamente
+    (ver _log_audit en webapi.py) -- solo tiene sentido para un ajuste de un
+    único valor (prefijo, rol de Gestor, probabilidades, overrides,
+    estilo...). Una alta/baja de lista (gifs.add, frases.remove) no tiene un
+    "antes" real que mostrar, así que ni lo intenta."""
     db = await get_db()
     async with _db_lock:
         await db.execute(
-            "INSERT INTO audit_log (guild_id, user_id, user_name, action, detail) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (guild_id, user_id, user_name, action, detail),
+            "INSERT INTO audit_log (guild_id, user_id, user_name, action, detail, previous_detail) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (guild_id, user_id, user_name, action, detail, previous_detail),
         )
         await db.commit()
 
@@ -5449,7 +5484,7 @@ async def count_audit_action(guild_id: int, action: str, days: int = 30) -> int:
 async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT id, user_id, user_name, action, detail, created_at "
+        "SELECT id, user_id, user_name, action, detail, created_at, previous_detail "
         "FROM audit_log WHERE guild_id=? ORDER BY id DESC LIMIT ? OFFSET ?",
         (guild_id, limit, offset),
     ) as cursor:
@@ -5462,6 +5497,7 @@ async def list_audit_log(guild_id: int, limit: int = 50, offset: int = 0) -> lis
             "action": r[3],
             "detail": r[4],
             "created_at": r[5],
+            "previous_detail": r[6],
         }
         for r in rows
     ]
@@ -5565,7 +5601,7 @@ async def list_audit_log_page(
 
     where_clause = " AND ".join(conditions)
     query = (
-        f"SELECT id, user_id, user_name, action, detail, created_at "
+        f"SELECT id, user_id, user_name, action, detail, created_at, previous_detail "
         f"FROM audit_log WHERE {where_clause} ORDER BY id DESC LIMIT ?"
     )
     params.append(limit + 1)
@@ -5582,6 +5618,7 @@ async def list_audit_log_page(
             "action": r[3],
             "detail": r[4],
             "created_at": r[5],
+            "previous_detail": r[6],
         }
         for r in rows
     ], has_more

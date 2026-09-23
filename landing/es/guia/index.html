@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-TietEg5PcXuWFVrN1yRThI2N4uDqzPctCGWOWUxziKg='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y='; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guía de Purgito — Cómo funciona el bot — Purgito</title>
 <meta name="description" content="Aprende cómo funciona Purgito, desde el sistema de aprendizaje y Chat hasta GIFs, memes, embeds, YouTube y Premium.">
@@ -32,7 +32,7 @@
 <link rel="icon" href="/assets/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="/style.css?v=547db4f3">
+<link rel="stylesheet" href="/style.css?v=eaa6aa1e">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@600;700&family=Outfit:wght@400;500;600&family=Noto+Sans+JP:wght@400;600&family=Fira+Code:wght@400;500&display=swap">
 </head>
 <body>
@@ -385,6 +385,7 @@
     <li><a href="#youtube">YouTube</a></li>
     <li><a href="#twitch">Twitch</a></li>
     <li><a href="#rss">RSS</a></li>
+    <li><a href="#canal-de-novedades">Canal de Novedades</a></li>
     <li><a href="#anuncios">Anuncios programados</a></li>
     <li><a href="#premium">Premium</a></li>
     <li><a href="#dashboard">Dashboard</a></li>
@@ -644,7 +645,7 @@
         <span>Ajustes por canal (Overrides)</span>
       </div>
       <p class="guia-card-p">
-        Personaliza el comportamiento por canal: permite que hable mucho en canales de ocio (<code>#spam</code>, <code>#general</code>) y restríngelo en canales serios o siléncialo totalmente donde sea necesario.
+        Personaliza probabilidades y frecuencias por canal: que hable mucho en canales de ocio (<code>#spam</code>, <code>#general</code>) y poco en canales serios. Silenciarlo por completo en un canal puntual es aparte, desde <code>/settings</code> en Discord.
       </p>
     </div>
   </div>
@@ -706,7 +707,7 @@
         <span>Reinicio y mantenimiento</span>
       </div>
       <p class="guia-card-p">
-        En cualquier momento puedes vaciar o reiniciar el corpus desde la pestaña <strong>Chat &gt; Datos</strong> del Dashboard si deseas que Purgito empiece a aprender desde cero.
+        En cualquier momento puedes vaciar el corpus reciente (últimas 24 horas) desde <strong>Servidor &gt; General</strong> del Dashboard si deseas que Purgito empiece a aprender desde cero.
       </p>
     </div>
   </div>
@@ -765,9 +766,9 @@
     <div class="guia-card">
       <div class="guia-card-title">
         <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span>Múltiples formas de añadir</span>
+        <span>Sumar GIFs a la colección</span>
       </div>
-      <p class="guia-card-p">Sube archivos directos, pega URLs de GIFs o busca y selecciona animaciones con el buscador integrado de Tenor.</p>
+      <p class="guia-card-p">Pega la URL de un GIF desde la pestaña GIFs del panel. También se suman solos: si alguien adjunta un <code>.gif</code> en cualquier mensaje de Discord, Purgito lo detecta y lo guarda.</p>
     </div>
 
     <div class="guia-card">
@@ -811,7 +812,7 @@
         <span>Mometeca colaborativa</span>
       </div>
       <p class="guia-card-p">
-        Guarda plantillas e imágenes divertidas reaccionando a mensajes en Discord o subiéndolas directamente desde la pestaña <strong>Memes</strong> del Dashboard.
+        Reacciona con 🎯 a una foto graciosa en Discord y Purgito la guarda para usarla en memes automáticos y en <code>/momo</code>. Es la única forma de sumar imágenes a la colección — no hay un tab de Memes en el Dashboard.
       </p>
     </div>
 
@@ -892,7 +893,7 @@
         <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
         <span>Frecuencia ajustable</span>
       </div>
-      <p class="guia-card-p">Controla con qué frecuencia reacciona Purgito (baja, media o alta) desde la pestaña <strong>Chat &gt; Reacciones</strong>.</p>
+      <p class="guia-card-p">Controla con qué frecuencia reacciona Purgito con un número de 0 a 100 desde la pestaña <strong>Reacciones automáticas</strong> del panel.</p>
     </div>
 
     <div class="guia-card">
@@ -984,7 +985,7 @@
         <span>Tipos de coincidencia</span>
       </div>
       <p class="guia-card-p">
-        Configura si el trigger se dispara cuando el mensaje <strong>contiene</strong> la palabra, si requiere <strong>coincidencia exacta</strong> o si busca palabras clave aisladas.
+        Elige entre <strong>coincidencia exacta</strong> (el mensaje es idéntico al patrón), <strong>empieza con</strong> (el mensaje arranca con el patrón) o <strong>regex</strong> (una expresión regular propia, para patrones más complejos).
       </p>
     </div>
   </div>
@@ -1201,6 +1202,36 @@
 
 <hr class="docs-divider" aria-hidden="true">
 
+<!-- ── CANAL DE NOVEDADES ─────────────────────────────────────────── -->
+<section class="guia-section" id="canal-de-novedades">
+  <div class="guia-sec-head">
+    <h2 class="guia-sec-title">Canal de Novedades</h2>
+  </div>
+  <p class="guia-lead">
+    Purgito también tiene sus propias novedades — no las de tu contenido, sino las del bot en sí (funciones nuevas, cambios, arreglos). Elige en qué canal de tu servidor las publica.
+  </p>
+
+  <div class="guia-grid-2">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg>
+        <span>Elegir el canal</span>
+      </div>
+      <p class="guia-card-p">Un solo canal de texto de Discord, desde la pestaña <strong>Canal de Novedades</strong> del panel. Sin canal elegido, Purgito simplemente no publica nada ahí.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Estado del canal</span>
+      </div>
+      <p class="guia-card-p">El panel avisa de inmediato si el canal elegido se borró, si Purgito perdió el permiso para escribir ahí, o si el tipo de canal no admite mensajes de texto — no queda como "activo" en silencio.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="docs-divider" aria-hidden="true">
+
 <!-- ── 12. ANUNCIOS PROGRAMADOS ────────────────────────────────── -->
 <section class="guia-section" id="anuncios">
   <div class="guia-sec-head">
@@ -1227,7 +1258,7 @@
         <span>Formato y canales</span>
       </div>
       <p class="guia-card-p">
-        Envía texto plano o mensajes enriquecidos con embeds hacia los canales de Discord que designes para mantener a tu servidor informado.
+        Envía mensajes de texto (hasta 2000 caracteres, con variables como <code>{server_name}</code>) hacia el canal de Discord que designes para mantener a tu servidor informado.
       </p>
     </div>
   </div>
@@ -1298,9 +1329,10 @@
     <h2 class="guia-sec-title">Mapa del Dashboard</h2>
   </div>
   <p class="guia-lead">
-    El panel de control en <a href="/es/perfil/servidores">purgito.app</a> te permite configurar cada detalle de tu servidor de forma instantánea.
+    El panel de control en <a href="/es/perfil/servidores">purgito.app</a> te permite configurar cada detalle de tu servidor de forma instantánea. Organizado en las mismas categorías que ves en el menú lateral del panel.
   </p>
 
+  <h3 class="guia-card-group-label">Principal</h3>
   <div class="guia-grid-4">
     <div class="guia-card">
       <div class="guia-card-title">
@@ -1312,42 +1344,107 @@
 
     <div class="guia-card">
       <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <span>Estadísticas</span>
+      </div>
+      <p class="guia-card-p">Métricas de uso, memoria del bot y actividad acumulada del servidor.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
         <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span>Chat</span>
+        <span>Ajustes de Chat</span>
       </div>
-      <p class="guia-card-p">Aprendizaje, canales, cadencias, frases, packs, triggers y reacciones.</p>
+      <p class="guia-card-p">Aprendizaje, canales de lectura/respuesta y probabilidades de comportamiento.</p>
     </div>
 
     <div class="guia-card">
       <div class="guia-card-title">
-        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-        <span>GIFs</span>
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        <span>Simulador de Chat</span>
       </div>
-      <p class="guia-card-p">Galería multimedia para explorar, subir y organizar los GIFs.</p>
+      <p class="guia-card-p">Prueba en vivo cómo respondería Purgito con la configuración actual de un canal.</p>
     </div>
 
     <div class="guia-card">
       <div class="guia-card-title">
-        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-        <span>Memes</span>
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+        <span>Historial</span>
       </div>
-      <p class="guia-card-p">Mometeca y configuración de memes automáticos.</p>
+      <p class="guia-card-p">Registro de auditoría: quién cambió qué y cuándo.</p>
+    </div>
+  </div>
+
+  <h3 class="guia-card-group-label">Anuncios</h3>
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        <span>Bienvenidas</span>
+      </div>
+      <p class="guia-card-p">Mensaje automático cuando un miembro nuevo se une al servidor.</p>
     </div>
 
     <div class="guia-card">
       <div class="guia-card-title">
-        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-        <span>Embeds</span>
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="11"/></svg>
+        <span>Despedidas</span>
       </div>
-      <p class="guia-card-p">Editor visual de mensajes enriquecidos y botones.</p>
+      <p class="guia-card-p">Mensaje automático cuando un miembro abandona el servidor.</p>
     </div>
 
     <div class="guia-card">
       <div class="guia-card-title">
         <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        <span>Premium</span>
+        <span>Boosts</span>
       </div>
-      <p class="guia-card-p">Estado de suscripción y funciones desbloqueadas.</p>
+      <p class="guia-card-p">Agradecimiento automático cuando alguien mejora el servidor.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>Anuncios</span>
+      </div>
+      <p class="guia-card-p">Publicaciones programadas por intervalo, hora fija o día de la semana.</p>
+    </div>
+  </div>
+
+  <h3 class="guia-card-group-label">Plantillas</h3>
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        <span>Embeds</span>
+      </div>
+      <p class="guia-card-p">Editor visual de mensajes enriquecidos y botones, usado también por Bienvenidas/Despedidas/Boosts.</p>
+    </div>
+  </div>
+
+  <h3 class="guia-card-group-label">Automatización</h3>
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Triggers de canal</span>
+      </div>
+      <p class="guia-card-p">Respuestas exactas por palabra o patrón, sin depender del azar.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        <span>Reacciones automáticas</span>
+      </div>
+      <p class="guia-card-p">Reacciona con emojis del servidor a los mensajes del chat.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <span>Frases y Packs</span>
+      </div>
+      <p class="guia-card-p">Frases fijas, sueltas o agrupadas en packs por canal.</p>
     </div>
 
     <div class="guia-card">
@@ -1360,10 +1457,67 @@
 
     <div class="guia-card">
       <div class="guia-card-title">
-        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
-        <span>Historial</span>
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Twitch</span>
       </div>
-      <p class="guia-card-p">Registro de auditoría de cambios en la configuración.</p>
+      <p class="guia-card-p">Aviso automático cuando un canal empieza a transmitir en vivo.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        <span>RSS / Feeds</span>
+      </div>
+      <p class="guia-card-p">Aviso automático de nuevas entradas en un feed RSS o Atom.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg>
+        <span>Canal de Novedades</span>
+      </div>
+      <p class="guia-card-p">Elige dónde publica Purgito sus propias novedades y actualizaciones.</p>
+    </div>
+  </div>
+
+  <h3 class="guia-card-group-label">Contenido</h3>
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="7" y1="3" x2="7" y2="21"/><line x1="17" y1="3" x2="17" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+        <span>GIFs</span>
+      </div>
+      <p class="guia-card-p">Galería multimedia para explorar, agregar y organizar los GIFs.</p>
+    </div>
+  </div>
+
+  <h3 class="guia-card-group-label">Servidor</h3>
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+        <span>Canales y Permisos</span>
+      </div>
+      <p class="guia-card-p">Matriz de qué canales lee, en cuáles responde y cuáles están silenciados.</p>
+    </div>
+
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>General</span>
+      </div>
+      <p class="guia-card-p">Prefijo de comandos, limpieza de memoria reciente y el rol de Gestor.</p>
+    </div>
+  </div>
+
+  <h3 class="guia-card-group-label">Premium</h3>
+  <div class="guia-grid-4">
+    <div class="guia-card">
+      <div class="guia-card-title">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Premium</span>
+      </div>
+      <p class="guia-card-p">Estado de suscripción y funciones desbloqueadas.</p>
     </div>
   </div>
 
@@ -1409,7 +1563,7 @@
         <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
         <span>Qué se modificó</span>
       </div>
-      <p class="guia-card-p">Detalla el valor anterior y el nuevo valor aplicado al ajuste.</p>
+      <p class="guia-card-p">Muestra qué se agregó, quitó o cambió en cada acción. En los ajustes de un solo valor — prefijo de comandos, rol de Gestor, parámetros del chat (globales y por canal), canal de novedades y estilo del bot — también ves el valor anterior.</p>
     </div>
   </div>
 </section>

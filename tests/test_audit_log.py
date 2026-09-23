@@ -50,6 +50,26 @@ async def _open_memory_db() -> aiosqlite.Connection:
     return conn
 
 
+@pytest.fixture
+def real_db(tmp_path, monkeypatch):
+    """DB de archivo real por test (no memoria + SCHEMA a mano): las columnas
+    de CHAT_TUNABLES y manager_role_id salen de ALTER TABLE en init_db(), no
+    del CREATE TABLE base de db.SCHEMA -- mismo patrón que memory_db en
+    test_channel_settings_api.py, necesario para las acciones que leen esas
+    columnas antes de guardar (chat_tunables.update, channel_settings.update,
+    manager_role.set)."""
+    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setattr(db, "_db", None)
+    asyncio.run(db.init_db())
+    yield
+    asyncio.run(db.close_db())
+
+
+def _fake_role(role_id, name, managed=False):
+    return SimpleNamespace(id=role_id, name=name, managed=managed)
+
+
 def _fake_channel(cid):
     # view_channel=True: estos tests ejercitan otra cosa (quién queda
     # registrado en el audit log), no el scoping de canal de la sección 10 --
@@ -250,6 +270,167 @@ def test_embed_template_create_loguea_con_el_nombre(memory_db):
     assert len(entries) == 1
     assert entries[0]["action"] == "embed_template.create"
     assert entries[0]["detail"] == "Bienvenida"
+
+
+# ── previous_detail (diff antes/después, solo para ajustes de un único valor) ──
+
+
+def test_prefix_set_registra_el_valor_anterior(memory_db):
+    """La Guía prometía un diff antes/después para todo el Historial; nunca se
+    había implementado en ningún punto del pipeline. Acá se cablea para
+    ajustes de un único valor -- prefijo, rol de Gestor, tunables de chat,
+    overrides por canal, estilo, canal de novedades."""
+    _run(webapi._api_prefix_put, FakeRequest(body={"prefix": "?"}))
+    _run(webapi._api_prefix_put, FakeRequest(body={"prefix": "$"}))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert len(entries) == 2
+    # más reciente primero
+    assert entries[0]["action"] == "prefix.set"
+    assert entries[0]["detail"] == "$"
+    assert entries[0]["previous_detail"] == "?"
+    assert entries[1]["detail"] == "?"
+    assert entries[1]["previous_detail"] == db.DEFAULT_COMMAND_PREFIX
+
+
+def test_prefix_reset_registra_el_prefijo_personalizado_anterior(memory_db):
+    _run(webapi._api_prefix_put, FakeRequest(body={"prefix": "?"}))
+    _run(webapi._api_prefix_put, FakeRequest(body={"prefix": ""}))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert entries[0]["action"] == "prefix.reset"
+    assert entries[0]["previous_detail"] == "?"
+
+
+def test_chat_tunables_update_registra_solo_los_valores_previos_de_lo_guardado(real_db):
+    _run(
+        webapi._api_chat_tunables_put,
+        FakeRequest(body={"auto_generate_every": 10}),
+    )
+    _run(
+        webapi._api_chat_tunables_put,
+        FakeRequest(body={"auto_generate_every": 20, "mention_rate_limit": 5}),
+    )
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    first_saved = json.loads(entries[1]["detail"])
+    first_previous = json.loads(entries[1]["previous_detail"])
+    assert first_saved == {"auto_generate_every": 10}
+    # Antes de la primera llamada el guild no tenía fila en settings -- el
+    # valor previo tiene que ser el default, no None ni un KeyError.
+    assert first_previous["auto_generate_every"] == db.DEFAULT_AUTO_GENERATE_EVERY
+
+    second_saved = json.loads(entries[0]["detail"])
+    second_previous = json.loads(entries[0]["previous_detail"])
+    assert second_saved == {"auto_generate_every": 20, "mention_rate_limit": 5}
+    # El valor previo de auto_generate_every en la 2da llamada es el que
+    # quedó guardado por la 1ra (10), no el default original.
+    assert second_previous["auto_generate_every"] == 10
+
+
+def test_channel_settings_update_registra_solo_los_valores_previos_de_lo_guardado(
+    real_db,
+):
+    channel_id = 555
+    _run(
+        webapi._api_channel_settings_put,
+        FakeRequest(
+            match_info={"channel_id": str(channel_id)},
+            body={"auto_generate_every": 15},
+        ),
+    )
+    _run(
+        webapi._api_channel_settings_put,
+        FakeRequest(
+            match_info={"channel_id": str(channel_id)},
+            body={"auto_generate_every": 25},
+        ),
+    )
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert entries[0]["action"] == "channel_settings.update"
+    assert f"channel_id={channel_id}" in entries[0]["detail"]
+    # Sin override previo el valor anterior es None (hereda el default del
+    # servidor) -- no hay fila en channel_settings todavía en la 1ra llamada.
+    assert json.loads(entries[1]["previous_detail"].split(" ", 1)[1]) == {
+        "auto_generate_every": None
+    }
+    assert json.loads(entries[0]["previous_detail"].split(" ", 1)[1]) == {
+        "auto_generate_every": 15
+    }
+
+
+def test_manager_role_set_registra_el_valor_anterior(real_db, monkeypatch):
+    moderador = _fake_role(1, "Moderador")
+    ayudante = _fake_role(2, "Ayudante")
+    guild = SimpleNamespace(
+        id=_GUILD, get_role=lambda rid: {1: moderador, 2: ayudante}.get(rid)
+    )
+    monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: guild)
+
+    _run(webapi._api_manager_role_put, FakeRequest(body={"role_id": "1"}))
+    _run(webapi._api_manager_role_put, FakeRequest(body={"role_id": "2"}))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert entries[0]["action"] == "manager_role.set"
+    assert entries[0]["detail"] == "Ayudante"
+    assert entries[0]["previous_detail"] == "Moderador"
+    assert entries[1]["detail"] == "Moderador"
+    assert entries[1]["previous_detail"] == "ninguno"
+
+
+def test_manager_role_clear_registra_el_rol_anterior(real_db, monkeypatch):
+    moderador = _fake_role(1, "Moderador")
+    guild = SimpleNamespace(id=_GUILD, get_role=lambda rid: {1: moderador}.get(rid))
+    monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: guild)
+
+    _run(webapi._api_manager_role_put, FakeRequest(body={"role_id": "1"}))
+    _run(webapi._api_manager_role_put, FakeRequest(body={"role_id": None}))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert entries[0]["action"] == "manager_role.clear"
+    assert entries[0]["previous_detail"] == "Moderador"
+
+
+def test_style_update_registra_el_nick_anterior(memory_db, monkeypatch):
+    me = SimpleNamespace(nick=None, edit=AsyncMock())
+    guild = SimpleNamespace(me=me)
+    monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: guild)
+
+    _run(webapi._api_style_put, FakeRequest(body={"nick": "Purgito"}))
+    me.nick = "Purgito"
+    _run(webapi._api_style_put, FakeRequest(body={"nick": "Purgo"}))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert entries[0]["action"] == "style.update"
+    assert entries[0]["previous_detail"] == "nick='Purgito'"
+    assert entries[1]["previous_detail"] == "nick=None"
+
+
+def test_updates_channel_set_registra_el_canal_anterior(memory_db, monkeypatch):
+    canal_avisos = SimpleNamespace(
+        id=10,
+        name="avisos",
+        parent=None,
+        send=AsyncMock(),
+        permissions_for=lambda member: SimpleNamespace(
+            view_channel=True, send_messages=True
+        ),
+    )
+    guild = SimpleNamespace(
+        me=SimpleNamespace(),
+        get_channel=lambda cid: canal_avisos if cid == 10 else None,
+    )
+    monkeypatch.setattr(webapi, "_bot_guild", lambda request, guild_id: guild)
+
+    _run(webapi._api_updates_put, FakeRequest(body={"channel_id": "10"}))
+    _run(webapi._api_updates_put, FakeRequest(body={"channel_id": None}))
+
+    entries = asyncio.run(db.list_audit_log(_GUILD))
+    assert entries[0]["action"] == "updates_channel.set"
+    assert entries[0]["detail"] == "channel_id=None (desvinculado)"
+    assert entries[0]["previous_detail"] == "channel_id=10 channel_name=avisos"
+    assert entries[1]["previous_detail"] == "channel_id=None (desvinculado)"
 
 
 # ── Endpoint de lectura ───────────────────────────────────────────────────────

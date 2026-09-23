@@ -55,7 +55,9 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Los comandos de edición de imagen (`!deepfry`, `!caption`, `!wide`, `!invert` y el resto -- lista completa en `/help`) ahora también aceptan un GIF como fuente, no solo una imagen fija: el efecto se aplica a cada cuadro y el resultado sale animado. `!triggered` sigue usando siempre una imagen fija, porque ya genera su propio GIF corto.
 - Estadísticas ahora también muestra el cupo de Anuncios, Plantillas de embeds, Packs de frases y Triggers de canal, con el mismo aviso de cupo cercano o agotado que ya tenían los mensajes guardados, GIFs y frases.
 - La matriz de Canales marca los canales silenciados (ignorados desde `/settings`) para que no se vean idénticos a uno activo.
-- Deshacer al borrar ahora también cubre Anuncios y "Restablecer" en Bienvenidas/Despedidas/Boosts, igual que ya pasaba con frases, triggers y reacciones.
+- Deshacer al borrar ahora también cubre Anuncios, plantillas en Embeds y "Restablecer" en Bienvenidas/Despedidas/Boosts, igual que ya pasaba con frases, triggers y reacciones.
+- Los números del dashboard (miembros, mensajes aprendidos, GIFs y el resto de las estadísticas) ahora se formatean según el idioma del panel, en vez de siempre en formato de números en español aunque lo estuvieras viendo en inglés.
+- El Historial de cambios ahora muestra el valor anterior en los ajustes de un solo valor: prefijo de comandos, rol de Gestor, parámetros del chat (globales y por canal), canal de novedades y estilo del bot.
 
 ### Corregido
 - El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.
@@ -86,6 +88,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - Un Gestor que edita una plantilla clásica desde Embeds ya no ve etiquetas de texto sin traducir en vez del texto real.
 - El aviso de una suscripción de YouTube con el feed roto (cambió de URL o dejó de existir) ahora se muestra en el panel, igual que ya pasaba con Twitch y RSS.
 - El Simulador de Chat ahora muestra el motivo real por el que no generó una respuesta (por ejemplo, un trigger sin frases disponibles) y el error puntual del servidor cuando lo hay, en vez de un mensaje genérico siempre igual.
+- Un trigger de canal que apunta a un pack de frases vacío ahora avisa en el dashboard (en la lista de triggers y al editarlo), en vez de matchear y no mandar nada sin ninguna pista de por qué.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

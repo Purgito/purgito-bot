@@ -140,6 +140,7 @@ addStrings({
     'tabsHistorial.loadMore': 'Cargar más',
     'tabsHistorial.loading': 'Cargando…',
     'tabsHistorial.noMatchFiltered': 'No hay cambios que coincidan con estos filtros.',
+    'tabsHistorial.previousDetail': 'Antes: {value}',
   },
   en: {
     'tabsHistorial.action.chat.settings_update': 'Updated the chat settings',
@@ -274,6 +275,7 @@ addStrings({
     'tabsHistorial.loadMore': 'Load more',
     'tabsHistorial.loading': 'Loading…',
     'tabsHistorial.noMatchFiltered': 'No changes match these filters.',
+    'tabsHistorial.previousDetail': 'Before: {value}',
   },
 });
 
@@ -370,7 +372,11 @@ function entryRow(entry) {
         el('span', { class: 'dim' }, ' — '),
         el('span', { class: 'audit-action' }, actionLabel(entry.action))
       ),
-      entry.detail ? el('div', { class: 'audit-detail dim' }, entry.detail) : null
+      entry.detail ? el('div', { class: 'audit-detail dim' }, entry.detail) : null,
+      entry.previous_detail
+        ? el('div', { class: 'audit-detail audit-detail-previous dim' },
+            t('tabsHistorial.previousDetail', { value: entry.previous_detail }))
+        : null
     ),
     el('span', { class: 'audit-date dim' }, formatWhen(entry.created_at))
   );

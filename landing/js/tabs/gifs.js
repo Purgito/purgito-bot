@@ -1,6 +1,6 @@
 import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, toast, userAvatar } from '/js/core/dom.js';
-import { GUILD_ID, getDashboardUrl } from '/js/core/config.js';
+import { GUILD_ID, getDashboardUrl, formatNumber } from '/js/core/config.js';
 import { content } from '/js/panel-shell.js';
 import { watchTasks } from '/js/core/tasks.js';
 import { t, addStrings } from '../core/i18n.js';
@@ -198,7 +198,7 @@ function updateGifStats() {
   _gifStatsEl.innerHTML = '';
   _gifStatsEl.append(
     el('strong', { class: 'stat-num' }, String(_gifPool.length)),
-    _gifLimit ? t('tabsGifs.statsWithLimit', { limit: _gifLimit.toLocaleString('es') }) : t('tabsGifs.statsNoLimit'),
+    _gifLimit ? t('tabsGifs.statsWithLimit', { limit: formatNumber(_gifLimit) }) : t('tabsGifs.statsNoLimit'),
     el('strong', { class: 'stat-num' }, String(preview)), t('tabsGifs.statsPreview'),
     el('strong', { class: 'stat-num' }, String(link)), t('tabsGifs.statsLink'));
   // Al llegar al cupo, guardar uno nuevo desaloja el más viejo: decirlo antes
