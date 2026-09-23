@@ -258,6 +258,43 @@ def test_api_anuncios_put_and_delete(memory_db):
     asyncio.run(_test())
 
 
+def test_api_anuncio_put_preserves_legacy_embed(memory_db):
+    """El formulario de Anuncios no tiene UI de embeds, así que el PUT nunca
+    manda datos de embed nuevos -- confirma que igual conserva el embed_json/
+    content_mode que un anuncio ya tenía (de cuando este endpoint sí los
+    aceptaba) al editar solo el mensaje o el horario."""
+
+    async def _test():
+        legacy_embed = json.dumps({"title": "Aviso importante"})
+        ann_id = await db.add_scheduled_announcement(
+            guild_id=_GUILD,
+            channel_id=_CHANNEL_ID,
+            message="Mensaje legacy",
+            mode="interval",
+            created_by=int(_USER_ID),
+            interval_minutes=30,
+            embed_json=legacy_embed,
+            content_mode="classic_embed",
+        )
+        assert ann_id is not None
+
+        put_body = {
+            "channel_id": _CHANNEL_ID,
+            "mode": "interval",
+            "interval_minutes": 60,
+            "message": "Solo cambié el intervalo",
+        }
+        req_put = FakeRequest(guild_id=_GUILD, announcement_id=ann_id, body=put_body)
+        resp_put = await webapi._api_anuncio_put(req_put)
+        assert resp_put.status == 200
+        updated = json.loads(resp_put.text)["announcement"]
+        assert updated["interval_minutes"] == 60
+        assert updated["embed_json"] == legacy_embed
+        assert updated["content_mode"] == "classic_embed"
+
+    asyncio.run(_test())
+
+
 def test_api_anuncios_validation_errors(memory_db):
     async def _test():
         # Intervalo fuera de rango (<5)

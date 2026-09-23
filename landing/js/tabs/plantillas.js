@@ -43,6 +43,56 @@ addStrings({
     'tabsPlantillas.previewBotTag': 'BOT',
     'tabsPlantillas.previewToday': 'HOY',
     'tabsPlantillas.previewEmptyHint': 'Escribe un mensaje o configura un embed para ver cómo queda',
+    'tabsPlantillas.unsupportedTitle': 'Esta plantilla no se puede editar desde acá',
+    'tabsPlantillas.unsupportedDesc': '«{name}» {reasons} — este editor es más simple a propósito, y guardar acá perdería eso sin avisar. Ábrela desde Embeds → Mis plantillas → Editar.',
+    'tabsPlantillas.unsupportedReasonLayout': 'usa Layout V2 (bloques avanzados)',
+    'tabsPlantillas.unsupportedReasonMultiEmbed': 'tiene más de un embed',
+    'tabsPlantillas.unsupportedReasonSendOptions': 'tiene opciones de envío personalizadas (menciones, webhook, roles permitidos)',
+    'tabsPlantillas.openInEmbedsBtn': 'Abrir en Embeds',
+    // Antes vivían en tabs/eventos.js ("reutilizadas por plantillas.js" para
+    // no duplicar el texto) -- pero eso hacía que un Gestor, que puede abrir
+    // Embeds > Mis plantillas sin pasar nunca por Eventos (no está en
+    // GESTOR_ALLOWED_MODULES), viera estas claves crudas en vez de texto:
+    // eventos.js nunca llegaba a registrarlas. Se movieron acá, al único
+    // módulo que las usa, para que se registren sin depender de qué otro
+    // módulo se haya cargado antes.
+    'tabsEventos.plainTextCounter': '{count} / 2000 caracteres',
+    'tabsEventos.embedTitleLabel': 'Título del embed',
+    'tabsEventos.embedDescLabel': 'Descripción',
+    'tabsEventos.embedColorLabel': 'Color de la barra lateral',
+    'tabsEventos.embedThumbLabel': 'Miniatura (Thumbnail)',
+    'tabsEventos.embedImageLabel': 'Imagen grande',
+    'tabsEventos.embedAuthorNameLabel': 'Nombre del autor',
+    'tabsEventos.embedAuthorIconLabel': 'Icono del autor',
+    'tabsEventos.embedFooterTextLabel': 'Texto del pie de página',
+    'tabsEventos.embedFooterIconLabel': 'Icono del pie de página',
+    'tabsEventos.addFieldBtn': '+ Agregar campo',
+    'tabsEventos.fieldNamePlaceholder': 'Nombre del campo',
+    'tabsEventos.fieldValuePlaceholder': 'Valor del campo',
+    'tabsEventos.fieldInlineLabel': 'En línea (inline)',
+    'tabsEventos.sectionFields': 'Campos adicionales',
+    'tabsEventos.embedMoreOptions': 'Más opciones (color, thumbnail, icono de pie)',
+    'tabsEventos.varsTitle': 'Variables disponibles',
+    'tabsEventos.varsSubtitle': 'Haz clic en una variable para insertarla en el campo activo o copiarla.',
+    'tabsEventos.varsSearchPlaceholder': 'Buscar variables…',
+    'tabsEventos.varsCopied': 'Variable {var} copiada al portapapeles',
+    'tabsEventos.varsInserted': 'Variable {var} insertada',
+    'tabsEventos.insertVarBtn': 'Insertar variable',
+    'tabsEventos.varExample': 'Ejemplo:',
+    'tabsEventos.buttonsTitle': 'Botones',
+    'tabsEventos.buttonsHelp': 'Añade botones de enlace o de rol a este mensaje.',
+    'tabsEventos.addButton': '+ Añadir botón',
+    'tabsEventos.buttonLabelPlaceholder': 'Etiqueta del botón',
+    'tabsEventos.buttonUrlPlaceholder': 'https://ejemplo.com',
+    'tabsEventos.buttonTypeLink': 'Enlace (URL)',
+    'tabsEventos.buttonTypeRole': 'Rol (Toggle)',
+    'tabsEventos.buttonColorPrimary': 'Azul (Primary)',
+    'tabsEventos.buttonColorSecondary': 'Gris (Secondary)',
+    'tabsEventos.buttonColorSuccess': 'Verde (Success)',
+    'tabsEventos.buttonColorDanger': 'Rojo (Danger)',
+    'tabsEventos.modePlainText': 'Mensaje normal',
+    'tabsEventos.modeClassicEmbed': 'Embed clásico',
+    'tabsEventos.contentModeLabel': 'Formato',
   },
   en: {
     'tabsPlantillas.titleNew': 'New template',
@@ -63,6 +113,49 @@ addStrings({
     'tabsPlantillas.previewBotTag': 'BOT',
     'tabsPlantillas.previewToday': 'TODAY',
     'tabsPlantillas.previewEmptyHint': 'Write a message or set up an embed to see how it looks',
+    'tabsPlantillas.unsupportedTitle': "This template can't be edited from here",
+    'tabsPlantillas.unsupportedDesc': '"{name}" {reasons} — this editor is deliberately simpler, and saving here would drop that without warning. Open it from Embeds → My templates → Edit.',
+    'tabsPlantillas.unsupportedReasonLayout': 'uses Layout V2 (advanced blocks)',
+    'tabsPlantillas.unsupportedReasonMultiEmbed': 'has more than one embed',
+    'tabsPlantillas.unsupportedReasonSendOptions': 'has custom send options (mentions, webhook, allowed roles)',
+    'tabsPlantillas.openInEmbedsBtn': 'Open in Embeds',
+    'tabsEventos.plainTextCounter': '{count} / 2000 characters',
+    'tabsEventos.embedTitleLabel': 'Embed title',
+    'tabsEventos.embedDescLabel': 'Description',
+    'tabsEventos.embedColorLabel': 'Sidebar color',
+    'tabsEventos.embedThumbLabel': 'Thumbnail',
+    'tabsEventos.embedImageLabel': 'Large image',
+    'tabsEventos.embedAuthorNameLabel': 'Author name',
+    'tabsEventos.embedAuthorIconLabel': 'Author icon',
+    'tabsEventos.embedFooterTextLabel': 'Footer text',
+    'tabsEventos.embedFooterIconLabel': 'Footer icon',
+    'tabsEventos.addFieldBtn': '+ Add field',
+    'tabsEventos.fieldNamePlaceholder': 'Field name',
+    'tabsEventos.fieldValuePlaceholder': 'Field value',
+    'tabsEventos.fieldInlineLabel': 'Inline',
+    'tabsEventos.sectionFields': 'Additional fields',
+    'tabsEventos.embedMoreOptions': 'More options (color, thumbnail, footer icon)',
+    'tabsEventos.varsTitle': 'Available variables',
+    'tabsEventos.varsSubtitle': 'Click any variable to insert into the active field or copy it.',
+    'tabsEventos.varsSearchPlaceholder': 'Search variables…',
+    'tabsEventos.varsCopied': 'Variable {var} copied to clipboard',
+    'tabsEventos.varsInserted': 'Variable {var} inserted',
+    'tabsEventos.insertVarBtn': 'Insert variable',
+    'tabsEventos.varExample': 'Example:',
+    'tabsEventos.buttonsTitle': 'Buttons',
+    'tabsEventos.buttonsHelp': 'Add link or role buttons to this message.',
+    'tabsEventos.addButton': '+ Add button',
+    'tabsEventos.buttonLabelPlaceholder': 'Button label',
+    'tabsEventos.buttonUrlPlaceholder': 'https://example.com',
+    'tabsEventos.buttonTypeLink': 'Link (URL)',
+    'tabsEventos.buttonTypeRole': 'Role (Toggle)',
+    'tabsEventos.buttonColorPrimary': 'Blurple (Primary)',
+    'tabsEventos.buttonColorSecondary': 'Grey (Secondary)',
+    'tabsEventos.buttonColorSuccess': 'Green (Success)',
+    'tabsEventos.buttonColorDanger': 'Red (Danger)',
+    'tabsEventos.modePlainText': 'Normal message',
+    'tabsEventos.modeClassicEmbed': 'Classic embed',
+    'tabsEventos.contentModeLabel': 'Format',
   },
 });
 
@@ -182,6 +275,18 @@ export async function loadTemplateEditor(templateId, opts = {}) {
       return;
     }
 
+    // Este editor cubre a propósito solo texto / 1 embed / botones (ver
+    // comentario de cabecera) -- una plantilla que ya tiene más que eso no
+    // se puede representar acá. Antes se intentaba igual: Layout V2 quedaba
+    // con el botón Guardar visible pero SIEMPRE fallaba con un error
+    // genérico, y una plantilla con varios embeds guardaba en silencio solo
+    // el primero, perdiendo el resto sin ningún aviso. Cortar acá evita las
+    // dos cosas -- unsupportedReasons() no es más que el motivo a mostrar.
+    if (existing && isUnsupportedTemplate(existing)) {
+      renderUnsupportedTemplateNotice(box, existing, opts);
+      return;
+    }
+
     renderTemplateEditor(box, existing, rolesData, eventsData.variables || [], opts);
   } catch (err) {
     if (myGuild !== GUILD_ID) return;
@@ -191,6 +296,41 @@ export async function loadTemplateEditor(templateId, opts = {}) {
 
 function defaultDone() {
   import('/js/dash.js').then(({ activate }) => activate('embeds', true));
+}
+
+function isUnsupportedTemplate(existing) {
+  return existing.content_mode === 'layout_v2'
+    || (Array.isArray(existing.embeds) && existing.embeds.length > 1)
+    || existing.send_options != null;
+}
+
+function unsupportedTemplateReasons(existing) {
+  const reasons = [];
+  if (existing.content_mode === 'layout_v2') reasons.push(t('tabsPlantillas.unsupportedReasonLayout'));
+  if (Array.isArray(existing.embeds) && existing.embeds.length > 1) reasons.push(t('tabsPlantillas.unsupportedReasonMultiEmbed'));
+  if (existing.send_options != null) reasons.push(t('tabsPlantillas.unsupportedReasonSendOptions'));
+  return reasons.join(', ');
+}
+
+function renderUnsupportedTemplateNotice(container, existing, opts) {
+  container.innerHTML = '';
+  const goToEmbeds = () => import('/js/dash.js').then(({ activate }) => activate('embeds', true));
+  container.append(el('div', { class: 'cfg-block' },
+    el('div', { class: 'cfg-head-row' }, el('div', { class: 'cfg-head-title' }, el('h1', {}, t('tabsPlantillas.unsupportedTitle')))),
+    el('p', { class: 'dim' }, t('tabsPlantillas.unsupportedDesc', {
+      name: existing.name,
+      reasons: unsupportedTemplateReasons(existing),
+    })),
+    el('div', { class: 'event-actions-bar' },
+      el('div', { class: 'left-actions' },
+        el('button', {
+          type: 'button', class: 'btn btn-primary',
+          onclick: goToEmbeds,
+        }, t('tabsPlantillas.openInEmbedsBtn')),
+        el('button', {
+          type: 'button', class: 'btn btn-secondary',
+          onclick: () => { if (opts.onCancel) opts.onCancel(); else defaultDone(); },
+        }, t('tabsPlantillas.cancelBtn'))))));
 }
 
 function renderTemplateEditor(container, existing, roles, allVariables, opts) {
@@ -204,7 +344,6 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
   let currentMessage = existing ? (existing.message || '') : '';
   const embedState = embedStateFromPayload(existing && existing.embeds ? existing.embeds[0] : null);
   let buttons = existing && Array.isArray(existing.buttons) ? existing.buttons.map(b => ({ ...b })) : [];
-  let isLayoutTemplate = existing ? existing.content_mode === 'layout_v2' : false;
 
   // ── Preview en vivo (sticky, columna derecha) ───────────────────────────
   // Mismos componentes visuales que ya existen (mensaje: Anuncios; embed: el
@@ -524,13 +663,10 @@ function renderTemplateEditor(container, existing, roles, allVariables, opts) {
 
   const contentBlock = el('div', { class: 'cfg-block' }, formatSelectorRow, formatBodyWrap);
 
-  if (!isLayoutTemplate) {
-    contentCard.append(contentBlock, buttonsBlock);
-  } else {
-    contentCard.append(el('div', { class: 'cfg-block' },
-      el('p', { class: 'dim text-sm' }, 'Esta plantilla usa Layout V2 (bloques avanzados). Para editarla, abre Plantillas → Crear / Enviar → Mis plantillas → Cargar en editor.')
-    ));
-  }
+  // Layout V2 (y cualquier otro caso que este editor no soporte) ya se
+  // intercepta antes en loadTemplateEditor con renderUnsupportedTemplateNotice
+  // -- si llegamos hasta acá, existing (si hay) siempre es texto/embed único.
+  contentCard.append(contentBlock, buttonsBlock);
 
   // ── Acciones ─────────────────────────────────────────────────────────
   // Mismo shape que _template_row_to_json (webapi.py) devuelve al leer una

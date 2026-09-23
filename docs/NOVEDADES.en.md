@@ -1,6 +1,6 @@
 # Changelog
 
-**Last updated:** September 19, 2026
+**Last updated:** September 23, 2026
 
 A plain-language summary of Purgito's new features, improvements, and
 fixes. The full technical detail, for anyone who wants to read it, lives
@@ -53,6 +53,9 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The dashboard now loads faster, especially the first time you open it in a session.
 - `!gif` now also turns an image (PNG, JPG, or WEBP) into a GIF, not just a video -- attached, from the message you're replying to, or embedded in another bot's result.
 - The image-editing commands (`!deepfry`, `!caption`, `!wide`, `!invert`, and the rest -- full list in `/help`) now also accept a GIF as their source, not just a still image: the effect is applied to every frame and the result comes out animated. `!triggered` still always uses a still image, since it already generates its own short GIF.
+- Stats now also shows the quota for Announcements, Embed templates, Phrase packs, and Channel triggers, with the same near-limit/full warning that saved messages, GIFs, and phrases already had.
+- The Channels matrix now flags muted (ignored) channels so they don't look identical to an active one.
+- Undo when deleting now also covers Announcements and "Reset" on Welcome/Goodbye/Boost, same as it already did for phrases, triggers, and reactions.
 
 ### Fixed
 - The dashboard's YouTube module showed an error ("emptyState is not defined") instead of the subscription list.
@@ -78,6 +81,12 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The image-editing commands now recognize a GIF when replying to a message that forwards it (Discord's "Forward" feature) or one uploaded with an image extension instead of GIF (common when pasting it from the clipboard) — they used to silently use your avatar, or reject the file as an unsupported format, even though the GIF was right there.
 - `/help` showed commands with a fixed `!` even when the server had a custom prefix — it now uses the configured symbol.
 - `!dl` replied "make sure the post is public and still exists" when the Instagram, TikTok, or Twitter/X link was a photo instead of a video — it now says that post has no video to download.
+- Editing a scheduled announcement that already had a saved embed no longer wipes it out when you save other changes (like the channel or the schedule).
+- Editing the Welcome, Goodbye, or Boost template when it uses Layout V2 no longer ends in a generic error: it now takes you to edit it from Embeds instead.
+- Editing a template with more than one embed from Welcome/Goodbye/Boost no longer silently drops the extra embeds, keeping just the first.
+- A Manager editing a classic template from Embeds no longer sees raw untranslated text labels instead of the real text.
+- A YouTube subscription with a broken feed (changed URL or no longer exists) is now flagged in the panel, same as it already was for Twitch and RSS.
+- The Chat Simulator now shows the real reason it didn't generate a reply (for example, a trigger with no phrases available) and the server's specific error when there is one, instead of always the same generic message.
 
 ## Version 1.1.0 — June 28, 2026
 

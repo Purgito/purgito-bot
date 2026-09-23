@@ -12,7 +12,7 @@ import {
   trackSave, markSavePending, hasUnsavedWork, onUnsavedWorkChange, clearUnsavedWork,
 } from '/js/core/dom.js';
 import {
-  GUILD_ID, setGuildId, clearGuildCaches, currentLocale,
+  GUILD_ID, setGuildId, clearGuildCaches, currentLocale, formatNumber,
   getDashboardUrl, getPerfilUrl, getLoginUrl, parseGuildId,
 } from '/js/core/config.js';
 import { getChannels, getRoles, channelSelect, roleSelect, content } from '/js/panel-shell.js';
@@ -428,6 +428,13 @@ let _quotaAlerts = {};
 const QUOTA_ALERT_MODULES = [
   ['gifs', s => s.gifs, l => l.gifs],
   ['frases', s => s.frases, l => l.frases],
+  // 'frases' cubre dos cupos distintos (frases sueltas y packs) del mismo
+  // módulo del sidebar -- loadQuotaAlerts se queda con el peor de los dos en
+  // vez de que el segundo pise al primero.
+  ['frases', s => s.frase_packs, l => l.frase_packs],
+  ['triggers', s => s.channel_triggers, l => l.channel_triggers],
+  ['embeds', s => s.embed_templates, l => l.embed_templates],
+  ['anuncios', s => s.announcements, l => l.announcements],
 ];
 
 // Dedupea el /stats concurrente entre loadQuotaAlerts() y loadInicio(): al
@@ -461,7 +468,11 @@ async function loadQuotaAlerts() {
       const used = getUsed(stats);
       const cap = getCap(lims);
       if (cap && used >= cap * 0.9) {
-        alerts[key] = { full: used >= cap, pct: Math.min(100, Math.round((used / cap) * 100)) };
+        const pct = Math.min(100, Math.round((used / cap) * 100));
+        const prev = alerts[key];
+        // Un módulo puede tener más de un cupo (ej. frases sueltas + packs):
+        // se queda con el peor de los dos en vez de que el último gane.
+        if (!prev || pct > prev.pct) alerts[key] = { full: used >= cap, pct };
       }
     }
     _quotaAlerts = alerts;
@@ -617,7 +628,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
       el('div', { class: 'server-picker-name' }, active ? active.name : 'Servidor'),
       el('div', { class: 'server-picker-sub dim' },
         active && active.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null,
-        active && active.member_count != null ? t('dash.serverPicker.members', { count: Number(active.member_count).toLocaleString('es') }) : t('dash.serverPicker.change')
+        active && active.member_count != null ? t('dash.serverPicker.members', { count: formatNumber(Number(active.member_count)) }) : t('dash.serverPicker.change')
       )
     ),
     el('span', { class: 'server-picker-caret' }, icon('chevronDown'))
@@ -680,7 +691,7 @@ export function buildServerPicker(activeGuild, guildsData, onSelectGuild) {
                 g.is_premium ? el('span', { class: 'badge badge-premium badge-xs' }, 'PREMIUM') : null
               ),
               el('div', { class: 'server-dropdown-item-sub dim' },
-                isCurrent ? t('dash.serverPicker.activeServer') : (g.member_count != null ? t('dash.serverPicker.members', { count: Number(g.member_count).toLocaleString('es') }) : '')
+                isCurrent ? t('dash.serverPicker.activeServer') : (g.member_count != null ? t('dash.serverPicker.members', { count: formatNumber(Number(g.member_count)) }) : '')
               )
             ),
             isCurrent ? el('span', { class: 'server-dropdown-check' }, icon('check')) : null
@@ -1462,11 +1473,11 @@ initDash();
 
 function withCap(used, cap) {
   if (used == null) return null;
-  const n = Number(used).toLocaleString('es');
+  const n = formatNumber(Number(used));
   if (!cap) return n;
   return el('span', { class: 'stat-cap-wrap' },
     el('span', { class: 'stat-num-main' }, n),
-    el('span', { class: 'stat-num-cap dim' }, ` / ${Number(cap).toLocaleString('es')}`));
+    el('span', { class: 'stat-num-cap dim' }, ` / ${formatNumber(Number(cap))}`));
 }
 
 function statTile(iconName, value, label, subtext) {
@@ -1474,7 +1485,7 @@ function statTile(iconName, value, label, subtext) {
   if (value instanceof Node) {
     valEl.append(value);
   } else {
-    valEl.textContent = value != null ? (typeof value === 'number' ? value.toLocaleString('es') : String(value)) : '—';
+    valEl.textContent = value != null ? (typeof value === 'number' ? formatNumber(value) : String(value)) : '—';
   }
   return el('div', { class: 'stat-tile' },
     el('div', { class: 'stat-icon-wrap' }, icon(iconName)),
@@ -1541,9 +1552,21 @@ addStrings({
     'dash.inicio.statReplySub': 'Menciones y espontáneos',
     'dash.inicio.statReactions': 'Emojis de reacción',
     'dash.inicio.statReactionsSub': 'Pool activo',
+    'dash.inicio.statAnuncios': 'Anuncios programados',
+    'dash.inicio.statAnunciosSub': 'Publicaciones automáticas',
+    'dash.inicio.statEmbeds': 'Plantillas de embeds',
+    'dash.inicio.statEmbedsSub': 'Guardadas para reusar',
+    'dash.inicio.statPacks': 'Packs de frases',
+    'dash.inicio.statPacksSub': 'Agrupadas por canal',
+    'dash.inicio.statTriggers': 'Triggers de canal',
+    'dash.inicio.statTriggersSub': 'Respuestas automáticas',
     'dash.inicio.quotaSavedMessages': 'mensajes guardados',
     'dash.inicio.quotaGifs': 'GIFs',
     'dash.inicio.quotaFrases': 'frases especiales',
+    'dash.inicio.quotaAnuncios': 'anuncios programados',
+    'dash.inicio.quotaEmbeds': 'plantillas de embeds',
+    'dash.inicio.quotaPacks': 'packs de frases',
+    'dash.inicio.quotaTriggers': 'triggers de canal',
     'dash.inicio.quotaFullText': 'Has alcanzado el límite de {items}. Purgito descarta automáticamente el contenido más antiguo para dar lugar a nuevo contenido.',
     'dash.inicio.quotaNearText': 'Estás cerca del cupo de {items}: al alcanzarlo, Purgito empezará a descartar lo más antiguo para hacer lugar a lo nuevo.',
     'dash.inicio.onboardingTitle': 'Primeros pasos',
@@ -1611,9 +1634,21 @@ addStrings({
     'dash.inicio.statReplySub': 'Mentions and spontaneous',
     'dash.inicio.statReactions': 'Reaction emojis',
     'dash.inicio.statReactionsSub': 'Active pool',
+    'dash.inicio.statAnuncios': 'Scheduled announcements',
+    'dash.inicio.statAnunciosSub': 'Automatic posts',
+    'dash.inicio.statEmbeds': 'Embed templates',
+    'dash.inicio.statEmbedsSub': 'Saved for reuse',
+    'dash.inicio.statPacks': 'Phrase packs',
+    'dash.inicio.statPacksSub': 'Grouped by channel',
+    'dash.inicio.statTriggers': 'Channel triggers',
+    'dash.inicio.statTriggersSub': 'Automatic replies',
     'dash.inicio.quotaSavedMessages': 'saved messages',
     'dash.inicio.quotaGifs': 'GIFs',
     'dash.inicio.quotaFrases': 'special phrases',
+    'dash.inicio.quotaAnuncios': 'scheduled announcements',
+    'dash.inicio.quotaEmbeds': 'embed templates',
+    'dash.inicio.quotaPacks': 'phrase packs',
+    'dash.inicio.quotaTriggers': 'channel triggers',
     'dash.inicio.quotaFullText': "You've reached the limit for {items}. Purgito automatically discards the oldest content to make room for new content.",
     'dash.inicio.quotaNearText': "You're close to the quota for {items}: once reached, Purgito will start discarding the oldest content to make room for new content.",
     'dash.inicio.onboardingTitle': 'First steps',
@@ -1783,7 +1818,7 @@ async function loadInicio() {
 
     // 1. Resumen / Hero del Servidor
     const memberText = g && g.member_count != null
-      ? t('dash.inicio.members', { count: Number(g.member_count).toLocaleString('es') })
+      ? t('dash.inicio.members', { count: formatNumber(Number(g.member_count)) })
       : t('dash.inicio.discordServer');
 
     const serverHero = el('div', { class: 'dash-server-hero' },
@@ -1920,20 +1955,29 @@ export async function loadStatsModule() {
       statTile('sparkle', withCap(stats.frases, lims.frases), t('dash.inicio.statFrases'), t('dash.inicio.statFrasesSub')),
       statTile('chat', `${stats.reading_channels || 0} / ${stats.text_channels || channels.length || 0}`, t('dash.inicio.statReading'), t('dash.inicio.statReadingSub')),
       statTile('layout', `${stats.reply_channels || 0} / ${stats.text_channels || channels.length || 0}`, t('dash.inicio.statReply'), t('dash.inicio.statReplySub')),
-      statTile('smile', stats.reactions || 0, t('dash.inicio.statReactions'), t('dash.inicio.statReactionsSub'))
+      statTile('smile', stats.reactions || 0, t('dash.inicio.statReactions'), t('dash.inicio.statReactionsSub')),
+      statTile('megaphone', withCap(stats.announcements, lims.announcements), t('dash.inicio.statAnuncios'), t('dash.inicio.statAnunciosSub')),
+      statTile('layout', withCap(stats.embed_templates, lims.embed_templates), t('dash.inicio.statEmbeds'), t('dash.inicio.statEmbedsSub')),
+      statTile('sparkle', withCap(stats.frase_packs, lims.frase_packs), t('dash.inicio.statPacks'), t('dash.inicio.statPacksSub')),
+      statTile('zap', withCap(stats.channel_triggers, lims.channel_triggers), t('dash.inicio.statTriggers'), t('dash.inicio.statTriggersSub'))
     );
 
-    const alcanzados = [
+    // Mismos 8 recursos con cupo por servidor que expone /api/server/:id/stats
+    // (limits.env) -- antes solo se avisaba de corpus/gifs/frases acá, así
+    // que un servidor free en el tope de anuncios (3) o de packs/triggers/
+    // plantillas de embeds no tenía ningún aviso hasta que el alta se
+    // rechazaba directo en ese módulo.
+    const quotaItems = [
       [stats.corpus_total, lims.corpus_total, t('dash.inicio.quotaSavedMessages')],
       [stats.gifs, lims.gifs, t('dash.inicio.quotaGifs')],
       [stats.frases, lims.frases, t('dash.inicio.quotaFrases')],
-    ].filter(([used, cap]) => cap && used >= cap);
-
-    const cerca = [
-      [stats.corpus_total, lims.corpus_total, t('dash.inicio.quotaSavedMessages')],
-      [stats.gifs, lims.gifs, t('dash.inicio.quotaGifs')],
-      [stats.frases, lims.frases, t('dash.inicio.quotaFrases')],
-    ].filter(([used, cap]) => cap && used >= cap * 0.9 && used < cap);
+      [stats.announcements, lims.announcements, t('dash.inicio.quotaAnuncios')],
+      [stats.embed_templates, lims.embed_templates, t('dash.inicio.quotaEmbeds')],
+      [stats.frase_packs, lims.frase_packs, t('dash.inicio.quotaPacks')],
+      [stats.channel_triggers, lims.channel_triggers, t('dash.inicio.quotaTriggers')],
+    ];
+    const alcanzados = quotaItems.filter(([used, cap]) => cap && used >= cap);
+    const cerca = quotaItems.filter(([used, cap]) => cap && used >= cap * 0.9 && used < cap);
 
     let quotaNotice = null;
     if (alcanzados.length) {
@@ -1962,7 +2006,7 @@ export async function loadStatsModule() {
         el('div', { class: 'activity-card' },
           el('div', { class: 'activity-icon-wrap' }, icon('film')),
           el('div', { class: 'activity-content' },
-            el('div', { class: 'activity-value' }, Number(counters.gifs_enviados || 0).toLocaleString('es')),
+            el('div', { class: 'activity-value' }, formatNumber(Number(counters.gifs_enviados || 0))),
             el('div', { class: 'activity-label' }, t('dash.inicio.gifsSent')),
             el('div', { class: 'activity-sub dim' }, t('dash.inicio.totalAccumulated'))
           )
@@ -1970,7 +2014,7 @@ export async function loadStatsModule() {
         el('div', { class: 'activity-card' },
           el('div', { class: 'activity-icon-wrap' }, icon('chat')),
           el('div', { class: 'activity-content' },
-            el('div', { class: 'activity-value' }, Number(counters.mensajes_enviados || 0).toLocaleString('es')),
+            el('div', { class: 'activity-value' }, formatNumber(Number(counters.mensajes_enviados || 0))),
             el('div', { class: 'activity-label' }, t('dash.inicio.messagesSent')),
             el('div', { class: 'activity-sub dim' }, t('dash.inicio.totalAccumulated'))
           )
@@ -2000,7 +2044,7 @@ export async function loadStatsModule() {
                   max: String(maxChannelCount),
                 }),
                 el('span', { class: 'dim', style: 'font-size:12px;min-width:2.5em;text-align:right;' },
-                  Number(c.count || 0).toLocaleString('es'))
+                  formatNumber(Number(c.count || 0)))
               )
             ))
           )
@@ -2027,7 +2071,7 @@ export async function loadStatsModule() {
                   max: String(maxDayCount),
                 }),
                 el('span', { class: 'dim', style: 'font-size:12px;min-width:2.5em;text-align:right;' },
-                  Number(d.count || 0).toLocaleString('es'))
+                  formatNumber(Number(d.count || 0)))
               )
             ))
           )
@@ -2038,7 +2082,7 @@ export async function loadStatsModule() {
         ? el('div', { class: 'stat-channels' },
             ...contributors.map(c => el('div', { class: 'stat-channel-row' },
               el('span', { class: 'stat-chan-name' }, c.author_name || c.author_id),
-              el('span', { class: 'dim', style: 'font-size:12px;' }, Number(c.count || 0).toLocaleString('es'))
+              el('span', { class: 'dim', style: 'font-size:12px;' }, formatNumber(Number(c.count || 0)))
             ))
           )
         : el('p', { class: 'dim' }, t('dash.stats.noData'));
@@ -2482,9 +2526,14 @@ async function loadPlaygroundModule() {
         resultSlot.innerHTML = '';
         let errText = t('dash.playground.errDefault');
         if (err && err.status === 403) {
-          errText = (err.data && err.data.error) || t('dash.playground.err403');
+          // apiFetch (core/api.js) ya arma err.message con el motivo puntual
+          // que manda el backend (data.error) cuando lo hay, o un texto
+          // genérico si no -- err.data nunca existió acá, así que este
+          // branch siempre caía al fallback aunque el backend explicara qué
+          // permiso puntual faltaba.
+          errText = err.message || t('dash.playground.err403');
         } else if (err && err.status === 400) {
-          errText = (err.data && err.data.error) || t('dash.playground.err400');
+          errText = err.message || t('dash.playground.err400');
         } else if (err && err.status === 429) {
           errText = t('dash.playground.err429');
         }
@@ -2672,7 +2721,7 @@ function buildSimulationResultCard(data, styleRes) {
         el('div', { class: 'sim-error-icon' }, icon('x')),
         el('div', { class: 'sim-error-content' },
           el('h4', {}, t('dash.playground.noContentTitle')),
-          el('p', {}, t('dash.playground.noContentDesc'))
+          el('p', {}, PLAYGROUND_NO_RESPONSE_LABELS[data.reason] || t('dash.playground.noContentDesc'))
         )
       )
     );
@@ -3374,6 +3423,7 @@ addStrings({
     'dash.canalesModule.matrixTitle': 'Matriz de canales',
     'dash.canalesModule.silencedOne': 'Hay 1 canal silenciado desde /settings: queda fuera aunque lo marques aquí.',
     'dash.canalesModule.silencedMany': 'Hay {count} canales silenciados desde /settings: quedan fuera aunque los marques aquí.',
+    'dash.canalesModule.ignoredWarn': 'Canal silenciado (ignorado) desde /settings: no habla ni aprende acá aunque esté marcado abajo.',
     'dash.canalesModule.exemptionsTitle': 'Exenciones de límites',
     'dash.canalesModule.exemptRolesLabel': 'Roles exentos de límites de menciones',
     'dash.canalesModule.noExemptRoles': 'Ningún rol exento: el límite aplica a todos por igual.',
@@ -3405,6 +3455,7 @@ addStrings({
     'dash.canalesModule.matrixTitle': 'Channel matrix',
     'dash.canalesModule.silencedOne': "There's 1 channel muted via /settings: it stays excluded even if you check it here.",
     'dash.canalesModule.silencedMany': 'There are {count} channels muted via /settings: they stay excluded even if you check them here.',
+    'dash.canalesModule.ignoredWarn': "Muted (ignored) channel via /settings: it doesn't speak or learn here even if checked below.",
     'dash.canalesModule.exemptionsTitle': 'Limit exemptions',
     'dash.canalesModule.exemptRolesLabel': 'Roles exempt from mention limits',
     'dash.canalesModule.noExemptRoles': 'No role exempt: the limit applies equally to everyone.',
@@ -3527,7 +3578,7 @@ async function loadCanalesModule() {
       );
     }
 
-    const matrixNode = channelMatrix({ channels: channels || [], cols, openOverrides });
+    const matrixNode = channelMatrix({ channels: channels || [], cols, openOverrides, ignoredSet });
 
     const exemptSelected = new Set(((exempt && exempt.roles) || []).map(r => r.id));
     const exemptChannelsSelected = new Set(((exemptChans && exemptChans.channels) || []).map(c => c.id));
@@ -3873,7 +3924,7 @@ function roleToggleList({ roles, selected, add, remove, listBelow }) {
   return el('div', { class: 'chan-picker' }, dd, list);
 }
 
-function channelMatrix({ channels, cols, openOverrides }) {
+function channelMatrix({ channels, cols, openOverrides, ignoredSet }) {
   const wrap = el('div', { class: 'chan-matrix' });
   const filter = el('input', {
     type: 'search', placeholder: 'Filtrar canales…', class: 'chan-filter', autocomplete: 'off',
@@ -3910,11 +3961,18 @@ function channelMatrix({ channels, cols, openOverrides }) {
       },
     }, '⚙');
 
+    const isIgnored = Boolean(ignoredSet && ignoredSet.has(ch.id));
     row.append(
-      el('span', { class: 'chan-name' + (ch.can_send === false ? ' chan-noperm' : '') },
+      el('span', { class: 'chan-name' + (ch.can_send === false ? ' chan-noperm' : '') + (isIgnored ? ' chan-ignored' : '') },
         '#' + (ch.name || ch.id),
         ch.can_send === false
           ? el('span', { class: 'chan-warn', title: 'El bot no puede leer o escribir en este canal' }, '⚠')
+          : null,
+        // ignored_channels es la 4ª lista (silencio total), gestionada desde
+        // /settings en Discord -- sin esto la fila se ve idéntica a la de
+        // cualquier canal activo aunque las 3 columnas de acá no apliquen.
+        isIgnored
+          ? el('span', { class: 'chan-warn chan-warn-ignored', title: t('dash.canalesModule.ignoredWarn') }, '🔇')
           : null),
       ...cols.map((c) => {
         const box = el('input', { type: 'checkbox', checked: c.isSelected(ch.id) });
@@ -5561,36 +5619,73 @@ async function reloadTriggers(box, channels, packs) {
   } catch (e) { /* ignore */ }
 }
 
+addStrings({
+  es: {
+    'dash.playground.noResponse.canal_ignorado': 'El canal está silenciado (ignorado) — Purgito no respondería ahí.',
+    'dash.playground.noResponse.sin_corpus_suficiente': 'Todavía no hay corpus suficiente para generar una respuesta.',
+    'dash.playground.noResponse.trigger_sin_contenido': 'Matcheó un trigger, pero el pool de frases de ese trigger está vacío.',
+    'dash.playground.aviso.chat_desactivado':
+      'El chat está desactivado: no responde a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch y siguen saliendo.',
+    'dash.playground.aviso.canal_sin_menciones':
+      'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan aquí, avisa que solo contesta en los canales elegidos.',
+    'dash.playground.aviso.canal_sin_espontaneo':
+      'Este canal no está en la lista de canales donde habla por su cuenta: aquí nunca va a arrancar una charla solo.',
+    'dash.playground.aviso.cupo_horario_agotado':
+      'Ya agotaste tu cupo de menciones de esta hora: a ti no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
+    'dash.playground.aviso.cooldown_espontaneo':
+      'Acabó de hablar solo en este canal: por el piso de silencio entre mensajes espontáneos no volvería a hacerlo todavía. No afecta a las menciones.',
+    'dash.playground.aviso.usuario_excluido_interaccion':
+      'Estás en la lista de exclusión de interacciones de este servidor: Purgito nunca te responde, sin importar el canal o la probabilidad.',
+    'dash.playground.aviso.usuario_excluido_aprendizaje':
+      'Estás en la lista de exclusión de aprendizaje de este servidor: tus mensajes no se guardan en el corpus, pero Purgito igual puede responderte.',
+    'dash.playground.avisosIntroSingular': 'Hay un freno activo fuera del motor de generación:',
+    'dash.playground.avisosIntroPlural': 'Hay {count} frenos activos fuera del motor de generación:',
+  },
+  en: {
+    'dash.playground.noResponse.canal_ignorado': "The channel is muted (ignored) — Purgito wouldn't reply there.",
+    'dash.playground.noResponse.sin_corpus_suficiente': "There still isn't enough corpus to generate a reply.",
+    'dash.playground.noResponse.trigger_sin_contenido': "A trigger matched, but that trigger's phrase pool is empty.",
+    'dash.playground.aviso.chat_desactivado':
+      "Chat is disabled: it won't reply to mentions. Spontaneous messages, reactions, and triggers don't depend on this switch and still work.",
+    'dash.playground.aviso.canal_sin_menciones':
+      "This channel isn't in the list of channels where it replies to mentions: if it's mentioned here, it explains that it only replies in the chosen channels.",
+    'dash.playground.aviso.canal_sin_espontaneo':
+      "This channel isn't in the list of channels where it speaks on its own: it will never start a conversation here by itself.",
+    'dash.playground.aviso.cupo_horario_agotado':
+      "You've already used up your mention quota for this hour: it wouldn't reply to you right now (it would to another member — everyone has their own).",
+    'dash.playground.aviso.cooldown_espontaneo':
+      "It just spoke on its own in this channel: the quiet period between spontaneous messages means it wouldn't do it again yet. This doesn't affect mentions.",
+    'dash.playground.aviso.usuario_excluido_interaccion':
+      "You're on this server's interaction exclusion list: Purgito never replies to you, regardless of channel or probability.",
+    'dash.playground.aviso.usuario_excluido_aprendizaje':
+      "You're on this server's learning exclusion list: your messages aren't saved to the corpus, but Purgito can still reply to you.",
+    'dash.playground.avisosIntroSingular': 'There is one active block outside the generation engine:',
+    'dash.playground.avisosIntroPlural': 'There are {count} active blocks outside the generation engine:',
+  },
+});
+
 const PLAYGROUND_NO_RESPONSE_LABELS = {
-  canal_ignorado: 'El canal está silenciado (ignorado) — Purgito no respondería ahí.',
-  sin_corpus_suficiente: 'Todavía no hay corpus suficiente para generar una respuesta.',
-  trigger_sin_contenido: 'Matcheó un trigger, pero el pool de frases de ese trigger está vacío.',
-};
-const PLAYGROUND_REASON_LABELS = {
-  trigger: 'Disparado por un trigger',
-  frase_especial: 'Frase especial',
-  markov: 'Texto generado (Markov)',
+  canal_ignorado: t('dash.playground.noResponse.canal_ignorado'),
+  sin_corpus_suficiente: t('dash.playground.noResponse.sin_corpus_suficiente'),
+  trigger_sin_contenido: t('dash.playground.noResponse.trigger_sin_contenido'),
 };
 
 const PLAYGROUND_AVISO_LABELS = {
-  chat_desactivado:
-    'El chat está desactivado: no responde a menciones. Los mensajes espontáneos, las reacciones y los triggers no dependen de este switch y siguen saliendo.',
-  canal_sin_menciones:
-    'Este canal no está en la lista de canales donde responde a menciones: si lo mencionan aquí, avisa que solo contesta en los canales elegidos.',
-  canal_sin_espontaneo:
-    'Este canal no está en la lista de canales donde habla por su cuenta: aquí nunca va a arrancar una charla solo.',
-  cupo_horario_agotado:
-    'Ya agotaste tu cupo de menciones de esta hora: a ti no te contestaría ahora mismo (a otro miembro sí, cada uno tiene el suyo).',
-  cooldown_espontaneo:
-    'Acabó de hablar solo en este canal: por el piso de silencio entre mensajes espontáneos no volvería a hacerlo todavía. No afecta a las menciones.',
+  chat_desactivado: t('dash.playground.aviso.chat_desactivado'),
+  canal_sin_menciones: t('dash.playground.aviso.canal_sin_menciones'),
+  canal_sin_espontaneo: t('dash.playground.aviso.canal_sin_espontaneo'),
+  cupo_horario_agotado: t('dash.playground.aviso.cupo_horario_agotado'),
+  cooldown_espontaneo: t('dash.playground.aviso.cooldown_espontaneo'),
+  usuario_excluido_interaccion: t('dash.playground.aviso.usuario_excluido_interaccion'),
+  usuario_excluido_aprendizaje: t('dash.playground.aviso.usuario_excluido_aprendizaje'),
 };
 
 function playgroundAvisos(avisos) {
   if (!avisos || !avisos.length) return null;
   return el('div', { class: 'playground-avisos' },
     el('p', { class: 'dim' }, avisos.length === 1
-      ? 'Hay un freno activo fuera del motor de generación:'
-      : `Hay ${avisos.length} frenos activos fuera del motor de generación:`),
+      ? t('dash.playground.avisosIntroSingular')
+      : t('dash.playground.avisosIntroPlural', { count: avisos.length })),
     el('ul', { class: 'item-list' }, avisos.map(code =>
       el('li', {}, el('span', {}, PLAYGROUND_AVISO_LABELS[code] || code)))));
 }

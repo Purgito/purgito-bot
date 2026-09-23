@@ -7,7 +7,7 @@
 
 import { apiFetch } from '/js/core/api.js';
 import {
-  el, spinner, renderError, toast, icon,
+  el, spinner, renderError, toast, icon, confirmDelBtn, undoableDelete,
 } from '/js/core/dom.js';
 import { GUILD_ID } from '/js/core/config.js';
 import { getChannels, channelSelect, content } from '/js/panel-shell.js';
@@ -62,53 +62,6 @@ addStrings({
     'tabsEventos.resetConfirm': '¿Seguro que deseas restablecer la configuración de este evento?',
     'tabsEventos.resetSuccess': 'Configuración restablecida',
     'tabsEventos.noChannelSelected': 'Debes seleccionar un canal para activar el evento',
-    // Reutilizadas por plantillas.js (evita duplicar el mismo texto en dos archivos)
-    'tabsEventos.secMessage': 'Mensaje de texto',
-    'tabsEventos.secEmbed': 'Embed de Discord',
-    'tabsEventos.plainTextCounter': '{count} / 2000 caracteres',
-    'tabsEventos.embedTitleLabel': 'Título del embed',
-    'tabsEventos.embedDescLabel': 'Descripción',
-    'tabsEventos.embedColorLabel': 'Color de la barra lateral',
-    'tabsEventos.embedThumbLabel': 'Miniatura (Thumbnail)',
-    'tabsEventos.embedImageLabel': 'Imagen grande',
-    'tabsEventos.embedAuthorNameLabel': 'Nombre del autor',
-    'tabsEventos.embedAuthorIconLabel': 'Icono del autor',
-    'tabsEventos.embedFooterTextLabel': 'Texto del pie de página',
-    'tabsEventos.embedFooterIconLabel': 'Icono del pie de página',
-    'tabsEventos.addFieldBtn': '+ Agregar campo',
-    'tabsEventos.fieldNamePlaceholder': 'Nombre del campo',
-    'tabsEventos.fieldValuePlaceholder': 'Valor del campo',
-    'tabsEventos.fieldInlineLabel': 'En línea (inline)',
-    'tabsEventos.sectionFields': 'Campos adicionales',
-    'tabsEventos.embedMoreOptions': 'Más opciones (color, thumbnail, icono de pie)',
-    'tabsEventos.varsTitle': 'Variables disponibles',
-    'tabsEventos.varsSubtitle': 'Haz clic en una variable para insertarla en el campo activo o copiarla.',
-    'tabsEventos.varsSearchPlaceholder': 'Buscar variables…',
-    'tabsEventos.varsCopied': 'Variable {var} copiada al portapapeles',
-    'tabsEventos.varsInserted': 'Variable {var} insertada',
-    'tabsEventos.insertVarBtn': 'Insertar variable',
-    'tabsEventos.catAll': 'Todas',
-    'tabsEventos.catUser': 'Usuario',
-    'tabsEventos.catServer': 'Servidor',
-    'tabsEventos.catChannel': 'Canal',
-    'tabsEventos.catBoost': 'Boost',
-    'tabsEventos.catDate': 'Fecha',
-    'tabsEventos.varExample': 'Ejemplo:',
-    'tabsEventos.close': 'Cerrar',
-    'tabsEventos.buttonsTitle': 'Botones',
-    'tabsEventos.buttonsHelp': 'Añade botones de enlace o de rol a este mensaje.',
-    'tabsEventos.addButton': '+ Añadir botón',
-    'tabsEventos.buttonLabelPlaceholder': 'Etiqueta del botón',
-    'tabsEventos.buttonUrlPlaceholder': 'https://ejemplo.com',
-    'tabsEventos.buttonTypeLink': 'Enlace (URL)',
-    'tabsEventos.buttonTypeRole': 'Rol (Toggle)',
-    'tabsEventos.buttonColorPrimary': 'Azul (Primary)',
-    'tabsEventos.buttonColorSecondary': 'Gris (Secondary)',
-    'tabsEventos.buttonColorSuccess': 'Verde (Success)',
-    'tabsEventos.buttonColorDanger': 'Rojo (Danger)',
-    'tabsEventos.modePlainText': 'Mensaje normal',
-    'tabsEventos.modeClassicEmbed': 'Embed clásico',
-    'tabsEventos.contentModeLabel': 'Formato',
   },
   en: {
     // Welcome
@@ -157,52 +110,6 @@ addStrings({
     'tabsEventos.resetConfirm': 'Are you sure you want to reset settings for this event?',
     'tabsEventos.resetSuccess': 'Settings reset successfully',
     'tabsEventos.noChannelSelected': 'You must select a channel to enable the event',
-    'tabsEventos.secMessage': 'Text message',
-    'tabsEventos.secEmbed': 'Discord embed',
-    'tabsEventos.plainTextCounter': '{count} / 2000 characters',
-    'tabsEventos.embedTitleLabel': 'Embed title',
-    'tabsEventos.embedDescLabel': 'Description',
-    'tabsEventos.embedColorLabel': 'Sidebar color',
-    'tabsEventos.embedThumbLabel': 'Thumbnail',
-    'tabsEventos.embedImageLabel': 'Large image',
-    'tabsEventos.embedAuthorNameLabel': 'Author name',
-    'tabsEventos.embedAuthorIconLabel': 'Author icon',
-    'tabsEventos.embedFooterTextLabel': 'Footer text',
-    'tabsEventos.embedFooterIconLabel': 'Footer icon',
-    'tabsEventos.addFieldBtn': '+ Add field',
-    'tabsEventos.fieldNamePlaceholder': 'Field name',
-    'tabsEventos.fieldValuePlaceholder': 'Field value',
-    'tabsEventos.fieldInlineLabel': 'Inline',
-    'tabsEventos.sectionFields': 'Additional fields',
-    'tabsEventos.embedMoreOptions': 'More options (color, thumbnail, footer icon)',
-    'tabsEventos.varsTitle': 'Available variables',
-    'tabsEventos.varsSubtitle': 'Click any variable to insert into the active field or copy it.',
-    'tabsEventos.varsSearchPlaceholder': 'Search variables…',
-    'tabsEventos.varsCopied': 'Variable {var} copied to clipboard',
-    'tabsEventos.varsInserted': 'Variable {var} inserted',
-    'tabsEventos.insertVarBtn': 'Insert variable',
-    'tabsEventos.catAll': 'All',
-    'tabsEventos.catUser': 'User',
-    'tabsEventos.catServer': 'Server',
-    'tabsEventos.catChannel': 'Channel',
-    'tabsEventos.catBoost': 'Boost',
-    'tabsEventos.catDate': 'Date',
-    'tabsEventos.varExample': 'Example:',
-    'tabsEventos.close': 'Close',
-    'tabsEventos.buttonsTitle': 'Buttons',
-    'tabsEventos.buttonsHelp': 'Add link or role buttons to this message.',
-    'tabsEventos.addButton': '+ Add button',
-    'tabsEventos.buttonLabelPlaceholder': 'Button label',
-    'tabsEventos.buttonUrlPlaceholder': 'https://example.com',
-    'tabsEventos.buttonTypeLink': 'Link (URL)',
-    'tabsEventos.buttonTypeRole': 'Role (Toggle)',
-    'tabsEventos.buttonColorPrimary': 'Blurple (Primary)',
-    'tabsEventos.buttonColorSecondary': 'Grey (Secondary)',
-    'tabsEventos.buttonColorSuccess': 'Green (Success)',
-    'tabsEventos.buttonColorDanger': 'Red (Danger)',
-    'tabsEventos.modePlainText': 'Normal message',
-    'tabsEventos.modeClassicEmbed': 'Classic embed',
-    'tabsEventos.contentModeLabel': 'Format',
   },
 });
 
@@ -530,29 +437,30 @@ function renderEventConfigurator(container, eventType, initialData, templatesDat
     },
   }, icon('play'), t('tabsEventos.testBtn'));
 
-  const resetBtn = el('button', {
-    type: 'button',
-    class: 'btn btn-secondary btn-danger-soft',
-    onclick: async () => {
-      if (!confirm(t('tabsEventos.resetConfirm'))) return;
-      try {
+  const cfgCardChildren = [headerBlock, activationBlock, templateBlock];
+  if (legacyBlock) cfgCardChildren.push(legacyBlock);
+  const cfgCard = el('div', { class: 'card cfg-card' }, ...cfgCardChildren);
+
+  // confirmDelBtn + undoableDelete: mismo deshacer que ya tienen frases y
+  // triggers, en vez del confirm() nativo + DELETE inmediato de antes. Como
+  // acá no hay una "fila" de lista, se atenúa la card de configuración
+  // entera mientras corre la cuenta regresiva (.event-reset-confirm en
+  // dash.css revierte el tamaño de .gif-actions .btn, igual que
+  // .amnesia-confirm).
+  const resetBtn = el('div', { class: 'event-reset-confirm' },
+    confirmDelBtn(t('tabsEventos.resetConfirm'), () => undoableDelete(cfgCard, {
+      message: t('tabsEventos.resetSuccess'),
+      onDelete: async () => {
         await apiFetch(`/api/server/${GUILD_ID}/events/${eventType}`, { method: 'DELETE' });
-        toast(t('tabsEventos.resetSuccess'), 'ok');
         loadEventPage(eventType);
-      } catch (err) {
-        toast(err.message || 'Error al restablecer', 'err');
-      }
-    },
-  }, icon('trash'), t('tabsEventos.resetBtn'));
+      },
+    }), { label: t('tabsEventos.resetBtn') })
+  );
 
   const actionsBar = el('div', { class: 'event-actions-bar' },
     el('div', { class: 'left-actions' }, saveBtn, testBtn),
     resetBtn
   );
-
-  const cfgCardChildren = [headerBlock, activationBlock, templateBlock];
-  if (legacyBlock) cfgCardChildren.push(legacyBlock);
-  const cfgCard = el('div', { class: 'card cfg-card' }, ...cfgCardChildren);
 
   container.append(cfgCard, actionsBar);
 }
