@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://purgito.app/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/terminos</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/terminos"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/terms"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/terminos"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/privacidad</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/privacidad"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/privacidad"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/reembolsos</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/reembolsos"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/refunds"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/reembolsos"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/novedades</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/novedades"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/changelog"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/novedades"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/premium</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/premium"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/premium"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/premium"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/estado</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/estado"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/estado"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/estado"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/guia</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/guia"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/guia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/guia"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/arquitectura</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/arquitectura"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/architecture"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/arquitectura"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/discord</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/discord"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/discord"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/discord"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/api</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/api"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/api"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/api"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/generacion</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/generacion"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/generation"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/generacion"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/almacenamiento</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/almacenamiento"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/storage"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/almacenamiento"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/seguridad</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/seguridad"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/security"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/seguridad"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/infraestructura</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/infraestructura"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/infrastructure"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/infraestructura"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/desarrollo</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/desarrollo"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/development"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/desarrollo"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/es/documentacion/referencia</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/referencia"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/reference"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/referencia"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/terms</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/terminos"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/terms"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/terminos"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/privacidad"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/privacidad"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/refunds</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/reembolsos"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/refunds"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/reembolsos"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/changelog</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/novedades"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/changelog"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/novedades"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/premium</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/premium"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/premium"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/premium"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/estado</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/estado"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/estado"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/estado"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/guia</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/guia"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/guia"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/guia"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/architecture</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/arquitectura"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/architecture"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/arquitectura"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/discord</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/discord"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/discord"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/discord"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/api</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/api"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/api"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/api"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/generation</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/generacion"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/generation"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/generacion"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/storage</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/almacenamiento"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/storage"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/almacenamiento"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/security</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/seguridad"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/security"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/seguridad"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/infrastructure</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/infraestructura"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/infrastructure"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/infraestructura"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/development</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/desarrollo"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/development"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/desarrollo"/>
+  </url>
+  <url>
+    <loc>https://purgito.app/en/documentation/reference</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://purgito.app/es/documentacion/referencia"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://purgito.app/en/documentation/reference"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://purgito.app/es/documentacion/referencia"/>
+  </url>
+</urlset>
