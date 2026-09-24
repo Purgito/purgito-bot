@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /auth/
+Disallow: /api/
+Disallow: /webhooks/
+Disallow: /health
+
+Sitemap: https://purgito.app/sitemap.xml

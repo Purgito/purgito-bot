@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Genera las páginas legales de la landing desde docs/*.md.
+"""Genera las páginas legales de la landing desde docs/*.md, y con ellas
+también landing/sitemap.xml (mismo PAGES/HTML_PAGES como única fuente de
+verdad, excluyendo las "noindex": True).
 
     python landing/build_docs.py           # escribe landing/es/{terminos,privacidad,reembolsos}/
     python landing/build_docs.py --check   # solo verifica, no escribe
@@ -235,12 +237,19 @@ HTML_PAGES = [
         "meta": "Lleva tu servidor al siguiente nivel con Purgito Premium: memoria ampliada "
         "de 50.000 mensajes, memes automáticos, 4.000 GIFs y soporte prioritario.",
     },
+    # Las 5 entradas de perfil/dashboard llevan "noindex": True -- requieren
+    # sesión y renderizan vacías hasta que el JS resuelve el login, así que
+    # indexarlas solo le da a Google una cáscara sin contenido real (ver
+    # robots_meta()). Quedan con su Open Graph/canonical intactos: Discord y
+    # el resto de los scrapers de preview sí necesitan esos tags al compartir
+    # un link, eso no tiene nada que ver con el índice de búsqueda.
     {
         "slug": "perfil",
         "src": "perfil.html",
         "title": "Perfil",
         "meta": "Tu cuenta de Purgito: información de perfil de Discord, servidores y suscripciones.",
         "app": "perfil.js",
+        "noindex": True,
     },
     # Mismo cuerpo que /es/perfil: perfil.js decide la tab por la URL. Existen
     # como páginas propias para que cada una tenga su título y su link real.
@@ -251,6 +260,7 @@ HTML_PAGES = [
         "meta": "Tus servidores de Discord con Purgito: entra al dashboard de "
         "cada uno o invítalo a los que falten.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": "perfil/conexiones",
@@ -258,6 +268,7 @@ HTML_PAGES = [
         "title": "Conexiones",
         "meta": "Conexiones de tu cuenta de Purgito con Discord y servicios vinculados.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": "perfil/facturacion",
@@ -265,6 +276,7 @@ HTML_PAGES = [
         "title": "Facturación",
         "meta": "Estado de tus suscripciones Premium de Purgito y gestión de facturación.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": "dashboard",
@@ -274,6 +286,7 @@ HTML_PAGES = [
         "frases, GIFs, embeds y premium.",
         "app": "dash.js",
         "no_footer": True,
+        "noindex": True,
     },
     {
         "slug": "estado",
@@ -385,6 +398,7 @@ HTML_PAGES_EN = [
         "title": "Profile",
         "meta": "Your Purgito account: Discord profile info, servers, and subscriptions.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": en_slug("perfil/servidores"),
@@ -393,6 +407,7 @@ HTML_PAGES_EN = [
         "meta": "Your Discord servers with Purgito: open each one's dashboard "
         "or invite it to the ones still missing it.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": en_slug("perfil/conexiones"),
@@ -400,6 +415,7 @@ HTML_PAGES_EN = [
         "title": "Connections",
         "meta": "Your Purgito account's connections to Discord and linked services.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": en_slug("perfil/facturacion"),
@@ -407,6 +423,7 @@ HTML_PAGES_EN = [
         "title": "Billing",
         "meta": "The status of your Purgito Premium subscriptions and billing management.",
         "app": "perfil.js",
+        "noindex": True,
     },
     {
         "slug": en_slug("dashboard"),
@@ -416,6 +433,7 @@ HTML_PAGES_EN = [
         "phrases, GIFs, embeds, and Premium.",
         "app": "dash.js",
         "no_footer": True,
+        "noindex": True,
     },
     {
         "slug": en_slug("estado"),
@@ -930,6 +948,26 @@ def import_map_hash() -> str:
     return f"sha256-{digest}"
 
 
+def html_script_hash(path: Path, script_type: str) -> str:
+    """Hash SHA-256 del contenido exacto de un `<script type="{script_type}">`
+    ya escrito a mano en `path`, para autorizarlo en script-src por hash sin
+    'unsafe-inline'. Mismo mecanismo que import_map_hash(), pero leyendo un
+    <script> que ya vive en el archivo en vez de uno generado acá -- así
+    tocar el JSON-LD de index.html/index.en.html no puede desincronizar la
+    CSP en silencio: la próxima corrida (o su --check) recalcula el hash solo."""
+    text = path.read_text("utf-8")
+    open_tag = '<script type="%s">' % script_type
+    start = text.find(open_tag)
+    if start == -1:
+        sys.exit("no encontré %r en %s" % (open_tag, path))
+    start += len(open_tag)
+    end = text.find("</script>", start)
+    digest = base64.b64encode(
+        hashlib.sha256(text[start:end].encode("utf-8")).digest()
+    ).decode("ascii")
+    return f"sha256-{digest}"
+
+
 # ── página ───────────────────────────────────────────────────────────────────
 
 
@@ -942,19 +980,24 @@ def import_map_hash() -> str:
 # <img> del navbar/botones de invitar); el segundo cubre el <script> inline
 # de redirect de idioma que solo vive en index.html; el tercero cubre el
 # <script type="importmap"> inline que usan dashboard, perfil y estado --
-# todos autorizados por hash exacto sin abrir 'unsafe-inline'. meta http-equiv NO soporta
-# frame-ancestors/sandbox/report-uri -- la protección contra clickjacking
-# para estas páginas va por X-Frame-Options: DENY, que sí pone nginx como
-# cabecera real (ver DEPLOY.md); no hay una CSP con frame-ancestors a nivel
-# nginx (a propósito: se pisaría con esta CSP y con la de la API, ver el
-# comentario del add_header en DEPLOY.md).
+# todos autorizados por hash exacto sin abrir 'unsafe-inline'. El cuarto y
+# quinto hash cubren el <script type="application/ld+json"> de datos
+# estructurados (schema.org) de index.html e index.en.html respectivamente --
+# uno por idioma porque la descripción incrustada cambia entre ambos. meta
+# http-equiv NO soporta frame-ancestors/sandbox/report-uri -- la protección
+# contra clickjacking para estas páginas va por X-Frame-Options: DENY, que sí
+# pone nginx como cabecera real (ver DEPLOY.md); no hay una CSP con
+# frame-ancestors a nivel nginx (a propósito: se pisaría con esta CSP y con
+# la de la API, ver el comentario del add_header en DEPLOY.md).
 def compute_landing_csp() -> str:
     imap_hash = import_map_hash()
+    ld_json_es_hash = html_script_hash(LANDING / "index.html", "application/ld+json")
+    ld_json_en_hash = html_script_hash(LANDING / "index.en.html", "application/ld+json")
     return (
         "default-src 'self'; "
         "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' "
         "'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' "
-        f"'{imap_hash}'; "
+        f"'{imap_hash}' '{ld_json_es_hash}' '{ld_json_en_hash}'; "
         "style-src 'self' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' https: data:; "
@@ -977,7 +1020,7 @@ SHELL = (
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{full_title}</title>
 <meta name="description" content="{meta}">
-<meta name="theme-color" content="#13c4d8">
+{robots}<meta name="theme-color" content="#13c4d8">
 
 <!-- Open Graph / Link Previews (Discord, Twitter, Telegram, Slack, etc.) -->
 <meta property="og:type" content="{og_type}">
@@ -1039,6 +1082,19 @@ def hreflang_links(slug, lang):
         '<link rel="alternate" hreflang="x-default" href="%s/es/%s">\n'
         % (BASE_URL, es, BASE_URL, en, BASE_URL, es)
     )
+
+
+def robots_meta(page) -> str:
+    """<meta name="robots"> para páginas con `"noindex": True` (perfil*,
+    dashboard): requieren sesión y renderizan vacías hasta que el JS resuelve
+    la sesión OAuth, así que un crawler que las indexe solo encuentra una
+    cáscara sin contenido real. `noindex, follow` en vez de bloquear el
+    crawleo por robots.txt: así Google sí puede leer esta etiqueta (bloquear
+    el crawleo se lo impediría) y la saca del índice en vez de listarla sin
+    descripción."""
+    if page.get("noindex"):
+        return '<meta name="robots" content="noindex, follow">\n'
+    return ""
 
 
 # Páginas del dashboard: el CSS propio va después de style.css (lo extiende, no
@@ -1266,6 +1322,7 @@ def build_changelog_page(page, nav, footer, lang="es"):
         og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
         og_locale=OG_LOCALE[lang],
         twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
+        robots=robots_meta(page),
         nav=nav,
         body=body,
         footer=footer,
@@ -1325,6 +1382,7 @@ def build_page(page, nav, footer, lang="es"):
         og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
         og_locale=OG_LOCALE[lang],
         twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
+        robots=robots_meta(page),
         nav=nav,
         body=body,
         footer=footer,
@@ -1382,6 +1440,7 @@ def build_html_page(page, nav, footer, lang="es"):
         og_image_alt=page.get("og_image_alt", DEFAULT_OG_IMAGE_ALT),
         og_locale=OG_LOCALE[lang],
         twitter_card=page.get("twitter_card", DEFAULT_TWITTER_CARD),
+        robots=robots_meta(page),
         nav=nav,
         body=raw_body,
         footer="" if page.get("no_footer") else footer,
@@ -1426,6 +1485,60 @@ def stamp(page_html):
         page_html,
     )
     return page_html
+
+
+# ── sitemap.xml ──────────────────────────────────────────────────────────────
+
+
+def sitemap_entries():
+    """[(url, es_slug, en_slug), …] de las páginas indexables: la home de
+    cada idioma más cada entrada de PAGES/HTML_PAGES que no sea "noindex".
+
+    Única fuente de verdad para build_sitemap(): una página nueva entra sola
+    en el sitemap con su alta en PAGES/HTML_PAGES, y una "noindex": True se
+    excluye sola -- nada vuelve a enumerar páginas por su cuenta.
+    """
+    entries = [(f"{BASE_URL}/", "", ""), (f"{BASE_URL}/en/", "", "")]
+    for lang in LANGS:
+        for page in PAGES_BY_LANG[lang] + HTML_PAGES_BY_LANG[lang]:
+            if page.get("noindex"):
+                continue
+            slug = page["slug"]
+            es = slug if lang == "es" else es_slug(slug)
+            en = en_slug(slug) if lang == "es" else slug
+            entries.append((f"{BASE_URL}/{lang}/{slug}", es, en))
+    return entries
+
+
+def build_sitemap() -> str:
+    """sitemap.xml con anotaciones xhtml:link hreflang por URL -- mismo par
+    ES/EN/x-default que hreflang_links() ya pone en el <head> de cada página,
+    para que Google entienda la relación entre ambos idiomas también acá.
+
+    Sin <lastmod>: no hay una fuente confiable de cuándo cambió el contenido
+    de cada página (a diferencia del ?v= de los assets, que sí hashea
+    contenido real) y una fecha inventada es peor que no ponerla.
+    """
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+        'xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ]
+    for url, es, en in sitemap_entries():
+        lines.append("  <url>")
+        lines.append(f"    <loc>{url}</loc>")
+        lines.append(
+            f'    <xhtml:link rel="alternate" hreflang="es" href="{BASE_URL}/es/{es}"/>'
+        )
+        lines.append(
+            f'    <xhtml:link rel="alternate" hreflang="en" href="{BASE_URL}/en/{en}"/>'
+        )
+        lines.append(
+            f'    <xhtml:link rel="alternate" hreflang="x-default" href="{BASE_URL}/es/{es}"/>'
+        )
+        lines.append("  </url>")
+    lines.append("</urlset>")
+    return "\n".join(lines) + "\n"
 
 
 def chunk_of(src, pattern):
@@ -1493,6 +1606,15 @@ def main():
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(page_html, "utf-8")
                 print("→", out.relative_to(ROOT))
+
+    sitemap_path = LANDING / "sitemap.xml"
+    sitemap_xml = build_sitemap()
+    if check:
+        if not sitemap_path.exists() or sitemap_path.read_text("utf-8") != sitemap_xml:
+            sys.exit("%s está desactualizado — corre build_docs.py" % sitemap_path)
+    else:
+        sitemap_path.write_text(sitemap_xml, "utf-8")
+        print("→", sitemap_path.relative_to(ROOT))
 
     # Cada página ES tiene su contraparte EN y viceversa -- si esto falla,
     # alguien agregó una página a un lado sin el otro.
