@@ -6,7 +6,7 @@ import {
   GUILD_ID, emojiCache, setEmojiCache, uploadedImagesCache, setUploadedImagesCache,
 } from '/js/core/config.js';
 import { apiFetch, humanError } from '/js/core/api.js';
-import { el, spinner, emptyState, icon, toast, embedImg, renderError, helpIcon } from '/js/core/dom.js';
+import { el, spinner, emptyState, icon, toast, embedImg, renderError, helpIcon, confirmDelBtn, undoableDelete } from '/js/core/dom.js';
 import { discordTimestampText } from '/js/core/markdown.js';
 import {
   detectGif, docFromLayout, docFromEmbeds, templateSnippet, layoutSnippet, colorToHex,
@@ -941,7 +941,7 @@ export async function renderEmbedTemplates(box) {
             import('/js/tabs/plantillas.js').then(({ loadTemplateEditor }) => loadTemplateEditor(tpl.id));
           },
         }, t('embedsShared.editTemplate'));
-    list.append(el('li', {},
+    const row = el('li', {},
       el('span', {},
         el('span', { class: 'tpl-dot', style: 'background:' + color }), ' ',
         el('strong', {}, tpl.name),
@@ -960,18 +960,17 @@ export async function renderEmbedTemplates(box) {
             loadEmbeds();
           } catch (err) { toast(err.message, 'err'); }
         },
-      }, t('embedsShared.rename')),
-      el('button', {
-        class: 'btn btn-danger btn-sm',
-        onclick: async () => {
-          if (!confirm(t('embedsShared.confirmDeleteTemplate', { name: tpl.name }))) return;
-          try {
-            await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${tpl.id}`, { method: 'DELETE' });
-            toast(t('embedsShared.templateDeleted'), 'ok');
-            loadEmbeds();
-          } catch (err) { toast(err.message, 'err'); }
-        },
-      }, t('embedsShared.delete'))));
+      }, t('embedsShared.rename')));
+    // confirmDelBtn + undoableDelete: mismo deshacer que ya tienen frases y
+    // triggers, en vez del confirm() nativo + DELETE inmediato de antes.
+    row.append(confirmDelBtn(t('embedsShared.confirmDeleteTemplate', { name: tpl.name }), () => undoableDelete(row, {
+      message: t('embedsShared.templateDeleted'),
+      onDelete: async () => {
+        await apiFetch(`/api/server/${GUILD_ID}/embeds/templates/${tpl.id}`, { method: 'DELETE' });
+        loadEmbeds();
+      },
+    }), { label: t('embedsShared.delete') }));
+    list.append(row);
   }
   box.append(list);
 }

@@ -55,7 +55,9 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - The image-editing commands (`!deepfry`, `!caption`, `!wide`, `!invert`, and the rest -- full list in `/help`) now also accept a GIF as their source, not just a still image: the effect is applied to every frame and the result comes out animated. `!triggered` still always uses a still image, since it already generates its own short GIF.
 - Stats now also shows the quota for Announcements, Embed templates, Phrase packs, and Channel triggers, with the same near-limit/full warning that saved messages, GIFs, and phrases already had.
 - The Channels matrix now flags muted (ignored) channels so they don't look identical to an active one.
-- Undo when deleting now also covers Announcements and "Reset" on Welcome/Goodbye/Boost, same as it already did for phrases, triggers, and reactions.
+- Undo when deleting now also covers Announcements, embed templates in Embeds, and "Reset" on Welcome/Goodbye/Boost, same as it already did for phrases, triggers, and reactions.
+- Numbers across the dashboard (members, learned messages, GIFs, and the rest of the stats) are now formatted to match the panel's language, instead of always using Spanish number formatting even when viewing it in English.
+- The Change history now shows the previous value for single-value settings: command prefix, Manager role, chat parameters (server-wide and per-channel), updates channel, and the bot's style.
 
 ### Fixed
 - The dashboard's YouTube module showed an error ("emptyState is not defined") instead of the subscription list.
@@ -87,6 +89,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - A Manager editing a classic template from Embeds no longer sees raw untranslated text labels instead of the real text.
 - A YouTube subscription with a broken feed (changed URL or no longer exists) is now flagged in the panel, same as it already was for Twitch and RSS.
 - The Chat Simulator now shows the real reason it didn't generate a reply (for example, a trigger with no phrases available) and the server's specific error when there is one, instead of always the same generic message.
+- A channel trigger pointing to an empty phrase pack now flags it in the dashboard (in the trigger list and while editing it), instead of matching and sending nothing with no clue why.
 
 ## Version 1.1.0 — June 28, 2026
 

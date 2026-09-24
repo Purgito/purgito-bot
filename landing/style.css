@@ -3400,6 +3400,20 @@ body.no-scroll {
   margin: 0;
 }
 
+/* Divisor de categoría dentro de un guia-grid-* (ej. Mapa del Dashboard):
+   mismo tono que .dim, sin inventar un componente nuevo para algo que es
+   puro texto de agrupación. */
+.guia-card-group-label {
+  font-family: var(--font-head);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 1.5rem 0 -0.35rem;
+}
+.guia-card-group-label:first-child { margin-top: 0.5rem; }
+
 .guia-doc-callout {
   display: flex;
   align-items: center;

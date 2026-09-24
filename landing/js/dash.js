@@ -1113,7 +1113,7 @@ export function renderSidebar(activeTab) {
         'aria-current': isTabActive ? 'page' : null,
         title: quotaAlert
           ? `${m.label} — ${quotaAlert.full ? 'cupo lleno' : `cerca del cupo (${quotaAlert.pct}%)`}`
-          : m.label,
+          : (m.desc ? `${m.label} — ${m.desc}` : m.label),
         onclick: (ev) => {
           ev.preventDefault();
           closeMobileNav();
@@ -1172,11 +1172,15 @@ addStrings({
     'dash.topbar.servers': 'Servidores',
     'dash.topbar.searchModuleOrCommand': 'Buscar módulo o comando (Ctrl + K)',
     'dash.topbar.search': 'Buscar',
+    'dash.topbar.guideTitle': 'Abrir la Guía de Purgito (se abre en otra pestaña)',
+    'dash.topbar.guide': 'Guía',
   },
   en: {
     'dash.topbar.servers': 'Servers',
     'dash.topbar.searchModuleOrCommand': 'Search module or command (Ctrl + K)',
     'dash.topbar.search': 'Search',
+    'dash.topbar.guideTitle': "Open Purgito's Guide (opens in another tab)",
+    'dash.topbar.guide': 'Guide',
   },
 });
 
@@ -1191,6 +1195,16 @@ export function renderTopBar(guild) {
       el('span', {}, t('dash.topbar.servers'))
     ),
     el('div', { class: 'dash-topbar-actions' },
+      el('a', {
+        class: 'btn btn-secondary btn-sm',
+        href: currentLocale() === 'es' ? '/es/guia' : '/en/guia',
+        target: '_blank',
+        rel: 'noopener',
+        title: t('dash.topbar.guideTitle'),
+      },
+        icon('info'),
+        el('span', { class: 'hide-mobile' }, t('dash.topbar.guide'))
+      ),
       el('button', {
         type: 'button',
         class: 'btn btn-secondary btn-sm',
@@ -1593,6 +1607,12 @@ addStrings({
     'dash.inicio.qaStatsDesc': 'Consulta métricas de memoria, canales activos y actividad',
     'dash.inicio.qaHistorialTitle': 'Auditoría',
     'dash.inicio.qaHistorialDesc': 'Revisa el historial de cambios y acciones realizadas',
+    'dash.inicio.qaAnunciosTitle': 'Anuncios programados',
+    'dash.inicio.qaAnunciosDesc': 'Publica mensajes automáticos por intervalo, diarios o semanales',
+    'dash.inicio.qaWelcomeTitle': 'Bienvenidas y despedidas',
+    'dash.inicio.qaWelcomeDesc': 'Mensajes automáticos al entrar, salir o boostear el servidor',
+    'dash.inicio.qaGeneralTitle': 'General',
+    'dash.inicio.qaGeneralDesc': 'Prefijo de comandos, rol de Gestor y limpieza de memoria',
     'dash.inicio.quickStyleTitle': 'Personalización rápida',
     'dash.inicio.previewText': 'Así se ve Purgito en este servidor',
     'dash.inicio.editStyle': 'Editar estilo',
@@ -1675,6 +1695,12 @@ addStrings({
     'dash.inicio.qaStatsDesc': 'View memory metrics, active channels, and activity',
     'dash.inicio.qaHistorialTitle': 'Audit log',
     'dash.inicio.qaHistorialDesc': 'Review the change and action history',
+    'dash.inicio.qaAnunciosTitle': 'Scheduled announcements',
+    'dash.inicio.qaAnunciosDesc': 'Post automatic messages on an interval, daily, or weekly',
+    'dash.inicio.qaWelcomeTitle': 'Welcome and goodbye',
+    'dash.inicio.qaWelcomeDesc': 'Automatic messages when someone joins, leaves, or boosts the server',
+    'dash.inicio.qaGeneralTitle': 'General',
+    'dash.inicio.qaGeneralDesc': 'Command prefix, Manager role, and quick memory cleanup',
     'dash.inicio.quickStyleTitle': 'Quick customization',
     'dash.inicio.previewText': "This is how Purgito looks on this server",
     'dash.inicio.editStyle': 'Edit style',
@@ -1880,7 +1906,10 @@ async function loadInicio() {
       quickActionCard('film', t('dash.inicio.qaGifsTitle'), t('dash.inicio.qaGifsDesc'), () => activate('gifs', true)),
       quickActionCard('zap', t('dash.inicio.qaTriggersTitle'), t('dash.inicio.qaTriggersDesc'), () => activate('triggers', true)),
       quickActionCard('activity', t('dash.inicio.qaStatsTitle'), t('dash.inicio.qaStatsDesc'), () => activate('stats', true)),
-      quickActionCard('history', t('dash.inicio.qaHistorialTitle'), t('dash.inicio.qaHistorialDesc'), () => activate('historial', true))
+      quickActionCard('history', t('dash.inicio.qaHistorialTitle'), t('dash.inicio.qaHistorialDesc'), () => activate('historial', true)),
+      quickActionCard('megaphone', t('dash.inicio.qaAnunciosTitle'), t('dash.inicio.qaAnunciosDesc'), () => activate('anuncios', true)),
+      quickActionCard('logIn', t('dash.inicio.qaWelcomeTitle'), t('dash.inicio.qaWelcomeDesc'), () => activate('welcome', true)),
+      quickActionCard('settings', t('dash.inicio.qaGeneralTitle'), t('dash.inicio.qaGeneralDesc'), () => activate('general', true))
     );
 
     box.append(formGroup(t('dash.inicio.quickActionsTitle'), quickActionsGrid));
@@ -5389,8 +5418,16 @@ function renderFrasePacks(box, packs, channels, frasesBox, limit) {
   for (const pack of packsList) {
     const channelsBox = el('div', {}, el('p', { class: 'dim' }, 'Abre para ver los canales asignados…'));
     let loaded = false;
+    // Un pack sin frases matchea igual desde un Trigger o el pool de un
+    // canal asignado, pero no manda nada -- este resumen es el único lugar
+    // de todo el módulo donde se ve cuántas frases tiene cada pack.
+    const countLabel = pack.phrase_count
+      ? `${pack.phrase_count} ${pack.phrase_count === 1 ? 'frase' : 'frases'}`
+      : 'vacío';
     const details = el('details', { class: 'embed-group' },
-      el('summary', { class: 'embed-group-title' }, pack.name),
+      el('summary', { class: 'embed-group-title' },
+        pack.name, ' ',
+        el('span', { class: pack.phrase_count ? 'dim text-xs' : 'trigger-pack-warning text-xs' }, `(${countLabel})`)),
       el('div', { class: 'embed-group-body' },
         channelsBox,
         confirmDelBtn(
@@ -5484,6 +5521,11 @@ function describeTrigger(trig, channels, packs) {
     pattern: trig.pattern,
     actionLabel: TRIGGER_ACTION_LABELS[trig.action] || trig.action,
     packName: pack ? pack.name : null,
+    // Un trigger con acción frase_de_pack/mezcla hacia un pack sin frases
+    // matchea perfecto y no manda nada (cogs/chat.py _handle_trigger) sin
+    // que nada lo avise -- ver AUDITORIA_UX. packs ya trae phrase_count
+    // (list_frase_packs, db.py) para poder marcarlo acá.
+    packEmpty: Boolean(pack) && !pack.phrase_count,
   };
 }
 
@@ -5514,7 +5556,12 @@ function renderTriggers(box, data, channels, packs) {
         el('span', { class: 'badge trigger-chan-badge' }, d.channelLabel),
         el('span', {}, d.matchLabel, ' ', el('code', { class: 'cmd' }, `"${d.pattern}"`)),
         el('span', { class: 'trigger-arrow' }, '→'),
-        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : '')));
+        el('span', { class: 'trigger-action' }, d.actionLabel, d.packName ? ` (${d.packName})` : ''),
+        d.packEmpty
+          ? el('span', {
+            class: 'chan-warn', title: `El pack "${d.packName}" no tiene frases: este trigger matchea pero no manda nada.`,
+          }, '⚠')
+          : null));
     row.append(confirmDelBtn('¿Eliminar este trigger?', () => undoableDelete(row, {
       message: 'Trigger eliminado',
       errorMessage: 'No se pudo eliminar el trigger, intenta de nuevo',
@@ -5544,10 +5591,15 @@ function triggerForm(box, channels, packs, data) {
   for (const ac of actions) actionSel.append(el('option', { value: ac }, TRIGGER_ACTION_LABELS[ac] || ac));
   const packSel = el('select', {});
   packSel.append(el('option', { value: '' }, 'Sin pack (default)'));
-  for (const p of safePacks) packSel.append(el('option', { value: String(p.id) }, p.name));
+  for (const p of safePacks) {
+    packSel.append(el('option', { value: String(p.id) },
+      p.phrase_count ? `${p.name} (${p.phrase_count} frases)` : `${p.name} (vacío)`));
+  }
 
   const packField = el('div', { class: 'field' }, el('label', {}, 'Pack'), packSel);
   const previewLine = el('p', { class: 'dim trigger-preview' });
+  const packWarning = el('p', { class: 'trigger-pack-warning' });
+  packWarning.hidden = true;
 
   function syncPackVisibility() { packField.style.display = actionSel.value === 'markov' ? 'none' : ''; }
 
@@ -5555,6 +5607,7 @@ function triggerForm(box, channels, packs, data) {
     const pattern = (patternInput.value || '').trim();
     if (!chanSel.value || !pattern) {
       previewLine.textContent = 'Elige un canal y escribe un patrón para ver la vista previa.';
+      packWarning.hidden = true;
       return;
     }
     const d = describeTrigger({
@@ -5565,6 +5618,10 @@ function triggerForm(box, channels, packs, data) {
     previewLine.textContent =
       `Vista previa: en ${d.channelLabel}, si el mensaje ${phrase}, responde con `
       + `${d.actionLabel.toLowerCase()}${d.packName ? ` (${d.packName})` : ''}.`;
+    packWarning.hidden = !d.packEmpty;
+    if (d.packEmpty) {
+      packWarning.textContent = `⚠ El pack "${d.packName}" no tiene frases todavía: el trigger va a matchear pero no va a mandar nada hasta que le agregues alguna.`;
+    }
   }
 
   chanSel.onchange = updatePreview;
@@ -5609,7 +5666,7 @@ function triggerForm(box, channels, packs, data) {
       el('div', { class: 'field' }, el('label', {}, 'Acción'), actionSel),
       safePacks.length ? packField : null,
       addBtn),
-    previewLine);
+    previewLine, packWarning);
 }
 
 async function reloadTriggers(box, channels, packs) {

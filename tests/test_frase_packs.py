@@ -67,10 +67,31 @@ def test_crear_pack_y_listarlo(temp_db):
     assert packs[0]["id"] == pack_id
     assert packs[0]["name"] == "Navidad"
     assert packs[0]["created_at"]
+    assert packs[0]["phrase_count"] == 0
 
 
 def test_nombre_vacio_no_crea_pack(temp_db):
     assert asyncio.run(db.add_frase_pack(1, "   ")) is None
+
+
+def test_list_frase_packs_incluye_phrase_count(temp_db):
+    """Un pack sin frases matchea igual desde un Trigger o el pool de un
+    canal asignado, pero no manda nada (ver AUDITORIA_UX) -- el frontend
+    necesita este número para avisarlo antes de que eso pase."""
+
+    async def run():
+        pack_id = await db.add_frase_pack(1, "Bienvenida")
+        otro_pack_id = await db.add_frase_pack(1, "Vacío")
+        await db.add_frase_especial(1, 999, "Alguien", "Hola!", pack_id=pack_id)
+        await db.add_frase_especial(1, 999, "Alguien", "Buenas!", pack_id=pack_id)
+        # Frase sin pack (pool default): no debe contar para ningún pack.
+        await db.add_frase_especial(1, 999, "Alguien", "Suelta")
+        return pack_id, otro_pack_id, await db.list_frase_packs(1)
+
+    pack_id, otro_pack_id, packs = asyncio.run(run())
+    by_id = {p["id"]: p for p in packs}
+    assert by_id[pack_id]["phrase_count"] == 2
+    assert by_id[otro_pack_id]["phrase_count"] == 0
 
 
 def test_frase_larga_se_recorta_a_2000_caracteres(temp_db):

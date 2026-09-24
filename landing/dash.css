@@ -3679,6 +3679,7 @@ iframe.gif-media { pointer-events: none; }
 .trigger-arrow { color: var(--text-muted); }
 .trigger-action { font-weight: 600; color: var(--accent-2); }
 .trigger-preview { margin-top: 4px; }
+.trigger-pack-warning { margin-top: 4px; color: var(--premium); font-size: var(--t-sm); }
 
 /* CHAT: aviso dismissible de "todavía no aprende de nada". Una línea, no una
    card con título y lista: es un atajo, y ocupaba pantalla en la sub-pestaña
@@ -5209,6 +5210,11 @@ iframe.gif-media { pointer-events: none; }
   font-size: 12.5px;
   font-family: var(--font-mono);
   word-break: break-all;
+}
+
+.audit-detail-previous {
+  margin-top: 2px;
+  opacity: 0.65;
 }
 
 .audit-date {

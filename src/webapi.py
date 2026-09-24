@@ -897,11 +897,19 @@ async def _reject_gestor_hidden_channel(
 
 
 async def _log_audit(
-    request: web.Request, guild_id: int, action: str, detail: str | None = None
+    request: web.Request,
+    guild_id: int,
+    action: str,
+    detail: str | None = None,
+    previous_detail: str | None = None,
 ) -> None:
     """Registra quién hizo un cambio de config desde el dashboard. Se llama al
     final de cada handler de mutación bajo @guild_api, después de que la
-    escritura ya se confirmó -- guild_api garantiza que la sesión existe."""
+    escritura ya se confirmó -- guild_api garantiza que la sesión existe.
+
+    previous_detail es opcional y solo tiene sentido para un ajuste de un
+    único valor (el caller lo arma leyendo el estado ANTES de mutar) -- la
+    mayoría de las acciones (altas/bajas de listas) no lo pasan."""
     session = await get_session(request)
     await log_audit(
         guild_id,
@@ -909,6 +917,7 @@ async def _log_audit(
         str(session.get("username") or "panel"),
         action,
         detail,
+        previous_detail,
     )
 
 
@@ -1420,13 +1429,19 @@ async def _api_chat_tunables_put(request: web.Request, guild_id: int) -> web.Res
         return web.json_response(
             {"error": f"campos desconocidos: {', '.join(sorted(unknown))}"}, status=400
         )
+    previous_settings = await get_chat_settings(guild_id)
     saved = await set_chat_tunables(guild_id, data)
     if not saved:
         return web.json_response(
             {"error": "ningún valor válido para guardar"}, status=400
         )
+    previous_values = {k: previous_settings.get(k) for k in saved}
     await _log_audit(
-        request, guild_id, "chat.tunables_update", detail=json.dumps(saved)
+        request,
+        guild_id,
+        "chat.tunables_update",
+        detail=json.dumps(saved),
+        previous_detail=json.dumps(previous_values),
     )
     # Devuelve lo guardado ya recortado al rango: si el usuario mandó 5000
     # mensajes, el input se corrige solo en vez de mentir.
@@ -1474,16 +1489,19 @@ async def _api_channel_settings_put(
         return web.json_response(
             {"error": f"campos desconocidos: {', '.join(sorted(unknown))}"}, status=400
         )
+    previous_overrides = await get_channel_tunables(guild_id, channel_id)
     saved = await set_channel_tunables(guild_id, channel_id, data)
     if not saved:
         return web.json_response(
             {"error": "ningún valor válido para guardar"}, status=400
         )
+    previous_values = {k: previous_overrides.get(k) for k in saved}
     await _log_audit(
         request,
         guild_id,
         "channel_settings.update",
         detail=f"channel_id={channel_id} {json.dumps(saved)}",
+        previous_detail=f"channel_id={channel_id} {json.dumps(previous_values)}",
     )
     return web.json_response({"ok": True, "saved": saved})
 
@@ -2290,6 +2308,16 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
     if guild is None:
         return web.json_response({"error": "servidor no disponible"}, status=400)
 
+    previous_channel_id = await get_updates_channel(guild_id)
+    if previous_channel_id is None:
+        previous_detail = "channel_id=None (desvinculado)"
+    else:
+        previous_channel = guild.get_channel(previous_channel_id)
+        previous_detail = (
+            f"channel_id={previous_channel_id} "
+            f"channel_name={previous_channel.name if previous_channel else None}"
+        )
+
     raw_channel_id = data.get("channel_id")
     if raw_channel_id is None or raw_channel_id == "":
         await set_updates_channel(guild_id, None)
@@ -2298,6 +2326,7 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
             guild_id,
             "updates_channel.set",
             detail="channel_id=None (desvinculado)",
+            previous_detail=previous_detail,
         )
         return web.json_response(
             {"ok": True, "channel_id": None, "status": "no_channel"}
@@ -2340,6 +2369,7 @@ async def _api_updates_put(request: web.Request, guild_id: int) -> web.Response:
         guild_id,
         "updates_channel.set",
         detail=f"channel_id={channel_id} channel_name={channel_name}",
+        previous_detail=previous_detail,
     )
     return web.json_response(
         {
@@ -2372,10 +2402,18 @@ async def _api_prefix_put(request: web.Request, guild_id: int) -> web.Response:
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
 
+    previous_prefix = (await get_guild_prefix(guild_id)) or DEFAULT_COMMAND_PREFIX
+
     raw_prefix = data.get("prefix")
     if raw_prefix is None or raw_prefix == "":
         await set_guild_prefix(guild_id, None)
-        await _log_audit(request, guild_id, "prefix.reset")
+        await _log_audit(
+            request,
+            guild_id,
+            "prefix.reset",
+            detail=DEFAULT_COMMAND_PREFIX,
+            previous_detail=previous_prefix,
+        )
         return web.json_response({"ok": True, "prefix": DEFAULT_COMMAND_PREFIX})
 
     if not isinstance(raw_prefix, str):
@@ -2394,7 +2432,9 @@ async def _api_prefix_put(request: web.Request, guild_id: int) -> web.Response:
         )
 
     await set_guild_prefix(guild_id, prefix)
-    await _log_audit(request, guild_id, "prefix.set", detail=prefix)
+    await _log_audit(
+        request, guild_id, "prefix.set", detail=prefix, previous_detail=previous_prefix
+    )
     return web.json_response({"ok": True, "prefix": prefix})
 
 
@@ -2425,10 +2465,26 @@ async def _api_manager_role_put(request: web.Request, guild_id: int) -> web.Resp
     if data is None:
         return web.json_response({"error": "body inválido"}, status=400)
 
+    previous_role_id = await get_manager_role(guild_id)
+    previous_role_name = None
+    if previous_role_id is not None:
+        previous_guild = _bot_guild(request, guild_id)
+        previous_role = (
+            previous_guild.get_role(previous_role_id) if previous_guild else None
+        )
+        previous_role_name = previous_role.name if previous_role else None
+    previous_detail = previous_role_name or "ninguno"
+
     raw_role_id = data.get("role_id")
     if raw_role_id is None or raw_role_id == "":
         await set_manager_role(guild_id, None)
-        await _log_audit(request, guild_id, "manager_role.clear")
+        await _log_audit(
+            request,
+            guild_id,
+            "manager_role.clear",
+            detail="ninguno",
+            previous_detail=previous_detail,
+        )
         return web.json_response({"ok": True, "role_id": None})
 
     role_id = _to_int(raw_role_id)
@@ -2468,7 +2524,13 @@ async def _api_manager_role_put(request: web.Request, guild_id: int) -> web.Resp
         )
 
     await set_manager_role(guild_id, role_id)
-    await _log_audit(request, guild_id, "manager_role.set", detail=role.name)
+    await _log_audit(
+        request,
+        guild_id,
+        "manager_role.set",
+        detail=role.name,
+        previous_detail=previous_detail,
+    )
     return web.json_response(
         {"ok": True, "role_id": str(role_id), "role_name": role.name}
     )
@@ -2776,6 +2838,7 @@ async def _api_style_put(request: web.Request, guild_id: int) -> web.Response:
         guild_id,
         "style.update",
         detail=f"nick={nick or None!r} avatar={'avatar_url' in data} banner={'banner_url' in data}",
+        previous_detail=f"nick={current['nick']!r}",
     )
     return web.json_response({"ok": True, "warning": warning})
 
