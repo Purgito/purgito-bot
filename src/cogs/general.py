@@ -64,12 +64,14 @@ class General(commands.Cog):
             prefix = (
                 await get_guild_prefix(interaction.guild.id) or DEFAULT_COMMAND_PREFIX
             )
-        embed = build_intro_embed(guild_name, locale)
+        guild_id = interaction.guild.id if interaction.guild else None
+        embed = build_intro_embed(guild_name, locale, guild_id)
         view = HelpView(
             author_id=interaction.user.id,
             guild_name=guild_name,
             prefix=prefix,
             locale=locale,
+            guild_id=guild_id,
         )
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()

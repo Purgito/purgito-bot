@@ -5,7 +5,7 @@ El comando en sí vive en cogs/general.py; aquí solo están los embeds y la vis
 
 import discord
 
-from config import PANEL_URL
+from config import PANEL_URL, get_dashboard_url
 from i18n import DEFAULT_LOCALE, t
 from utils import SafeView
 
@@ -115,7 +115,22 @@ CATEGORIES = {
 }
 
 
-def build_intro_embed(guild_name: str, locale: str = DEFAULT_LOCALE) -> discord.Embed:
+def _panel_url(guild_id: int | None, locale: str) -> str:
+    # Sin guild_id (ej. /help en DM) no hay servidor al que apuntar el
+    # dashboard -- se cae a la landing. Con guild_id, el link va directo al
+    # dashboard de ESE servidor (get_dashboard_url), no a la landing pelada:
+    # si el usuario ya tiene sesión lo abre directo, y si no, el propio JS
+    # del dashboard (ver landing/js/core/api.js) lo manda a /auth/login con
+    # `from` apuntando de vuelta a esta misma URL, así que el login no lo
+    # deja tirado en la landing.
+    if guild_id is None:
+        return PANEL_URL
+    return get_dashboard_url(guild_id, locale)
+
+
+def build_intro_embed(
+    guild_name: str, locale: str = DEFAULT_LOCALE, guild_id: int | None = None
+) -> discord.Embed:
     embed = discord.Embed(
         title=t("help.intro.title", locale),
         description=t("help.intro.description", locale),
@@ -124,7 +139,9 @@ def build_intro_embed(guild_name: str, locale: str = DEFAULT_LOCALE) -> discord.
     # Field en vez de footer: los footers de Discord no renderizan links clickeables.
     embed.add_field(
         name=t("help.intro.panel_field_name", locale),
-        value=t("help.intro.panel_field_value", locale, url=PANEL_URL),
+        value=t(
+            "help.intro.panel_field_value", locale, url=_panel_url(guild_id, locale)
+        ),
         inline=False,
     )
     embed.set_footer(text=t("help.intro.footer", locale, guild=guild_name))
@@ -132,12 +149,18 @@ def build_intro_embed(guild_name: str, locale: str = DEFAULT_LOCALE) -> discord.
 
 
 def build_category_embed(
-    key: str, guild_name: str, prefix: str, locale: str = DEFAULT_LOCALE
+    key: str,
+    guild_name: str,
+    prefix: str,
+    locale: str = DEFAULT_LOCALE,
+    guild_id: int | None = None,
 ) -> discord.Embed:
     cat = CATEGORIES[key]
     lines = []
     if "intro_key" in cat:
-        lines.append(t(cat["intro_key"], locale, url=PANEL_URL, prefix=prefix))
+        lines.append(
+            t(cat["intro_key"], locale, url=_panel_url(guild_id, locale), prefix=prefix)
+        )
         lines.append("")
     for cmd, desc_key in cat["commands"]:
         lines.append(
@@ -159,12 +182,14 @@ class HelpView(SafeView):
         prefix: str,
         locale: str = DEFAULT_LOCALE,
         timeout: float = 180.0,
+        guild_id: int | None = None,
     ):
         super().__init__(timeout=timeout)
         self.author_id = author_id
         self.guild_name = guild_name
         self.prefix = prefix
         self.locale = locale
+        self.guild_id = guild_id
         self.message: discord.Message | None = None
 
         home_button = discord.ui.Button(
@@ -188,14 +213,16 @@ class HelpView(SafeView):
 
     def _make_home_callback(self):
         async def callback(interaction: discord.Interaction):
-            embed = build_intro_embed(self.guild_name, self.locale)
+            embed = build_intro_embed(self.guild_name, self.locale, self.guild_id)
             await interaction.response.edit_message(embed=embed, view=self)
 
         return callback
 
     def _make_category_callback(self, key: str):
         async def callback(interaction: discord.Interaction):
-            embed = build_category_embed(key, self.guild_name, self.prefix, self.locale)
+            embed = build_category_embed(
+                key, self.guild_name, self.prefix, self.locale, self.guild_id
+            )
             await interaction.response.edit_message(embed=embed, view=self)
 
         return callback

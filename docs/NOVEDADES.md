@@ -89,6 +89,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El aviso de una suscripción de YouTube con el feed roto (cambió de URL o dejó de existir) ahora se muestra en el panel, igual que ya pasaba con Twitch y RSS.
 - El Simulador de Chat ahora muestra el motivo real por el que no generó una respuesta (por ejemplo, un trigger sin frases disponibles) y el error puntual del servidor cuando lo hay, en vez de un mensaje genérico siempre igual.
 - Un trigger de canal que apunta a un pack de frases vacío ahora avisa en el dashboard (en la lista de triggers y al editarlo), en vez de matchear y no mandar nada sin ninguna pista de por qué.
+- El botón "Dashboard" de `/help` llevaba a la página de inicio en vez de al dashboard del servidor — ahora abre directo el dashboard, y si no habías iniciado sesión te pide loguearte y te lleva ahí después.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 
