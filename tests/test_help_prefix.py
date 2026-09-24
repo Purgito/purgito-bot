@@ -10,7 +10,8 @@ from types import SimpleNamespace
 
 import cogs.general as general_mod
 from cogs.general import General
-from help_view import build_category_embed
+from config import PANEL_URL, get_dashboard_url
+from help_view import build_category_embed, build_intro_embed
 
 
 class _FakeResponse:
@@ -82,3 +83,27 @@ def test_build_category_embed_imagen_refleja_el_prefix_custom():
     assert "$caption" in embed.description
     assert "$gif" in embed.description
     assert "!" not in embed.description
+
+
+def test_help_con_guild_linkea_al_dashboard_del_guild_no_a_la_landing(monkeypatch):
+    """Bug: el botón "Dashboard" de /help mandaba a la landing (PANEL_URL
+    pelado) en vez del dashboard del servidor -- ver build_intro_embed."""
+    view = _run_help(monkeypatch, _FakeInteraction(guild_id=123), custom_prefix=None)
+    assert view.guild_id == 123
+
+
+def test_build_intro_embed_con_guild_id_apunta_al_dashboard_del_guild():
+    embed = build_intro_embed("Mi Server", "es", guild_id=123)
+    field = embed.fields[0]
+    assert get_dashboard_url(123, "es") in field.value
+
+
+def test_build_intro_embed_sin_guild_id_cae_al_panel_url():
+    embed = build_intro_embed("Mi Server", "es", guild_id=None)
+    field = embed.fields[0]
+    assert PANEL_URL in field.value
+
+
+def test_build_category_embed_panel_apunta_al_dashboard_del_guild():
+    embed = build_category_embed("panel", "Mi Server", "!", "es", guild_id=123)
+    assert get_dashboard_url(123, "es") in embed.description

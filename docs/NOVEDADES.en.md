@@ -90,6 +90,7 @@ in the [GitHub repository](https://github.com/punkyyy01/bot-discord-purg).
 - A YouTube subscription with a broken feed (changed URL or no longer exists) is now flagged in the panel, same as it already was for Twitch and RSS.
 - The Chat Simulator now shows the real reason it didn't generate a reply (for example, a trigger with no phrases available) and the server's specific error when there is one, instead of always the same generic message.
 - A channel trigger pointing to an empty phrase pack now flags it in the dashboard (in the trigger list and while editing it), instead of matching and sending nothing with no clue why.
+- The "Dashboard" button in `/help` took you to the homepage instead of your server's dashboard — it now opens the dashboard directly, and if you weren't logged in it asks you to log in and takes you there afterward.
 
 ## Version 1.1.0 — June 28, 2026
 
