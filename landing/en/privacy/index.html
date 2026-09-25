@@ -404,11 +404,11 @@
 <p>The bot may store:</p>
 <ul><li>Image URLs.</li><li>GIF URLs.</li><li>Media files needed for the GIF gallery, meme collection, and announcement/embed template features.</li></ul>
 <p>Where applicable, these files may be stored persistently via Cloudflare R2.</p>
-<p>For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The admin panel shows this in the GIF catalog — with a direct link to the original message and a filter to see one person&#x27;s GIFs — visible to the server&#x27;s admins.</p>
+<p>For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The GIF catalog in the admin panel, visible to the server&#x27;s admins, shows this data with a direct link to the original message and a filter to see one person&#x27;s GIFs.</p>
 <h3>Display name</h3>
 <p>A user&#x27;s Display Name may be stored alongside certain messages to enable features like user impersonation.</p>
 <h3>Special phrases</h3>
-<p>When an admin adds a special phrase from the panel (Chat tab → Phrases), Purgito stores the Discord ID and display name of whoever added it, along with the phrase&#x27;s text. Unlike the audit log, this attribution has no expiration date: it&#x27;s kept for as long as the phrase exists.</p>
+<p>When an admin adds a special phrase from the panel (Chat tab → Phrases), Purgito stores the Discord ID and display name of whoever added it, along with the phrase&#x27;s text. Unlike the audit log (see below), this attribution has no expiration date: it&#x27;s kept for as long as the phrase exists.</p>
 <h3>Logging in to the web panel</h3>
 <p>When you log in to purgito.app with Discord, the <code class="cmd">identify</code>, <code class="cmd">email</code>, and <code class="cmd">guilds</code> scopes are requested. This lets us show your username, avatar, and email within your own session, and link your Discord account to the servers you manage (the <code class="cmd">guilds</code> scope is what lets us know which servers you have admin permissions on, so we only show you those in your dashboard). A session cookie is stored to keep you logged in while you browse the site; this cookie isn&#x27;t used for advertising or cross-site tracking.</p>
 <h3>Panel audit log</h3>
@@ -417,11 +417,11 @@
 <p>The bot <strong>does not collect</strong>:</p>
 <ul><li>Passwords.</li><li>Email addresses, except the one Discord provides when logging in to the web panel (purgito.app) — that email is used only to identify you within your own session and isn&#x27;t shared with third parties.</li><li>Personal data other than what&#x27;s provided by Discord&#x27;s official API.</li></ul>
 <p><strong>IP addresses:</strong> the dashboard (purgito.app) processes your IP address transiently and narrowly, solely to prevent abuse (request rate limits). That IP lives only in the process&#x27;s memory for a short window (seconds to minutes), is never saved to the database or to any persistent log, and isn&#x27;t shared with third parties.</p>
-<p>For payment data, see the <strong>&quot;Payments and subscriptions&quot;</strong> section below: Purgito doesn&#x27;t store it, but the payment processor (Polar.sh) does collect it when processing a purchase.</p>
+<p>For payment data, see the <strong>&quot;Payments and subscriptions&quot;</strong> section below.</p>
 <h3>Payments and subscriptions</h3>
 <p>When a server purchases Premium through the dashboard (purgito.app), the payment is processed by <strong>Polar.sh</strong>, not Purgito.</p>
 <p><strong>Purgito stores:</strong></p>
-<ul><li>The ID of the server (guild_id) with active Premium, the date it was activated, and a text note identifying the plan (for example, &quot;Polar — monthly&quot; or &quot;Polar — annual&quot;).</li><li>The Discord ID of whoever started the purchase, along with internal identifiers for the Polar subscription (customer and subscription IDs) and its status (active, trialing, canceled), its period and trial dates, and whether it has a scheduled cancellation. This is what lets whoever paid see their own subscription&#x27;s status at <code class="cmd">/perfil/facturacion</code> — no one else on the server can see this information.</li></ul>
+<ul><li>The ID of the server (guild_id) with active Premium, the date it was activated, and a text note identifying the plan (for example, &quot;Polar — monthly&quot; or &quot;Polar — annual&quot;).</li><li>The Discord ID of whoever started the purchase, along with internal identifiers for the Polar subscription (customer and subscription IDs) and its status (active, trialing, canceled), its period and trial dates, and whether it has a scheduled cancellation. This lets whoever paid see their own subscription&#x27;s status at <code class="cmd">/perfil/facturacion</code> — no one else on the server can see this information.</li></ul>
 <p>Purgito <strong>does not store</strong> the card number, billing details, or the buyer&#x27;s email or name.</p>
 <p><strong>Polar.sh does collect</strong> the data needed to process the payment (card, email, billing details) under its own <a href="https://polar.sh/legal/privacy" target="_blank" rel="noopener">Privacy Policy</a>. That data relationship is between the buyer and Polar.sh as processor/Merchant of Record.</p>
     </div>

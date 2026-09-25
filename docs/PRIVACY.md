@@ -47,7 +47,7 @@ El bot puede almacenar:
 
 Cuando corresponde, dichos archivos pueden almacenarse de forma persistente mediante Cloudflare R2.
 
-Para cada GIF guardado en la galería, el bot registra además quién lo mandó: ID de usuario, canal y mensaje de origen, y cuántas veces lo compartió (incluye el caso de volver a compartir un GIF que otra persona ya había guardado). El panel de administración muestra este dato en el catálogo de GIFs — con link directo al mensaje original y un filtro para ver los GIFs de una persona en particular — visible para los administradores del servidor.
+Para cada GIF guardado en la galería, el bot registra además quién lo mandó: ID de usuario, canal y mensaje de origen, y cuántas veces lo compartió (incluye el caso de volver a compartir un GIF que otra persona ya había guardado). El catálogo de GIFs del panel de administración, visible para los administradores del servidor, muestra este dato con link directo al mensaje original y un filtro para ver los GIFs de una persona en particular.
 
 ---
 
@@ -59,7 +59,7 @@ El nombre visible (Display Name) del usuario puede almacenarse junto con determi
 
 ## Frases especiales
 
-Cuando un administrador agrega una frase especial desde el panel (pestaña Chat → Frases), Purgito guarda el ID de Discord y el nombre visible de quien la agregó, junto con el texto de la frase. A diferencia del registro de auditoría, esta atribución no tiene fecha de vencimiento: se conserva mientras la frase exista.
+Cuando un administrador agrega una frase especial desde el panel (pestaña Chat → Frases), Purgito guarda el ID de Discord y el nombre visible de quien la agregó, junto con el texto de la frase. A diferencia del registro de auditoría (ver más abajo), esta atribución no tiene fecha de vencimiento: se conserva mientras la frase exista.
 
 ---
 
@@ -83,9 +83,9 @@ El bot **no recopila**:
 - Correos electrónicos, salvo el que Discord entrega al iniciar sesión en el panel web (purgito.app) — ese correo se usa únicamente para identificarte dentro de tu propia sesión y no se comparte con terceros.
 - Datos personales ajenos a los proporcionados por la API oficial de Discord.
 
-**Direcciones IP:** el dashboard (purgito.app) procesa tu dirección IP de forma transitoria y acotada, únicamente para prevenir abuso (límites de frecuencia de requests). Esa IP vive solo en memoria del proceso durante una ventana corta (segundos a minutos), nunca se guarda en la base de datos ni en ningún registro persistente, y no se comparte con terceros.
+**Direcciones IP:** el dashboard (purgito.app) procesa tu dirección IP de forma transitoria y acotada, únicamente para prevenir abuso (límites de frecuencia de solicitudes). Esa IP vive solo en memoria del proceso durante una ventana corta (segundos a minutos), nunca se guarda en la base de datos ni en ningún registro persistente, y no se comparte con terceros.
 
-Sobre datos de pago, ver la sección **"Pagos y suscripciones"** más abajo: Purgito no los almacena, pero el procesador de pagos (Polar.sh) sí los recolecta al procesar una compra.
+Sobre datos de pago, ver la sección **"Pagos y suscripciones"** más abajo.
 
 ---
 
@@ -96,7 +96,7 @@ Cuando un servidor contrata premium a través del dashboard (purgito.app), el pa
 **Purgito almacena:**
 
 - El ID del servidor (guild_id) que tiene premium activo, la fecha en que se activó y una nota de texto identificando el plan (por ejemplo, "Polar — mensual" o "Polar — anual").
-- El ID de Discord de quien inició la compra, junto con identificadores internos de la suscripción en Polar (IDs de cliente y de suscripción) y su estado (activa, en prueba, cancelada), sus fechas de período y de prueba, y si tiene una cancelación programada. Esto es lo que le permite a quien pagó ver el estado de su propia suscripción en `/perfil/facturacion` — nadie más del servidor puede ver esta información.
+- El ID de Discord de quien inició la compra, junto con identificadores internos de la suscripción en Polar (IDs de cliente y de suscripción) y su estado (activa, en prueba, cancelada), sus fechas de período y de prueba, y si tiene una cancelación programada. Esto permite a quien pagó ver el estado de su propia suscripción en `/perfil/facturacion` — nadie más del servidor puede ver esta información.
 
 Purgito **no almacena** número de tarjeta, datos de facturación, ni el email o nombre del comprador.
 
