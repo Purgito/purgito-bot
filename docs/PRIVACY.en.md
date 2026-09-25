@@ -71,7 +71,9 @@ When you log in to purgito.app with Discord, the `identify`, `email`, and `guild
 
 ## Panel audit log
 
-When an admin makes a configuration change from the web panel (`/settings` command), Purgito stores an audit log specific to that server: the Discord ID and display name of whoever made the change, what type of action it was (for example, adding a special phrase, adding a GIF, or clearing a channel's corpus), and, in some cases, a free-text detail that may include content written literally by whoever made the change.
+When an admin makes a configuration change from the web dashboard (purgito.app), Purgito stores an audit log specific to that server: the Discord ID and display name of whoever made the change, what type of action it was (for example, adding a special phrase, adding a GIF, or removing a channel from the learning channels), and, in some cases, a free-text detail that may include content written literally by whoever made the change.
+
+This log covers changes made from the web dashboard. Actions an admin runs directly from the `/settings` command in Discord — including the buttons to wipe the entire corpus or delete all saved GIFs (see "Data retention") — take effect immediately but aren't recorded in this log.
 
 This log is visible only to that same server's admins, in the panel's History tab, and exists so the community can see what changes were made and by whom. It's kept for a maximum of 90 days and then deleted automatically (see "Data retention").
 

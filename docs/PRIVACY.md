@@ -71,7 +71,9 @@ Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes
 
 ## Registro de auditoría del panel
 
-Cuando un administrador realiza un cambio de configuración desde el panel web (comando `/settings`), Purgito guarda un registro de auditoría propio de ese servidor: el ID de Discord y el nombre visible de quien hizo el cambio, qué tipo de acción fue (por ejemplo, agregar una frase especial, añadir un GIF o vaciar el corpus de un canal) y, en algunos casos, un detalle en texto libre que puede incluir contenido escrito literalmente por quien hizo el cambio.
+Cuando un administrador realiza un cambio de configuración desde el dashboard web (purgito.app), Purgito guarda un registro de auditoría propio de ese servidor: el ID de Discord y el nombre visible de quien hizo el cambio, qué tipo de acción fue (por ejemplo, agregar una frase especial, añadir un GIF o sacar un canal de los canales de aprendizaje) y, en algunos casos, un detalle en texto libre que puede incluir contenido escrito literalmente por quien hizo el cambio.
+
+Este registro cubre los cambios hechos desde el dashboard web. Las acciones que un administrador ejecuta directamente desde el comando `/settings` en Discord —incluyendo los botones para vaciar el corpus completo o borrar todos los GIFs guardados (ver "Retención de datos")— se aplican de inmediato pero no quedan registradas en este historial.
 
 Este registro es visible únicamente para los administradores de ese mismo servidor, en la pestaña Historial del panel, y existe para que la comunidad pueda ver qué cambios se hicieron y quién los hizo. Se conserva un máximo de 90 días y luego se elimina automáticamente (ver "Retención de datos").
 
