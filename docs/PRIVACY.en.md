@@ -2,7 +2,7 @@
 
 **Last updated:** September 21, 2026
 
-This Policy describes how **Purgito** collects, uses, stores, and protects the information it needs to provide its features.
+This Policy describes how **Purgito** collects, uses, stores, shares, and protects the information it needs to provide its features.
 
 Purgito is a public Discord bot used by multiple servers. The data we collect and how we handle it are the same for every server where the bot is present.
 
@@ -47,7 +47,7 @@ The bot may store:
 
 Where applicable, these files may be stored persistently via Cloudflare R2.
 
-For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The admin panel shows this in the GIF catalog — with a direct link to the original message and a filter to see one person's GIFs — visible to the server's admins.
+For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The GIF catalog in the admin panel, visible to the server's admins, shows this data with a direct link to the original message and a filter to see one person's GIFs.
 
 ---
 
@@ -59,7 +59,7 @@ A user's Display Name may be stored alongside certain messages to enable feature
 
 ## Special phrases
 
-When an admin adds a special phrase from the panel (Chat tab → Phrases), Purgito stores the Discord ID and display name of whoever added it, along with the phrase's text. Unlike the audit log, this attribution has no expiration date: it's kept for as long as the phrase exists.
+When an admin adds a special phrase from the panel (Chat tab → Phrases), Purgito stores the Discord ID and display name of whoever added it, along with the phrase's text. Unlike the audit log (see below), this attribution has no expiration date: it's kept for as long as the phrase exists.
 
 ---
 
@@ -71,7 +71,9 @@ When you log in to purgito.app with Discord, the `identify`, `email`, and `guild
 
 ## Panel audit log
 
-When an admin makes a configuration change from the web panel (`/settings` command), Purgito stores an audit log specific to that server: the Discord ID and display name of whoever made the change, what type of action it was (for example, adding a special phrase, adding a GIF, or clearing a channel's corpus), and, in some cases, a free-text detail that may include content written literally by whoever made the change.
+When an admin makes a configuration change from the web dashboard (purgito.app), Purgito stores an audit log specific to that server: the Discord ID and display name of whoever made the change, what type of action it was (for example, adding a special phrase, adding a GIF, or removing a channel from the learning channels), and, in some cases, a free-text detail that may include content written literally by whoever made the change.
+
+This log covers changes made from the web dashboard. Actions an admin runs directly from the `/settings` command in Discord — including the buttons to wipe the entire corpus or delete all saved GIFs (see "Data retention") — take effect immediately but aren't recorded in this log.
 
 This log is visible only to that same server's admins, in the panel's History tab, and exists so the community can see what changes were made and by whom. It's kept for a maximum of 90 days and then deleted automatically (see "Data retention").
 
@@ -85,7 +87,7 @@ The bot **does not collect**:
 
 **IP addresses:** the dashboard (purgito.app) processes your IP address transiently and narrowly, solely to prevent abuse (request rate limits). That IP lives only in the process's memory for a short window (seconds to minutes), is never saved to the database or to any persistent log, and isn't shared with third parties.
 
-For payment data, see the **"Payments and subscriptions"** section below: Purgito doesn't store it, but the payment processor (Polar.sh) does collect it when processing a purchase.
+For payment data, see the **"Payments and subscriptions"** section below.
 
 ---
 
@@ -96,11 +98,11 @@ When a server purchases Premium through the dashboard (purgito.app), the payment
 **Purgito stores:**
 
 - The ID of the server (guild_id) with active Premium, the date it was activated, and a text note identifying the plan (for example, "Polar — monthly" or "Polar — annual").
-- The Discord ID of whoever started the purchase, along with internal identifiers for the Polar subscription (customer and subscription IDs) and its status (active, trialing, canceled), its period and trial dates, and whether it has a scheduled cancellation. This is what lets whoever paid see their own subscription's status at `/perfil/facturacion` — no one else on the server can see this information.
+- The Discord ID of whoever started the purchase, along with internal identifiers for the Polar subscription (customer and subscription IDs) and its status (active, trialing, canceled), its period and trial dates, and whether it has a scheduled cancellation. This lets whoever paid see their own subscription's status at `/perfil/facturacion` — no one else on the server can see this information.
 
 Purgito **does not store** the card number, billing details, or the buyer's email or name.
 
-**Polar.sh does collect** the data needed to process the payment (card, email, billing details) under its own [Privacy Policy](https://polar.sh/legal/privacy). That data relationship is between the buyer and Polar.sh as processor/Merchant of Record.
+**Polar.sh does collect** the data needed to process the payment (card, email, billing details) under its own [Privacy Policy](https://polar.sh/legal/privacy). That relationship is between the buyer and Polar.sh, in its capacity as payment processor and Merchant of Record.
 
 ---
 
@@ -132,8 +134,8 @@ Purgito uses external services for certain features. Each provider processes onl
 - **What it is and what it's used for**: Groq is an external AI model inference provider (vision and language) used optionally and exclusively to analyze images and write captions in the meme feature.
 - **What data may be sent**: The image used for the meme (base64-encoded) and a limited sample of the server's corpus (up to a maximum of 25 short messages and 15 long messages, as a reference for vocabulary and tone).
 - **When it's used**: Only when a meme is requested or generated (`/momo` command, image-trigger reply, or scheduled meme), and only when the `GROQ_API_KEY` has been configured by the bot's operator.
-- **Narrow scope**: Groq doesn't process regular chat conversations and doesn't receive any server's full corpus. Purgito's general conversation runs 100% locally.
-- **Local fallback**: If Groq isn't configured, unavailable, or fails, caption generation happens 100% locally via Markov chains.
+- **Narrow scope**: Groq doesn't process regular chat conversations and doesn't receive any server's full corpus. Purgito's general conversation runs entirely locally.
+- **Local fallback**: If Groq isn't configured, unavailable, or fails, caption generation happens entirely locally via Markov chains.
 - **Advertising**: Data sent to Groq for this feature isn't used by Purgito for advertising or data sale.
 
 ## Twitch API (live stream notifications)
@@ -165,7 +167,7 @@ Server admins can also delete collected content at any time using the interactiv
 
 The panel's audit log (see section 1) is kept for a maximum of 90 days from each entry and then purged automatically, with no manual intervention.
 
-When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted entirely. This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without starting from scratch. During that period, while the bot isn't in the server, there's no way to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
+When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted entirely. This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without having to be set up again from the beginning. During that period, while the bot isn't in the server, it isn't possible to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
 
 ---
 
@@ -224,7 +226,7 @@ This Policy may be updated to reflect new features, technical improvements, or l
 
 The "Last updated" date will always indicate the current version.
 
-Purgito's code lives on GitHub, where a public version history is maintained.
+Purgito's code is hosted on GitHub, where a public version history is maintained.
 
 ---
 
@@ -233,4 +235,4 @@ Purgito's code lives on GitHub, where a public version history is maintained.
 If you have questions about this Policy or want to request deletion of information related to the bot, you can contact the developer through:
 
 - Email: contacto@purgito.app.
-- The project's official Discord server (where applicable).
+- The project's official Discord server (when available).
