@@ -2,7 +2,7 @@
 
 **Last updated:** September 21, 2026
 
-This Policy describes how **Purgito** collects, uses, stores, and protects the information it needs to provide its features.
+This Policy describes how **Purgito** collects, uses, stores, shares, and protects the information it needs to provide its features.
 
 Purgito is a public Discord bot used by multiple servers. The data we collect and how we handle it are the same for every server where the bot is present.
 
@@ -100,7 +100,7 @@ When a server purchases Premium through the dashboard (purgito.app), the payment
 
 Purgito **does not store** the card number, billing details, or the buyer's email or name.
 
-**Polar.sh does collect** the data needed to process the payment (card, email, billing details) under its own [Privacy Policy](https://polar.sh/legal/privacy). That data relationship is between the buyer and Polar.sh as processor/Merchant of Record.
+**Polar.sh does collect** the data needed to process the payment (card, email, billing details) under its own [Privacy Policy](https://polar.sh/legal/privacy). That relationship is between the buyer and Polar.sh, in its capacity as payment processor and Merchant of Record.
 
 ---
 
@@ -132,8 +132,8 @@ Purgito uses external services for certain features. Each provider processes onl
 - **What it is and what it's used for**: Groq is an external AI model inference provider (vision and language) used optionally and exclusively to analyze images and write captions in the meme feature.
 - **What data may be sent**: The image used for the meme (base64-encoded) and a limited sample of the server's corpus (up to a maximum of 25 short messages and 15 long messages, as a reference for vocabulary and tone).
 - **When it's used**: Only when a meme is requested or generated (`/momo` command, image-trigger reply, or scheduled meme), and only when the `GROQ_API_KEY` has been configured by the bot's operator.
-- **Narrow scope**: Groq doesn't process regular chat conversations and doesn't receive any server's full corpus. Purgito's general conversation runs 100% locally.
-- **Local fallback**: If Groq isn't configured, unavailable, or fails, caption generation happens 100% locally via Markov chains.
+- **Narrow scope**: Groq doesn't process regular chat conversations and doesn't receive any server's full corpus. Purgito's general conversation runs entirely locally.
+- **Local fallback**: If Groq isn't configured, unavailable, or fails, caption generation happens entirely locally via Markov chains.
 - **Advertising**: Data sent to Groq for this feature isn't used by Purgito for advertising or data sale.
 
 ## Twitch API (live stream notifications)
@@ -165,7 +165,7 @@ Server admins can also delete collected content at any time using the interactiv
 
 The panel's audit log (see section 1) is kept for a maximum of 90 days from each entry and then purged automatically, with no manual intervention.
 
-When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted entirely. This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without starting from scratch. During that period, while the bot isn't in the server, there's no way to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
+When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted entirely. This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without having to be set up again from the beginning. During that period, while the bot isn't in the server, it isn't possible to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
 
 ---
 
@@ -224,7 +224,7 @@ This Policy may be updated to reflect new features, technical improvements, or l
 
 The "Last updated" date will always indicate the current version.
 
-Purgito's code lives on GitHub, where a public version history is maintained.
+Purgito's code is hosted on GitHub, where a public version history is maintained.
 
 ---
 
@@ -233,4 +233,4 @@ Purgito's code lives on GitHub, where a public version history is maintained.
 If you have questions about this Policy or want to request deletion of information related to the bot, you can contact the developer through:
 
 - Email: contacto@purgito.app.
-- The project's official Discord server (where applicable).
+- The project's official Discord server (when available).
