@@ -32,8 +32,8 @@ def memory_db(monkeypatch):
     async def _fake_delete_url(url):
         conn.deleted_urls.append(url)
 
-    monkeypatch.setattr(db.r2, "delete_key", _fake_delete_key)
-    monkeypatch.setattr(db.r2, "delete_url", _fake_delete_url)
+    monkeypatch.setattr(db.r2, "delete_gif_key", _fake_delete_key)
+    monkeypatch.setattr(db.r2, "delete_gif_url", _fake_delete_url)
     yield conn
     asyncio.run(conn.close())
 

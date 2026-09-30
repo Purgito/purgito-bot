@@ -28,7 +28,7 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 3. [Clonar e instalar](#3-clonar-e-instalar)
 4. [Variables de entorno — referencia completa](#4-variables-de-entorno--referencia-completa)
 5. [Servicios opcionales](#5-servicios-opcionales)
-   - [Cloudflare R2 (persistencia de GIFs)](#cloudflare-r2-persistencia-de-gifs)
+   - [Cloudflare R2 (imágenes, GIFs y backups)](#cloudflare-r2-imágenes-gifs-y-backups)
    - [Groq (captions de memes con IA)](#groq-captions-de-memes-con-ia)
 6. [Correr en desarrollo](#6-correr-en-desarrollo)
 7. [Deploy en producción](#7-deploy-en-producción)
@@ -38,6 +38,8 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
    - [Configurar nginx](#configurar-nginx)
    - [Cloudflare (DNS + SSL)](#cloudflare-dns--ssl)
 8. [Actualizar en producción](#8-actualizar-en-producción)
+   - [Migrar a tres buckets de R2](#migrar-a-tres-buckets-de-r2)
+   - [Backups de `data/bot.db`](#backups-de-databotdb)
 9. [Troubleshooting](#9-troubleshooting)
 
 ---
@@ -322,39 +324,90 @@ USER_MARKOV_TRAINING_MESSAGES=2000
 GROQ_API_KEY=
 
 # ═══════════════════════════════════════════════════════════
-#  OPCIONAL — Cloudflare R2 (persistencia de GIFs)
+#  OPCIONAL — Cloudflare R2 (3 buckets: imágenes, GIFs y backups)
 # ═══════════════════════════════════════════════════════════
 
-# Sin R2, las URLs de Discord CDN pueden expirar.
-# Todas las variables R2_* deben estar presentes para que R2 se active.
+# Sin R2, las URLs de Discord CDN pueden expirar y los backups de bot.db
+# quedan solo en el disco del servidor. Las credenciales y el endpoint son los
+# mismos para los tres buckets. Detalle en "Cloudflare R2" (sección 5).
 
-# URL del endpoint S3-compatible. Formato: https://<account-id>.r2.cloudflarestorage.com
-R2_ENDPOINT_URL=
-
-# Access Key ID del token R2 con permisos "Object Read & Write".
+# SECRETAS (solo en .env): credenciales del token R2 con permisos
+# "Object Read & Write" sobre los tres buckets.
 R2_ACCESS_KEY_ID=
-
-# Secret del token R2.
 R2_SECRET_ACCESS_KEY=
 
-# Nombre del bucket R2.
-R2_BUCKET_NAME=
+# Endpoint S3 de la CUENTA. Formato: https://<account-id>.r2.cloudflarestorage.com
+# NO lleva el nombre de ningún bucket.
+R2_ENDPOINT_URL=
 
-# URL pública del bucket. Formato: https://pub-xxx.r2.dev
-R2_PUBLIC_URL=
+# Imágenes (público). La URL pública es la de ESTE bucket, no la de los otros.
+R2_IMAGES_BUCKET=purgito-images
+R2_IMAGES_PUBLIC_URL=
+
+# GIFs (público), con su propia URL pública.
+R2_GIFS_BUCKET=purgito-gifs
+R2_GIFS_PUBLIC_URL=
+
+# Backups de bot.db (PRIVADO): no existe una URL pública para este bucket.
+# Déjala vacía si no usas R2 para backups -- con un valor acá, deploy/backup_db.sh
+# exige que la subida funcione.
+R2_BACKUP_BUCKET=purgito-backups
 ```
+
+> Las variables `R2_BUCKET_NAME` y `R2_PUBLIC_URL` (un solo bucket para todo) ya
+> no se declaran. Si tu `.env` todavía las tiene, el bot las usa como fallback
+> transitorio y avisa al arrancar: ver [Migrar a tres buckets de R2](#migrar-a-tres-buckets-de-r2).
 
 ---
 
 ## 5. Servicios opcionales
 
-### Cloudflare R2 (persistencia de GIFs)
+### Cloudflare R2 (imágenes, GIFs y backups)
 
-1. Cloudflare Dashboard → **R2 Object Storage** → crea un bucket
-2. **R2 → Manage R2 API Tokens** → token con permisos **Object Read & Write**
-3. Copia el **Access Key ID** y el **Secret Access Key**
-4. El **Endpoint URL** está en la página del bucket bajo "S3 API"
-5. Completá las variables `R2_*` en `.env`
+Purgito usa **tres buckets independientes**, cada uno con un rol fijo. El código
+decide el bucket de cada operación a mano (no hay un "bucket actual" que se
+pueda cambiar), así que un GIF nunca cae en el bucket de imágenes ni al revés, y
+un backup nunca sale de su bucket.
+
+| Bucket sugerido | Variables | Acceso | Qué guarda |
+|---|---|---|---|
+| `purgito-images` | `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL` | público (URL) | imágenes del pool de memes y subidas del editor de embeds, con keys `{guild_id}/{md5}.{ext}` |
+| `purgito-gifs` | `R2_GIFS_BUCKET`, `R2_GIFS_PUBLIC_URL` | público (URL) | GIFs deduplicados, con keys `gifs/<2 primeros del hash>/<sha256>.gif` |
+| `purgito-backups` | `R2_BACKUP_BUCKET` | **privado** | copias de `bot.db` y su tar de flags (`bot-<fecha>.db`, `bot-<fecha>.flags.tar.gz`) |
+
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (secretas) y `R2_ENDPOINT_URL` son los
+mismos para los tres. Qué es público y qué no:
+
+- **Secretas:** las dos credenciales. Solo viven en `.env`.
+- **Públicas en la práctica:** las URLs de imágenes y GIFs (terminan guardadas en
+  la DB y en los mensajes de Discord) y los nombres de bucket. No son secretos,
+  pero no hace falta publicarlos.
+- **Sin URL pública, a propósito:** el bucket de backups. No hay
+  `R2_BACKUP_PUBLIC_URL` y no debe haberla.
+
+Crear y configurar:
+
+1. Cloudflare Dashboard → **R2 Object Storage** → crea los tres buckets
+   (`purgito-images`, `purgito-gifs`, `purgito-backups`).
+2. **Imágenes y GIFs:** en cada uno, *Settings* → activa el acceso público (la
+   *Public Development URL* `https://pub-xxx.r2.dev`, o un dominio propio
+   conectado al bucket) y copia esa URL a `R2_IMAGES_PUBLIC_URL` /
+   `R2_GIFS_PUBLIC_URL`. Cada bucket tiene SU URL.
+3. **Backups:** no actives nada. Sin *Public Development URL*, sin dominio
+   personalizado y sin política de CORS. Confirma en *Settings* que el acceso
+   público sigue desactivado.
+4. **R2 → Manage API tokens** → crea un token con permiso **Object Read & Write**,
+   limitado a buckets específicos: marca los tres. Durante la
+   [migración](#migrar-a-tres-buckets-de-r2) el token también tiene que incluir
+   el bucket viejo, que es el origen de la copia. Nada más que Object Read &
+   Write: el bot no crea ni borra buckets.
+5. Copia el **Access Key ID** y el **Secret Access Key** (el secret se muestra
+   una sola vez).
+6. El **endpoint** es `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`: el de la
+   cuenta, sin el nombre de ningún bucket.
+7. Completa las variables `R2_*` en `.env`. El bot comprueba la configuración al
+   arrancar y loguea qué falta (imágenes o GIFs sin su bucket o su URL pública se
+   apagan por separado; el otro sigue funcionando).
 
 ### Groq (captions de memes con IA)
 
@@ -929,6 +982,122 @@ Verificar después del restart:
 journalctl -u bot-purg --since "5 min ago" | grep -i "Corpus:"
 ```
 
+### Migrar a tres buckets de R2
+
+Antes todo vivía en un solo bucket (`R2_BUCKET_NAME` + `R2_PUBLIC_URL`). Ahora
+las imágenes, los GIFs y los backups tienen cada uno el suyo (ver
+[Cloudflare R2](#cloudflare-r2-imágenes-gifs-y-backups)). La migración no es
+destructiva en ningún paso: **el bucket viejo y sus objetos no se tocan**, y
+borrarlo es lo último, a mano, cuando ya no haga falta.
+
+**Cómo convive con el `.env` viejo (fallback transitorio).** Mientras falte
+`R2_IMAGES_BUCKET` / `R2_GIFS_BUCKET` (o sus URLs públicas), ese tipo de archivo
+cae en `R2_BUCKET_NAME` / `R2_PUBLIC_URL`: desplegar el código nuevo sin tocar
+el `.env` deja todo exactamente como estaba. Además `R2_PUBLIC_URL` sigue
+reconociéndose como alias de las URLs que la DB ya tiene guardadas, que apuntan
+al host viejo. El bot avisa en el log de arranque mientras cualquiera de las dos
+variables viejas siga definida. El bucket de backups **no** tiene fallback: sin
+`R2_BACKUP_BUCKET` no hay backups remotos. El fallback se va solo al borrar las
+dos variables viejas (paso 10) y `tests/test_r2_buckets.py` asegura que solo
+`src/r2.py` las lee.
+
+**Pasos** (el bot puede seguir corriendo hasta el paso 7):
+
+1. **Copia de seguridad previa.** `deploy/backup_db.sh` y guarda una copia de
+   tu `.env` actual.
+2. **Desplegar el código sin tocar el `.env`.** `git pull` y
+   `sudo systemctl restart bot-purg`. Todo sigue igual; en el log aparece el
+   aviso de que `R2_BUCKET_NAME` y `R2_PUBLIC_URL` siguen definidas.
+3. **Cloudflare (a mano).** Crea `purgito-images`, `purgito-gifs` y
+   `purgito-backups`; activa el acceso público solo en los dos primeros; y crea
+   un token **Object Read & Write** sobre los tres **y sobre el bucket viejo**
+   (la copia lo lee). Detalle en la sección de R2. No generes el token desde
+   código ni lo pegues en ningún archivo versionado.
+4. **Agregar al `.env` las variables nuevas, sin borrar las viejas.** Si el token
+   es nuevo, reemplaza también `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`. **No
+   reinicies todavía:** el bot lee el `.env` al arrancar, así que el proceso en
+   marcha sigue con lo anterior.
+5. **Copia en seco.**
+   ```bash
+   cd ~/purgito-bot && source .venv/bin/activate
+   python scripts/migrate_r2_buckets.py copy
+   ```
+   No escribe nada. Comprueba que los buckets existen y los puede leer, y
+   muestra cuántos objetos y bytes irían a cada destino, y por qué motivo
+   (`db-gif`, `db-imagen`, `prefijo-gifs`, `sin-referencia`, `ambos`). La
+   clasificación sale de la DB, no de la extensión: un `.gif` del pool de memes
+   es una imagen. Lo que debe quedar en 0: `error` y `distinto`.
+6. **Copia real.**
+   ```bash
+   python scripts/migrate_r2_buckets.py copy --apply --report /tmp/r2-copy.jsonl --sleep 0.05
+   python scripts/migrate_r2_buckets.py verify
+   ```
+   El bot puede seguir corriendo: solo lee del bucket viejo y escribe en los
+   nuevos. Es idempotente y se puede interrumpir y repetir. Con
+   `--skip-unreferenced` no copia lo que la DB no referencia. `verify` tiene que
+   terminar en `VERIFICACIÓN OK`.
+7. **Cambio de bucket (con el bot parado unos minutos).**
+   ```bash
+   sudo systemctl stop bot-purg
+   python scripts/migrate_r2_buckets.py copy --apply     # solo lo subido desde el paso 6
+   python scripts/migrate_r2_buckets.py verify
+   sudo systemctl start bot-purg
+   ```
+   Desde este arranque las subidas nuevas van a los buckets nuevos.
+8. **Comprobar en producción.** El log de arranque no debe avisar de nada de R2
+   salvo las variables viejas. Sube un GIF (`/gif_add` o el panel) y una imagen
+   desde el editor de embeds: las URLs tienen que empezar con
+   `R2_GIFS_PUBLIC_URL` y `R2_IMAGES_PUBLIC_URL`, abrir, y el objeto tiene que
+   aparecer en el bucket correcto del dashboard de Cloudflare. Corre
+   `deploy/backup_db.sh` a mano y mira `python scripts/r2_backup.py list`.
+9. **Reescribir las URLs guardadas (opcional, pero necesario antes del paso 11).**
+   La DB guarda URLs completas con el host viejo. Mientras `R2_PUBLIC_URL` siga
+   definida el bot las reconoce y el host viejo las sigue sirviendo, pero para
+   poder quitar cualquiera de los dos hay que reescribirlas. Es el único paso que
+   cambia la DB, por eso es aparte y explícito:
+   ```bash
+   python scripts/migrate_r2_buckets.py rewrite-db-urls            # dry-run
+   sudo systemctl stop bot-purg
+   python scripts/migrate_r2_buckets.py rewrite-db-urls --apply    # deja bot.db.pre-r2-rewrite-<fecha>
+   sudo systemctl start bot-purg
+   ```
+   Cambia solo el host (las URLs `gifs/...` y las de `corpus_gifs` al de GIFs, el
+   resto al de imágenes), en una sola transacción y con copia previa 0600. Una
+   fila que chocaría con otra ya existente se deja como está y se informa.
+10. **Quitar las variables viejas.** Comprueba que ya no dependes de ellas:
+    ```bash
+    python scripts/migrate_r2_buckets.py verify    # debe decir "la DB ya no referencia el host viejo"
+    ```
+    Borra `R2_BUCKET_NAME` y `R2_PUBLIC_URL` del `.env`, reinicia y confirma:
+    ```bash
+    grep -nE '^(R2_BUCKET_NAME|R2_PUBLIC_URL)=' .env    # sin resultados
+    journalctl -u bot-purg --since "2 min ago" | grep -i "R2"   # sin avisos
+    deploy/preflight_check.sh                            # "sin variables R2 del esquema viejo"
+    ```
+11. **Bucket viejo (manual, sin prisa).** Déjalo unos días o semanas. Bórralo
+    desde el dashboard de Cloudflare solo cuando `verify` esté en OK, la DB no
+    referencie el host viejo y el bot lleve un tiempo sano sin las variables
+    viejas. Ojo: los mensajes que el bot ya publicó en Discord con imágenes del
+    host viejo dejarán de mostrarlas cuando ese host desaparezca. Esto no lo
+    arregla ningún script.
+
+**Verificar que terminó bien.** `python scripts/migrate_r2_buckets.py verify`
+compara cada objeto del bucket viejo con su destino (existe y tiene el mismo
+tamaño), cuenta las filas de la DB que todavía llevan el host viejo y sale con
+código 1 si algo falta. A mano:
+
+```bash
+sqlite3 data/bot.db "SELECT COUNT(*) FROM corpus_gifs WHERE url LIKE 'https://<host-viejo>/%'"   # 0 tras el paso 9
+curl -sI "<una URL de GIF guardada>" | head -3     # 200 y content-type: image/gif
+```
+
+**Volver atrás.** Antes del paso 7 basta con no reiniciar. Después, restaurar el
+`.env` anterior (sin las variables nuevas) y reiniciar devuelve al bot al bucket
+viejo, que sigue intacto; lo subido desde el paso 7 existe solo en los buckets
+nuevos y hay que copiarlo de vuelta. Si ya corriste el paso 9, restaura también
+`bot.db.pre-r2-rewrite-<fecha>` con el bot parado (se pierden las escrituras
+posteriores a la copia). Pasado el paso 9 es más sano arreglar hacia adelante.
+
 ### Reconciliar los GIFs de R2 (una sola vez)
 
 `scripts/reconcile_gif_objects.py` normaliza los objetos que ya están en el
@@ -1033,8 +1202,9 @@ también pueden ser `.gif`), ni los huérfanos, que solo informa.
 Automatizado con [`deploy/backup_db.sh`](deploy/backup_db.sh): corre diario
 por cron, usa `sqlite3 .backup` (no `cp` -- la base corre en modo WAL, `cp`
 sobre un archivo en uso puede copiar un estado inconsistente entre
-`bot.db`/`bot.db-wal`) y borra los backups de más de 14 días después de cada
-corrida exitosa. Antes de esto no había nada automatizado -- solo dos
+`bot.db`/`bot.db-wal`), sube el backup al bucket privado de R2 (ver más abajo) y
+borra los backups locales de más de 14 días después de cada corrida exitosa.
+Antes de esto no había nada automatizado -- solo dos
 copias sueltas en `data/` (`bot.db.back-pre-gif-debup`, `bot.db.bak-20260711`)
 que alguien sacó a mano antes de una migración riesgosa puntual, en el mismo
 disco que la base real.
@@ -1048,11 +1218,12 @@ servidor nuevo, repetir el paso 1 (el `test -r`) con el usuario y la ruta
 reales de ESE servidor, no asumir que el resultado de 2026-08-12 sigue
 aplicando.
 
-> ⚠️ Sea cual sea el resultado, este backup vive en el mismo disco que la
-> instancia (`BACKUP_DIR` es solo "fuera del árbol de git", no "fuera del
-> droplet") -- no protege contra perder la instancia entera, que es
-> justamente lo que pasó con Oracle. Ver `docs/PORTABILITY.md` § 1 para el
-> detalle y la recomendación de subir el backup a R2.
+> ⚠️ La copia local vive en el mismo disco que la instancia (`BACKUP_DIR` es
+> solo "fuera del árbol de git", no "fuera del droplet") -- por sí sola no
+> protege contra perder la instancia entera, que es justamente lo que pasó con
+> Oracle. Lo que sí protege es la copia del bucket privado de R2
+> (`R2_BACKUP_BUCKET`, ver [Subida a R2](#subida-a-r2-bucket-privado)): con esa
+> variable definida, una corrida cuenta como exitosa solo si la subida funcionó.
 
 > 🔒 **Permisos.** `bot.db` (mensajes aprendidos, tokens de webhook de canales) y
 > los backups son solo del usuario del bot: el bot deja `bot.db` y sus sidecars
@@ -1122,6 +1293,48 @@ migraciones destructivas (ver `docs/PORTABILITY.md` § 2). Sin `DB_SRC` ni
 `BACKUP_DIR`, el script usa `data/bot.db` del checkout y
 `~/purgito-bot-backups`.
 
+#### Subida a R2 (bucket privado)
+
+Con `R2_BACKUP_BUCKET` definida (en el entorno o en el `.env` del repo: cron no
+carga el `.env`, así que el script lee de ahí solo esa línea), cada corrida sube
+el backup a ese bucket después de verificarlo. Necesita las credenciales y el
+endpoint `R2_*` del `.env` y el venv (`boto3`); usa `.venv/bin/python` del repo
+(otro intérprete con la variable `PYTHON`).
+
+- Se sube primero `bot-<fecha>.flags.tar.gz` (si existe) y después
+  `bot-<fecha>.db`, con el mismo nombre que tienen en `BACKUP_DIR`: una base en
+  el bucket siempre tiene sus flags al lado, que es lo que pide el restore.
+- Después de subir compara el tamaño del objeto en R2 con el del archivo local y
+  guarda el `sha256` como metadato del objeto.
+- **Si la subida falla, la corrida termina con error** (código 1 y un
+  `ERROR ... NO subió a R2` en el log): no dice `OK backup`. El backup local se
+  conserva y **no se poda nada**, ni las copias viejas, que podrían ser justo las
+  que nunca llegaron a R2.
+- Con `R2_BACKUP_BUCKET` vacía o ausente el backup queda solo en local y la línea
+  de `OK` del log lo dice (`solo local`). Si no usas R2 para backups, déjala vacía.
+- El bucket es **privado**: no hay URL pública, no se le activa la *Public
+  Development URL* ni un dominio, y el token S3 es lo único que lo lee. El código
+  de backup no tiene forma de apuntar al bucket de imágenes ni al de GIFs.
+
+**Retención.** Localmente se conservan `RETENTION_DAYS` (14) días. En R2 **no hay
+ninguna política de retención definida ni implementada**: los backups se acumulan
+hasta que alguien los borre. Si se quiere una, se configura en el dashboard de
+Cloudflare (bucket de backups → *Settings* → *Object lifecycle rules* → borrar
+objetos con prefijo `bot-` tras N días); queda como decisión pendiente, no se
+puede hacer desde el código porque el token de Object Read & Write no administra
+buckets.
+
+**Ver y bajar backups del bucket:**
+
+```bash
+python scripts/r2_backup.py list
+python scripts/r2_backup.py download latest --dest ~/restore     # la base más nueva + su tar de flags
+python scripts/r2_backup.py download bot-20260812-031700.db --dest ~/restore
+```
+
+Los archivos bajados quedan con permisos 0600 y se les comprueba el `sha256` de
+la subida.
+
 **Comprobar que un backup se puede restaurar** (sin tocar la base activa ni
 parar el bot):
 
@@ -1135,7 +1348,10 @@ tiene tablas y que el tar de flags se lee. Sale con código distinto de 0 si
 algo falla. Correrlo después de instalar el cron y de vez en cuando.
 `bash deploy/backup_db_test.sh` prueba los dos scripts con datos de mentira.
 
-**Restaurar desde un backup:**
+**Restaurar desde un backup** (si el backup está solo en R2, por ejemplo en un
+servidor nuevo, primero bájalo con `python scripts/r2_backup.py download latest --dest
+~/purgito-bot-backups` y revisa que se restaura con
+`deploy/restore_check.sh ~/purgito-bot-backups/bot-<fecha>.db`):
 
 ```bash
 sudo systemctl stop bot-purg
@@ -1148,11 +1364,11 @@ sudo systemctl start bot-purg
 `.restore` sobreescribe la base activa -- parar el bot antes, o se restaura
 sobre un archivo con escrituras en curso.
 
-Sigue siendo un backup en el mismo droplet -- protege contra "una migración
-corrompió la base" o "se llenó el disco de golpe", no contra "se perdió la
-instancia entera". Sacarlo fuera del droplet (al bucket R2 que ya se usa
-para GIFs, por ejemplo) queda pendiente como mejora futura, no se implementó
-acá.
+La copia local sola protege contra "una migración corrompió la base" o "se llenó
+el disco de golpe", no contra "se perdió la instancia entera". Para eso está la
+copia del bucket de backups: en un servidor nuevo, configura las variables `R2_*`
+y baja el último backup con `scripts/r2_backup.py` (ver
+[`MIGRATION.md`](MIGRATION.md)).
 
 ### Dos puntos que ya estaban sin verificar, confirmados (histórico)
 
@@ -1177,7 +1393,9 @@ acá.
 | Problema | Causa probable | Fix |
 |---|---|---|
 | Slash commands no aparecen | `GUILD_ID` no configurado o sin scope `applications.commands` | Poner `GUILD_ID` en `.env` y reiniciar, o esperar 1h si es global |
-| GIFs de Discord CDN no se suben a R2 | Faltan vars `R2_*` | Completar todas las `R2_*` en `.env` |
+| GIFs de Discord CDN no se suben a R2 | Faltan `R2_ENDPOINT_URL`/credenciales, o `R2_GIFS_BUCKET`/`R2_GIFS_PUBLIC_URL` | Completarlas en `.env` y reiniciar; el log de arranque dice cuál falta |
+| Las imágenes se guardan con su URL de Discord | Falta `R2_IMAGES_BUCKET` o `R2_IMAGES_PUBLIC_URL` | Completarlas en `.env` y reiniciar |
+| `backup_db.sh` sale con error "NO subió a R2" | `R2_BACKUP_BUCKET` está definida pero la subida falló (token sin acceso al bucket de backups, bucket inexistente, sin red) | Leer el error de arriba; `python scripts/r2_backup.py list` prueba el acceso. El backup local se conserva y no se poda nada |
 | La galería o el panel no cargan | nginx caído o DNS sin propagar | `systemctl status nginx` + verificar DNS |
 | Dashboard da 404 al loguearse, o `/es/dashboard/*` no responde | Faltan `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`SESSION_SECRET` en `.env` -- el bot arranca igual, sin error visible | `journalctl -u bot-purg \| grep -i "Dashboard deshabilitado"` para confirmar; completar las tres variables (ver sección 4) y reiniciar |
 | `.env` "no tiene efecto" / bot no arranca con error de parseo raro | `.env` es un directorio, no un archivo (`mkdir` accidental en vez de `cp`) | `test -f .env`; si falla, `rmdir .env && cp .env.example .env` |

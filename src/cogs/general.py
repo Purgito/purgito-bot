@@ -252,8 +252,10 @@ class General(commands.Cog):
                     # achica de "todo el loop" a "un solo ítem" -- máximo una
                     # referencia mal liberada en vez de todo el pool del guild.
                     rejoined = False
-                    if r2.available() and r2.public_url():
-                        # release_gif_reference, NO r2.delete_url: los GIFs con
+                    gifs_ok = r2.gifs_available()
+                    images_ok = r2.images_available()
+                    if gifs_ok or images_ok:
+                        # release_gif_reference, NO r2.delete_gif_url: los GIFs con
                         # content_hash son objetos content-addressed compartidos
                         # entre guilds (ver el comentario de gif_objects en el
                         # schema) -- borrar por url directo, como se hacía antes,
@@ -261,14 +263,15 @@ class General(commands.Cog):
                         # lo referenciaba, dejándolo con un link roto. Las
                         # imágenes sí son 1:1 por guild (key con {guild_id}/
                         # de prefijo) así que esas siguen borrándose por url.
-                        for item in await list_gif_urls(guild_id):
+                        gif_items = await list_gif_urls(guild_id) if gifs_ok else []
+                        for item in gif_items:
                             if self.bot.get_guild(guild_id) is not None:
                                 rejoined = True
                                 break
                             await release_gif_reference(
                                 item["content_hash"], item["url"]
                             )
-                        if not rejoined:
+                        if images_ok and not rejoined:
                             # Imágenes del pool de memes + las que el panel
                             # subió para embeds/anuncios: las dos viven en R2
                             # bajo {guild_id}/ y ninguna otra fila las borraba.
@@ -278,7 +281,7 @@ class General(commands.Cog):
                                 if self.bot.get_guild(guild_id) is not None:
                                     rejoined = True
                                     break
-                                await r2.delete_url(img_url)
+                                await r2.delete_image_url(img_url)
                     if rejoined or self.bot.get_guild(guild_id) is not None:
                         log.warning(
                             "guild_cleanup: guild %s volvió a estar activo a "

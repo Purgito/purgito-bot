@@ -42,6 +42,11 @@ así que por forma de la key son indistinguibles de un GIF legacy. Los objetos
 sin referencia se informan como huérfanos pero no se borran: eso es trabajo del
 barrido periódico, que tiene el registro de gif_objects para decidir bien.
 
+(Con los tres buckets separados, el de GIFs ya no mezcla imágenes y trabaja
+sobre R2_GIFS_BUCKET. La regla de arriba sigue en pie por el fallback legacy,
+donde todo comparte bucket, y porque esas filas de corpus_images pueden
+seguir llevando la URL del host viejo.)
+
 ## Correrlo más de una vez
 
 Es idempotente: en la segunda corrida todos los objetos ya están normalizados,
@@ -72,7 +77,7 @@ DB_PATH = os.path.join(
 
 
 def _public_prefix() -> str:
-    return r2.public_url().rstrip("/")
+    return r2.public_gifs_url()
 
 
 def _url_for(key: str) -> str:
@@ -80,10 +85,9 @@ def _url_for(key: str) -> str:
 
 
 def _key_of(url: str) -> str | None:
-    """Key del objeto si la URL es de nuestro bucket, None si es externa
-    (tenor/giphy, que no ocupan storage propio)."""
-    pre = _public_prefix() + "/"
-    return url[len(pre) :] if url.startswith(pre) else None
+    """Key del objeto si la URL es de nuestro bucket de GIFs, None si es
+    externa (tenor/giphy, que no ocupan storage propio)."""
+    return r2.gif_key_from_url(url)
 
 
 def iter_bucket_keys(client, bucket: str):
@@ -105,7 +109,7 @@ def load_references(conn) -> tuple[dict[str, list[int]], set[str]]:
 
     image_keys = set()
     for (url,) in conn.execute("SELECT url FROM corpus_images"):
-        key = _key_of(url)
+        key = r2.image_key_from_url(url)
         if key:
             image_keys.add(key)
     return gif_keys, image_keys
@@ -344,15 +348,15 @@ def main() -> int:
         log.info("=== DRY-RUN: no se escribe nada. Usar --apply para ejecutar. ===")
 
     client = r2.get_client()
-    if client is None or not r2.public_url():
-        log.error("R2 no está configurado (faltan R2_* en .env)")
+    if client is None or not r2.gifs_available():
+        log.error("R2 no está configurado para GIFs (faltan R2_GIFS_* en .env)")
         return 1
 
     conn = sqlite3.connect(args.db)
     try:
         reconcile(
             client,
-            os.getenv("R2_BUCKET_NAME", "").strip(),
+            r2.bucket_for(r2.GIFS),
             conn,
             apply=args.apply,
             sleep=args.sleep,

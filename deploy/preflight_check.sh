@@ -23,10 +23,13 @@ HEALTH_HOST="${HEALTH_HOST:-purgito.app}"
 PASS=0
 FAIL=0
 SKIP=0
+WARN=0
 
 ok()   { echo "  ✅ $1"; PASS=$((PASS+1)); }
 bad()  { echo "  ❌ $1"; FAIL=$((FAIL+1)); }
 skip() { echo "  ⏭️  $1 (omitido: $2)"; SKIP=$((SKIP+1)); }
+# Aviso que no cuenta como falla: algo a resolver, pero el bot anda así.
+warn() { echo "  ⚠️  $1"; WARN=$((WARN+1)); }
 
 section() { echo; echo "── $1 ──"; }
 
@@ -75,6 +78,33 @@ else
             ok "SESSION_SECRET tiene 32 caracteres o más"
         else
             bad "SESSION_SECRET tiene menos de 32 caracteres -- generar uno nuevo: python3 -c \"import secrets; print(secrets.token_hex(32))\" (desloguea a todos una vez)"
+        fi
+    fi
+
+    # R2 es opcional, pero a medias no sirve. Son tres buckets: imágenes y GIFs
+    # (públicos: nombre + URL pública) y backups (PRIVADO: solo nombre, sin URL).
+    env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d= -f2-; }
+    if [ -z "$(env_val R2_ENDPOINT_URL)" ] && [ -z "$(env_val R2_ACCESS_KEY_ID)" ] && [ -z "$(env_val R2_SECRET_ACCESS_KEY)" ]; then
+        skip "variables de R2" "sin credenciales R2 en .env (los GIFs/imágenes se guardan con su URL original y los backups quedan solo en local)"
+    else
+        for var in R2_ENDPOINT_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_IMAGES_BUCKET R2_IMAGES_PUBLIC_URL R2_GIFS_BUCKET R2_GIFS_PUBLIC_URL; do
+            if [ -n "$(env_val "$var")" ]; then
+                ok "$var presente en .env"
+            elif [ -n "$(env_val R2_BUCKET_NAME)" ] && [ -n "$(env_val R2_PUBLIC_URL)" ] && [[ "$var" == R2_IMAGES_* || "$var" == R2_GIFS_* ]]; then
+                warn "$var vacía: cae en el fallback R2_BUCKET_NAME/R2_PUBLIC_URL (esquema de un solo bucket, transitorio -- DEPLOY.md § Migrar a tres buckets de R2)"
+            else
+                bad "$var falta o está vacía en .env"
+            fi
+        done
+        if [ -n "$(env_val R2_BACKUP_BUCKET)" ]; then
+            ok "R2_BACKUP_BUCKET presente en .env (los backups se suben al bucket privado)"
+        else
+            warn "R2_BACKUP_BUCKET vacía: deploy/backup_db.sh deja los backups solo en local"
+        fi
+        if [ -n "$(env_val R2_BUCKET_NAME)" ] || [ -n "$(env_val R2_PUBLIC_URL)" ]; then
+            warn "R2_BUCKET_NAME / R2_PUBLIC_URL siguen en .env: borrarlas cuando termine la migración (DEPLOY.md § Migrar a tres buckets de R2)"
+        else
+            ok "sin variables R2 del esquema viejo (R2_BUCKET_NAME / R2_PUBLIC_URL)"
         fi
     fi
 fi
@@ -247,7 +277,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 echo
 echo "── Resumen ──"
-echo "  $PASS pasaron, $FAIL fallaron, $SKIP omitidos"
+echo "  $PASS pasaron, $FAIL fallaron, $SKIP omitidos, $WARN avisos"
 
 if [ "$FAIL" -gt 0 ]; then
     echo "  Resultado: FALLÓ -- revisar los ❌ de arriba antes de dar por terminado el deploy."

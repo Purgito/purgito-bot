@@ -84,7 +84,9 @@ def setup(monkeypatch):
         channel = FakeChannel(message)
         monkeypatch.setattr(memes_mod.discord, "TextChannel", FakeChannel)
         monkeypatch.setattr(memes_mod, "is_premium_guild", lambda gid: premium)
-        monkeypatch.setattr(memes_mod, "r2", SimpleNamespace(available=lambda: False))
+        monkeypatch.setattr(
+            memes_mod, "r2", SimpleNamespace(images_available=lambda: False)
+        )
 
         async def fake_guild_locale(guild_id):
             return "es"

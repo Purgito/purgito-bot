@@ -34,7 +34,7 @@ _VALID_GIF_87_BYTES = b"GIF87a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x
 def memory_db(monkeypatch):
     conn = asyncio.run(_open_memory_db())
     monkeypatch.setattr(db, "_db", conn)
-    monkeypatch.setattr(r2, "delete_url", _noop_delete_url)
+    monkeypatch.setattr(r2, "delete_gif_url", _noop_delete_url)
 
     async def fake_save(guild_id, channel_id, author_id, name, text, message_id=None):
         return (True, True)
@@ -263,8 +263,8 @@ def test_get_live_gif_from_r2_storage(memory_db, monkeypatch):
                 content_hash=content_hash,
             )
 
-        monkeypatch.setattr(r2, "available", lambda: True)
-        monkeypatch.setattr(r2, "get_object_bytes_sync", lambda key: _VALID_GIF_BYTES)
+        monkeypatch.setattr(r2, "gifs_available", lambda: True)
+        monkeypatch.setattr(r2, "get_gif_bytes_sync", lambda key: _VALID_GIF_BYTES)
 
         file = await gifs_mod.get_live_gif(_GUILD, attempts=1)
         assert isinstance(file, discord.File)

@@ -24,7 +24,7 @@
 </ul>
 
 <h2 id="r2">Cloudflare R2 y Deduplicación de Medios</h2>
-<p>El almacenamiento de objetos en Cloudflare R2 (<code>src/r2.py</code>) es opcional. Si las cinco credenciales de R2 están configuradas en <code>.env</code>, Purgito activa la descarga, optimización y alojamiento de GIFs e imágenes:</p>
+<p>El almacenamiento de objetos en Cloudflare R2 (<code>src/r2.py</code>) es opcional. Usa tres buckets independientes: imágenes y GIFs (públicos, cada uno con su URL) y copias de seguridad de la base de datos (privado, sin URL pública). Las credenciales y el endpoint son los mismos para los tres. Si el bucket de imágenes o el de GIFs están configurados en <code>.env</code>, Purgito activa la descarga, optimización y alojamiento de ese tipo de archivo:</p>
 
 <ul>
   <li><strong>Deduplicación por contenido (SHA-256)</strong>: Los archivos binarios descargados se nombran según el hash SHA-256 de su contenido. Si dos servidores guardan el mismo GIF, este se almacena una sola vez en el bucket de R2.</li>

@@ -473,7 +473,7 @@ class Memes(commands.Cog):
                 unsupported = True
                 continue
             try:
-                if r2.available():
+                if r2.images_available():
                     final_url = await asyncio.to_thread(
                         r2.upload_image_bytes_sync,
                         attachment.url,

@@ -69,7 +69,7 @@ class _FakeBucket:
 
 @pytest.fixture(autouse=True)
 def fake_r2(monkeypatch):
-    monkeypatch.setattr(r2, "public_url", lambda: _PUBLIC)
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", _PUBLIC)
     monkeypatch.setattr(bf.time, "sleep", lambda *a: None)
 
 

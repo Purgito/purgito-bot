@@ -30,14 +30,16 @@ Las siguientes variables de entorno son sensibles. **Nunca las expongas en logs,
 | `DISCORD_TOKEN` | Token de autenticación del bot. Con él alguien puede controlar el bot completamente |
 | `DISCORD_CLIENT_SECRET` | Secreto de la aplicación de Discord (login del dashboard) |
 | `SESSION_SECRET` | Clave con la que se cifra la cookie de sesión del dashboard. Con ella se pueden forjar sesiones de cualquier usuario; usa al menos 32 caracteres aleatorios |
-| `R2_ACCESS_KEY_ID` | Credencial de acceso al bucket de Cloudflare R2 |
-| `R2_SECRET_ACCESS_KEY` | Secret del token R2. Con ambas claves se puede leer, escribir y borrar todos los GIFs |
-| `R2_ENDPOINT_URL` | URL del endpoint privado de R2 (no confundir con la URL pública) |
+| `R2_ACCESS_KEY_ID` | Credencial de acceso a los buckets de Cloudflare R2 (imágenes, GIFs y backups; las mismas credenciales sirven para los tres) |
+| `R2_SECRET_ACCESS_KEY` | Secret del token R2. Con ambas claves se puede leer, escribir y borrar todas las imágenes, los GIFs y los backups de la base (que llevan lo mismo que `bot.db`) |
+| `R2_ENDPOINT_URL` | Endpoint S3 de la cuenta de R2, sin nombre de bucket (no confundir con las URLs públicas de imágenes y GIFs) |
 | `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` | Acceso a la cuenta de Polar y firma de sus webhooks. Con el secret de webhook se puede forjar un evento de pago y activar Premium gratis |
 | `GROQ_API_KEY` | Clave de facturación de la API de Groq. Las llamadas cuestan créditos de tu cuenta |
 | `TWITCH_CLIENT_SECRET` | Secreto de la aplicación de Twitch |
 
-Las variables `R2_BUCKET_NAME`, `R2_PUBLIC_URL`, `HOME_GUILD_ID`, `GUILD_ID`, `WEB_PORT`, `BOT_TRIGGER_NAME`, `LIFECYCLE_ANNOUNCE_CHANNEL_ID` y los límites de Markov no son secretas, pero tampoco deben exponerse innecesariamente.
+Las variables `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL`, `R2_GIFS_BUCKET`, `R2_GIFS_PUBLIC_URL`, `R2_BACKUP_BUCKET`, `HOME_GUILD_ID`, `GUILD_ID`, `WEB_PORT`, `BOT_TRIGGER_NAME`, `LIFECYCLE_ANNOUNCE_CHANNEL_ID` y los límites de Markov no son secretas, pero tampoco deben exponerse innecesariamente.
+
+El bucket de backups de R2 es **privado**: no tiene URL pública (no existe `R2_BACKUP_PUBLIC_URL`) y no se le activa la *Public Development URL*, un dominio personalizado ni CORS. Solo se lee con el token S3.
 
 ---
 

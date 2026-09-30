@@ -38,7 +38,7 @@ def _cableado(monkeypatch):
     monkeypatch.setattr(webapi, "check_guild_access", fake_check_access)
     monkeypatch.setattr(webapi, "_session_logged_in", _siempre_logueado)
     monkeypatch.setattr(webapi, "_bot_guild", lambda request, gid: object())
-    monkeypatch.setattr(webapi.r2, "available", lambda: True)
+    monkeypatch.setattr(webapi.r2, "images_available", lambda: True)
     monkeypatch.setattr(webapi, "_store_upload", fake_store_upload)
     monkeypatch.setattr(webapi, "record_uploaded_image", fake_record)
     monkeypatch.setattr(webapi, "_rate_upload", webapi.LRUDict(64))

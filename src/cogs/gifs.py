@@ -68,8 +68,7 @@ def _is_allowed_gif_host(host: str) -> bool:
     h = host.lower().strip()
     if h in ALLOWED_GIF_HOSTS or h.endswith(tuple(f".{x}" for x in ALLOWED_GIF_HOSTS)):
         return True
-    pub = r2.public_url()
-    if pub:
+    for pub in r2.gif_public_bases():
         pub_host = (urlparse(pub).hostname or "").lower()
         if pub_host and (h == pub_host or h.endswith(f".{pub_host}")):
             return True
@@ -275,9 +274,7 @@ async def resolve_media_url(url: str) -> str | None:
 
     try:
         host = _gif_host(url)
-        if host == "cdn.discordapp.com" or (
-            r2.public_url() and url.startswith(r2.public_url())
-        ):
+        if host == "cdn.discordapp.com" or r2.gif_key_from_url(url):
             return url
         # Si la URL ya es directa a un GIF de un host válido, se devuelve directamente
         if url.lower().split("?")[0].endswith(".gif") and _valid_media_url(url):
@@ -401,17 +398,17 @@ async def fetch_gif_bytes(url: str, timeout: float = 8.0) -> bytes | None:
 
 async def fetch_gif_from_storage(content_hash: str) -> bytes | None:
     """Obtiene los bytes del GIF desde R2 / Cloudflare."""
-    if not content_hash or not r2.available():
+    if not content_hash or not r2.gifs_available():
         return None
     cached = _GIF_CACHE.get(content_hash)
     if cached:
         return cached
     key = r2.gif_key(content_hash)
-    data = await asyncio.to_thread(r2.get_object_bytes_sync, key)
+    data = await asyncio.to_thread(r2.get_gif_bytes_sync, key)
     if data and is_valid_gif_bytes(data):
         _GIF_CACHE.set(content_hash, data)
         return data
-    pub = r2.public_url()
+    pub = r2.public_gifs_url()
     if pub:
         url = f"{pub.rstrip('/')}/{key}"
         data = await fetch_gif_bytes(url)
@@ -423,7 +420,7 @@ async def fetch_gif_from_storage(content_hash: str) -> bytes | None:
 
 async def _promote_gif_to_r2(gif_id: int, guild_id: int, data: bytes) -> None:
     """Sube un GIF descargado a R2 en segundo plano y actualiza la fila en corpus_gifs."""
-    if not r2.available():
+    if not r2.gifs_available():
         return
     try:
         up = await asyncio.to_thread(r2.upload_gif_bytes_sync, data)
@@ -490,7 +487,7 @@ async def get_live_gif(
 
         if data and is_valid_gif_bytes(data):
             await record_gif_health_check(gif_id, "ok")
-            if r2.available() and not content_hash:
+            if r2.gifs_available() and not content_hash:
                 asyncio.create_task(_promote_gif_to_r2(gif_id, guild_id, data))
             return discord.File(io.BytesIO(data), filename="purgito.gif")
 
@@ -558,17 +555,21 @@ async def run_gif_orphan_sweep() -> int:
     soltar su referencia, el objeto queda ocupando espacio para siempre y en
     silencio. Esto lo encuentra sin depender de que ese camino esté bien.
 
-    Se limita al prefijo `gifs/` (r2.GIF_KEY_PREFIX), que es exclusivo de los
-    GIFs content-addressed. En el mismo bucket viven las imágenes del pool de
-    memes y las subidas del editor de embeds, con keys `{guild_id}/...`; las de
-    embeds ni siquiera están en una columna `url` (van dentro del JSON de la
-    plantilla), así que no hay forma barata de cruzarlas. El prefijo evita todo
-    ese problema: nada fuera de `gifs/` se mira siquiera.
+    Solo mira el bucket de GIFs, y dentro de él se limita al prefijo `gifs/`
+    (r2.GIF_KEY_PREFIX), exclusivo de los GIFs content-addressed. Con los
+    buckets separados las imágenes ya no viven ahí, pero el prefijo se
+    mantiene: mientras corra el fallback legacy (un solo bucket para todo) las
+    imágenes del pool de memes y las subidas del editor de embeds comparten
+    bucket con keys `{guild_id}/...`, y las de embeds ni siquiera están en una
+    columna `url` (van dentro del JSON de la plantilla), así que no hay forma
+    barata de cruzarlas. El prefijo evita todo ese problema: nada fuera de
+    `gifs/` se mira siquiera -- tampoco los GIFs legacy por guild, que este
+    barrido nunca borró.
     """
-    if not r2.available():
+    if not r2.gifs_available():
         return 0
     live = await get_live_gif_keys()
-    objects = await asyncio.to_thread(r2.list_keys_sync, r2.GIF_KEY_PREFIX)
+    objects = await asyncio.to_thread(r2.list_gif_keys_sync, r2.GIF_KEY_PREFIX)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=ORPHAN_GRACE_HOURS)
 
     deleted = 0
@@ -590,7 +591,7 @@ async def run_gif_orphan_sweep() -> int:
             size,
             modified,
         )
-        await r2.delete_key(key)
+        await r2.delete_gif_key(key)
         deleted += 1
 
     log.info(
