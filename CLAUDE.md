@@ -36,8 +36,16 @@ ruff format --check .
 .venv/bin/python landing/build_docs.py
 .venv/bin/python landing/build_docs.py --check
 
-# Check del selector de idioma de la landing (no lo corre CI).
+# Tests de JS de la landing (selector de idioma, dashboard, historial) -- solo
+# necesitan Node; corren en CI (job landing-js).
 node landing/test_lang.mjs
+node landing/test_dash.mjs
+node landing/test_historial.mjs
+
+# Scripts de deploy: shellcheck + self-check de backup/restauración (corren en
+# CI, job scripts). Necesitan el CLI de sqlite3.
+shellcheck --severity=warning deploy/*.sh
+bash deploy/backup_db_test.sh
 ```
 
 No hay pytest.ini ni configuración de pytest: los tests se descubren solos

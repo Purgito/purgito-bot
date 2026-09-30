@@ -115,8 +115,11 @@ fuera de la instancia antes de dejarla ir.
 ## 7. Después del incidente
 
 - Anota qué pasó, qué lo detectó y cuánto tardó en detectarse. Hoy la
-  detección depende de que alguien note el problema: no hay alertas ni
-  monitor externo.
+  detección depende en gran parte de que alguien note el problema: no hay
+  monitor externo. Lo único automático son dos avisos en el canal del proyecto
+  (`LIFECYCLE_ANNOUNCE_CHANNEL_ID`): "Purgito volvió" tras un reinicio o una
+  caída, y "la tarea `X` falló N veces" cuando un loop en segundo plano se
+  reinicia varias veces seguidas (mira el log por el traceback de esa tarea).
 - Si el arreglo fue un cambio visible para admins de servidor, regístralo en
   `docs/NOVEDADES.md` y `docs/NOVEDADES.en.md` (ambos idiomas) y corre
   `landing/build_docs.py`.

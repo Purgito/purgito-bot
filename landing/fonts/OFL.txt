@@ -1,0 +1,14 @@
+Fuentes alojadas en esta carpeta
+================================
+
+Lexend        - Copyright 2018 The Lexend Project Authors (https://github.com/googlefonts/lexend)
+Outfit        - Copyright 2021 The Outfit Project Authors (https://github.com/Outfitio/Outfit-Fonts)
+Fira Code     - Copyright 2014 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)
+
+Las tres se distribuyen bajo la SIL Open Font License, Version 1.1:
+https://openfontlicense.org
+
+Los archivos son los woff2 variables que sirve Google Fonts
+(fonts.gstatic.com), sin modificar. El hash del nombre es el de su contenido:
+para actualizar una fuente, agregar el archivo nuevo y cambiar la URL en
+style.css -- nunca pisar uno existente (nginx los cachea un año, immutable).

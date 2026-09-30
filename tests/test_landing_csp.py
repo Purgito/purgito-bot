@@ -59,31 +59,50 @@ def test_el_hash_cubre_el_onerror_inline_que_usa_el_sitio():
         assert f"sha256-{digest}" in build_docs.LANDING_CSP, handler
 
 
-def test_permite_las_fuentes_y_el_iframe_de_tenor_que_usa_el_sitio():
-    # Las fuentes se cargan con un <link> en el <head> (ver SHELL en
-    # build_docs.py), no con @import en style.css -- se comprueba el <link>
-    # en una página generada y en los dos index.html a mano (build_docs.py
-    # no los regenera, ver INDEX_FILE), no un substring cualquiera en el
-    # CSS: un comentario que mencione "fonts.googleapis.com" ahí haría
-    # pasar esto igual sin decir nada de si el sitio en verdad pide la
-    # fuente -- justo lo que pasó acá cuando el <link> se agregó a SHELL
-    # pero se olvidó en los index.html a mano.
-    font_href = "https://fonts.googleapis.com/css2?family=Lexend"
+def test_las_fuentes_salen_del_propio_origen_y_el_iframe_de_tenor_sigue_permitido():
+    # Las fuentes se alojan en landing/fonts (@font-face en style.css): ninguna
+    # página le pide nada a fonts.googleapis.com/gstatic.com (cada visita le
+    # mandaba su IP a Google) y la CSP ya no los permite. Se comprueba en una
+    # página generada y en los dos index.html a mano (build_docs.py no los
+    # regenera, ver INDEX_FILE): un <link> olvidado en uno de ellos volvería a
+    # abrir la conexión a Google sin que nada lo avise.
     for path in [
         LANDING / "es" / "dashboard" / "index.html",
         LANDING / "index.html",
         LANDING / "index.en.html",
     ]:
         html = path.read_text("utf-8")
-        assert f'<link rel="stylesheet" href="{font_href}' in html, path
-        assert '<link rel="preconnect" href="https://fonts.gstatic.com"' in html, path
+        assert "fonts.googleapis.com" not in html, path
+        assert "fonts.gstatic.com" not in html, path
 
-    assert "fonts.googleapis.com" in build_docs.LANDING_CSP
-    assert "fonts.gstatic.com" in build_docs.LANDING_CSP
+    assert "style-src 'self';" in build_docs.LANDING_CSP
+    assert "font-src 'self';" in build_docs.LANDING_CSP
+    assert "googleapis" not in build_docs.LANDING_CSP
+    assert "gstatic" not in build_docs.LANDING_CSP
 
     gifs_js = (LANDING / "js" / "tabs" / "gifs.js").read_text("utf-8")
     assert "tenor.com/embed" in gifs_js
     assert "frame-src https://tenor.com" in build_docs.LANDING_CSP
+
+
+def test_las_fuentes_alojadas_existen_y_su_hash_es_el_del_contenido():
+    """style.css declara las familias que usa el sitio y cada archivo que
+    referencia existe con el hash de su contenido en el nombre: nginx los sirve
+    immutable un año, así que un archivo pisado sin cambiar el nombre quedaría
+    cacheado viejo en los navegadores."""
+    css = (LANDING / "style.css").read_text("utf-8")
+    for familia in ("Lexend", "Outfit", "Fira Code"):
+        assert f"font-family: '{familia}'" in css, familia
+    archivos = re.findall(r"url\('/fonts/([^']+\.woff2)'\)", css)
+    assert archivos, "style.css no declara ningún @font-face de /fonts"
+    for nombre in archivos:
+        path = LANDING / "fonts" / nombre
+        assert path.is_file(), f"falta landing/fonts/{nombre}"
+        data = path.read_bytes()
+        assert data[:4] == b"wOF2", nombre
+        hash8 = hashlib.sha256(data).hexdigest()[:8]
+        assert f".{hash8}.woff2" in nombre, f"{nombre}: el hash no coincide ({hash8})"
+    assert (LANDING / "fonts" / "OFL.txt").is_file()  # aviso de licencia
 
 
 def test_el_no_setea_style_por_setattribute():

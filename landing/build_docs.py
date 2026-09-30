@@ -971,9 +971,9 @@ def html_script_hash(path: Path, script_type: str) -> str:
 # ── página ───────────────────────────────────────────────────────────────────
 
 
-# Cubre lo que el sitio realmente carga: fonts.googleapis.com/gstatic.com
-# (el <link> de fuentes del <head>, ver SHELL), tenor.com (iframe de preview de GIFs en
-# la tab de gifs del dashboard), img-src ancho porque las imágenes salen de
+# Cubre lo que el sitio realmente carga: las fuentes salen del propio origen
+# (@font-face en style.css, archivos en /fonts), tenor.com (iframe de preview
+# de GIFs en la tab de gifs del dashboard), img-src ancho porque las imágenes salen de
 # hosts variables según guild (avatares e emojis de Discord, GIFs de Giphy,
 # el bucket R2 configurado por env var). El primer hash cubre el único
 # inline handler que hay en todo el sitio (onerror="this.remove()" en los
@@ -998,8 +998,8 @@ def compute_landing_csp() -> str:
         "script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' "
         "'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' "
         f"'{imap_hash}' '{ld_json_es_hash}' '{ld_json_en_hash}'; "
-        "style-src 'self' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
+        "style-src 'self'; "
+        "font-src 'self'; "
         "img-src 'self' https: data:; "
         "frame-src https://tenor.com; "
         "connect-src 'self'; "
@@ -1041,10 +1041,7 @@ SHELL = (
 
 <link rel="canonical" href="{canonical_url}">
 {hreflang}<link rel="icon" href="/assets/icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@600;700&family=Outfit:wght@400;500;600&family=Noto+Sans+JP:wght@400;600&family=Fira+Code:wght@400;500&display=swap">
 {head}</head>
 <body>
 

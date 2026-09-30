@@ -46,7 +46,7 @@ separado.
 ## 2. Clonar e instalar
 
 ```bash
-git clone https://github.com/punkyyy01/bot-discord-purg.git <ruta>
+git clone https://github.com/Purgito/purgito-bot.git <ruta>
 cd <ruta>
 
 python3 -m venv .venv
