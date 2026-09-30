@@ -1078,11 +1078,35 @@ cat /home/opc/purgito-bot-backups/backup.log   # si se corrió por cron
 ls /home/opc/purgito-bot-backups/
 ```
 
+**Qué deja cada corrida.** Además de `bot-<fecha>.db` (verificado con
+`PRAGMA integrity_check`; si no pasa, se borra y la corrida falla), deja
+`bot-<fecha>.flags.tar.gz` con los flags de migración sueltos de `data/`
+(`.images_wiped_v2`, etc.). Esos flags viven fuera de `bot.db`: al restaurar
+hay que devolverlos también, o el próximo arranque vuelve a correr
+migraciones destructivas (ver `docs/PORTABILITY.md` § 2). Sin `DB_SRC` ni
+`BACKUP_DIR`, el script usa `data/bot.db` del checkout y
+`~/purgito-bot-backups`.
+
+**Comprobar que un backup se puede restaurar** (sin tocar la base activa ni
+parar el bot):
+
+```bash
+deploy/restore_check.sh                       # último backup de BACKUP_DIR
+deploy/restore_check.sh /ruta/a/bot-X.db      # uno puntual
+```
+
+Lo restaura en un directorio temporal, corre `integrity_check`, confirma que
+tiene tablas y que el tar de flags se lee. Sale con código distinto de 0 si
+algo falla. Correrlo después de instalar el cron y de vez en cuando.
+`bash deploy/backup_db_test.sh` prueba los dos scripts con datos de mentira.
+
 **Restaurar desde un backup:**
 
 ```bash
 sudo systemctl stop bot-purg
 sqlite3 /home/opc/purgito-bot/data/bot.db ".restore '/home/opc/purgito-bot-backups/bot-20260812-031700.db'"
+# Devolver los flags de migración (si el backup trae el tar):
+tar -xzf /home/opc/purgito-bot-backups/bot-20260812-031700.flags.tar.gz -C /home/opc/purgito-bot/data
 sudo systemctl start bot-purg
 ```
 
