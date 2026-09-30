@@ -14,6 +14,7 @@ import os
 import socket
 import subprocess
 import threading
+import time
 from typing import NamedTuple
 from urllib.parse import urljoin, urlparse
 
@@ -467,6 +468,60 @@ def fetch_public_url(method, url: str, **kwargs):
             continue
         return resp
     raise BlockedTarget(url)
+
+
+class FetchLimitExceeded(Exception):
+    """La respuesta superó el tope de bytes o el tiempo total permitido."""
+
+
+def _read_available(resp, size: int = 65536) -> bytes:
+    """Lee lo que haya llegado (hasta `size` bytes) SIN esperar a llenar el
+    chunk. `iter_content(65536)` bloquea hasta juntar 64 KiB o el cierre, así
+    que contra un servidor que gotea un byte por vez el chequeo de tiempo
+    total de fetch_public_bytes nunca llegaba a correr. read1 (urllib3 >= 2)
+    devuelve apenas hay datos, y b"" solo al terminar el cuerpo. Con un
+    urllib3 viejo sin read1 se cae a chunks chicos: menos preciso, pero acota
+    cuánto puede colgarse una lectura."""
+    read1 = getattr(resp.raw, "read1", None)
+    if read1 is not None:
+        return read1(size, decode_content=True)
+    return resp.raw.read(1024, decode_content=True)
+
+
+def fetch_public_bytes(
+    url: str, max_bytes: int, *, total_timeout: float = 30.0, **kwargs
+) -> bytes:
+    """GET con filtro SSRF en todos los saltos (fetch_public_url) y con tope
+    de tamaño y de tiempo total: para URLs que escribe un admin (feeds RSS,
+    páginas de canal) y cuyo cuerpo se parsea entero en memoria.
+
+    `timeout` de requests es por lectura, no total: un servidor que gotea un
+    byte cada pocos segundos lo respeta para siempre y deja el thread colgado,
+    así que el tiempo total se controla acá, chunk a chunk.
+
+    Levanta requests.HTTPError (con `.response`, igual que raise_for_status)
+    ante un status >= 400, BlockedTarget si algún salto no es público y
+    FetchLimitExceeded si se pasa del tope. Los callers que ya distinguían un
+    404 de otros errores siguen funcionando igual."""
+    deadline = time.monotonic() + total_timeout
+    resp = fetch_public_url(requests.get, url, stream=True, **kwargs)
+    try:
+        resp.raise_for_status()
+        declared = resp.headers.get("Content-Length", "")
+        if declared.isdigit() and int(declared) > max_bytes:
+            raise FetchLimitExceeded(url)
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = _read_available(resp)
+            if not chunk:
+                return b"".join(chunks)
+            total += len(chunk)
+            if total > max_bytes or time.monotonic() > deadline:
+                raise FetchLimitExceeded(url)
+            chunks.append(chunk)
+    finally:
+        resp.close()
 
 
 def upload_gif_sync(url: str) -> GifUpload | None:
