@@ -13,7 +13,7 @@ aplicado en esta misma tanda y no se repite aquí.
 
 Nota: el prompt mencionaba "Lavalink" para música — el bot no usa Lavalink;
 la música es yt-dlp + FFmpeg, y la dependencia de configuración real es el
-archivo de cookies de YouTube (`YTDLP_COOKIES`). El hallazgo 5 cubre eso.
+archivo de cookies de YouTube (`YTDLP_COOKIES`, variable que ya no existe: ningún código la lee). El hallazgo 5 cubre eso.
 
 ---
 
