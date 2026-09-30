@@ -1,0 +1,32 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Semanal: aparecen queries nuevas aunque el código no cambie.
+  schedule:
+    - cron: '23 5 * * 1'
+
+jobs:
+  analyze:
+    name: Análisis estático (CodeQL, Python)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Python es interpretado: no necesita build. Los JS de landing/ no se
+      # analizan acá a propósito (es el frontend estático, no corre secretos).
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          languages: python
+
+      - name: Analizar
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          category: /language:python
