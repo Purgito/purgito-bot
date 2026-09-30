@@ -1,7 +1,7 @@
 """Configuración central: variables de entorno y constantes compartidas.
 
 Todos los módulos leen la config desde aquí en vez de hacer os.getenv disperso.
-load_dotenv() se ejecuta al importar este módulo, así que basta con importar
+load_env_files() se ejecuta al importar este módulo, así que basta con importar
 config antes que cualquier otro módulo propio.
 """
 
@@ -9,24 +9,53 @@ import logging
 import os
 from zoneinfo import ZoneInfo
 
-from dotenv import load_dotenv
-
-load_dotenv()  # .env: secretos y credenciales (token, API keys, DB, R2, Polar, etc.)
-
-# limits.env: límites de almacenamiento no sensibles, versionado en git aparte del .env.
-_LIMITS_ENV_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "limits.env"
-)
-load_dotenv(dotenv_path=_LIMITS_ENV_PATH)
-
-# urls.env: URLs/dominios públicos no sensibles, versionado en git aparte del .env.
-# Mismo criterio que limits.env: no son secretos, cambian solo al migrar dominio.
-_URLS_ENV_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "urls.env"
-)
-load_dotenv(dotenv_path=_URLS_ENV_PATH)
+from dotenv import dotenv_values, load_dotenv
 
 log = logging.getLogger(__name__)
+
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Archivos versionados (no secretos). Mandan sobre .env y sobre el entorno del
+# proceso: un valor duplicado por accidente en .env no puede ocultarlos.
+_VERSIONED_ENV_FILES = ("limits.env", "urls.env")
+
+
+def duplicated_env_names(root: str = _ROOT_DIR) -> dict[str, list[str]]:
+    """Nombres (nunca valores) definidos en .env Y en limits.env / urls.env.
+
+    Devuelve {nombre: [archivos versionados donde también está]}. Sirve para
+    avisar al arrancar y para el chequeo de deploy/preflight_check.sh."""
+    instance = set(dotenv_values(os.path.join(root, ".env")))
+    dups: dict[str, list[str]] = {}
+    for fname in _VERSIONED_ENV_FILES:
+        for name in dotenv_values(os.path.join(root, fname)):
+            if name in instance:
+                dups.setdefault(name, []).append(fname)
+    return dups
+
+
+def load_env_files(root: str = _ROOT_DIR) -> None:
+    """Carga la configuración. Precedencia (de menor a mayor):
+
+    1. .env -- secretos y config de la instancia. No pisa variables ya
+       presentes en el entorno del proceso (p. ej. las de systemd).
+    2. limits.env y urls.env -- versionados, **autoritativos**: pisan lo que
+       haya puesto .env (o el entorno) con el mismo nombre. Así editar
+       limits.env + git pull + reiniciar siempre surte efecto.
+
+    Ninguna variable de .env gana sobre los versionados: si hace falta una
+    excepción por instancia, se edita el archivo versionado, no el .env."""
+    load_dotenv(os.path.join(root, ".env"))
+    for name, files in sorted(duplicated_env_names(root).items()):
+        log.warning(
+            "%s está en .env y en %s: manda el archivo versionado. Bórrala del .env.",
+            name,
+            " y ".join(files),
+        )
+    for fname in _VERSIONED_ENV_FILES:
+        load_dotenv(os.path.join(root, fname), override=True)
+
+
+load_env_files()
 
 
 def env_int(name: str, default: int) -> int:

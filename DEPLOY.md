@@ -292,27 +292,13 @@ BOT_TRIGGER_NAME=purgito
 WEB_PORT=8080
 
 # ═══════════════════════════════════════════════════════════
-#  MARKOV — límites de entrenamiento
+#  MARKOV, REFEED Y RETENCIÓN — ya no van en .env
 # ═══════════════════════════════════════════════════════════
 
-# Máximo de mensajes a leer del canal actual con /refeed.
-# Default: 80000
-REFEED_MAX_MESSAGES=80000
-
-# Máximo de mensajes por canal con /refeed_channels (los canales elegidos
-# para el corpus). El nombre de la variable quedó de cuando el comando se
-# llamaba /refeed_all — no vale la pena migrarla solo por el rename.
-# Default: 20000
-REFEED_ALL_MAX_MESSAGES=20000
-
-# Cuántos mensajes del corpus se cargan a RAM para entrenar el modelo del servidor.
-# Valores altos = mejor calidad, más RAM.
-# Default: 5000
-MARKOV_TRAINING_MESSAGES=5000
-
-# Igual que el anterior pero para el modelo de usuario (/imitar).
-# Default: 2000
-USER_MARKOV_TRAINING_MESSAGES=2000
+# REFEED_MAX_MESSAGES, REFEED_ALL_MAX_MESSAGES, MARKOV_TRAINING_MESSAGES,
+# USER_MARKOV_TRAINING_MESSAGES y GUILD_DATA_RETENTION_DAYS viven en limits.env
+# (versionado). Un .env viejo que aún las defina sigue ganando sobre limits.env:
+# bórralas del .env para que mande el valor versionado.
 
 # ═══════════════════════════════════════════════════════════
 #  OPCIONAL — Groq (captions de memes con visión IA)

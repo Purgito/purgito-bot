@@ -45,6 +45,24 @@ elif [ ! -f "$ENV_FILE" ]; then
 else
     ok ".env existe y es un archivo regular"
 
+    # Un nombre repetido en .env y en limits.env/urls.env: manda el versionado
+    # (src/config.py load_env_files), así que el del .env es un resto que
+    # confunde. Solo nombres, nunca valores.
+    dup_names=""
+    for versioned in limits.env urls.env; do
+        if [ -f "$REPO_DIR/$versioned" ]; then
+            dup_names+="$(comm -12 \
+                <(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE" | tr -d '=' | sort -u) \
+                <(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$REPO_DIR/$versioned" | tr -d '=' | sort -u) \
+                | tr '\n' ' ')"
+        fi
+    done
+    if [ -n "$dup_names" ]; then
+        warn ".env repite variables de limits.env/urls.env (manda el archivo versionado, borrarlas del .env): $dup_names"
+    else
+        ok ".env no repite variables de limits.env ni urls.env"
+    fi
+
     # Variables obligatorias: DISCORD_TOKEN (hardcoded acá -- es la única var
     # que src/config.py lee sin ningún default, así que no hay una lista en
     # el código de la que extraerla) + lo que src/config.py declara como

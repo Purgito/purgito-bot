@@ -124,7 +124,9 @@ Tres archivos, con reglas distintas:
   `MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_*`,
   `MAX_USER_CORPUS_MESSAGES_PER_GUILD_*`, `MAX_GIFS_PER_GUILD_*`,
   `MAX_IMAGES_PER_GUILD_*`, `MAX_ANNOUNCEMENTS_PER_GUILD_*`,
-  `MAX_EMBED_TEMPLATES_PER_GUILD_*`. Sin par: `MAX_GIF_DOWNLOAD_BYTES`,
+  `MAX_EMBED_TEMPLATES_PER_GUILD_*`. También viven acá `REFEED_*`,
+  `MARKOV_TRAINING_MESSAGES`, `USER_MARKOV_TRAINING_MESSAGES`,
+  `GUILD_DATA_RETENTION_DAYS` y `AUDIT_LOG_RETENTION_DAYS`. Sin par: `MAX_GIF_DOWNLOAD_BYTES`,
   `MAX_EMBED_IMAGE_UPLOAD_BYTES`, `MAX_SHARE_LINKS_PER_GUILD_DAY`,
   `MAX_LAYOUT_FILE_UPLOAD_BYTES` (bloques "File" de Layout V2 — no persiste
   en R2, vive en memoria del proceso con TTL corto, ver `_pending_layout_files`
@@ -132,6 +134,12 @@ Tres archivos, con reglas distintas:
   GIFs a R2).
 
 Los tres se cargan al importar `src/config.py`.
+**Precedencia:** `limits.env` y `urls.env` ganan sobre `.env` (y sobre el
+entorno del proceso) si un nombre está repetido; `.env` solo aporta lo que
+ellos no definen. Así editar un límite + `git pull` + reiniciar siempre surte
+efecto, aunque quede un valor viejo en el `.env` (config.py avisa por log y
+`deploy/preflight_check.sh` lista los duplicados, solo nombres). No hay
+excepciones: una variable por instancia no va en los archivos versionados.
 
 R2 son **tres buckets** con rol fijo (`R2_IMAGES_*`, `R2_GIFS_*`, `R2_BACKUP_BUCKET`,
 este último privado y sin URL pública). `src/r2.py` nombra el bucket en cada
