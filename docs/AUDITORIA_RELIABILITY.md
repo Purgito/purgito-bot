@@ -186,3 +186,26 @@ siguiente pasada, de mayor a menor impacto estimado:
 3. **`on_command_error` de comandos de prefijo** (arriba, §6) — decidir
    si vale la pena un catch-all humano ahí, dado que la superficie es
    chica.
+
+---
+
+## 8. Cierre de la deuda (2026-09-30)
+
+Los tres candidatos de §7 quedaron resueltos:
+
+1. **`resolve_gifs_task`:** cada intento fallido suma `resolve_attempts` y agenda
+   el siguiente con espera creciente (`resolve_retry_at`: 15 min, 30 min, 1 h…
+   hasta 12 h); agotados `MAX_GIF_RESOLVE_ATTEMPTS` (8) el GIF sale de la cola, y
+   los GIFs nuevos pasan antes que los reintentos. Una miniatura estática
+   (`.png`/`.jpg`…) también cuenta como intento. Tests en
+   `tests/test_gif_resolve_backoff.py`.
+2. **Loops que se reinician para siempre:** los siete `@loop.error` pasan por
+   `utils.restart_loop_after_failure`: cuenta los fallos en una ventana de 30 min,
+   espera cada vez más antes de reiniciar (evita el bucle caliente con un
+   traceback por vuelta) y, al tercer fallo, avisa una vez por hora al canal del
+   proyecto. Sigue reiniciando: la función no se apaga. Tests en
+   `tests/test_loop_restart_helper.py`.
+3. **`on_command_error`:** responde en todos los casos (argumento inválido,
+   cooldown, check que falla, excepción dentro del comando) y deja pasar a los
+   comandos con handler propio (`!dl`, `!gif`) para no duplicar el mensaje. Tests
+   en `tests/test_command_error_handler.py`.

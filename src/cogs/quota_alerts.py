@@ -20,7 +20,7 @@ from db import (
     list_all_updates_channels,
     list_frases_especiales,
 )
-from utils import LRUDict
+from utils import LRUDict, restart_loop_after_failure
 
 log = logging.getLogger(__name__)
 
@@ -141,8 +141,9 @@ class QuotaAlerts(commands.Cog):
         # Sin este handler, una excepción fuera del set que discord.py
         # reintenta solo (ver Loop._valid_exception) mata el loop para
         # siempre en silencio -- acá tarda hasta 6h en notarse.
-        log.exception("check_quotas se cayó, reiniciando el loop", exc_info=error)
-        self.check_quotas.restart()
+        await restart_loop_after_failure(
+            self.bot, self.check_quotas, "check_quotas", error
+        )
 
 
 async def setup(bot: commands.Bot) -> None:

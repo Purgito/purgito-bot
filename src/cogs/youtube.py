@@ -3,13 +3,14 @@
 import asyncio
 import logging
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import discord
 import feedparser
 import requests
 from discord.ext import commands, tasks
 
+import r2
 from db import (
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_FEED_NOT_FOUND,
@@ -19,6 +20,7 @@ from db import (
     update_last_video_id,
 )
 from i18n import guild_locale, t
+from utils import restart_loop_after_failure
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +36,21 @@ _BROWSER_HEADERS = {
 }
 
 _CHANNEL_ID_RE = re.compile(r"^UC[\w-]{22}$")
+
+# Topes del cuerpo descargado: la página de un canal pesa del orden de 1-2 MiB
+# (HTML con el JSON embebido); el RSS de un canal, unas decenas de KiB.
+_MAX_CHANNEL_PAGE_BYTES = 5 * 1024 * 1024
+_MAX_CHANNEL_FEED_BYTES = 1024 * 1024
+
+
+def _is_youtube_url(url: str) -> bool:
+    """True si el host de `url` es youtube.com o un subdominio suyo. Se valida
+    el host real, no un substring: "https://evil.com/?youtube.com" no pasa."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    return host == "youtube.com" or host.endswith(".youtube.com")
 
 
 class YouTubeFeedNotFound(Exception):
@@ -87,10 +104,22 @@ async def _resolve_handle_to_channel_id(raw: str) -> str | None:
             return None
         target_url = f"https://www.youtube.com/@{quote(handle, safe='')}"
 
+    # El input del admin puede ser cualquier URL: sin este chequeo, un host
+    # ajeno (o una IP interna) se descargaba tal cual. Las ramas que arman la
+    # URL a mano ya caen siempre en youtube.com; la única que no es la de
+    # "URL completa tal cual la escribió el usuario".
+    if not _is_youtube_url(target_url):
+        log.warning("URL de canal rechazada (el host no es youtube.com): %s", raw)
+        return None
+
     def _fetch():
-        resp = requests.get(target_url, headers=_BROWSER_HEADERS, timeout=10)
-        resp.raise_for_status()
-        return resp.text
+        data = r2.fetch_public_bytes(
+            target_url,
+            _MAX_CHANNEL_PAGE_BYTES,
+            headers=_BROWSER_HEADERS,
+            timeout=10,
+        )
+        return data.decode("utf-8", errors="replace")
 
     try:
         html_text = await asyncio.to_thread(_fetch)
@@ -127,9 +156,8 @@ async def _fetch_feed(youtube_channel_id: str):
     # Se descarga con timeout explícito: feedparser.parse(url) usa urllib sin
     # timeout y puede colgar el thread (y con él, el loop de chequeo).
     def _fetch():
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        return feedparser.parse(resp.content)
+        data = r2.fetch_public_bytes(url, _MAX_CHANNEL_FEED_BYTES, timeout=10)
+        return feedparser.parse(data)
 
     return await asyncio.to_thread(_fetch)
 
@@ -330,8 +358,9 @@ class YouTube(commands.Cog):
         # Mismo motivo que check_rss: sin este handler, cualquier excepción
         # fuera del set que discord.py reintenta solo (ver
         # Loop._valid_exception) mata el loop para siempre en silencio.
-        log.exception("check_youtube se cayó, reiniciando el loop", exc_info=error)
-        self.check_youtube.restart()
+        await restart_loop_after_failure(
+            self.bot, self.check_youtube, "check_youtube", error
+        )
 
 
 async def setup(bot: commands.Bot) -> None:

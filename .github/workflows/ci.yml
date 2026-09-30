@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Token de solo lectura para todos los jobs: ninguno escribe en el repo ni en
+# PRs/issues. Sin este bloque, los permisos por defecto del GITHUB_TOKEN
+# dependen de un ajuste del repositorio (pueden incluir escritura).
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint (ruff)
@@ -52,10 +58,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest==9.1.1
+          pip install pytest==9.1.1 coverage==7.16.2
 
-      - name: Run tests
-        run: python -m pytest tests -q
+      # La cobertura se mide sobre src/. El piso está unos puntos por debajo de
+      # lo que hay hoy (74%): no pide escribir tests por cumplir, solo evita que
+      # la cobertura baje sin que nadie lo note al agregar código sin tests.
+      - name: Run tests (con cobertura)
+        run: coverage run --source=src -m pytest tests -q
+
+      - name: Cobertura mínima
+        run: coverage report --skip-empty --fail-under=70
 
   # Busca CVEs conocidos en las versiones pineadas de requirements.txt.
   # Dependabot sube versiones pero no avisa de una vulnerabilidad en la que
@@ -77,6 +89,46 @@ jobs:
 
       - name: Auditar requirements.txt
         run: pip-audit -r requirements.txt
+
+  # deploy/*.sh corren en producción (backups, preflight, unit de systemd) y
+  # hasta ahora ningún CI los miraba: un error de sintaxis o un backup que ya
+  # no se puede restaurar aparecía recién cuando hacía falta. shellcheck solo
+  # en nivel warning: los avisos de estilo (SC2001, SC2181) no frenan nada.
+  scripts:
+    name: Scripts de deploy (shellcheck + self-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: shellcheck
+        run: shellcheck --severity=warning deploy/*.sh
+
+      # backup_db.sh + restore_check.sh contra una base de mentira: verifica
+      # integrity_check, flags, poda, permisos y que un backup corrupto se rechaza.
+      - name: Self-check de backup y restauración
+        run: |
+          sqlite3 --version
+          bash deploy/backup_db_test.sh
+
+  # Tests de JS del dashboard y del selector de idioma de la landing: solo
+  # necesitan Node (ya viene en ubuntu-latest), sin instalar dependencias.
+  landing-js:
+    name: Landing (tests de JS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Versión de Node
+        run: node --version
+
+      - name: Selector de idioma
+        run: node landing/test_lang.mjs
+
+      - name: Dashboard
+        run: node landing/test_dash.mjs
+
+      - name: Historial
+        run: node landing/test_historial.mjs
 
   secrets:
     name: Escaneo de secretos (gitleaks)

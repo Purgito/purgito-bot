@@ -1,10 +1,10 @@
 # Novedades
 
-**Última actualización:** 23 de septiembre de 2026
+**Última actualización:** 30 de septiembre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
-vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg).
+vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 
 # 2026
 
@@ -91,6 +91,10 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 - El Simulador de Chat ahora muestra el motivo real por el que no generó una respuesta (por ejemplo, un trigger sin frases disponibles) y el error puntual del servidor cuando lo hay, en vez de un mensaje genérico siempre igual.
 - Un trigger de canal que apunta a un pack de frases vacío ahora avisa en el dashboard (en la lista de triggers y al editarlo), en vez de matchear y no mandar nada sin ninguna pista de por qué.
 - El botón "Dashboard" de `/help` llevaba a la página de inicio en vez de al dashboard del servidor — ahora abre directo el dashboard, y si no habías iniciado sesión te pide loguearte y te lleva ahí después.
+- Las imágenes para embeds y los archivos de Layout V2 de más de 1 MB ahora se suben bien: antes fallaban con un error aunque el límite real es de 8 MB para imágenes y 10 MB para archivos.
+- Los comandos de texto (`!`) ahora contestan cuando algo falla o el argumento no es válido; antes se quedaban en silencio.
+- Al pasar los 30 días de que Purgito sale de un servidor, ahora también se borran quién mandó cada GIF, los GIFs bloqueados, el estilo del bot y las imágenes subidas desde el panel; antes esos datos se quedaban.
+- Los GIFs cuyo link ya no funciona dejaron de frenar la vista previa de los GIFs nuevos.
 
 ## Versión 1.1.0 — 28 de junio de 2026
 

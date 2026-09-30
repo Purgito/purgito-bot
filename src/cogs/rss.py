@@ -8,6 +8,7 @@ import feedparser
 import requests
 from discord.ext import commands, tasks
 
+import r2
 from db import (
     RSS_ERROR_CHANNEL_NOT_FOUND,
     RSS_ERROR_FEED_NOT_FOUND,
@@ -17,8 +18,13 @@ from db import (
     update_last_item_id,
 )
 from i18n import guild_locale, t
+from utils import restart_loop_after_failure
 
 log = logging.getLogger(__name__)
+
+# Tope del cuerpo de un feed: la URL la escribe un admin, y feedparser parsea
+# el contenido entero en memoria. 5 MiB cubre de sobra un feed real.
+_MAX_FEED_BYTES = 5 * 1024 * 1024
 
 _FETCH_HEADERS = {
     "User-Agent": (
@@ -36,12 +42,17 @@ class RSSFeedNotFound(Exception):
 
 
 async def _fetch_feed(url: str):
-    # Se descarga con timeout explícito: feedparser.parse(url) usa urllib sin
-    # timeout y puede colgar el thread (y con él, el loop de chequeo).
+    # La URL la escribe un admin desde el dashboard o /settings: sale por
+    # r2.fetch_public_bytes (no requests.get directo) para que no pueda apuntar
+    # a localhost, la red interna ni el endpoint de metadata de la nube -- ni
+    # siquiera vía un redirect --, y con tope de tamaño y de tiempo total.
+    # Timeout explícito además: feedparser.parse(url) usa urllib sin timeout y
+    # puede colgar el thread (y con él, el loop de chequeo).
     def _fetch():
-        resp = requests.get(url, headers=_FETCH_HEADERS, timeout=10)
-        resp.raise_for_status()
-        return feedparser.parse(resp.content)
+        data = r2.fetch_public_bytes(
+            url, _MAX_FEED_BYTES, headers=_FETCH_HEADERS, timeout=10
+        )
+        return feedparser.parse(data)
 
     return await asyncio.to_thread(_fetch)
 
@@ -68,6 +79,11 @@ async def get_latest_rss_item(url: str) -> dict | None:
             raise RSSFeedNotFound(url) from e
         log.exception("Error obteniendo feed RSS %s", url)
         return None
+    except (r2.BlockedTarget, r2.FetchLimitExceeded):
+        log.warning(
+            "Feed RSS %s descartado (destino no público o demasiado grande)", url
+        )
+        return None
     except Exception:
         log.exception("Error obteniendo feed RSS %s", url)
         return None
@@ -86,6 +102,11 @@ async def resolve_rss_feed(url: str) -> dict | None:
 
     try:
         feed = await _fetch_feed(url)
+    except (r2.BlockedTarget, r2.FetchLimitExceeded):
+        log.warning(
+            "Feed RSS %s rechazado (destino no público o demasiado grande)", url
+        )
+        return None
     except Exception:
         log.exception("Error resolviendo feed RSS %s", url)
         return None
@@ -228,8 +249,7 @@ class RSS(commands.Cog):
         # (ver Loop._valid_exception); cualquier otra -- p.ej. un
         # OperationalError de SQLite -- mata el loop para siempre sin este
         # handler, sin que nadie se entere hasta que falten avisos de RSS.
-        log.exception("check_rss se cayó, reiniciando el loop", exc_info=error)
-        self.check_rss.restart()
+        await restart_loop_after_failure(self.bot, self.check_rss, "check_rss", error)
 
 
 async def setup(bot: commands.Bot) -> None:

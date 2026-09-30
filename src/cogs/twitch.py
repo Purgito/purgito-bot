@@ -22,6 +22,7 @@ from db import (
     update_last_stream_id,
 )
 from i18n import guild_locale, t
+from utils import restart_loop_after_failure
 
 log = logging.getLogger(__name__)
 
@@ -269,8 +270,9 @@ class Twitch(commands.Cog):
         # Mismo motivo que check_rss/check_youtube: sin este handler, una
         # excepción fuera del set que discord.py reintenta solo mata el loop
         # para siempre en silencio.
-        log.exception("check_twitch se cayó, reiniciando el loop", exc_info=error)
-        self.check_twitch.restart()
+        await restart_loop_after_failure(
+            self.bot, self.check_twitch, "check_twitch", error
+        )
 
 
 async def setup(bot: commands.Bot) -> None:

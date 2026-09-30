@@ -1,4 +1,4 @@
-# Contribuir a bot-discord-purg
+# Contribuir a purgito-bot
 
 ¡Gracias por querer aportar! Aquí está todo lo que necesitas saber para trabajar localmente.
 
@@ -14,8 +14,8 @@
 
 1. **Fork y clona el repo**
 ```bash
-   git clone https://github.com/<tu-usuario>/bot-discord-purg.git
-   cd bot-discord-purg
+   git clone https://github.com/<tu-usuario>/purgito-bot.git
+   cd purgito-bot
 ```
 
 2. **Crea un entorno virtual e instala dependencias**

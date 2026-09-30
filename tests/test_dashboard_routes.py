@@ -539,7 +539,7 @@ def test_navbar_dropdowns_and_mobile_menu_structure_and_behavior():
     assert 'href="/es/premium"' in index
     assert 'href="https://discord.gg/5U7HKyxnBv"' in index
     assert 'href="https://top.gg/bot/1471724794411089920"' in index
-    assert 'href="https://github.com/punkyyy01/bot-discord-purg"' in index
+    assert 'href="https://github.com/Purgito/purgito-bot"' in index
 
     # Toggle y Drawer móvil
     assert 'id="nav-mobile-toggle"' in index

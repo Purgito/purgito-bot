@@ -142,6 +142,23 @@ class _FakeResp:
             raise rss_mod.requests.HTTPError(f"HTTP {self._status}", response=self)
 
 
+@pytest.fixture(autouse=True)
+def _descarga_via_requests_get(monkeypatch):
+    """Los cogs descargan con r2.fetch_public_bytes (filtro SSRF: resuelve DNS de
+    verdad y valida la IP). Estos tests simulan el servidor parcheando
+    `requests.get`; este adaptador traduce esa misma respuesta falsa al contrato
+    del helper (cuerpo en bytes, o requests.HTTPError con `.response` ante un
+    status >= 400), sin DNS ni red. El helper real se prueba en
+    test_ssrf_feeds.py."""
+
+    def fake_fetch_public_bytes(url, max_bytes, **kwargs):
+        resp = rss_mod.requests.get(url, **kwargs)
+        resp.raise_for_status()
+        return resp.content
+
+    monkeypatch.setattr(rss_mod.r2, "fetch_public_bytes", fake_fetch_public_bytes)
+
+
 def test_resolve_rss_feed_with_items_returns_title_and_latest_id(monkeypatch):
     monkeypatch.setattr(
         rss_mod.requests,

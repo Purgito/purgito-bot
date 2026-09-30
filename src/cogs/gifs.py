@@ -20,7 +20,9 @@ from db import (
     get_random_gif_candidates,
     get_unresolved_gifs,
     is_channel_ignored,
+    is_static_media_url,
     is_user_excluded_from_learning,
+    mark_gif_resolve_failed,
     record_gif_health_check,
     save_gif_url,
     update_gif_media_url,
@@ -641,6 +643,11 @@ class Gifs(commands.Cog):
                 resolved = await resolve_media_url(gif["url"])
                 if resolved is not None:
                     await update_gif_media_url(gif["id"], resolved)
+                if resolved is None or is_static_media_url(resolved):
+                    # Sin resultado (link muerto, host no soportado) o con solo
+                    # una miniatura estática: cuenta como intento fallido y se
+                    # reintenta más tarde con espera creciente, hasta un tope.
+                    await mark_gif_resolve_failed(gif["id"])
                 await asyncio.sleep(1.5)
         except Exception:
             log.exception("Error en resolve_gifs_task")

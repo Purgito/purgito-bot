@@ -316,6 +316,7 @@
   "general.vote.description": "[Vote on top.gg]({url})\n\nYou can vote every 12 hours — every vote helps!",
   "general.error.no_permission": "You don't have permission to use this command.",
   "general.error.missing_argument": "Missing arguments. Check how to use the command.",
+  "general.error.bad_argument": "Invalid argument. Check how to use the command.",
   "general.error.cooldown": "Wait {seconds}s before using this command again.",
   "general.error.generic": "Something went wrong on my end. Try again in a bit.",
   "download.dl.missing_url": "Add a link after the command, or reply to a message that has one: `{prefix}dl <link>` or `purgito dl <link>`.",

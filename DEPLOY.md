@@ -1,4 +1,4 @@
-# Guía de deploy — bot-discord-purg
+# Guía de deploy — purgito-bot
 
 Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo y deploy en producción con systemd + nginx + Cloudflare.
 
@@ -195,8 +195,8 @@ explicación, ver `MIGRATION.md`.
 ## 3. Clonar e instalar
 
 ```bash
-git clone https://github.com/punkyyy01/bot-discord-purg.git
-cd bot-discord-purg
+git clone https://github.com/Purgito/purgito-bot.git
+cd purgito-bot
 
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -271,10 +271,18 @@ HOME_GUILD_ID=
 # Sin esto, los comandos nuevos pueden tardar hasta 1 hora en aparecer globalmente.
 GUILD_ID=
 
-# Nombre con el que se activa el trigger de memes por texto plano.
-# Ej: si colocas "artemis", escribir "artemis generar" en un reply a una imagen genera un meme.
-# Default: artemis
-BOT_TRIGGER_NAME=artemis
+# Nombre con el que se activa el trigger de memes por texto plano y el prefijo de
+# palabra de los comandos de texto.
+# Ej: con "purgito", escribir "purgito generar" en un reply a una imagen genera un
+# meme y "purgito dl <link>" descarga un video.
+# Default: purgito
+BOT_TRIGGER_NAME=purgito
+
+# Canal donde Purgito avisa cuando arranca/se apaga y cuando una tarea en segundo
+# plano falla varias veces seguidas. Vacío o 0 apaga esos avisos (útil en una
+# instancia de desarrollo, para que no escriba en el canal de producción).
+# Default: el canal del proyecto
+# LIFECYCLE_ANNOUNCE_CHANNEL_ID=
 
 # Puerto del servidor web de la galería pública (gifs.purg4t0ry.com).
 # nginx hace proxy a este puerto. No exponer directamente a internet.
@@ -431,7 +439,7 @@ nginx](#configurar-nginx) — ese sí es específico de Ubuntu/Debian.
 sudo mkdir -p /opt/bot-discord-purg
 sudo chown $USER:$USER /opt/bot-discord-purg
 
-git clone https://github.com/punkyyy01/bot-discord-purg.git /opt/bot-discord-purg
+git clone https://github.com/Purgito/purgito-bot.git /opt/bot-discord-purg
 cd /opt/bot-discord-purg
 
 python3 -m venv .venv
@@ -446,6 +454,15 @@ test -f .env && echo "OK: .env es un archivo" || echo "MAL: revisar .env"
 
 nano .env
 ```
+
+### Railway (no es el despliegue de producción)
+
+`railway.json` solo fija el comando de arranque (`python src/bot.py`) para quien
+quiera probar el bot en Railway. **Producción es el servidor con systemd de
+arriba**; este repo no documenta ni prueba un despliegue en Railway. Si lo
+usas, ten en cuenta que su sistema de archivos es efímero: sin un Volume
+montado en `data/` la base (`bot.db`) y los flags de migración se pierden en
+cada deploy, y el cron de backup, nginx y la landing estática no existen ahí.
 
 ### Configurar systemd
 
@@ -683,7 +700,12 @@ server {
 
     # ── Dinámico: proxy a la app (rutas registradas en webapi.py) ──
     location /auth/     { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
-    location /api/      { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
+    # client_max_body_size: nginx corta en 1 MB por defecto, y el dashboard sube
+    # imágenes de hasta MAX_EMBED_IMAGE_UPLOAD_BYTES (8 MB) y archivos de Layout V2
+    # de hasta MAX_LAYOUT_FILE_UPLOAD_BYTES (10 MB), ver limits.env. Sin esto esas
+    # subidas dan un 413 de nginx (HTML) antes de llegar a la app. Un poco por
+    # encima del tope más grande; la app aplica el suyo y responde con JSON.
+    location /api/      { client_max_body_size 11m; proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
     location /webhooks/ { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
     location = /health  { proxy_pass http://127.0.0.1:8080; include /etc/nginx/purgito_proxy.conf; }
 
@@ -813,8 +835,11 @@ sudo systemctl reload nginx
 
 ## 8. Actualizar en producción
 
-**El deploy es manual: no hay CI/CD.** El workflow de `.github/workflows/ci.yml`
-solo corre lint (`ruff`) sobre los PRs; no despliega nada.
+**El deploy es manual: no hay CI/CD.** `.github/workflows/ci.yml` revisa cada
+PR y cada push a `main` (lint con `ruff`, tests con cobertura mínima, `pip-audit`,
+shellcheck y self-check de `deploy/*.sh`, tests de JS de la landing y escaneo de
+secretos con gitleaks) y `codeql.yml` hace análisis estático, pero **nada
+despliega**: un `main` verde todavía hay que hacerlo `git pull` en el servidor.
 
 > Después de un deploy en un servidor nuevo (o de cualquier cambio a
 > systemd/nginx), correr [`deploy/preflight_check.sh`](deploy/preflight_check.sh)
@@ -1028,6 +1053,16 @@ aplicando.
 > droplet") -- no protege contra perder la instancia entera, que es
 > justamente lo que pasó con Oracle. Ver `docs/PORTABILITY.md` § 1 para el
 > detalle y la recomendación de subir el backup a R2.
+
+> 🔒 **Permisos.** `bot.db` (mensajes aprendidos, tokens de webhook de canales) y
+> los backups son solo del usuario del bot: el bot deja `bot.db` y sus sidecars
+> en `0600` en cada arranque, el unit de systemd fija `UMask=0077` y
+> `backup_db.sh` crea `BACKUP_DIR` en `0700` y cada backup en `0600`. Por eso **el
+> cron de backup tiene que correr con el mismo usuario que el bot** (hoy `ubuntu`):
+> otro usuario ya no puede leer la base, ni siquiera con el ajuste de grupo de más
+> abajo (el bot lo revertiría en el próximo arranque). Si el servidor actual
+> todavía tiene `bot.db` con permisos abiertos, el primer reinicio tras este
+> cambio lo corrige solo; `ls -l data/` lo confirma.
 
 **1. Permisos -- confirmado en Oracle Linux (2026-08-12), pendiente de
 re-confirmar en el servidor actual.** El cron corría como `opc`.

@@ -31,6 +31,12 @@ listing=$(tar -tzf "$flags_tar")
 echo "$listing" | grep -qx '.images_wiped_v2' || { echo "FAIL: falta el flag en el tar"; exit 1; }
 echo "$listing" | grep -q 'gitkeep' && { echo "FAIL: .gitkeep no debe entrar al tar"; exit 1; }
 
+# Permisos: el backup y su carpeta son solo del dueño (llevan lo mismo que bot.db)
+mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+[ "$(mode "$backup_file")" = "600" ] || { echo "FAIL: el backup no es 0600"; exit 1; }
+[ "$(mode "$flags_tar")" = "600" ] || { echo "FAIL: el tar de flags no es 0600"; exit 1; }
+[ "$(mode "$BACKUP_DIR")" = "700" ] || { echo "FAIL: BACKUP_DIR no es 0700"; exit 1; }
+
 # Prueba de restauración sobre el backup recién hecho
 bash restore_check.sh | grep -q '^OK' || { echo "FAIL: restore_check no dio OK"; exit 1; }
 

@@ -88,6 +88,6 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 - Clasificación de URLs de GIF: R2, Discord CDN, Giphy, Tenor (embeds)
 - Reverse proxy con nginx + Cloudflare (SSL gratuito)
 
-[Unreleased]: https://github.com/punkyyy01/bot-discord-purg/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/punkyyy01/bot-discord-purg/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/punkyyy01/bot-discord-purg/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Purgito/purgito-bot/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Purgito/purgito-bot/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/Purgito/purgito-bot/releases/tag/v1.0.0

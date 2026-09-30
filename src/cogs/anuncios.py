@@ -25,6 +25,7 @@ from message_options import send_kwargs, wants_custom_identity
 from placeholders import build_announcement_context, resolve_placeholders
 from i18n import guild_locale
 from webhook_identity import send_via_webhook
+from utils import restart_loop_after_failure
 
 log = logging.getLogger(__name__)
 
@@ -191,10 +192,9 @@ class Anuncios(commands.Cog):
         # Sin este handler, una excepción fuera del set que discord.py
         # reintenta solo mata el loop para siempre en silencio y los
         # anuncios programados dejan de salir sin ningún aviso visible.
-        log.exception(
-            "check_announcements se cayó, reiniciando el loop", exc_info=error
+        await restart_loop_after_failure(
+            self.bot, self.check_announcements, "check_announcements", error
         )
-        self.check_announcements.restart()
 
     @tasks.loop(seconds=30)
     async def sweep_pending_deletions(self):
@@ -231,10 +231,9 @@ class Anuncios(commands.Cog):
         # muere en silencio y los mensajes con delete_after enviados por
         # webhook (que no tienen el borrado nativo de discord.py) quedan
         # sin borrar para siempre tras el primer fallo no reconocido.
-        log.exception(
-            "sweep_pending_deletions se cayó, reiniciando el loop", exc_info=error
+        await restart_loop_after_failure(
+            self.bot, self.sweep_pending_deletions, "sweep_pending_deletions", error
         )
-        self.sweep_pending_deletions.restart()
 
 
 async def setup(bot: commands.Bot) -> None:

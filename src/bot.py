@@ -137,6 +137,8 @@ def _format_downtime(since_iso: str) -> str:
 async def _send_lifecycle_notice(content: str) -> None:
     """Best-effort: nunca propaga -- ni el arranque ni el apagado deben
     trabarse porque Discord no responda o el canal no exista."""
+    if config.LIFECYCLE_ANNOUNCE_CHANNEL_ID is None:
+        return  # avisos apagados (LIFECYCLE_ANNOUNCE_CHANNEL_ID vacío o 0)
     channel = bot.get_channel(config.LIFECYCLE_ANNOUNCE_CHANNEL_ID)
     if channel is None:
         try:

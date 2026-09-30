@@ -316,6 +316,7 @@
   "general.vote.description": "[Vota en top.gg]({url})\n\nPuedes votar cada 12 horas — ¡cada voto ayuda!",
   "general.error.no_permission": "No tienes permisos para usar este comando.",
   "general.error.missing_argument": "Faltan argumentos. Revisa cómo usar el comando.",
+  "general.error.bad_argument": "Argumento inválido. Revisa cómo usar el comando.",
   "general.error.cooldown": "Espera {seconds}s antes de usar este comando de nuevo.",
   "general.error.generic": "Ocurrió un error inesperado. Intenta de nuevo más tarde.",
   "download.dl.missing_url": "Pasa un link después del comando o responde a un mensaje que tenga uno: `{prefix}dl <link>` o `purgito dl <link>`.",

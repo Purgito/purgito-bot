@@ -55,6 +55,15 @@ def _env_int_or_none(name: str) -> int | None:
     return value or None
 
 
+def _env_channel_id(name: str, default: int) -> int | None:
+    """ID de canal con un default de producción. Ausente -> `default`; presente
+    pero vacío o "0" -> None (la función asociada queda apagada, útil para una
+    instancia de desarrollo que no debe escribir en el canal de producción)."""
+    if os.getenv(name) is None:
+        return default
+    return _env_int_or_none(name)
+
+
 def _env_compact(name: str) -> str:
     """Devuelve el valor sin espacios ni saltos.
 
@@ -73,7 +82,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 # (feature desactivada, resto del bot funciona igual -- mismo criterio que GROQ_API_KEY).
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", "")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", "")
-BOT_TRIGGER_NAME = os.getenv("BOT_TRIGGER_NAME", "artemis").strip().lower()
+# Default "purgito": el que documentan .env.example, /help y la landing
+# ("purgito dl <link>"). Antes caía en "artemis", un nombre viejo que ninguna
+# documentación menciona.
+BOT_TRIGGER_NAME = (
+    os.getenv("BOT_TRIGGER_NAME", "purgito").strip() or "purgito"
+).lower()
 BOT_OWNER_ID: int | None = _env_int_or_none("BOT_OWNER_ID")
 # ID fijo del servidor original PURG4TORY — siempre premium, sin pasar por la tabla.
 PURGATORY_GUILD_ID = 1434103563214393347
@@ -82,11 +96,18 @@ PERMANENT_PREMIUM_GUILD_IDS: set[int] = {
     PURGATORY_GUILD_ID,
     1521362322331795487,
 }
-# Canal (tipo anuncio) donde Purgito avisa cuando arranca/se apaga.
-LIFECYCLE_ANNOUNCE_CHANNEL_ID = 1525941934043041822
+# Canal (tipo anuncio) donde Purgito avisa cuando arranca/se apaga (y cuando una
+# tarea en segundo plano falla varias veces seguidas). Se puede sobreescribir
+# con LIFECYCLE_ANNOUNCE_CHANNEL_ID en .env; vacío o "0" apaga los avisos -- así
+# una instancia de desarrollo no escribe en el canal de producción.
+LIFECYCLE_ANNOUNCE_CHANNEL_ID: int | None = _env_channel_id(
+    "LIFECYCLE_ANNOUNCE_CHANNEL_ID", 1525941934043041822
+)
 # Canal oficial de Purgito donde se publican las actualizaciones del bot.
 OFFICIAL_UPDATES_CHANNEL_ID = 1522754564971958453
-WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+# env_int: un WEB_PORT mal escrito ("abc", "") cae al default en vez de tumbar el
+# import de config -- y con él el arranque entero, antes de que exista logging.
+WEB_PORT = env_int("WEB_PORT", 8080)
 
 REFEED_MAX_MESSAGES = env_int("REFEED_MAX_MESSAGES", 80_000)
 REFEED_ALL_MAX_MESSAGES = env_int("REFEED_ALL_MAX_MESSAGES", 20_000)
@@ -142,9 +163,7 @@ LANDING_ORIGINS = frozenset(
 # en urls.env; los defaults apuntan a destinos que existen hoy.
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://purgito.app").rstrip("/")
 DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/es/documentacion").rstrip("/")
-REPO_URL = os.getenv(
-    "REPO_URL", "https://github.com/punkyyy01/bot-discord-purg"
-).rstrip("/")
+REPO_URL = os.getenv("REPO_URL", "https://github.com/Purgito/purgito-bot").rstrip("/")
 
 # --- Polar.sh (compra de premium) ---
 POLAR_ACCESS_TOKEN = _env_compact("POLAR_ACCESS_TOKEN")
@@ -189,6 +208,27 @@ def _env_bool(name: str, default: bool) -> bool:
         return default
     return raw.strip().lower() in ("1", "true", "yes")
 
+
+# Largo mínimo recomendado de SESSION_SECRET: la clave Fernet de la cookie de
+# sesión sale de sha256(SESSION_SECRET), así que un secreto corto y adivinable
+# deja forjar una sesión de cualquier usuario. `token_hex(32)` (el comando de
+# .env.example) da 64 caracteres.
+MIN_SESSION_KEY_LENGTH = 32
+
+
+def session_secret_is_weak(secret: str) -> bool:
+    return 0 < len(secret) < MIN_SESSION_KEY_LENGTH
+
+
+if session_secret_is_weak(SESSION_SECRET):
+    # Solo avisa, no apaga el dashboard: cortar el login de todos en un deploy
+    # por un secreto "corto pero funcional" sería peor que el aviso. Rotarlo
+    # desloguea a todos una vez (ver docs/RUNBOOK.md § 3).
+    log.warning(
+        "SESSION_SECRET tiene menos de %d caracteres: genera uno nuevo con "
+        'python3 -c "import secrets; print(secrets.token_hex(32))"',
+        MIN_SESSION_KEY_LENGTH,
+    )
 
 # Por defecto se habilita si hay SESSION_SECRET; se puede forzar off sin borrar el resto.
 DASHBOARD_ENABLED = _env_bool("DASHBOARD_ENABLED", bool(SESSION_SECRET))

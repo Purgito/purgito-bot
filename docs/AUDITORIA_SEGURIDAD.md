@@ -490,3 +490,29 @@ secciones, o si alcanza con que el código y los tests sigan siendo la
 fuente de verdad y este documento quede como está. Ninguna de las dos es
 una tarea de seguridad pendiente — es una decisión sobre qué tan al día
 querés mantener este archivo.
+
+---
+
+## 8. Ronda del 2026-09-30 (hallazgos cerrados)
+
+| # | Severidad | Hallazgo | Fix |
+|---|---|---|---|
+| 1 | **Alta** | SSRF en RSS y YouTube: la URL que escribe un admin se pedía con `requests.get` directo (localhost, red interna, metadata de la nube, redirects) y el cuerpo entero se leía en memoria. Reproducido contra un servidor local | `r2.fetch_public_bytes`: filtro de IP pública en cada salto, tope de bytes (contados ya descomprimidos) y de tiempo total; YouTube además exige host `youtube.com`. `tests/test_ssrf_feeds.py` |
+| 2 | **Alta** | Las subidas de 1 MB a 8/10 MB fallaban con un 413 de texto plano: `request.read()` aplica el `client_max_size` global (1 MiB) | Lectura en streaming con tope propio solo en los dos handlers de subida; el tope global no se toca. `tests/test_upload_limits.py` (servidor aiohttp real) |
+| 3 | Media | `purge_guild_data` omitía `gif_senders`, `gif_blocklist`, `guild_bot_style` y `embed_uploaded_images`, y las imágenes subidas desde el panel nunca se borraban de R2 | Lista extraída a `_GUILD_PURGE_TABLES` + test que la compara contra el `SCHEMA`; limpieza de R2. `tests/test_guild_purge.py` |
+| 4 | Media | Migraciones de columnas con `except Exception` a nivel debug: tragaban un disco lleno o una base bloqueada | Solo se ignora "duplicate column name"; el resto se propaga. `tests/test_db_migrations.py` |
+| 5 | Media | `bot.db` y los backups con la umask por defecto (0644) | `UMask=0077` en el unit, `chmod 600` de la base y sus sidecars en cada arranque, `umask 077` + `BACKUP_DIR` 0700 en `backup_db.sh`. `tests/test_config_hardening.py` |
+| 6 | Media | Las escrituras sin cuerpo JSON (vaciar el corpus, bloquear un GIF, cerrar sesión) dependían solo de `SameSite=Lax` | `_csrf_origin_middleware`: valida `Origin` (o `Sec-Fetch-Site`) en POST/PUT/PATCH/DELETE; `/webhooks/` exento. `tests/test_csrf_origin.py` |
+| 7 | Baja | `SESSION_SECRET` sin largo mínimo | Aviso al arrancar (menos de 32 caracteres) y chequeo en `preflight_check.sh`; no apaga el dashboard |
+| 8 | Baja | Google Fonts: cada visita le mandaba su IP a Google | Fuentes alojadas en `landing/fonts` (variables, con hash en el nombre); CSP solo `'self'` |
+
+**Corrección a la auditoría previa:** el punto 6 se describió como "sin más defensa
+que SameSite". No era exacto: los endpoints con cuerpo JSON ya rechazaban los
+Content-Type que un `<form>` puede mandar sin preflight (`_json_body`). Lo que
+cubre el chequeo de `Origin` son los ~10 endpoints de escritura sin cuerpo JSON y
+los navegadores que ignoran SameSite.
+
+**Pendiente de infraestructura (no es código del repo):** `client_max_body_size` en
+el nginx real (ver `DEPLOY.md`), protección de la rama `main` y limpieza de ramas
+en GitHub, y verificar que el cron de backup corre en el servidor.
+
