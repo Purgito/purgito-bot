@@ -65,6 +65,14 @@ proveedor.
   un script de infra, no tocar `src/`), así que queda como recomendación,
   no como código.
 
+> **Actualización (2026-09-30): implementado.** `deploy/backup_db.sh` ahora sube
+> cada backup (y su tar de flags) a un bucket de R2 **aparte y privado**
+> (`R2_BACKUP_BUCKET`, en lugar de un prefijo dentro del de GIFs como proponía
+> arriba), y falla si la subida falla. Lo que sigue pendiente es la retención en
+> R2, que no tiene ninguna política: ver DEPLOY.md § "Subida a R2 (bucket
+> privado)". Para traer un backup a un servidor nuevo:
+> `python scripts/r2_backup.py download latest`.
+
 ## 2. Flags de migración de una sola vez, sueltos en `data/`
 
 **Dónde viven:** `data/.images_wiped_v2` y `data/.chat_channels_split_v1`

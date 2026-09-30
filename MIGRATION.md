@@ -31,8 +31,11 @@ scp <usuario>@<viejo>:<ruta>/.env ./migracion-backup/
 scp <usuario>@<viejo>:<ruta-backups>/bot-*.db ./migracion-backup/ 2>/dev/null || true
 ```
 
-R2 (GIFs) no necesita nada de esto — vive fuera de la instancia por diseño,
-las credenciales viajan con el `.env`.
+R2 (imágenes, GIFs y backups) no necesita nada de esto — vive fuera de la
+instancia por diseño, las credenciales viajan con el `.env`. Si el viejo subía
+backups al bucket privado (`R2_BACKUP_BUCKET`), el más reciente se baja desde
+cualquier lado con `python scripts/r2_backup.py download latest --dest <carpeta>`
+(ver DEPLOY.md § "Backups de `data/bot.db`").
 
 ## 1. Crear la instancia nueva
 

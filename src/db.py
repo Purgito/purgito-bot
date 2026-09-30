@@ -1878,14 +1878,14 @@ async def release_gif_reference(content_hash: str | None, url: str | None = None
 
     Llamar SIEMPRE fuera de _db_lock (lo toma esta función).
 
-    content_hash None = GIF de tenor/giphy (no ocupa storage, delete_url es
+    content_hash None = GIF de tenor/giphy (no ocupa storage, delete_gif_url es
     no-op) o fila anterior a la deduplicación (key propia por guild, 1:1 con
     el objeto): en ambos casos alcanza con el borrado por URL de siempre.
 
     El decremento y el borrado físico van en DOS pasadas por _db_lock, no
     una sola: si la fila de gif_objects se borrara ya en la primera pasada
     (como pasaba antes de este fix), quedaba una ventana entre soltar el
-    lock y el r2.delete_key de abajo donde otra referencia al mismo
+    lock y el r2.delete_gif_key de abajo donde otra referencia al mismo
     content_hash -- alguien vuelve a compartir el mismo GIF -- podía
     "resucitar" la referencia vía _retain_gif_object (INSERT ... ON
     CONFLICT) sin encontrar conflicto (la fila ya no estaba) y crear una
@@ -1896,12 +1896,12 @@ async def release_gif_reference(content_hash: str | None, url: str | None = None
     incrementó el ref_count mientras tanto, la fila sigue existiendo con
     ref_count>0 y este DELETE no borra nada, así que el objeto físico nunca
     se toca. Queda una ventana residual del tamaño de un único await entre
-    esta segunda pasada y que r2.delete_key termine -- cerrarla del todo
+    esta segunda pasada y que r2.delete_gif_key termine -- cerrarla del todo
     necesitaría un lease sobre el objeto de R2, que no existe hoy.
     """
     if not content_hash:
         if url:
-            await r2.delete_url(url)
+            await r2.delete_gif_url(url)
         return
     db = await get_db()
     async with _db_lock:
@@ -1928,7 +1928,7 @@ async def release_gif_reference(content_hash: str | None, url: str | None = None
         await db.commit()
     if not confirmed:
         return
-    await r2.delete_key(r2_key)
+    await r2.delete_gif_key(r2_key)
 
 
 async def get_live_gif_keys() -> set[str]:
@@ -1947,8 +1947,12 @@ async def get_live_gif_keys() -> set[str]:
     ) as cursor:
         keys.update(r[0] for r in await cursor.fetchall())
 
-    pub = r2.public_url().rstrip("/")
-    if pub:
+    # Todas las bases que reconocen GIFs propios, no solo la actual: mientras
+    # las filas viejas guarden la URL del bucket anterior (alias transitorio de
+    # r2.gif_public_bases; se va con `scripts/migrate_r2_buckets.py
+    # rewrite-db-urls`), tienen que seguir contando como "vivas": esta es justo
+    # la red de seguridad contra un ref_count mal.
+    for pub in r2.gif_public_bases():
         prefix = f"{pub}/{r2.GIF_KEY_PREFIX}"
         async with db.execute(
             "SELECT url FROM corpus_gifs WHERE url LIKE ?", (prefix + "%",)
@@ -5001,7 +5005,7 @@ async def save_image_url(guild_id: int, url: str) -> bool:
         inserted = _was_inserted(cursor)
         await db.commit()
     if evicted_url:
-        await r2.delete_url(evicted_url)
+        await r2.delete_image_url(evicted_url)
     return inserted
 
 

@@ -1,9 +1,9 @@
 """Sección 3, segunda pasada: guild_cleanup_task (cogs/general.py) borraba
-los GIFs de un guild expirado con r2.delete_url(url) directo -- pero los
+los GIFs de un guild expirado con r2.delete_gif_url(url) directo -- pero los
 GIFs con content_hash son objetos content-addressed COMPARTIDOS entre
-guilds (ver el comentario de gif_objects en db.py), y r2.delete_url() por
+guilds (ver el comentario de gif_objects en db.py), y r2.delete_gif_url() por
 url exacta borra el objeto físico sin mirar si otro guild todavía lo
-referencia. El propio docstring de r2.delete_url ya avisaba de esto
+referencia. El propio docstring de r2.delete_gif_url ya avisaba de esto
 ("para GIFs con content_hash usar db.release_gif_reference") -- el bug era
 que guild_cleanup_task no le hacía caso.
 """
@@ -55,7 +55,7 @@ def temp_db(tmp_path, monkeypatch):
 
 @pytest.fixture
 def fake_r2(monkeypatch):
-    calls = {"delete_key": [], "delete_url": []}
+    calls = {"delete_key": [], "delete_url": [], "delete_image_url": []}
 
     async def fake_delete_key(key):
         calls["delete_key"].append(key)
@@ -63,14 +63,22 @@ def fake_r2(monkeypatch):
     async def fake_delete_url(url):
         calls["delete_url"].append(url)
 
-    monkeypatch.setattr(r2, "available", lambda: True)
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
-    # cogs/general.py llama a r2.delete_url directo; db.py (release_gif_reference)
-    # importa r2 como módulo propio -- hay que parchear ambas referencias.
-    monkeypatch.setattr(r2, "delete_key", fake_delete_key)
-    monkeypatch.setattr(r2, "delete_url", fake_delete_url)
-    monkeypatch.setattr(db.r2, "delete_key", fake_delete_key)
-    monkeypatch.setattr(db.r2, "delete_url", fake_delete_url)
+    async def fake_delete_image_url(url):
+        calls["delete_image_url"].append(url)
+
+    monkeypatch.setattr(r2, "gifs_available", lambda: True)
+    monkeypatch.setattr(r2, "images_available", lambda: True)
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
+    monkeypatch.setenv("R2_IMAGES_PUBLIC_URL", "https://cdn.example.com")
+    # cogs/general.py llama a r2.delete_image_url directo; db.py
+    # (release_gif_reference) importa r2 como módulo propio -- hay que
+    # parchear ambas referencias. "delete_key"/"delete_url" son los borrados
+    # de GIFs (por key / por URL directa).
+    monkeypatch.setattr(r2, "delete_gif_key", fake_delete_key)
+    monkeypatch.setattr(r2, "delete_gif_url", fake_delete_url)
+    monkeypatch.setattr(r2, "delete_image_url", fake_delete_image_url)
+    monkeypatch.setattr(db.r2, "delete_gif_key", fake_delete_key)
+    monkeypatch.setattr(db.r2, "delete_gif_url", fake_delete_url)
     return calls
 
 

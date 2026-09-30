@@ -280,7 +280,7 @@ def report_clusters(
 
 
 def _public_prefix() -> str:
-    return r2.public_url().rstrip("/")
+    return r2.public_gifs_url()
 
 
 def _url_for(key: str) -> str:
@@ -387,10 +387,10 @@ def main() -> int:
         )
 
     client = r2.get_client()
-    if client is None or not r2.public_url():
-        log.error("R2 no está configurado (faltan R2_* en .env)")
+    if client is None or not r2.gifs_available():
+        log.error("R2 no está configurado para GIFs (faltan R2_GIFS_* en .env)")
         return 1
-    bucket = os.getenv("R2_BUCKET_NAME", "").strip()
+    bucket = r2.bucket_for(r2.GIFS)
 
     conn = sqlite3.connect(args.db)
     try:

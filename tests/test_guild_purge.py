@@ -139,9 +139,10 @@ def test_guild_cleanup_borra_de_r2_las_imagenes_subidas_desde_el_panel(
     async def fake_delete_url(url):
         borradas.append(url)
 
-    monkeypatch.setattr(r2, "available", lambda: True)
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
-    monkeypatch.setattr(r2, "delete_url", fake_delete_url)
+    monkeypatch.setattr(r2, "gifs_available", lambda: True)
+    monkeypatch.setattr(r2, "images_available", lambda: True)
+    monkeypatch.setenv("R2_IMAGES_PUBLIC_URL", "https://cdn.example.com")
+    monkeypatch.setattr(r2, "delete_image_url", fake_delete_url)
 
     async def run():
         conn = await db.get_db()

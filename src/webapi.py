@@ -1057,10 +1057,10 @@ def _valid_gif_url(url: str) -> bool:
         or host.endswith((".tenor.com", ".giphy.com"))
     ):
         return True
-    pub = r2.public_url()
-    # El prefijo termina en "/": sin eso, "https://pub.dominio.evil.com/x"
-    # pasaría el startswith de "https://pub.dominio".
-    return bool(pub and url.startswith(pub.rstrip("/") + "/"))
+    # gif_key_from_url exige el prefijo con "/" final: sin eso,
+    # "https://pub.dominio.evil.com/x" pasaría el startswith de
+    # "https://pub.dominio".
+    return r2.gif_key_from_url(url) is not None
 
 
 def _channel_name(guild, channel_id: int | None) -> str | None:
@@ -2777,8 +2777,9 @@ _STYLE_MIME = {
 
 
 def _valid_r2_url(url) -> bool:
-    pub = r2.public_url()
-    return isinstance(url, str) and bool(pub) and url.startswith(pub.rstrip("/") + "/")
+    # Avatar/banner del bot: imágenes que subió el propio panel, o sea del
+    # bucket de imágenes (un link al bucket de GIFs no es una imagen de estilo).
+    return r2.image_key_from_url(url) is not None
 
 
 async def _r2_image_datauri(request: web.Request, url: str) -> str | None:
@@ -5569,7 +5570,7 @@ async def _api_embeds_upload(request: web.Request, guild_id: int) -> web.Respons
     ip = _client_ip(request)
     if not _rate_ok(_rate_upload, ip, 10):
         return web.json_response({"error": "rate limit"}, status=429)
-    if not r2.available():
+    if not r2.images_available():
         return web.json_response(
             {"error": "almacenamiento de imágenes no configurado"}, status=503
         )

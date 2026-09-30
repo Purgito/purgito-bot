@@ -232,12 +232,8 @@ def _register_shutdown_handlers(loop: asyncio.AbstractEventLoop) -> None:
 @bot.event
 async def on_ready():
     global _commands_synced
-    if not r2.available():
-        log.warning(
-            "R2 no configurado: las imágenes de Discord CDN se guardarán con su URL original "
-            "(pueden expirar). Configura R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, "
-            "R2_BUCKET_NAME y R2_PUBLIC_URL para persistencia permanente."
-        )
+    for warning in r2.config_warnings():
+        log.warning(warning)
 
     # Solo una vez por proceso: on_ready también se dispara al reconectar, y
     # re-sincronizar en cada reconexión puede agotar el rate limit de Discord.

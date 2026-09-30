@@ -133,6 +133,14 @@ Tres archivos, con reglas distintas:
 
 Los tres se cargan al importar `src/config.py`.
 
+R2 son **tres buckets** con rol fijo (`R2_IMAGES_*`, `R2_GIFS_*`, `R2_BACKUP_BUCKET`,
+este último privado y sin URL pública). `src/r2.py` nombra el bucket en cada
+operación (`upload_gif_*`/`*_gif_*` → GIFs, `upload_image_*`/`delete_image_url` →
+imágenes, `*_backup_*` → backups): no hay `public_url()` ni `available()`
+genéricos, no los reintroduzcas. `R2_BUCKET_NAME`/`R2_PUBLIC_URL` son el
+fallback transitorio de la migración y solo `r2.py` las lee (ver DEPLOY.md
+§ "Migrar a tres buckets de R2").
+
 ## Configuración del chat: qué manda sobre qué
 
 Cuatro listas de canales que se confunden fácil. Son conceptos distintos:

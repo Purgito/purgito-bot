@@ -24,7 +24,7 @@
 </ul>
 
 <h2 id="r2">Cloudflare R2 and Media Deduplication</h2>
-<p>Object storage on Cloudflare R2 (<code>src/r2.py</code>) is optional. When the five R2 environment variables are configured in <code>.env</code>, Purgito activates asset ingestion, optimization, and hosting:</p>
+<p>Object storage on Cloudflare R2 (<code>src/r2.py</code>) is optional. It uses three independent buckets: images and GIFs (public, each with its own URL) and database backups (private, no public URL). Credentials and endpoint are shared by all three. When the images or GIFs bucket is configured in <code>.env</code>, Purgito activates asset ingestion, optimization, and hosting for that type of file:</p>
 
 <ul>
   <li><strong>Content-Addressable Storage (SHA-256)</strong>: Stored media objects are named after the SHA-256 hash of their payload. If multiple servers save the same GIF, only one copy exists in the R2 bucket.</li>

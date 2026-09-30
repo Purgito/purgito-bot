@@ -22,8 +22,11 @@
 <tr><td><code>AUTO_GENERATE_PROBABILITY</code></td><td><code>float</code></td><td>Base probability (0.0 to 1.0) of spontaneous reply when a server has not set a custom override.</td></tr>
 <tr><td><code>GUILD_DATA_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Grace period in days before permanently purging data from servers that removed the bot (default: 30).</td></tr>
 <tr><td><code>AUDIT_LOG_RETENTION_DAYS</code></td><td><code>integer</code></td><td>Maximum age in days before pruning records from the <code>audit_log</code> table (default: 90).</td></tr>
-<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code></td><td><code>string</code></td><td>S3 access credentials for the Cloudflare R2 object storage bucket.</td></tr>
-<tr><td><code>R2_ENDPOINT_URL</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code></td><td><code>string</code></td><td>Cloudflare R2 endpoint URL, bucket identifier, and public CDN domain serving stored media.</td></tr>
+<tr><td><code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code></td><td><code>string</code></td><td>S3 access credentials for the Cloudflare R2 buckets. The same credentials work for all three buckets.</td></tr>
+<tr><td><code>R2_ENDPOINT_URL</code></td><td><code>string</code></td><td>Account-level Cloudflare R2 S3 endpoint, without a bucket name.</td></tr>
+<tr><td><code>R2_IMAGES_BUCKET</code>, <code>R2_IMAGES_PUBLIC_URL</code></td><td><code>string</code></td><td>Images bucket and its public URL.</td></tr>
+<tr><td><code>R2_GIFS_BUCKET</code>, <code>R2_GIFS_PUBLIC_URL</code></td><td><code>string</code></td><td>GIFs bucket and its public URL.</td></tr>
+<tr><td><code>R2_BACKUP_BUCKET</code></td><td><code>string</code></td><td>Private bucket for database backups. It has no public URL.</td></tr>
 <tr><td><code>WEB_PORT</code></td><td><code>integer</code></td><td>Local TCP port where the internal aiohttp HTTP server listens (default: 8080).</td></tr>
 <tr><td><code>DISCORD_CLIENT_ID</code>, <code>DISCORD_CLIENT_SECRET</code></td><td><code>string</code></td><td>Discord OAuth2 application credentials for authenticating web dashboard users.</td></tr>
 <tr><td><code>SESSION_SECRET</code></td><td><code>string</code></td><td>Base64 secret key used to symmetrically encrypt session cookies with the Fernet algorithm.</td></tr>

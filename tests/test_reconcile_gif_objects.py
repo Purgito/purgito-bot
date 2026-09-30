@@ -87,7 +87,11 @@ class _FakeBucket:
 
 @pytest.fixture(autouse=True)
 def fake_r2(monkeypatch):
-    monkeypatch.setattr(r2, "public_url", lambda: _PUBLIC)
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", _PUBLIC)
+    # Mismo host para imágenes: es el escenario de un solo bucket (fallback
+    # legacy), donde las imágenes del pool comparten bucket con los GIFs y el
+    # script tiene que saber reconocerlas para no tocarlas.
+    monkeypatch.setenv("R2_IMAGES_PUBLIC_URL", _PUBLIC)
     monkeypatch.setattr(r2, "optimize_gif_bytes", _optimized)
     monkeypatch.setattr(rec.time, "sleep", lambda *a: None)
 

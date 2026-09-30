@@ -46,8 +46,8 @@ def deleted_keys(monkeypatch):
     async def fake_delete_url(url):
         keys.append(url)
 
-    monkeypatch.setattr(r2, "delete_key", fake_delete_key)
-    monkeypatch.setattr(r2, "delete_url", fake_delete_url)
+    monkeypatch.setattr(r2, "delete_gif_key", fake_delete_key)
+    monkeypatch.setattr(r2, "delete_gif_url", fake_delete_url)
     return keys
 
 
@@ -105,8 +105,8 @@ def test_upload_hashes_content_not_url(monkeypatch):
             pass
 
     monkeypatch.setattr(r2, "get_client", lambda: _FakeClient())
-    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp())
 
     a = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/1/2/x.gif?ex=aaa")
@@ -139,8 +139,8 @@ def test_upload_skips_put_when_object_already_exists(monkeypatch):
             pass
 
     monkeypatch.setattr(r2, "get_client", lambda: _FakeClient())
-    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp())
 
     up = r2.upload_gif_sync("https://cdn.discordapp.com/attachments/1/2/x.gif")
@@ -174,8 +174,8 @@ def test_upload_bounds_memory_when_content_length_is_missing_or_dishonest(
 
     client = _FakeUploadClient(exists=False)
     monkeypatch.setattr(r2, "get_client", lambda: client)
-    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeUnboundedResp())
 
     up = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
@@ -205,6 +205,8 @@ def test_upload_does_not_follow_redirects(monkeypatch):
         return _RedirectResp()
 
     monkeypatch.setattr(r2, "get_client", lambda: _FakeUploadClient())
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(r2.requests, "get", fake_get)
 
     result = r2.upload_gif_sync("https://cdn.discordapp.com/x.gif")
@@ -267,6 +269,8 @@ def test_upload_rejects_host_resolving_to_private_ip(monkeypatch):
     """Un hostname que resuelve a loopback/LAN/link-local nunca debe llegar
     a requests.get -- ni siquiera se intenta la descarga."""
     monkeypatch.setattr(r2, "get_client", lambda: _FakeUploadClient())
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(
         r2.socket,
         "getaddrinfo",
@@ -471,8 +475,8 @@ def test_hash_matches_the_optimized_bytes_that_get_uploaded(monkeypatch):
             pass
 
     monkeypatch.setattr(r2, "get_client", lambda: _FakeClient())
-    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeResp())
     monkeypatch.setattr(r2, "optimize_gif_bytes", lambda data: optimized)
 
@@ -554,7 +558,7 @@ def test_release_and_revive_race_never_deletes_a_still_referenced_object(
 
     Se fuerza el interleaving real con asyncio.gather, mismo patrón que
     test_apply_premium_webhook_change_concurrente_termina_consistente en
-    test_polar_webhook_hardening.py. delete_key necesita un await real (acá
+    test_polar_webhook_hardening.py. delete_gif_key necesita un await real (acá
     un sleep(0)) para ceder el control como haría la llamada de red real a
     R2 -- un mock sin ningún await interno no reproduce la ventana."""
     # asyncio.Lock se ata al event loop de su primer acquire() CONTENDIDO --
@@ -570,7 +574,7 @@ def test_release_and_revive_race_never_deletes_a_still_referenced_object(
         await asyncio.sleep(0)
         deleted.append(key)
 
-    monkeypatch.setattr(r2, "delete_key", slow_delete_key)
+    monkeypatch.setattr(r2, "delete_gif_key", slow_delete_key)
 
     async def run():
         await db.save_gif_url(_GUILD_A, _url(_HASH), _HASH, 100)
@@ -592,7 +596,7 @@ def test_release_and_revive_race_never_deletes_a_still_referenced_object(
 
 def test_release_without_hash_falls_back_to_delete_by_url(memory_db, deleted_keys):
     """Filas viejas (pre-dedup) y GIFs de tenor/giphy no tienen content_hash:
-    se borran por URL como siempre -- para tenor/giphy delete_url es no-op."""
+    se borran por URL como siempre -- para tenor/giphy delete_gif_url es no-op."""
 
     async def run():
         await db.release_gif_reference(None, "https://tenor.com/view/x")
@@ -915,8 +919,8 @@ class _FakeUploadResp:
 
 def _patch_upload(monkeypatch, client, content):
     monkeypatch.setattr(r2, "get_client", lambda: client)
-    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setenv("R2_GIFS_BUCKET", "bucket")
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", "https://cdn.example.com")
     monkeypatch.setattr(r2.requests, "get", lambda *a, **k: _FakeUploadResp(content))
     monkeypatch.setattr(r2, "optimize_gif_bytes", lambda data: data)
 
@@ -1078,8 +1082,8 @@ def test_upload_gif_sync_usa_el_cache_control_de_14_dias(monkeypatch):
 def test_upload_image_bytes_sync_usa_el_mismo_cache_control(monkeypatch):
     client = _CacheControlCapturingClient()
     monkeypatch.setattr(r2, "get_client", lambda: client)
-    monkeypatch.setattr(r2, "_bucket", lambda: "bucket")
-    monkeypatch.setattr(r2, "public_url", lambda: "https://cdn.example.com")
+    monkeypatch.setenv("R2_IMAGES_BUCKET", "bucket")
+    monkeypatch.setenv("R2_IMAGES_PUBLIC_URL", "https://cdn.example.com")
 
     url = r2.upload_image_bytes_sync("https://x/img.png", b"pngbytes", 1, ".png")
 

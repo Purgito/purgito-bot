@@ -1,7 +1,35 @@
 """Cliente Cloudflare R2 con inicialización perezosa.
 
+Tres buckets, cada uno con un rol fijo (ver Store):
+
+- IMAGES  (R2_IMAGES_BUCKET)  imágenes de memes y subidas del editor. Público.
+- GIFS    (R2_GIFS_BUCKET)    GIFs content-addressed (`gifs/xx/<sha256>.gif`). Público.
+- BACKUPS (R2_BACKUP_BUCKET)  copias de bot.db. PRIVADO: no tiene URL pública.
+
+Credenciales y endpoint (R2_ENDPOINT_URL, el de la cuenta, sin nombre de
+bucket) son los mismos para los tres; lo único que cambia es el bucket. No hay
+un "bucket actual" global: cada función de este módulo nombra el suyo a mano
+(las de GIFs usan GIFS, las de imágenes IMAGES, las de backup BACKUPS), así que
+subir un GIF al bucket de imágenes -- o al revés -- no se puede hacer por
+accidente, y _put_object lo rechaza además por la forma de la key.
+
 El cliente se crea la primera vez que se necesita; si faltan variables de
-entorno el módulo igual importa sin romper nada y available() devuelve False.
+entorno el módulo igual importa sin romper nada y images_available() /
+gifs_available() / backups_available() devuelven False.
+
+Fallback legacy (TRANSITORIO). Antes había un solo bucket, configurado con
+R2_BUCKET_NAME y R2_PUBLIC_URL. Mientras eso siga en el .env:
+
+- si falta R2_IMAGES_BUCKET / R2_GIFS_BUCKET, ese store usa R2_BUCKET_NAME;
+- si falta R2_IMAGES_PUBLIC_URL / R2_GIFS_PUBLIC_URL, usa R2_PUBLIC_URL;
+- R2_PUBLIC_URL además se sigue reconociendo como alias de las URLs que ya
+  están guardadas en la DB (todas apuntan al host viejo hasta que corra
+  `scripts/migrate_r2_buckets.py rewrite-db-urls`).
+
+El bucket de backups NO tiene fallback: nunca cae en el bucket viejo. El
+fallback se va solo al borrar las dos variables legacy del .env; bot.py avisa
+al arrancar mientras sigan definidas (config_warnings). Ver DEPLOY.md
+§ "Migrar a tres buckets de R2".
 """
 
 import asyncio
@@ -24,6 +52,25 @@ log = logging.getLogger(__name__)
 
 _client = None
 _checked = False
+
+
+class Store(NamedTuple):
+    """Un bucket de R2 y el rol que cumple. `public_var` es None en los
+    buckets privados: no existe una URL pública para construir."""
+
+    role: str
+    bucket_var: str
+    public_var: str | None = None
+
+
+IMAGES = Store("images", "R2_IMAGES_BUCKET", "R2_IMAGES_PUBLIC_URL")
+GIFS = Store("gifs", "R2_GIFS_BUCKET", "R2_GIFS_PUBLIC_URL")
+BACKUPS = Store("backups", "R2_BACKUP_BUCKET")
+
+# Variables del esquema de un solo bucket. Solo las lee el fallback de
+# bucket_for/public_base y scripts/migrate_r2_buckets.py (como origen).
+LEGACY_BUCKET_VAR = "R2_BUCKET_NAME"
+LEGACY_PUBLIC_VAR = "R2_PUBLIC_URL"
 
 # Sentinel: el GIF supera el límite de tamaño (no guardar en DB, no reintentar).
 GIF_TOO_LARGE = ""
@@ -95,20 +142,27 @@ def gif_key(content_hash: str) -> str:
     return f"{GIF_KEY_PREFIX}{content_hash[:2]}/{content_hash}.gif"
 
 
-def list_keys_sync(prefix: str) -> list[tuple[str, int, object]]:
-    """(key, tamaño, fecha de modificación) de los objetos bajo un prefijo.
+def _list_keys_sync(store: Store, prefix: str) -> list[tuple[str, int, object]]:
+    """(key, tamaño, fecha de modificación) de los objetos de `store` bajo un
+    prefijo.
 
     Pagina la respuesta y solo devuelve metadata; el contenido no se baja.
     """
     client = get_client()
-    if client is None:
+    bucket = bucket_for(store)
+    if client is None or not bucket:
         return []
     out = []
     paginator = client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=_bucket(), Prefix=prefix):
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             out.append((obj["Key"], obj["Size"], obj.get("LastModified")))
     return out
+
+
+def list_gif_keys_sync(prefix: str) -> list[tuple[str, int, object]]:
+    """Objetos del bucket de GIFs bajo un prefijo (ver _list_keys_sync)."""
+    return _list_keys_sync(GIFS, prefix)
 
 
 _IMAGE_CONTENT_TYPES = {
@@ -120,22 +174,100 @@ _IMAGE_CONTENT_TYPES = {
 }
 
 
-def public_url() -> str:
-    return os.getenv("R2_PUBLIC_URL", "").strip()
+def _env(name: str) -> str:
+    return os.getenv(name, "").strip()
 
 
-def _bucket() -> str:
-    return os.getenv("R2_BUCKET_NAME", "").strip()
+def bucket_for(store: Store, *, legacy: bool = True) -> str:
+    """Nombre del bucket de `store`, o "" si no está configurado.
+
+    Con legacy=True (default) IMAGES y GIFS caen en R2_BUCKET_NAME mientras su
+    variable propia esté vacía -- el fallback transitorio del docstring del
+    módulo. BACKUPS nunca cae en nada: si R2_BACKUP_BUCKET falta, no hay
+    bucket de backups. legacy=False lee solo la variable propia (lo usa el
+    script de migración, que tiene que distinguir origen de destino)."""
+    name = _env(store.bucket_var)
+    if name or not legacy or store is BACKUPS:
+        return name
+    return _env(LEGACY_BUCKET_VAR)
+
+
+def public_base(store: Store, *, legacy: bool = True) -> str:
+    """URL pública de `store` sin barra final, o "" si no está configurada.
+
+    Levanta ValueError para un bucket privado (BACKUPS): pedirle una URL
+    pública es un error de programación, no una configuración faltante."""
+    if store.public_var is None:
+        raise ValueError(f"el bucket '{store.role}' es privado: no tiene URL pública")
+    url = _env(store.public_var)
+    if not url and legacy:
+        url = _env(LEGACY_PUBLIC_VAR)
+    return url.rstrip("/")
+
+
+def public_images_url() -> str:
+    """Base pública de las imágenes (R2_IMAGES_PUBLIC_URL), sin barra final."""
+    return public_base(IMAGES)
+
+
+def public_gifs_url() -> str:
+    """Base pública de los GIFs (R2_GIFS_PUBLIC_URL), sin barra final."""
+    return public_base(GIFS)
+
+
+def _public_bases(store: Store) -> tuple[str, ...]:
+    """Bases públicas que identifican una URL como de `store`: la propia y,
+    mientras R2_PUBLIC_URL siga definida, la vieja (las filas guardadas antes
+    de la migración la llevan). La primera es la que se usa para construir
+    URLs nuevas."""
+    bases = (public_base(store), _env(LEGACY_PUBLIC_VAR).rstrip("/"))
+    return tuple(dict.fromkeys(b for b in bases if b))
+
+
+def gif_public_bases() -> tuple[str, ...]:
+    return _public_bases(GIFS)
+
+
+def image_public_bases() -> tuple[str, ...]:
+    return _public_bases(IMAGES)
+
+
+def _key_from_url(store: Store, url) -> str | None:
+    """Key del objeto si `url` pertenece al bucket público de `store`, None si
+    es externa (tenor, giphy, Discord CDN...). Las keys bajo `gifs/` son
+    siempre de GIFs: el bucket de imágenes no las reconoce ni por el alias
+    legacy, donde las dos familias comparten host."""
+    if not isinstance(url, str):
+        return None
+    for base in _public_bases(store):
+        prefix = base + "/"
+        if url.startswith(prefix) and len(url) > len(prefix):
+            key = url[len(prefix) :]
+            if store is IMAGES and key.startswith(GIF_KEY_PREFIX):
+                return None
+            return key
+    return None
+
+
+def gif_key_from_url(url) -> str | None:
+    return _key_from_url(GIFS, url)
+
+
+def image_key_from_url(url) -> str | None:
+    return _key_from_url(IMAGES, url)
 
 
 def get_client():
+    """Cliente S3 compartido: mismas credenciales y endpoint para los tres
+    buckets. No depende de ningún bucket -- qué bucket se usa lo decide cada
+    llamada (bucket_for)."""
     global _client, _checked
     if not _checked:
         _checked = True
-        endpoint = os.getenv("R2_ENDPOINT_URL", "").strip()
-        key_id = os.getenv("R2_ACCESS_KEY_ID", "").strip()
-        secret = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
-        if endpoint and key_id and secret and _bucket():
+        endpoint = _env("R2_ENDPOINT_URL")
+        key_id = _env("R2_ACCESS_KEY_ID")
+        secret = _env("R2_SECRET_ACCESS_KEY")
+        if endpoint and key_id and secret:
             try:
                 import boto3
                 from botocore.config import Config
@@ -153,8 +285,60 @@ def get_client():
     return _client
 
 
-def available() -> bool:
-    return get_client() is not None
+def _store_ready(store: Store) -> bool:
+    """Hay cliente, bucket y (si el bucket es público) URL pública. Sin la URL
+    no se puede armar el link que se guarda en la DB, así que una subida
+    "exitosa" dejaría una fila rota: es mejor degradar a "R2 no disponible"."""
+    if get_client() is None or not bucket_for(store):
+        return False
+    return store.public_var is None or bool(public_base(store))
+
+
+def images_available() -> bool:
+    return _store_ready(IMAGES)
+
+
+def gifs_available() -> bool:
+    return _store_ready(GIFS)
+
+
+def backups_available() -> bool:
+    return _store_ready(BACKUPS)
+
+
+def legacy_vars_set() -> list[str]:
+    """Variables del esquema viejo que siguen definidas. Vacía == ya no queda
+    ninguna dependencia: es lo que hay que conseguir antes de borrar el bucket
+    viejo (ver DEPLOY.md)."""
+    return [v for v in (LEGACY_BUCKET_VAR, LEGACY_PUBLIC_VAR) if _env(v)]
+
+
+def config_warnings() -> list[str]:
+    """Problemas de configuración de R2, listos para loguear al arrancar.
+    Lista vacía == todo en orden (los backups son opcionales y no entran:
+    solo los usa el cron de deploy/backup_db.sh)."""
+    if get_client() is None:
+        return [
+            "R2 no configurado: las imágenes de Discord CDN se guardarán con su URL "
+            "original (pueden expirar). Configura R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, "
+            "R2_SECRET_ACCESS_KEY, R2_IMAGES_BUCKET, R2_IMAGES_PUBLIC_URL, "
+            "R2_GIFS_BUCKET y R2_GIFS_PUBLIC_URL para persistencia permanente."
+        ]
+    out = []
+    for store in (IMAGES, GIFS):
+        if not _store_ready(store):
+            out.append(
+                f"R2 ({store.role}): falta {store.bucket_var} o {store.public_var}; "
+                f"ese tipo de archivo se guardará con su URL original."
+            )
+    legacy = legacy_vars_set()
+    if legacy:
+        out.append(
+            f"R2: {' y '.join(legacy)} siguen definidas (esquema de un solo bucket). "
+            "Se usan solo como fallback mientras se migra; borrarlas del .env al "
+            "terminar (DEPLOY.md § Migrar a tres buckets de R2)."
+        )
+    return out
 
 
 def _env_int(name: str, default: int) -> int:
@@ -209,12 +393,38 @@ def optimize_gif_bytes(data: bytes) -> bytes:
     return proc.stdout
 
 
-def _object_exists(client, key: str) -> bool:
+def _gif_object_exists(client, key: str) -> bool:
     try:
-        client.head_object(Bucket=_bucket(), Key=key)
+        client.head_object(Bucket=bucket_for(GIFS), Key=key)
         return True
     except Exception:
         return False
+
+
+def _put_object(store: Store, key: str, data: bytes, content_type: str) -> None:
+    """put_object sobre un bucket PÚBLICO (imágenes o GIFs), con el mismo
+    Cache-Control para ambos. Rechaza una key que no corresponde al bucket:
+    las de `gifs/` son solo de GIFs y todo lo demás solo de imágenes. La
+    subida ya elige el bucket por su cuenta; esto es la segunda llave -- una
+    key cruzada por un bug futuro falla acá en vez de ensuciar el otro
+    bucket sin que nadie se entere."""
+    if store not in (IMAGES, GIFS):
+        raise ValueError(
+            f"_put_object es solo para buckets públicos, no '{store.role}'"
+        )
+    is_gif_key = key.startswith(GIF_KEY_PREFIX)
+    if (store is GIFS) != is_gif_key:
+        raise ValueError(f"la key {key!r} no corresponde al bucket '{store.role}'")
+    client = get_client()
+    if client is None:
+        raise RuntimeError("R2 no está configurado")
+    client.put_object(
+        Bucket=bucket_for(store),
+        Key=key,
+        Body=data,
+        ContentType=content_type,
+        CacheControl=_CACHE_CONTROL,
+    )
 
 
 # Tolerancias de las señales estructurales baratas (frame_count, aspect
@@ -535,8 +745,7 @@ def upload_gif_sync(url: str) -> GifUpload | None:
     tener un phash casi idéntico. Si hay match, reusa ese objeto en vez de
     subir uno nuevo -- ver GIF_PHASH_MAX_DISTANCE en limits.env.
     """
-    client = get_client()
-    if client is None:
+    if not gifs_available():
         return None
     max_bytes = _env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
     hostname = urlparse(url).hostname or ""
@@ -594,7 +803,7 @@ def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
     y los sube a R2 si no existe ya un objeto con ese contenido o similar.
     Retorna un GifUpload, GifUpload(GIF_TOO_LARGE) si supera el límite, o None en error."""
     client = get_client()
-    if client is None:
+    if client is None or not gifs_available():
         return None
     max_bytes = _env_int("MAX_GIF_DOWNLOAD_BYTES", 8 * 1024 * 1024)
     if len(data) > max_bytes:
@@ -609,7 +818,7 @@ def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
         # Subir dos veces el mismo contenido a la misma key es inofensivo
         # (bytes idénticos), así que el head_object es solo para ahorrarse la
         # subida en el caso común de un repost, no un candado de concurrencia.
-        if not _object_exists(client, key):
+        if not _gif_object_exists(client, key):
             fingerprint = compute_gif_fingerprint(data)
             if fingerprint:
                 match = _closest_fingerprint_match(fingerprint, _phash_max_distance())
@@ -621,30 +830,25 @@ def upload_gif_bytes_sync(data: bytes) -> GifUpload | None:
                         match_hash,
                     )
                     return GifUpload(
-                        f"{public_url().rstrip('/')}/{match_key}", match_hash, len(data)
+                        f"{public_gifs_url()}/{match_key}", match_hash, len(data)
                     )
-            client.put_object(
-                Bucket=_bucket(),
-                Key=key,
-                Body=data,
-                ContentType="image/gif",
-                CacheControl=_CACHE_CONTROL,
-            )
+            _put_object(GIFS, key, data, "image/gif")
         return GifUpload(
-            f"{public_url().rstrip('/')}/{key}", content_hash, len(data), fingerprint
+            f"{public_gifs_url()}/{key}", content_hash, len(data), fingerprint
         )
     except Exception:
         log.exception("Error subiendo bytes de GIF a R2")
         return None
 
 
-def get_object_bytes_sync(key: str) -> bytes | None:
-    """Lee los bytes de un objeto de R2 directamente vía el cliente S3."""
+def get_gif_bytes_sync(key: str) -> bytes | None:
+    """Lee los bytes de un objeto del bucket de GIFs vía el cliente S3."""
     client = get_client()
-    if client is None:
+    bucket = bucket_for(GIFS)
+    if client is None or not bucket:
         return None
     try:
-        resp = client.get_object(Bucket=_bucket(), Key=key)
+        resp = client.get_object(Bucket=bucket, Key=key)
         return resp["Body"].read()
     except Exception:
         log.debug("No se pudo leer objeto de R2: %s", key, exc_info=True)
@@ -654,22 +858,17 @@ def get_object_bytes_sync(key: str) -> bytes | None:
 def upload_image_bytes_sync(
     url: str, data: bytes, guild_id: int, ext: str
 ) -> str | None:
-    """Sube bytes ya descargados (y validados como imagen real por el caller);
-    `url` solo se usa para derivar la key y para los logs de error."""
-    client = get_client()
-    if client is None:
+    """Sube bytes ya descargados (y validados como imagen real por el caller)
+    al bucket de imágenes; `url` solo se usa para derivar la key y para los
+    logs de error. Una imagen .gif va acá igual: el bucket de GIFs es solo
+    para los GIFs del pool (keys `gifs/...`), no para cualquier archivo .gif."""
+    if not images_available():
         return None
     content_type = _IMAGE_CONTENT_TYPES.get(ext.lower(), "image/png")
     try:
         key = f"{guild_id}/{hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()}{ext}"
-        client.put_object(
-            Bucket=_bucket(),
-            Key=key,
-            Body=data,
-            ContentType=content_type,
-            CacheControl=_CACHE_CONTROL,
-        )
-        return f"{public_url().rstrip('/')}/{key}"
+        _put_object(IMAGES, key, data, content_type)
+        return f"{public_images_url()}/{key}"
     except Exception:
         log.exception("Error subiendo imagen a R2: %s", url)
         return None
@@ -728,26 +927,145 @@ def check_gif_url_health(url: str, timeout: float = 6.0) -> str:
     return "dead"
 
 
-async def delete_key(key: str) -> None:
-    """Borra un objeto de R2 por su key."""
+async def _delete_key(store: Store, key: str) -> None:
+    """Borra un objeto de `store` por su key."""
     client = get_client()
-    if client is None:
+    bucket = bucket_for(store)
+    if client is None or not bucket:
         return
     try:
-        await asyncio.to_thread(client.delete_object, Bucket=_bucket(), Key=key)
+        await asyncio.to_thread(client.delete_object, Bucket=bucket, Key=key)
     except Exception:
-        log.warning("No se pudo eliminar objeto de R2: %s", key)
+        log.warning("No se pudo eliminar objeto de R2 (%s): %s", store.role, key)
 
 
-async def delete_url(url: str) -> None:
-    """Borra un objeto de R2 si la URL le pertenece. No-op para URLs externas.
+async def delete_gif_key(key: str) -> None:
+    """Borra un objeto del bucket de GIFs por su key."""
+    await _delete_key(GIFS, key)
+
+
+async def delete_gif_url(url: str) -> None:
+    """Borra un GIF del bucket de GIFs si la URL le pertenece. No-op para URLs
+    externas (tenor, giphy, Discord CDN).
 
     Para GIFs con content_hash usar db.release_gif_reference: los objetos
     content-addressed son compartidos y borrarlos por URL se llevaría puestas
-    las referencias de otros servidores. Esto sigue valiendo para imágenes y
-    para las filas viejas anteriores a la deduplicación (key por guild, 1:1).
+    las referencias de otros servidores. Esto sigue valiendo para las filas
+    viejas anteriores a la deduplicación (key por guild, 1:1).
     """
-    pub = public_url()
-    if not pub or not url.startswith(pub):
-        return
-    await delete_key(url[len(pub.rstrip("/")) + 1 :])
+    key = gif_key_from_url(url)
+    if key:
+        await _delete_key(GIFS, key)
+
+
+async def delete_image_url(url: str) -> None:
+    """Borra una imagen del bucket de imágenes si la URL le pertenece. No-op
+    para URLs externas. Las imágenes son 1:1 por guild (key con `{guild_id}/`
+    de prefijo), así que no hay referencias compartidas que proteger."""
+    key = image_key_from_url(url)
+    if key:
+        await _delete_key(IMAGES, key)
+
+
+# ─── Backups (bucket PRIVADO) ─────────────────────────────────────────────────
+#
+# A diferencia del resto del módulo, estas funciones LEVANTAN excepción: el que
+# las llama (scripts/r2_backup.py, desde deploy/backup_db.sh) tiene que enterarse
+# de que la copia remota no quedó -- un backup que solo existe en el disco de la
+# instancia no protege contra perder la instancia, que es justo para lo que está
+# el bucket. Nada de acá construye URLs: el bucket no tiene URL pública y no hay
+# que dársela (ni Development URL ni dominio). Se lee y se escribe solo con el
+# token S3.
+
+
+class BackupError(Exception):
+    """No se pudo subir, listar o bajar un backup."""
+
+
+def _backup_client_and_bucket():
+    client = get_client()
+    bucket = bucket_for(BACKUPS)
+    if client is None:
+        raise BackupError(
+            "R2 no está configurado (faltan R2_ENDPOINT_URL, R2_ACCESS_KEY_ID "
+            "o R2_SECRET_ACCESS_KEY)"
+        )
+    if not bucket:
+        raise BackupError("falta R2_BACKUP_BUCKET")
+    return client, bucket
+
+
+def upload_backup_file_sync(path: str, key: str | None = None) -> str:
+    """Sube un archivo al bucket de backups y devuelve la key (por default el
+    nombre del archivo, el mismo que tiene en BACKUP_DIR: `bot-<fecha>.db`).
+
+    Verifica después de subir -- head_object contra el tamaño y el sha256
+    locales -- en vez de confiar en que put_object no levantó nada. Un put
+    exitoso con un cuerpo truncado por el camino sería un backup que parece
+    estar y no sirve. Sin CacheControl ni ContentDisposition: no es contenido
+    para servir, y el bucket no tiene cómo servirlo."""
+    client, bucket = _backup_client_and_bucket()
+    key = key or os.path.basename(path)
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as e:
+        raise BackupError(f"no se pudo leer {path}: {e}") from e
+    digest = hashlib.sha256(data).hexdigest()
+    try:
+        # Cuerpo en memoria y no upload_file: es el mismo camino que ya usan las
+        # subidas de GIFs/imágenes (put_object con bytes), y el de streaming con
+        # checksum en trailer es el que R2 viene rechazando en boto3 nuevos. Una
+        # copia de bot.db cabe de sobra; el tope de un PUT simple es 5 GiB.
+        client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=data,
+            ContentType="application/octet-stream",
+            Metadata={"sha256": digest},
+        )
+        head = client.head_object(Bucket=bucket, Key=key)
+    except Exception as e:
+        raise BackupError(f"falló la subida de {key} a R2: {e}") from e
+    if head.get("ContentLength") != len(data):
+        raise BackupError(
+            f"{key}: el objeto quedó de {head.get('ContentLength')} bytes en R2 "
+            f"y el archivo local tiene {len(data)}"
+        )
+    return key
+
+
+def list_backups_sync() -> list[tuple[str, int, object]]:
+    """(key, tamaño, fecha) de los backups del bucket, del más viejo al más
+    nuevo. Los nombres llevan la fecha (`bot-YYYYMMDD-HHMMSS`), así que el
+    orden alfabético es el cronológico."""
+    client, bucket = _backup_client_and_bucket()
+    try:
+        out = []
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket):
+            for obj in page.get("Contents", []):
+                out.append((obj["Key"], obj["Size"], obj.get("LastModified")))
+    except Exception as e:
+        raise BackupError(f"no se pudo listar el bucket de backups: {e}") from e
+    return sorted(out)
+
+
+def download_backup_sync(key: str, dest_path: str) -> str:
+    """Baja un backup a `dest_path` (0600: lleva lo mismo que bot.db) y comprueba
+    el sha256 que guardó la subida, si el objeto lo trae."""
+    client, bucket = _backup_client_and_bucket()
+    try:
+        resp = client.get_object(Bucket=bucket, Key=key)
+        data = resp["Body"].read()
+    except Exception as e:
+        raise BackupError(f"no se pudo bajar {key}: {e}") from e
+    expected = (resp.get("Metadata") or {}).get("sha256")
+    if expected and hashlib.sha256(data).hexdigest() != expected:
+        raise BackupError(
+            f"{key}: el sha256 de lo bajado no coincide con el de la subida"
+        )
+    fd = os.open(dest_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    return dest_path

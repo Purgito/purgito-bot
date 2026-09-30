@@ -73,7 +73,7 @@ def release_reference(conn, client, content_hash: str | None) -> None:
         conn.execute("DELETE FROM gif_objects WHERE content_hash=?", (content_hash,))
         if client is not None:
             try:
-                client.delete_object(Bucket=r2._bucket(), Key=row[0])
+                client.delete_object(Bucket=r2.bucket_for(r2.GIFS), Key=row[0])
             except Exception:
                 log.warning("No se pudo borrar objeto de R2: %s", row[0])
 

@@ -33,7 +33,7 @@ _GUILD = 1
 def memory_db(monkeypatch):
     conn = asyncio.run(_open_memory_db())
     monkeypatch.setattr(db, "_db", conn)
-    monkeypatch.setattr(r2, "delete_url", _noop_delete_url)
+    monkeypatch.setattr(r2, "delete_gif_url", _noop_delete_url)
     yield conn
     asyncio.run(conn.close())
 

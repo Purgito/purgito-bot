@@ -34,8 +34,8 @@ _RECIEN = datetime.now(timezone.utc) - timedelta(minutes=5)
 def memory_db(monkeypatch):
     conn = asyncio.run(_open_memory_db())
     monkeypatch.setattr(db, "_db", conn)
-    monkeypatch.setattr(r2, "public_url", lambda: _PUBLIC)
-    monkeypatch.setattr(r2, "available", lambda: True)
+    monkeypatch.setenv("R2_GIFS_PUBLIC_URL", _PUBLIC)
+    monkeypatch.setattr(r2, "gifs_available", lambda: True)
     yield conn
     asyncio.run(conn.close())
 
@@ -47,7 +47,7 @@ def deleted(monkeypatch):
     async def fake_delete_key(key):
         keys.append(key)
 
-    monkeypatch.setattr(r2, "delete_key", fake_delete_key)
+    monkeypatch.setattr(r2, "delete_gif_key", fake_delete_key)
     return keys
 
 
@@ -60,7 +60,7 @@ async def _open_memory_db() -> aiosqlite.Connection:
 
 def _bucket(monkeypatch, objects):
     """objects: lista de (key, size, last_modified)."""
-    monkeypatch.setattr(r2, "list_keys_sync", lambda prefix: list(objects))
+    monkeypatch.setattr(r2, "list_gif_keys_sync", lambda prefix: list(objects))
 
 
 async def _add_object(conn, content_hash, ref_count):
@@ -132,7 +132,7 @@ def test_only_looks_under_the_gif_prefix(memory_db, deleted, monkeypatch):
         prefixes.append(prefix)
         return []
 
-    monkeypatch.setattr(r2, "list_keys_sync", fake_list)
+    monkeypatch.setattr(r2, "list_gif_keys_sync", fake_list)
     asyncio.run(gifs.run_gif_orphan_sweep())
     assert prefixes == [r2.GIF_KEY_PREFIX]
 
@@ -168,12 +168,12 @@ def test_mixed_bucket_deletes_only_the_orphan(memory_db, deleted, monkeypatch):
 
 
 def test_no_op_when_r2_is_not_configured(memory_db, deleted, monkeypatch):
-    monkeypatch.setattr(r2, "available", lambda: False)
+    monkeypatch.setattr(r2, "gifs_available", lambda: False)
 
     def boom(prefix):
         raise AssertionError("no debería listar el bucket")
 
-    monkeypatch.setattr(r2, "list_keys_sync", boom)
+    monkeypatch.setattr(r2, "list_gif_keys_sync", boom)
     assert asyncio.run(gifs.run_gif_orphan_sweep()) == 0
 
 

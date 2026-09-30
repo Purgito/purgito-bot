@@ -76,9 +76,14 @@ def gather(conn) -> dict:
     ).fetchone()
     n_objects = conn.execute("SELECT COUNT(*) FROM gif_objects").fetchone()[0]
 
-    pub = r2.public_url().rstrip("/")
-    content_keys = {key for key, _size, _mtime in r2.list_keys_sync(r2.GIF_KEY_PREFIX)}
-    legacy_keys = _legacy_keys(conn, pub) if pub else set()
+    content_keys = {
+        key for key, _size, _mtime in r2.list_gif_keys_sync(r2.GIF_KEY_PREFIX)
+    }
+    # Todas las bases que reconocen GIFs propios: mientras el alias del bucket
+    # anterior siga activo (ver src/r2.py), las filas viejas llevan esa URL.
+    legacy_keys: set[str] = set()
+    for pub in r2.gif_public_bases():
+        legacy_keys |= _legacy_keys(conn, pub)
     keys = content_keys | legacy_keys
 
     return {
@@ -94,7 +99,7 @@ def apply_wipe(conn, keys: set[str]) -> None:
     if client is not None:
         for key in keys:
             try:
-                client.delete_object(Bucket=r2._bucket(), Key=key)
+                client.delete_object(Bucket=r2.bucket_for(r2.GIFS), Key=key)
             except Exception:
                 log.warning("No se pudo borrar objeto de R2: %s", key)
     else:
