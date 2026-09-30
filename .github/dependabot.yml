@@ -8,3 +8,13 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+  # Las actions del CI están pineadas a un SHA: sin esto se quedan viejas para
+  # siempre (y con ellas sus parches de seguridad).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
