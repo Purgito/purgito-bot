@@ -14,12 +14,17 @@
 # Un backup que no pasa la verificación se borra y la corrida falla.
 set -euo pipefail
 
+# Los backups llevan lo mismo que bot.db (mensajes, tokens de webhook): solo el
+# usuario que corre el cron los puede leer.
+umask 077
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DB_SRC="${DB_SRC:-$script_dir/../data/bot.db}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/purgito-bot-backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 stamp="$(date +%Y%m%d-%H%M%S)"
 dest="$BACKUP_DIR/bot-$stamp.db"
 data_dir="$(dirname "$DB_SRC")"

@@ -16,6 +16,7 @@ from db import (
     get_guild_prefix,
     list_gif_urls,
     list_image_urls,
+    list_uploaded_image_urls,
     mark_guild_departed,
     purge_expired_revoked_sessions,
     purge_expired_shared_embeds,
@@ -138,17 +139,42 @@ class General(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx: commands.Context, error: Exception):
-        if isinstance(error, commands.MissingPermissions):
-            locale = await guild_locale(ctx.guild.id if ctx.guild else None)
-            await ctx.send(t("general.error.no_permission", locale))
+        command = getattr(ctx, "command", None)
+        # Los comandos con handler propio (!dl, !gif) ya le responden al
+        # usuario ellos mismos: si además respondiera este, saldrían dos
+        # mensajes. Es el mismo criterio que usa discord.py en su handler por
+        # defecto.
+        if command is not None and command.has_error_handler():
             return
-        elif isinstance(error, commands.CommandNotFound):
+        if isinstance(error, commands.CommandNotFound):
             return
+
+        locale = await guild_locale(ctx.guild.id if ctx.guild else None)
+        if isinstance(error, commands.CommandOnCooldown):
+            msg = t("general.error.cooldown", locale, seconds=round(error.retry_after))
         elif isinstance(error, commands.MissingRequiredArgument):
-            locale = await guild_locale(ctx.guild.id if ctx.guild else None)
-            await ctx.send(t("general.error.missing_argument", locale))
-            return
-        log.error("Error en comando %s", getattr(ctx, "command", None), exc_info=error)
+            msg = t("general.error.missing_argument", locale)
+        elif isinstance(error, commands.UserInputError):
+            msg = t("general.error.bad_argument", locale)
+        elif isinstance(error, commands.CheckFailure):
+            # MissingPermissions, NotOwner, NoPrivateMessage, etc.: el usuario
+            # no cumple el requisito del comando, no es un bug.
+            msg = t("general.error.no_permission", locale)
+        else:
+            # CommandInvokeError envuelve la excepción real; se desenvuelve
+            # para que el traceback del log muestre la causa y no el wrapper.
+            original = getattr(error, "original", error)
+            log.error("Error en comando %s", command, exc_info=original)
+            msg = t("general.error.generic", locale)
+
+        try:
+            await ctx.send(msg)
+        except (discord.HTTPException, discord.ClientException):
+            # Sin permiso para escribir en el canal, mensaje borrado, etc.: si
+            # era un error real ya quedó logueado arriba.
+            log.debug(
+                "No se pudo avisar el error de %s al usuario", command, exc_info=True
+            )
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
@@ -243,7 +269,12 @@ class General(commands.Cog):
                                 item["content_hash"], item["url"]
                             )
                         if not rejoined:
-                            for img_url in await list_image_urls(guild_id):
+                            # Imágenes del pool de memes + las que el panel
+                            # subió para embeds/anuncios: las dos viven en R2
+                            # bajo {guild_id}/ y ninguna otra fila las borraba.
+                            image_urls = await list_image_urls(guild_id)
+                            image_urls += await list_uploaded_image_urls(guild_id)
+                            for img_url in image_urls:
                                 if self.bot.get_guild(guild_id) is not None:
                                     rejoined = True
                                     break

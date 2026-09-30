@@ -53,6 +53,9 @@ WorkingDirectory={{DEPLOY_PATH}}
 ExecStart={{DEPLOY_PATH}}/.venv/bin/python src/bot.py
 Restart=on-failure
 RestartSec=15
+# bot.db (mensajes aprendidos, tokens de webhook) y bot.log nacen 0600: la
+# umask por defecto (0022) los dejaba legibles por cualquier usuario local.
+UMask=0077
 StandardOutput=journal
 StandardError=journal
 

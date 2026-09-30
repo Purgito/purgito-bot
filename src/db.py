@@ -5,6 +5,7 @@ import string
 import asyncio
 import logging
 import secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import aiosqlite
@@ -168,6 +169,10 @@ CREATE TABLE IF NOT EXISTS corpus_gifs (
     checked_at TEXT,
     dead_streak INTEGER NOT NULL DEFAULT 0,
     content_hash TEXT,
+    -- Reintentos de resolve_gifs_task (ver mark_gif_resolve_failed): sin esto un
+    -- GIF que nunca resuelve ocupaba un lugar de la cola para siempre.
+    resolve_attempts INTEGER NOT NULL DEFAULT 0,
+    resolve_retry_at TEXT,
     UNIQUE(guild_id, url)
 );
 
@@ -727,6 +732,38 @@ CREATE TABLE IF NOT EXISTS member_boost_records (
 """
 
 
+def _restrict_db_permissions() -> None:
+    """bot.db guarda el contenido de los mensajes aprendidos y los tokens de
+    webhook de los canales: que solo la lea el usuario del bot (0600). Sin
+    esto queda con la umask por defecto (0644, legible por cualquier usuario
+    local y por el usuario de nginx, que además puede atravesar el home por el
+    `chmod o+x` que pide DEPLOY.md). También cubre los sidecars del modo WAL,
+    que SQLite crea con el mismo modo que el archivo principal. Mejor
+    esfuerzo: un FS sin permisos POSIX (desarrollo en Windows) no debe impedir
+    el arranque."""
+    for suffix in ("", "-wal", "-shm"):
+        path = DB_PATH + suffix
+        try:
+            if os.path.exists(path):
+                os.chmod(path, 0o600)
+        except OSError:
+            log.warning(
+                "No se pudieron restringir los permisos de %s", path, exc_info=True
+            )
+
+
+def _ignore_duplicate_column(exc: Exception) -> None:
+    """Para el `except sqlite3.OperationalError` de cada `ALTER TABLE ... ADD
+    COLUMN` de init_db: esas migraciones corren en cada arranque y la columna
+    casi siempre ya existe, así que "duplicate column name" es lo esperado y se
+    ignora. Cualquier OTRO OperationalError (disco lleno, base bloqueada o de
+    solo lectura) se vuelve a levantar: antes un `except Exception` los tragaba
+    a nivel debug -- invisible con el logging en INFO de producción -- y el
+    bot arrancaba con el schema a medias."""
+    if "duplicate column name" not in str(exc).lower():
+        raise exc
+
+
 async def init_db():
     global _db
     if _db is not None:
@@ -743,53 +780,62 @@ async def init_db():
             "ALTER TABLE youtube_subscriptions ADD COLUMN mention_role_id INTEGER"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna mention_role_id ya existe en youtube_subscriptions")
     try:
         await _db.execute(
             "ALTER TABLE youtube_subscriptions ADD COLUMN last_error TEXT"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna last_error ya existe en youtube_subscriptions")
     try:
         await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN media_url TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna media_url ya existe en corpus_gifs")
     try:
         await _db.execute(
             "ALTER TABLE corpus_gifs ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna fail_count ya existe en corpus_gifs")
     try:
         await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN last_health_check TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna last_health_check ya existe en corpus_gifs")
     try:
         await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN checked_at TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna checked_at ya existe en corpus_gifs")
     try:
         await _db.execute(
             "ALTER TABLE corpus_gifs ADD COLUMN dead_streak INTEGER NOT NULL DEFAULT 0"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna dead_streak ya existe en corpus_gifs")
     try:
         await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN content_hash TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna content_hash ya existe en corpus_gifs")
     try:
         await _db.execute("ALTER TABLE gif_objects ADD COLUMN phash TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna phash ya existe en gif_objects")
     # frame_count/width/height/duration_ms/phashes reemplazan a `phash` (que
     # queda sin usarse, columna huérfana) como criterio de casi-duplicado:
@@ -801,27 +847,47 @@ async def init_db():
     try:
         await _db.execute("ALTER TABLE gif_objects ADD COLUMN frame_count INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna frame_count ya existe en gif_objects")
     try:
         await _db.execute("ALTER TABLE gif_objects ADD COLUMN width INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna width ya existe en gif_objects")
     try:
         await _db.execute("ALTER TABLE gif_objects ADD COLUMN height INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna height ya existe en gif_objects")
     try:
         await _db.execute("ALTER TABLE gif_objects ADD COLUMN duration_ms INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna duration_ms ya existe en gif_objects")
+    try:
+        await _db.execute(
+            "ALTER TABLE corpus_gifs ADD COLUMN resolve_attempts "
+            "INTEGER NOT NULL DEFAULT 0"
+        )
+        await _db.commit()
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
+        log.debug("Columna resolve_attempts ya existe en corpus_gifs")
+    try:
+        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN resolve_retry_at TEXT")
+        await _db.commit()
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
+        log.debug("Columna resolve_retry_at ya existe en corpus_gifs")
     try:
         await _db.execute("ALTER TABLE gif_objects ADD COLUMN phashes TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna phashes ya existe en gif_objects")
     try:
         # Limpieza retroactiva: si quedaron filas con media_url apuntando a miniaturas .png
@@ -834,17 +900,21 @@ async def init_db():
         )
         await _db.commit()
     except Exception:
-        log.debug("No se pudo limpiar media_url estáticos en corpus_gifs")
+        log.warning(
+            "No se pudo limpiar media_url estáticos en corpus_gifs", exc_info=True
+        )
     try:
         await _db.execute("ALTER TABLE settings ADD COLUMN locale TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna locale ya existe en settings")
     # Canal donde Purgito publica sus anuncios de actualizaciones (dashboard INICIO).
     try:
         await _db.execute("ALTER TABLE settings ADD COLUMN updates_channel_id INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna updates_channel_id ya existe en settings")
     # Prefijo de símbolo custom del guild (dashboard, tab Servidor). NULL =
     # usa DEFAULT_COMMAND_PREFIX ("!"). El prefijo de palabra ("purgito ") no
@@ -852,7 +922,8 @@ async def init_db():
     try:
         await _db.execute("ALTER TABLE settings ADD COLUMN custom_prefix TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna custom_prefix ya existe en settings")
     # Rol de Discord que el admin real del guild elige como "Gestor": acceso
     # de dashboard a Anuncios/Embeds/Frases/Triggers/Reacciones/GIFs/
@@ -861,7 +932,8 @@ async def init_db():
     try:
         await _db.execute("ALTER TABLE settings ADD COLUMN manager_role_id INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna manager_role_id ya existe en settings")
     # Anti-farmeo: interacciones por hora y por usuario. Los servidores que ya
     # existen quedan con el default (10), igual que uno nuevo.
@@ -871,7 +943,8 @@ async def init_db():
             f"INTEGER NOT NULL DEFAULT {DEFAULT_MENTION_RATE_LIMIT}"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna mention_rate_limit ya existe en settings")
     # Comportamiento del chat por servidor. Los defaults son los valores fijos
     # que tenía config.py, así que las filas viejas siguen comportándose igual.
@@ -888,21 +961,24 @@ async def init_db():
                 f"NOT NULL DEFAULT {_default}"
             )
             await _db.commit()
-        except Exception:
+        except sqlite3.OperationalError as exc:
+            _ignore_duplicate_column(exc)
             log.debug("Columna %s ya existe en settings", _col)
     try:
         await _db.execute(
             "ALTER TABLE guild_auto_refeed ADD COLUMN welcome_channel_id INTEGER"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna welcome_channel_id ya existe en guild_auto_refeed")
     try:
         await _db.execute(
             "ALTER TABLE scheduled_announcements ADD COLUMN embed_json TEXT DEFAULT NULL"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna embed_json ya existe en scheduled_announcements")
     # content_mode: distingue embeds clásicos de layouts Components V2. Al hacer
     # ADD COLUMN con DEFAULT, SQLite rellena las filas viejas con el default, así
@@ -913,14 +989,16 @@ async def init_db():
                 f"ALTER TABLE {_table} ADD COLUMN content_mode TEXT NOT NULL DEFAULT 'classic_embed'"
             )
             await _db.commit()
-        except Exception:
+        except sqlite3.OperationalError as exc:
+            _ignore_duplicate_column(exc)
             log.debug("Columna content_mode ya existe en %s", _table)
     try:
         await _db.execute(
             "ALTER TABLE scheduled_announcements ADD COLUMN delete_after_seconds INTEGER"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna delete_after_seconds ya existe en scheduled_announcements")
     # Modo 'weekly': mismo hour/minute que 'daily', más esta lista de días
     # (CSV de 0-6, Monday=0 -- mismo criterio que datetime.weekday()) para
@@ -930,7 +1008,8 @@ async def init_db():
             "ALTER TABLE scheduled_announcements ADD COLUMN weekdays TEXT"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna weekdays ya existe en scheduled_announcements")
     # Separación Eventos/Plantillas: un evento puede referenciar una plantilla en
     # vez de guardar su propio contenido. template_id NULL = comportamiento legacy
@@ -940,7 +1019,8 @@ async def init_db():
             "ALTER TABLE server_events ADD COLUMN template_id INTEGER DEFAULT NULL"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna template_id ya existe en server_events")
     # Motivo del último fallo al despachar el evento (join/leave/boost real,
     # no la prueba manual) -- NULL mientras no se haya intentado nunca o el
@@ -951,7 +1031,8 @@ async def init_db():
             "ALTER TABLE server_events ADD COLUMN last_error TEXT DEFAULT NULL"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna last_error ya existe en server_events")
     # embed_templates gana su propia columna message para poder guardar
     # plantillas de texto plano, igual que ya soporta server_events.
@@ -960,7 +1041,8 @@ async def init_db():
             "ALTER TABLE embed_templates ADD COLUMN message TEXT DEFAULT NULL"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna message ya existe en embed_templates")
     # Override por canal del tunable nuevo (Fase 3): igual que el resto de
     # channel_settings, nullable y sin default -- NULL siempre significa "sin
@@ -970,14 +1052,16 @@ async def init_db():
             "ALTER TABLE channel_settings ADD COLUMN frase_probability REAL"
         )
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna frase_probability ya existe en channel_settings")
     # NULL = "sin pack" (pool default del servidor) -- ver el comentario largo
     # junto a frase_packs/frase_pack_channels sobre la semántica completa.
     try:
         await _db.execute("ALTER TABLE frases_especiales ADD COLUMN pack_id INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna pack_id ya existe en frases_especiales")
     # Trazabilidad de canal para el corpus por autor (base para el eventual
     # Right to be Forgotten individual: sin channel_id no se puede acotar un
@@ -986,7 +1070,8 @@ async def init_db():
     try:
         await _db.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna channel_id ya existe en user_corpus")
     # Mismo patrón que youtube_subscriptions.last_error: auto_meme_task
     # saltaba un canal en silencio cada 10 min si no había imágenes en el
@@ -995,7 +1080,8 @@ async def init_db():
     try:
         await _db.execute("ALTER TABLE meme_schedule ADD COLUMN last_error TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna last_error ya existe en meme_schedule")
     # NULL en la inmensa mayoría de las filas (altas/bajas de listas -- un GIF
     # agregado, una frase borrada -- no tienen un "antes" que mostrar, detail
@@ -1006,7 +1092,8 @@ async def init_db():
     try:
         await _db.execute("ALTER TABLE audit_log ADD COLUMN previous_detail TEXT")
         await _db.commit()
-    except Exception:
+    except sqlite3.OperationalError as exc:
+        _ignore_duplicate_column(exc)
         log.debug("Columna previous_detail ya existe en audit_log")
     await _db.commit()
     flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
@@ -1045,6 +1132,7 @@ async def init_db():
         )
         await _db.commit()
     await backfill_user_corpus_channel_id()
+    _restrict_db_permissions()
 
 
 async def close_db():
@@ -2462,19 +2550,52 @@ async def update_gif_storage(
         await db.commit()
 
 
+# resolve_gifs_task reintenta un GIF que no resuelve con espera creciente
+# (15 min, 30 min, 1 h, 2 h, 4 h, 8 h, 12 h) y después lo deja: sin tope, un
+# puñado de links muertos o de hosts no soportados ocupaban para siempre los 25
+# lugares de cada corrida y los GIFs nuevos (id más alto) nunca llegaban a
+# entrar. La espera creciente además evita quemar los intentos durante una
+# caída corta del host de origen.
+MAX_GIF_RESOLVE_ATTEMPTS = 8
+_GIF_RESOLVE_BACKOFF_BASE = timedelta(minutes=15)
+_GIF_RESOLVE_BACKOFF_MAX = timedelta(hours=12)
+
+_STATIC_MEDIA_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def is_static_media_url(url: str | None) -> bool:
+    """Mismo criterio que los `LIKE '%.png'...` de get_unresolved_gifs: un
+    media_url que apunta a una imagen estática (la miniatura de un oEmbed, no el
+    GIF animado) sigue contando como "sin resolver"."""
+    return bool(url) and url.lower().endswith(_STATIC_MEDIA_SUFFIXES)
+
+
 async def get_unresolved_gifs(
     guild_id: int | None = None, limit: int = 30
 ) -> list[dict]:
+    """GIFs sin media_url animado todavía.
+
+    Sin `guild_id` (la cola de resolve_gifs_task) respeta el backoff: salta los
+    que agotaron MAX_GIF_RESOLVE_ATTEMPTS o todavía no cumplieron su espera, y
+    ordena por intentos para que los GIFs nuevos pasen antes que los
+    reintentos. Con `guild_id` devuelve todos los pendientes de ese servidor,
+    sin filtrar por backoff."""
     db = await get_db()
     if guild_id is None:
         query = (
             "SELECT id, url FROM corpus_gifs "
-            "WHERE media_url IS NULL OR media_url LIKE '%.png' "
+            "WHERE (media_url IS NULL OR media_url LIKE '%.png' "
             "OR media_url LIKE '%.jpg' OR media_url LIKE '%.jpeg' "
-            "OR media_url LIKE '%.webp' "
-            "ORDER BY id LIMIT ?"
+            "OR media_url LIKE '%.webp') "
+            "AND resolve_attempts < ? "
+            "AND (resolve_retry_at IS NULL OR resolve_retry_at <= ?) "
+            "ORDER BY resolve_attempts, id LIMIT ?"
         )
-        params: tuple = (limit,)
+        params: tuple = (
+            MAX_GIF_RESOLVE_ATTEMPTS,
+            datetime.now(timezone.utc).isoformat(),
+            limit,
+        )
     else:
         query = (
             "SELECT id, url FROM corpus_gifs WHERE guild_id=? "
@@ -2487,6 +2608,30 @@ async def get_unresolved_gifs(
     async with db.execute(query, params) as cursor:
         rows = await cursor.fetchall()
     return [{"id": r[0], "url": r[1]} for r in rows]
+
+
+async def mark_gif_resolve_failed(gif_id: int) -> None:
+    """Un intento de resolver este GIF no dio un media_url animado: suma un
+    intento y agenda el próximo con espera creciente (ver
+    MAX_GIF_RESOLVE_ATTEMPTS)."""
+    db = await get_db()
+    async with _db_lock:
+        async with db.execute(
+            "SELECT resolve_attempts FROM corpus_gifs WHERE id=?", (gif_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return  # borrado mientras se resolvía
+        attempts = row[0] + 1
+        delay = min(
+            _GIF_RESOLVE_BACKOFF_BASE * 2 ** (attempts - 1), _GIF_RESOLVE_BACKOFF_MAX
+        )
+        retry_at = (datetime.now(timezone.utc) + delay).isoformat()
+        await db.execute(
+            "UPDATE corpus_gifs SET resolve_attempts=?, resolve_retry_at=? WHERE id=?",
+            (attempts, retry_at, gif_id),
+        )
+        await db.commit()
 
 
 async def delete_gif_url_by_id(guild_id: int, gif_id: int) -> bool:
@@ -4505,6 +4650,20 @@ async def list_uploaded_images(guild_id: int, limit: int = 40) -> list[str]:
     return [r[0] for r in rows]
 
 
+async def list_uploaded_image_urls(guild_id: int) -> list[str]:
+    """TODAS las imágenes que el panel subió a R2 para este guild (a diferencia
+    de list_uploaded_images, que trunca a las más recientes para la galería
+    del editor). La usa la limpieza al salir de un servidor, para no dejar
+    los objetos huérfanos en el bucket."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT url FROM embed_uploaded_images WHERE guild_id=? ORDER BY id",
+        (guild_id,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [r[0] for r in rows]
+
+
 # ─── Webhook propio por canal (identidad personalizada, Fase 3) ─────────────
 
 
@@ -6107,55 +6266,72 @@ async def get_welcome_channel_id(guild_id: int) -> int | None:
     return row[0] if row else None
 
 
+# Toda tabla con columna `guild_id` tiene que estar acá: es lo que borra
+# purge_guild_data a los 30 días de que el bot sale de un servidor (la política
+# de privacidad promete "borrarse por completo"). tests/test_guild_purge.py
+# compara esta lista contra el SCHEMA y falla si una tabla nueva con guild_id
+# queda afuera -- antes se habían colado gif_senders (user_id + canal +
+# mensaje de cada remitente), gif_blocklist, guild_bot_style y
+# embed_uploaded_images.
+_GUILD_PURGE_TABLES = (
+    "settings",
+    "corpus_messages",
+    "user_corpus",
+    "corpus_gifs",
+    "corpus_images",
+    "youtube_subscriptions",
+    "twitch_subscriptions",
+    "rss_subscriptions",
+    "ignored_channels",
+    "meme_schedule",
+    "scheduled_announcements",
+    "embed_templates",
+    "layout_button_actions",
+    "frases_especiales",
+    "frase_allowed_channels",
+    "frase_packs",
+    "frase_pack_channels",
+    "channel_triggers",
+    "reaction_pool",
+    "premium_guilds",
+    "premium_event_watermark",
+    "premium_subscriptions",
+    "guild_departures",
+    "channel_refeed_status",
+    "guild_auto_refeed",
+    "guild_counters",
+    "chat_channels",
+    "spontaneous_channels",
+    "mention_channels",
+    "channel_settings",
+    "corpus_allowed_channels",
+    "mention_rate_limit_exempt_roles",
+    "mention_rate_limit_exempt_channels",
+    "applied_migrations",
+    "audit_log",
+    "excluded_users",
+    "server_events",
+    "member_boost_records",
+    "channel_webhooks",
+    "gif_blocklist",
+    "gif_senders",
+    "guild_bot_style",
+    "embed_uploaded_images",
+)
+
+
 async def purge_guild_data(guild_id: int) -> None:
     """Delete all DB rows for a guild. R2 cleanup must be handled by the caller first."""
     db = await get_db()
-    tables = [
-        "settings",
-        "corpus_messages",
-        "user_corpus",
-        "corpus_gifs",
-        "corpus_images",
-        "youtube_subscriptions",
-        "twitch_subscriptions",
-        "rss_subscriptions",
-        "ignored_channels",
-        "meme_schedule",
-        "scheduled_announcements",
-        "embed_templates",
-        "layout_button_actions",
-        "frases_especiales",
-        "frase_allowed_channels",
-        "frase_packs",
-        "frase_pack_channels",
-        "channel_triggers",
-        "reaction_pool",
-        "premium_guilds",
-        "premium_event_watermark",
-        "premium_subscriptions",
-        "guild_departures",
-        "channel_refeed_status",
-        "guild_auto_refeed",
-        "guild_counters",
-        "chat_channels",
-        "spontaneous_channels",
-        "mention_channels",
-        "channel_settings",
-        "corpus_allowed_channels",
-        "mention_rate_limit_exempt_roles",
-        "mention_rate_limit_exempt_channels",
-        "applied_migrations",
-        "audit_log",
-        "excluded_users",
-        "server_events",
-        "member_boost_records",
-        "channel_webhooks",
-    ]
     async with _db_lock:
-        for table in tables:
+        for table in _GUILD_PURGE_TABLES:
             await db.execute(f"DELETE FROM {table} WHERE guild_id=?", (guild_id,))
         await db.commit()
-    log.info("purge_guild_data: guild %s purgado de %d tablas", guild_id, len(tables))
+    log.info(
+        "purge_guild_data: guild %s purgado de %d tablas",
+        guild_id,
+        len(_GUILD_PURGE_TABLES),
+    )
 
 
 # ─── Storage limits ──────────────────────────────────────────────────────────

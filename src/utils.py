@@ -1,9 +1,13 @@
 """Utilidades pequeñas compartidas entre cogs."""
 
+import asyncio
 import logging
-from collections import OrderedDict
+import time
+from collections import OrderedDict, deque
 
 import discord
+
+import config
 
 log = logging.getLogger(__name__)
 
@@ -121,3 +125,87 @@ def chunk_message(text: str, max_length: int = 1900) -> list[str]:
         chunks.append(text[:cut_index].strip())
         text = text[cut_index:].strip()
     return chunks
+
+
+# ── Reinicio de tareas en segundo plano que fallan ───────────────────────────
+
+# discord.ext.tasks mata un loop para siempre ante cualquier excepción que no
+# sea de red/gateway, así que cada loop tiene un @loop.error que lo reinicia.
+# Reiniciar a ciegas tenía dos problemas: un error SISTEMÁTICO (un bug, una
+# migración a medias) reejecutaba el cuerpo en el acto y en bucle, con un
+# traceback por vuelta, y nadie se enteraba de que la función llevaba horas sin
+# andar. Acá los fallos se cuentan en una ventana, el reinicio espera cada vez
+# más y, pasado un umbral, avisa al canal del proyecto.
+_LOOP_FAILURE_WINDOW = 30 * 60  # segundos
+_LOOP_ALERT_THRESHOLD = 3  # fallos dentro de la ventana para avisar
+_LOOP_ALERT_COOLDOWN = 60 * 60  # un aviso por loop por hora, como mucho
+_LOOP_RESTART_DELAY_BASE = 10  # segundos; el primer fallo reinicia sin espera
+_LOOP_RESTART_DELAY_MAX = 600
+
+
+async def notify_ops(bot, content: str) -> None:
+    """Aviso de mejor esfuerzo al canal de avisos del proyecto
+    (config.LIFECYCLE_ANNOUNCE_CHANNEL_ID, el mismo de "Purgito volvió
+    después de una caída"). Nunca levanta: un aviso que no se pudo mandar no
+    puede agravar la falla que se está reportando."""
+    channel_id = config.LIFECYCLE_ANNOUNCE_CHANNEL_ID
+    if channel_id is None:
+        return
+    try:
+        channel = bot.get_channel(channel_id)
+        if channel is None:
+            channel = await asyncio.wait_for(bot.fetch_channel(channel_id), timeout=3)
+        await asyncio.wait_for(channel.send(content), timeout=3)
+    except Exception:
+        log.warning("No se pudo enviar el aviso al canal del proyecto", exc_info=True)
+
+
+async def restart_loop_after_failure(
+    bot, loop, name: str, error: BaseException
+) -> None:
+    """Cuerpo común de los `@loop.error` de los cogs: loguea, cuenta el fallo,
+    espera (más cuanto más seguido falla) y reinicia el loop.
+
+    El estado vive en el propio objeto `loop` (cada cog instanciado tiene el
+    suyo), no en un dict global, para que dos instancias -- o dos tests -- no
+    compartan contadores."""
+    now = time.monotonic()
+    failures = loop.__dict__.setdefault("_purgito_failures", deque())
+    failures.append(now)
+    while failures and now - failures[0] > _LOOP_FAILURE_WINDOW:
+        failures.popleft()
+    count = len(failures)
+    delay = (
+        0
+        if count <= 1
+        else min(_LOOP_RESTART_DELAY_BASE * 2 ** (count - 2), _LOOP_RESTART_DELAY_MAX)
+    )
+    log.error(
+        "%s se cayó, reiniciando el loop (%d fallo(s) en los últimos %d min%s)",
+        name,
+        count,
+        _LOOP_FAILURE_WINDOW // 60,
+        f", espera {delay}s" if delay else "",
+        exc_info=error,
+    )
+
+    if count >= _LOOP_ALERT_THRESHOLD:
+        last_alert = loop.__dict__.get("_purgito_last_alert")
+        if last_alert is None or now - last_alert > _LOOP_ALERT_COOLDOWN:
+            loop.__dict__["_purgito_last_alert"] = now
+            log.critical(
+                "%s falló %d veces en %d min: probablemente es un error sistemático",
+                name,
+                count,
+                _LOOP_FAILURE_WINDOW // 60,
+            )
+            await notify_ops(
+                bot,
+                f"⚠️ La tarea `{name}` falló {count} veces en los últimos "
+                f"{_LOOP_FAILURE_WINDOW // 60} minutos y se sigue reiniciando. "
+                "Revisa el log del servidor.",
+            )
+
+    if delay:
+        await asyncio.sleep(delay)
+    loop.restart()

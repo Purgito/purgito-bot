@@ -66,6 +66,17 @@ else
             ok "$var presente en .env"
         fi
     done
+
+    # La clave de la cookie de sesión sale de sha256(SESSION_SECRET): un secreto
+    # corto deja forjar sesiones (ver MIN_SESSION_SECRET_LENGTH en config.py).
+    secret_value="$(grep -E "^SESSION_SECRET=" "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d= -f2-)"
+    if [ -n "$secret_value" ]; then
+        if [ "${#secret_value}" -ge 32 ]; then
+            ok "SESSION_SECRET tiene 32 caracteres o más"
+        else
+            bad "SESSION_SECRET tiene menos de 32 caracteres -- generar uno nuevo: python3 -c \"import secrets; print(secrets.token_hex(32))\" (desloguea a todos una vez)"
+        fi
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

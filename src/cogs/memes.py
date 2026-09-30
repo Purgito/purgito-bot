@@ -30,7 +30,7 @@ from db import (
 from generation import build_markov_model
 from i18n import guild_locale, t
 from meme_generator import _try_short_sentence, is_valid_image, render_caption
-from utils import LRUDict
+from utils import LRUDict, restart_loop_after_failure
 
 log = logging.getLogger(__name__)
 
@@ -266,7 +266,7 @@ async def handle_meme_command(message: discord.Message) -> None:
             log.debug("No se pudo avisar el gate de premium", exc_info=True)
         return
 
-    # Cooldown por usuario: sin esto, spamear replies "artemis generar" fuerza
+    # Cooldown por usuario: sin esto, spamear replies "purgito generar" fuerza
     # renders de Pillow (y, cada 10s por guild, llamadas a Groq) sin límite.
     # Silencioso a propósito: responder "espera X segundos" en cada intento de
     # spam sería, en sí mismo, otra forma de ruido en el canal.
@@ -617,8 +617,9 @@ class Memes(commands.Cog):
         # Sin este handler, una excepción fuera del set que discord.py
         # reintenta solo mata el loop para siempre en silencio y los memes
         # automáticos programados dejan de postearse sin ningún aviso.
-        log.exception("auto_meme_task se cayó, reiniciando el loop", exc_info=error)
-        self.auto_meme_task.restart()
+        await restart_loop_after_failure(
+            self.bot, self.auto_meme_task, "auto_meme_task", error
+        )
 
     async def _momo_impl(self, interaction: discord.Interaction) -> None:
         locale = await guild_locale(interaction.guild_id)
