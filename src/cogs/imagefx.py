@@ -1150,8 +1150,10 @@ class ImageFx(commands.Cog):
                     log.exception("Error convirtiendo imagen a GIF en !gif")
                     await ctx.reply(t("general.error.generic", locale))
                     return
-                await ctx.reply(
-                    file=discord.File(io.BytesIO(result), filename="purgito.gif")
+                await download_mod.reply_with_file(
+                    ctx,
+                    locale,
+                    discord.File(io.BytesIO(result), filename="purgito.gif"),
                 )
                 return
 
@@ -1165,8 +1167,8 @@ class ImageFx(commands.Cog):
                 log.exception("Error convirtiendo imagen a GIF en !gif")
                 await ctx.reply(t("general.error.generic", locale))
                 return
-            await ctx.reply(
-                file=discord.File(io.BytesIO(result), filename="purgito.gif")
+            await download_mod.reply_with_file(
+                ctx, locale, discord.File(io.BytesIO(result), filename="purgito.gif")
             )
             return
 
@@ -1193,7 +1195,9 @@ class ImageFx(commands.Cog):
                 await ctx.reply(t("imagefx.video_conversion_failed", locale))
                 return
 
-        await ctx.reply(file=discord.File(io.BytesIO(result), filename="purgito.gif"))
+        await download_mod.reply_with_file(
+            ctx, locale, discord.File(io.BytesIO(result), filename="purgito.gif")
+        )
 
     @gif_cmd.error
     async def gif_cmd_error(self, ctx: commands.Context, error: Exception):

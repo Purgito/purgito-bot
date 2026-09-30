@@ -326,6 +326,7 @@
   "download.dl.no_video_in_post": "Ese post es una foto, no un video -- no hay nada para descargar ahí.",
   "download.dl.busy": "Ya hay una descarga en curso en este servidor, espera a que termine.",
   "download.dl.nsfw_channel_required": "Ese video viene marcado como contenido sensible: solo se puede subir en un canal NSFW.",
+  "download.dl.sent_by": "Enviado por {user}",
   "help.intro.title": "Ayuda de Purgito",
   "help.intro.description": "Purgito aprende cómo escribe tu servidor y genera mensajes nuevos a partir de eso.\n\nUsa los botones de abajo para ver los comandos por categoría.",
   "help.intro.panel_field_name": "Opciones avanzadas",

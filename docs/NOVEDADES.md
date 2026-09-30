@@ -37,6 +37,7 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 - `/dl` ahora existe también como comando de barra, instalable en tu cuenta de Discord: se puede usar en un mensaje directo con Purgito o en un grupo de DM, sin estar en un servidor. `/gif` también es comando de barra ahora, pero se queda solo en servidores, con la opción de subir directamente un video o imagen además del link.
 
 ### Mejorado
+- `!dl`, `purgito dl`, `!gif` y `purgito gif` ahora agregan «Enviado por @usuario» al mensaje con el video, así se sabe quién lo pidió aunque borre su comando. Los comandos de barra (`/dl`, `/gif`) no lo necesitan: Discord ya muestra quién los usó.
 - El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
 - El selector para cambiar de servidor en el dashboard ya no se ve apretado contra el borde del menú.
 - Un solo buscador de módulos en el dashboard: antes había dos que hacían lo mismo, y el de la barra lateral se perdía al colapsarla.

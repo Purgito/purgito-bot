@@ -37,6 +37,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 - `/dl` now also exists as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` is also a slash command now, but stays server-only, with the option to upload a video or image directly, on top of a link.
 
 ### Improved
+- `!dl`, `purgito dl`, `!gif`, and `purgito gif` now add “Sent by @user” to the message with the video, so it's clear who requested it even if they delete their command. Slash commands (`/dl`, `/gif`) don't need it: Discord already shows who used them.
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
 - The server switcher in the dashboard no longer looks cramped against the sidebar's edge.
 - A single module search in the dashboard: there used to be two doing the same thing, and the sidebar one disappeared when you collapsed it.
