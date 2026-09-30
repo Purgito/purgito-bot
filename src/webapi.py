@@ -431,6 +431,55 @@ async def _cors_middleware(request: web.Request, handler) -> web.StreamResponse:
     return resp
 
 
+_CSRF_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# /webhooks/ (Polar) es server-to-server: no viene de un navegador, no lleva
+# cookie de sesión y se autentica con su propia firma.
+_CSRF_EXEMPT_PREFIXES = ("/webhooks/",)
+
+
+def _origin_allowed(request: web.Request) -> bool:
+    """¿Esta request de escritura viene de una página nuestra?
+
+    Con `Origin` (los navegadores lo mandan en todo POST/PUT/PATCH/DELETE)
+    manda ese: tiene que ser el dashboard o un origen de la landing. Un
+    `Origin: null` (iframe con sandbox, algunos redirects) tampoco pasa. Sin
+    `Origin`, `Sec-Fetch-Site` decide: solo `same-origin` o `none` (el usuario
+    escribió la URL). Sin ninguno de los dos no hay navegador de por medio --
+    curl, un script propio -- y esa request igual necesita la cookie de sesión
+    que solo nuestro login entrega, así que se deja pasar."""
+    origin = request.headers.get("Origin")
+    if origin is not None:
+        return origin.rstrip("/") in ({DASHBOARD_BASE_URL} | set(LANDING_ORIGINS))
+    site = request.headers.get("Sec-Fetch-Site")
+    return site is None or site in ("same-origin", "none")
+
+
+@web.middleware
+async def _csrf_origin_middleware(request: web.Request, handler) -> web.StreamResponse:
+    """Defensa en profundidad contra CSRF en las escrituras de la API.
+
+    Hoy ya se apoya en SameSite=Lax de la cookie y, en los endpoints con cuerpo
+    JSON, en que `_json_body` rechaza los Content-Type que un <form> puede
+    mandar sin preflight. Quedaban sin esa segunda capa los ~10 endpoints de
+    escritura SIN cuerpo JSON (por ejemplo vaciar el corpus o bloquear un GIF):
+    solo dependían de SameSite, que no cubre a un sitio del mismo sitio -- la
+    cookie lleva Domain=.purgito.app, así que la comparte cualquier
+    subdominio -- ni a un navegador que lo ignore. Validar Origin cierra ambos."""
+    if request.method in _CSRF_UNSAFE_METHODS and not request.path.startswith(
+        _CSRF_EXEMPT_PREFIXES
+    ):
+        if not _origin_allowed(request):
+            log.warning(
+                "Request %s %s rechazada: Origin=%r Sec-Fetch-Site=%r",
+                request.method,
+                request.path,
+                request.headers.get("Origin"),
+                request.headers.get("Sec-Fetch-Site"),
+            )
+            return web.json_response({"error": "origen no permitido"}, status=403)
+    return await handler(request)
+
+
 @web.middleware
 async def _error_middleware(request: web.Request, handler) -> web.StreamResponse:
     """Red de contención para excepciones no atajadas en un handler.
@@ -5458,6 +5507,28 @@ async def _api_embeds_validate(request: web.Request, guild_id: int) -> web.Respo
 
 
 # Firmas mágicas de los formatos de imagen que acepta el uploader del editor.
+async def _read_capped_body(request: web.Request, max_bytes: int) -> bytes | None:
+    """Lee el cuerpo del request en streaming con un tope PROPIO, o None si lo
+    supera.
+
+    La app corre con el client_max_size default de aiohttp (1 MiB, lo fija un
+    test a propósito: es el tope que protege a /webhooks/polar y al resto de
+    los endpoints JSON) y `request.read()` lo aplica siempre -- así que una
+    subida de 1 a 8/10 MB (los topes de MAX_EMBED_IMAGE_UPLOAD_BYTES y
+    MAX_LAYOUT_FILE_UPLOAD_BYTES) fallaba con un 413 en texto plano de aiohttp
+    aunque el handler dijera aceptarla. Leer de `request.content` no pasa por
+    ese tope, así que los dos handlers de subida fijan el suyo acá, sin subir
+    el límite global."""
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.content.iter_chunked(65536):
+        total += len(chunk)
+        if total > max_bytes:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _sniff_image(data: bytes) -> str | None:
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         return ".png"
@@ -5508,8 +5579,8 @@ async def _api_embeds_upload(request: web.Request, guild_id: int) -> web.Respons
             {"error": f"la imagen supera el máximo de {max_bytes // (1024 * 1024)} MB"},
             status=413,
         )
-    data = await request.read()
-    if len(data) > max_bytes:
+    data = await _read_capped_body(request, max_bytes)
+    if data is None:
         return web.json_response(
             {"error": f"la imagen supera el máximo de {max_bytes // (1024 * 1024)} MB"},
             status=413,
@@ -5618,8 +5689,8 @@ async def _api_layout_file_upload(request: web.Request, guild_id: int) -> web.Re
             },
             status=413,
         )
-    data = await request.read()
-    if len(data) > max_bytes:
+    data = await _read_capped_body(request, max_bytes)
+    if data is None:
         return web.json_response(
             {
                 "error": f"el archivo supera el máximo de {max_bytes // (1024 * 1024)} MB"
@@ -6425,6 +6496,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         middlewares=[
             _security_headers_middleware,
             _cors_middleware,
+            _csrf_origin_middleware,
             _error_middleware,
         ]
     )
