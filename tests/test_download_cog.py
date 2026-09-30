@@ -126,6 +126,9 @@ def _fake_download_factory(seen=None, is_sensitive=False):
         "https://facebook.com/user/videos/123",
         "https://www.facebook.com/user/videos/123",
         "https://fb.watch/abc123",
+        "https://youtube.com/shorts/abc-_123",
+        "https://www.youtube.com/shorts/abc123?feature=share",
+        "https://m.youtube.com/shorts/abc123/",
     ],
 )
 def test_is_supported_url_acepta_hosts_validos(url):
@@ -137,6 +140,10 @@ def test_is_supported_url_acepta_hosts_validos(url):
     [
         "https://youtube.com/watch?v=abc",
         "https://youtu.be/abc",
+        "https://youtube.com/shorts/",
+        "https://youtube.com/shorts/abc/extra",
+        "https://evil.com/shorts/abc",
+        "https://youtube.com.evil.com/shorts/abc",
         "https://evil.com/instagram.com",
         "https://instagram.com.evil.com/reel/abc",
         # t.co es un acortador genérico de Twitter (cualquier link tuiteado

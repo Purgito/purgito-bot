@@ -7,9 +7,12 @@ dl <link>", sin importar mayúsculas/minúsculas: bot.py:get_prefix devuelve
 el prefijo con el casing exacto que escribió el usuario). Si el comando se
 invoca sin link propio pero respondiendo a un mensaje, usa el link de ese
 mensaje (_reply_target_url) -- así alcanza con "purgito dl" en respuesta a
-un mensaje que ya tiene el video. YouTube queda deliberadamente afuera:
-bloquea activamente la descarga por fuera del navegador (throttling, a
-veces pide cookies de sesión) -- ver discusión en el PR.
+un mensaje que ya tiene el video. De YouTube solo se aceptan Shorts
+(youtube.com/shorts/<id>, ver _is_youtube_short_url): son clips cortos que
+entran bien en el tope de tamaño. Los videos normales siguen afuera --
+YouTube bloquea activamente la descarga por fuera del navegador
+(throttling, a veces pide cookies de sesión) y uno largo no entra en
+Discord de todos modos.
 
 Nada de SSRF nuevo acá pese a que yt-dlp termina haciendo requests de red a
 partir de un link que manda el usuario: a diferencia de r2.py (que sí
@@ -82,6 +85,22 @@ class NoVideoInPost(Exception):
     "No video could be found in this tweet", etc., ver _is_no_video_error)."""
 
 
+_YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com"}
+_SHORTS_PATH_RE = re.compile(r"^/shorts/[\w-]+/?$")
+
+
+def _is_youtube_short_url(url: str) -> bool:
+    """Solo youtube.com/shorts/<id>: youtu.be y /watch no dicen si el video
+    es corto, así que quedan afuera. Host exacto (no subdominios
+    arbitrarios) porque no hay otro sitio que justifique aceptarlos."""
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return False
+    return host in _YOUTUBE_HOSTS and bool(_SHORTS_PATH_RE.match(parsed.path))
+
+
 def _is_supported_url(url: str) -> bool:
     try:
         host = (urlparse(url).hostname or "").lower()
@@ -89,6 +108,8 @@ def _is_supported_url(url: str) -> bool:
         return False
     if not host:
         return False
+    if _is_youtube_short_url(url):
+        return True
     return host in _ALLOWED_HOSTS or any(
         host.endswith(f".{allowed}") for allowed in _ALLOWED_HOSTS
     )
@@ -357,10 +378,11 @@ class Download(commands.Cog):
     # cambios: ya usa "ctx.guild is not None" antes de tocar cualquier cosa
     # específica de servidor (ver max_bytes abajo).
     @commands.hybrid_command(
-        name="dl", description="Descarga un video de Instagram, TikTok, X o Facebook."
+        name="dl",
+        description="Descarga un video de Instagram, TikTok, X, Facebook o un Short de YouTube.",
     )
     @app_commands.describe(
-        url="Link del video a descargar (Instagram, TikTok, X/Twitter o Facebook)."
+        url="Link del video (Instagram, TikTok, X/Twitter, Facebook o YouTube Shorts)."
     )
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)

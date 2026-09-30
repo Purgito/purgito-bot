@@ -11,6 +11,7 @@ vive en el [repositorio en GitHub](https://github.com/punkyyy01/bot-discord-purg
 ## Novedades recientes
 
 ### Nuevo
+- `!dl` ahora también descarga YouTube Shorts (links `youtube.com/shorts/...`). Los videos normales de YouTube siguen sin funcionar.
 - Límites de uso visibles por servidor: mensajes aprendidos, GIFs e imágenes de memes tienen un tope, y el dashboard avisa cuando un servidor se acerca a agotarlo.
 - Categoría **Frases** en `/settings`: agregar, ver y borrar frases especiales desde Discord, sin pasar por el dashboard.
 - **YouTube** y **Memes automáticos** ampliados en `/settings`: ahora se pueden agregar suscripciones y activar memes automáticos directo desde el panel de Discord, no solo quitarlos.
