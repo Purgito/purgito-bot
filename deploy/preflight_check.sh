@@ -68,7 +68,7 @@ else
     done
 
     # La clave de la cookie de sesión sale de sha256(SESSION_SECRET): un secreto
-    # corto deja forjar sesiones (ver MIN_SESSION_SECRET_LENGTH en config.py).
+    # corto deja forjar sesiones (ver MIN_SESSION_KEY_LENGTH en config.py).
     secret_value="$(grep -E "^SESSION_SECRET=" "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d= -f2-)"
     if [ -n "$secret_value" ]; then
         if [ "${#secret_value}" -ge 32 ]; then

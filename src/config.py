@@ -213,11 +213,11 @@ def _env_bool(name: str, default: bool) -> bool:
 # sesión sale de sha256(SESSION_SECRET), así que un secreto corto y adivinable
 # deja forjar una sesión de cualquier usuario. `token_hex(32)` (el comando de
 # .env.example) da 64 caracteres.
-MIN_SESSION_SECRET_LENGTH = 32
+MIN_SESSION_KEY_LENGTH = 32
 
 
 def session_secret_is_weak(secret: str) -> bool:
-    return 0 < len(secret) < MIN_SESSION_SECRET_LENGTH
+    return 0 < len(secret) < MIN_SESSION_KEY_LENGTH
 
 
 if session_secret_is_weak(SESSION_SECRET):
@@ -227,7 +227,7 @@ if session_secret_is_weak(SESSION_SECRET):
     log.warning(
         "SESSION_SECRET tiene menos de %d caracteres: genera uno nuevo con "
         'python3 -c "import secrets; print(secrets.token_hex(32))"',
-        MIN_SESSION_SECRET_LENGTH,
+        MIN_SESSION_KEY_LENGTH,
     )
 
 # Por defecto se habilita si hay SESSION_SECRET; se puede forzar off sin borrar el resto.
