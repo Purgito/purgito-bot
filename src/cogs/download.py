@@ -41,6 +41,7 @@ import r2
 from config import env_int
 from db import DEFAULT_COMMAND_PREFIX, get_guild_prefix
 from i18n import guild_locale, t
+from sent_by import reply_with_file
 
 log = logging.getLogger(__name__)
 
@@ -430,7 +431,7 @@ class Download(commands.Cog):
             if is_sensitive and not channel_is_nsfw:
                 await ctx.reply(t("download.dl.nsfw_channel_required", locale))
                 return
-            await ctx.reply(file=discord.File(path))
+            await reply_with_file(ctx, locale, discord.File(path))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 

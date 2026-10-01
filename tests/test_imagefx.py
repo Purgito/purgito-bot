@@ -347,6 +347,7 @@ class FakeAvatarAsset:
 class FakeAuthor:
     def __init__(self, user_id=1, avatar_bytes: bytes | None = None):
         self.id = user_id
+        self.mention = f"<@{user_id}>"
         self.display_avatar = FakeAvatarAsset(avatar_bytes or _png_bytes())
 
 
@@ -372,7 +373,11 @@ class FakeContext:
         channel_id=None,
         bot=None,
         message_snapshots=None,
+        interaction=None,
     ):
+        # None = invocado por prefijo ("!gif", "purgito gif"); cualquier otra
+        # cosa = invocado como /gif (ctx.interaction).
+        self.interaction = interaction
         self.guild = (
             SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
             if guild_id is not None
@@ -398,6 +403,7 @@ class FakeContext:
         self.command = "fake_command"
         self.replies: list[str] = []
         self.reply_files: list = []
+        self.reply_kwargs: list[dict] = []
         self._fetch_message_result = None
 
     async def reply(self, content=None, *, file=None, **kwargs):
@@ -405,6 +411,7 @@ class FakeContext:
             self.replies.append(content)
         if file is not None:
             self.reply_files.append(file)
+        self.reply_kwargs.append(kwargs)
 
     async def _fetch_message(self, message_id):
         if self._fetch_message_result is None:
@@ -1073,7 +1080,7 @@ def test_deepfry_camino_feliz_responde_con_archivo():
     asyncio.run(cog.deepfry_cmd.callback(cog, ctx))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_triggered_responde_con_un_gif():
@@ -1287,7 +1294,7 @@ def test_invert_acepta_un_gif_y_responde_con_un_gif():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_caption_acepta_un_gif_y_responde_con_un_gif():
@@ -1342,7 +1349,7 @@ def test_gay_acepta_un_gif_reenviado_en_el_mensaje_respondido():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gay_acepta_un_gif_reenviado_como_comentario_del_propio_comando():
@@ -1378,7 +1385,7 @@ def test_gay_acepta_un_gif_subido_con_extension_de_imagen_estatica():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_filtro_sin_gif_de_por_medio_sigue_devolviendo_png():
@@ -1507,7 +1514,7 @@ def test_gifwide_acepta_un_video_que_se_ve_como_gif_del_mensaje_respondido():
 
     asyncio.run(cog.gifwide_cmd.callback(cog, ctx))
 
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
     assert len(ctx.reply_files) == 1
 
 
@@ -1548,6 +1555,54 @@ def test_gif_cmd_camino_feliz_convierte_un_video_real():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
+
+
+def test_gif_cmd_por_prefijo_firma_quien_lo_pidio_con_un_video():
+    # Misma regla que "!dl" (download.reply_with_file): sin el mensaje del
+    # comando, el GIF de un reel quedaría sin rastro de quién lo pidió.
+    cog = _cog()
+    video_bytes = _make_test_video_bytes(duration=0.5, fps=8)
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=video_bytes)]
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
+    mentions = ctx.reply_kwargs[0]["allowed_mentions"]
+    assert mentions.to_dict() == {"replied_user": True, "parse": []}
+
+
+def test_gif_cmd_firma_tambien_si_el_adjunto_de_video_resulta_ser_una_imagen():
+    # Adjunto "clip.mp4" cuyos bytes son una imagen (extensión cambiada a
+    # mano): _resolve_video_bytes lo devuelve por la extensión y gif_cmd lo
+    # empaqueta como GIF de un solo frame por otra rama que la del video --
+    # también tiene que dejar constancia de quién lo pidió.
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="clip.mp4", data=_png_bytes())]
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.reply_files[0].filename == "purgito.gif"
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
+
+
+def test_gif_cmd_como_slash_no_firma_porque_discord_ya_muestra_quien_lo_uso():
+    cog = _cog()
+    ctx = FakeContext(
+        attachments=[FakeAttachment(filename="foto.webp", data=_png_bytes())],
+        interaction=SimpleNamespace(),
+    )
+
+    asyncio.run(cog.gif_cmd.callback(cog, ctx))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.replies == []
+    assert "allowed_mentions" not in ctx.reply_kwargs[0]
 
 
 def test_gif_cmd_sin_video_pide_un_video():
@@ -1900,7 +1955,7 @@ def test_gif_cmd_funciona_tambien_en_un_canal_nsfw(monkeypatch):
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_link_no_crea_archivos_temporales(monkeypatch):
@@ -1929,7 +1984,7 @@ def test_gif_cmd_usa_una_imagen_adjunta_si_no_hay_ningun_video():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_usa_la_imagen_del_mensaje_respondido():
@@ -2443,7 +2498,7 @@ def test_gif_cmd_yt_dlp_video_sensible_permitido_en_nsfw(monkeypatch):
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_yt_dlp_limpia_el_directorio_temporal(monkeypatch):

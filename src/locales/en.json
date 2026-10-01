@@ -182,6 +182,7 @@
   "commands.borrar_mis_datos.description": "Permanently deletes your data stored by Purgito.",
   "premium.required_message": "This feature is only available on premium servers. You can see how to get it at {url}",
   "general.guild_only": "Servers only.",
+  "general.sent_by": "Sent by {user}",
   "gifs.add.too_large": "The GIF is over the allowed size limit.",
   "gifs.add.upload_failed": "Couldn't upload the GIF to R2. Check that the URL is reachable.",
   "gifs.add.unrecognized_url": "Unrecognized URL. Only GIFs from tenor.com, giphy.com or cdn.discordapp.com are accepted.",

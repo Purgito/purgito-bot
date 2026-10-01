@@ -19,6 +19,7 @@ import pytest
 import yt_dlp
 
 import cogs.download as download_mod
+import i18n
 import r2
 from cogs.download import (
     Download,
@@ -44,14 +45,25 @@ class FakeContext:
         guild_id=1,
         channel_is_nsfw=False,
         reference=None,
+        interaction=None,
     ):
-        self.guild = SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
+        # guild_id=None simula un DM con el bot (ctx.guild es None ahí).
+        self.guild = (
+            SimpleNamespace(id=guild_id, filesize_limit=guild_filesize_limit)
+            if guild_id is not None
+            else None
+        )
+        self.author = SimpleNamespace(id=42, mention="<@42>")
+        # None = invocado por prefijo ("!dl", "purgito dl"); cualquier otra
+        # cosa = invocado como /dl (ctx.interaction).
+        self.interaction = interaction
         self.channel = SimpleNamespace(
             is_nsfw=lambda: channel_is_nsfw, fetch_message=self._fetch_message
         )
         self.message = SimpleNamespace(reference=reference)
         self.replies: list[str] = []
         self.reply_files: list = []
+        self.reply_kwargs: list[dict] = []
         self._fetch_message_result = None
 
     async def reply(self, content=None, *, file=None, **kwargs):
@@ -59,6 +71,7 @@ class FakeContext:
             self.replies.append(content)
         if file is not None:
             self.reply_files.append(file)
+        self.reply_kwargs.append(kwargs)
 
     async def _fetch_message(self, message_id):
         if self._fetch_message_result is None:
@@ -398,7 +411,79 @@ def test_dl_sube_video_sensible_en_un_canal_nsfw(monkeypatch):
     asyncio.run(cog.dl.callback(cog, ctx, url="https://x.com/user/status/123"))
 
     assert len(ctx.reply_files) == 1
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@42>")]
+
+
+# ── comando dl: "Enviado por <usuario>" ───────────────────────────────────────
+#
+# Si borran el mensaje del comando, el video del bot queda sin rastro de quién
+# lo pidió: el crédito va en el propio mensaje del bot, pero solo donde ese
+# mensaje sale suelto -- un comando por prefijo dentro de un servidor (ver
+# download.reply_with_file).
+
+
+def test_dl_por_prefijo_en_un_servidor_firma_quien_lo_pidio(monkeypatch):
+    cog = _cog()
+    ctx = FakeContext()
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory())
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@42>")]
+
+
+def test_dl_firma_sin_ping_extra_pero_conserva_el_ping_del_reply(monkeypatch):
+    # Quien pidió el video ya recibe el ping del reply: la mención del texto no
+    # debe sumar otro, ni abrir la puerta a pings de everyone/roles.
+    cog = _cog()
+    ctx = FakeContext()
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory())
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    mentions = ctx.reply_kwargs[0]["allowed_mentions"]
+    assert mentions.to_dict() == {"replied_user": True, "parse": []}
+
+
+def test_dl_como_slash_no_firma_porque_discord_ya_muestra_quien_lo_uso(monkeypatch):
+    cog = _cog()
+    ctx = FakeContext(interaction=SimpleNamespace())
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory())
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.reply_files) == 1
     assert ctx.replies == []
+    assert "allowed_mentions" not in ctx.reply_kwargs[0]
+
+
+def test_dl_en_un_dm_no_firma_porque_solo_estan_el_usuario_y_el_bot(monkeypatch):
+    cog = _cog()
+    ctx = FakeContext(guild_id=None)
+    monkeypatch.setattr(download_mod, "_download_video", _fake_download_factory())
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.reply_files) == 1
+    assert ctx.replies == []
+    assert "allowed_mentions" not in ctx.reply_kwargs[0]
+
+
+def test_dl_no_firma_los_mensajes_de_error(monkeypatch):
+    # El crédito es solo para el video subido: un aviso de error no es
+    # contenido que haya que atribuir.
+    cog = _cog()
+    ctx = FakeContext()
+
+    def fake(url, max_bytes):
+        raise DownloadFailed("privado o borrado")
+
+    monkeypatch.setattr(download_mod, "_download_video", fake)
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert ctx.replies == [i18n.t("download.dl.failed", "es")]
 
 
 def test_dl_video_demasiado_grande(monkeypatch):
