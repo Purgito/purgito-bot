@@ -1080,7 +1080,7 @@ def test_deepfry_camino_feliz_responde_con_archivo():
     asyncio.run(cog.deepfry_cmd.callback(cog, ctx))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_triggered_responde_con_un_gif():
@@ -1294,7 +1294,7 @@ def test_invert_acepta_un_gif_y_responde_con_un_gif():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_caption_acepta_un_gif_y_responde_con_un_gif():
@@ -1349,7 +1349,7 @@ def test_gay_acepta_un_gif_reenviado_en_el_mensaje_respondido():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gay_acepta_un_gif_reenviado_como_comentario_del_propio_comando():
@@ -1385,7 +1385,7 @@ def test_gay_acepta_un_gif_subido_con_extension_de_imagen_estatica():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_filtro_sin_gif_de_por_medio_sigue_devolviendo_png():
@@ -1514,7 +1514,7 @@ def test_gifwide_acepta_un_video_que_se_ve_como_gif_del_mensaje_respondido():
 
     asyncio.run(cog.gifwide_cmd.callback(cog, ctx))
 
-    assert ctx.replies == []
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
     assert len(ctx.reply_files) == 1
 
 
@@ -1569,7 +1569,7 @@ def test_gif_cmd_por_prefijo_firma_quien_lo_pidio_con_un_video():
     asyncio.run(cog.gif_cmd.callback(cog, ctx))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@1>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
     mentions = ctx.reply_kwargs[0]["allowed_mentions"]
     assert mentions.to_dict() == {"replied_user": True, "parse": []}
 
@@ -1588,7 +1588,7 @@ def test_gif_cmd_firma_tambien_si_el_adjunto_de_video_resulta_ser_una_imagen():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@1>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_como_slash_no_firma_porque_discord_ya_muestra_quien_lo_uso():
@@ -1955,7 +1955,7 @@ def test_gif_cmd_funciona_tambien_en_un_canal_nsfw(monkeypatch):
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@1>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_link_no_crea_archivos_temporales(monkeypatch):
@@ -1984,7 +1984,7 @@ def test_gif_cmd_usa_una_imagen_adjunta_si_no_hay_ningun_video():
 
     assert len(ctx.reply_files) == 1
     assert ctx.reply_files[0].filename == "purgito.gif"
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@1>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_usa_la_imagen_del_mensaje_respondido():
@@ -2498,7 +2498,7 @@ def test_gif_cmd_yt_dlp_video_sensible_permitido_en_nsfw(monkeypatch):
     asyncio.run(cog.gif_cmd.callback(cog, ctx, url="https://x.com/user/status/123"))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@1>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@1>")]
 
 
 def test_gif_cmd_yt_dlp_limpia_el_directorio_temporal(monkeypatch):

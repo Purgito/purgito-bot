@@ -411,7 +411,7 @@ def test_dl_sube_video_sensible_en_un_canal_nsfw(monkeypatch):
     asyncio.run(cog.dl.callback(cog, ctx, url="https://x.com/user/status/123"))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@42>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@42>")]
 
 
 # ── comando dl: "Enviado por <usuario>" ───────────────────────────────────────
@@ -430,7 +430,7 @@ def test_dl_por_prefijo_en_un_servidor_firma_quien_lo_pidio(monkeypatch):
     asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
 
     assert len(ctx.reply_files) == 1
-    assert ctx.replies == [i18n.t("download.dl.sent_by", "es", user="<@42>")]
+    assert ctx.replies == [i18n.t("general.sent_by", "es", user="<@42>")]
 
 
 def test_dl_firma_sin_ping_extra_pero_conserva_el_ping_del_reply(monkeypatch):

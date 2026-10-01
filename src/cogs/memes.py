@@ -30,6 +30,7 @@ from db import (
 from generation import build_markov_model
 from i18n import guild_locale, t
 from meme_generator import _try_short_sentence, is_valid_image, render_caption
+from sent_by import sent_by_credit
 from utils import LRUDict, restart_loop_after_failure
 
 log = logging.getLogger(__name__)
@@ -378,7 +379,12 @@ async def handle_meme_command(message: discord.Message) -> None:
         await message.reply(t("memes.render_failed", locale))
         return
 
-    await message.reply(file=discord.File(io.BytesIO(meme_bytes), filename="meme.png"))
+    # message.guild está garantizado acá (se cortó arriba si era un DM) y esto
+    # siempre es un mensaje de texto, nunca un slash: el crédito corresponde.
+    await message.reply(
+        file=discord.File(io.BytesIO(meme_bytes), filename="meme.png"),
+        **sent_by_credit(locale, message.author),
+    )
 
 
 class Memes(commands.Cog):

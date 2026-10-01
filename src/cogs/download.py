@@ -41,6 +41,7 @@ import r2
 from config import env_int
 from db import DEFAULT_COMMAND_PREFIX, get_guild_prefix
 from i18n import guild_locale, t
+from sent_by import reply_with_file
 
 log = logging.getLogger(__name__)
 
@@ -262,38 +263,6 @@ async def _reply_target_url(ctx: commands.Context) -> str | None:
         if embed.url:
             return embed.url
     return None
-
-
-# Sin pings por el texto del crédito: el reply ya avisa al autor del comando,
-# que es el mismo usuario que se menciona ahí -- users=False apaga el ping del
-# contenido y replied_user=True conserva el del reply, igual que antes de
-# existir el crédito.
-_CREDIT_MENTIONS = discord.AllowedMentions(
-    everyone=False, roles=False, users=False, replied_user=True
-)
-
-
-async def reply_with_file(
-    ctx: commands.Context, locale: str, file: discord.File
-) -> None:
-    """Sube `file` como respuesta al comando, con "Enviado por <usuario>"
-    cuando hace falta dejar constancia de quién lo pidió. Compartido con
-    cogs/imagefx.py ("purgito gif" sube el mismo tipo de contenido).
-
-    Si borran el mensaje del comando, el reply queda sin referencia y el
-    video suelto no dice quién lo pidió -- para moderar, el crédito tiene que
-    estar en el mensaje del bot. Solo se agrega donde ese mensaje sale
-    "suelto": un comando por prefijo dentro de un servidor. No en un slash
-    (Discord ya pega "<usuario> usó /dl" a la respuesta) ni en un DM (solo
-    están el usuario y el bot)."""
-    if ctx.interaction is not None or ctx.guild is None:
-        await ctx.reply(file=file)
-        return
-    await ctx.reply(
-        t("download.dl.sent_by", locale, user=ctx.author.mention),
-        file=file,
-        allowed_mentions=_CREDIT_MENTIONS,
-    )
 
 
 def _embed_video_url(message: discord.Message) -> str | None:
