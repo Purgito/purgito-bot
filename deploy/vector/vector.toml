@@ -1,0 +1,320 @@
+# Vector -- collector LOCAL de Purgito.  PREPARADO, NO INSTALADO.
+#
+#   collector local (este VM)  ->  destino EXTERNO (otro host)
+#
+# Este archivo recoge logs y métricas del VM y los EMPUJA fuera. No guarda un
+# segundo almacenamiento de logs acá (solo un buffer de disco acotado que se
+# usa si el destino está caído) y NO apunta a ningún destino local: los
+# destinos salen de variables de entorno, y si faltan Vector no arranca.
+#
+# Variables requeridas (ej. en /etc/vector/vector.env, modo 0600):
+#   PURGITO_ENV            production | staging
+#   PURGITO_LOGS_URL       endpoint HTTP de ingesta de logs del host externo
+#   PURGITO_LOGS_TOKEN     bearer del destino de logs
+#   PURGITO_METRICS_URL    endpoint remote_write (Prometheus/VictoriaMetrics) externo
+#   PURGITO_METRICS_TOKEN  bearer del destino de métricas
+#   OBSERVABILITY_TOKEN    el mismo valor que el del bot (para raspar /metrics)
+#
+# Permisos del usuario `vector`: grupos `systemd-journal` (journald) y `adm`
+# (/var/log/nginx) y lectura sobre data/*.jsonl del checkout. Ver
+# docs/OBSERVABILITY.md § Vector. Validar con:  vector validate deploy/vector/vector.toml
+
+data_dir = "/var/lib/vector"
+
+# ───────────────────────── Fuentes ─────────────────────────
+
+# Eventos estructurados del bot (fuente CANÓNICA de eventos; ya traen el schema).
+[sources.purgito_events]
+type = "file"
+include = ["/home/purgito/purgito-bot/data/events.jsonl"]
+read_from = "beginning"          # el checkpoint evita relecturas
+
+[sources.purgito_security]
+type = "file"
+include = ["/home/purgito/purgito-bot/data/security.jsonl"]
+read_from = "beginning"
+
+# Logs de aplicación/systemd: SOLO las unidades que importan.
+[sources.journal]
+type = "journald"
+include_units = ["bot-purg.service", "nginx.service", "postgresql@18-main.service"]
+current_boot_only = false
+
+# Rastro de los runbooks (`logger -t purgito-runbook`).
+[sources.journal_runbooks]
+type = "journald"
+current_boot_only = false
+include_matches.SYSLOG_IDENTIFIER = ["purgito-runbook"]
+
+[sources.nginx_error]
+type = "file"
+include = ["/var/log/nginx/error.log"]
+
+# access.log: lleva IPs de visitantes. Se envía con la IP HASHEADA y sin query
+# string (el callback OAuth trae ?code=...). Si no querés enviarlo, borrá este
+# bloque y el de `nginx_access_normalize`.
+[sources.nginx_access]
+type = "file"
+include = ["/var/log/nginx/access.log"]
+
+# Métricas Prometheus del bot, por loopback con bearer.
+[sources.purgito_metrics]
+type = "prometheus_scrape"
+endpoints = ["http://127.0.0.1:8080/metrics"]
+scrape_interval_secs = 30
+auth.strategy = "bearer"
+auth.token = "${OBSERVABILITY_TOKEN}"
+
+# ───────────────────────── Transforms ─────────────────────────
+
+# 1. Eventos del bot: ya son JSON con el schema v1. Se parsea, se etiqueta el
+#    stream y se descartan líneas corruptas.
+[transforms.events_parse]
+type = "remap"
+inputs = ["purgito_events", "purgito_security"]
+source = '''
+parsed, err = parse_json(.message)
+if err != null { abort }
+. = object!(parsed)
+.stream = if .category == "security" { "security" } else { "events" }
+'''
+
+# 2. Journald: se descartan las líneas `purgito.event:` (ya llegan por el JSONL;
+#    evita duplicados) y el resto se lleva a un sobre compatible con el schema.
+[transforms.journal_normalize]
+type = "remap"
+inputs = ["journal"]
+source = '''
+msg = string(.message) ?? ""
+if contains(msg, "purgito.event:") { abort }
+prio = to_int(.PRIORITY) ?? 6
+sev = if prio <= 2 { "critical" } else if prio == 3 { "error" } else if prio == 4 { "warning" } else if prio <= 6 { "info" } else { "debug" }
+unit = string(._SYSTEMD_UNIT) ?? string(.SYSLOG_IDENTIFIER) ?? "unknown"
+ts = timestamp(.timestamp) ?? now()
+. = {
+  "schema": 1,
+  "timestamp": format_timestamp!(ts, format: "%Y-%m-%dT%H:%M:%S%.3fZ"),
+  "event_id": uuid_v4(),
+  "event_type": "log.journal",
+  "category": "app",
+  "severity": sev,
+  "service": unit,
+  "environment": get_env_var("PURGITO_ENV") ?? "production",
+  "host": string(.host) ?? "unknown",
+  "message": msg,
+  "stream": "journal"
+}
+'''
+
+[transforms.runbooks_normalize]
+type = "remap"
+inputs = ["journal_runbooks"]
+source = '''
+msg = string(.message) ?? ""
+kv = parse_key_value(msg) ?? {}
+ts = timestamp(.timestamp) ?? now()
+. = {
+  "schema": 1,
+  "timestamp": format_timestamp!(ts, format: "%Y-%m-%dT%H:%M:%S%.3fZ"),
+  "event_id": uuid_v4(),
+  "event_type": "deployment.runbook_executed",
+  "category": "app",
+  "severity": "info",
+  "service": "purgito-bot",
+  "environment": get_env_var("PURGITO_ENV") ?? "production",
+  "host": string(.host) ?? "unknown",
+  "message": msg,
+  "data": kv,
+  "stream": "events"
+}
+'''
+
+[transforms.nginx_error_normalize]
+type = "remap"
+inputs = ["nginx_error"]
+source = '''
+msg = string(.message) ?? ""
+sev = if contains(msg, "[crit]") || contains(msg, "[emerg]") || contains(msg, "[alert]") { "critical" } else if contains(msg, "[error]") { "error" } else { "warning" }
+. = {
+  "schema": 1,
+  "timestamp": format_timestamp!(now(), format: "%Y-%m-%dT%H:%M:%S%.3fZ"),
+  "event_id": uuid_v4(),
+  "event_type": "log.nginx_error",
+  "category": "app",
+  "severity": sev,
+  "service": "nginx",
+  "environment": get_env_var("PURGITO_ENV") ?? "production",
+  "host": string(.host) ?? "unknown",
+  "message": msg,
+  "stream": "journal"
+}
+'''
+
+[transforms.nginx_access_normalize]
+type = "remap"
+inputs = ["nginx_access"]
+source = '''
+parsed = parse_nginx_log(string!(.message), format: "combined") ?? null
+if parsed == null { abort }
+req = split(string(parsed.request) ?? "", " ")
+method = req[0]
+path = split(string(req[1]) ?? "", "?")[0]
+client = slice!(sha2(string(parsed.client) ?? "", variant: "SHA-256"), 0, 12)
+. = {
+  "schema": 1,
+  "timestamp": format_timestamp!(now(), format: "%Y-%m-%dT%H:%M:%S%.3fZ"),
+  "event_id": uuid_v4(),
+  "event_type": "log.nginx_access",
+  "category": "app",
+  "severity": "info",
+  "service": "nginx",
+  "environment": get_env_var("PURGITO_ENV") ?? "production",
+  "host": string(.host) ?? "unknown",
+  "message": "nginx request",
+  "method": method,
+  "endpoint": path,
+  "status": parsed.status,
+  "source_id": client,
+  "stream": "journal"
+}
+'''
+
+# 3. Todo lo de texto pasa por redacción ANTES de salir del VM (segunda barrera:
+#    el bot ya redacta en origen, pero journald/nginx no pasan por el bot).
+[transforms.redact]
+type = "remap"
+inputs = [
+  "events_parse",
+  "journal_normalize",
+  "runbooks_normalize",
+  "nginx_error_normalize",
+  "nginx_access_normalize",
+]
+source = '''
+. = redact(., filters: [
+  r'(?i)(postgres(?:ql)?(?:\+\w+)?://[^:/\s@]+:)[^@\s]+',
+  r'(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}',
+  r'[MNO][A-Za-z\d_-]{23,27}\.[A-Za-z\d_-]{6}\.[A-Za-z\d_-]{27,}',
+  r'AGE-SECRET-KEY-1[A-Z0-9]+',
+  r'PURGITO_SESSION=[^;\s]+',
+  r'(?i)(code|state|access_token|refresh_token|client_secret|password|api_key)=[^&\s"]+',
+], redactor: "full")
+'''
+
+# 4. Deduplicación por event_id (relecturas tras rotación/reinicio del collector).
+[transforms.dedupe]
+type = "dedupe"
+inputs = ["redact"]
+fields.match = ["event_id"]
+cache.num_events = 5000
+
+# Separar seguridad del resto: pueden ir a streams/retenciones distintas.
+[transforms.route]
+type = "route"
+inputs = ["dedupe"]
+route.security = '.stream == "security"'
+route.other = '.stream != "security"'
+reroute_unmatched = false
+
+# ───────────────────────── Sinks (SIEMPRE externos) ─────────────────────────
+# Ejemplo pensado para VictoriaLogs (Apache-2.0) en otro host: PURGITO_LOGS_URL =
+#   https://logs.example.net/insert/jsonline?_stream_fields=service,host,category&_msg_field=message&_time_field=timestamp
+# Cualquier receptor HTTP que acepte NDJSON sirve.
+
+[sinks.logs_external]
+type = "http"
+inputs = ["route.other", "route.security"]
+uri = "${PURGITO_LOGS_URL}"
+method = "post"
+compression = "gzip"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+auth.strategy = "bearer"
+auth.token = "${PURGITO_LOGS_TOKEN}"
+request.timeout_secs = 15
+request.retry_attempts = 20
+# Si el destino cae, se acumula en disco hasta este tope (mínimo que acepta
+# Vector: 256 MiB) y después se descarta lo nuevo; nunca crece sin límite.
+buffer.type = "disk"
+buffer.max_size = 268435456
+buffer.when_full = "drop_newest"
+
+[sinks.metrics_external]
+type = "prometheus_remote_write"
+inputs = ["purgito_metrics"]
+endpoint = "${PURGITO_METRICS_URL}"
+auth.strategy = "bearer"
+auth.token = "${PURGITO_METRICS_TOKEN}"
+
+# ───────────────────────── Tests (vector test deploy/vector/vector.toml) ─────────────────────────
+
+[[tests]]
+name = "journald: redacta credenciales antes de salir"
+
+[[tests.inputs]]
+insert_at = "journal_normalize"
+type = "log"
+log_fields.message = "connect failed postgresql://purgito:hunter2secret@127.0.0.1/db with Bearer abcdefghijklmnop"
+log_fields.PRIORITY = "3"
+log_fields._SYSTEMD_UNIT = "bot-purg.service"
+
+[[tests.outputs]]
+extract_from = "redact"
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert!(!contains(string!(.message), "hunter2secret"))
+assert!(!contains(string!(.message), "abcdefghijklmnop"))
+assert_eq!(.severity, "error")
+assert_eq!(.event_type, "log.journal")
+'''
+
+[[tests]]
+name = "journald: las líneas purgito.event no se duplican"
+
+[[tests.inputs]]
+insert_at = "journal_normalize"
+type = "log"
+log_fields.message = "2026-10-02 12:00:00,000 INFO     purgito.event: event=service.started | x"
+
+[[tests.outputs]]
+extract_from = "journal_normalize"
+expected_event_count = 0
+
+[[tests]]
+name = "eventos de seguridad van al stream security"
+
+[[tests.inputs]]
+insert_at = "events_parse"
+type = "log"
+log_fields.message = '{"schema":1,"event_id":"abc","event_type":"permission.denied","category":"security","severity":"warning"}'
+
+[[tests.outputs]]
+extract_from = "events_parse"
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert_eq!(.stream, "security")
+assert_eq!(.event_type, "permission.denied")
+'''
+
+[[tests]]
+name = "nginx access: IP hasheada y sin query string"
+
+[[tests.inputs]]
+insert_at = "nginx_access_normalize"
+type = "log"
+log_fields.message = '203.0.113.9 - - [02/Oct/2026:12:00:00 +0000] "GET /auth/callback?code=SECRETCODE&state=xyz HTTP/1.1" 302 0 "-" "curl/8"'
+
+[[tests.outputs]]
+extract_from = "redact"
+
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+assert_eq!(.endpoint, "/auth/callback")
+assert!(!contains(encode_json(.), "203.0.113.9"))
+assert!(!contains(encode_json(.), "SECRETCODE"))
+'''
