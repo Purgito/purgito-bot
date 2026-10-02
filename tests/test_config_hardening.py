@@ -14,14 +14,12 @@ prueba en un subproceso limpio en vez de recargar el módulo dentro de pytest
 import asyncio
 import os
 import pathlib
-import stat
 import subprocess
 import sys
 
 import pytest
 
 import config
-import db
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -148,49 +146,6 @@ def test_aviso_de_lifecycle_no_hace_nada_si_esta_apagado(monkeypatch):
 # ── Permisos de archivos ─────────────────────────────────────────────────────
 
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="permisos POSIX")
-
-
-def _modo(path) -> int:
-    return stat.S_IMODE(os.stat(path).st_mode)
-
-
-@posix_only
-def test_restrict_db_permissions_cierra_db_y_sidecars(tmp_path, monkeypatch):
-    base = tmp_path / "bot.db"
-    monkeypatch.setattr(db, "DB_PATH", str(base))
-    for sufijo in ("", "-wal", "-shm"):
-        (tmp_path / f"bot.db{sufijo}").write_text("x")
-        os.chmod(tmp_path / f"bot.db{sufijo}", 0o644)
-
-    db._restrict_db_permissions()
-
-    for sufijo in ("", "-wal", "-shm"):
-        assert _modo(tmp_path / f"bot.db{sufijo}") == 0o600
-
-
-@posix_only
-def test_restrict_db_permissions_no_falla_si_no_hay_sidecars(tmp_path, monkeypatch):
-    (tmp_path / "bot.db").write_text("x")
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "bot.db"))
-    db._restrict_db_permissions()  # no hay -wal ni -shm: no debe levantar
-    assert _modo(tmp_path / "bot.db") == 0o600
-
-
-@posix_only
-def test_init_db_deja_la_base_en_0600(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
-    monkeypatch.setattr(db, "_db", None)
-    # Base preexistente con permisos abiertos, como la de producción hoy.
-    (tmp_path / "test.db").write_bytes(b"")
-    os.chmod(tmp_path / "test.db", 0o644)
-
-    async def run():
-        await db.init_db()
-        await db.close_db()
-
-    asyncio.run(run())
-    assert _modo(tmp_path / "test.db") == 0o600
 
 
 def test_el_unit_de_systemd_fija_umask_restrictiva():

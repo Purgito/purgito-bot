@@ -14,8 +14,6 @@ import webapi
 
 @pytest.fixture
 def memory_db(monkeypatch, tmp_path):
-    db_file = tmp_path / "test_bot.db"
-    monkeypatch.setattr(db, "DB_PATH", str(db_file))
     asyncio.run(db.init_db())
     # Limpiar cachés de generación
     generation._markov_cache.clear()

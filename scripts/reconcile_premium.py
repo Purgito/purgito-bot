@@ -53,17 +53,13 @@ poder mostrárselas a nadie hasta que el cliente pase por un evento nuevo
 
 import argparse
 import os
-import sqlite3
 import sys
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 import config  # noqa: E402
-
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db"
-)
+import pgsync  # noqa: E402
 
 
 def _iso(value) -> str | None:
@@ -104,18 +100,18 @@ def _active_subscriptions_from_polar(client) -> dict[int, object]:
     return found
 
 
-def _local_premium_guild_ids(conn: sqlite3.Connection) -> set[int]:
+def _local_premium_guild_ids(conn: pgsync.SyncConnection) -> set[int]:
     rows = conn.execute("SELECT guild_id FROM premium_guilds").fetchall()
     return {r[0] for r in rows}
 
 
-def _existing_subscription_guild_ids(conn: sqlite3.Connection) -> set[int]:
+def _existing_subscription_guild_ids(conn: pgsync.SyncConnection) -> set[int]:
     rows = conn.execute("SELECT guild_id FROM premium_subscriptions").fetchall()
     return {r[0] for r in rows}
 
 
 def backfill_subscriptions(
-    conn: sqlite3.Connection, polar_active: dict[int, object]
+    conn: pgsync.SyncConnection, polar_active: dict[int, object]
 ) -> list[int]:
     """Rellena premium_subscriptions solo para guilds que todavía no tienen
     fila -- ver docstring del módulo. Devuelve los guild_id que se agregaron."""
@@ -133,7 +129,7 @@ def backfill_subscriptions(
                 product_id, status, current_period_start, current_period_end,
                 trial_start, trial_end, cancel_at_period_end, canceled_at,
                 event_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, utc_now())
             """,
             (
                 guild_id,
@@ -156,7 +152,7 @@ def backfill_subscriptions(
     return added
 
 
-def reconcile(client, conn: sqlite3.Connection) -> dict:
+def reconcile(client, conn: pgsync.SyncConnection) -> dict:
     polar_active = _active_subscriptions_from_polar(client)
     local_premium = _local_premium_guild_ids(conn)
 
@@ -218,7 +214,7 @@ def main() -> int:
     from polar_sdk import Polar
 
     client = Polar(access_token=config.POLAR_ACCESS_TOKEN, server=config.POLAR_SERVER)
-    conn = sqlite3.connect(DB_PATH)
+    conn = pgsync.connect()
     try:
         result = reconcile(client, conn)
         if args.backfill_subscriptions:

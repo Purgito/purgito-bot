@@ -15,13 +15,16 @@ de videos nuevos de YouTube.
   ningún framework nuevo, aunque el diseño se inspire en sitios que sí los
   usan (ver "Identidad visual" abajo). El dashboard son páginas estáticas
   más módulos ES nativos en `landing/js/` (sin bundler, sin build step)
-- DB: SQLite (`data/bot.db`)
+- DB: PostgreSQL (`DATABASE_URL`, asyncpg vía `src/pgdb.py`; esquema en
+  `src/schema_pg.sql`). Guía: `docs/POSTGRES.md`. `data/bot.db` es la SQLite
+  anterior, conservada solo como rollback
 
 ## Comandos
 
 ```bash
-# Tests — usar el venv: pytest NO está en requirements.txt y el Python del
-# sistema no tiene las dependencias (falla al importar aiosqlite). Corre en
+# Tests — necesitan TEST_DATABASE_URL (base purgito_test) y el puerto 8080
+# libre (para el bot antes de correrlos). Usar el venv: pytest NO está en requirements.txt y el Python del
+# sistema no tiene las dependencias (falla al importar asyncpg). Corre en
 # CI (.github/workflows/ci.yml).
 .venv/bin/python -m pytest tests -q
 
@@ -43,7 +46,7 @@ node landing/test_dash.mjs
 node landing/test_historial.mjs
 
 # Scripts de deploy: shellcheck + self-check de backup/restauración (corren en
-# CI, job scripts). Necesitan el CLI de sqlite3.
+# CI, job scripts). Necesitan TEST_DATABASE_URL y los clientes de PostgreSQL (pg_dump/pg_restore).
 shellcheck --severity=warning deploy/*.sh
 bash deploy/backup_db_test.sh
 ```

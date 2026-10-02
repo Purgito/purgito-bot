@@ -1,6 +1,6 @@
 # Changelog
 
-**Last updated:** September 30, 2026
+**Last updated:** October 2, 2026
 
 A plain-language summary of Purgito's new features, improvements, and
 fixes. The full technical detail, for anyone who wants to read it, lives
@@ -37,6 +37,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 - `/dl` now also exists as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` is also a slash command now, but stays server-only, with the option to upload a video or image directly, on top of a link.
 
 ### Improved
+- Privacy: Purgito's backups are now encrypted and delete themselves after 14 days. `/borrar_mis_datos` still deletes instantly from the live database; if a backup ever had to be restored, your deletion is applied again before the bot starts. Full details are in the privacy policy.
 - Text commands that upload a file (`!dl`, `!gif`, image-editing ones like `!deepfry` or `!caption`, and `purgito generar`) now add “Sent by @user” to the message, so it's clear who requested it even if they delete their command. Slash commands (`/dl`, `/gif`) don't need it: Discord already shows who used them.
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
 - The server switcher in the dashboard no longer looks cramped against the sidebar's edge.

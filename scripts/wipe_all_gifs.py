@@ -44,19 +44,15 @@ paralelo podría reinsertar algo a mitad de camino.
 import argparse
 import logging
 import os
-import sqlite3
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 import config  # noqa: F401,E402  -- carga .env / limits.env al importarse
+import pgsync  # noqa: E402
 import r2  # noqa: E402
 
 log = logging.getLogger("wipe_all_gifs")
-
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db"
-)
 
 
 def _legacy_keys(conn, pub: str) -> set[str]:
@@ -127,12 +123,14 @@ def main() -> int:
         help="cantidad exacta de servidores afectados reportada por el dry-run -- "
         "obligatorio junto con --apply",
     )
-    ap.add_argument("--db", default=DB_PATH, help=f"ruta de la DB (default: {DB_PATH})")
+    ap.add_argument(
+        "--dsn", default=None, help="URL de PostgreSQL (default: DATABASE_URL)"
+    )
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    conn = sqlite3.connect(args.db)
+    conn = pgsync.connect(args.dsn)
     try:
         info = gather(conn)
         print(

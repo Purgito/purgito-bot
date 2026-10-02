@@ -18,7 +18,8 @@ Usa una DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db.
 
 import asyncio
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import discord
 import pytest
 
@@ -42,8 +43,8 @@ async def _noop_delete_url(url):
     return None
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn

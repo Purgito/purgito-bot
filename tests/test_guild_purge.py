@@ -20,8 +20,6 @@ from cogs.general import General
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     asyncio.run(db.init_db())
     yield
@@ -153,7 +151,7 @@ def test_guild_cleanup_borra_de_r2_las_imagenes_subidas_desde_el_panel(
         await db.record_uploaded_image(222, "https://cdn.example.com/222/otro.png")
         await conn.execute(
             "INSERT INTO guild_departures (guild_id, left_at) "
-            "VALUES (111, datetime('now', '-40 days'))"
+            "VALUES (111, to_char(timezone('utc', now()) + interval '-40 days', 'YYYY-MM-DD HH24:MI:SS'))"
         )
         await conn.commit()
 

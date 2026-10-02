@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** September 21, 2026
+**Last updated:** October 2, 2026
 
 This Policy describes how **Purgito** collects, uses, stores, shares, and protects the information it needs to provide its features.
 
@@ -127,7 +127,7 @@ Purgito uses external services for certain features. Each provider processes onl
 ## Discord and storage
 
 - **Discord**: For platform communication, receiving events, authentication, and sending messages.
-- **Cloudflare R2**: For persistent storage of media files (images in the server's meme pool and GIFs uploaded to the gallery).
+- **Cloudflare R2**: For persistent storage of media files (images in the server's meme pool and GIFs uploaded to the gallery) and, in a separate private space, the encrypted backups described in section 4.
 
 ## Groq API (AI meme captions)
 
@@ -167,7 +167,15 @@ Server admins can also delete collected content at any time using the interactiv
 
 The panel's audit log (see section 1) is kept for a maximum of 90 days from each entry and then purged automatically, with no manual intervention.
 
-When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted entirely. This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without having to be set up again from the beginning. During that period, while the bot isn't in the server, it isn't possible to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
+When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted from the live database (backups expire separately, see below). This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without having to be set up again from the beginning. During that period, while the bot isn't in the server, it isn't possible to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
+
+---
+
+## Where data is stored, and backups
+
+Everything Purgito stores (each server's configuration, learned messages, the audit log, etc.) lives in a PostgreSQL database on the server where the bot runs. The database only accepts connections from that same server; it isn't exposed to the Internet. Images and GIFs live in Cloudflare R2.
+
+To be able to recover the service after a serious failure, a backup of the whole database is made every week. It contains the same as the live database, including the messages Purgito learned. It's encrypted before leaving the server and stored in a private Cloudflare R2 space (no public access), plus an encrypted copy on the server itself. **Only the two most recent backups are kept, so each one is deleted automatically after 14 days at most.** They're only used to recover the service after a disaster; they aren't read or used for anything else.
 
 ---
 
@@ -175,12 +183,14 @@ When the bot leaves a server (for example, if it's kicked), that server's data i
 
 Regardless of the above, any user can request at any time that their own information be deleted, without needing to be a server admin or wait for the 30-day period above.
 
-The `/borrar_mis_datos` command, available to anyone on any server where Purgito is present, permanently and immediately deletes, across **every** server where you've written:
+The `/borrar_mis_datos` command, available to anyone on any server where Purgito is present, permanently and immediately deletes from the live database, across **every** server where you've written:
 
 - Your writing style saved for the impersonation feature (`/imitar`).
 - The messages Purgito learned from you to generate text.
 
 Your original Discord messages aren't affected: this only deletes the copy Purgito saved to learn your writing style. Since this is irreversible, the command asks for explicit confirmation before running the deletion.
+
+**The real limit of the deletion: backups.** Backups made before your deletion may still contain that data until they expire (at most 14 days, see above). They aren't read or restored unless the service has to be recovered after a disaster. If that ever happened, the deletion would be applied again before the bot is brought back up. To make that possible, each time you use `/borrar_mis_datos` Purgito stores a **tombstone**: only your Discord user ID and two dates (when you requested the deletion and when the tombstone expires). It carries no message content and not the servers you were in. It lasts 15 days (the 14 of the backups plus one day of margin) and removes itself; it's personal data and is handled under this same policy. Only whoever administers the server where Purgito runs can see it.
 
 This deletion is specifically for the message-learning data described above, and doesn't automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server's pool, your entry as a sender in the GIF catalog, or your own entries in the panel's audit log if you're an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see "Contact").
 
@@ -214,7 +224,7 @@ Purchasing Premium requires having the legal capacity to enter into a contract, 
 
 # 7. Security
 
-Reasonable measures are taken to protect stored information.
+Reasonable measures are taken to protect stored information: the database isn't reachable from the Internet, administrative access to the server is restricted, backups are encrypted before leaving the server, and passwords and tokens are kept outside the database.
 
 That said, no system can guarantee absolute security against incidents or unauthorized access.
 

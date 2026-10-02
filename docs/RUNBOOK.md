@@ -29,9 +29,11 @@ el estado en memoria (cooldowns, rate limits) y no arregla un bug de código.
    `StartLimitIntervalSec=0`, así que un fallo suelto se recupera solo. Si
    sigue caído, algo falla en cada arranque.
 2. `journalctl -u bot-purg -n 200 --no-pager` — busca la primera excepción
-   tras el arranque (variable faltante, token rechazado, DB bloqueada, disco
-   lleno).
-3. `df -h <ruta>/data` — un disco lleno tumba SQLite y el log a la vez.
+   tras el arranque (variable faltante, token rechazado, PostgreSQL caído o
+   `DATABASE_URL` mala, disco lleno).
+3. `df -h <ruta>/data` — un disco lleno tumba PostgreSQL y el log a la vez. Si Postgres murió,
+   mira `/var/log/postgresql/` y `journalctl -k | grep -i oom` (VM de 2 GB: el OOM
+   killer ya lo mató una vez).
    Libera espacio (backups viejos en `BACKUP_DIR`, `bot.log.1-3`) y reinicia.
 4. `<ruta>/deploy/preflight_check.sh` — valida `.env`, dependencias,
    systemd y nginx.
@@ -68,28 +70,54 @@ historial (`gitleaks git --config .gitleaks.toml -v .`); reescribir el
 historial no basta, un secreto publicado se considera comprometido.
 
 Los `webhook_token` de canales (tabla `channel_webhooks`) no están en `.env`:
-si se filtró una copia de `bot.db` o de un backup, esos tokens permiten
+si se filtró un dump de PostgreSQL, la SQLite vieja o un backup, esos tokens permiten
 postear en esos canales. No hay rotación automática; borrar y recrear el
 webhook desde Discord en cada canal afectado invalida el token viejo.
+
+## 3b. Sospecha de acceso no autorizado al servidor o a PostgreSQL
+
+1. No apagues nada todavía si hace falta conservar evidencia: `sudo ss -tnp`, `last`,
+   `sudo journalctl -u ssh --since "-2 days"`, `sudo grep -E "FATAL|ERROR" /var/log/postgresql/postgresql-18-main.log`.
+2. Contener: `sudo ufw status verbose` debe seguir activo; `deploy/security_check.sh`
+   dice qué cambió (5432/8080 expuestos, permisos, `trust` en `pg_hba`).
+   Desde Tailscale admin, quita el dispositivo sospechoso.
+3. Rota en este orden: contraseña de `purgito_app` (`sudo -u postgres psql -c "ALTER
+   ROLE purgito_app PASSWORD '...'"` + `DATABASE_URL`), `DISCORD_TOKEN`,
+   `SESSION_SECRET`, token de R2 (§ 3). Si hubo acceso a la base o a un backup, los
+   `webhook_token` de `channel_webhooks` también se consideran comprometidos.
+4. Si hubo acceso al disco, el corpus de mensajes se considera expuesto: decide si hay
+   que avisar a los administradores de los servidores afectados.
+5. Si hay que reconstruir, sigue [`MIGRATION.md`](../MIGRATION.md) con un backup cifrado
+   anterior al incidente y `reapply_deletions.py`.
 
 ## 4. La base de datos está corrupta o se perdió
 
 1. Para el bot: `sudo systemctl stop bot-purg`.
-2. Guarda lo que quede antes de tocar nada: copia `<ruta>/data/` completo a
-   otro lugar (incluye `bot.db-wal` y `bot.db-shm` si existen).
-3. Comprueba: `sqlite3 <ruta>/data/bot.db "PRAGMA integrity_check;"`.
-   Si dice `ok`, el problema no es la DB.
-4. Si no, restaura el backup más reciente que pase la verificación. Si solo
-   queda la copia de R2: `python scripts/r2_backup.py download latest --dest <carpeta>`.
-   Luego `deploy/restore_check.sh <ruta-al-backup>` y el procedimiento de
-   `DEPLOY.md` § "Restaurar desde un backup". **Restaura también los flags**
-   (`bot-<fecha>.flags.tar.gz`); sin ellos el arranque vuelve a correr
-   `DELETE FROM corpus_images` (ver `docs/PORTABILITY.md` § 2).
+2. Guarda lo que quede antes de tocar nada: `pg_dump -Fc "$DATABASE_URL" -f
+   /ruta/seguro.dump` si Postgres responde (si no, copia el directorio de datos
+   con Postgres parado).
+3. Comprueba: `psql "$DATABASE_URL" -c "SELECT count(*) FROM settings"` y
+   `systemctl status postgresql`. Si responde bien, el problema no es la DB.
+4. Si no, restaura el backup más reciente que pase la verificación (hay como máximo
+   2, el último y el anterior; se hacen cada semana, así que lo escrito después del
+   último se pierde). Los backups
+   son `.dump.age` (cifrados): hace falta la clave PRIVADA de age, que NO está en el
+   servidor (tu gestor de contraseñas / copia offline). Si solo queda la copia de R2:
+   `python scripts/r2_backup.py download latest --dest <carpeta>`. Luego
+   `AGE_IDENTITY=<clave> deploy/restore_check.sh <ruta-al-backup>` y el procedimiento de
+   `docs/POSTGRES.md` § "Restaurar" (incluye `scripts/reapply_deletions.py --apply`,
+   obligatorio antes de arrancar: vuelve a borrar a quien pidió `/borrar_mis_datos`
+   después del backup). Si el servidor es nuevo, copia también los
+   flags sueltos de `data/` (`.images_wiped_v2`, etc.; ver `docs/PORTABILITY.md`
+   § 2): viven fuera de la base y sin ellos el arranque puede repetir
+   migraciones destructivas.
 5. `sudo systemctl start bot-purg` y revisa el log.
 6. Si perdiste todo el servidor (el caso de Oracle): sigue
    [`MIGRATION.md`](../MIGRATION.md).
 
-Los backups de `BACKUP_DIR` viven en el mismo disco que la base. Si el
+Los backups son semanales y se conservan como máximo 2 (el más reciente y el
+anterior), en `BACKUP_DIR` y en R2 (`docs/POSTGRES.md` § Backups). Los de `BACKUP_DIR`
+viven en el mismo disco que la base. Si el
 servidor completo se perdió, la copia que sobrevive es la del bucket privado de
 R2 (`R2_BACKUP_BUCKET`), siempre que `backup_db.sh` la haya estado subiendo; sin
 ella, no hay copia salvo que la hayas bajado a mano — por eso el checklist de

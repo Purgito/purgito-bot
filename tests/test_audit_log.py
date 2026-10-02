@@ -10,7 +10,8 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -43,8 +44,8 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn
@@ -58,8 +59,6 @@ def real_db(tmp_path, monkeypatch):
     test_channel_settings_api.py, necesario para las acciones que leen esas
     columnas antes de guardar (chat_tunables.update, channel_settings.update,
     manager_role.set)."""
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     asyncio.run(db.init_db())
     yield
@@ -479,7 +478,7 @@ def test_purge_old_audit_log_entries_borra_solo_lo_vencido(memory_db):
         conn = await db.get_db()
         await db.log_audit(_GUILD, 1, "A", "frases.add", "una frase vieja y sensible")
         await conn.execute(
-            "UPDATE audit_log SET created_at = datetime('now', '-100 days')"
+            "UPDATE audit_log SET created_at = to_char(timezone('utc', now()) + interval '-100 days', 'YYYY-MM-DD HH24:MI:SS')"
         )
         await conn.commit()
         await db.log_audit(_GUILD, 1, "A", "frases.add", "una frase reciente")

@@ -11,7 +11,8 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import discord
 import pytest
 
@@ -31,10 +32,9 @@ _USER_ADMIN = 123
 _USER_NON_ADMIN = 456
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
-    await conn.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
     await conn.commit()
     return conn
 
@@ -128,7 +128,9 @@ def test_setup_view_status_channels_no_history(memory_db):
 def test_setup_view_status_ready_with_history(memory_db):
     guild = _make_guild([_make_channel(101, "general")])
     asyncio.run(db.add_corpus_channel(_GUILD_ID, 101))
-    asyncio.run(db.save_corpus_and_user_message(_GUILD_ID, 101, 1, 99, "hola a todos"))
+    asyncio.run(
+        db.save_corpus_and_user_message(_GUILD_ID, 101, 1, "user", "hola a todos", 99)
+    )
 
     view = SetupView(guild, "es", _USER_ADMIN)
     embed = asyncio.run(view.build_embed())

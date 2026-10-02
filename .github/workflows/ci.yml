@@ -47,6 +47,25 @@ jobs:
   tests:
     name: Tests (pytest)
     runs-on: ubuntu-latest
+    # PostgreSQL 16 y no 18 (producción): el pg_dump/pg_restore que ya trae
+    # ubuntu-latest es el 16 y se niega a volcar un servidor más nuevo. El SQL
+    # de Purgito no usa nada de 17/18.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: purgito_app
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: purgito_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U purgito_app -d purgito_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://purgito_app:ci-password@127.0.0.1:5432/purgito_test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -54,6 +73,10 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+
+      # age: los tests de backup_db.sh comprueban el cifrado de los backups.
+      - name: Install age
+        run: sudo apt-get install -y --no-install-recommends age
 
       - name: Install dependencies
         run: |
@@ -97,18 +120,46 @@ jobs:
   scripts:
     name: Scripts de deploy (shellcheck + self-check)
     runs-on: ubuntu-latest
+    # PostgreSQL 16 y no 18 (producción): el pg_dump/pg_restore que ya trae
+    # ubuntu-latest es el 16 y se niega a volcar un servidor más nuevo. El SQL
+    # de Purgito no usa nada de 17/18.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: purgito_app
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: purgito_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U purgito_app -d purgito_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://purgito_app:ci-password@127.0.0.1:5432/purgito_test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: shellcheck
         run: shellcheck --severity=warning deploy/*.sh
 
-      # backup_db.sh + restore_check.sh contra una base de mentira: verifica
-      # integrity_check, flags, poda, permisos y que un backup corrupto se rechaza.
+      - name: Install age
+        run: sudo apt-get install -y --no-install-recommends age
+
+      # backup_db.sh + restore_check.sh contra una base PostgreSQL de pruebas:
+      # verifica el dump, la restauración, la poda, los permisos y que un backup
+      # corrupto se rechaza. La base de descarte de la restauración se crea acá.
+      - name: Base de descarte para restore_check
+        run: |
+          PGPASSWORD=ci-password psql -h 127.0.0.1 -U purgito_app -d purgito_test \
+            -c 'CREATE DATABASE purgito_restorecheck'
+
       - name: Self-check de backup y restauración
         run: |
-          sqlite3 --version
-          bash deploy/backup_db_test.sh
+          pg_dump --version
+          RESTORE_CHECK_DB=purgito_restorecheck bash deploy/backup_db_test.sh
 
   # Tests de JS del dashboard y del selector de idioma de la landing: solo
   # necesitan Node (ya viene en ubuntu-latest), sin instalar dependencias.

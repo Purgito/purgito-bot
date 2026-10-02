@@ -6,7 +6,8 @@ data/bot.db (que está trackeada en git)."""
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -31,8 +32,8 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn
@@ -56,8 +57,22 @@ def _insert(conn, weekdays=None, **overrides):
         conn.execute(
             "INSERT INTO scheduled_announcements "
             "(guild_id, channel_id, message, mode, interval_minutes, hour, minute, last_sent_at, created_by, weekdays) "
-            "VALUES (:guild_id, :channel_id, :message, :mode, :interval_minutes, :hour, :minute, :last_sent_at, :created_by, :weekdays)",
-            row,
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            tuple(
+                row[k]
+                for k in (
+                    "guild_id",
+                    "channel_id",
+                    "message",
+                    "mode",
+                    "interval_minutes",
+                    "hour",
+                    "minute",
+                    "last_sent_at",
+                    "created_by",
+                    "weekdays",
+                )
+            ),
         )
     )
     asyncio.run(conn.commit())

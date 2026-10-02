@@ -11,12 +11,11 @@ DB en memoria: no se habla con data/bot.db real. Mismo estilo que
 test_backfill_gif_phashes.py.
 """
 
-import sqlite3
+import pg_support
 import sys
 
 import pytest
 
-import db
 
 sys.path.insert(0, "scripts")
 import audit_cross_guild_gifs as audit  # noqa: E402
@@ -24,9 +23,9 @@ import audit_cross_guild_gifs as audit  # noqa: E402
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    c.executescript(db.SCHEMA)
-    return c
+    c = pg_support.sync_connect()
+    yield c
+    c.close()
 
 
 def _add_object(conn, content_hash, key="gifs/aa/x.gif", ref_count=0):
@@ -72,8 +71,7 @@ def test_find_shared_content_hashes_orders_by_guild_count_desc(conn):
 
 
 def test_rows_for_content_hash_orders_by_created_at():
-    conn = sqlite3.connect(":memory:")
-    conn.executescript(db.SCHEMA)
+    conn = pg_support.sync_connect()
     _add_gif(conn, 2, "a" * 64, "https://x/segundo", created_at="2024-06-01")
     _add_gif(conn, 1, "a" * 64, "https://x/primero", created_at="2024-01-01")
 

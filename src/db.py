@@ -3,24 +3,27 @@ import re
 import json
 import string
 import asyncio
+import concurrent.futures
 import logging
 import secrets
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
-import aiosqlite
+import asyncpg
 import regex
 
 import config
+import pgdb
 import r2
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-DB_PATH = os.path.join(DATA_DIR, "bot.db")
+SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema_pg.sql")
 
 log = logging.getLogger(__name__)
 
-_db: aiosqlite.Connection | None = None
+_db: pgdb.Database | None = None
+# Loop donde vive el pool (el del bot). Lo usa run_from_thread().
+_db_loop: asyncio.AbstractEventLoop | None = None
 
 
 # Caracteres de control C0/C1 (salvo \n y \t, que son texto legítimo) y los
@@ -40,41 +43,19 @@ def clean_admin_text(text: str | None) -> str:
     return _CONTROL_CHARS_RE.sub("", text or "").strip()
 
 
-class _RollbackOnErrorLock(asyncio.Lock):
-    """asyncio.Lock, pero si el bloque `async with` termina por una
-    excepción, hace ROLLBACK de la transacción de SQLite antes de soltar
-    el lock.
-
-    Cada función de escritura de este módulo hace `async with _db_lock:
-    ...varios execute()... await db.commit()`. Sin esto: si algo entre el
-    primer execute() y el commit() tira una excepción (el disparador real
-    es disco lleno a mitad de un INSERT/UPDATE, que SQLite reporta como
-    OperationalError), `async with` libera el lock igual -- así funciona
-    cualquier context manager -- pero la transacción queda ABIERTA y sin
-    confirmar en `_db`, la única conexión compartida por todo el proceso.
-    El próximo caller que tome el lock seguiría escribiendo sobre ESA
-    misma transacción pendiente, y su propio commit() -- pensado para
-    confirmar solo sus cambios -- terminaría confirmando también los
-    restos a medio aplicar de la operación que falló antes, sin que nadie
-    se entere.
-
-    Central a propósito: cambiar el tipo de _db_lock alcanza para cubrir
-    las ~90 funciones que ya hacen `async with _db_lock:` tal cual están,
-    sin tocar cada una.
-    """
-
-    async def __aexit__(self, exc_type, exc, tb):
-        if exc_type is not None and _db is not None:
-            try:
-                await _db.rollback()
-            except Exception:
-                log.exception(
-                    "Fallo haciendo rollback de _db tras una excepción bajo _db_lock"
-                )
-        await super().__aexit__(exc_type, exc, tb)
+def _active_db() -> pgdb.Database:
+    if _db is None:
+        raise RuntimeError("Base de datos no inicializada. Llama a init_db() primero.")
+    return _db
 
 
-_db_lock: asyncio.Lock = _RollbackOnErrorLock()
+# Lock global de escritura + transacción de PostgreSQL (ver pgdb.TransactionLock):
+# cada `async with _db_lock:` corre en UNA transacción de una conexión del pool;
+# una excepción hace ROLLBACK y salir bien confirma. Las lecturas no lo toman y
+# usan el pool en paralelo. El lock sigue serializando las escrituras porque
+# varias funciones (ref_count de GIFs, topes de corpus) hacen read-modify-write
+# sin SELECT ... FOR UPDATE.
+_db_lock: asyncio.Lock = pgdb.TransactionLock(_active_db)
 
 # Interacciones con el bot por hora y por usuario, por servidor. Es anti-abuso,
 # no un beneficio premium: mismo default para Free y Premium. 0 = sin límite.
@@ -128,1018 +109,122 @@ def _limit_for_guild(
     return _env_int(free_name, free_default)
 
 
-async def get_db() -> aiosqlite.Connection:
+async def get_db() -> pgdb.Database:
     if _db is None:
         raise RuntimeError("Base de datos no inicializada. Llama a init_db() primero.")
     return _db
 
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS settings (
-    guild_id INTEGER PRIMARY KEY,
-    chat_mode_enabled INTEGER NOT NULL DEFAULT 1,
-    chat_channel_id INTEGER,
-    mention_rate_limit INTEGER NOT NULL DEFAULT 10,
-    locale TEXT,
-    updates_channel_id INTEGER,
-    custom_prefix TEXT
-);
+# Esquema canónico en src/schema_pg.sql (idempotente: CREATE ... IF NOT EXISTS).
+# Una columna o tabla nueva se agrega ahí; una columna a una tabla que ya existe
+# en producción además va en _SCHEMA_UPGRADES.
+with open(SCHEMA_PATH, encoding="utf-8") as _f:
+    SCHEMA = _f.read()
 
-CREATE TABLE IF NOT EXISTS corpus_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    message_id INTEGER,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(guild_id, message_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_corpus_messages_guild ON corpus_messages(guild_id);
-CREATE INDEX IF NOT EXISTS idx_corpus_messages_guild_channel ON corpus_messages(guild_id, channel_id);
-
-CREATE TABLE IF NOT EXISTS corpus_gifs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    url TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    media_url TEXT,
-    fail_count INTEGER NOT NULL DEFAULT 0,
-    last_health_check TEXT,
-    checked_at TEXT,
-    dead_streak INTEGER NOT NULL DEFAULT 0,
-    content_hash TEXT,
-    -- Reintentos de resolve_gifs_task (ver mark_gif_resolve_failed): sin esto un
-    -- GIF que nunca resuelve ocupaba un lugar de la cola para siempre.
-    resolve_attempts INTEGER NOT NULL DEFAULT 0,
-    resolve_retry_at TEXT,
-    UNIQUE(guild_id, url)
-);
-
--- Un registro por objeto físico en R2, compartido entre todos los servidores
--- que tengan ese mismo archivo. ref_count = cuántas filas de corpus_gifs lo
--- referencian; cuando llega a 0 el objeto se borra del bucket.
--- Los GIFs de tenor/giphy no pasan por acá (no ocupan storage propio).
-CREATE TABLE IF NOT EXISTS gif_objects (
-    content_hash TEXT PRIMARY KEY,
-    r2_key TEXT NOT NULL,
-    ref_count INTEGER NOT NULL DEFAULT 0,
-    size_bytes INTEGER NOT NULL DEFAULT 0,
-    phash TEXT,
-    frame_count INTEGER,
-    width INTEGER,
-    height INTEGER,
-    duration_ms INTEGER,
-    phashes TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Veto permanente por guild: un GIF bloqueado se borra ahora (ver block_gif)
--- y save_gif_url lo rechaza para siempre en ESE guild, aunque se vuelva a
--- compartir. content_hash cubre la mayoría (GIFs que pasaron por R2); url es
--- el único identificador para tenor/giphy (no ocupan storage propio) o algún
--- legacy que quedara sin hash -- no se exige ambos, ver is_gif_blocked.
-CREATE TABLE IF NOT EXISTS gif_blocklist (
-    guild_id INTEGER NOT NULL,
-    content_hash TEXT,
-    url TEXT,
-    blocked_at TEXT NOT NULL,
-    PRIMARY KEY (guild_id, content_hash, url)
-);
-
--- Quién mandó cada GIF y en qué mensaje, para el catálogo por persona del
--- panel y el link "ir al mensaje" de cada GIF. Una fila por (gif_id, user_id)
--- -- no una por envío -- para no crecer sin límite si alguien repite el mismo
--- GIF: channel_id/message_id apuntan siempre al envío más reciente de esa
--- persona, y send_count cuenta cuántas veces lo mandó. channel_id/message_id
--- quedan NULL cuando el GIF se agregó a mano (/gif_add o el input del panel):
--- ahí no hay mensaje real al que enlazar.
-CREATE TABLE IF NOT EXISTS gif_senders (
-    gif_id INTEGER NOT NULL,
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    channel_id INTEGER,
-    message_id INTEGER,
-    send_count INTEGER NOT NULL DEFAULT 1,
-    first_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_seen TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (gif_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_gif_senders_guild_user ON gif_senders(guild_id, user_id);
-
-CREATE TABLE IF NOT EXISTS youtube_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    youtube_channel_id TEXT NOT NULL,
-    youtube_channel_name TEXT NOT NULL,
-    last_video_id TEXT,
-    discord_channel_id INTEGER NOT NULL,
-    mention_role_id INTEGER,
-    last_error TEXT,
-    UNIQUE(guild_id, youtube_channel_id)
-);
-
-CREATE TABLE IF NOT EXISTS twitch_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    twitch_user_id TEXT NOT NULL,
-    twitch_login TEXT NOT NULL,
-    last_stream_id TEXT,
-    discord_channel_id INTEGER NOT NULL,
-    mention_role_id INTEGER,
-    last_error TEXT,
-    UNIQUE(guild_id, twitch_user_id)
-);
-
-CREATE TABLE IF NOT EXISTS rss_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    feed_url TEXT NOT NULL,
-    feed_title TEXT NOT NULL,
-    last_item_id TEXT,
-    discord_channel_id INTEGER NOT NULL,
-    mention_role_id INTEGER,
-    last_error TEXT,
-    UNIQUE(guild_id, feed_url)
-);
-
-CREATE TABLE IF NOT EXISTS user_corpus (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    author_id INTEGER NOT NULL,
-    author_name TEXT NOT NULL,
-    message_id INTEGER,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(guild_id, message_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_corpus_guild_author ON user_corpus(guild_id, author_id);
-
-CREATE TABLE IF NOT EXISTS ignored_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
-CREATE TABLE IF NOT EXISTS meme_schedule (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    interval_minutes INTEGER NOT NULL DEFAULT 180,
-    last_posted_at TEXT,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Webhook propio del bot por canal, para mandar con nombre/avatar
--- personalizado (Fase 3 del editor de embeds/dashboard) sin perder los
--- botones interactivos -- el webhook lo crea Purgito (channel.create_webhook),
--- así que sigue perteneciendo a su aplicación. Ver src/webhook_identity.py.
-CREATE TABLE IF NOT EXISTS channel_webhooks (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    webhook_id INTEGER NOT NULL,
-    webhook_token TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
-CREATE TABLE IF NOT EXISTS scheduled_announcements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    message TEXT NOT NULL,
-    mode TEXT NOT NULL,
-    interval_minutes INTEGER,
-    hour INTEGER,
-    minute INTEGER,
-    last_sent_at TEXT,
-    created_by INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    embed_json TEXT DEFAULT NULL,
-    content_mode TEXT NOT NULL DEFAULT 'classic_embed',
-    delete_after_seconds INTEGER,
-    weekdays TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_scheduled_announcements_guild ON scheduled_announcements(guild_id);
-
-CREATE TABLE IF NOT EXISTS embed_templates (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    embed_json TEXT NOT NULL,
-    content_mode TEXT NOT NULL DEFAULT 'classic_embed',
-    message TEXT DEFAULT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_embed_templates_guild ON embed_templates(guild_id);
-
-CREATE TABLE IF NOT EXISTS embed_uploaded_images (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    url TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(guild_id, url)
-);
-CREATE INDEX IF NOT EXISTS idx_embed_uploaded_images_guild ON embed_uploaded_images(guild_id);
-
-CREATE TABLE IF NOT EXISTS layout_button_actions (
-    custom_id TEXT PRIMARY KEY,
-    guild_id INTEGER NOT NULL,
-    action_type TEXT NOT NULL,
-    action_data TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_layout_button_actions_guild ON layout_button_actions(guild_id);
-
-CREATE TABLE IF NOT EXISTS corpus_images (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    url TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(guild_id, url)
-);
-
-CREATE TABLE IF NOT EXISTS frases_especiales (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    user_name TEXT NOT NULL,
-    frase TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    -- pack_id INTEGER se suma por ALTER TABLE en init_db() (la tabla ya
-    -- existe en producción). Ver el comentario grande junto a frase_packs
-    -- de abajo para la semántica completa.
-);
-CREATE INDEX IF NOT EXISTS idx_frases_especiales_guild ON frases_especiales(guild_id);
-
--- Canales donde pueden salir frases especiales. A diferencia de
--- corpus_allowed_channels (que es al revés: vacía = no aprende de
--- ninguno, porque leer mensajes es invasivo), acá vacía = permitido en
--- cualquier canal -- mismo criterio "opt-out" que spontaneous_channels/
--- mention_channels: una frase especial no es más invasiva que cualquier
--- otra respuesta del bot, así que el default abierto es el seguro.
-CREATE TABLE IF NOT EXISTS frase_allowed_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Agrupa frases especiales para poder darle a cada canal un pool distinto
--- (ver frase_pack_channels). UNIQUE(guild_id, name): dos packs del mismo
--- servidor no pueden confundirse por nombre en el dashboard.
---
--- Semántica de "sin pack" (frases_especiales.pack_id NULL y canales sin
--- fila en frase_pack_channels), decidida para no romper nada de lo que ya
--- existía antes de esta tabla:
---   - Todas las frases de un servidor que nunca tocó packs quedan con
---     pack_id NULL: son el "pool default" de ese servidor.
---   - Un canal SIN fila en frase_pack_channels usa ese pool default
---     (pack_id NULL) -- el comportamiento de siempre, sin excepciones.
---   - Un canal CON fila en frase_pack_channels usa EXCLUSIVAMENTE las
---     frases de ESE pack, no las mezcla con el pool default.
---   - Borrar un pack no borra sus frases ni deja canales sin pool: las
---     frases vuelven a pack_id NULL y los canales que lo tenían asignado
---     vuelven a usar el pool default (ver delete_frase_pack en db.py).
-CREATE TABLE IF NOT EXISTS frase_packs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(guild_id, name)
-);
-
--- Qué pack usa cada canal. PK (guild_id, channel_id): un canal usa a lo
--- sumo un pack a la vez (asignar uno nuevo reemplaza al anterior). Varios
--- canales SÍ pueden compartir el mismo pack_id -- "asignar un pack a
--- varios canales" es eso, varias filas con el mismo pack_id.
-CREATE TABLE IF NOT EXISTS frase_pack_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    pack_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
-CREATE TABLE IF NOT EXISTS reaction_pool (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    emoji_text TEXT NOT NULL,
-    is_custom INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(guild_id, emoji_text)
-);
-CREATE INDEX IF NOT EXISTS idx_reaction_pool_guild ON reaction_pool(guild_id);
-
--- Vestigial: reemplazada por spontaneous_channels + mention_channels (init_db
--- copia sus filas a ambas la primera vez que corre esta versión). Nada la
--- lee ni la escribe ya — igual que settings.chat_channel_id, se deja para no
--- perder el dato de origen de esa migración.
-CREATE TABLE IF NOT EXISTS chat_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Canales donde Purgito habla por su cuenta (participación espontánea).
--- Lista vacía = sin restricción, habla en cualquiera. Independiente de
--- mention_channels: un canal puede estar en una lista, en la otra, en
--- ambas o en ninguna.
-CREATE TABLE IF NOT EXISTS spontaneous_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Canales donde Purgito responde si lo mencionan. Lista vacía = responde en
--- cualquiera. Ver spontaneous_channels: son dos conceptos independientes.
-CREATE TABLE IF NOT EXISTS mention_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Override por canal de los tunables de settings (CHAT_TUNABLES). Mismo
--- criterio que las allowlists de arriba en cuanto a "vacío = permisivo":
--- acá NULL en una columna (o directamente la fila ausente) = usa el valor
--- de `settings` para ese servidor; un valor no-nulo lo pisa SOLO en ese
--- canal. Ver get_effective_chat_settings, la única función que debería
--- leer esto para tomar una decisión (cogs/chat.py no lee esta tabla directo).
-CREATE TABLE IF NOT EXISTS channel_settings (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    auto_generate_every INTEGER,
-    auto_generate_probability REAL,
-    reaction_probability REAL,
-    gif_response_probability REAL,
-    mention_rate_limit INTEGER,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Reglas de auto-respuesta a mano por canal: si el contenido de un mensaje
--- matchea `pattern` según `match_type`, dispara `action` sin esperar
--- mención ni el roll de auto_generate_probability -- independiente de
--- spontaneous_channels/mention_channels, un canal puede tener triggers sin
--- estar en ninguna de esas dos listas. Con varios triggers en el mismo
--- canal gana el primero que matchea, en orden de creación (id ascendente)
--- -- ver list_channel_triggers.
---
--- match_type: 'exact' | 'starts_with' | 'regex' (comparación case-
--- insensitive para las dos primeras; regex usa el patrón tal cual, sin
--- flags forzados -- el admin agrega (?i) si lo quiere insensible).
--- action: 'frase_de_pack' (siempre una frase del pool de pack_id),
--- 'markov' (siempre texto generado), 'mezcla' (mismo roll de
--- frase_probability que la conducta espontánea/de mención, pero con el
--- pack_id de ESTE trigger, no el que tenga asignado el canal).
--- pack_id NULL en 'frase_de_pack'/'mezcla' usa el pool default del
--- servidor (frases sin pack) -- ídem que en frase_pack_channels.
-CREATE TABLE IF NOT EXISTS channel_triggers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    match_type TEXT NOT NULL,
-    pattern TEXT NOT NULL,
-    action TEXT NOT NULL,
-    pack_id INTEGER,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_channel_triggers_channel
-    ON channel_triggers(guild_id, channel_id);
-
--- Canales de los que el bot SÍ aprende. Allowlist positiva: lo que no está
--- acá no entra al corpus. Ojo con la asimetría respecto de chat_channels:
--- ahí la lista vacía significa "todos", acá significa "ninguno". Es a
--- propósito — leer mensajes de un canal es más invasivo que responder en él,
--- así que el default seguro es no leer nada. Los servidores que ya existían
--- se rellenan una vez con su estado real (ver seed_corpus_allowed_channels).
-CREATE TABLE IF NOT EXISTS corpus_allowed_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Roles que se saltan el tope de menciones por hora (moderación, boosters…).
-CREATE TABLE IF NOT EXISTS mention_rate_limit_exempt_roles (
-    guild_id INTEGER NOT NULL,
-    role_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, role_id)
-);
-
--- Canales donde el tope de menciones por hora no aplica (#bot-testing, canales
--- de spam a propósito). Mismo concepto que la tabla de roles de arriba, pero
--- por canal: evita tener que inventar un rol solo para eximir un canal.
-CREATE TABLE IF NOT EXISTS mention_rate_limit_exempt_channels (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
--- Usuarios excluidos de interacción y/o aprendizaje por servidor.
--- exclude_interaction: 1 si el bot no debe responderle ni reaccionar ni triggerear.
--- exclude_learning: 1 si sus mensajes no deben entrar al corpus ni usarse en Markov.
-CREATE TABLE IF NOT EXISTS excluded_users (
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    exclude_interaction INTEGER NOT NULL DEFAULT 0,
-    exclude_learning INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (guild_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_excluded_users_guild ON excluded_users(guild_id);
-
--- Migraciones de datos que corren una vez POR SERVIDOR (no por base). Existen
--- porque algunas necesitan la API de Discord —la lista real de canales— y no
--- se pueden resolver con un ALTER en init_db.
-CREATE TABLE IF NOT EXISTS applied_migrations (
-    guild_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (guild_id, name)
-);
-
--- Contadores de uso acumulado por servidor (los "logs" de la tab INICIO del
--- dashboard). Una fila por (guild, métrica) en vez de una columna por métrica:
--- sumar una nueva no pide migración.
--- ponytail: contador plano, sin serie temporal. Si algún día se quiere el
--- gráfico "gifs enviados por día", esto pasa a (guild_id, name, día).
-CREATE TABLE IF NOT EXISTS guild_counters (
-    guild_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    count INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (guild_id, name)
-);
-
-CREATE TABLE IF NOT EXISTS guild_bot_style (
-    guild_id INTEGER PRIMARY KEY,
-    nick TEXT,
-    avatar_url TEXT,
-    banner_url TEXT,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS premium_guilds (
-    guild_id INTEGER PRIMARY KEY,
-    added_at TEXT NOT NULL,
-    note TEXT
-);
-
--- Último evento de Polar (por su propio `timestamp`, no por orden de
--- llegada) que de verdad activó/desactivó premium para este guild. Polar no
--- garantiza orden de entrega -- un reintento tardío de un webhook viejo
--- podía llegar DESPUÉS de uno más nuevo y pisar el estado correcto (ej: un
--- "revoked" viejo reintentado después de un "active" real de una
--- resuscripción). Sobrevive independiente de premium_guilds porque hay que
--- seguir comparando contra él incluso después de un downgrade real.
-CREATE TABLE IF NOT EXISTS premium_event_watermark (
-    guild_id INTEGER PRIMARY KEY,
-    last_event_at TEXT NOT NULL
-);
-
--- Metadatos descriptivos (NUNCA de pago) de la última suscripción de Polar
--- conocida por guild -- separada de premium_guilds a propósito:
--- premium_guilds sigue siendo la ÚNICA fuente de verdad de "¿tiene acceso?"
--- (la tocan set_premium/unset_premium vía apply_premium_webhook_change).
--- Esta tabla solo existe para poder mostrar plan/estado/período/trial en
--- /perfil/facturacion y saber qué cuenta de Purgito (purchaser_user_id, el
--- external_customer_id que mandamos al crear el checkout) compró qué --
--- nunca otorga ni quita premium por sí sola.
-CREATE TABLE IF NOT EXISTS premium_subscriptions (
-    guild_id INTEGER PRIMARY KEY,
-    subscription_id TEXT,
-    customer_id TEXT,
-    purchaser_user_id TEXT,
-    product_id TEXT,
-    status TEXT,
-    current_period_start TEXT,
-    current_period_end TEXT,
-    trial_start TEXT,
-    trial_end TEXT,
-    cancel_at_period_end INTEGER,
-    canceled_at TEXT,
-    event_at TEXT,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS guild_departures (
-    guild_id INTEGER PRIMARY KEY,
-    left_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS channel_refeed_status (
-    guild_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    newest_message_id INTEGER,
-    oldest_message_id INTEGER,
-    backfill_complete INTEGER NOT NULL DEFAULT 0,
-    last_refed_at TEXT,
-    PRIMARY KEY (guild_id, channel_id)
-);
-
-CREATE TABLE IF NOT EXISTS guild_auto_refeed (
-    guild_id INTEGER PRIMARY KEY,
-    triggered_at TEXT NOT NULL,
-    completed_at TEXT,
-    welcome_channel_id INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS shared_embeds (
-    share_id TEXT PRIMARY KEY,
-    payload TEXT NOT NULL,          -- JSON: { embeds: [...], send_options: {...} }
-    created_guild_id INTEGER,       -- solo referencia/auditoría, no restringe quién puede abrirlo
-    created_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS pending_message_deletions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel_id INTEGER NOT NULL,
-    message_id INTEGER NOT NULL,
-    delete_at TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_pending_message_deletions_delete_at ON pending_message_deletions(delete_at);
-
--- Singleton (id siempre 1): guarda si el último apagado fue intencional
--- (SIGTERM/SIGINT interceptado) para que el próximo arranque sepa si avisar
--- de una caída inesperada. Fila ausente = el bot nunca llegó a escribir acá
--- (primer arranque de la historia), distinto de clean_shutdown=0 preexistente.
-CREATE TABLE IF NOT EXISTS lifecycle_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    clean_shutdown INTEGER NOT NULL DEFAULT 0,
-    updated_at TEXT NOT NULL
-);
-
--- Quién hizo qué cambio de config desde el dashboard. A diferencia de
--- frases_especiales (la única tabla que ya guardaba user_id/user_name antes
--- de esto), el resto de las tablas de config no dice quién tocó qué -- esta
--- tabla es el registro aparte, no una columna más en cada una.
-CREATE TABLE IF NOT EXISTS audit_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    user_name TEXT NOT NULL,
-    action TEXT NOT NULL,
-    detail TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- NULL salvo en ajustes de un único valor (prefijo, rol de Gestor,
-    -- probabilidades, overrides, estilo) -- ver el ALTER TABLE más abajo en
-    -- init_db() para el porqué de tenerlo acá también (SCHEMA es lo que usan
-    -- los tests que arrancan la DB sin pasar por init_db()).
-    previous_detail TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_audit_log_guild ON audit_log(guild_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(guild_id, user_id, id DESC);
-
--- sid de sesiones del dashboard invalidadas por logout. EncryptedCookieStorage
--- guarda la sesión entera cifrada en la cookie -- no hay session store del
--- lado del server -- así que sin esta tabla, una copia de la cookie tomada
--- antes del logout (XSS, log, dispositivo compartido) seguiría sirviendo
--- hasta que expire sola (7 días). Un sid entra acá SOLO al momento del
--- logout; nunca se lista para leer, solo se consulta por sid puntual.
-CREATE TABLE IF NOT EXISTS revoked_sessions (
-    sid TEXT PRIMARY KEY,
-    revoked_at TEXT NOT NULL
-);
-
--- Eventos del servidor (Bienvenida, Despedida, Boost)
-CREATE TABLE IF NOT EXISTS server_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
-    event_type TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 0,
-    channel_id INTEGER,
-    content_mode TEXT NOT NULL DEFAULT 'plain_text',
-    message TEXT,
-    embed_json TEXT,
-    template_id INTEGER DEFAULT NULL,
-    last_error TEXT DEFAULT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(guild_id, event_type)
-);
-CREATE INDEX IF NOT EXISTS idx_server_events_guild ON server_events(guild_id);
-
--- Registro de boosts procesados para idempotencia
-CREATE TABLE IF NOT EXISTS member_boost_records (
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    premium_since TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    PRIMARY KEY(guild_id, user_id)
-);
-"""
+# ALTER TABLE para bases creadas con una versión vieja del esquema. Con
+# ADD COLUMN IF NOT EXISTS corren en cada arranque sin ruido. Vacío mientras el
+# esquema de arriba ya trae todas las columnas.
+_SCHEMA_UPGRADES: tuple[str, ...] = ()
 
 
-def _restrict_db_permissions() -> None:
-    """bot.db guarda el contenido de los mensajes aprendidos y los tokens de
-    webhook de los canales: que solo la lea el usuario del bot (0600). Sin
-    esto queda con la umask por defecto (0644, legible por cualquier usuario
-    local y por el usuario de nginx, que además puede atravesar el home por el
-    `chmod o+x` que pide DEPLOY.md). También cubre los sidecars del modo WAL,
-    que SQLite crea con el mismo modo que el archivo principal. Mejor
-    esfuerzo: un FS sin permisos POSIX (desarrollo en Windows) no debe impedir
-    el arranque."""
-    for suffix in ("", "-wal", "-shm"):
-        path = DB_PATH + suffix
-        try:
-            if os.path.exists(path):
-                os.chmod(path, 0o600)
-        except OSError:
-            log.warning(
-                "No se pudieron restringir los permisos de %s", path, exc_info=True
-            )
-
-
-def _ignore_duplicate_column(exc: Exception) -> None:
-    """Para el `except sqlite3.OperationalError` de cada `ALTER TABLE ... ADD
-    COLUMN` de init_db: esas migraciones corren en cada arranque y la columna
-    casi siempre ya existe, así que "duplicate column name" es lo esperado y se
-    ignora. Cualquier OTRO OperationalError (disco lleno, base bloqueada o de
-    solo lectura) se vuelve a levantar: antes un `except Exception` los tragaba
-    a nivel debug -- invisible con el logging en INFO de producción -- y el
-    bot arrancaba con el schema a medias."""
-    if "duplicate column name" not in str(exc).lower():
-        raise exc
+def database_url() -> str:
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        raise RuntimeError(
+            "Falta DATABASE_URL (postgresql://usuario:clave@host:5432/base). "
+            "Ver DEPLOY.md § PostgreSQL."
+        )
+    return url
 
 
 async def init_db():
-    global _db
+    global _db, _db_loop
     if _db is not None:
         return
-    os.makedirs(DATA_DIR, exist_ok=True)
-    _db = await aiosqlite.connect(DB_PATH)
-    # Activar modo WAL para mejor concurrencia
-    await _db.execute("PRAGMA journal_mode=WAL")
-    await _db.execute("PRAGMA synchronous=NORMAL")
-    # Crear tablas
-    await _db.executescript(SCHEMA)
+    database = await pgdb.Database.connect(
+        database_url(),
+        min_size=_env_int("DB_POOL_MIN", 2),
+        max_size=_env_int("DB_POOL_MAX", 10),
+    )
     try:
-        await _db.execute(
-            "ALTER TABLE youtube_subscriptions ADD COLUMN mention_role_id INTEGER"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna mention_role_id ya existe en youtube_subscriptions")
-    try:
-        await _db.execute(
-            "ALTER TABLE youtube_subscriptions ADD COLUMN last_error TEXT"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna last_error ya existe en youtube_subscriptions")
-    try:
-        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN media_url TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna media_url ya existe en corpus_gifs")
-    try:
-        await _db.execute(
-            "ALTER TABLE corpus_gifs ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna fail_count ya existe en corpus_gifs")
-    try:
-        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN last_health_check TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna last_health_check ya existe en corpus_gifs")
-    try:
-        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN checked_at TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna checked_at ya existe en corpus_gifs")
-    try:
-        await _db.execute(
-            "ALTER TABLE corpus_gifs ADD COLUMN dead_streak INTEGER NOT NULL DEFAULT 0"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna dead_streak ya existe en corpus_gifs")
-    try:
-        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN content_hash TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna content_hash ya existe en corpus_gifs")
-    try:
-        await _db.execute("ALTER TABLE gif_objects ADD COLUMN phash TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna phash ya existe en gif_objects")
-    # frame_count/width/height/duration_ms/phashes reemplazan a `phash` (que
-    # queda sin usarse, columna huérfana) como criterio de casi-duplicado:
-    # un solo dHash del primer frame podía confundir GIFs de contenido
-    # distinto que compartieran un fotograma inicial parecido -- ver
-    # r2.GifFingerprint y r2._closest_fingerprint_match. Cuatro columnas
-    # sueltas en vez de un blob para poder filtrar por ellas en SQL antes de
-    # deserializar `phashes` (JSON de la lista de dHash muestreados).
-    try:
-        await _db.execute("ALTER TABLE gif_objects ADD COLUMN frame_count INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna frame_count ya existe en gif_objects")
-    try:
-        await _db.execute("ALTER TABLE gif_objects ADD COLUMN width INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna width ya existe en gif_objects")
-    try:
-        await _db.execute("ALTER TABLE gif_objects ADD COLUMN height INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna height ya existe en gif_objects")
-    try:
-        await _db.execute("ALTER TABLE gif_objects ADD COLUMN duration_ms INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna duration_ms ya existe en gif_objects")
-    try:
-        await _db.execute(
-            "ALTER TABLE corpus_gifs ADD COLUMN resolve_attempts "
-            "INTEGER NOT NULL DEFAULT 0"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna resolve_attempts ya existe en corpus_gifs")
-    try:
-        await _db.execute("ALTER TABLE corpus_gifs ADD COLUMN resolve_retry_at TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna resolve_retry_at ya existe en corpus_gifs")
-    try:
-        await _db.execute("ALTER TABLE gif_objects ADD COLUMN phashes TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna phashes ya existe en gif_objects")
-    try:
-        # Limpieza retroactiva: si quedaron filas con media_url apuntando a miniaturas .png
-        # (antiguo comportamiento de oEmbed de Tenor), se resetean a NULL para que
-        # resolve_gifs_task las vuelva a resolver al .gif animado real.
-        await _db.execute(
-            "UPDATE corpus_gifs SET media_url=NULL "
-            "WHERE media_url LIKE '%.png' OR media_url LIKE '%.jpg' "
-            "OR media_url LIKE '%.jpeg' OR media_url LIKE '%.webp'"
-        )
-        await _db.commit()
-    except Exception:
-        log.warning(
-            "No se pudo limpiar media_url estáticos en corpus_gifs", exc_info=True
-        )
-    try:
-        await _db.execute("ALTER TABLE settings ADD COLUMN locale TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna locale ya existe en settings")
-    # Canal donde Purgito publica sus anuncios de actualizaciones (dashboard INICIO).
-    try:
-        await _db.execute("ALTER TABLE settings ADD COLUMN updates_channel_id INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna updates_channel_id ya existe en settings")
-    # Prefijo de símbolo custom del guild (dashboard, tab Servidor). NULL =
-    # usa DEFAULT_COMMAND_PREFIX ("!"). El prefijo de palabra ("purgito ") no
-    # vive acá -- ver DEFAULT_COMMAND_PREFIX arriba.
-    try:
-        await _db.execute("ALTER TABLE settings ADD COLUMN custom_prefix TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna custom_prefix ya existe en settings")
-    # Rol de Discord que el admin real del guild elige como "Gestor": acceso
-    # de dashboard a Anuncios/Embeds/Frases/Triggers/Reacciones/GIFs/
-    # YouTube/Twitch/RSS sin MANAGE_GUILD (ver guild_api_manager en
-    # webapi.py). NULL = nadie tiene ese nivel reducido, solo admins reales.
-    try:
-        await _db.execute("ALTER TABLE settings ADD COLUMN manager_role_id INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna manager_role_id ya existe en settings")
-    # Anti-farmeo: interacciones por hora y por usuario. Los servidores que ya
-    # existen quedan con el default (10), igual que uno nuevo.
-    try:
-        await _db.execute(
-            "ALTER TABLE settings ADD COLUMN mention_rate_limit "
-            f"INTEGER NOT NULL DEFAULT {DEFAULT_MENTION_RATE_LIMIT}"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna mention_rate_limit ya existe en settings")
-    # Comportamiento del chat por servidor. Los defaults son los valores fijos
-    # que tenía config.py, así que las filas viejas siguen comportándose igual.
-    for _col, _type, _default in (
-        ("auto_generate_every", "INTEGER", DEFAULT_AUTO_GENERATE_EVERY),
-        ("auto_generate_probability", "REAL", DEFAULT_AUTO_GENERATE_PROBABILITY),
-        ("reaction_probability", "REAL", DEFAULT_REACTION_PROBABILITY),
-        ("gif_response_probability", "REAL", DEFAULT_GIF_RESPONSE_PROBABILITY),
-        ("frase_probability", "REAL", DEFAULT_FRASE_PROBABILITY),
-    ):
-        try:
-            await _db.execute(
-                f"ALTER TABLE settings ADD COLUMN {_col} {_type} "
-                f"NOT NULL DEFAULT {_default}"
-            )
-            await _db.commit()
-        except sqlite3.OperationalError as exc:
-            _ignore_duplicate_column(exc)
-            log.debug("Columna %s ya existe en settings", _col)
-    try:
-        await _db.execute(
-            "ALTER TABLE guild_auto_refeed ADD COLUMN welcome_channel_id INTEGER"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna welcome_channel_id ya existe en guild_auto_refeed")
-    try:
-        await _db.execute(
-            "ALTER TABLE scheduled_announcements ADD COLUMN embed_json TEXT DEFAULT NULL"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna embed_json ya existe en scheduled_announcements")
-    # content_mode: distingue embeds clásicos de layouts Components V2. Al hacer
-    # ADD COLUMN con DEFAULT, SQLite rellena las filas viejas con el default, así
-    # que todo lo ya guardado queda como 'classic_embed' sin backfill manual.
-    for _table in ("embed_templates", "scheduled_announcements"):
-        try:
-            await _db.execute(
-                f"ALTER TABLE {_table} ADD COLUMN content_mode TEXT NOT NULL DEFAULT 'classic_embed'"
-            )
-            await _db.commit()
-        except sqlite3.OperationalError as exc:
-            _ignore_duplicate_column(exc)
-            log.debug("Columna content_mode ya existe en %s", _table)
-    try:
-        await _db.execute(
-            "ALTER TABLE scheduled_announcements ADD COLUMN delete_after_seconds INTEGER"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna delete_after_seconds ya existe en scheduled_announcements")
-    # Modo 'weekly': mismo hour/minute que 'daily', más esta lista de días
-    # (CSV de 0-6, Monday=0 -- mismo criterio que datetime.weekday()) para
-    # postear solo ciertos días de la semana en vez de todos.
-    try:
-        await _db.execute(
-            "ALTER TABLE scheduled_announcements ADD COLUMN weekdays TEXT"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna weekdays ya existe en scheduled_announcements")
-    # Separación Eventos/Plantillas: un evento puede referenciar una plantilla en
-    # vez de guardar su propio contenido. template_id NULL = comportamiento legacy
-    # sin cambios (contenido inline en message/embed_json, como siempre).
-    try:
-        await _db.execute(
-            "ALTER TABLE server_events ADD COLUMN template_id INTEGER DEFAULT NULL"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna template_id ya existe en server_events")
-    # Motivo del último fallo al despachar el evento (join/leave/boost real,
-    # no la prueba manual) -- NULL mientras no se haya intentado nunca o el
-    # intento más reciente haya salido bien. Ver dispatch_server_event y
-    # set_server_event_error en cogs/events.py.
-    try:
-        await _db.execute(
-            "ALTER TABLE server_events ADD COLUMN last_error TEXT DEFAULT NULL"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna last_error ya existe en server_events")
-    # embed_templates gana su propia columna message para poder guardar
-    # plantillas de texto plano, igual que ya soporta server_events.
-    try:
-        await _db.execute(
-            "ALTER TABLE embed_templates ADD COLUMN message TEXT DEFAULT NULL"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna message ya existe en embed_templates")
-    # Override por canal del tunable nuevo (Fase 3): igual que el resto de
-    # channel_settings, nullable y sin default -- NULL siempre significa "sin
-    # override acá", nunca "cero".
-    try:
-        await _db.execute(
-            "ALTER TABLE channel_settings ADD COLUMN frase_probability REAL"
-        )
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna frase_probability ya existe en channel_settings")
-    # NULL = "sin pack" (pool default del servidor) -- ver el comentario largo
-    # junto a frase_packs/frase_pack_channels sobre la semántica completa.
-    try:
-        await _db.execute("ALTER TABLE frases_especiales ADD COLUMN pack_id INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna pack_id ya existe en frases_especiales")
-    # Trazabilidad de canal para el corpus por autor (base para el eventual
-    # Right to be Forgotten individual: sin channel_id no se puede acotar un
-    # borrado a lo que un usuario escribió en un canal dado). Ver
-    # backfill_user_corpus_channel_id() para el retro-poblado.
-    try:
-        await _db.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna channel_id ya existe en user_corpus")
-    # Mismo patrón que youtube_subscriptions.last_error: auto_meme_task
-    # saltaba un canal en silencio cada 10 min si no había imágenes en el
-    # pool o el corpus estaba vacío (AUDITORIA_UX.md #8) -- esto guarda esa
-    # transición para avisar una sola vez, no en cada corrida.
-    try:
-        await _db.execute("ALTER TABLE meme_schedule ADD COLUMN last_error TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna last_error ya existe en meme_schedule")
-    # NULL en la inmensa mayoría de las filas (altas/bajas de listas -- un GIF
-    # agregado, una frase borrada -- no tienen un "antes" que mostrar, detail
-    # ya alcanza). Se llena solo para ajustes de un único valor (prefijo, rol
-    # de Gestor, probabilidades, overrides por canal, estilo, canal de
-    # novedades) -- ver historial.js: la Guía prometía un diff antes/después
-    # para todo el Historial y nunca se había implementado en ningún punto.
-    try:
-        await _db.execute("ALTER TABLE audit_log ADD COLUMN previous_detail TEXT")
-        await _db.commit()
-    except sqlite3.OperationalError as exc:
-        _ignore_duplicate_column(exc)
-        log.debug("Columna previous_detail ya existe en audit_log")
-    await _db.commit()
-    flag_path = os.path.join(DATA_DIR, ".images_wiped_v2")
-    if not os.path.exists(flag_path):
-        await _db.execute("DELETE FROM corpus_images")
-        await _db.commit()
-        with open(flag_path, "w") as f:
-            f.write("done")
-        log.info("corpus_images wipeado - migracion v2")
-    # chat_channels se dividió en spontaneous_channels + mention_channels.
-    # Copiar una sola vez lo que ya había configurado cada servidor para que
-    # ninguno cambie de comportamiento el día del deploy; el flag evita que
-    # un admin que después saque un canal de una lista lo vea "resucitar"
-    # en el próximo restart.
-    split_flag_path = os.path.join(DATA_DIR, ".chat_channels_split_v1")
-    if not os.path.exists(split_flag_path):
-        await _db.execute(
-            "INSERT OR IGNORE INTO spontaneous_channels (guild_id, channel_id) "
-            "SELECT guild_id, channel_id FROM chat_channels"
-        )
-        await _db.execute(
-            "INSERT OR IGNORE INTO mention_channels (guild_id, channel_id) "
-            "SELECT guild_id, channel_id FROM chat_channels"
-        )
-        await _db.commit()
-        with open(split_flag_path, "w") as f:
-            f.write("done")
-        log.info("chat_channels dividido en spontaneous_channels/mention_channels")
-    # Migrate HOME_GUILD_ID to premium_guilds (idempotent via INSERT OR IGNORE)
+        await database.apply_schema(SCHEMA, _SCHEMA_UPGRADES)
+    except BaseException:
+        await database.close()
+        raise
+    _db = database
+    _db_loop = asyncio.get_running_loop()
+    # Migrate HOME_GUILD_ID to premium_guilds (idempotent via ON CONFLICT)
     _home_gid = int(os.getenv("HOME_GUILD_ID", "0") or "0")
     if _home_gid:
         await _db.execute(
             "INSERT OR IGNORE INTO premium_guilds (guild_id, added_at, note) "
-            "VALUES (?, datetime('now'), 'migrado desde HOME_GUILD_ID')",
+            "VALUES (?, utc_now(), 'migrado desde HOME_GUILD_ID')",
             (_home_gid,),
         )
-        await _db.commit()
     await backfill_user_corpus_channel_id()
-    _restrict_db_permissions()
 
 
 async def close_db():
-    global _db
+    global _db, _db_loop
     if _db is not None:
         await _db.close()
         _db = None
+        _db_loop = None
+
+
+# Tope de espera de run_from_thread: igual que el command_timeout del pool.
+# Pasado esto el hilo de trabajo falla en vez de quedarse esperando para siempre.
+RUN_FROM_THREAD_TIMEOUT = 60.0
+
+
+async def _sin_transaccion_heredada(coro):
+    """run_coroutine_threadsafe copia el contexto del HILO que llama. Si ese
+    hilo salió de un to_thread lanzado dentro de un `async with _db_lock`,
+    heredaría la conexión de esa transacción y la usaría en paralelo con su
+    dueño. La corrutina arranca siempre fuera de cualquier transacción."""
+    pgdb._tx_state.set(None)
+    return await coro
+
+
+def run_from_thread(coro, timeout: float | None = None):
+    """Corre una corrutina de db desde un hilo de trabajo (asyncio.to_thread) y
+    devuelve su resultado. El pool de asyncpg está atado al loop del bot: un
+    `asyncio.run(...)` desde otro hilo abre un loop nuevo y falla con
+    "another operation is in progress". Sin loop del pool (scripts), cae a
+    asyncio.run.
+
+    SOLO para hilos de trabajo. Llamarla desde el hilo del propio loop
+    bloquearía ese hilo esperando algo que solo él puede ejecutar (deadlock):
+    se rechaza con RuntimeError. Si el loop no responde en `timeout` segundos
+    (default RUN_FROM_THREAD_TIMEOUT) levanta TimeoutError y cancela la
+    corrutina. Las excepciones de `coro` se propagan tal cual."""
+    loop = _db_loop
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is not None and (loop is None or running is loop):
+        coro.close()
+        raise RuntimeError(
+            "run_from_thread() es solo para hilos de trabajo (asyncio.to_thread); "
+            "desde código async, usa `await` directamente."
+        )
+    if loop is None:
+        return asyncio.run(coro)
+    if loop.is_closed() or not loop.is_running():
+        coro.close()
+        raise RuntimeError("run_from_thread(): el loop de la base de datos ya no corre")
+    future = asyncio.run_coroutine_threadsafe(_sin_transaccion_heredada(coro), loop)
+    limit = RUN_FROM_THREAD_TIMEOUT if timeout is None else timeout
+    try:
+        return future.result(limit)
+    except concurrent.futures.TimeoutError:
+        if future.done():  # el TimeoutError vino de la propia corrutina
+            raise
+        future.cancel()
+        raise TimeoutError(
+            f"run_from_thread(): la base de datos no respondió en {limit:g} s"
+        ) from None
 
 
 async def get_lifecycle_state() -> dict | None:
@@ -1174,7 +259,7 @@ async def set_lifecycle_state(clean_shutdown: bool) -> None:
         await db.commit()
 
 
-def _was_inserted(cursor: aiosqlite.Cursor) -> bool:
+def _was_inserted(cursor: pgdb.Cursor) -> bool:
     return cursor.rowcount == 1
 
 
@@ -1516,6 +601,27 @@ async def delete_recent_corpus(guild_id: int, hours: int = 24) -> dict:
     return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
 
 
+DELETION_TOMBSTONE_RETENTION_DAYS = 15
+
+# SQL del borrado de un autor, compartido por delete_user_data y por
+# reapply_deletion_tombstones (scripts/reapply_deletions.py): una sola definición.
+_SQL_DELETE_CORPUS_OF_AUTHOR = (
+    "DELETE FROM corpus_messages WHERE EXISTS ("
+    "  SELECT 1 FROM user_corpus uc"
+    "  WHERE uc.author_id = ?"
+    "    AND uc.guild_id = corpus_messages.guild_id"
+    "    AND uc.message_id = corpus_messages.message_id"
+    ")"
+)
+_SQL_DELETE_USER_CORPUS_OF_AUTHOR = "DELETE FROM user_corpus WHERE author_id=?"
+
+
+def _tombstone_retention_days() -> int:
+    return _env_int(
+        "DELETION_TOMBSTONE_RETENTION_DAYS", DELETION_TOMBSTONE_RETENTION_DAYS
+    )
+
+
 async def delete_user_data(author_id: int) -> dict:
     """Núcleo del Right to be Forgotten individual: borra TODO el corpus de
     estilo de `author_id` -- global, cruzando todos los guilds donde haya
@@ -1542,7 +648,7 @@ async def delete_user_data(author_id: int) -> dict:
     leer user_corpus para saber qué (guild_id, message_id) le tocan a este
     autor), después user_corpus. Las dos DELETE + el SELECT de guilds afectados
     viven bajo una sola adquisición de `_db_lock` con un solo commit al final
-    -- si cualquier paso falla, `_RollbackOnErrorLock` deshace TODO antes de
+    -- si cualquier paso falla, `TransactionLock` deshace TODO antes de
     soltar el lock (ver su docstring más arriba), así que nunca queda un
     borrado a medias.
 
@@ -1575,21 +681,28 @@ async def delete_user_data(author_id: int) -> dict:
             guild_rows = await cursor.fetchall()
         guild_ids = sorted(r[0] for r in guild_rows)
 
-        cur_cm = await db.execute(
-            "DELETE FROM corpus_messages WHERE EXISTS ("
-            "  SELECT 1 FROM user_corpus uc"
-            "  WHERE uc.author_id = ?"
-            "    AND uc.guild_id = corpus_messages.guild_id"
-            "    AND uc.message_id = corpus_messages.message_id"
-            ")",
-            (author_id,),
-        )
+        cur_cm = await db.execute(_SQL_DELETE_CORPUS_OF_AUTHOR, (author_id,))
         corpus_messages_deleted = cur_cm.rowcount
 
-        cur_uc = await db.execute(
-            "DELETE FROM user_corpus WHERE author_id=?", (author_id,)
-        )
+        cur_uc = await db.execute(_SQL_DELETE_USER_CORPUS_OF_AUTHOR, (author_id,))
         user_corpus_deleted = cur_uc.rowcount
+
+        # Lápida (solo el id y dos fechas), en la MISMA transacción: o se borra y
+        # queda anotado, o no pasó nada. Se escribe aunque no hubiera filas
+        # vivas: un backup anterior puede tenerlas. Ver el docstring del módulo
+        # de privacidad (docs/PRIVACY.md) para qué es y cuánto dura.
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(days=_tombstone_retention_days())
+        await db.execute(
+            "INSERT INTO deleted_user_tombstones (user_id, deleted_at, expires_at) "
+            "VALUES (?, ?, ?) ON CONFLICT (user_id) DO UPDATE SET "
+            "deleted_at=excluded.deleted_at, expires_at=excluded.expires_at",
+            (
+                author_id,
+                now.strftime("%Y-%m-%d %H:%M:%S"),
+                expires.strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
 
         await db.commit()
 
@@ -1613,6 +726,18 @@ async def delete_user_data(author_id: int) -> dict:
         len(guild_ids),
     )
     return report
+
+
+async def purge_expired_deletion_tombstones() -> int:
+    """Borra las lápidas de /borrar_mis_datos que ya cumplieron su plazo (ningún
+    backup anterior al borrado puede seguir existiendo). Devuelve cuántas."""
+    db = await get_db()
+    async with _db_lock:
+        cursor = await db.execute(
+            "DELETE FROM deleted_user_tombstones WHERE expires_at <= utc_now()"
+        )
+        await db.commit()
+    return max(cursor.rowcount, 0)
 
 
 async def export_user_data(author_id: int) -> dict[int, list[dict]]:
@@ -1680,14 +805,14 @@ async def get_corpus_messages(guild_id: int, limit: int | None = None) -> list[s
     if not has_excluded:
         if limit is None:
             query = (
-                "SELECT content FROM corpus_messages WHERE guild_id=? ORDER BY RANDOM()"
+                "SELECT content FROM corpus_messages WHERE guild_id=? ORDER BY random()"
             )
             params = (guild_id,)
         else:
             query = (
                 "SELECT content FROM corpus_messages "
                 "WHERE guild_id = ? AND id IN ("
-                "    SELECT id FROM corpus_messages WHERE guild_id = ? ORDER BY RANDOM() LIMIT ?"
+                "    SELECT id FROM corpus_messages WHERE guild_id = ? ORDER BY random() LIMIT ?"
                 ")"
             )
             params = (guild_id, guild_id, limit)
@@ -1702,7 +827,7 @@ async def get_corpus_messages(guild_id: int, limit: int | None = None) -> list[s
                 "    WHERE uc.guild_id = corpus_messages.guild_id "
                 "      AND uc.message_id = corpus_messages.message_id "
                 "      AND eu.exclude_learning = 1"
-                ") ORDER BY RANDOM()"
+                ") ORDER BY random()"
             )
             params = (guild_id,)
         else:
@@ -1724,7 +849,7 @@ async def get_corpus_messages(guild_id: int, limit: int | None = None) -> list[s
                 "        WHERE uc.guild_id = corpus_messages.guild_id "
                 "          AND uc.message_id = corpus_messages.message_id "
                 "          AND eu.exclude_learning = 1"
-                "    ) ORDER BY RANDOM() LIMIT ?"
+                "    ) ORDER BY random() LIMIT ?"
                 ")"
             )
             params = (guild_id, guild_id, limit)
@@ -1755,7 +880,7 @@ async def get_corpus_messages_filtered(
             "    SELECT id FROM corpus_messages "
             "    WHERE guild_id = ? "
             "    AND (length(content) - length(replace(content, ' ', ''))) >= ? "
-            "    ORDER BY RANDOM() LIMIT ?"
+            "    ORDER BY random() LIMIT ?"
             ")"
         )
         params = (guild_id, min_words - 1, guild_id, min_words - 1, limit)
@@ -1782,7 +907,7 @@ async def get_corpus_messages_filtered(
             "          AND uc.message_id = corpus_messages.message_id "
             "          AND eu.exclude_learning = 1"
             "    ) "
-            "    ORDER BY RANDOM() LIMIT ?"
+            "    ORDER BY random() LIMIT ?"
             ")"
         )
         params = (guild_id, min_words - 1, guild_id, min_words - 1, limit)
@@ -1817,7 +942,7 @@ async def _retain_gif_object(
         "INSERT INTO gif_objects (content_hash, r2_key, ref_count, size_bytes, "
         "frame_count, width, height, duration_ms, phashes) "
         "VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT(content_hash) DO UPDATE SET ref_count = ref_count + 1",
+        "ON CONFLICT(content_hash) DO UPDATE SET ref_count = gif_objects.ref_count + 1",
         (
             content_hash,
             r2_key,
@@ -2117,21 +1242,22 @@ async def save_gif_url(
                 gif_id = gif_row[0] if gif_row else None
             if gif_id is not None:
                 try:
-                    await db.execute(
-                        "INSERT INTO gif_senders "
-                        "(gif_id, guild_id, user_id, channel_id, message_id, "
-                        "send_count, first_seen, last_seen) "
-                        "VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
-                        "ON CONFLICT(gif_id, user_id) DO UPDATE SET "
-                        "channel_id=excluded.channel_id, message_id=excluded.message_id, "
-                        "send_count=send_count+1, last_seen=CURRENT_TIMESTAMP",
-                        (gif_id, guild_id, user_id, channel_id, message_id),
-                    )
+                    async with db.savepoint():
+                        await db.execute(
+                            "INSERT INTO gif_senders "
+                            "(gif_id, guild_id, user_id, channel_id, message_id, "
+                            "send_count, first_seen, last_seen) "
+                            "VALUES (?, ?, ?, ?, ?, 1, utc_now(), utc_now()) "
+                            "ON CONFLICT(gif_id, user_id) DO UPDATE SET "
+                            "channel_id=excluded.channel_id, message_id=excluded.message_id, "
+                            "send_count=gif_senders.send_count+1, last_seen=utc_now()",
+                            (gif_id, guild_id, user_id, channel_id, message_id),
+                        )
                 except Exception:
                     # Registrar el remitente es un enriquecimiento sobre el
                     # guardado, no el guardado en sí -- un fallo acá NO puede
                     # tirarse abajo el GIF que ya se guardó bien arriba.
-                    # _RollbackOnErrorLock deshace TODA la transacción de esta
+                    # TransactionLock deshace TODA la transacción de esta
                     # llamada ante cualquier excepción sin atrapar (ver su
                     # docstring); sin este try/except, un solo fallo acá se
                     # llevaba puesto también el INSERT de corpus_gifs.
@@ -2292,7 +1418,7 @@ async def get_gif_by_url(guild_id: int, url: str) -> dict | None:
 async def get_random_gif_candidates(guild_id: int, limit: int = 3) -> list[dict]:
     db = await get_db()
     async with db.execute(
-        "SELECT id, url, media_url, content_hash FROM corpus_gifs WHERE guild_id=? ORDER BY RANDOM() LIMIT ?",
+        "SELECT id, url, media_url, content_hash FROM corpus_gifs WHERE guild_id=? ORDER BY random() LIMIT ?",
         (guild_id, limit),
     ) as cursor:
         rows = await cursor.fetchall()
@@ -2588,9 +1714,9 @@ async def get_unresolved_gifs(
     if guild_id is None:
         query = (
             "SELECT id, url FROM corpus_gifs "
-            "WHERE (media_url IS NULL OR media_url LIKE '%.png' "
-            "OR media_url LIKE '%.jpg' OR media_url LIKE '%.jpeg' "
-            "OR media_url LIKE '%.webp') "
+            "WHERE (media_url IS NULL OR media_url ILIKE '%.png' "
+            "OR media_url ILIKE '%.jpg' OR media_url ILIKE '%.jpeg' "
+            "OR media_url ILIKE '%.webp') "
             "AND resolve_attempts < ? "
             "AND (resolve_retry_at IS NULL OR resolve_retry_at <= ?) "
             "ORDER BY resolve_attempts, id LIMIT ?"
@@ -2603,9 +1729,9 @@ async def get_unresolved_gifs(
     else:
         query = (
             "SELECT id, url FROM corpus_gifs WHERE guild_id=? "
-            "AND (media_url IS NULL OR media_url LIKE '%.png' "
-            "OR media_url LIKE '%.jpg' OR media_url LIKE '%.jpeg' "
-            "OR media_url LIKE '%.webp') "
+            "AND (media_url IS NULL OR media_url ILIKE '%.png' "
+            "OR media_url ILIKE '%.jpg' OR media_url ILIKE '%.jpeg' "
+            "OR media_url ILIKE '%.webp') "
             "ORDER BY id LIMIT ?"
         )
         params = (guild_id, limit)
@@ -3177,13 +2303,13 @@ async def get_user_messages(
         return []
     db = await get_db()
     if limit is None:
-        query = "SELECT content FROM user_corpus WHERE guild_id=? AND author_id=? ORDER BY RANDOM()"
+        query = "SELECT content FROM user_corpus WHERE guild_id=? AND author_id=? ORDER BY random()"
         params = (guild_id, author_id)
     else:
         query = (
             "SELECT content FROM user_corpus "
             "WHERE guild_id = ? AND author_id = ? AND id IN ("
-            "    SELECT id FROM user_corpus WHERE guild_id = ? AND author_id = ? ORDER BY RANDOM() LIMIT ?"
+            "    SELECT id FROM user_corpus WHERE guild_id = ? AND author_id = ? ORDER BY random() LIMIT ?"
             ")"
         )
         params = (guild_id, author_id, guild_id, author_id, limit)
@@ -3769,10 +2895,11 @@ async def count_corpus_messages_by_day(guild_id: int, days: int = 14) -> list[di
     de la tab Estadísticas."""
     db = await get_db()
     async with db.execute(
-        "SELECT DATE(created_at) AS day, COUNT(*) FROM corpus_messages "
-        "WHERE guild_id=? AND created_at >= datetime('now', ?) "
+        "SELECT substr(created_at, 1, 10) AS day, COUNT(*) FROM corpus_messages "
+        "WHERE guild_id=? AND created_at >= "
+        "to_char(timezone('utc', now()) - make_interval(days => ?), 'YYYY-MM-DD HH24:MI:SS') "
         "GROUP BY day ORDER BY day ASC",
-        (guild_id, f"-{days} days"),
+        (guild_id, int(days)),
     ) as cursor:
         rows = await cursor.fetchall()
     return [{"day": r[0], "count": r[1]} for r in rows]
@@ -3786,7 +2913,8 @@ async def top_corpus_contributors(guild_id: int, limit: int = 5) -> list[dict]:
     que el resto de author_name guardados en el corpus)."""
     db = await get_db()
     async with db.execute(
-        "SELECT author_id, author_name, COUNT(*) AS n FROM user_corpus "
+        "SELECT author_id, (array_agg(author_name ORDER BY id DESC))[1] AS author_name, "
+        "COUNT(*) AS n FROM user_corpus "
         "WHERE guild_id=? GROUP BY author_id ORDER BY n DESC LIMIT ?",
         (guild_id, limit),
     ) as cursor:
@@ -3813,7 +2941,7 @@ async def set_bot_style(
     async with _db_lock:
         await db.execute(
             "INSERT INTO guild_bot_style (guild_id, nick, avatar_url, banner_url, updated_at) "
-            "VALUES (?, ?, ?, ?, datetime('now')) "
+            "VALUES (?, ?, ?, ?, utc_now()) "
             "ON CONFLICT(guild_id) DO UPDATE SET "
             "    nick=excluded.nick, avatar_url=excluded.avatar_url, "
             "    banner_url=excluded.banner_url, updated_at=excluded.updated_at",
@@ -3838,7 +2966,9 @@ async def add_meme_schedule(
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "INSERT OR REPLACE INTO meme_schedule (guild_id, channel_id, interval_minutes) VALUES (?, ?, ?)",
+            "INSERT INTO meme_schedule (guild_id, channel_id, interval_minutes) VALUES (?, ?, ?) "
+            "ON CONFLICT (guild_id, channel_id) DO UPDATE SET "
+            "interval_minutes=excluded.interval_minutes, last_posted_at=NULL, last_error=NULL",
             (guild_id, channel_id, interval_minutes),
         )
         inserted = cursor.rowcount > 0
@@ -3877,12 +3007,20 @@ async def list_meme_schedules(guild_id: int) -> list[dict]:
     ]
 
 
+# make_interval(mins => ...) para las queries de vencimiento: el LEAST evita que
+# un interval_minutes absurdo (la API valida 5-1440, pero la columna es BIGINT)
+# desborde el ::int y tumbe la query completa.
+_MINS_INTERVAL = "make_interval(mins => LEAST(interval_minutes, 100000000)::int)"
+
+
 async def get_due_meme_schedules() -> list[dict]:
     db = await get_db()
     async with db.execute(
         "SELECT guild_id, channel_id, interval_minutes, last_error FROM meme_schedule "
         "WHERE last_posted_at IS NULL "
-        "   OR datetime(last_posted_at, '+' || interval_minutes || ' minutes') <= datetime('now')"
+        "   OR (interval_minutes IS NOT NULL AND "
+        "       utc_text_plus(last_posted_at, " + _MINS_INTERVAL + ") IS NULL) "
+        "   OR utc_text_plus(last_posted_at, " + _MINS_INTERVAL + ") <= utc_now()"
     ) as cursor:
         rows = await cursor.fetchall()
     return [
@@ -3900,7 +3038,7 @@ async def update_meme_last_posted(guild_id: int, channel_id: int) -> None:
     db = await get_db()
     async with _db_lock:
         await db.execute(
-            "UPDATE meme_schedule SET last_posted_at = datetime('now') WHERE guild_id=? AND channel_id=?",
+            "UPDATE meme_schedule SET last_posted_at = utc_now() WHERE guild_id=? AND channel_id=?",
             (guild_id, channel_id),
         )
         await db.commit()
@@ -4156,7 +3294,9 @@ async def get_due_scheduled_announcements() -> list[dict]:
         "SELECT id, guild_id, channel_id, message, mode, interval_minutes, hour, minute, last_sent_at, embed_json, content_mode, delete_after_seconds, weekdays "
         "FROM scheduled_announcements "
         "WHERE (mode='interval' AND (last_sent_at IS NULL "
-        "       OR datetime(last_sent_at, '+' || interval_minutes || ' minutes') <= datetime('now'))) "
+        "       OR (interval_minutes IS NOT NULL AND "
+        "           utc_text_plus(last_sent_at, " + _MINS_INTERVAL + ") IS NULL) "
+        "       OR utc_text_plus(last_sent_at, " + _MINS_INTERVAL + ") <= utc_now())) "
         "   OR mode='daily' OR mode='weekly'"
     ) as cursor:
         rows = await cursor.fetchall()
@@ -4191,13 +3331,23 @@ async def get_due_scheduled_announcements() -> list[dict]:
         if (now_local.hour, now_local.minute) < (item["hour"], item["minute"]):
             continue
         if item["last_sent_at"]:
-            last_local = (
-                datetime.strptime(item["last_sent_at"], "%Y-%m-%d %H:%M:%S")
-                .replace(tzinfo=timezone.utc)
-                .astimezone(config.ANNOUNCEMENTS_TIMEZONE)
-            )
-            if last_local.date() == now_local.date():
-                continue
+            try:
+                last_local = (
+                    datetime.strptime(item["last_sent_at"], "%Y-%m-%d %H:%M:%S")
+                    .replace(tzinfo=timezone.utc)
+                    .astimezone(config.ANNOUNCEMENTS_TIMEZONE)
+                )
+            except ValueError:
+                # Fecha malformada: una fila rota no puede tumbar a todos los
+                # anuncios. Se trata como "nunca enviado"; al enviarse,
+                # update_announcement_last_sent la reescribe bien.
+                log.warning(
+                    "Anuncio %s: last_sent_at malformado, se trata como no enviado",
+                    item["id"],
+                )
+            else:
+                if last_local.date() == now_local.date():
+                    continue
         due.append(item)
     return due
 
@@ -4357,7 +3507,7 @@ async def update_embed_template(
     async with _db_lock:
         cursor = await db.execute(
             "UPDATE embed_templates SET name=?, embed_json=?, content_mode=?, message=?, "
-            "updated_at=datetime('now') WHERE id=? AND guild_id=?",
+            "updated_at=utc_now() WHERE id=? AND guild_id=?",
             (name, embed_json, content_mode, message, template_id, guild_id),
         )
         updated = cursor.rowcount > 0
@@ -4500,7 +3650,7 @@ async def set_server_event(
         await db.execute(
             "INSERT INTO server_events (guild_id, event_type, enabled, channel_id, "
             "content_mode, message, embed_json, template_id, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now')) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, utc_now()) "
             "ON CONFLICT(guild_id, event_type) DO UPDATE SET "
             "enabled=excluded.enabled, "
             "channel_id=excluded.channel_id, "
@@ -4511,7 +3661,7 @@ async def set_server_event(
             # Guardar cuenta como "probemos de nuevo": si el problema persiste,
             # el próximo join/leave/boost real lo vuelve a marcar.
             "last_error=NULL, "
-            "updated_at=datetime('now')",
+            "updated_at=utc_now()",
             (
                 guild_id,
                 event_type,
@@ -4552,7 +3702,7 @@ async def toggle_server_event(guild_id: int, event_type: str, enabled: bool) -> 
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "UPDATE server_events SET enabled=?, updated_at=datetime('now') "
+            "UPDATE server_events SET enabled=?, updated_at=utc_now() "
             "WHERE guild_id=? AND event_type=?",
             (1 if enabled else 0, guild_id, event_type),
         )
@@ -4584,9 +3734,9 @@ async def try_record_member_boost(
     async with _db_lock:
         cursor = await db.execute(
             "INSERT INTO member_boost_records (guild_id, user_id, premium_since, created_at) "
-            "VALUES (?, ?, ?, datetime('now')) "
+            "VALUES (?, ?, ?, utc_now()) "
             "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
-            "premium_since=excluded.premium_since, created_at=datetime('now') "
+            "premium_since=excluded.premium_since, created_at=utc_now() "
             "WHERE member_boost_records.premium_since != excluded.premium_since",
             (guild_id, user_id, premium_since_iso),
         )
@@ -4615,9 +3765,9 @@ async def record_member_boost(
     async with _db_lock:
         await db.execute(
             "INSERT INTO member_boost_records (guild_id, user_id, premium_since, created_at) "
-            "VALUES (?, ?, ?, datetime('now')) "
+            "VALUES (?, ?, ?, utc_now()) "
             "ON CONFLICT(guild_id, user_id) DO UPDATE SET "
-            "premium_since=excluded.premium_since, created_at=datetime('now')",
+            "premium_since=excluded.premium_since, created_at=utc_now()",
             (guild_id, user_id, premium_since_iso),
         )
         await db.commit()
@@ -4759,7 +3909,7 @@ async def add_shared_embed(
     async with _db_lock:
         async with db.execute(
             "SELECT COUNT(*) FROM shared_embeds "
-            "WHERE created_guild_id=? AND created_at >= datetime('now', 'start of day')",
+            "WHERE created_guild_id=? AND created_at >= to_char(date_trunc('day', timezone('utc', now())), 'YYYY-MM-DD HH24:MI:SS')",
             (guild_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -4772,7 +3922,7 @@ async def add_shared_embed(
         await db.execute(
             "INSERT INTO shared_embeds "
             "(share_id, payload, created_guild_id, created_at, expires_at) "
-            "VALUES (?, ?, ?, datetime('now'), ?)",
+            "VALUES (?, ?, ?, utc_now(), ?)",
             (share_id, payload, guild_id, expires_at),
         )
         await db.commit()
@@ -4785,8 +3935,7 @@ async def get_shared_embed(share_id: str) -> str | None:
     solo se elimina por expiración (purge_expired_shared_embeds)."""
     db = await get_db()
     async with db.execute(
-        "SELECT payload FROM shared_embeds "
-        "WHERE share_id=? AND expires_at > datetime('now')",
+        "SELECT payload FROM shared_embeds WHERE share_id=? AND expires_at > utc_now()",
         (share_id,),
     ) as cursor:
         row = await cursor.fetchone()
@@ -4798,7 +3947,7 @@ async def count_shared_embeds_today(guild_id: int) -> int:
     db = await get_db()
     async with db.execute(
         "SELECT COUNT(*) FROM shared_embeds "
-        "WHERE created_guild_id=? AND created_at >= datetime('now', 'start of day')",
+        "WHERE created_guild_id=? AND created_at >= to_char(date_trunc('day', timezone('utc', now())), 'YYYY-MM-DD HH24:MI:SS')",
         (guild_id,),
     ) as cursor:
         row = await cursor.fetchone()
@@ -4810,7 +3959,7 @@ async def purge_expired_shared_embeds() -> int:
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "DELETE FROM shared_embeds WHERE expires_at <= datetime('now')"
+            "DELETE FROM shared_embeds WHERE expires_at <= utc_now()"
         )
         await db.commit()
     return cursor.rowcount
@@ -4831,7 +3980,7 @@ async def revoke_session(sid: str) -> None:
     async with _db_lock:
         await db.execute(
             "INSERT OR IGNORE INTO revoked_sessions (sid, revoked_at) "
-            "VALUES (?, datetime('now'))",
+            "VALUES (?, utc_now())",
             (sid,),
         )
         await db.commit()
@@ -4851,8 +4000,9 @@ async def purge_expired_revoked_sessions() -> int:
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "DELETE FROM revoked_sessions WHERE revoked_at <= datetime(?, ?)",
-            ("now", f"-{SESSION_MAX_AGE_DAYS} days"),
+            "DELETE FROM revoked_sessions WHERE revoked_at <= "
+            "to_char(timezone('utc', now()) - make_interval(days => ?), 'YYYY-MM-DD HH24:MI:SS')",
+            (int(SESSION_MAX_AGE_DAYS),),
         )
         await db.commit()
     return cursor.rowcount
@@ -4888,7 +4038,7 @@ async def get_due_pending_deletions() -> list[dict]:
     db = await get_db()
     async with db.execute(
         "SELECT id, channel_id, message_id FROM pending_message_deletions "
-        "WHERE delete_at <= datetime('now')"
+        "WHERE delete_at <= utc_now()"
     ) as cursor:
         rows = await cursor.fetchall()
     return [{"id": r[0], "channel_id": r[1], "message_id": r[2]} for r in rows]
@@ -4910,13 +4060,16 @@ async def add_button_action(
     custom_id: str, guild_id: int, action_type: str, action_data: str
 ) -> None:
     """Guarda (o actualiza) el mapeo custom_id -> acción de un botón de layout.
-    INSERT OR REPLACE porque custom_id es la clave: reintentar el registro de
+    ON CONFLICT (upsert) porque custom_id es la clave: reintentar el registro de
     un botón ya existente (ej. reintento de red) no debe fallar por UNIQUE."""
     db = await get_db()
     async with _db_lock:
         await db.execute(
-            "INSERT OR REPLACE INTO layout_button_actions "
-            "(custom_id, guild_id, action_type, action_data) VALUES (?, ?, ?, ?)",
+            "INSERT INTO layout_button_actions "
+            "(custom_id, guild_id, action_type, action_data) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (custom_id) DO UPDATE SET guild_id=excluded.guild_id, "
+            "action_type=excluded.action_type, action_data=excluded.action_data, "
+            "created_at=utc_now()",
             (custom_id, guild_id, action_type, action_data),
         )
         await db.commit()
@@ -4957,7 +4110,7 @@ async def update_announcement_last_sent(announcement_id: int) -> None:
     db = await get_db()
     async with _db_lock:
         await db.execute(
-            "UPDATE scheduled_announcements SET last_sent_at = datetime('now') WHERE id=?",
+            "UPDATE scheduled_announcements SET last_sent_at = utc_now() WHERE id=?",
             (announcement_id,),
         )
         await db.commit()
@@ -5013,7 +4166,7 @@ async def get_random_image_url(guild_id: int) -> str | None:
     """Retorna una URL de imagen random del pool del server."""
     db = await get_db()
     async with db.execute(
-        "SELECT url FROM corpus_images WHERE guild_id=? ORDER BY RANDOM() LIMIT 1",
+        "SELECT url FROM corpus_images WHERE guild_id=? ORDER BY random() LIMIT 1",
         (guild_id,),
     ) as cursor:
         row = await cursor.fetchone()
@@ -5049,13 +4202,13 @@ async def get_random_image_url_excluding(
         async with db.execute(
             "SELECT url FROM corpus_images "
             "WHERE guild_id=? AND url != ? "
-            "ORDER BY RANDOM() LIMIT 1",
+            "ORDER BY random() LIMIT 1",
             (guild_id, exclude_url),
         ) as cursor:
             row = await cursor.fetchone()
     else:
         async with db.execute(
-            "SELECT url FROM corpus_images WHERE guild_id=? ORDER BY RANDOM() LIMIT 1",
+            "SELECT url FROM corpus_images WHERE guild_id=? ORDER BY random() LIMIT 1",
             (guild_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -5098,7 +4251,7 @@ async def add_frase_especial(
     db = await get_db()
     async with _db_lock:
         async with db.execute(
-            "SELECT 1 FROM frases_especiales WHERE guild_id=? AND pack_id IS ? "
+            "SELECT 1 FROM frases_especiales WHERE guild_id=? AND pack_id IS NOT DISTINCT FROM ? "
             "AND frase=?",
             (guild_id, pack_id, text),
         ) as cur:
@@ -5125,12 +4278,12 @@ async def get_random_frase_especial(
 ) -> str | None:
     """Frase al azar del pool efectivo: pack_id=None es el pool default del
     servidor (frases sin pack asignado), un id puntual restringe a ese pack.
-    `pack_id IS ?` y no `=`: la columna puede ser NULL y el parámetro
+    `pack_id IS NOT DISTINCT FROM ?` y no `=`: la columna puede ser NULL y el parámetro
     también, y '=' con NULL de cualquier lado nunca matchea en SQL."""
     db = await get_db()
     async with db.execute(
-        "SELECT frase FROM frases_especiales WHERE guild_id=? AND pack_id IS ? "
-        "ORDER BY RANDOM() LIMIT 1",
+        "SELECT frase FROM frases_especiales WHERE guild_id=? AND pack_id IS NOT DISTINCT FROM ? "
+        "ORDER BY random() LIMIT 1",
         (guild_id, pack_id),
     ) as cursor:
         row = await cursor.fetchone()
@@ -5217,7 +4370,7 @@ async def update_frase_especial(
                 return False
             target_pack_id = pack_id if update_pack else current_pack_id
             async with db.execute(
-                "SELECT 1 FROM frases_especiales WHERE guild_id=? AND pack_id IS ? "
+                "SELECT 1 FROM frases_especiales WHERE guild_id=? AND pack_id IS NOT DISTINCT FROM ? "
                 "AND frase=? AND id!=?",
                 (guild_id, target_pack_id, text, frase_id),
             ) as cur:
@@ -5344,11 +4497,12 @@ async def add_frase_pack(guild_id: int, name: str) -> int | None:
         if row and int(row[0]) >= max_packs:
             return None
         try:
-            cursor = await db.execute(
-                "INSERT INTO frase_packs (guild_id, name) VALUES (?, ?)",
-                (guild_id, clean_name),
-            )
-        except aiosqlite.IntegrityError:
+            async with db.savepoint():
+                cursor = await db.execute(
+                    "INSERT INTO frase_packs (guild_id, name) VALUES (?, ?)",
+                    (guild_id, clean_name),
+                )
+        except asyncpg.UniqueViolationError:
             return None
         await db.commit()
     return cursor.lastrowid
@@ -5631,13 +4785,13 @@ async def count_audit_action(guild_id: int, action: str, days: int = 30) -> int:
     """Cuántas veces se registró `action` en los últimos `days` días.
 
     Para mostrar en el dashboard un "esto pasó N veces" sin traerse el
-    historial entero. created_at es un timestamp de SQLite en UTC, así que la
-    comparación va contra datetime('now', '-N days'), también UTC.
+    historial entero. created_at es un texto en UTC, así que la comparación va
+    contra el "ahora" en UTC con el mismo formato.
     """
     db = await get_db()
     async with db.execute(
         "SELECT COUNT(*) FROM audit_log WHERE guild_id=? AND action=? "
-        f"AND created_at >= datetime('now', '-{int(days)} days')",
+        f"AND created_at >= to_char(timezone('utc', now()) - make_interval(days => {int(days)}), 'YYYY-MM-DD HH24:MI:SS')",
         (guild_id, action),
     ) as cursor:
         row = await cursor.fetchone()
@@ -5670,7 +4824,8 @@ async def get_audit_log_users(guild_id: int) -> list[dict]:
     """Lista de usuarios distintos que figuran en el audit log del guild."""
     db = await get_db()
     async with db.execute(
-        "SELECT DISTINCT user_id, user_name FROM audit_log WHERE guild_id=? ORDER BY user_name COLLATE NOCASE ASC",
+        "SELECT DISTINCT user_id, user_name, lower(user_name) AS sort_key FROM audit_log "
+        "WHERE guild_id=? ORDER BY sort_key ASC",
         (guild_id,),
     ) as cursor:
         rows = await cursor.fetchall()
@@ -5729,16 +4884,16 @@ async def list_audit_log_page(
             elif cat == "otros":
                 conditions.append("action LIKE 'style%'")
             else:
-                conditions.append("action LIKE ?")
+                conditions.append("action ILIKE ?")
                 params.append(f"{cat}%")
         elif act.endswith(".") or act.endswith("_"):
-            conditions.append("action LIKE ?")
+            conditions.append("action ILIKE ?")
             params.append(f"{act}%")
         elif "." in act:
             conditions.append("action = ?")
             params.append(act)
         else:
-            conditions.append("action LIKE ?")
+            conditions.append("action ILIKE ?")
             params.append(f"{act}%")
 
     if date_from:
@@ -5758,7 +4913,7 @@ async def list_audit_log_page(
     if q:
         q_clean = q.strip()
         if q_clean:
-            conditions.append("(detail LIKE ? OR user_name LIKE ? OR action LIKE ?)")
+            conditions.append("(detail ILIKE ? OR user_name ILIKE ? OR action ILIKE ?)")
             q_param = f"%{q_clean}%"
             params.extend([q_param, q_param, q_param])
 
@@ -5804,8 +4959,9 @@ async def purge_old_audit_log_entries(retention_days: int) -> int:
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
-            "DELETE FROM audit_log WHERE created_at <= datetime(?, ?)",
-            ("now", f"-{retention_days} days"),
+            "DELETE FROM audit_log WHERE created_at <= "
+            "to_char(timezone('utc', now()) - make_interval(days => ?), 'YYYY-MM-DD HH24:MI:SS')",
+            (int(retention_days),),
         )
         await db.commit()
     return cursor.rowcount
@@ -5861,7 +5017,7 @@ async def list_reaction_pool(guild_id: int) -> list[dict]:
 async def get_random_reaction(guild_id: int) -> dict | None:
     db = await get_db()
     async with db.execute(
-        "SELECT id, emoji_text FROM reaction_pool WHERE guild_id=? ORDER BY RANDOM() LIMIT 1",
+        "SELECT id, emoji_text FROM reaction_pool WHERE guild_id=? ORDER BY random() LIMIT 1",
         (guild_id,),
     ) as cursor:
         row = await cursor.fetchone()
@@ -5879,7 +5035,7 @@ async def bump_counter(guild_id: int, name: str, by: int = 1) -> None:
         async with _db_lock:
             await db.execute(
                 "INSERT INTO guild_counters (guild_id, name, count) VALUES (?, ?, ?) "
-                "ON CONFLICT(guild_id, name) DO UPDATE SET count = count + excluded.count",
+                "ON CONFLICT(guild_id, name) DO UPDATE SET count = guild_counters.count + excluded.count",
                 (guild_id, name, by),
             )
             await db.commit()
@@ -5912,7 +5068,7 @@ async def get_counters(guild_id: int) -> dict[str, int]:
 async def _add_premium_guild_locked(db, guild_id: int, note: str | None) -> bool:
     cursor = await db.execute(
         "INSERT OR IGNORE INTO premium_guilds (guild_id, added_at, note) "
-        "VALUES (?, datetime('now'), ?)",
+        "VALUES (?, utc_now(), ?)",
         (guild_id, note),
     )
     inserted = _was_inserted(cursor)
@@ -6058,7 +5214,7 @@ async def upsert_premium_subscription(
                 product_id, status, current_period_start, current_period_end,
                 trial_start, trial_end, cancel_at_period_end, canceled_at,
                 event_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, utc_now())
             ON CONFLICT(guild_id) DO UPDATE SET
                 subscription_id=excluded.subscription_id,
                 customer_id=excluded.customer_id,
@@ -6072,7 +5228,7 @@ async def upsert_premium_subscription(
                 cancel_at_period_end=excluded.cancel_at_period_end,
                 canceled_at=excluded.canceled_at,
                 event_at=excluded.event_at,
-                updated_at=datetime('now')
+                updated_at=utc_now()
             WHERE premium_subscriptions.event_at IS NULL
                OR (
                    excluded.event_at IS NOT NULL
@@ -6167,8 +5323,8 @@ async def mark_guild_departed(guild_id: int) -> None:
     db = await get_db()
     async with _db_lock:
         await db.execute(
-            "INSERT INTO guild_departures (guild_id, left_at) VALUES (?, datetime('now')) "
-            "ON CONFLICT(guild_id) DO UPDATE SET left_at=datetime('now')",
+            "INSERT INTO guild_departures (guild_id, left_at) VALUES (?, utc_now()) "
+            "ON CONFLICT(guild_id) DO UPDATE SET left_at=utc_now()",
             (guild_id,),
         )
         await db.commit()
@@ -6185,8 +5341,8 @@ async def get_expired_departures(retention_days: int) -> list[int]:
     db = await get_db()
     async with db.execute(
         "SELECT guild_id FROM guild_departures "
-        "WHERE datetime(left_at, '+' || ? || ' days') <= datetime('now')",
-        (retention_days,),
+        "WHERE utc_text_plus(left_at, make_interval(days => ?)) <= utc_now()",
+        (int(retention_days),),
     ) as cursor:
         rows = await cursor.fetchall()
     return [r[0] for r in rows]
@@ -6228,12 +5384,12 @@ async def upsert_channel_refeed_status(
         await db.execute(
             "INSERT INTO channel_refeed_status "
             "(guild_id, channel_id, newest_message_id, oldest_message_id, backfill_complete, last_refed_at) "
-            "VALUES (?, ?, ?, ?, COALESCE(?, 0), datetime('now')) "
+            "VALUES (?, ?, ?, ?, COALESCE(?, 0), utc_now()) "
             "ON CONFLICT(guild_id, channel_id) DO UPDATE SET "
-            "    newest_message_id=COALESCE(excluded.newest_message_id, newest_message_id), "
-            "    oldest_message_id=COALESCE(excluded.oldest_message_id, oldest_message_id), "
-            "    backfill_complete=COALESCE(?, backfill_complete), "
-            "    last_refed_at=datetime('now')",
+            "    newest_message_id=COALESCE(excluded.newest_message_id, channel_refeed_status.newest_message_id), "
+            "    oldest_message_id=COALESCE(excluded.oldest_message_id, channel_refeed_status.oldest_message_id), "
+            "    backfill_complete=COALESCE(?, channel_refeed_status.backfill_complete), "
+            "    last_refed_at=utc_now()",
             (guild_id, channel_id, newest_message_id, oldest_message_id, bf, bf),
         )
         await db.commit()
@@ -6251,9 +5407,9 @@ async def remember_welcome_channel(guild_id: int, welcome_channel_id: int) -> No
     async with _db_lock:
         await db.execute(
             "INSERT INTO guild_auto_refeed (guild_id, triggered_at, welcome_channel_id) "
-            "VALUES (?, datetime('now'), ?) "
+            "VALUES (?, utc_now(), ?) "
             "ON CONFLICT(guild_id) DO UPDATE SET "
-            "    welcome_channel_id=COALESCE(excluded.welcome_channel_id, welcome_channel_id)",
+            "    welcome_channel_id=COALESCE(excluded.welcome_channel_id, guild_auto_refeed.welcome_channel_id)",
             (guild_id, welcome_channel_id),
         )
         await db.commit()

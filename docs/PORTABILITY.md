@@ -47,7 +47,8 @@ instancia igual que `bot.db`. No hay ninguna copia hoy que sobreviva a
 proveedor.
 
 **Recomendación concreta:**
-- Subir el backup diario a R2 (ya está integrado y pagado — `src/r2.py` ya
+- Subir el backup a R2 (hoy semanal y ya implementado: ver `docs/POSTGRES.md`
+  § Backups; ya está integrado y pagado — `src/r2.py` ya
   tiene cliente S3-compatible) bajo un prefijo separado del de GIFs, ej.
   `db-backups/bot-<fecha>.db`, con su propio ciclo de vida/retención
   (Object Lifecycle Rules de R2, o borrado manual del lado del bucket para

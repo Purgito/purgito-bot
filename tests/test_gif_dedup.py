@@ -14,7 +14,8 @@ monkeypatch de r2, sin tocar data/bot.db ni el bucket real.
 import asyncio
 import json
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import cogs.gifs as gifs_mod
@@ -51,8 +52,8 @@ def deleted_keys(monkeypatch):
     return keys
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn
@@ -567,7 +568,7 @@ def test_release_and_revive_race_never_deletes_a_still_referenced_object(
     # atado al loop de este asyncio.run() y el próximo test que dispare
     # contención (otro asyncio.run(), otro loop) explota con "bound to a
     # different event loop" -- ver el mismo fix en test_polar_webhook_hardening.py.
-    monkeypatch.setattr(db, "_db_lock", db._RollbackOnErrorLock())
+    monkeypatch.setattr(db, "_db_lock", pgdb.TransactionLock(db._active_db))
     deleted: list[str] = []
 
     async def slow_delete_key(key):

@@ -17,8 +17,6 @@ SECRET = "test-secret"
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     # asyncio.Lock se ata al event loop de su primer acquire() CONTENDIDO
     # (asyncio/locks.py: solo pasa por _get_loop() cuando hay que esperar).

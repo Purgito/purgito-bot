@@ -47,7 +47,7 @@ indexado.
 Por cada cluster de 2+ objetos: el canónico es el que más filas de
 corpus_gifs referencia en total (así se reescriben menos filas); empate ->
 el más viejo. Los demás objetos del cluster reescriben sus filas de
-corpus_gifs hacia el canónico (UPDATE OR IGNORE; lo que choca contra el
+corpus_gifs hacia el canónico (UPDATE selectivo; lo que choca contra el
 UNIQUE(guild_id, url) porque ese guild ya tenía el canónico se borra en vez
 de reescribirse -- mismo motivo que en reconcile_gif_objects.py), se borran
 de R2 y de gif_objects, y al final se recalcula ref_count de gif_objects
@@ -64,7 +64,6 @@ import argparse
 import json
 import logging
 import os
-import sqlite3
 import sys
 import time
 from collections import defaultdict
@@ -72,13 +71,10 @@ from collections import defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 import config  # noqa: F401,E402  -- carga .env / limits.env al importarse
+import pgsync  # noqa: E402
 import r2  # noqa: E402
 
 log = logging.getLogger("backfill_phashes")
-
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db"
-)
 
 
 def _max_distance() -> int:
@@ -316,10 +312,16 @@ def apply_merges(
                 continue
             old_key = objects_by_hash[content_hash][0]
 
+            # Sin UPDATE OR IGNORE en PostgreSQL: una fila por guild (la de menor id)
+            # y solo si el guild no tiene ya la URL nueva (UNIQUE(guild_id, url)).
             updated = conn.execute(
-                "UPDATE OR IGNORE corpus_gifs SET url=?, content_hash=? "
-                "WHERE content_hash=?",
-                (canonical_url, canonical, content_hash),
+                "UPDATE corpus_gifs SET url=?, content_hash=? WHERE id IN ("
+                "  SELECT DISTINCT ON (c.guild_id) c.id FROM corpus_gifs c "
+                "  WHERE c.content_hash=? "
+                "  AND NOT EXISTS (SELECT 1 FROM corpus_gifs o "
+                "    WHERE o.guild_id = c.guild_id AND o.url = ? AND o.id <> c.id) "
+                "  ORDER BY c.guild_id, c.id)",
+                (canonical_url, canonical, content_hash, canonical_url),
             ).rowcount
             leftover = conn.execute(
                 "DELETE FROM corpus_gifs WHERE content_hash=?", (content_hash,)
@@ -374,7 +376,9 @@ def main() -> int:
         default=0.1,
         help="segundos de espera entre llamadas a R2 (default: 0.1)",
     )
-    ap.add_argument("--db", default=DB_PATH, help=f"ruta de la DB (default: {DB_PATH})")
+    ap.add_argument(
+        "--dsn", default=None, help="URL de PostgreSQL (default: DATABASE_URL)"
+    )
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -392,7 +396,7 @@ def main() -> int:
         return 1
     bucket = r2.bucket_for(r2.GIFS)
 
-    conn = sqlite3.connect(args.db)
+    conn = pgsync.connect(args.dsn)
     try:
         backfill_missing_fingerprints(client, bucket, conn, sleep=args.sleep)
 

@@ -59,7 +59,6 @@ import argparse
 import hashlib
 import logging
 import os
-import sqlite3
 import sys
 import time
 from collections import defaultdict
@@ -67,13 +66,10 @@ from collections import defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 import config  # noqa: F401,E402  -- carga .env / limits.env al importarse
+import pgsync  # noqa: E402
 import r2  # noqa: E402
 
 log = logging.getLogger("reconcile")
-
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db"
-)
 
 
 def _public_prefix() -> str:
@@ -233,14 +229,25 @@ def reconcile(client, bucket, conn, apply=False, sleep=0.1, limit=0) -> dict:
 
         old_urls = [_url_for(k) for k in keys if k != canonical]
         if apply:
-            # OR IGNORE por el UNIQUE(guild_id, url): si un guild tenía dos
+            # Choque con el UNIQUE(guild_id, url): si un guild tenía dos
             # copias del mismo archivo, la segunda choca contra la primera y
             # queda con su URL vieja, así que la borra el DELETE de abajo --
             # era un duplicado dentro del mismo servidor igual.
+            # PostgreSQL no tiene UPDATE OR IGNORE: se actualiza solo una fila por
+            # guild (la de menor id) y solo si el guild no tiene ya la URL nueva.
             conn.execute(
-                "UPDATE OR IGNORE corpus_gifs SET url=?, content_hash=? "
-                f"WHERE url IN ({','.join('?' * len(keys))})",
-                [canonical_url, content_hash, *(_url_for(k) for k in keys)],
+                "UPDATE corpus_gifs SET url=?, content_hash=? WHERE id IN ("
+                "  SELECT DISTINCT ON (c.guild_id) c.id FROM corpus_gifs c "
+                f"  WHERE c.url IN ({','.join('?' * len(keys))}) "
+                "  AND NOT EXISTS (SELECT 1 FROM corpus_gifs o "
+                "    WHERE o.guild_id = c.guild_id AND o.url = ? AND o.id <> c.id) "
+                "  ORDER BY c.guild_id, c.id)",
+                [
+                    canonical_url,
+                    content_hash,
+                    *(_url_for(k) for k in keys),
+                    canonical_url,
+                ],
             )
             if old_urls:
                 conn.execute(
@@ -338,7 +345,9 @@ def main() -> int:
         default=0,
         help="procesar como mucho N objetos, para una corrida de prueba",
     )
-    ap.add_argument("--db", default=DB_PATH, help=f"ruta de la DB (default: {DB_PATH})")
+    ap.add_argument(
+        "--dsn", default=None, help="URL de PostgreSQL (default: DATABASE_URL)"
+    )
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -352,7 +361,7 @@ def main() -> int:
         log.error("R2 no está configurado para GIFs (faltan R2_GIFS_* en .env)")
         return 1
 
-    conn = sqlite3.connect(args.db)
+    conn = pgsync.connect(args.dsn)
     try:
         reconcile(
             client,

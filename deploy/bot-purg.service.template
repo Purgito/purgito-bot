@@ -15,8 +15,8 @@
 
 [Unit]
 Description=Bot Discord PURG4TORY
-After=network-online.target
-Wants=network-online.target
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
 # Sin límite de intentos: el bot debe volver solo aunque el problema persista
 # (p. ej. caída de red larga). RestartSec espacia los reintentos para que el
 # loop no sea agresivo.
@@ -53,7 +53,7 @@ WorkingDirectory={{DEPLOY_PATH}}
 ExecStart={{DEPLOY_PATH}}/.venv/bin/python src/bot.py
 Restart=on-failure
 RestartSec=15
-# bot.db (mensajes aprendidos, tokens de webhook) y bot.log nacen 0600: la
+# data/bot.log y todo lo que el bot escriba nacen 0600 (el corpus y los tokens de webhook viven en PostgreSQL): la
 # umask por defecto (0022) los dejaba legibles por cualquier usuario local.
 UMask=0077
 StandardOutput=journal
@@ -78,6 +78,21 @@ RestrictSUIDSGID=true
 RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
+# Añadidos el 2026-10-02 (probados con el bot en producción; ver DEPLOY.md §
+# "Hardening de systemd"): sin dispositivos físicos, /usr /boot /etc de solo
+# lectura, /proc solo con los procesos propios, solo las familias de sockets que
+# usa el bot (Discord/R2/Cloudflare por IPv4/IPv6, PostgreSQL por TCP local,
+# journald y resolved por UNIX, netlink para getaddrinfo) y arquitectura nativa.
+# ProtectHome sigue SIN activarse (ver nota de arriba) y no se restringe
+# MemoryDenyWriteExecute ni SystemCallFilter: Pillow/ctypes/yt-dlp y los
+# subprocesos (gifsicle, ffmpeg) los necesitan.
+PrivateDevices=true
+ProtectSystem=full
+ProtectProc=invisible
+ProcSubset=pid
+RemoveIPC=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
 # El bot no necesita ningún capability de root (no abre puertos <1024, no
 # cambia de usuario, no monta nada): arranca sin ninguno.
 CapabilityBoundingSet=

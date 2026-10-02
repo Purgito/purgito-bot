@@ -17,8 +17,6 @@ _USER_B = 6002
 
 @pytest.fixture
 def memory_db(monkeypatch, tmp_path):
-    db_file = tmp_path / "test_bot.db"
-    monkeypatch.setattr(db, "DB_PATH", str(db_file))
     asyncio.run(db.init_db())
     generation._markov_cache.clear()
     generation._user_markov_cache.clear()

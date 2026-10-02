@@ -39,7 +39,9 @@ python src/bot.py
 ```
 
 Guía completa (variables de entorno, R2, Groq, deploy en producción) en
-[`CONTRIBUTING.md`](CONTRIBUTING.md) y [`DEPLOY.md`](DEPLOY.md).
+[`CONTRIBUTING.md`](CONTRIBUTING.md) y [`DEPLOY.md`](DEPLOY.md). Base de datos, backups
+cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POSTGRES.md) y
+[`DEPLOY.md`](DEPLOY.md) § Seguridad del servidor.
 
 ---
 
@@ -72,12 +74,12 @@ Guía completa (variables de entorno, R2, Groq, deploy en producción) en
 │   ├── bot.py         # Entry point: logging, DB, carga de cogs
 │   ├── cogs/          # Comandos y eventos por dominio
 │   ├── webapi.py      # API JSON del dashboard (auth, /api/*, webhooks)
-│   ├── db.py          # aiosqlite, modo WAL, migraciones
+│   ├── db.py          # queries (PostgreSQL vía pgdb.py)
 │   ├── markov_engine.py, generation.py   # Motor Markov y auto-respuestas
 │   ├── meme_generator.py, r2.py          # Memes (Pillow) y Cloudflare R2
 │   └── locales/       # Traducciones
 ├── landing/            # Sitio estático + dashboard (HTML/CSS/JS plano, sin build step)
-├── data/bot.db         # SQLite (se genera al arrancar)
+├── data/               # logs y caches (la DB es PostgreSQL: DATABASE_URL)
 └── requirements.txt
 ```
 

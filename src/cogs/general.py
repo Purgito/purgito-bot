@@ -21,6 +21,7 @@ from db import (
     purge_expired_revoked_sessions,
     purge_expired_shared_embeds,
     purge_guild_data,
+    purge_expired_deletion_tombstones,
     purge_old_audit_log_entries,
     release_gif_reference,
 )
@@ -205,6 +206,12 @@ class General(commands.Cog):
                 log.info(
                     "guild_cleanup: %d sid(s) de sesión revocada vencidos borrados",
                     stale_revocations,
+                )
+            stale_tombstones = await purge_expired_deletion_tombstones()
+            if stale_tombstones:
+                log.info(
+                    "guild_cleanup: %d lápida(s) de borrado vencidas eliminadas",
+                    stale_tombstones,
                 )
             audit_retention = env_int("AUDIT_LOG_RETENTION_DAYS", 90)
             stale_audit = await purge_old_audit_log_entries(audit_retention)

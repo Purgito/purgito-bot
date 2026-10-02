@@ -8,7 +8,7 @@ que todavía no existen. El cliente de Polar y la conexión SQLite son
 falsos/en memoria.
 """
 
-import sqlite3
+import pg_support
 import sys
 from types import SimpleNamespace
 
@@ -47,30 +47,6 @@ class _FakeFullSub:
         self.canceled_at = kw.get("canceled_at")
 
 
-def _add_premium_subscriptions_table(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
-        CREATE TABLE premium_subscriptions (
-            guild_id INTEGER PRIMARY KEY,
-            subscription_id TEXT,
-            customer_id TEXT,
-            purchaser_user_id TEXT,
-            product_id TEXT,
-            status TEXT,
-            current_period_start TEXT,
-            current_period_end TEXT,
-            trial_start TEXT,
-            trial_end TEXT,
-            cancel_at_period_end INTEGER,
-            canceled_at TEXT,
-            event_at TEXT,
-            updated_at TEXT
-        )
-        """
-    )
-    conn.commit()
-
-
 class _FakeListResult:
     def __init__(self, items):
         self.items = items
@@ -95,13 +71,10 @@ class _FakeSubscriptionsAPI:
         return self._response
 
 
-def _conn_with_premium(guild_ids: set[int]) -> sqlite3.Connection:
-    conn = sqlite3.connect(":memory:")
-    conn.execute(
-        "CREATE TABLE premium_guilds (guild_id INTEGER PRIMARY KEY, added_at TEXT, note TEXT)"
-    )
+def _conn_with_premium(guild_ids: set[int]):
+    conn = pg_support.sync_connect()
     conn.executemany(
-        "INSERT INTO premium_guilds (guild_id, added_at) VALUES (?, 'now')",
+        "INSERT INTO premium_guilds (guild_id, added_at) VALUES (?, 'ahora')",
         [(g,) for g in guild_ids],
     )
     conn.commit()
@@ -217,7 +190,6 @@ def test_permanent_premium_guild_ids_excluido_del_reporte(capsys):
 
 def test_backfill_agrega_solo_los_guilds_que_faltan():
     conn = _conn_with_premium({123, 456})
-    _add_premium_subscriptions_table(conn)
     # 123 ya tiene fila -- simula una escrita por un webhook real previo.
     conn.execute(
         "INSERT INTO premium_subscriptions (guild_id, subscription_id, updated_at) "
@@ -244,7 +216,6 @@ def test_backfill_no_toca_premium_guilds():
     """El riesgo que la elección de diseño evita a propósito: backfillear
     datos de facturación nunca debe poder cambiar el acceso de nadie."""
     conn = _conn_with_premium({456})
-    _add_premium_subscriptions_table(conn)
 
     rec.backfill_subscriptions(conn, {456: _FakeSub("sub-456", "456")})
 
@@ -253,7 +224,6 @@ def test_backfill_no_toca_premium_guilds():
 
 def test_backfill_mapea_todos_los_campos():
     conn = _conn_with_premium(set())
-    _add_premium_subscriptions_table(conn)
     from datetime import datetime, timezone
 
     period_end = datetime(2026, 9, 1, tzinfo=timezone.utc)
@@ -290,5 +260,4 @@ def test_backfill_mapea_todos_los_campos():
 
 def test_backfill_sin_nada_pendiente_no_agrega_nada():
     conn = _conn_with_premium(set())
-    _add_premium_subscriptions_table(conn)
     assert rec.backfill_subscriptions(conn, {}) == []

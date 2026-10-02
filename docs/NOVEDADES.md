@@ -1,6 +1,6 @@
 # Novedades
 
-**Última actualización:** 30 de septiembre de 2026
+**Última actualización:** 2 de octubre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
@@ -37,6 +37,7 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 - `/dl` ahora existe también como comando de barra, instalable en tu cuenta de Discord: se puede usar en un mensaje directo con Purgito o en un grupo de DM, sin estar en un servidor. `/gif` también es comando de barra ahora, pero se queda solo en servidores, con la opción de subir directamente un video o imagen además del link.
 
 ### Mejorado
+- Privacidad: las copias de seguridad de Purgito ahora van cifradas y se eliminan solas a los 14 días. `/borrar_mis_datos` sigue borrando al instante de la base activa; si algún día hubiera que restaurar una copia, el borrado se vuelve a aplicar antes de arrancar. Todo el detalle está en la política de privacidad.
 - Los comandos de texto que suben un archivo (`!dl`, `!gif`, los de edición de imagen como `!deepfry` o `!caption`, y `purgito generar`) ahora agregan «Enviado por @usuario» al mensaje, así se sabe quién lo pidió aunque borre su comando. Con los comandos de barra (`/dl`, `/gif`) no hace falta: Discord ya muestra quién los usó.
 - El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
 - El selector para cambiar de servidor en el dashboard ya no se ve apretado contra el borde del menú.

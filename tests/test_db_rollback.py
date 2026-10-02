@@ -9,7 +9,7 @@ queda abierta y sin confirmar en `_db`, la única conexión compartida, y el
 PRÓXIMO caller que tome el lock terminaría confirmando también esos restos
 a medio aplicar junto con su propio commit().
 
-`_db_lock` ahora es una `_RollbackOnErrorLock` (subclase de asyncio.Lock):
+`_db_lock` ahora es una `pgdb.TransactionLock` (subclase de asyncio.Lock):
 si el bloque `async with` termina por una excepción, hace `_db.rollback()`
 antes de soltar el lock -- una sola adquisición del lock nunca deja basura
 para la siguiente.
@@ -20,14 +20,13 @@ import asyncio
 import pytest
 
 import db
+import pgdb
 
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
-    monkeypatch.setattr(db, "_db_lock", db._RollbackOnErrorLock())
+    monkeypatch.setattr(db, "_db_lock", pgdb.TransactionLock(db._active_db))
     asyncio.run(db.init_db())
     yield
     asyncio.run(db.close_db())
@@ -37,7 +36,7 @@ def test_db_lock_es_una_rollback_on_error_lock():
     """El propio módulo tiene que usar la subclase, no un asyncio.Lock liso
     -- si alguna vez alguien "simplifica" esto de vuelta a asyncio.Lock(),
     este test lo agarra."""
-    assert isinstance(db._db_lock, db._RollbackOnErrorLock)
+    assert isinstance(db._db_lock, pgdb.TransactionLock)
 
 
 def test_rollback_automatico_si_algo_falla_a_mitad_de_una_secuencia(temp_db):

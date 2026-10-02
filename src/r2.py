@@ -4,7 +4,7 @@ Tres buckets, cada uno con un rol fijo (ver Store):
 
 - IMAGES  (R2_IMAGES_BUCKET)  imágenes de memes y subidas del editor. Público.
 - GIFS    (R2_GIFS_BUCKET)    GIFs content-addressed (`gifs/xx/<sha256>.gif`). Público.
-- BACKUPS (R2_BACKUP_BUCKET)  copias de bot.db. PRIVADO: no tiene URL pública.
+- BACKUPS (R2_BACKUP_BUCKET)  copias (pg_dump) de la base. PRIVADO: no tiene URL pública.
 
 Credenciales y endpoint (R2_ENDPOINT_URL, el de la cuenta, sin nombre de
 bucket) son los mismos para los tres; lo único que cambia es el bucket. No hay
@@ -566,7 +566,7 @@ def _closest_fingerprint_match(
     import db  # import diferido: evita import circular (db.py importa r2)
 
     try:
-        candidates = asyncio.run(db.get_all_gif_fingerprints())
+        candidates = db.run_from_thread(db.get_all_gif_fingerprints())
     except Exception:
         log.warning(
             "No se pudieron consultar los fingerprints existentes de gif_objects",
@@ -1016,7 +1016,7 @@ def upload_backup_file_sync(path: str, key: str | None = None) -> str:
         # Cuerpo en memoria y no upload_file: es el mismo camino que ya usan las
         # subidas de GIFs/imágenes (put_object con bytes), y el de streaming con
         # checksum en trailer es el que R2 viene rechazando en boto3 nuevos. Una
-        # copia de bot.db cabe de sobra; el tope de un PUT simple es 5 GiB.
+        # copia de la base (pg_dump -Fc) cabe de sobra; el tope de un PUT simple es 5 GiB.
         client.put_object(
             Bucket=bucket,
             Key=key,
@@ -1051,8 +1051,21 @@ def list_backups_sync() -> list[tuple[str, int, object]]:
     return sorted(out)
 
 
+def delete_backup_sync(key: str) -> None:
+    """Borra UN backup del bucket de backups (poda por antigüedad, ver
+    scripts/r2_backup.py prune). Solo keys `purgito-*` / `bot-*` de ese bucket:
+    nunca toca los buckets de imágenes ni de GIFs."""
+    if "/" in key or not key.startswith(("purgito-", "bot-")):
+        raise BackupError(f"no se borra {key!r}: no parece un backup")
+    client, bucket = _backup_client_and_bucket()
+    try:
+        client.delete_object(Bucket=bucket, Key=key)
+    except Exception as e:
+        raise BackupError(f"no se pudo borrar {key} de R2: {e}") from e
+
+
 def download_backup_sync(key: str, dest_path: str) -> str:
-    """Baja un backup a `dest_path` (0600: lleva lo mismo que bot.db) y comprueba
+    """Baja un backup a `dest_path` (0600: lleva el corpus y los tokens de webhook) y comprueba
     el sha256 que guardó la subida, si el objeto lo trae."""
     client, bucket = _backup_client_and_bucket()
     try:

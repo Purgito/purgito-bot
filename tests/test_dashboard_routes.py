@@ -227,8 +227,6 @@ def test_el_boton_dice_recargar_y_no_reportar():
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     asyncio.run(db.init_db())
     yield

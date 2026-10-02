@@ -7,7 +7,8 @@ sin tocar data/bot.db ni R2 real.
 
 import asyncio
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -26,8 +27,8 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn
@@ -278,7 +279,7 @@ def test_fallo_al_registrar_remitente_no_tira_abajo_el_guardado_del_gif(memory_d
     igual -- no todo-o-nada por culpa de la atribución.
 
     Regresión real: antes de aislar el try/except, cualquier excepción sin
-    atrapar en este punto hacía que _RollbackOnErrorLock deshaga TODA la
+    atrapar en este punto hacía que TransactionLock deshaga TODA la
     transacción de save_gif_url, incluido el INSERT de corpus_gifs que ya
     había salido bien."""
 

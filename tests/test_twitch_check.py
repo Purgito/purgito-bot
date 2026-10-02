@@ -10,7 +10,8 @@ import asyncio
 import logging
 from types import SimpleNamespace
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import cogs.twitch as twitch_mod
@@ -44,8 +45,8 @@ def _fake_guild_locale(monkeypatch):
     monkeypatch.setattr(twitch_mod, "guild_locale", fake_guild_locale)
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn

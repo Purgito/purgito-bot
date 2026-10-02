@@ -6,12 +6,13 @@ db.py para el algoritmo completo y las garantías de no-ambigüedad
 (UNIQUE(guild_id, message_id) en ambas tablas).
 
 Usa una DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db
-(que está trackeada en git). Para la atomicidad usa _RollbackOnErrorLock
+(que está trackeada en git). Para la atomicidad usa TransactionLock
 real (no se reemplaza _db_lock), igual que tests/test_db_rollback.py."""
 
 import asyncio
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -32,10 +33,9 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
-    await conn.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
     await conn.commit()
     return conn
 
@@ -266,7 +266,7 @@ def test_atomicidad_fallo_a_mitad_no_deja_borrado_parcial(memory_db, monkeypatch
 
     corpus_count, user_count = asyncio.run(run())
     # El DELETE de corpus_messages sí se ejecutó antes del fallo, pero el
-    # rollback automático de _RollbackOnErrorLock debe deshacerlo también.
+    # rollback automático de TransactionLock debe deshacerlo también.
     assert corpus_count == 1
     assert user_count == 1
 

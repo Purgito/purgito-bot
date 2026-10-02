@@ -45,7 +45,7 @@ El bucket de backups de R2 es **privado**: no tiene URL pública (no existe `R2_
 
 ## Datos almacenados
 
-Todo vive en un SQLite local (`data/bot.db`) y, para GIFs e imágenes, en un bucket de Cloudflare R2. La lista completa y lo que ve cada persona está en la [política de privacidad](docs/PRIVACY.md). Lo relevante para seguridad:
+Todo vive en una base PostgreSQL local (solo accesible desde el propio servidor) y, para GIFs e imágenes, en un bucket de Cloudflare R2. La lista completa y lo que ve cada persona está en la [política de privacidad](docs/PRIVACY.md). Lo relevante para seguridad:
 
 - **Mensajes:** el texto de los mensajes de los canales permitidos para aprender, con el ID y el nombre visible de quien los escribió.
 - **GIFs e imágenes:** URLs, hashes y quién mandó cada GIF (ID de usuario, canal y mensaje).

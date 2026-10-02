@@ -37,7 +37,6 @@ alguna fila más vieja sí lo tenía.
 import argparse
 import logging
 import os
-import sqlite3
 import sys
 import time
 from collections import defaultdict
@@ -45,13 +44,11 @@ from collections import defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 import config  # noqa: F401,E402  -- carga .env / limits.env al importarse
+import pgsync  # noqa: E402
 import r2  # noqa: E402
 
 log = logging.getLogger("cleanup_dead_cdn_gifs")
 
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db"
-)
 CHECK_SLEEP = 1.0
 
 
@@ -91,7 +88,9 @@ def main() -> int:
         default=CHECK_SLEEP,
         help=f"segundos entre chequeos HTTP (default: {CHECK_SLEEP})",
     )
-    ap.add_argument("--db", default=DB_PATH, help=f"ruta de la DB (default: {DB_PATH})")
+    ap.add_argument(
+        "--dsn", default=None, help="URL de PostgreSQL (default: DATABASE_URL)"
+    )
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -102,7 +101,7 @@ def main() -> int:
 
     client = r2.get_client()
 
-    conn = sqlite3.connect(args.db)
+    conn = pgsync.connect(args.dsn)
     try:
         rows = conn.execute(
             "SELECT id, guild_id, url, content_hash FROM corpus_gifs "

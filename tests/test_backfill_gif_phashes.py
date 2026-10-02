@@ -13,12 +13,11 @@ Mismo estilo que test_reconcile_gif_objects.py.
 
 import io
 import json
-import sqlite3
+import pg_support
 import sys
 
 import pytest
 
-import db
 import r2
 
 sys.path.insert(0, "scripts")
@@ -75,9 +74,9 @@ def fake_r2(monkeypatch):
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    c.executescript(db.SCHEMA)
-    return c
+    c = pg_support.sync_connect()
+    yield c
+    c.close()
 
 
 def _url(key: str) -> str:

@@ -2596,10 +2596,9 @@ async def _api_stats(request: web.Request, guild_id: int) -> web.Response:
     guild = _bot_guild(request, guild_id)
     text_channels = list(getattr(guild, "text_channels", []))
     # Las 9 son independientes entre sí (ninguna necesita el resultado de
-    # otra) -- gather() no las hace correr más rápido en la base en sí, la
-    # única conexión aiosqlite del proceso las sigue sirviendo una por una
-    # en su propio hilo, pero sí evita pagar el ida-y-vuelta del event loop
-    # de a una por vez, que con 9 awaits en serie se nota.
+    # otra) -- gather() las reparte entre las conexiones del pool de
+    # PostgreSQL y corren en paralelo de verdad, en vez de pagar el
+    # ida-y-vuelta de a una por vez como con 9 awaits en serie.
     (
         per_channel,
         ignored_list,

@@ -14,7 +14,8 @@ monkeypatch de r2.
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -51,8 +52,8 @@ def deleted(monkeypatch):
     return keys
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn

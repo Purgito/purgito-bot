@@ -40,8 +40,6 @@ def memory_db(tmp_path, monkeypatch):
     """DB de archivo real por test (no memoria + SCHEMA a mano): las columnas
     de settings que resuelve get_effective_chat_settings salen de ALTER TABLE
     en init_db(), no del CREATE TABLE base -- ver test_chat_config.py."""
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     asyncio.run(db.init_db())
     yield

@@ -7,7 +7,8 @@ data/bot.db (que está trackeada en git)."""
 
 import asyncio
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -28,13 +29,12 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     # user_corpus nace sin channel_id en el schema base; init_db() la suma
     # con ALTER TABLE -- replicarlo acá para no depender de init_db() (que
     # abre una conexión real a DB_PATH) en tests de solo memoria.
-    await conn.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
     await conn.commit()
     return conn
 
@@ -61,7 +61,7 @@ async def _insert_user_corpus(
 
 async def _channel_id_of(conn, guild_id, message_id):
     cur = await conn.execute(
-        "SELECT channel_id FROM user_corpus WHERE guild_id=? AND message_id IS ?",
+        "SELECT channel_id FROM user_corpus WHERE guild_id=? AND message_id IS NOT DISTINCT FROM ?",
         (guild_id, message_id),
     )
     row = await cur.fetchone()

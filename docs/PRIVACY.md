@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 21 de septiembre de 2026
+**Última actualización:** 2 de octubre de 2026
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena, comparte y protege la información necesaria para ofrecer sus funcionalidades.
 
@@ -127,7 +127,7 @@ Purgito utiliza servicios externos para determinadas funciones. Cada proveedor p
 ## Discord y almacenamiento
 
 - **Discord**: Para la comunicación, recepción de eventos, autenticación y envío de mensajes en la plataforma.
-- **Cloudflare R2**: Para el almacenamiento persistente de archivos multimedia (imágenes de memes del pool del servidor y GIFs subidos a la galería).
+- **Cloudflare R2**: Para el almacenamiento persistente de archivos multimedia (imágenes de memes del pool del servidor y GIFs subidos a la galería) y, en un espacio privado aparte, de las copias de seguridad cifradas descritas en la sección 4.
 
 ## Groq API (Captions de memes con IA)
 
@@ -167,7 +167,15 @@ Los administradores del servidor pueden además eliminar el contenido recopilado
 
 El registro de auditoría del panel (ver sección 1) se conserva un máximo de 90 días desde cada entrada y luego se purga automáticamente, sin intervención manual.
 
-Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse por completo. Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin necesidad de configurarlo nuevamente desde el principio. Durante ese período, mientras el bot no esté en el servidor, no es posible acceder al panel de administración para gestionar esos datos. Actualmente no existe una vía de autoservicio para acelerar este borrado a nivel de servidor antes de que se cumplan los 30 días; si eres administrador de un servidor y quieres que sus datos se eliminen antes de ese plazo, puedes solicitarlo contactando al desarrollador (ver "Contacto" más abajo).
+Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse de la base de datos activa (las copias de seguridad caducan aparte, ver más abajo). Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin necesidad de configurarlo nuevamente desde el principio. Durante ese período, mientras el bot no esté en el servidor, no es posible acceder al panel de administración para gestionar esos datos. Actualmente no existe una vía de autoservicio para acelerar este borrado a nivel de servidor antes de que se cumplan los 30 días; si eres administrador de un servidor y quieres que sus datos se eliminen antes de ese plazo, puedes solicitarlo contactando al desarrollador (ver "Contacto" más abajo).
+
+---
+
+## Dónde se guardan los datos y copias de seguridad
+
+Toda la información que Purgito guarda (configuración de cada servidor, mensajes aprendidos, registro de auditoría, etc.) vive en una base de datos PostgreSQL en el servidor donde corre el bot. La base de datos solo acepta conexiones desde ese mismo servidor; no está expuesta a Internet. Las imágenes y los GIFs viven en Cloudflare R2.
+
+Para poder recuperar el servicio ante una falla grave, cada semana se hace una copia de seguridad de toda la base de datos. Esa copia contiene lo mismo que la base activa, incluidos los mensajes que Purgito aprendió. Se cifra antes de salir del servidor y se guarda en un espacio privado de Cloudflare R2 (sin acceso público), además de una copia cifrada en el propio servidor. **Solo se conservan las dos últimas copias, así que cada una se elimina automáticamente a los 14 días como máximo.** Solo se usan para recuperar el servicio después de un desastre; no se consultan ni se usan para ninguna otra cosa.
 
 ---
 
@@ -175,12 +183,14 @@ Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de 
 
 Independientemente de lo anterior, cualquier usuario puede solicitar en cualquier momento que se elimine su propia información, sin depender de ser administrador de ningún servidor ni de esperar los 30 días del punto anterior.
 
-El comando `/borrar_mis_datos`, disponible para cualquier persona en cualquier servidor donde esté Purgito, borra de forma permanente e inmediata, en **todos** los servidores donde hayas escrito:
+El comando `/borrar_mis_datos`, disponible para cualquier persona en cualquier servidor donde esté Purgito, borra de forma permanente e inmediata de la base de datos activa, en **todos** los servidores donde hayas escrito:
 
 - Tu estilo de escritura guardado para la función de imitación (`/imitar`).
 - Los mensajes que Purgito aprendió de ti para generar texto.
 
 Tus mensajes originales de Discord no se ven afectados: esto borra únicamente la copia que Purgito guardó para aprender de tu forma de escribir. Por tratarse de una acción irreversible, el comando solicita una confirmación explícita antes de ejecutar el borrado.
+
+**Límite real del borrado: las copias de seguridad.** Las copias de seguridad que ya se habían hecho antes de tu borrado pueden seguir conteniendo esos datos hasta que caduquen (máximo 14 días, ver arriba). No se leen ni se restauran, salvo que haya que recuperar el servicio tras un desastre. Si eso ocurriera, el borrado se vuelve a aplicar antes de volver a poner el bot en marcha. Para poder hacerlo, cada vez que usas `/borrar_mis_datos` Purgito guarda una **lápida**: únicamente tu ID de usuario de Discord y dos fechas (cuándo pediste el borrado y cuándo caduca la lápida). No lleva contenido de mensajes ni los servidores donde estabas. La lápida dura 15 días (los 14 de las copias de seguridad más uno de margen) y se elimina sola; es un dato personal y se trata con esta misma política. Solo la puede ver quien administra el servidor donde corre Purgito.
 
 Este borrado está pensado específicamente para los datos de aprendizaje de mensajes descritos arriba, y no cubre automáticamente otras categorías que puedas haber generado en un servidor — por ejemplo, GIFs o imágenes que hayas aportado al pool del servidor, tu registro como remitente en el catálogo de GIFs, o tu propia aparición en el registro de auditoría del panel si eres administrador — ya que esas quedan asociadas al servidor donde se generaron, no solo a tu cuenta. Si quieres solicitar la eliminación de alguna de ellas, puedes contactar al desarrollador (ver "Contacto").
 
@@ -214,7 +224,7 @@ Para contratar Premium se requiere tener capacidad legal para contratar, o conta
 
 # 7. Seguridad
 
-Se adoptan medidas razonables para proteger la información almacenada.
+Se adoptan medidas razonables para proteger la información almacenada: la base de datos no es accesible desde Internet, el acceso de administración al servidor está restringido, las copias de seguridad se cifran antes de salir del servidor y las contraseñas y tokens se guardan fuera de la base de datos.
 
 No obstante, ningún sistema puede garantizar una seguridad absoluta frente a incidentes o accesos no autorizados.
 

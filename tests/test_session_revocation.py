@@ -20,8 +20,6 @@ from cogs.general import General
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     asyncio.run(db.init_db())
     yield
@@ -70,8 +68,8 @@ def test_purge_expired_revoked_sessions_respeta_el_horizonte_de_7_dias(temp_db):
         conn = await db.get_db()
         await conn.execute(
             "INSERT INTO revoked_sessions (sid, revoked_at) VALUES "
-            "('viejo', datetime('now', '-8 days')), "
-            "('reciente', datetime('now', '-1 days'))"
+            "('viejo', to_char(timezone('utc', now()) + interval '-8 days', 'YYYY-MM-DD HH24:MI:SS')), "
+            "('reciente', to_char(timezone('utc', now()) + interval '-1 days', 'YYYY-MM-DD HH24:MI:SS'))"
         )
         await conn.commit()
         deleted = await db.purge_expired_revoked_sessions()
@@ -210,7 +208,7 @@ def test_guild_cleanup_task_purga_revoked_sessions_de_verdad(temp_db):
         conn = await db.get_db()
         await conn.execute(
             "INSERT INTO revoked_sessions (sid, revoked_at) VALUES "
-            "('viejo', datetime('now', '-8 days'))"
+            "('viejo', to_char(timezone('utc', now()) + interval '-8 days', 'YYYY-MM-DD HH24:MI:SS'))"
         )
         await conn.commit()
 

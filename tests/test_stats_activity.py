@@ -19,8 +19,6 @@ _GUILD = 9001
 
 @pytest.fixture
 def memory_db(monkeypatch, tmp_path):
-    db_file = tmp_path / "test_bot.db"
-    monkeypatch.setattr(db, "DB_PATH", str(db_file))
     asyncio.run(db.init_db())
     yield
     asyncio.run(db.close_db())

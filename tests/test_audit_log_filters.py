@@ -1,5 +1,6 @@
 import asyncio
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 import db
 
@@ -12,8 +13,8 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn

@@ -61,7 +61,7 @@ host viejo las sigue sirviendo, pero hay que reescribirlas antes de borrar el bu
 viejo o dejar de definir R2_PUBLIC_URL. Este paso cambia la DB, por eso es explícito:
 
 - dry-run por defecto; con --apply primero deja una copia de la DB al lado
-  (`bot.db.pre-r2-rewrite-<fecha>`, 0600) y escribe todo en una sola transacción;
+  (`purgito-pre-r2-rewrite-<fecha>.dump` en BACKUP_DIR, 0600) y escribe todo en una sola transacción;
 - cambia solo el host: `<viejo>/gifs/...` y las URLs de corpus_gifs/gif_blocklist
   pasan al host de GIFs, el resto al de imágenes;
 - una fila que chocaría con otra ya existente (UNIQUE) se deja como está y se
@@ -80,7 +80,6 @@ import json
 import logging
 import os
 import re
-import sqlite3
 import sys
 import time
 from collections import Counter
@@ -88,14 +87,12 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
+import asyncpg  # noqa: E402
 import config  # noqa: F401,E402  -- carga .env / limits.env al importarse
+import pgsync  # noqa: E402
 import r2  # noqa: E402
 
 log = logging.getLogger("migrate_r2_buckets")
-
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot.db"
-)
 
 GIFS = "gifs"
 IMAGES = "images"
@@ -110,7 +107,11 @@ _PRESERVED_HEAD_FIELDS = (
 )
 
 # Columnas de la DB que pueden llevar URLs del bucket viejo.
-_GIF_URL_COLUMNS = (("corpus_gifs", "url"), ("gif_blocklist", "url"))
+_GIF_URL_COLUMNS = (
+    ("corpus_gifs", "url"),
+    ("corpus_gifs", "media_url"),
+    ("gif_blocklist", "url"),
+)
 _IMAGE_URL_COLUMNS = (
     ("corpus_images", "url"),
     ("embed_uploaded_images", "url"),
@@ -124,6 +125,9 @@ _TEXT_COLUMNS = (
     ("scheduled_announcements", "embed_json"),
     ("scheduled_announcements", "message"),
     ("shared_embeds", "payload"),
+    ("server_events", "embed_json"),
+    ("server_events", "message"),
+    ("layout_button_actions", "action_data"),
 )
 
 
@@ -139,8 +143,9 @@ def _select(conn, sql: str, params: tuple = ()) -> list[tuple]:
     el esquema actual no tiene por qué tener todas). Los nombres de tabla y
     columna son constantes de este archivo; todo lo demás va por parámetros."""
     try:
-        return conn.execute(sql, params).fetchall()
-    except sqlite3.OperationalError:
+        with conn.savepoint():
+            return conn.execute(sql, params).fetchall()
+    except (asyncpg.UndefinedTableError, asyncpg.UndefinedColumnError):
         return []
 
 
@@ -435,16 +440,30 @@ def _rewrite_text(text: str, source_base: str, images_base: str, gifs_base: str)
 
 
 def rewrite_urls(
-    conn, source_base: str, images_base: str, gifs_base: str, *, apply: bool
+    conn,
+    source_base: str,
+    images_base: str,
+    gifs_base: str,
+    *,
+    apply: bool,
+    exists=None,
 ) -> Counter:
     """Reescribe el host de las URLs guardadas. No hace commit: lo hace el
-    llamador, para que sea una sola transacción."""
+    llamador, para que sea una sola transacción.
+
+    `exists(destino, key) -> bool` (destino: GIFS o IMAGES) dice si el objeto ya
+    está en el bucket nuevo. Una URL cuyo objeto NO está en el destino no se
+    reescribe (quedaría apuntando a la nada): se cuenta como ":destino-faltante"
+    y se deja como estaba. Sin `exists` se asume que todo está (solo tests)."""
     stats: Counter = Counter()
+
+    def present(dest: str, key: str) -> bool:
+        return True if exists is None else bool(exists(dest, key))
 
     def plain(table: str, column: str, new_base: str) -> None:
         rows = _select(
             conn,
-            f"SELECT rowid, {column} FROM {table} WHERE substr({column}, 1, ?) = ?",
+            f"SELECT ctid::text, {column} FROM {table} WHERE substr({column}, 1, ?) = ?",
             (len(source_base) + 1, source_base + "/"),
         )
         for rowid, url in rows:
@@ -458,14 +477,21 @@ def rewrite_urls(
                 log.warning("AMBIGUA %s rowid=%s: %s", label, rowid, url)
                 continue
             stats[f"{label}:coincide"] += 1
+            dest = GIFS if new_base == gifs_base else IMAGES
+            if not present(dest, url[len(source_base) + 1 :]):
+                stats[f"{label}:destino-faltante"] += 1
+                log.warning("DESTINO FALTANTE %s rowid=%s: %s", label, rowid, url)
+                continue
             if not apply:
                 continue
             try:
-                conn.execute(
-                    f"UPDATE {table} SET {column}=? WHERE rowid=?", (new_url, rowid)
-                )
+                with conn.savepoint():
+                    conn.execute(
+                        f"UPDATE {table} SET {column}=? WHERE ctid=(?::text)::tid",
+                        (new_url, rowid),
+                    )
                 stats[f"{label}:reescrita"] += 1
-            except sqlite3.IntegrityError:
+            except asyncpg.UniqueViolationError:
                 # Ya hay una fila con la URL nueva (UNIQUE): no se pisa ni se borra.
                 stats[f"{label}:choque"] += 1
                 log.warning("CHOQUE %s rowid=%s: %s ya existe", label, rowid, new_url)
@@ -478,44 +504,48 @@ def rewrite_urls(
     for table, column in _TEXT_COLUMNS:
         rows = _select(
             conn,
-            f"SELECT rowid, {column} FROM {table} WHERE instr({column}, ?) > 0",
+            f"SELECT ctid::text, {column} FROM {table} WHERE position(? in {column}) > 0",
             (source_base + "/",),
         )
         for rowid, text in rows:
             label = f"{table}.{column}"
             stats[f"{label}:coincide"] += 1
+            faltan = [
+                k
+                for k in _keys_in_text(text, source_base)
+                if not present(GIFS if k.startswith(r2.GIF_KEY_PREFIX) else IMAGES, k)
+            ]
+            if faltan:
+                # Una fila de texto se reescribe entera o no se toca.
+                stats[f"{label}:destino-faltante"] += 1
+                log.warning("DESTINO FALTANTE %s rowid=%s: %s", label, rowid, faltan)
+                continue
             if apply:
                 new_text = _rewrite_text(text, source_base, images_base, gifs_base)
                 conn.execute(
-                    f"UPDATE {table} SET {column}=? WHERE rowid=?", (new_text, rowid)
+                    f"UPDATE {table} SET {column}=? WHERE ctid=(?::text)::tid",
+                    (new_text, rowid),
                 )
                 stats[f"{label}:reescrita"] += 1
     return stats
 
 
-def backup_db_file(db_path: str) -> str:
-    """Copia consistente de la DB junto al original, antes de tocarla."""
+def backup_db_file(dsn: str) -> str:
+    """pg_dump de la base junto a los backups, antes de tocarla (0600)."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    src = sqlite3.connect(db_path)
-    try:
-        # O_EXCL: una copia anterior no se pisa nunca; si el nombre ya existe
-        # (dos corridas en el mismo segundo) se le suma un número.
-        for n in itertools.count():
-            dest = f"{db_path}.pre-r2-rewrite-{stamp}" + (f"-{n}" if n else "")
-            try:
-                fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            except FileExistsError:
-                continue
-            os.close(fd)
-            break
-        dst = sqlite3.connect(dest)
-        try:
-            src.backup(dst)
-        finally:
-            dst.close()
-    finally:
-        src.close()
-    return dest
+    backup_dir = os.environ.get(
+        "BACKUP_DIR", os.path.join(os.path.expanduser("~"), "purgito-bot-backups")
+    )
+    os.makedirs(backup_dir, mode=0o700, exist_ok=True)
+    # O_EXCL (dentro de pgsync.dump): una copia anterior no se pisa nunca; si el
+    # nombre ya existe (dos corridas en el mismo segundo) se le suma un número.
+    for n in itertools.count():
+        dest = os.path.join(
+            backup_dir,
+            f"purgito-pre-r2-rewrite-{stamp}" + (f"-{n}" if n else "") + ".dump",
+        )
+        if not os.path.exists(dest):
+            return pgsync.dump(dsn, dest)
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
@@ -569,13 +599,9 @@ def _resolve_settings(args) -> dict:
     }
 
 
-def _open_db(path: str, writable: bool = False):
-    if not os.path.isfile(path):
-        raise ConfigError(f"no existe la DB: {path}")
-    if writable:
-        return sqlite3.connect(path)
+def _open_db(dsn: str | None, writable: bool = False):
     # Solo lectura de verdad: aunque este código tuviera un bug, no podría escribir.
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    return pgsync.connect(dsn, read_only=not writable)
 
 
 def _log_stats(title: str, stats: Counter) -> None:
@@ -590,7 +616,7 @@ def main(argv=None) -> int:
 
     def common(p):
         p.add_argument(
-            "--db", default=DB_PATH, help=f"ruta de la DB (default: {DB_PATH})"
+            "--dsn", default=None, help="URL de PostgreSQL (default: DATABASE_URL)"
         )
         p.add_argument("--source-bucket", help="bucket viejo (default: R2_BUCKET_NAME)")
         p.add_argument(
@@ -643,7 +669,7 @@ def main(argv=None) -> int:
         check_buckets(
             s["client"], {"origen": s["source"], **{k: v for k, v in s["dest"].items()}}
         )
-        conn = _open_db(args.db)
+        conn = _open_db(args.dsn)
         try:
             gif_keys, image_keys = load_references(conn, s["source_base"])
         finally:
@@ -688,7 +714,7 @@ def main(argv=None) -> int:
             limit=args.limit,
         )
         _log_stats("verify", stats)
-        conn = _open_db(args.db)
+        conn = _open_db(args.dsn)
         try:
             old = count_old_urls(conn, s["source_base"])
         finally:
@@ -704,6 +730,30 @@ def main(argv=None) -> int:
     except ConfigError as e:
         log.error("%s", e)
         return 2
+
+
+def _dest_exists_checker(args):
+    """exists(destino, key) contra los buckets NUEVOS (head_object, con caché).
+    Obligatorio: rewrite-db-urls no apunta URLs a objetos que no están."""
+    client = r2.get_client()
+    if client is None:
+        raise ConfigError("R2 no está configurado: no se puede comprobar el destino")
+    buckets = {
+        GIFS: args.gifs_bucket or r2.bucket_for(r2.GIFS, legacy=False),
+        IMAGES: args.images_bucket or r2.bucket_for(r2.IMAGES, legacy=False),
+    }
+    for role, name in buckets.items():
+        if not name:
+            raise ConfigError(f"falta el bucket de {role} para comprobar el destino")
+    cache: dict[tuple[str, str], bool] = {}
+
+    def exists(dest: str, key: str) -> bool:
+        k = (dest, key)
+        if k not in cache:
+            cache[k] = _head(client, buckets[dest], key) is not None
+        return cache[k]
+
+    return exists
 
 
 def _main_rewrite(args) -> int:
@@ -727,24 +777,25 @@ def _main_rewrite(args) -> int:
         raise ConfigError(
             "la URL vieja coincide con una nueva: no hay nada que reescribir"
         )
+    exists = _dest_exists_checker(args)
     if not args.apply:
         log.info("=== DRY-RUN: no se escribe nada. Usar --apply para ejecutar. ===")
-    conn = _open_db(args.db, writable=args.apply)
+    conn = _open_db(args.dsn, writable=args.apply)
     try:
         if args.apply:
             # Sin nada que reescribir no se toca la DB ni se deja una copia más.
             pending = rewrite_urls(
-                conn, source_base, images_base, gifs_base, apply=False
+                conn, source_base, images_base, gifs_base, apply=False, exists=exists
             )
             if not any(k.endswith(":coincide") for k in pending):
                 log.info(
                     "La DB no tiene URLs del host viejo: no hay nada que reescribir."
                 )
                 return 0
-            backup = backup_db_file(args.db)
+            backup = backup_db_file(args.dsn or os.environ["DATABASE_URL"])
             log.info("Copia de la DB antes de reescribir: %s", backup)
         stats = rewrite_urls(
-            conn, source_base, images_base, gifs_base, apply=args.apply
+            conn, source_base, images_base, gifs_base, apply=args.apply, exists=exists
         )
         if args.apply:
             conn.commit()
@@ -754,7 +805,11 @@ def _main_rewrite(args) -> int:
     finally:
         conn.close()
     _log_stats("rewrite-db-urls" if args.apply else "rewrite-db-urls (dry-run)", stats)
-    return 1 if any(k.endswith((":choque", ":ambigua")) for k in stats) else 0
+    return (
+        1
+        if any(k.endswith((":choque", ":ambigua", ":destino-faltante")) for k in stats)
+        else 0
+    )
 
 
 if __name__ == "__main__":

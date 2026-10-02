@@ -9,7 +9,8 @@ Usa una DB SQLite en memoria inyectada en db._db, sin tocar data/bot.db
 
 import asyncio
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -30,10 +31,9 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
-    await conn.execute("ALTER TABLE user_corpus ADD COLUMN channel_id INTEGER")
     await conn.commit()
     return conn
 
@@ -41,7 +41,7 @@ async def _open_memory_db() -> aiosqlite.Connection:
 async def _user_corpus_row(conn, guild_id, message_id):
     cur = await conn.execute(
         "SELECT author_id, author_name, channel_id, content FROM user_corpus "
-        "WHERE guild_id=? AND message_id IS ?",
+        "WHERE guild_id=? AND message_id IS NOT DISTINCT FROM ?",
         (guild_id, message_id),
     )
     return await cur.fetchone()
@@ -119,7 +119,7 @@ def test_no_altera_datos_de_otros_guilds_o_autores(memory_db):
 def test_corpus_messages_y_user_corpus_siguen_atomicos_bajo_un_solo_lock(memory_db):
     """corpus_messages y user_corpus deben seguir entrando en la misma
     adquisición de _db_lock -- si el segundo INSERT falla, el rollback
-    automático (_RollbackOnErrorLock) deshace también el primero. Mismo
+    automático (TransactionLock) deshace también el primero. Mismo
     patrón que test_db_rollback.py::test_falla_real_en_una_secuencia_de_dos_execute_de_una_funcion_real,
     repetido acá para dejar la garantía explícita junto al resto de tests de
     esta función."""

@@ -45,8 +45,6 @@ class _RejoiningBot:
 
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
-    monkeypatch.setattr(db, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setattr(db, "_db", None)
     asyncio.run(db.init_db())
     yield
@@ -104,8 +102,9 @@ async def _seed_shared_gif(conn, guild_a, guild_b, content_hash, url, ref_count=
 async def _mark_departed(conn, guild_id, days_ago=40):
     await conn.execute(
         "INSERT INTO guild_departures (guild_id, left_at) "
-        "VALUES (?, datetime('now', ?))",
-        (guild_id, f"-{days_ago} days"),
+        "VALUES (?, to_char(timezone('utc', now()) - make_interval(days => ?), "
+        "'YYYY-MM-DD HH24:MI:SS'))",
+        (guild_id, days_ago),
     )
     await conn.commit()
 

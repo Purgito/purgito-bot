@@ -9,7 +9,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -21,7 +22,7 @@ _GUILD = 1
 @pytest.fixture
 def memory_db(monkeypatch):
     async def open_db():
-        conn = await aiosqlite.connect(":memory:")
+        conn = await pg_support.connect()
         await conn.executescript(db.SCHEMA)
         await conn.commit()
         return conn

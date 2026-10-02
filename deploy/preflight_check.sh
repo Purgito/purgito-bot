@@ -63,14 +63,14 @@ else
         ok ".env no repite variables de limits.env ni urls.env"
     fi
 
-    # Variables obligatorias: DISCORD_TOKEN (hardcoded acá -- es la única var
-    # que src/config.py lee sin ningún default, así que no hay una lista en
+    # Variables obligatorias: DISCORD_TOKEN y DATABASE_URL (hardcoded acá -- son
+    # las únicas que no tienen default y no están en la lista del dashboard, así que no hay una lista en
     # el código de la que extraerla) + lo que src/config.py declara como
     # obligatorio para el dashboard (bloque `_missing = [...]` en config.py:
     # se parsea de ahí en vez de hardcodearlo para no desactualizarse el día
     # que se agregue una variable nueva a esa lista).
     CONFIG_PY="$REPO_DIR/src/config.py"
-    required_vars=(DISCORD_TOKEN)
+    required_vars=(DISCORD_TOKEN DATABASE_URL)
     if [ -f "$CONFIG_PY" ]; then
         while IFS= read -r var; do
             required_vars+=("$var")
@@ -263,33 +263,65 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
-section "6. Flags de migración de datos (data/)"
+section "6. PostgreSQL"
 
-DB_FILE="$REPO_DIR/data/bot.db"
-FLAG_IMAGES="$REPO_DIR/data/.images_wiped_v2"
-FLAG_SPLIT="$REPO_DIR/data/.chat_channels_split_v1"
-
-if [ ! -f "$DB_FILE" ]; then
-    skip "flags de migración" "todavía no existe data/bot.db (instalación nueva, nada que verificar)"
+DB_URL="$(grep -E "^DATABASE_URL=" "$REPO_DIR/.env" 2>/dev/null | tail -n1 | cut -d= -f2-)"
+pg_re='^postgres(ql)?://([^:@/]+)(:([^@]*))?@([^:/]+)(:([0-9]+))?/([^?]+)'
+if [ -z "$DB_URL" ]; then
+    skip "conexión a PostgreSQL" "DATABASE_URL no está en .env (ya reportado arriba)"
+elif [[ ! "$DB_URL" =~ $pg_re ]]; then
+    bad "DATABASE_URL no tiene la forma postgresql://usuario:clave@host:puerto/base"
+elif ! command -v psql >/dev/null 2>&1; then
+    skip "conexión a PostgreSQL" "falta el cliente psql (apt install postgresql-client)"
 else
-    missing_flags=()
-    [ -f "$FLAG_IMAGES" ] || missing_flags+=(".images_wiped_v2")
-    [ -f "$FLAG_SPLIT" ] || missing_flags+=(".chat_channels_split_v1")
+    PGUSER="${BASH_REMATCH[2]}"
+    PGPASSWORD="$(printf '%b' "${BASH_REMATCH[4]//%/\\x}")"
+    PGHOST="${BASH_REMATCH[5]}"
+    PGPORT="${BASH_REMATCH[7]:-5432}"
+    PGDATABASE="${BASH_REMATCH[8]}"
+    export PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
 
-    if [ "${#missing_flags[@]}" -eq 0 ]; then
-        ok "data/bot.db tiene sus flags de migración al lado (.images_wiped_v2, .chat_channels_split_v1)"
+    if [ "$PGUSER" = "postgres" ]; then
+        warn "DATABASE_URL usa el superusuario postgres: crear un usuario dedicado (DEPLOY.md § PostgreSQL)"
     else
-        bad "data/bot.db existe pero falta(n): ${missing_flags[*]} (ver docs/PORTABILITY.md § 2)"
-        echo "       Si este bot.db viene de un backup/restore de otro servidor (migración,"
-        echo "       recuperación de desastre), el próximo arranque del bot puede volver a"
-        echo "       correr una migración de una sola vez que se creía ya aplicada -- en"
-        echo "       particular, .images_wiped_v2 ausente dispara un DELETE FROM corpus_images"
-        echo "       de nuevo, sin preguntar. Copiá esos dos archivos junto con bot.db antes de"
-        echo "       arrancar el bot."
-        echo "       Si en cambio esto es una instalación nueva de cero (bot.db recién creado,"
-        echo "       sin guilds ni corpus todavía), es esperado y no hay nada que perder --"
-        echo "       podés ignorar este ❌ con confianza en ese caso puntual."
+        ok "DATABASE_URL usa un usuario dedicado ($PGUSER), no postgres"
     fi
+
+    case "$PGHOST" in
+        127.0.0.1|localhost|::1)
+            if systemctl is-active --quiet postgresql 2>/dev/null; then
+                ok "servicio postgresql activo"
+            else
+                bad "servicio postgresql no está activo (sudo systemctl enable --now postgresql)"
+            fi
+            if systemctl cat "$SERVICE_NAME" 2>/dev/null | grep -q 'postgresql.service'; then
+                ok "el unit $SERVICE_NAME espera a postgresql.service (After=/Wants=)"
+            else
+                warn "el unit $SERVICE_NAME no menciona postgresql.service: tras un reinicio del servidor el bot puede arrancar antes que la base (regenerar el unit con deploy/render_service.sh)"
+            fi
+            ;;
+    esac
+
+    if [ "$(psql -Atc 'SELECT 1' 2>/dev/null)" = "1" ]; then
+        ok "conecta a $PGDATABASE en $PGHOST:$PGPORT como $PGUSER"
+        tables="$(psql -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null)"
+        if [ "${tables:-0}" -ge 40 ]; then
+            ok "esquema aplicado ($tables tablas en public)"
+        else
+            bad "la base tiene ${tables:-0} tablas: faltan las de Purgito (arrancar el bot una vez las crea, o ver DEPLOY.md § Preparar una base nueva)"
+        fi
+        case "$(psql -Atc "SELECT rolsuper FROM pg_roles WHERE rolname=current_user" 2>/dev/null)" in
+            f) ok "el usuario de la app no es superusuario" ;;
+            t) warn "el usuario de la app es superusuario de PostgreSQL: bajarle los privilegios" ;;
+        esac
+    else
+        bad "no se pudo conectar a PostgreSQL con DATABASE_URL (host=$PGHOST puerto=$PGPORT base=$PGDATABASE usuario=$PGUSER)"
+    fi
+    unset PGUSER PGPASSWORD PGHOST PGPORT PGDATABASE
+fi
+
+if [ -f "$REPO_DIR/data/bot.db" ]; then
+    warn "data/bot.db (SQLite vieja) sigue en disco: el bot ya no la usa; conservarla como rollback hasta dar la migración por buena (DEPLOY.md § Rollback a SQLite)"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────

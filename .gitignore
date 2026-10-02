@@ -71,6 +71,15 @@ referencias/
 # Backup files
 *.bak
 
+# Dumps de PostgreSQL, backups cifrados y material criptográfico: nunca van
+# al repo. (*.age cubre *.dump.age; se listan los dos por claridad.)
+*.dump
+*.dump.age
+*.age
+*.pem
+*.key
+backups/
+
 # Node.js artifacts (not a Node project)
 package-lock.json
 

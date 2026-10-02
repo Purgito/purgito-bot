@@ -5,7 +5,8 @@ test_anuncios.py."""
 
 import asyncio
 
-import aiosqlite
+import pgdb  # noqa: F401
+import pg_support
 import pytest
 
 import db
@@ -19,8 +20,8 @@ def memory_db(monkeypatch):
     asyncio.run(conn.close())
 
 
-async def _open_memory_db() -> aiosqlite.Connection:
-    conn = await aiosqlite.connect(":memory:")
+async def _open_memory_db() -> pgdb.Database:
+    conn = await pg_support.connect()
     await conn.executescript(db.SCHEMA)
     await conn.commit()
     return conn
@@ -30,7 +31,7 @@ def _expire(conn, share_id):
     """Vence un link a mano (expires_at en el pasado)."""
     asyncio.run(
         conn.execute(
-            "UPDATE shared_embeds SET expires_at=datetime('now', '-1 day') "
+            "UPDATE shared_embeds SET expires_at=to_char(timezone('utc', now()) - interval '1 day', 'YYYY-MM-DD HH24:MI:SS') "
             "WHERE share_id=?",
             (share_id,),
         )
@@ -77,7 +78,7 @@ def test_share_id_reintenta_si_colisiona(memory_db, monkeypatch):
     asyncio.run(
         memory_db.execute(
             "INSERT INTO shared_embeds (share_id, payload, created_at, expires_at) "
-            "VALUES ('aaaaaaaa', '{}', datetime('now'), datetime('now', '+1 day'))"
+            "VALUES ('aaaaaaaa', '{}', utc_now(), to_char(timezone('utc', now()) + interval '1 day', 'YYYY-MM-DD HH24:MI:SS'))"
         )
     )
     asyncio.run(memory_db.commit())

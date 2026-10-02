@@ -8,13 +8,13 @@ nada y no pisa un destino que ya tiene otro contenido.
 import importlib.util
 import json
 import pathlib
-import sqlite3
+import pg_support
 import stat
+import subprocess
 
 import pytest
 from fake_s3 import FakeS3
 
-import db
 import r2
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -67,8 +67,7 @@ def s3():
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    c.executescript(db.SCHEMA)
+    c = pg_support.sync_connect()
     c.execute(
         "INSERT INTO gif_objects (content_hash, r2_key, ref_count) VALUES (?, ?, 1)",
         (H, GIF_KEY),
@@ -90,7 +89,8 @@ def conn():
         (json.dumps({"image": {"url": f"{OLD_URL}/{BLOB_IMG}"}}),),
     )
     c.commit()
-    return c
+    yield c
+    c.close()
 
 
 def _refs(conn):
@@ -124,16 +124,23 @@ def test_clasificacion_por_la_db(conn):
 
 
 def test_load_references_tolera_una_db_sin_algunas_tablas():
-    c = sqlite3.connect(":memory:")
-    c.execute(
-        "CREATE TABLE corpus_gifs (id INTEGER PRIMARY KEY, guild_id INT, url TEXT)"
-    )
+    c = pg_support.sync_connect()
+    # una base más vieja que el esquema actual: solo corpus_gifs
+    for (name,) in c.execute(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' "
+        "AND tablename <> 'corpus_gifs'"
+    ).fetchall():
+        c.execute(f'DROP TABLE "{name}"')
     c.execute(
         "INSERT INTO corpus_gifs (guild_id, url) VALUES (1, ?)",
         (f"{OLD_URL}/gifs/aa/x.gif",),
     )
+    c.commit()
 
-    assert mig.load_references(c, OLD_URL) == ({"gifs/aa/x.gif"}, set())
+    try:
+        assert mig.load_references(c, OLD_URL) == ({"gifs/aa/x.gif"}, set())
+    finally:
+        c.close()
 
 
 # ─── La copia ─────────────────────────────────────────────────────────────────
@@ -470,12 +477,13 @@ def test_count_old_urls_llega_a_cero_despues_de_reescribir(conn):
 
 
 @pytest.fixture
-def db_file(tmp_path, conn):
-    path = tmp_path / "bot.db"
-    disk = sqlite3.connect(path)
-    conn.backup(disk)
-    disk.close()
-    return path
+def dsn(conn):
+    """La base de tests, ya cargada por `conn` (commiteada), para --dsn."""
+    return pg_support.TEST_URL
+
+
+def _count(conn, table):
+    return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
 @pytest.fixture
@@ -490,62 +498,196 @@ def cli_env(s3, monkeypatch):
     return s3
 
 
-def test_cli_copy_dry_run_y_luego_apply_y_verify(cli_env, db_file):
+def test_cli_copy_dry_run_y_luego_apply_y_verify(cli_env, dsn):
     s3 = cli_env
 
-    assert mig.main(["copy", "--db", str(db_file)]) == 0
+    assert mig.main(["copy", "--dsn", dsn]) == 0
     assert s3.keys(GIFS) == s3.keys(IMAGES) == set()  # dry-run por defecto
 
-    assert mig.main(["copy", "--apply", "--db", str(db_file)]) == 0
+    assert mig.main(["copy", "--apply", "--dsn", dsn]) == 0
     assert len(s3.keys(GIFS)) == 4 and len(s3.keys(IMAGES)) == 6
 
-    assert mig.main(["verify", "--db", str(db_file)]) == 0
+    assert mig.main(["verify", "--dsn", dsn]) == 0
     del s3.buckets[GIFS][GIF_KEY]
-    assert mig.main(["verify", "--db", str(db_file)]) == 1
+    assert mig.main(["verify", "--dsn", dsn]) == 1
 
 
-def test_cli_la_db_se_abre_en_solo_lectura(cli_env, db_file):
-    before = db_file.read_bytes()
+def test_cli_la_db_se_abre_en_solo_lectura(cli_env, dsn, conn):
+    """copy y verify solo leen la base: ni una fila cambia."""
+    before = conn.execute(
+        "SELECT md5(string_agg(url, ',' ORDER BY id)) FROM corpus_gifs"
+    ).fetchone()
+    conn.commit()
 
-    mig.main(["copy", "--apply", "--db", str(db_file)])
-    mig.main(["verify", "--db", str(db_file)])
+    mig.main(["copy", "--apply", "--dsn", dsn])
+    mig.main(["verify", "--dsn", dsn])
 
-    assert db_file.read_bytes() == before
+    after = conn.execute(
+        "SELECT md5(string_agg(url, ',' ORDER BY id)) FROM corpus_gifs"
+    ).fetchone()
+    conn.commit()
+    assert after == before
 
 
-def test_cli_sale_con_2_si_falta_un_bucket_destino(cli_env, db_file):
+def test_cli_sale_con_2_si_falta_un_bucket_destino(cli_env, dsn):
     del cli_env.buckets[IMAGES]
 
-    assert mig.main(["copy", "--apply", "--db", str(db_file)]) == 2
+    assert mig.main(["copy", "--apply", "--dsn", dsn]) == 2
     assert cli_env.ops("copy_object") == []
 
 
-def test_cli_sale_con_1_si_un_destino_tiene_otro_contenido(cli_env, db_file):
+def test_cli_sale_con_1_si_un_destino_tiene_otro_contenido(cli_env, dsn):
     cli_env.seed(IMAGES, IMG_PNG, b"otro-contenido")
 
-    assert mig.main(["copy", "--apply", "--db", str(db_file)]) == 1
+    assert mig.main(["copy", "--apply", "--dsn", dsn]) == 1
 
 
 def test_cli_rewrite_dry_run_no_toca_la_db_y_apply_deja_una_copia_0600(
-    cli_env, db_file
+    cli_env, dsn, conn, tmp_path, monkeypatch
 ):
-    before = db_file.read_bytes()
-    assert mig.main(["rewrite-db-urls", "--db", str(db_file)]) == 0
-    assert db_file.read_bytes() == before
-    assert list(db_file.parent.glob("*.pre-r2-rewrite-*")) == []
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    _run(cli_env, conn)  # los objetos ya están en los buckets nuevos (copy --apply)
+    assert any(mig.count_old_urls(conn, OLD_URL).values())
+    conn.commit()
+    assert mig.main(["rewrite-db-urls", "--dsn", dsn]) == 0
+    assert any(mig.count_old_urls(conn, OLD_URL).values())
+    conn.commit()
+    assert list(tmp_path.glob("purgito-pre-r2-rewrite-*")) == []
 
-    assert mig.main(["rewrite-db-urls", "--apply", "--db", str(db_file)]) == 0
+    assert mig.main(["rewrite-db-urls", "--apply", "--dsn", dsn]) == 0
+    conn.commit()  # cerrar la transacción de lectura para ver lo que escribió el script
 
-    (backup,) = db_file.parent.glob("*.pre-r2-rewrite-*")
+    (backup,) = tmp_path.glob("purgito-pre-r2-rewrite-*.dump")
     assert stat.S_IMODE(backup.stat().st_mode) == 0o600
-    disk = sqlite3.connect(db_file)
-    assert not any(mig.count_old_urls(disk, OLD_URL).values())
-    disk.close()
-    # la copia previa conserva las URLs viejas: se puede volver atrás
-    saved = sqlite3.connect(backup)
-    assert any(mig.count_old_urls(saved, OLD_URL).values())
-    saved.close()
+    assert not any(mig.count_old_urls(conn, OLD_URL).values())
+    # la copia previa es un dump válido y restaurable
+    listing = subprocess.run(
+        ["pg_restore", "--list", str(backup)], capture_output=True, text=True
+    )
+    assert listing.returncode == 0 and "corpus_gifs" in listing.stdout
 
     # segunda corrida: no hay nada que hacer, y no deja otra copia de la DB
-    assert mig.main(["rewrite-db-urls", "--apply", "--db", str(db_file)]) == 0
-    assert len(list(db_file.parent.glob("*.pre-r2-rewrite-*"))) == 1
+    assert mig.main(["rewrite-db-urls", "--apply", "--dsn", dsn]) == 0
+    assert len(list(tmp_path.glob("purgito-pre-r2-rewrite-*"))) == 1
+
+
+# ─── rewrite-db-urls: nunca apunta a un objeto que no está en el destino ──────
+
+
+def _exists(s3):
+    return lambda dest, key: mig._head(s3, DEST[dest], key) is not None
+
+
+def _rw(conn, s3, apply=True):
+    return mig.rewrite_urls(
+        conn, OLD_URL, IMAGES_URL, GIFS_URL, apply=apply, exists=_exists(s3)
+    )
+
+
+def _old_urls(conn):
+    return sum(mig.count_old_urls(conn, OLD_URL).values())
+
+
+def test_rewrite_sin_copia_previa_no_toca_nada(s3, conn):
+    antes = _old_urls(conn)
+    assert antes > 0
+
+    stats = _rw(conn, s3)
+    conn.commit()
+
+    assert not any(k.endswith(":reescrita") for k in stats)
+    assert stats["corpus_gifs.url:destino-faltante"] == 3
+    assert stats["embed_templates.embed_json:destino-faltante"] == 1
+    assert _old_urls(conn) == antes  # la DB quedó idéntica
+
+
+def test_rewrite_tras_copiar_reescribe_todo_y_no_quedan_urls_viejas(s3, conn):
+    _run(s3, conn)
+
+    stats = _rw(conn, s3)
+    conn.commit()
+
+    assert not any(k.endswith(":destino-faltante") for k in stats)
+    assert _old_urls(conn) == 0
+    # y cada URL nueva existe de verdad en su bucket
+    for (url,) in conn.execute(
+        "SELECT url FROM corpus_gifs WHERE url LIKE ?", (GIFS_URL + "/%",)
+    ):
+        assert mig._head(s3, GIFS, url[len(GIFS_URL) + 1 :]) is not None
+    for (url,) in conn.execute("SELECT url FROM corpus_images"):
+        assert mig._head(s3, IMAGES, url[len(IMAGES_URL) + 1 :]) is not None
+
+
+def test_rewrite_con_un_objeto_faltante_salta_solo_esa_fila(s3, conn):
+    _run(s3, conn)
+    del s3.buckets[GIFS][LEGACY_GIF]
+
+    stats = _rw(conn, s3)
+    conn.commit()
+
+    assert stats["corpus_gifs.url:destino-faltante"] == 1
+    urls = {r[0] for r in conn.execute("SELECT url FROM corpus_gifs")}
+    assert f"{OLD_URL}/{LEGACY_GIF}" in urls  # esa quedó como estaba
+    assert f"{GIFS_URL}/{GIF_KEY}" in urls  # las demás sí pasaron
+
+
+def test_rewrite_cubre_media_url_y_avatares(s3, conn):
+    _run(s3, conn)
+    conn.execute(
+        "UPDATE corpus_gifs SET media_url=? WHERE url=?",
+        (f"{OLD_URL}/{GIF_KEY}", f"{OLD_URL}/{GIF_KEY}"),
+    )
+    conn.execute(
+        "INSERT INTO guild_bot_style (guild_id, avatar_url, banner_url) VALUES (1, ?, ?)",
+        (f"{OLD_URL}/{IMG_PNG}", f"{OLD_URL}/{EMBED_IMG}"),
+    )
+    conn.commit()
+    assert _old_urls(conn) > 0
+
+    stats = _rw(conn, s3)
+    conn.commit()
+
+    assert stats["corpus_gifs.media_url:reescrita"] == 1
+    assert stats["guild_bot_style.avatar_url:reescrita"] == 1
+    assert stats["guild_bot_style.banner_url:reescrita"] == 1
+    assert _old_urls(conn) == 0
+
+
+def test_rewrite_texto_con_un_objeto_faltante_no_se_toca_a_medias(s3, conn):
+    _run(s3, conn)
+    conn.execute(
+        "UPDATE embed_templates SET embed_json=?",
+        (json.dumps({"a": f"{OLD_URL}/{BLOB_IMG}", "b": f"{OLD_URL}/{IMG_PNG}"}),),
+    )
+    conn.commit()
+    del s3.buckets[IMAGES][IMG_PNG]
+
+    stats = _rw(conn, s3)
+    conn.commit()
+
+    assert stats["embed_templates.embed_json:destino-faltante"] == 1
+    (blob,) = conn.execute("SELECT embed_json FROM embed_templates").fetchone()
+    assert OLD_URL in blob and IMAGES_URL not in blob  # ni una de las dos
+
+
+def test_destino_no_configurado_es_un_error_y_no_se_asume_que_todo_esta(
+    s3, monkeypatch
+):
+    monkeypatch.setattr(r2, "get_client", lambda: None)
+    with pytest.raises(mig.ConfigError, match="no se puede comprobar"):
+        mig._dest_exists_checker(_args())
+
+
+def test_cli_rewrite_sin_copia_previa_sale_con_error_y_no_toca_la_db(
+    cli_env, dsn, conn, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    antes = mig.count_old_urls(conn, OLD_URL)
+    conn.commit()
+
+    assert mig.main(["rewrite-db-urls", "--apply", "--dsn", dsn]) == 1
+
+    conn.commit()
+    assert mig.count_old_urls(conn, OLD_URL) == antes

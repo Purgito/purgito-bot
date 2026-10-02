@@ -11,6 +11,13 @@ Motivo por el que este documento existe: la migración de Oracle a AWS del
 2026-09-05 tomó varias horas porque varios pasos no estaban documentados en
 ningún lado. La idea es que la próxima tome minutos.
 
+> **Desde 2026-10-01 la base es PostgreSQL** (no SQLite) y los backups van cifrados con
+> age: para restaurar hace falta la clave PRIVADA (fuera del servidor) y, tras
+> `pg_restore`, correr `scripts/reapply_deletions.py --apply` antes de arrancar el bot.
+> Los pasos de abajo que hablan de `bot.db` son de la época SQLite; el procedimiento
+> vigente está en [`docs/POSTGRES.md`](docs/POSTGRES.md) § Restaurar y
+> [`DEPLOY.md`](DEPLOY.md) § Seguridad del servidor.
+
 ## 0. Si la instancia vieja todavía está viva
 
 Antes de tocar nada del servidor nuevo, en la instancia vieja:
@@ -35,7 +42,7 @@ R2 (imágenes, GIFs y backups) no necesita nada de esto — vive fuera de la
 instancia por diseño, las credenciales viajan con el `.env`. Si el viejo subía
 backups al bucket privado (`R2_BACKUP_BUCKET`), el más reciente se baja desde
 cualquier lado con `python scripts/r2_backup.py download latest --dest <carpeta>`
-(ver DEPLOY.md § "Backups de `data/bot.db`").
+(ver `docs/POSTGRES.md` § "Backups"; se restaura con `pg_restore`, no con `sqlite3`).
 
 ## 1. Crear la instancia nueva
 

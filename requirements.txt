@@ -1,6 +1,6 @@
 discord.py==2.7.1
 python-dotenv==1.2.2
-aiosqlite==0.22.1
+asyncpg==0.31.0
 boto3==1.43.103
 aiohttp==3.14.3
 requests==2.34.2

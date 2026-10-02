@@ -39,7 +39,8 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
    - [Cloudflare (DNS + SSL)](#cloudflare-dns--ssl)
 8. [Actualizar en producción](#8-actualizar-en-producción)
    - [Migrar a tres buckets de R2](#migrar-a-tres-buckets-de-r2)
-   - [Backups de `data/bot.db`](#backups-de-databotdb)
+   - [Backups de PostgreSQL](#backups-de-postgresql)
+   - [Seguridad del servidor](#seguridad-del-servidor)
 9. [Troubleshooting](#9-troubleshooting)
 
 ---
@@ -970,11 +971,38 @@ journalctl -u bot-purg --since "5 min ago" | grep -i "Corpus:"
 
 ### Migrar a tres buckets de R2
 
+> ⚠️ **Estado en producción (2026-10-01): el paso `copy` NO se hizo.** Los
+> buckets nuevos solo tienen lo subido después de separarlos (`purgito-gifs`: 13
+> objetos, `purgito-images`: 0), pero la DB aún referencia 596 GIFs
+> (`corpus_gifs.url`), 1103 `corpus_gifs.media_url`, 46 imágenes de embeds y los
+> avatares/banners de `guild_bot_style` con el host viejo `pub-2e05…r2.dev`, que
+> ya no responde (401) y no está en `.env` (`R2_BUCKET_NAME`/`R2_PUBLIC_URL`
+> vacíos). Los GIFs viejos se rechazan con `host no permitido`.
+> **No corras `rewrite-db-urls --apply` antes de `copy --apply`**: las URLs
+> pasarían a apuntar a objetos inexistentes (verificado con `head_object`: 642 de
+> 642 faltan en los buckets nuevos). Desde 2026-10-02 `rewrite-db-urls` lo impide solo:
+> comprueba en el bucket nuevo cada objeto antes de reescribir su URL y deja intacta
+> la fila si falta (`destino-faltante`, exit 1). Un dry-run con la DB real da
+> exactamente 1103 `corpus_gifs.media_url`, 596 `corpus_gifs.url`, 46
+> `embed_uploaded_images`, 11+9 `guild_bot_style` (avatar+banner) y 1 plantilla de
+> embed, todas con el destino faltante.
+>
+> **Bucket viejo (cerrado el 2026-10-02):** `purgatory-gifs` (host público
+> `pub-2e05…r2.dev`) **ya se eliminó** en Cloudflare junto con la credencial antigua, y
+> se decidió **no migrar nada histórico**: los objetos viejos no existen en ningún sitio.
+> Por eso no hay nada que correr con `copy`/`rewrite-db-urls` en producción. Lo que
+> queda es solo una decisión de producto, no crítica: la base sigue guardando esas URLs
+> muertas (596 `corpus_gifs.url`, 1103 `corpus_gifs.media_url`, 46 imágenes de
+> `embed_uploaded_images`, avatares/banners de `guild_bot_style` y 1 plantilla de embed).
+> Los GIFs viejos se rechazan con `host no permitido`; limpiar esas filas o pedir a los
+> admins que vuelvan a subirlas no se ha ejecutado.
+
 Antes todo vivía en un solo bucket (`R2_BUCKET_NAME` + `R2_PUBLIC_URL`). Ahora
 las imágenes, los GIFs y los backups tienen cada uno el suyo (ver
 [Cloudflare R2](#cloudflare-r2-imágenes-gifs-y-backups)). La migración no es
 destructiva en ningún paso: **el bucket viejo y sus objetos no se tocan**, y
-borrarlo es lo último, a mano, cuando ya no haga falta.
+borrarlo es lo último, a mano, cuando ya no haga falta (en producción ya se hizo,
+ver arriba).
 
 **Cómo convive con el `.env` viejo (fallback transitorio).** Mientras falte
 `R2_IMAGES_BUCKET` / `R2_GIFS_BUCKET` (o sus URLs públicas), ese tipo de archivo
@@ -1183,178 +1211,88 @@ propio GIF recién cuando alguien lo vuelva a postear.
 Nunca toca objetos referenciados por `corpus_images` (las imágenes de memes
 también pueden ser `.gif`), ni los huérfanos, que solo informa.
 
-### Backups de `data/bot.db`
+### Backups de PostgreSQL
 
-Automatizado con [`deploy/backup_db.sh`](deploy/backup_db.sh): corre diario
-por cron, usa `sqlite3 .backup` (no `cp` -- la base corre en modo WAL, `cp`
-sobre un archivo en uso puede copiar un estado inconsistente entre
-`bot.db`/`bot.db-wal`), sube el backup al bucket privado de R2 (ver más abajo) y
-borra los backups locales de más de 14 días después de cada corrida exitosa.
-Antes de esto no había nada automatizado -- solo dos
-copias sueltas en `data/` (`bot.db.back-pre-gif-debup`, `bot.db.bak-20260711`)
-que alguien sacó a mano antes de una migración riesgosa puntual, en el mismo
-disco que la base real.
+Guía completa (instalar, migrar, backups cifrados, restaurar, lápidas, rollback)
+en [`docs/POSTGRES.md`](docs/POSTGRES.md). Resumen operativo:
 
-**No está instalado en el droplet todavía** -- lo de abajo es para aplicar a
-mano por SSH, revisando cada paso antes de correrlo. Los comandos concretos
-de esta sección son el registro de lo que se verificó en el droplet de
-Oracle el 2026-08-12 -- no se re-confirmó todavía en el servidor de AWS
-actual (otro usuario, otra ruta). Antes de instalar el cron en cualquier
-servidor nuevo, repetir el paso 1 (el `test -r`) con el usuario y la ruta
-reales de ESE servidor, no asumir que el resultado de 2026-08-12 sigue
-aplicando.
+- [`deploy/backup_db.sh`](deploy/backup_db.sh) corre por cron: `pg_dump -Fc`,
+  verifica con `pg_restore --list`, **cifra con age** (`BACKUP_AGE_RECIPIENTS`, solo
+  la clave pública; la privada vive fuera del servidor), sube el `.dump.age` a
+  `R2_BACKUP_BUCKET` (bucket **privado**, sin URL pública), y poda locales y de R2:
+  **se conservan como máximo 2 backups, el más reciente y el anterior** (`KEEP_LAST=2`,
+  por cantidad, no por edad). Con bucket y sin destinatarios no hace backup: no
+  sube nada en claro. Si la subida falla, la corrida termina con error y no poda nada.
+  Lee `DATABASE_URL`, `R2_BACKUP_BUCKET` y `BACKUP_AGE_RECIPIENTS` del `.env` del repo
+  (cron no lo carga).
+- Cron **semanal** (domingo 03:17 UTC): `17 3 * * 0 /ruta/purgito-bot/deploy/backup_db.sh >> ~/purgito-bot-backups/backup.log 2>&1`
+- Los backups llevan el corpus y tokens de webhook: `.dump.age` 0600 en
+  `~/purgito-bot-backups/` (0700).
+- Retención de R2: la aplica `r2_backup.py prune --keep 2` desde el propio script (el
+  token no puede tocar lifecycle rules). Opcional: lifecycle de 35 días o más y, si
+  usas Bucket Lock, de 7 días como máximo (detalle en `docs/POSTGRES.md` § Retención en R2).
+- Ver/bajar de R2: `python scripts/r2_backup.py list` y
+  `python scripts/r2_backup.py download latest --dest ~/restore`.
+- Prueba de restauración (sin tocar la base activa):
+  `AGE_IDENTITY=<clave-privada> deploy/restore_check.sh [r2:latest]` (necesita la base
+  `<base>_restorecheck`, ver `docs/POSTGRES.md`). `bash deploy/backup_db_test.sh`
+  autoprueba los scripts (requiere `TEST_DATABASE_URL` y `age`).
+- Restaurar: ver `docs/POSTGRES.md` § Restaurar. **Siempre** termina con
+  `scripts/reapply_deletions.py --apply` antes de arrancar el bot.
 
-> ⚠️ La copia local vive en el mismo disco que la instancia (`BACKUP_DIR` es
-> solo "fuera del árbol de git", no "fuera del droplet") -- por sí sola no
-> protege contra perder la instancia entera, que es justamente lo que pasó con
-> Oracle. Lo que sí protege es la copia del bucket privado de R2
-> (`R2_BACKUP_BUCKET`, ver [Subida a R2](#subida-a-r2-bucket-privado)): con esa
-> variable definida, una corrida cuenta como exitosa solo si la subida funcionó.
+La copia local vive en el mismo disco que la instancia: lo que protege de
+perder el servidor es la copia del bucket de backups.
 
-> 🔒 **Permisos.** `bot.db` (mensajes aprendidos, tokens de webhook de canales) y
-> los backups son solo del usuario del bot: el bot deja `bot.db` y sus sidecars
-> en `0600` en cada arranque, el unit de systemd fija `UMask=0077` y
-> `backup_db.sh` crea `BACKUP_DIR` en `0700` y cada backup en `0600`. Por eso **el
-> cron de backup tiene que correr con el mismo usuario que el bot** (hoy `ubuntu`):
-> otro usuario ya no puede leer la base, ni siquiera con el ajuste de grupo de más
-> abajo (el bot lo revertiría en el próximo arranque). Si el servidor actual
-> todavía tiene `bot.db` con permisos abiertos, el primer reinicio tras este
-> cambio lo corrige solo; `ls -l data/` lo confirma.
+### Seguridad del servidor
 
-**1. Permisos -- confirmado en Oracle Linux (2026-08-12), pendiente de
-re-confirmar en el servidor actual.** El cron corría como `opc`.
-Después del `chown -R bot-purg:bot-purg data/` (ronda de hardening de
-permisos), se verificó en el droplet que `opc` conserva lectura sobre
-`bot.db`:
+Estado verificado el 2026-10-02. `deploy/security_check.sh` lo comprueba (solo lectura,
+código 1 si algo está mal); corre después de cualquier cambio de red o de permisos.
 
-```bash
-$ sudo -u opc test -r /home/opc/purgito-bot/data/bot.db && echo "opc puede leer" || echo "opc NO puede leer"
-opc puede leer
-```
+| Capa | Estado | Cómo |
+|---|---|---|
+| Exposición | Solo SSH (22) y nginx (80) escuchan en todas las interfaces. PostgreSQL (5432) y la API (8080) solo en 127.0.0.1. HTTPS lo termina Cloudflare y llega por `cloudflared` (túnel saliente) a nginx por loopback: el origen no necesita 80/443 públicos. | `ss -lntup` |
+| Firewall | UFW activo: todo lo entrante cerrado salvo `tailscale0`, SSH desde la red privada del proveedor y UDP 41641 (Tailscale). | `deploy/harden_firewall.sh` (con auto-reversión a 15 min; ver el script) |
+| SSH | Solo por clave: `passwordauthentication no`, `kbdinteractiveauthentication no`, `pubkeyauthentication yes`. Se entra por Tailscale. | `sshd -T` |
+| PostgreSQL | localhost, `pg_hba` solo `purgito_app` por scram, sin replicación, `idle_in_transaction_session_timeout=5min`, log de queries lentas sin parámetros. | `deploy/harden_postgres.sh` |
+| systemd | `bot-purg`: NoNewPrivileges, PrivateTmp, PrivateDevices, ProtectSystem=full, ProtectProc, ProtectKernel*, ProtectControlGroups, RestrictAddressFamilies, RestrictNamespaces, CapabilityBoundingSet vacío, UMask=0077. Exposición `systemd-analyze security`: 3.1. | `deploy/bot-purg.service.template` |
+| Secretos | `.env` 0600; ningún secreto en git ni en su historial (comprobado por valor contra el `.env`); no hay secretos en el historial del shell ni en los logs. La clave privada de age no está en el servidor (se retiró el 2026-10-02 tras verificar un restore con la clave externa). Queda una copia antigua del `.env` en `~/.env.bak-pre-postgres` (0600): bórrala con `shred -n 3 -z -u` cuando ya no la necesites. | `security_check.sh` |
+| Permisos | `~/purgito-bot-backups` 0700 y archivos 0600; `data/` 0750; `/home/purgito` 0751 (nginx sirve `landing/` desde ahí y necesita atravesarlo). | `stat` |
 
-No hace falta ningún ajuste de grupo. Si en el futuro se re-aplica el
-`chown` con bits de permiso distintos y esto deja de cumplirse, el ajuste
-mínimo -- sin reabrir el resto del esquema de permisos -- es sumar `opc` al
-grupo `bot-purg` y dar lectura de grupo sobre la base:
+**Cifrado en reposo del disco: NO.** `/dev/vda1` es ext4 plano (sin dm-crypt/LUKS) en
+una VM KVM/QEMU. No se puede cifrar el volumen raíz en caliente (`cryptsetup`
+sobre `/` exige reinstalar o reconstruir el volumen), así que no se intentó. Mientras
+tanto: los backups van cifrados con age antes de salir del servidor y de quedar en
+disco, los secretos no están en la base, y la base solo es accesible desde la propia
+máquina. Lo que sigue sin protegerse en reposo: la base viva (`/var/lib/postgresql`)
+y `.env`, para alguien con acceso al disco o a un snapshot del proveedor.
 
-```bash
-sudo usermod -aG bot-purg opc
-sudo chmod g+rx /home/opc/purgito-bot/data
-sudo chmod g+r /home/opc/purgito-bot/data/bot.db
-sudo chmod g+r /home/opc/purgito-bot/data/bot.db-wal /home/opc/purgito-bot/data/bot.db-shm 2>/dev/null || true
-```
+Plan de migración a un volumen cifrado (cuando haya una ventana):
 
-Cron no necesita que `opc` reabra sesión para que el grupo nuevo tenga
-efecto: cada corrida es un proceso nuevo que lee `/etc/group` en el momento.
+1. Averigua qué ofrece el proveedor: cifrado de volumen/root-disk al crear (lo más
+   simple: crear una VM nueva con el disco cifrado por el proveedor) o ninguno.
+2. Con cifrado del proveedor: crea la VM nueva con disco cifrado y sigue
+   [`MIGRATION.md`](MIGRATION.md) (backup cifrado → restaurar → `reapply_deletions.py`
+   → mover el túnel de cloudflared y el nodo de Tailscale). La VM vieja queda intacta
+   como rollback hasta que la nueva lleve 7 días estable.
+3. Sin cifrado del proveedor: instala la VM nueva con LUKS en el instalador de
+   Ubuntu (la imagen cloud no lo trae), o un segundo volumen LUKS solo para
+   `/var/lib/postgresql` y `~/purgito-bot-backups`. LUKS exige una passphrase en cada
+   arranque (consola) o un mecanismo de desbloqueo remoto (Tang/dropbear-initramfs);
+   una clave en el mismo disco anula el cifrado. Decide cuánto downtime en un reinicio
+   es aceptable antes de elegirlo.
+4. Rollback: apagar la VM nueva, volver a apuntar el túnel de cloudflared a la vieja y
+   restaurar el último backup si hubo escrituras (las escrituras posteriores al corte
+   solo están en la nueva).
+5. Tamaño: ~3.9 MB/día de corpus (mediana de los últimos 10 días) + dumps de ~30 MB
+   (×2 locales) + `pg_wal` hasta 1 GB: 8.6 GB alcanzan unos meses; para el volumen
+   nuevo, 25–30 GB.
 
-**2. Instalar el cron.** El destino queda fuera del árbol del repo a
-propósito -- si algo corrompe `data/` o rompe el checkout, los backups no
-se van con él:
-
-```bash
-mkdir -p /home/opc/purgito-bot-backups
-crontab -e
-```
-
-Agregar (corre a las 3:17 AM, horario de bajo tráfico del bot):
-
-```cron
-17 3 * * * DB_SRC=/home/opc/purgito-bot/data/bot.db BACKUP_DIR=/home/opc/purgito-bot-backups /home/opc/purgito-bot/deploy/backup_db.sh >> /home/opc/purgito-bot-backups/backup.log 2>&1
-```
-
-**3. Confirmar que corre bien** (opcional, antes de esperar a las 3 AM):
-
-```bash
-DB_SRC=/home/opc/purgito-bot/data/bot.db BACKUP_DIR=/home/opc/purgito-bot-backups /home/opc/purgito-bot/deploy/backup_db.sh
-cat /home/opc/purgito-bot-backups/backup.log   # si se corrió por cron
-ls /home/opc/purgito-bot-backups/
-```
-
-**Qué deja cada corrida.** Además de `bot-<fecha>.db` (verificado con
-`PRAGMA integrity_check`; si no pasa, se borra y la corrida falla), deja
-`bot-<fecha>.flags.tar.gz` con los flags de migración sueltos de `data/`
-(`.images_wiped_v2`, etc.). Esos flags viven fuera de `bot.db`: al restaurar
-hay que devolverlos también, o el próximo arranque vuelve a correr
-migraciones destructivas (ver `docs/PORTABILITY.md` § 2). Sin `DB_SRC` ni
-`BACKUP_DIR`, el script usa `data/bot.db` del checkout y
-`~/purgito-bot-backups`.
-
-#### Subida a R2 (bucket privado)
-
-Con `R2_BACKUP_BUCKET` definida (en el entorno o en el `.env` del repo: cron no
-carga el `.env`, así que el script lee de ahí solo esa línea), cada corrida sube
-el backup a ese bucket después de verificarlo. Necesita las credenciales y el
-endpoint `R2_*` del `.env` y el venv (`boto3`); usa `.venv/bin/python` del repo
-(otro intérprete con la variable `PYTHON`).
-
-- Se sube primero `bot-<fecha>.flags.tar.gz` (si existe) y después
-  `bot-<fecha>.db`, con el mismo nombre que tienen en `BACKUP_DIR`: una base en
-  el bucket siempre tiene sus flags al lado, que es lo que pide el restore.
-- Después de subir compara el tamaño del objeto en R2 con el del archivo local y
-  guarda el `sha256` como metadato del objeto.
-- **Si la subida falla, la corrida termina con error** (código 1 y un
-  `ERROR ... NO subió a R2` en el log): no dice `OK backup`. El backup local se
-  conserva y **no se poda nada**, ni las copias viejas, que podrían ser justo las
-  que nunca llegaron a R2.
-- Con `R2_BACKUP_BUCKET` vacía o ausente el backup queda solo en local y la línea
-  de `OK` del log lo dice (`solo local`). Si no usas R2 para backups, déjala vacía.
-- El bucket es **privado**: no hay URL pública, no se le activa la *Public
-  Development URL* ni un dominio, y el token S3 es lo único que lo lee. El código
-  de backup no tiene forma de apuntar al bucket de imágenes ni al de GIFs.
-
-**Retención.** Localmente se conservan `RETENTION_DAYS` (14) días. En R2 **no hay
-ninguna política de retención definida ni implementada**: los backups se acumulan
-hasta que alguien los borre. Si se quiere una, se configura en el dashboard de
-Cloudflare (bucket de backups → *Settings* → *Object lifecycle rules* → borrar
-objetos con prefijo `bot-` tras N días); queda como decisión pendiente, no se
-puede hacer desde el código porque el token de Object Read & Write no administra
-buckets.
-
-**Ver y bajar backups del bucket:**
-
-```bash
-python scripts/r2_backup.py list
-python scripts/r2_backup.py download latest --dest ~/restore     # la base más nueva + su tar de flags
-python scripts/r2_backup.py download bot-20260812-031700.db --dest ~/restore
-```
-
-Los archivos bajados quedan con permisos 0600 y se les comprueba el `sha256` de
-la subida.
-
-**Comprobar que un backup se puede restaurar** (sin tocar la base activa ni
-parar el bot):
-
-```bash
-deploy/restore_check.sh                       # último backup de BACKUP_DIR
-deploy/restore_check.sh /ruta/a/bot-X.db      # uno puntual
-```
-
-Lo restaura en un directorio temporal, corre `integrity_check`, confirma que
-tiene tablas y que el tar de flags se lee. Sale con código distinto de 0 si
-algo falla. Correrlo después de instalar el cron y de vez en cuando.
-`bash deploy/backup_db_test.sh` prueba los dos scripts con datos de mentira.
-
-**Restaurar desde un backup** (si el backup está solo en R2, por ejemplo en un
-servidor nuevo, primero bájalo con `python scripts/r2_backup.py download latest --dest
-~/purgito-bot-backups` y revisa que se restaura con
-`deploy/restore_check.sh ~/purgito-bot-backups/bot-<fecha>.db`):
-
-```bash
-sudo systemctl stop bot-purg
-sqlite3 /home/opc/purgito-bot/data/bot.db ".restore '/home/opc/purgito-bot-backups/bot-20260812-031700.db'"
-# Devolver los flags de migración (si el backup trae el tar):
-tar -xzf /home/opc/purgito-bot-backups/bot-20260812-031700.flags.tar.gz -C /home/opc/purgito-bot/data
-sudo systemctl start bot-purg
-```
-
-`.restore` sobreescribe la base activa -- parar el bot antes, o se restaura
-sobre un archivo con escrituras en curso.
-
-La copia local sola protege contra "una migración corrompió la base" o "se llenó
-el disco de golpe", no contra "se perdió la instancia entera". Para eso está la
-copia del bucket de backups: en un servidor nuevo, configura las variables `R2_*`
-y baja el último backup con `scripts/r2_backup.py` (ver
-[`MIGRATION.md`](MIGRATION.md)).
+**Pendientes de seguridad del servidor: ninguno crítico.** Cerrados el 2026-10-02: la
+clave privada de age salió del servidor (la clave externa descifra un backup real;
+`security_check.sh` devuelve 0), SSH solo por clave, token de R2 antiguo revocado y
+bucket `purgatory-gifs` eliminado. Abiertos y no críticos: el cifrado en reposo del
+disco (arriba), la copia antigua `~/.env.bak-pre-postgres` y las URLs muertas del
+bucket viejo en la base (ver § "Migrar a tres buckets de R2").
 
 ### Dos puntos que ya estaban sin verificar, confirmados (histórico)
 
