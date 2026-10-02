@@ -58,6 +58,7 @@ from config import (
     DISCORD_CLIENT_SECRET,
     LANDING_ORIGINS,
     LANDING_URL,
+    OBSERVABILITY_TOKEN,
     PERMANENT_PREMIUM_GUILD_IDS,
     POLAR_ACCESS_TOKEN,
     POLAR_PRODUCT_ID_ANNUAL,
@@ -86,6 +87,7 @@ from cogs.updates import check_updates_channel_permissions
 from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
 from db import (
+    get_db,
     CHAT_TUNABLES,
     DEFAULT_COMMAND_PREFIX,
     MAX_CUSTOM_PREFIX_LENGTH,
@@ -248,6 +250,11 @@ from message_options import (
     validate_send_options,
     wants_custom_identity,
 )
+from observability import events as obs_events
+from observability import hooks as obs_hooks
+from observability import metrics as obs_metrics
+from observability import rules as obs_rules
+from observability import runtime as obs_runtime
 from utils import LRUDict
 from webhook_identity import WebhookIdentityError, send_via_webhook
 import r2
@@ -350,6 +357,50 @@ def _client_ip(request: web.Request) -> str:
         or request.remote
         or "unknown"
     )
+
+
+def _route_label(request: web.Request) -> str:
+    """Ruta canónica ("/api/guilds/{guild_id}/audit"), no la URL real: acota la
+    cardinalidad de métricas y evita ids en las etiquetas. "unmatched" para 404."""
+    try:
+        resource = request.match_info.route.resource
+        return resource.canonical if resource is not None else "unmatched"
+    except Exception:
+        return "unmatched"
+
+
+@web.middleware
+async def _observability_middleware(
+    request: web.Request, handler
+) -> web.StreamResponse:
+    """Capa más externa: asigna request_id (X-Request-ID de entrada si tiene
+    forma segura), lo devuelve en la respuesta y mide requests/duración.
+    No toca el cuerpo ni decide nada de la respuesta."""
+    rid = obs_events.accept_request_id(request.headers.get("X-Request-ID"))
+    token = obs_events.bind_request_id(rid)
+    started = time.perf_counter()
+    status = 500
+    try:
+        resp = await handler(request)
+        status = resp.status
+        resp.headers["X-Request-ID"] = rid
+        return resp
+    except web.HTTPException as ex:
+        status = ex.status
+        ex.headers["X-Request-ID"] = rid
+        raise
+    finally:
+        try:
+            route = _route_label(request)
+            obs_metrics.HTTP_REQUESTS.labels(
+                request.method, route, f"{status // 100}xx"
+            ).inc()
+            obs_metrics.HTTP_DURATION.labels(route).observe(
+                time.perf_counter() - started
+            )
+        except Exception:
+            pass
+        obs_events.reset_request_id(token)
 
 
 @web.middleware
@@ -512,8 +563,14 @@ async def _error_middleware(request: web.Request, handler) -> web.StreamResponse
         return await handler(request)
     except web.HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
         log.exception("Excepción no atajada en %s %s", request.method, request.path)
+        obs_hooks.security(
+            "system.unhandled_exception",
+            method=request.method,
+            endpoint=_route_label(request),
+            error_type=type(exc).__name__,
+        )
         return web.json_response(
             {"error": "ocurrió un error inesperado, intenta de nuevo más tarde"},
             status=500,
@@ -631,8 +688,28 @@ async def _session_logged_in(session) -> bool:
         return False
     sid = session.get("sid")
     if sid and await is_session_revoked(sid):
+        obs_hooks.security("auth.session_revoked", user_id=session.get("user_id"))
         return False
     return True
+
+
+async def _note_permission_denied(
+    request: web.Request, guild_id: int | None, reason: str
+) -> None:
+    """permission.denied; best-effort (los tests usan requests falsos)."""
+    try:
+        session = await get_session(request)
+        obs_hooks.security(
+            "permission.denied",
+            guild_id=guild_id,
+            user_id=session.get("user_id"),
+            endpoint=_route_label(request),
+            method=request.method,
+            reason=reason,
+            source_id=obs_events.source_id(_client_ip(request)),
+        )
+    except Exception:
+        pass
 
 
 async def check_guild_access(
@@ -645,6 +722,7 @@ async def check_guild_access(
             {"error": "sesión expirada, inicia sesión de nuevo"}, status=401
         )
     if not any(int(g["id"]) == guild_id for g in manage):
+        await _note_permission_denied(request, guild_id, "not_guild_manager")
         return web.json_response({"error": "acceso denegado"}, status=403)
     return None
 
@@ -945,6 +1023,27 @@ async def _reject_gestor_hidden_channel(
     return None
 
 
+# Acciones del dashboard que además se emiten como evento de seguridad: las
+# que cambian quién puede administrar, borran datos o mandan mensajes en
+# nombre del bot. El resto queda solo en audit_log.
+_SENSITIVE_AUDIT_ACTIONS = frozenset(
+    {
+        "corpus.amnesia",
+        "manager_role.set",
+        "manager_role.clear",
+        "prefix.set",
+        "prefix.reset",
+        "exempt_roles.add",
+        "exempt_roles.remove",
+        "excluded_users.add",
+        "excluded_users.remove",
+        "updates_channel.set",
+        "embeds.send",
+        "embeds.schedule",
+    }
+)
+
+
 async def _log_audit(
     request: web.Request,
     guild_id: int,
@@ -968,10 +1067,87 @@ async def _log_audit(
         detail,
         previous_detail,
     )
+    if action in _SENSITIVE_AUDIT_ACTIONS:
+        # Solo la acción: el detalle puede traer texto del usuario.
+        obs_hooks.security(
+            "security.admin_action",
+            guild_id=guild_id,
+            user_id=session["user_id"],
+            action=action,
+        )
 
 
 async def _api_health(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
+
+
+# ---------------- Observabilidad: readiness, details, metrics, alertas ----------------
+# /health (liveness) NO cambia. Lo de abajo es nuevo y nginx NO lo publica
+# (solo `location = /health`): se consulta directo en 127.0.0.1 -- collector
+# local, SSH o Tailscale. /health/ready es sin token y devuelve lo mínimo;
+# el resto exige OBSERVABILITY_TOKEN (sin token configurado = 404).
+
+
+async def _db_ping() -> None:
+    db = await get_db()
+    async with db.execute("SELECT 1") as cur:
+        await cur.fetchone()
+
+
+async def _api_health_ready(request: web.Request) -> web.Response:
+    result = await obs_runtime.readiness(request.app["bot"], _db_ping)
+    return web.json_response(
+        {"ready": result["ready"]}, status=200 if result["ready"] else 503
+    )
+
+
+def _internal_gate(request: web.Request) -> web.Response | None:
+    verdict = obs_runtime.internal_access(request.headers, OBSERVABILITY_TOKEN)
+    if verdict in ("disabled", "proxied"):
+        return web.json_response({"error": "no encontrado"}, status=404)
+    if verdict == "denied":
+        obs_hooks.security(
+            "permission.denied",
+            endpoint=_route_label(request),
+            reason="observability_token_invalid",
+            source_id=obs_events.source_id(_client_ip(request)),
+        )
+        return web.json_response({"error": "no autorizado"}, status=401)
+    return None
+
+
+async def _api_health_details(request: web.Request) -> web.Response:
+    if (blocked := _internal_gate(request)) is not None:
+        return blocked
+    bot = request.app["bot"]
+    ready = await obs_runtime.readiness(bot, _db_ping)
+    return web.json_response(obs_runtime.details(bot, ready))
+
+
+async def _api_metrics(request: web.Request) -> web.Response:
+    if (blocked := _internal_gate(request)) is not None:
+        return blocked
+    from observability import service_state
+
+    engine = obs_rules.get()
+    obs_metrics.refresh_gauges(
+        bot=request.app["bot"],
+        state=service_state.get(),
+        alerts_open=engine.store.open_count() if engine else 0,
+    )
+    body, content_type = obs_metrics.render()
+    return web.Response(body=body, headers={"Content-Type": content_type})
+
+
+async def _api_internal_alerts(request: web.Request) -> web.Response:
+    if (blocked := _internal_gate(request)) is not None:
+        return blocked
+    status = request.query.get("status")
+    if status is not None and status not in obs_rules.STATUSES:
+        return web.json_response({"error": "status inválido"}, status=400)
+    engine = obs_rules.get()
+    alerts = engine.store.list(status) if engine else []
+    return web.json_response({"alerts": alerts})
 
 
 # ---------------- API: estado público (/es/estado, sin login) ----------------
@@ -1035,11 +1211,41 @@ async def _api_status_guild(request: web.Request) -> web.Response:
     )
 
 
+_rate_bucket_names: dict[int, str] = {}
+# (bucket, clave) -> último evento emitido: un cliente bloqueado reintentando
+# en loop no debe generar un evento por request.
+_rate_event_last: LRUDict = LRUDict(512)
+_RATE_EVENT_MIN_INTERVAL = 10.0
+
+
+def _note_rate_limited(store: LRUDict, key: str) -> None:
+    """Emite rate_limit.triggered (con throttle). Nunca propaga."""
+    try:
+        if not _rate_bucket_names:
+            for name, value in globals().items():
+                if name.startswith("_rate_") and isinstance(value, LRUDict):
+                    _rate_bucket_names[id(value)] = name[len("_rate_") :]
+        bucket = _rate_bucket_names.get(id(store), "unknown")
+        now = time.monotonic()
+        last = _rate_event_last.get((bucket, key))
+        if last is not None and now - last < _RATE_EVENT_MIN_INTERVAL:
+            return
+        _rate_event_last[(bucket, key)] = now
+        obs_hooks.security(
+            "rate_limit.triggered",
+            bucket=bucket,
+            source_id=obs_events.source_id(str(key)),
+        )
+    except Exception:
+        pass
+
+
 def _rate_ok(store: LRUDict, ip: str, limit: int, window: float = 60.0) -> bool:
     now = time.monotonic()
     ts = [t for t in store.get(ip, []) if now - t < window]
     if len(ts) >= limit:
         store[ip] = ts
+        _note_rate_limited(store, ip)
         return False
     ts.append(now)
     store[ip] = ts
@@ -5824,6 +6030,16 @@ async def _auth_login(request: web.Request) -> web.StreamResponse:
     raise web.HTTPFound(f"https://discord.com/oauth2/authorize?{params}")
 
 
+def _login_failed(request: web.Request, reason: str, **extra) -> None:
+    obs_hooks.security(
+        "auth.login_failure",
+        reason=reason,
+        result="failure",
+        source_id=obs_events.source_id(_client_ip(request)),
+        **extra,
+    )
+
+
 async def _auth_callback(request: web.Request) -> web.StreamResponse:
     if not _rate_ok(_rate_auth_callback, _client_ip(request), 10):
         raise web.HTTPFound("/auth/error")
@@ -5831,6 +6047,7 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     code = request.query.get("code")
     state = request.query.get("state")
     if not code or not state or state != session.pop("oauth_state", None):
+        _login_failed(request, "oauth_state_invalid")
         raise web.HTTPFound("/auth/error")
 
     try:
@@ -5847,6 +6064,7 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
             },
         ) as r:
             if r.status != 200:
+                _login_failed(request, "token_exchange_failed", http_status=r.status)
                 raise web.HTTPFound("/auth/error")
             access = (await r.json()).get("access_token")
 
@@ -5855,6 +6073,9 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
             f"{_DISCORD_API}/users/@me", headers={"Authorization": f"Bearer {access}"}
         ) as r:
             if r.status != 200:
+                _login_failed(
+                    request, "discord_user_fetch_failed", http_status=r.status
+                )
                 raise web.HTTPFound("/auth/error")
             user = await r.json()
 
@@ -5864,14 +6085,19 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
             headers={"Authorization": f"Bearer {access}"},
         ) as r:
             if r.status != 200:
+                _login_failed(
+                    request, "discord_guilds_fetch_failed", http_status=r.status
+                )
                 raise web.HTTPFound("/auth/error")
             user_guilds = await r.json()
     except (aiohttp.ClientError, asyncio.TimeoutError):
         log.exception("Fallo llamando a la API de Discord en el callback OAuth2")
+        _login_failed(request, "discord_api_unreachable")
         raise web.HTTPFound("/auth/error")
 
     manage = _filter_manage_guilds(user_guilds)
     if not manage:
+        _login_failed(request, "no_manageable_guilds", user_id=user.get("id"))
         raise web.HTTPFound("/auth/error?reason=no_guilds")
 
     session["user_id"] = user["id"]
@@ -5888,6 +6114,7 @@ async def _auth_callback(request: web.Request) -> web.StreamResponse:
     _user_guilds_cache[user["id"]] = (time.monotonic() + _GUILDS_CACHE_TTL, manage)
     # Si llegó desde el selector de Premium o una página previa, vuelve a su destino con
     # el idioma preservado. Cualquier otro login vuelve a /perfil/servidores.
+    obs_hooks.security("auth.login_success", user_id=user["id"], result="ok")
     raise web.HTTPFound(session.pop("auth_return_to", "/es/perfil/servidores"))
 
 
@@ -5926,6 +6153,7 @@ async def _auth_logout(request: web.Request) -> web.StreamResponse:
     sid = session.get("sid")
     if sid:
         await revoke_session(sid)
+        obs_hooks.security("auth.logout", user_id=session.get("user_id"))
     access_token = session.get("access_token")
     if access_token:
         await _revoke_discord_token(request, access_token)
@@ -6284,6 +6512,11 @@ async def _webhook_polar(request: web.Request) -> web.Response:
         log.error(
             "Webhook de Polar recibido pero POLAR_WEBHOOK_SECRET no está configurado"
         )
+        obs_hooks.security(
+            "webhook.rejected",
+            endpoint="/webhooks/polar",
+            reason="secret_not_configured",
+        )
         return web.json_response({"error": "webhook no configurado"}, status=503)
     # Generoso a propósito (ver _rate_webhook_polar): esto es un backstop
     # contra flood, no un límite funcional -- Polar no debería tropezar con él.
@@ -6303,6 +6536,11 @@ async def _webhook_polar(request: web.Request) -> web.Response:
             "Webhook de Polar con firma inválida desde %s "
             "(¿ataque o POLAR_WEBHOOK_SECRET mal configurado?)",
             _client_ip(request),
+        )
+        obs_hooks.security(
+            "webhook.signature_invalid",
+            endpoint="/webhooks/polar",
+            source_id=obs_events.source_id(_client_ip(request)),
         )
         return web.json_response({"error": "firma inválida"}, status=403)
     except WebhookUnknownTypeError:
@@ -6332,6 +6570,9 @@ async def _webhook_polar(request: web.Request) -> web.Response:
             log.exception(
                 "Webhook de Polar de tipo no modelado con payload inesperado (firma OK)"
             )
+            obs_hooks.security(
+                "webhook.rejected", endpoint="/webhooks/polar", reason="payload_invalid"
+            )
             return web.json_response({"error": "payload inválido"}, status=400)
     except Exception:
         # Firma válida (o el body ni llegó a esa altura) pero el payload no
@@ -6342,6 +6583,9 @@ async def _webhook_polar(request: web.Request) -> web.Response:
         # vez de un 4xx -- y un 500 hace que Polar reintente contra algo que
         # nunca se va a resolver solo, agotando sus reintentos en vano.
         log.exception("Webhook de Polar con payload inesperado (firma OK)")
+        obs_hooks.security(
+            "webhook.rejected", endpoint="/webhooks/polar", reason="payload_invalid"
+        )
         return web.json_response({"error": "payload inválido"}, status=400)
 
     # subscription.created con status "trialing" = arrancó un free trial:
@@ -6494,6 +6738,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         return
     app = web.Application(
         middlewares=[
+            _observability_middleware,
             _security_headers_middleware,
             _cors_middleware,
             _csrf_origin_middleware,
@@ -6504,6 +6749,10 @@ async def start_web_server(bot: commands.Bot) -> None:
     # Sesión HTTP compartida para llamadas a la API de Discord, con timeout global.
     app["http"] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
     app.router.add_get("/health", _api_health)
+    app.router.add_get("/health/ready", _api_health_ready)
+    app.router.add_get("/health/details", _api_health_details)
+    app.router.add_get("/metrics", _api_metrics)
+    app.router.add_get("/internal/alerts", _api_internal_alerts)
     # Fuera del bloque DASHBOARD_ENABLED: Polar le pega sin sesión OAuth
     # y el premium debe poder activarse aunque la auth esté apagada.
     app.router.add_post("/webhooks/polar", _webhook_polar)

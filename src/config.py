@@ -194,6 +194,11 @@ SUPPORT_URL = os.getenv("SUPPORT_URL", "https://purgito.app").rstrip("/")
 DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/es/documentacion").rstrip("/")
 REPO_URL = os.getenv("REPO_URL", "https://github.com/Purgito/purgito-bot").rstrip("/")
 
+# --- Observabilidad (docs/OBSERVABILITY.md) ---
+# Bearer para /metrics, /health/details e /internal/*. Vacío = esos endpoints
+# no existen (404). /health y /health/ready no lo necesitan.
+OBSERVABILITY_TOKEN = _env_compact("OBSERVABILITY_TOKEN")
+
 # --- Polar.sh (compra de premium) ---
 POLAR_ACCESS_TOKEN = _env_compact("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = _env_compact("POLAR_WEBHOOK_SECRET")

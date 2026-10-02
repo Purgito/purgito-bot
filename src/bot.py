@@ -10,7 +10,6 @@ import os
 import signal
 import sys
 from datetime import datetime, timezone
-from logging.handlers import RotatingFileHandler
 
 import discord
 from discord.ext import commands
@@ -19,6 +18,11 @@ import config  # ejecuta load_dotenv() al importarse
 import i18n
 import r2
 import webapi
+from observability import events as obs_events
+from observability import hooks as obs_hooks
+from observability import logging_setup as obs_logging
+from observability import runtime as obs_runtime
+from observability import service_state as obs_state
 from db import (
     DEFAULT_COMMAND_PREFIX,
     close_db,
@@ -28,21 +32,11 @@ from db import (
     set_lifecycle_state,
 )
 
-# Configurar logging
+# Configurar logging (texto legible + redacción de secretos; los JSONL de
+# eventos se activan en _main, ver observability/runtime.py)
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_LOG_PATH = os.path.join(_BASE_DIR, "data", "bot.log")
-os.makedirs(os.path.dirname(_LOG_PATH), exist_ok=True)
-
-_fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
-_fh = RotatingFileHandler(
-    _LOG_PATH, maxBytes=5_000_000, backupCount=3, encoding="utf-8"
-)
-_fh.setFormatter(_fmt)
-_sh = logging.StreamHandler()
-_sh.setFormatter(_fmt)
-logging.basicConfig(level=logging.INFO, handlers=[_fh, _sh])
-logging.getLogger("discord").setLevel(logging.WARNING)
-logging.getLogger("discord.http").setLevel(logging.WARNING)
+_DATA_DIR = os.path.join(_BASE_DIR, "data")
+obs_logging.setup_text_logging(_DATA_DIR)
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +67,11 @@ intents.members = True
 
 class PurgitoBot(commands.Bot):
     async def setup_hook(self) -> None:
-        await init_db()
+        try:
+            await init_db()
+        except Exception as exc:
+            obs_hooks.db_connection_failed(exc, "init_db")
+            raise
         await self.tree.set_translator(i18n.CommandTranslator())
         for extension in EXTENSIONS:
             await self.load_extension(extension)
@@ -84,6 +82,7 @@ class PurgitoBot(commands.Bot):
         log.info("Cerrando conexión a la base de datos...")
         await close_db()
         await super().close()
+        _mark_stopped()
 
 
 async def get_prefix(_bot: commands.Bot, message: discord.Message) -> list[str]:
@@ -114,6 +113,19 @@ bot.remove_command("help")
 
 
 _commands_synced = False
+
+
+def _mark_stopped() -> None:
+    """Cierre limpio en el archivo de estado -- SOLO si el apagado fue
+    intencional (SIGTERM/SIGINT). Un close() por error fatal no lo marca, así
+    el próximo arranque lo detecta como caída."""
+    if not _shutdown_in_progress:
+        return
+    state = obs_state.get()
+    if state is not None:
+        state.stop_heartbeat()
+        state.set_state("stopped")
+    obs_events.log_event("service.stopped")
 
 
 def _format_downtime(since_iso: str) -> str:
@@ -191,6 +203,7 @@ async def _report_lifecycle() -> None:
 
 
 _shutdown_in_progress = False
+_previous_run: dict = {}
 
 
 async def _handle_shutdown_signal(sig: signal.Signals) -> None:
@@ -202,6 +215,10 @@ async def _handle_shutdown_signal(sig: signal.Signals) -> None:
         return
     _shutdown_in_progress = True
     log.info("Señal %s recibida: apagado intencional", sig.name)
+    obs_events.log_event("service.stopping", signal=sig.name)
+    state = obs_state.get()
+    if state is not None:
+        state.set_state("stopping")
 
     try:
         await set_lifecycle_state(clean_shutdown=True)
@@ -261,6 +278,7 @@ async def on_ready():
             log.exception("Error en la sincronización de comandos")
 
     log.info("Bot listo como %s", bot.user)
+    obs_events.log_event("discord.ready", guilds=len(bot.guilds))
 
     # Después de on_ready los guilds ya están cacheados; start_web_server es
     # idempotente, así que reconexiones (on_ready repetido) no lo duplican.
@@ -270,12 +288,38 @@ async def on_ready():
         log.exception("Error iniciando el servidor web")
 
     await _report_lifecycle()
+    _announce_started_once()
+
+
+_started_announced = False
+
+
+def _announce_started_once() -> None:
+    """service.started: una vez por proceso, cuando ya está todo arriba."""
+    global _started_announced
+    if _started_announced:
+        return
+    _started_announced = True
+    state = obs_state.get()
+    if state is not None:
+        state.set_state("running")
+    obs_runtime.announce_start(_previous_run)
+
+
+@bot.event
+async def on_disconnect():
+    obs_events.log_event("discord.disconnected")
 
 
 async def _main() -> None:
     # Los handlers de SIGTERM/SIGINT se registran ANTES de arrancar el bot:
     # si la señal llega apenas conectado (o incluso antes), igual se marca
     # clean_shutdown y se intenta cerrar en vez de morir sin avisar.
+    global _previous_run
+    _previous_run = obs_runtime.init(_DATA_DIR)
+    state = obs_state.get()
+    if state is not None:
+        state.start_heartbeat()
     loop = asyncio.get_running_loop()
     _register_shutdown_handlers(loop)
     async with bot:
