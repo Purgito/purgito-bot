@@ -139,6 +139,98 @@ No es tracing distribuido.
 `source_id` identifica un origen sin guardar su IP: HMAC-SHA256 truncado
 (12 hex) con `SESSION_SECRET`. Estable y no reversible.
 
+## Monitor externo en Railway (IMPLEMENTADO en Purgito; el receptor es otro repo)
+
+`src/observability/monitor.py`. Purgito **empuja** heartbeat y eventos al servicio
+`Purgito/purgito-monitor`, y Railway **sondea** `GET /health`. Nada más:
+
+```
+Purgito VM
+   |
+   +--> POST /v1/heartbeat ---> Railway   (cada 30 s)
+   +--> POST /v1/events ------> Railway   (solo eventos importantes)
+   <--- GET /health ----------- Railway   (sondeo del monitor)
+```
+
+- **Railway es externo y no depende de Purgito.** Si Purgito muere, el monitor lo ve porque `/health` deja de responder y los heartbeats dejan de llegar; si muere todo el VM, igual: ambas señales se cortan.
+- **Purgito no depende de Railway.** Sin configuración, o con Railway caído, funciona igual: el envío corre en dos tareas de fondo propias; `on_event`/`enqueue` solo agregan a una cola en memoria, nunca esperan red.
+- **Esta dirección es la única.** Purgito no recibe ni ejecuta nada que venga del monitor (la respuesta HTTP solo se mira por su status; no se siguen redirects). Ejecución remota queda para una fase futura de runbooks.
+
+### Configuración
+
+| Variable | Valor |
+|---|---|
+| `MONITOR_ENABLED` | `true` para activar (default `false`) |
+| `MONITOR_BASE_URL` | `https://…` (`http://` solo a loopback) |
+| `MONITOR_NODE_ID` | estable, `[A-Za-z0-9._-]{1,64}`, p. ej. `purgito-prod-01`. No se usa el hostname: cambia al migrar de servidor |
+| `MONITOR_SHARED_SECRET` | secreto compartido (nunca se loguea; se redacta como el resto) |
+| `MONITOR_HEARTBEAT_INTERVAL` | segundos, default 30, mínimo 10 |
+
+Si falta algo o es inválido, el monitor se desactiva con un WARNING (sin el secreto) y el bot arranca normal.
+
+### Autenticación (HMAC-SHA256)
+
+Cada request lleva `X-Purgito-Timestamp` (unix, segundos) y
+`X-Purgito-Signature: sha256=<hex>`, con
+`hex = HMAC_SHA256(secret, timestamp + "." + body_bytes)`. El receptor debe:
+
+1. rechazar (401) si faltan cabeceras, la firma no coincide (comparación en tiempo constante) o `|now − timestamp| > 300 s`;
+2. verificar sobre los **bytes crudos** del body, antes de parsear;
+3. deduplicar por `event_id` (eventos) y, opcionalmente, recordar las firmas vistas durante la ventana de 300 s para rechazar repeticiones exactas.
+
+La referencia es `monitor.verify_signature()` (es la que usan los tests como receptor falso). No hay Bearer estático.
+
+### Heartbeat — `POST /v1/heartbeat`
+
+```json
+{"node_id": "purgito-prod-01", "timestamp": "2026-10-02T18:00:00.000Z",
+ "started_at": "2026-10-02T17:00:00Z", "uptime_seconds": 3600,
+ "service": "purgito", "status": "up",
+ "discord_latency_ms": 42, "postgres_status": "ok", "postgres_latency_ms": 3,
+ "memory_rss_bytes": 115000000, "disk_free_bytes": 2100000000, "version": "abc1234"}
+```
+
+Los seis primeros campos son fijos; el resto es opcional. `postgres_status` sale de un `SELECT 1` con timeout de 1 s (`ok`/`down`). Sin tokens, cookies, corpus, mensajes ni nombres. Se empieza a emitir cuando el bot ya terminó de arrancar. Si hay fallos, el intervalo crece con backoff.
+
+### Eventos — `POST /v1/events`
+
+```json
+{"event_id": "…", "node_id": "purgito-prod-01", "timestamp": "…",
+ "event_type": "service.restart", "severity": "warning", "service": "purgito",
+ "message": "…", "metadata": {}}
+```
+
+| Tipo | Origen |
+|---|---|
+| `service.started` | arranque tras cierre limpio (o primer arranque): `metadata.previous_shutdown` = `clean`\|`none` |
+| `service.restart` | arranque tras `previous_shutdown: "unexpected"`, `cause: "unknown"` |
+| `service.crash` | 3 o más arranques en la última hora (`restarts_1h`) |
+| `service.shutdown` | apagado intencional (SIGTERM/SIGINT) |
+| `database.failure` | `database.connection_failed` / `database.health_failed` (máx. 1 por minuto) |
+| `security.alert` | una regla de detección abrió una alerta |
+| `system.warning` | falló una tarea en segundo plano (máx. 1 cada 5 min) |
+
+**`previous_shutdown` sale de `lifecycle_state`** (PostgreSQL) y del `service_state.json`: si cualquiera dice que el proceso anterior no cerró limpio, es `unexpected`. Eso significa **solo** que el proceso anterior desapareció sin shutdown limpio; no se afirma ninguna causa (ni "PostgreSQL cayó"). No se mandan eventos por cada línea de log. `user_id`/`guild_id`/`channel_id`/`source_id` no viajan.
+
+`event_id` es estable entre reintentos y se deduplica también localmente.
+
+### Si el monitor no responde
+
+- Timeouts: 2 s conexión, 3 s total; sin redirects.
+- Un fallo se loguea **una vez** (`monitor unreachable …`, sin traceback) y luego como máximo cada 10 min; al volver, `monitor reachable again`.
+- Heartbeat: el siguiente intento espera `max(intervalo, 5 s·2ⁿ)`, tope 300 s. Eventos: backoff 5 s → 300 s; 5 intentos (críticos: 20) y se descartan.
+- Un 4xx (firma/`node_id` rechazados) no se reintenta y avisa de revisar la config.
+- **Outbox acotado:** en memoria hasta 100 eventos; los **críticos** (`service.restart`, `service.crash`, `database.failure`, `security.alert`, cualquier `error`) se persisten en `data/monitor/outbox.jsonl` (máx. 100 eventos y 256 KB; críticos expiran a 24 h, el resto a 10 min), sobreviven a un reinicio y se borran al confirmarse la entrega. Todo lo demás es **best-effort**: si el monitor está caído, se pierde.
+- Al apagar, se intenta entregar `service.shutdown` durante a lo sumo 2 s.
+
+### Métricas del monitor
+
+`purgito_monitor_last_success_timestamp`, `purgito_monitor_send_errors_total{kind=heartbeat|event}`, `purgito_monitor_events_sent_total`.
+
+### `/health`
+
+Sigue siendo el liveness público y barato: `{"ok": true, "status": "ok"}` con `Cache-Control: no-store`. `ok` se conserva por compatibilidad con consumidores existentes; `status` es el formato para el monitor. Sin datos sensibles ni consultas a la base.
+
 ## Heartbeat y estado del servicio (IMPLEMENTADO)
 
 `data/service_state.json`, reescrito de forma atómica cada 30 s por una tarea

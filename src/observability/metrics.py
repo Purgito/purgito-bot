@@ -100,6 +100,22 @@ EVENTS = Counter(
     ["event_type", "severity"],
     registry=REGISTRY,
 )
+MONITOR_LAST_SUCCESS = Gauge(
+    "purgito_monitor_last_success_timestamp",
+    "Unix time del último envío exitoso al monitor externo (0 = nunca)",
+    registry=REGISTRY,
+)
+MONITOR_SEND_ERRORS = Counter(
+    "purgito_monitor_send_errors_total",
+    "Envíos fallidos al monitor externo, por tipo (heartbeat/event)",
+    ["kind"],
+    registry=REGISTRY,
+)
+MONITOR_EVENTS_SENT = Counter(
+    "purgito_monitor_events_sent_total",
+    "Eventos entregados al monitor externo",
+    registry=REGISTRY,
+)
 ALERTS_OPEN = Gauge(
     "purgito_alerts_open", "Alertas de detección abiertas", registry=REGISTRY
 )

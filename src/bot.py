@@ -21,6 +21,7 @@ import webapi
 from observability import events as obs_events
 from observability import hooks as obs_hooks
 from observability import logging_setup as obs_logging
+from observability import monitor as obs_monitor
 from observability import runtime as obs_runtime
 from observability import service_state as obs_state
 from db import (
@@ -83,6 +84,9 @@ class PurgitoBot(commands.Bot):
         await close_db()
         await super().close()
         _mark_stopped()
+        client = obs_monitor.get()
+        if client is not None:
+            await client.stop()
 
 
 async def get_prefix(_bot: commands.Bot, message: discord.Message) -> list[str]:
@@ -188,6 +192,14 @@ async def _report_lifecycle() -> None:
         log.exception("No se pudo leer lifecycle_state")
         prev = None
 
+    global _previous_shutdown
+    if prev is not None:
+        _previous_shutdown = "clean" if prev["clean_shutdown"] else "unexpected"
+    elif _previous_run.get("had_previous"):
+        _previous_shutdown = "clean"
+    if _previous_run.get("crashed"):
+        _previous_shutdown = "unexpected"
+
     if prev is not None:
         downtime = _format_downtime(prev["updated_at"])
         if prev["clean_shutdown"]:
@@ -204,6 +216,7 @@ async def _report_lifecycle() -> None:
 
 _shutdown_in_progress = False
 _previous_run: dict = {}
+_previous_shutdown = "none"  # clean | unexpected | none (primer arranque)
 
 
 async def _handle_shutdown_signal(sig: signal.Signals) -> None:
@@ -228,6 +241,9 @@ async def _handle_shutdown_signal(sig: signal.Signals) -> None:
     await _send_lifecycle_notice(
         "🛑 Purgito se está apagando (parada/reinicio intencional)."
     )
+    client = obs_monitor.get()
+    if client is not None:
+        await client.flush(timeout=2.0)  # acotado: nunca traba el apagado
     await bot.close()
 
 
@@ -304,6 +320,30 @@ def _announce_started_once() -> None:
     if state is not None:
         state.set_state("running")
     obs_runtime.announce_start(_previous_run)
+    _start_monitor()
+
+
+def _start_monitor() -> None:
+    """Monitor externo (opcional). Cualquier fallo acá se traga: no puede
+    impedir que el bot arranque."""
+    try:
+        client = obs_monitor.from_config(
+            _DATA_DIR, bot=bot, db_ping=obs_monitor.default_db_ping
+        )
+        if client is None:
+            return
+        snap = obs_state.get().snapshot() if obs_state.get() else {}
+        client.started_at = snap.get("started_at") or client.started_at
+        client.version = obs_monitor.detect_version(_BASE_DIR)
+        client.announce_lifecycle(
+            _previous_shutdown,
+            last_seen_alive=_previous_run.get("last_heartbeat"),
+            restarts_1h=snap.get("restarts_1h", 0),
+        )
+        client.start()
+        log.info("Monitor externo activo (node_id=%s)", client.node_id)
+    except Exception:
+        log.warning("No se pudo iniciar el monitor externo", exc_info=True)
 
 
 @bot.event

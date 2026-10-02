@@ -86,7 +86,7 @@ def test_respuesta_trae_x_request_id_generado():
         return r.status, r.headers.get("X-Request-ID"), await r.json()
 
     status, rid, body = _run(go)
-    assert status == 200 and body == {"ok": True}  # /health no cambió
+    assert status == 200 and body == {"ok": True, "status": "ok"}  # liveness
     assert rid and len(rid) == 16
 
 

@@ -1078,7 +1078,11 @@ async def _log_audit(
 
 
 async def _api_health(request: web.Request) -> web.Response:
-    return web.json_response({"ok": True})
+    # "ok" se conserva por compatibilidad con consumidores existentes;
+    # "status" es el formato que espera el monitor externo.
+    return web.json_response(
+        {"ok": True, "status": "ok"}, headers={"Cache-Control": "no-store"}
+    )
 
 
 # ---------------- Observabilidad: readiness, details, metrics, alertas ----------------
