@@ -24,7 +24,7 @@ aiohttp-session[secure]==2.12.1
 # `pip install` nuevo resuelve la versión que sea que el extra permita en
 # ese momento en vez de la que se auditó.
 cryptography==50.0.2
-polar-sdk==0.31.7
+polar-sdk==1.0.2
 # Métricas Prometheus (/metrics, ver docs/OBSERVABILITY.md). Apache-2.0 +
 # BSD-2-Clause, Python puro sin dependencias propias, mantenida por el
 # proyecto Prometheus. Se usa su registro propio: no activa collectors de
