@@ -28,6 +28,7 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 5. [Servicios opcionales](#5-servicios-opcionales)
    - [Cloudflare R2 (imágenes, GIFs y backups)](#cloudflare-r2-imágenes-gifs-y-backups)
    - [Groq (captions de memes con IA)](#groq-captions-de-memes-con-ia)
+   - [cobalt (respaldo de `!dl`)](#cobalt-respaldo-de-dl)
 6. [Correr en desarrollo](#6-correr-en-desarrollo)
 7. [Deploy en producción](#7-deploy-en-producción)
    - [Paquetes del sistema](#paquetes-del-sistema)
@@ -427,6 +428,75 @@ Crear y configurar:
 3. Copia la key → `GROQ_API_KEY` en `.env`
 
 El bot usa `meta-llama/llama-4-scout-17b-16e-instruct` para analizar imágenes. Si la key no está o Groq falla, hace fallback automático a Markov.
+
+### cobalt (respaldo de `!dl`)
+
+[cobalt](https://github.com/imputnet/cobalt) es un servicio que descarga videos
+de varias plataformas. `!dl` / `/dl` baja todo con yt-dlp; si yt-dlp falla con un
+link y hay una instancia de cobalt configurada, `!dl` lo intenta ahí antes de
+rendirse. Es **opcional**: sin `COBALT_API_URL` el bot no cambia en nada.
+
+**Tiene que ser tu propia instancia.** La pública (`api.cobalt.tools`) tiene
+protección anti-bots y la documentación de cobalt pide permiso explícito para
+usarla en otros proyectos, así que el bot no puede apuntar ahí. cobalt es AGPL-3.0:
+corriéndolo sin modificar y hablándole por HTTP, la licencia no alcanza al código
+de este repo.
+
+Qué hace y qué no:
+
+- Los links tienen que pasar igual la lista de sitios de `cogs/download.py`
+  (`_ALLOWED_HOSTS`): cobalt no suma plataformas, es un segundo motor para las
+  mismas.
+- Pide 720p y respeta el mismo tope de tamaño que yt-dlp (`MAX_DL_VIDEO_BYTES` y
+  el límite del servidor de Discord).
+- **No marca contenido sensible.** El filtro que solo sube a canales NSFW los
+  videos marcados +18 se basa en el `age_limit` de yt-dlp, y cobalt no informa
+  nada equivalente: un video que llega por cobalt se sube en cualquier canal.
+- El archivo siempre se baja de `COBALT_API_URL`, no del host que cobalt escriba
+  en su respuesta. Las URLs de terceros que pudiera devolver pasan por el mismo
+  filtro SSRF que usa `r2.py`.
+
+Instalar en el servidor (el resto de este repo no usa Docker; esto es lo único
+que lo necesita):
+
+1. Instalar Docker y el plugin de Compose. **[Ubuntu 24.04]**
+   `sudo apt install docker.io docker-compose-v2`. En otras versiones de
+   Ubuntu/Debian y en **[Oracle Linux]**, usar el repositorio oficial de Docker
+   (`docker-ce`) o podman.
+2. Crear `~/cobalt/docker-compose.yml`:
+
+   ```yaml
+   services:
+     cobalt:
+       image: ghcr.io/imputnet/cobalt:11
+       init: true
+       read_only: true
+       restart: unless-stopped
+       container_name: cobalt
+       ports:
+         # Solo loopback: no hay location de nginx ni nada que abrir al exterior.
+         - 127.0.0.1:9000:9000
+       environment:
+         API_URL: "http://127.0.0.1:9000/"
+   ```
+
+3. `cd ~/cobalt && docker compose up -d`.
+4. Comprobar que responde: `curl -s http://127.0.0.1:9000/` devuelve un JSON con
+   la información de la instancia.
+5. En `.env`: `COBALT_API_URL=http://127.0.0.1:9000` y reiniciar el bot
+   (`sudo systemctl restart bot-purg`).
+
+Como solo escucha en loopback no hace falta autenticación. `COBALT_API_KEY` es
+para el caso de una instancia en otra máquina con `API_AUTH_REQUIRED=1`.
+
+Mantenerla al día importa: los sitios cambian seguido y los arreglos de cobalt
+salen a la imagen. Actualizar a mano con
+`cd ~/cobalt && docker compose pull && docker compose up -d` (el ejemplo oficial
+automatiza esto con Watchtower, que necesita acceso al socket de Docker).
+
+Cuando el respaldo se usa, queda en el log del bot (`journalctl -u bot-purg |
+grep -i cobalt`): `yt-dlp falló con un link de <host>, probando con cobalt`, y si
+cobalt tampoco pudo, el motivo.
 
 ---
 
@@ -1133,6 +1203,7 @@ dumps locales ocupan ~60 MB y `pg_wal` puede llegar a 1 GB.
 | GIFs de Discord CDN no se suben a R2 | Faltan `R2_ENDPOINT_URL`/credenciales, o `R2_GIFS_BUCKET`/`R2_GIFS_PUBLIC_URL` | Completarlas en `.env` y reiniciar; el log de arranque dice cuál falta |
 | Las imágenes se guardan con su URL de Discord | Falta `R2_IMAGES_BUCKET` o `R2_IMAGES_PUBLIC_URL` | Completarlas en `.env` y reiniciar |
 | `backup_db.sh` sale con error "NO subió a R2" | `R2_BACKUP_BUCKET` está definida pero la subida falló (token sin acceso al bucket de backups, bucket inexistente, sin red) | Leer el error de arriba; `python scripts/r2_backup.py list` prueba el acceso. El backup local se conserva y no se poda nada |
+| `!dl` falla y en el log aparece "cobalt tampoco pudo bajar el video" | La instancia de cobalt está caída o sin actualizar, o `COBALT_API_URL` apunta a otro puerto/host | `docker ps` + `curl -s http://127.0.0.1:9000/`; `docker compose pull && docker compose up -d`. Si el motivo del log es HTTP 401/429, revisar `COBALT_API_KEY` / el rate limit de la instancia |
 | La galería o el panel no cargan | nginx caído o DNS sin propagar | `systemctl status nginx` + verificar DNS |
 | Dashboard da 404 al loguearse, o `/es/dashboard/*` no responde | Faltan `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`/`SESSION_SECRET` en `.env` -- el bot arranca igual, sin error visible | `journalctl -u bot-purg \| grep -i "Dashboard deshabilitado"` para confirmar; completar las tres variables (ver sección 4) y reiniciar |
 | `.env` "no tiene efecto" / bot no arranca con error de parseo raro | `.env` es un directorio, no un archivo (`mkdir` accidental en vez de `cp`) | `test -f .env`; si falla, `rmdir .env && cp .env.example .env` |
