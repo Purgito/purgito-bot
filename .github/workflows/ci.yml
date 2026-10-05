@@ -89,7 +89,11 @@ jobs:
         run: |
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y --no-install-recommends postgresql-client-18
-          pg_dump --version
+          # El wrapper de postgresql-common sigue resolviendo pg_restore a la 16
+          # (hacía dump con la 18 y leerlo con la 16 falla: "unsupported
+          # version (1.16)"): la 18 va primero en el PATH de los pasos siguientes.
+          echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+          /usr/lib/postgresql/18/bin/pg_dump --version
 
       # age: los tests de backup_db.sh comprueban el cifrado de los backups.
       - name: Install age
@@ -166,6 +170,8 @@ jobs:
         run: |
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y --no-install-recommends postgresql-client-18
+          # Ver el comentario del job tests: la 18 primero en el PATH.
+          echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
 
       - name: Install age
         run: sudo apt-get install -y --no-install-recommends age

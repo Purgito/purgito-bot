@@ -11,7 +11,7 @@ import pytest
 
 from observability import events, logging_setup, redaction
 
-SECRET_VALUES = {
+VALORES_FICTICIOS = {
     "DISCORD_TOKEN": "MTIzNDU2Nzg5MDEyMzQ1Njc4.GabcDE.abcdefghijklmnopqrstuvwxyz123456",
     "POLAR_ACCESS_TOKEN": "polar_oat_ZZZZsupersecretvalue0001",
     "SESSION_SECRET": "session-secret-value-xyz-0002",
@@ -32,10 +32,10 @@ def _clean_events(monkeypatch):
 
 
 @pytest.fixture
-def secrets_env(monkeypatch):
-    for k, v in SECRET_VALUES.items():
+def env_ficticio(monkeypatch):
+    for k, v in VALORES_FICTICIOS.items():
         monkeypatch.setenv(k, v)
-    return SECRET_VALUES
+    return VALORES_FICTICIOS
 
 
 @pytest.fixture
@@ -209,45 +209,45 @@ def test_linea_legible_para_journald(event_files, caplog):
 # ---------------- Redacción de secretos ----------------
 
 
-def test_secretos_conocidos_no_aparecen_en_el_evento(secrets_env, event_files):
-    leak = " ".join(secrets_env.values())
+def test_secretos_conocidos_no_aparecen_en_el_evento(env_ficticio, event_files):
+    leak = " ".join(env_ficticio.values())
     events.log_event(
         "database.connection_failed",
         message=f"fallo con {leak}",
-        reason=f"dsn={secrets_env['DATABASE_URL']}",
-        detalle={"anidado": secrets_env["POLAR_ACCESS_TOKEN"]},
-        lista=[secrets_env["SESSION_SECRET"]],
+        reason=f"dsn={env_ficticio['DATABASE_URL']}",
+        detalle={"anidado": env_ficticio["POLAR_ACCESS_TOKEN"]},
+        lista=[env_ficticio["SESSION_SECRET"]],
     )
     blob = (event_files / "events.jsonl").read_text()
-    for value in secrets_env.values():
+    for value in env_ficticio.values():
         assert value not in blob
     assert "pgpassword0004" not in blob
     assert redaction.REDACTED in blob
 
 
-def test_secretos_no_aparecen_en_los_logs_de_texto(secrets_env, caplog):
+def test_secretos_no_aparecen_en_los_logs_de_texto(env_ficticio, caplog):
     """RedactingFormatter: mensaje y traceback pasan por scrub."""
     fmt = redaction.RedactingFormatter(logging_setup.TEXT_FORMAT)
     try:
-        raise RuntimeError(f"auth falló con {secrets_env['DISCORD_TOKEN']}")
+        raise RuntimeError(f"auth falló con {env_ficticio['DISCORD_TOKEN']}")
     except RuntimeError:
         rec = logging.LogRecord(
             "x",
             logging.ERROR,
             __file__,
             1,
-            f"url {secrets_env['DATABASE_URL']} y {secrets_env['POLAR_WEBHOOK_SECRET']}",
+            f"url {env_ficticio['DATABASE_URL']} y {env_ficticio['POLAR_WEBHOOK_SECRET']}",
             None,
             __import__("sys").exc_info(),
         )
     out = fmt.format(rec)
-    for value in secrets_env.values():
+    for value in env_ficticio.values():
         assert value not in out
     assert "pgpassword0004" not in out
     assert "Traceback" in out  # el traceback sigue estando, sin el secreto
 
 
-def test_claves_sensibles_y_contenido_se_descartan(secrets_env):
+def test_claves_sensibles_y_contenido_se_descartan(env_ficticio):
     e = events.log_event(
         "webhook.rejected",
         password="hunter2hunter2",
@@ -295,12 +295,12 @@ def test_valores_cortos_no_redactan_medio_log(monkeypatch):
     assert redaction.scrub("el dev server en modo dev") == "el dev server en modo dev"
 
 
-def test_traceback_formateado_no_filtra_el_secreto(secrets_env):
+def test_traceback_formateado_no_filtra_el_secreto(env_ficticio):
     try:
-        raise ValueError(secrets_env["SESSION_SECRET"])
+        raise ValueError(env_ficticio["SESSION_SECRET"])
     except ValueError:
         tb = traceback.format_exc()
-    assert secrets_env["SESSION_SECRET"] not in redaction.scrub(tb)
+    assert env_ficticio["SESSION_SECRET"] not in redaction.scrub(tb)
 
 
 # ---------------- Correlation ids ----------------

@@ -15,3 +15,12 @@ de cliente OAuth.
 paths = [
   '''^referencias/''',
 ]
+# Valores inventados de los tests y la documentación de observabilidad (ver
+# tests/test_obs_events.py y docs/SECURITY_EVENTS.md): ejercitan la redacción
+# de secretos, no son credenciales. Se permiten por valor y no por fingerprint
+# porque el fingerprint incluye el hash del commit y no sobrevive a un squash.
+regexes = [
+  '''^unsecreto-largo-1$''',
+  '''^abcdef0123456789$''',
+  '''^ab12cd34ef56$''',
+]
