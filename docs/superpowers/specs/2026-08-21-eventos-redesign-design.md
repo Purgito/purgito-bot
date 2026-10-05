@@ -1,3 +1,5 @@
+> **Estado (verificado 2026-10-02): NO IMPLEMENTADO.** `landing/js/tabs/eventos.js` no usa el selector Texto | Embed ni `format`; las clases `.event-mode-pills`/`.mode-pill` existen en `dash.css` pero solo las usan Anuncios y Plantillas. Spec vigente como propuesta de producto; no es un documento histórico.
+
 # Rediseño UX/UI de Bienvenidas / Despedidas / Boosts
 
 ## Alcance

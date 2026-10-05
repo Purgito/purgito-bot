@@ -1,8 +1,8 @@
 <h1>Architecture</h1>
-<p>Purgito is designed as a three-tier system converging on a single Python process and an embedded SQLite relational database: the Discord bot (discord.py), an asynchronous JSON API (aiohttp), and an optimized static frontend served by nginx.</p>
+<p>Purgito is designed as a three-tier system converging on a single Python process and a local PostgreSQL relational database: the Discord bot (discord.py), an asynchronous JSON API (aiohttp), and an optimized static frontend served by nginx.</p>
 
 <h2 id="overview">Overview</h2>
-<p>The bot runs as a single Python 3.11+ process managed by systemd. It maintains a persistent WebSocket connection to the Discord Gateway, executes the Markov chain generation engine, and performs read/write operations against <code>data/bot.db</code>.</p>
+<p>The bot runs as a single Python 3.11+ process managed by systemd. It maintains a persistent WebSocket connection to the Discord Gateway, executes the Markov chain generation engine, and performs read/write operations against PostgreSQL.</p>
 <p>Within the same <em>asyncio event loop</em>, an aiohttp web server (<code>src/webapi.py</code>) is spawned, exposing a pure JSON REST API bound strictly to <code>127.0.0.1:WEB_PORT</code> (local loopback). This API never renders HTML nor serves static assets directly.</p>
 <p>Nginx acts as the host reverse proxy: it forwards dynamic requests (<code>/auth/*</code>, <code>/api/*</code>, <code>/webhooks/*</code>, and <code>/health</code>) to the local Python socket, while serving the landing page, dashboard, and documentation directly from the filesystem as static files with immutable caching headers.</p>
 
@@ -20,7 +20,7 @@
 │             └───────────────┬────────────────┘              │
 │                             ▼                               │
 │                  ┌──────────────────────┐                   │
-│                  │   data/bot.db (WAL)  │◀── SQLite         │
+│                  │   PostgreSQL 18      │◀── asyncpg        │
 │                  └──────────────────────┘                   │
 │                             ▲                               │
 │                             │                               │
@@ -50,8 +50,8 @@
 <h3>2. Probabilistic Generation Engine</h3>
 <p>A custom first- and second-order Markov chain engine. It compiles statistical models in memory from random samples of the server's corpus, managing global concurrency via asynchronous semaphores. See <a href="/en/documentation/generation">Generation</a>.</p>
 
-<h3>3. SQLite Storage Layer</h3>
-<p>A unified relational database (<code>data/bot.db</code>) running in WAL mode (<em>Write-Ahead Logging</em>) with foreign keys enabled. It stores server configurations, message corpus, GIF catalogs, audit logs, and session revocations. See <a href="/en/documentation/storage">Storage</a>.</p>
+<h3>3. PostgreSQL Storage Layer</h3>
+<p>A unified relational database (PostgreSQL, reachable only from the machine itself) behind an asyncpg connection pool. It stores server configurations, message corpus, GIF catalogs, audit logs, and session revocations. See <a href="/en/documentation/storage">Storage</a>.</p>
 
 <h3>4. Web API and SPA Dashboard</h3>
 <p>A stateless REST API built on aiohttp using Fernet-encrypted cookies marked HttpOnly. All administrative routes re-validate user permissions in real time against official Discord endpoints. The dashboard is a Single Page Application built with modern native JavaScript (ES Modules) without bundlers or compilers. See <a href="/en/documentation/api">API</a>.</p>
@@ -71,5 +71,5 @@
   <li>The browser navigates to a dashboard view (e.g., <code>/en/dashboard/123456/chat</code>). Nginx immediately delivers the static HTML shell and ES modules from disk.</li>
   <li>The frontend issues an authenticated asynchronous fetch to the API (e.g., <code>GET /api/server/123456/chat</code>) sending the encrypted session cookie.</li>
   <li>Middleware in <code>src/webapi.py</code> decrypts the session, verifies it is absent from the <code>revoked_sessions</code> table, and queries Discord's API to confirm the user possesses <code>ADMINISTRATOR</code> or <code>MANAGE_GUILD</code> on guild <code>123456</code>.</li>
-  <li>With authorization confirmed, the endpoint executes SQLite queries and returns a JSON payload for reactive client-side rendering.</li>
+  <li>With authorization confirmed, the endpoint executes PostgreSQL queries and returns a JSON payload for reactive client-side rendering.</li>
 </ol>

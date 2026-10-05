@@ -1,8 +1,8 @@
 <h1>Arquitectura</h1>
-<p>Purgito está diseñado como un sistema distribuido en tres capas que convergen en un único proceso en Python y una base de datos relacional SQLite embebida: el bot de Discord (discord.py), una API JSON asíncrona (aiohttp) y un sitio web estático optimizado servido por nginx.</p>
+<p>Purgito está diseñado como un sistema distribuido en tres capas que convergen en un único proceso en Python y una base de datos relacional PostgreSQL local: el bot de Discord (discord.py), una API JSON asíncrona (aiohttp) y un sitio web estático optimizado servido por nginx.</p>
 
 <h2 id="vision-general">Visión general</h2>
-<p>El bot corre como un proceso único en Python 3.11+ gestionado por systemd. Mantiene la conexión WebSocket persistente con el Gateway de Discord, ejecuta el motor de cadenas de Markov y procesa operaciones de lectura y escritura sobre <code>data/bot.db</code>.</p>
+<p>El bot corre como un proceso único en Python 3.11+ gestionado por systemd. Mantiene la conexión WebSocket persistente con el Gateway de Discord, ejecuta el motor de cadenas de Markov y procesa operaciones de lectura y escritura sobre PostgreSQL.</p>
 <p>Dentro del mismo bucle de eventos (<em>asyncio event loop</em>), se inicializa un servidor web aiohttp (<code>src/webapi.py</code>) que expone una API REST exclusivamente en JSON escuchando en <code>127.0.0.1:WEB_PORT</code> (puerto local). Esta API nunca renderiza HTML ni sirve activos estáticos directamente.</p>
 <p>Nginx actúa como proxy inverso en el host: despacha las peticiones dinámicas (<code>/auth/*</code>, <code>/api/*</code>, <code>/webhooks/*</code> y <code>/health</code>) hacia el socket local de Python, mientras que entrega la landing page, el dashboard y la documentación directamente desde el sistema de archivos como ficheros estáticos con cabeceras de caché inmutable.</p>
 
@@ -20,7 +20,7 @@
 │             └───────────────┬────────────────┘              │
 │                             ▼                               │
 │                  ┌──────────────────────┐                   │
-│                  │   data/bot.db (WAL)  │◀── SQLite         │
+│                  │   PostgreSQL 18      │◀── asyncpg        │
 │                  └──────────────────────┘                   │
 │                             ▲                               │
 │                             │                               │
@@ -50,8 +50,8 @@
 <h3>2. Motor de generación probabilística</h3>
 <p>Implementación propia de cadenas de Markov de primer y segundo orden. Construye modelos estadísticos en memoria a partir de muestras del corpus histórico del servidor, controlando la concurrencia global mediante semáforos asíncronos. Ver <a href="/es/documentacion/generacion">Generación</a>.</p>
 
-<h3>3. Capa de almacenamiento SQLite</h3>
-<p>Base de datos relacional única (<code>data/bot.db</code>) configurada en modo WAL (<em>Write-Ahead Logging</em>) con claves foráneas activas. Centraliza configuraciones de servidores, corpus de mensajes, catálogos de GIFs, registros de auditoría y sesiones. Ver <a href="/es/documentacion/almacenamiento">Almacenamiento</a>.</p>
+<h3>3. Capa de almacenamiento PostgreSQL</h3>
+<p>Base de datos relacional única (PostgreSQL, accesible solo desde la propia máquina) con un pool de conexiones asyncpg. Centraliza configuraciones de servidores, corpus de mensajes, catálogos de GIFs, registros de auditoría y sesiones. Ver <a href="/es/documentacion/almacenamiento">Almacenamiento</a>.</p>
 
 <h3>4. API Web y Dashboard SPA</h3>
 <p>API REST stateless en aiohttp con sesiones cifradas mediante Fernet en cookies HttpOnly. Todas las rutas administrativas verifican permisos en tiempo real contra los endpoints oficiales de Discord. El dashboard es una Single Page Application construida con JavaScript moderno modular nativo (ES Modules), sin transpiladores ni dependencias de empaquetado. Ver <a href="/es/documentacion/api">API</a>.</p>
@@ -71,5 +71,5 @@
   <li>El navegador solicita una vista en el dashboard (ej. <code>/es/dashboard/123456/chat</code>). Nginx entrega inmediatamente el shell HTML y los scripts estáticos desde disco.</li>
   <li>El frontend realiza una petición asíncrona autenticada a la API (ej. <code>GET /api/server/123456/chat</code>) enviando la cookie de sesión cifrada.</li>
   <li>El middleware de <code>src/webapi.py</code> descifra la sesión, comprueba que no esté en la tabla <code>revoked_sessions</code> y consulta a la API de Discord si el usuario posee el permiso <code>ADMINISTRATOR</code> o <code>MANAGE_GUILD</code> en el servidor <code>123456</code>.</li>
-  <li>Con la autorización confirmada, el endpoint ejecuta la consulta en SQLite y retorna un payload JSON estructurado para su renderizado reactivo en el DOM del cliente.</li>
+  <li>Con la autorización confirmada, el endpoint ejecuta la consulta en PostgreSQL y retorna un payload JSON estructurado para su renderizado reactivo en el DOM del cliente.</li>
 </ol>

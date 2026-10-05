@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       # Pineada: "pip install ruff" sin versión agarra la última en PyPI en
       # el momento del run, así que un release de ruff que cambie las reglas
@@ -47,12 +47,20 @@ jobs:
   tests:
     name: Tests (pytest)
     runs-on: ubuntu-latest
-    # PostgreSQL 16 y no 18 (producción): el pg_dump/pg_restore que ya trae
-    # ubuntu-latest es el 16 y se niega a volcar un servidor más nuevo. El SQL
-    # de Purgito no usa nada de 17/18.
+    # Stack de producción (Python 3.14 + PostgreSQL 18) como entrada principal.
+    # 3.12 + PostgreSQL 16 queda como piso de compatibilidad (el proyecto
+    # declara Python 3.11+): si molesta o se vuelve lento, se puede quitar.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: '3.14'
+            pg: '18'
+          - python: '3.12'
+            pg: '16'
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.pg }}
         env:
           POSTGRES_USER: purgito_app
           POSTGRES_PASSWORD: ci-password
@@ -72,7 +80,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
+
+      # El pg_dump/pg_restore que trae ubuntu-latest es el 16 y se niega a
+      # volcar un servidor 18: se instala el cliente 18 desde PGDG.
+      - name: Cliente de PostgreSQL 18 (pg_dump/pg_restore)
+        if: matrix.pg == '18'
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends postgresql-client-18
+          pg_dump --version
 
       # age: los tests de backup_db.sh comprueban el cifrado de los backups.
       - name: Install age
@@ -105,7 +122,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       - name: Install pip-audit
         run: pip install pip-audit==2.9.0
@@ -120,12 +137,10 @@ jobs:
   scripts:
     name: Scripts de deploy (shellcheck + self-check)
     runs-on: ubuntu-latest
-    # PostgreSQL 16 y no 18 (producción): el pg_dump/pg_restore que ya trae
-    # ubuntu-latest es el 16 y se niega a volcar un servidor más nuevo. El SQL
-    # de Purgito no usa nada de 17/18.
+    # PostgreSQL 18, igual que producción.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: purgito_app
           POSTGRES_PASSWORD: ci-password
@@ -144,6 +159,13 @@ jobs:
 
       - name: shellcheck
         run: shellcheck --severity=warning deploy/*.sh
+
+      # El pg_dump/pg_restore que trae ubuntu-latest es el 16 y se niega a
+      # volcar un servidor 18: se instala el cliente 18 desde PGDG.
+      - name: Cliente de PostgreSQL 18 (pg_dump/pg_restore)
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y --no-install-recommends postgresql-client-18
 
       - name: Install age
         run: sudo apt-get install -y --no-install-recommends age

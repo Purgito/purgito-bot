@@ -1,3 +1,6 @@
+> **DOCUMENTO HISTÓRICO — NO USAR COMO PROCEDIMIENTO OPERATIVO.**
+> Auditoría de reliability (ronda 1, 2026-09-18), cerrada. Úsala solo como contexto; lo vigente está en el código y en `docs/RUNBOOK.md`.
+
 # Auditoría de reliability — resumen ejecutivo (Ronda 1)
 
 Fecha: 2026-09-18. A diferencia de `AUDITORIA_SEGURIDAD.md` (mentalidad red

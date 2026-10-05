@@ -3,7 +3,31 @@
 Todos los cambios notables de este proyecto se documentan acá.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 
+Este archivo es el registro **técnico** (infraestructura, esquema, seguridad,
+dependencias) para quien desarrolla o despliega. Lo que le importa a quien administra
+un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
+(`/es/novedades`); ver CLAUDE.md § "CHANGELOG vs NOVEDADES".
+
 ## [Unreleased]
+
+### Added
+- Capa de observabilidad del nodo (`src/observability/`, ver `docs/OBSERVABILITY.md`, `docs/SECURITY_EVENTS.md`, `docs/RUNBOOKS.md`): eventos estructurados con schema v1 (`data/events.jsonl` y `data/security.jsonl`, 5 MB × 4 cada uno), redacción de secretos en logs de texto y JSON, request ids (`X-Request-ID`), heartbeat y estado del servicio sin PostgreSQL (`data/service_state.json`), `/health/ready`, y `/health/details`, `/metrics` (Prometheus) e `/internal/alerts` protegidos por `OBSERVABILITY_TOKEN` (nginx solo publica `/health`). Reglas de detección declarativas y modelo de alertas (`data/alerts.json`); solo detectan, no actúan.
+- Monitor externo opcional (`src/observability/monitor.py`, `MONITOR_*`): heartbeat y eventos importantes hacia `purgito-monitor` (Railway) firmados con HMAC-SHA256, best-effort con backoff y outbox acotado para eventos críticos; `/health` ahora devuelve `{"ok": true, "status": "ok"}` con `Cache-Control: no-store`. Métricas `purgito_monitor_*`.
+- `deploy/runbooks/purgito_runbooks.py`: runbooks allowlisted (diagnóstico de solo lectura + `restart_purgito` con confirmación), sin shell, con timeout y salida JSON.
+- `deploy/vector/vector.toml`: configuración del collector local → destino externo (validada con Vector 0.58.0; no instalado).
+- Dependencia nueva: `prometheus-client==0.25.0` (Apache-2.0 AND BSD-2-Clause). Variables nuevas: `OBSERVABILITY_TOKEN`, `PURGITO_ENV`.
+
+### Changed
+- Base de datos: SQLite → PostgreSQL 18 (asyncpg vía `src/pgdb.py`, esquema en `src/schema_pg.sql`), cutover del 2026-10-01. Guía en `docs/POSTGRES.md`. `data/bot.db` y su copia pre-cutover se conservan solo como rollback hasta el 2026-10-15.
+- R2: tres buckets con rol fijo (imágenes, GIFs, backups privado). El bucket único anterior se eliminó el 2026-10-02 sin migrar contenido histórico.
+- Backups: `deploy/backup_db.sh` hace `pg_dump -Fc`, verifica con `pg_restore --list`, cifra con age y sube a R2 (se conservan los 2 más recientes). Cron semanal (domingos 03:17 UTC); primer disparo automático pendiente de verificar.
+- Hardening del servidor: UFW, SSH solo por clave, PostgreSQL solo en loopback y unit de systemd endurecido (`deploy/harden_*.sh`, `deploy/security_check.sh`).
+- CI: tests y scripts de deploy corren sobre Python 3.14 + PostgreSQL 18 (el stack de producción), con 3.12 + PostgreSQL 16 como piso de compatibilidad en `tests`; el cliente `pg_dump` 18 se instala desde PGDG.
+- Documentación: se retiró lo ya ejecutado (migración a 3 buckets, rollback de SQLite, usuario dedicado, `railway.json`) y se pasó a `docs/historico/` lo que solo sirve de contexto.
+
+### Fixed
+- Limpieza de referencias al bucket R2 eliminado (2026-10-02): 596 filas de `corpus_gifs` sin archivo recuperable, 510 filas con URL de Tenor/Giphy que conservan la URL pero pierden `media_url`/`content_hash`, 1064 filas de `gif_objects` sin objeto, 46 de `embed_uploaded_images` y avatar/banner de `guild_bot_style`. Las filas de `gif_objects` huérfanas hacían que la deduplicación por `content_hash` no re-subiera un GIF repetido, dejando URLs del bucket nuevo apuntando a un objeto inexistente. Queda 1 plantilla de embed (`embed_templates`) con URLs del host viejo, a propósito (contenido de un admin).
+- Se retiró `railway.json` (no era el despliegue de producción) y el directorio vacío `data/tts_cache` (feature TTS eliminada).
 
 ### Security
 - `!dl`: si el sitio de origen (Instagram, TikTok, Twitter/X o Facebook) marca el video como contenido sensible (`age_limit` de yt-dlp), ahora solo se sube en canales NSFW — antes se subía igual a cualquier canal, sin ningún filtro.

@@ -1,3 +1,6 @@
+> **DOCUMENTO HISTÓRICO — NO USAR COMO PROCEDIMIENTO OPERATIVO.**
+> Auditoría de seguridad de agosto–septiembre de 2026; todos los hallazgos están cerrados. La Sección 3 (concurrencia) describe el modelo SQLite anterior: desde la migración a PostgreSQL (2026-10-01) el bloqueo y las transacciones funcionan distinto (ver `docs/POSTGRES.md` § Reglas de `async with db._db_lock`). Úsala solo como contexto de por qué existen ciertas defensas.
+
 # Auditoría de seguridad — resumen ejecutivo (Secciones 1, 2 y 3)
 
 Secciones 1 y 2 cerradas el 2026-08-07. Sección 3 (concurrencia, corrupción

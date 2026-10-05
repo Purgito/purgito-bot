@@ -19,6 +19,15 @@ tail -n 200 <ruta>/data/bot.log         # mismo log, rotado (3 archivos de 5 MB)
 curl -s http://127.0.0.1:8080/health    # {"ok": true} si el proceso web responde
 ```
 
+Atajo: `python3 <ruta>/deploy/runbooks/purgito_runbooks.py diagnose_purgito`
+junta en un JSON el estado de systemd (incluido `NRestarts`), `/health`,
+`/health/ready`, el heartbeat y los últimos avisos del journal. Los otros
+(`diagnose_postgres`, `diagnose_disk`, `diagnose_memory`) cubren lo de las
+secciones de abajo; ver [`RUNBOOKS.md`](RUNBOOKS.md). Para reconstruir qué pasó
+antes de una caída: `curl -s -H "Authorization: Bearer $OBSERVABILITY_TOKEN"
+http://127.0.0.1:8080/health/details` (campo `incident`; si no se puede saber la
+causa dice `unknown`, no la inventa).
+
 Si el proceso está arriba pero el bot no responde en Discord, mira el log
 por `Traceback` y por errores del gateway antes de reiniciar: reiniciar borra
 el estado en memoria (cooldowns, rate limits) y no arregla un bug de código.
@@ -107,10 +116,7 @@ webhook desde Discord en cada canal afectado invalida el token viejo.
    `AGE_IDENTITY=<clave> deploy/restore_check.sh <ruta-al-backup>` y el procedimiento de
    `docs/POSTGRES.md` § "Restaurar" (incluye `scripts/reapply_deletions.py --apply`,
    obligatorio antes de arrancar: vuelve a borrar a quien pidió `/borrar_mis_datos`
-   después del backup). Si el servidor es nuevo, copia también los
-   flags sueltos de `data/` (`.images_wiped_v2`, etc.; ver `docs/PORTABILITY.md`
-   § 2): viven fuera de la base y sin ellos el arranque puede repetir
-   migraciones destructivas.
+   después del backup).
 5. `sudo systemctl start bot-purg` y revisa el log.
 6. Si perdiste todo el servidor (el caso de Oracle): sigue
    [`MIGRATION.md`](../MIGRATION.md).
@@ -120,39 +126,6 @@ anterior), en `BACKUP_DIR` y en R2 (`docs/POSTGRES.md` § Backups). Los de `BACK
 viven en el mismo disco que la base. Si el
 servidor completo se perdió, la copia que sobrevive es la del bucket privado de
 R2 (`R2_BACKUP_BUCKET`), siempre que `backup_db.sh` la haya estado subiendo; sin
-ella, no hay copia salvo que la hayas bajado a mano — por eso el checklist de
-`docs/PORTABILITY.md` pide sacar `data/` y `.env` fuera de la instancia antes de
-dejarla ir.
-
-## 5. Premium desincronizado (alguien pagó y no tiene Premium, o al revés)
-
-1. Mira el log por `/webhooks/polar` (los eventos ignorados se registran a
-   nivel `info`).
-2. `python scripts/reconcile_premium.py` compara Polar contra
-   `premium_guilds` y solo reporta, nunca escribe. Revisa cada diferencia a
-   mano: un Premium sin suscripción en Polar puede ser una cortesía
-   otorgada a mano.
-3. `_webhook_polar` en `webapi.py` es zona protegida: no lo edites en
-   caliente para arreglar un caso puntual.
-
-## 6. Fallan los GIFs (links rotos, subidas que no funcionan)
-
-1. Confirma que las credenciales `R2_*` de `.env` siguen vigentes (un token
-   expirado o borrado rompe subidas y borrados).
-2. Los scripts de `scripts/` (`reconcile_gif_objects.py`,
-   `cleanup_dead_cdn_gifs.py`, etc.) documentan en su docstring cuándo hay
-   que parar el bot antes de correrlos. Léelo antes de usar `--apply`.
-
-## 7. Después del incidente
-
-- Anota qué pasó, qué lo detectó y cuánto tardó en detectarse. Hoy la
-  detección depende en gran parte de que alguien note el problema: no hay
-  monitor externo. Lo único automático son dos avisos en el canal del proyecto
-  (`LIFECYCLE_ANNOUNCE_CHANNEL_ID`): "Purgito volvió" tras un reinicio o una
-  caída, y "la tarea `X` falló N veces" cuando un loop en segundo plano se
-  reinicia varias veces seguidas (mira el log por el traceback de esa tarea).
-- Si el arreglo fue un cambio visible para admins de servidor, regístralo en
-  `docs/NOVEDADES.md` y `docs/NOVEDADES.en.md` (ambos idiomas) y corre
-  `landing/build_docs.py`.
-- Si un procedimiento de este runbook no funcionó como dice, corrígelo aquí
-  en el mismo commit que arregla el problema.
+ella, no hay copia salvo que la hayas bajado a mano. Por eso `docs/PORTABILITY.md`
+pide confirmar el backup en R2, el `.env` y la clave privada de age fuera de la
+instancia antes de dejarla ir.

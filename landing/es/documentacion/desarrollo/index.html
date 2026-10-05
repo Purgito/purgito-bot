@@ -397,7 +397,7 @@
 <ul>
   <li><code>src/bot.py</code> — Punto de entrada del bot de Discord, configuración de intents y carga ordenada de cogs.</li>
   <li><code>src/config.py</code> — Módulo centralizado de carga y validación de variables de entorno (<code>.env</code>, <code>urls.env</code>, <code>limits.env</code>).</li>
-  <li><code>src/db.py</code> — Capa de persistencia asíncrona sobre SQLite (<code>aiosqlite</code>), migraciones automáticas y transacciones.</li>
+  <li><code>src/db.py</code> — Consultas a PostgreSQL, migraciones automáticas y transacciones (el acceso asíncrono con asyncpg está en <code>src/pgdb.py</code>).</li>
   <li><code>src/webapi.py</code> — Servidor web <code>aiohttp.web</code> con todos los endpoints REST JSON, autenticación OAuth2 y webhooks.</li>
   <li><code>src/markov_engine.py</code> — Implementación del motor probabilístico de cadenas de Markov de orden 1 y 2.</li>
   <li><code>src/r2.py</code> — Cliente S3 compatible para Cloudflare R2, deduplicación de medios por hash SHA-256 y hashing perceptivo.</li>

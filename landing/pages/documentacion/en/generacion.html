@@ -11,7 +11,7 @@
 </ul>
 
 <h2 id="corpus">Corpus Management and Ingestion</h2>
-<p>Each server maintains an isolated corpus stored in the SQLite <code>corpus_messages</code> table:</p>
+<p>Each server maintains an isolated corpus stored in the PostgreSQL <code>corpus_messages</code> table:</p>
 <ul>
   <li><strong>Ingestion Sanitization</strong>: Before database insertion, incoming messages pass through regex filters stripping user mentions (<code>&lt;@id&gt;</code>), role mentions (<code>&lt;@&amp;id&gt;</code>), channel links (<code>&lt;#id&gt;</code>), HTTP/HTTPS URLs, and code blocks.</li>
   <li><strong>Channel Allowlist</strong>: Only channels on the learning list (<code>corpus_allowed_channels</code>) feed the corpus. A channel on the ignored list (<code>ignored_channels</code>) stays completely silent — it neither learns nor replies, whatever the other lists say.</li>

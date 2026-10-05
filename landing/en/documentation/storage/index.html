@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Storage — Technical Documentation — Purgito</title>
-<meta name="description" content="SQLite, Cloudflare R2, in-memory caches, and data retention in Purgito.">
+<meta name="description" content="PostgreSQL, Cloudflare R2, in-memory caches, and data retention in Purgito.">
 <meta name="theme-color" content="#13c4d8">
 
 <!-- Open Graph / Link Previews (Discord, Twitter, Telegram, Slack, etc.) -->
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="Purgito">
 <meta property="og:url" content="https://purgito.app/en/documentation/storage">
 <meta property="og:title" content="Storage — Technical Documentation — Purgito">
-<meta property="og:description" content="SQLite, Cloudflare R2, in-memory caches, and data retention in Purgito.">
+<meta property="og:description" content="PostgreSQL, Cloudflare R2, in-memory caches, and data retention in Purgito.">
 <meta property="og:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
@@ -22,7 +22,7 @@
 
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Storage — Technical Documentation — Purgito">
-<meta name="twitter:description" content="SQLite, Cloudflare R2, in-memory caches, and data retention in Purgito.">
+<meta name="twitter:description" content="PostgreSQL, Cloudflare R2, in-memory caches, and data retention in Purgito.">
 <meta name="twitter:image" content="https://purgito.app/assets/og-purgito.png?v=3efe9db7">
 
 <link rel="canonical" href="https://purgito.app/en/documentation/storage">
@@ -377,7 +377,7 @@
     <li><a href="/en/documentation/generation">Generation</a>
     </li>
     <li><a class="active" href="/en/documentation/storage">Storage</a>
-      <ul class="docs-subnav"><li><a href="#sqlite">SQLite</a></li><li><a href="#r2">R2</a></li><li><a href="#cache">Cache</a></li><li><a href="#retention">Data retention</a></li></ul>
+      <ul class="docs-subnav"><li><a href="#postgresql">PostgreSQL</a></li><li><a href="#r2">R2</a></li><li><a href="#cache">Cache</a></li><li><a href="#retention">Data retention</a></li></ul>
     </li>
     <li><a href="/en/documentation/security">Security</a>
     </li>
@@ -391,20 +391,20 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Storage</h1>
-<p>Purgito uses a hybrid storage architecture combining an embedded local SQLite database for relational state with an S3-compatible object store (Cloudflare R2) for media assets.</p>
+<p>Purgito uses a hybrid storage architecture combining a local PostgreSQL database for relational state with an S3-compatible object store (Cloudflare R2) for media assets.</p>
 
-<h2 id="sqlite">SQLite Database Architecture</h2>
-<p>All relational state resides in a single database file: <code>data/bot.db</code>. Asynchronous database connectivity is handled via <code>aiosqlite</code> in <code>src/db.py</code> with production pragmas:</p>
+<h2 id="postgresql">PostgreSQL Database Architecture</h2>
+<p>All relational state lives in a PostgreSQL database (<code>DATABASE_URL</code>) that runs on the same machine and only accepts local connections. Asynchronous access is in <code>src/pgdb.py</code> (asyncpg), queries are in <code>src/db.py</code>, and the canonical schema is <code>src/schema_pg.sql</code>, applied on every startup:</p>
 
 <ul>
-  <li><code>PRAGMA journal_mode=WAL</code>: <em>Write-Ahead Logging</em> allows concurrent read operations without blocking writes, drastically reducing disk lock contention.</li>
-  <li><code>PRAGMA synchronous=NORMAL</code>: Ensures data integrity during host failures with minimal I/O wait latency.</li>
-  <li><code>PRAGMA foreign_keys=ON</code>: Enforces relational integrity across cascaded record deletions.</li>
-  <li><strong>Asynchronous Write Lock</strong>: A dedicated Python <code>asyncio.Lock</code> serializes write transactions process-wide, preventing <code>database is locked</code> errors under high concurrency.</li>
+  <li><strong>Connection pool</strong> (<code>DB_POOL_MIN</code> / <code>DB_POOL_MAX</code>, defaults 2 and 10): standalone reads never block each other.</li>
+  <li><strong>Explicit transactions</strong>: <code>async with db._db_lock</code> opens a transaction on one pooled connection. If the block exits with an exception it is rolled back; otherwise it is committed.</li>
+  <li><strong>Wait limits</strong>: a query runs for at most 60 s and waiting for a free pooled connection takes at most 30 s; an exhausted pool fails with a logged error instead of freezing the bot.</li>
+  <li><strong>Backups</strong>: <code>deploy/backup_db.sh</code> dumps the database with <code>pg_dump</code>, encrypts it with age and uploads it to a private R2 bucket; before encrypting it checks the dump with <code>pg_restore --list</code>.</li>
 </ul>
 
 <h2 id="schema">Schema and Data Isolation</h2>
-<p>The database features over 40 tables organized by operational domain. Guild multi-tenancy is enforced at schema level via indexed <code>guild_id</code> columns across every table:</p>
+<p>The database has 49 tables organized by operational domain. Guild multi-tenancy is enforced at schema level: 43 tables carry a <code>guild_id</code> column and the other 6 are global by design (for example <code>gif_objects</code>, <code>revoked_sessions</code> and <code>shared_embeds</code>):</p>
 <ul>
   <li><strong>Configuration and Customization</strong>: <code>settings</code>, <code>guild_bot_style</code>, <code>channel_settings</code>, <code>ignored_channels</code>.</li>
   <li><strong>Chat channel lists</strong>: <code>spontaneous_channels</code>, <code>mention_channels</code>, <code>corpus_allowed_channels</code> — three independent lists (where it talks on its own, where it replies to mentions, and what it learns from), see "Chat configuration" in the guide.</li>

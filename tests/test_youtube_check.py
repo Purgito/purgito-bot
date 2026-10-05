@@ -6,7 +6,7 @@ como error y se repetía cada 15 minutos para siempre, sin que nadie se
 enterara salvo mirando los logs. Ahora el estado roto (sin permiso / canal
 borrado) se detecta ANTES de intentar mandar nada, se loguea una sola vez
 por cada vez que se rompe, y se limpia solo cuando el canal vuelve a estar
-bien -- ver docs/AUDITORIA_UX.md, hallazgo 7 (b) y (c).
+bien -- ver docs/historico/AUDITORIA_UX.md, hallazgo 7 (b) y (c).
 
 isinstance(channel, discord.TextChannel) se satisface parcheando
 discord.TextChannel por la clase fake, mismo patrón que
