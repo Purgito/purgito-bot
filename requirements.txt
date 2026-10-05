@@ -8,7 +8,7 @@ feedparser==6.0.12
 # !dl / "purgito dl" (cogs/download.py): descarga de videos de Instagram,
 # TikTok, Twitter/X y Facebook.
 yt-dlp==2026.8.19
-regex==2026.9.10
+regex==2026.9.29
 Pillow==12.3.0
 imagehash==4.3.2
 # !gif (cogs/imagefx.py): convierte un video adjunto a GIF. Trae un binario
