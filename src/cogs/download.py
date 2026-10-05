@@ -14,6 +14,11 @@ YouTube bloquea activamente la descarga por fuera del navegador
 (throttling, a veces pide cookies de sesión) y uno largo no entra en
 Discord de todos modos.
 
+Si yt-dlp no logra bajar un link y hay una instancia propia de cobalt
+configurada (COBALT_API_URL), se prueba ahí como respaldo (cobalt.py). Sin esa
+variable el comando funciona igual, solo con yt-dlp. La allowlist de abajo
+rige para los dos: cobalt nunca recibe un host que yt-dlp no podría recibir.
+
 Nada de SSRF nuevo acá pese a que yt-dlp termina haciendo requests de red a
 partir de un link que manda el usuario: a diferencia de r2.py (que sí
 resuelve y filtra IPs porque acepta CUALQUIER URL de imagen), acá el host
@@ -37,6 +42,7 @@ import yt_dlp
 from discord import app_commands
 from discord.ext import commands
 
+import cobalt
 import r2
 from config import env_int
 from db import DEFAULT_COMMAND_PREFIX, get_guild_prefix
@@ -170,7 +176,38 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
     """Bloqueante -- se corre en un thread aparte. Devuelve (ruta del
     archivo descargado, si el sitio de origen lo marca como contenido
     sensible/+18); el caller es responsable de borrar el directorio temporal
-    entero (no solo el archivo) cuando termine."""
+    entero (no solo el archivo) cuando termine.
+
+    Primero yt-dlp. Si falla de forma genérica (DownloadFailed) y hay una
+    instancia de cobalt configurada, la prueba como respaldo (ver
+    cobalt.py). NoVideoInPost y DownloadTooLarge no la prueban: el primero
+    ya es una respuesta definitiva (el post es una foto) y el segundo se
+    corta antes de bajar nada. Cobalt no informa si el contenido es
+    sensible, así que un video que llega por ahí nunca queda marcado y se
+    sube en cualquier canal."""
+    try:
+        return _download_video_ytdlp(url, max_bytes)
+    except DownloadFailed:
+        if not cobalt.configured():
+            raise
+        log.info(
+            "yt-dlp falló con un link de %s, probando con cobalt",
+            urlparse(url).hostname,
+        )
+        try:
+            return cobalt.download_video(url, max_bytes), False
+        except cobalt.CobaltTooLarge as e:
+            raise DownloadTooLarge(max_bytes) from e
+        except cobalt.CobaltNoVideo as e:
+            raise NoVideoInPost(str(e)) from e
+        except cobalt.CobaltError as e:
+            log.info("cobalt tampoco pudo bajar el video: %s", e)
+            raise DownloadFailed(str(e)) from e
+
+
+def _download_video_ytdlp(url: str, max_bytes: int) -> tuple[str, bool]:
+    """La descarga con yt-dlp, con el reintento por syndication de X. Mismo
+    contrato que _download_video."""
     try:
         path, info = _attempt_download(url, max_bytes)
     except yt_dlp.utils.DownloadError as e:

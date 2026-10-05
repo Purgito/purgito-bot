@@ -111,6 +111,13 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 # (feature desactivada, resto del bot funciona igual -- mismo criterio que GROQ_API_KEY).
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", "")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", "")
+# Instancia PROPIA de cobalt (src/cobalt.py): respaldo de "!dl" para cuando
+# yt-dlp no logra bajar un link. Sin COBALT_API_URL el respaldo queda apagado y
+# "!dl" funciona igual, solo con yt-dlp. Va en .env y no en urls.env porque es
+# por instancia (suele ser http://127.0.0.1:9000, no una URL pública). La key
+# solo hace falta si esa instancia exige autenticación.
+COBALT_API_URL = _env_compact("COBALT_API_URL").rstrip("/")
+COBALT_API_KEY = _env_compact("COBALT_API_KEY")
 # Default "purgito": el que documentan .env.example, /help y la landing
 # ("purgito dl <link>"). Antes caía en "artemis", un nombre viejo que ninguna
 # documentación menciona.

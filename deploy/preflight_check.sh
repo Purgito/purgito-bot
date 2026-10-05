@@ -125,6 +125,20 @@ else
             ok "sin variables R2 del esquema viejo (R2_BUCKET_NAME / R2_PUBLIC_URL)"
         fi
     fi
+
+    # cobalt es opcional (respaldo de !dl, DEPLOY.md § cobalt). Con una URL
+    # puesta, que responda: una instancia caída no rompe !dl (queda solo
+    # yt-dlp), pero el respaldo no serviría de nada.
+    cobalt_url="$(env_val COBALT_API_URL | tr -d "[:space:]\"'")"
+    if [ -z "$cobalt_url" ]; then
+        skip "respaldo de !dl con cobalt" "sin COBALT_API_URL en .env (!dl usa solo yt-dlp)"
+    elif ! which curl >/dev/null 2>&1; then
+        skip "respaldo de !dl con cobalt" "curl no disponible en este entorno"
+    elif [ "$(curl -s -m 5 -o /dev/null -w "%{http_code}" "${cobalt_url%/}/" 2>/dev/null)" = "200" ]; then
+        ok "cobalt responde en $cobalt_url"
+    else
+        warn "COBALT_API_URL está definida pero cobalt no responde en $cobalt_url: !dl sigue andando con yt-dlp, sin respaldo (DEPLOY.md § cobalt)"
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
