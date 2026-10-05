@@ -1,3 +1,6 @@
+> **DOCUMENTO HISTÓRICO — NO USAR COMO PROCEDIMIENTO OPERATIVO.**
+> Spec del bloqueo de aprendizaje NSFW, implementado (`sanitize_nsfw_corpus_channels` en `src/cogs/chat.py`, corre en cada arranque). Se conserva por el razonamiento de diseño.
+
 # Bloqueo absoluto de aprendizaje NSFW + auditoría y saneamiento histórico
 
 Fecha: 2026-08-15

@@ -5,18 +5,16 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 > **Esta guía es agnóstica de distro donde importa.** Producción corrió en
 > Oracle Linux hasta el 5 de septiembre de 2026 (Oracle reclamó esa
 > instancia al vencer el Free Trial sin aviso) y desde entonces corre en
-> Ubuntu, sobre AWS. Los pasos que dependen del gestor de paquetes, de
-> SELinux o de la estructura de nginx están marcados explícitamente como
-> **Oracle Linux** o **Ubuntu/Debian** — no asumas que uno es "el real" y el
-> otro "el de repaso": la próxima migración puede caer en cualquiera de los
-> dos, o en un tercero. El setup local (sección 1-6) sigue siendo agnóstico
-> del SO por completo.
+> Ubuntu. Los pasos que dependen del gestor de paquetes, de SELinux o de la
+> estructura de nginx están marcados como **Oracle Linux** o
+> **Ubuntu/Debian**: la próxima migración puede caer en cualquiera de los
+> dos, o en un tercero. El setup local (secciones 1-6) es agnóstico del SO.
 >
-> Si te quedaste sin servidor y necesitás levantar en otro proveedor ya,
+> Si te quedaste sin servidor y necesitas levantar en otro proveedor ya,
 > `MIGRATION.md` tiene el flujo corto end-to-end; `docs/PORTABILITY.md`
-> tiene el inventario de qué hay que copiar para no perder datos en el
-> camino. Esta guía (`DEPLOY.md`) es la referencia larga y detallada de cada
-> paso.
+> tiene el inventario de qué hay que copiar para no perder datos. Esta guía
+> (`DEPLOY.md`) es la referencia larga de cada paso. La base de datos
+> (instalación, backups cifrados, restauración) está en `docs/POSTGRES.md`.
 
 ---
 
@@ -39,7 +37,7 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
    - [Configurar nginx](#configurar-nginx)
    - [Cloudflare (DNS + SSL)](#cloudflare-dns--ssl)
 8. [Actualizar en producción](#8-actualizar-en-producción)
-   - [Migrar a tres buckets de R2](#migrar-a-tres-buckets-de-r2)
+   - [Buckets de R2 (estado actual)](#buckets-de-r2-estado-actual)
    - [Backups de PostgreSQL](#backups-de-postgresql)
    - [Seguridad del servidor](#seguridad-del-servidor)
 9. [Troubleshooting](#9-troubleshooting)
@@ -49,16 +47,16 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 ## 0. Checklist de migración a un servidor nuevo
 
 Todos los pasos de un deploy de cero, en orden, con los problemas ya
-tropezados en la migración Oracle→AWS (2026-09-05) como ítems explícitos a
+tropezados en la migración Oracle→Ubuntu (2026-09-05) como ítems explícitos a
 verificar — no solo como prosa a leer, como checklist a tildar. Cada ítem
 linkea a la sección con el detalle. Para el flujo corto sin toda la
 explicación, ver `MIGRATION.md`.
 
 **Antes de tocar el servidor nuevo:**
 
-- [ ] ¿La instancia vieja todavía está viva? Si sí, corré el checklist de
+- [ ] ¿La instancia vieja todavía está viva? Si sí, corre el checklist de
       "antes de destruir la instancia vieja" de `docs/PORTABILITY.md`
-      primero (backup de `data/` completo, no solo `bot.db`, y del `.env`).
+      primero (backup cifrado reciente en R2 y copia del `.env`).
 
 **Sistema operativo — identificar cuál es ANTES de copiar comandos:**
 
@@ -71,9 +69,8 @@ explicación, ver `MIGRATION.md`.
 
 **Clonar e instalar (sección 3, con la ruta real del servidor nuevo):**
 
-- [ ] `git clone` en la ruta elegida (no asumas `/opt/bot-discord-purg`
-      del ejemplo de la guía — anotá la ruta real, la vas a necesitar para
-      el unit de systemd).
+- [ ] `git clone` en la ruta elegida: anota la ruta real, la necesitas para
+      el unit de systemd.
 - [ ] `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
 - [ ] **Problema conocido:** confirmar que `.env` es un ARCHIVO, no un
       directorio, antes de asumir que `cp .env.example .env` funcionó
@@ -86,25 +83,21 @@ explicación, ver `MIGRATION.md`.
       deshabilitado: faltan variables obligatorias ...` y cualquiera que
       intente loguearse al panel se encuentra con un 404 sin explicación.
       Si el servidor nuevo debe tener dashboard, las tres son obligatorias.
-- [ ] Restaurar `data/bot.db` **y también** `data/.images_wiped_v2` +
-      `data/.chat_channels_split_v1` desde el backup de la instancia vieja
-      -- no son opcionales. Son flags de migración de una sola vez que
-      viven sueltos al lado de `bot.db`, no adentro (`sqlite3 .backup`
-      solo copia el `.db`). Si `.images_wiped_v2` falta, el próximo
-      arranque del bot vuelve a correr `DELETE FROM corpus_images` sin
-      preguntar (ver `docs/PORTABILITY.md` § 2).
-      `deploy/preflight_check.sh` (sección 6) lo verifica solo.
+- [ ] Instalar PostgreSQL 18 y restaurar el último backup cifrado (age) con
+      `pg_restore`, siguiendo `docs/POSTGRES.md` § Preparar una base nueva y
+      § Restaurar. La clave privada de age se trae temporalmente desde fuera
+      del servidor. **Siempre** termina con
+      `scripts/reapply_deletions.py --apply` antes de arrancar el bot: vuelve a
+      aplicar los borrados (`/borrar_mis_datos`) posteriores al backup.
+- [ ] Poner `DATABASE_URL`, `R2_BACKUP_BUCKET` y `BACKUP_AGE_RECIPIENTS` en el
+      `.env` e instalar el cron de backups (ver § Backups de PostgreSQL).
 
 **systemd (sección 7):**
 
 - [ ] Generar el unit con `deploy/render_service.sh <usuario> <ruta>` en vez
       de copiar `deploy/bot-purg.service.template` a mano y editarlo — el
       template tiene placeholders (`{{DEPLOY_USER}}`, `{{DEPLOY_PATH}}`),
-      no una ruta/usuario que sirva de ningún droplet real.
-      **Problema conocido:** el unit viejo tenía hardcodeado
-      `/home/opc/purgito-bot` y `User=bot-purg` (usuario que nunca se creó
-      en ningún droplet real) — si estás copiando el `.service` de memoria
-      en vez de generarlo, vas a repetir ese error.
+      no una ruta/usuario que sirva tal cual.
 - [ ] **Problema conocido:** si activás `ProtectHome`/`ReadOnlyPaths`/
       `ReadWritePaths`/`ProtectSystem=strict` (comentados por default en el
       template), probalos con cuidado — en systemd real sobre Ubuntu
@@ -162,13 +155,13 @@ explicación, ver `MIGRATION.md`.
   sin él los GIFs se suben a R2 sin comprimir, nada más
 - Una cuenta de Discord con permisos para crear bots
 
-### Para producción (droplet)
+### Para producción
 
 - Un usuario con `sudo` sobre el servidor — cualquier distro Linux moderna
-  sirve. Ya corrió en Oracle Linux (`opc`) y corre hoy en Ubuntu (`ubuntu`,
-  sobre AWS); los comandos exactos de instalación de paquetes difieren por
+  sirve. Ya corrió en Oracle Linux y corre hoy en Ubuntu; los comandos exactos de instalación de paquetes difieren por
   distro, ver [Paquetes del sistema](#paquetes-del-sistema).
-- Python 3.11+
+- Python 3.11+ (producción usa 3.14)
+- PostgreSQL 18 (producción) y `age` para los backups cifrados
 - gifsicle — comprime los GIFs antes de subirlos a R2 (degrada con gracia si falta)
 - nginx
 - Dominios apuntando al servidor: `purgito.app` (+ `www`) y los
@@ -230,6 +223,38 @@ Edita `.env` con tus valores (ver sección siguiente).
 # ⚠️ Nunca commitees este valor.
 DISCORD_TOKEN=
 
+# ══════════════════════════════════════
+#  OBSERVABILIDAD — detalle en docs/OBSERVABILITY.md
+# ══════════════════════════════════════
+
+# Bearer para /metrics, /health/details e /internal/alerts (solo por 127.0.0.1;
+# nginx no los publica). Vacío = esos endpoints no existen (404).
+# Generar: openssl rand -hex 32
+OBSERVABILITY_TOKEN=
+# Etiqueta "environment" de los eventos (production | staging | dev).
+PURGITO_ENV=production
+
+# Monitor externo (purgito-monitor en Railway). Opcional; ver docs/OBSERVABILITY.md.
+MONITOR_ENABLED=false
+MONITOR_BASE_URL=
+MONITOR_NODE_ID=            # estable, p. ej. purgito-prod-01
+MONITOR_SHARED_SECRET=      # nunca se loguea
+MONITOR_HEARTBEAT_INTERVAL=30
+
+# ══════════════════════════════════════
+#  BASE DE DATOS (PostgreSQL) — detalle en docs/POSTGRES.md
+# ══════════════════════════════════════
+
+# postgresql://usuario:clave@127.0.0.1:5432/purgito. Sin ella el bot no arranca.
+DATABASE_URL=
+
+# Solo para correr los tests: base DISTINTA (purgito_test), los tests la vacían.
+# TEST_DATABASE_URL=
+
+# Clave(s) PÚBLICA(S) age (age1...) con las que deploy/backup_db.sh cifra los backups.
+# La clave privada no vive en el servidor.
+BACKUP_AGE_RECIPIENTS=
+
 # ═══════════════════════════════════════════════════════════
 #  OBLIGATORIO PARA EL DASHBOARD WEB
 # ═══════════════════════════════════════════════════════════
@@ -266,13 +291,14 @@ SESSION_SECRET=
 # Default: true
 ENABLE_MESSAGE_CONTENT=true
 
-# [DEPRECADA] ID del servidor home original. Se lee UNA sola vez al arrancar para
-# migrar el guild a la tabla premium_guilds; después ya no tiene efecto. El premium
-# se gestiona desde el panel de administración del dashboard.
+# [DEPRECADA] ID del servidor home original. Se lee al arrancar solo para copiarlo a
+# premium_guilds (db.py, idempotente); producción no la define. El premium se gestiona
+# desde el panel de administración del dashboard.
 HOME_GUILD_ID=
 
-# ID del servidor para sincronización instantánea de slash commands (útil en desarrollo).
-# Sin esto, los comandos nuevos pueden tardar hasta 1 hora en aparecer globalmente.
+# ID del servidor para sincronización instantánea de slash commands (útil en desarrollo;
+# sigue activo en el código: bot.py lo usa en on_ready). Sin esto, los comandos nuevos
+# pueden tardar hasta 1 hora en aparecer globalmente.
 GUILD_ID=
 
 # Nombre con el que se activa el trigger de memes por texto plano y el prefijo de
@@ -315,7 +341,7 @@ GROQ_API_KEY=
 #  OPCIONAL — Cloudflare R2 (3 buckets: imágenes, GIFs y backups)
 # ═══════════════════════════════════════════════════════════
 
-# Sin R2, las URLs de Discord CDN pueden expirar y los backups de bot.db
+# Sin R2, las URLs de Discord CDN pueden expirar y los backups de la base
 # quedan solo en el disco del servidor. Las credenciales y el endpoint son los
 # mismos para los tres buckets. Detalle en "Cloudflare R2" (sección 5).
 
@@ -336,15 +362,15 @@ R2_IMAGES_PUBLIC_URL=
 R2_GIFS_BUCKET=purgito-gifs
 R2_GIFS_PUBLIC_URL=
 
-# Backups de bot.db (PRIVADO): no existe una URL pública para este bucket.
+# Backups de la base (PRIVADO): no existe una URL pública para este bucket.
 # Déjala vacía si no usas R2 para backups -- con un valor acá, deploy/backup_db.sh
 # exige que la subida funcione.
 R2_BACKUP_BUCKET=purgito-backups
 ```
 
 > Las variables `R2_BUCKET_NAME` y `R2_PUBLIC_URL` (un solo bucket para todo) ya
-> no se declaran. Si tu `.env` todavía las tiene, el bot las usa como fallback
-> transitorio y avisa al arrancar: ver [Migrar a tres buckets de R2](#migrar-a-tres-buckets-de-r2).
+> no se declaran. Si un `.env` viejo las tiene, `src/r2.py` las usa como fallback
+> y avisa al arrancar; en producción están vacías.
 
 ---
 
@@ -361,7 +387,7 @@ un backup nunca sale de su bucket.
 |---|---|---|---|
 | `purgito-images` | `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL` | público (URL) | imágenes del pool de memes y subidas del editor de embeds, con keys `{guild_id}/{md5}.{ext}` |
 | `purgito-gifs` | `R2_GIFS_BUCKET`, `R2_GIFS_PUBLIC_URL` | público (URL) | GIFs deduplicados, con keys `gifs/<2 primeros del hash>/<sha256>.gif` |
-| `purgito-backups` | `R2_BACKUP_BUCKET` | **privado** | copias de `bot.db` y su tar de flags (`bot-<fecha>.db`, `bot-<fecha>.flags.tar.gz`) |
+| `purgito-backups` | `R2_BACKUP_BUCKET` | **privado** | copias cifradas de la base (`purgito-<fecha>.dump.age`) |
 
 `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (secretas) y `R2_ENDPOINT_URL` son los
 mismos para los tres. Qué es público y qué no:
@@ -385,9 +411,7 @@ Crear y configurar:
    personalizado y sin política de CORS. Confirma en *Settings* que el acceso
    público sigue desactivado.
 4. **R2 → Manage API tokens** → crea un token con permiso **Object Read & Write**,
-   limitado a buckets específicos: marca los tres. Durante la
-   [migración](#migrar-a-tres-buckets-de-r2) el token también tiene que incluir
-   el bucket viejo, que es el origen de la copia. Nada más que Object Read &
+   limitado a buckets específicos: marca los tres. Nada más que Object Read &
    Write: el bot no crea ni borra buckets.
 5. Copia el **Access Key ID** y el **Secret Access Key** (el secret se muestra
    una sola vez).
@@ -535,22 +559,14 @@ nginx](#configurar-nginx) — ese sí es específico de Ubuntu/Debian.
 
 ### Clonar en el servidor
 
-> **Estado real en producción:** hasta el 2026-08-12 el droplet de Oracle
-> tenía el clon en `/home/opc/purgito-bot`, corriendo como `opc` (usuario
-> con sudo), no como un usuario dedicado. Desde la migración a AWS
-> (2026-09-05) es `/home/ubuntu/purgito-bot`, corriendo como `ubuntu` — mismo
-> patrón, otro usuario. Ninguna de las dos es "la ruta correcta": la ruta y
-> el usuario reales son lo que elijas al clonar, y el unit de systemd se
-> genera a partir de eso (ver [Configurar systemd](#configurar-systemd)
-> abajo) — no hay que editarlo a mano ni hacerlo coincidir con ningún
-> ejemplo de esta guía.
+> El usuario y la ruta del checkout son los que elijas al clonar; el unit de
+> systemd se genera a partir de eso (ver [Configurar systemd](#configurar-systemd)),
+> no hay que editarlo a mano. Hoy producción corre como el usuario `purgito` en
+> `/home/purgito/purgito-bot`.
 
 ```bash
-sudo mkdir -p /opt/bot-discord-purg
-sudo chown $USER:$USER /opt/bot-discord-purg
-
-git clone https://github.com/Purgito/purgito-bot.git /opt/bot-discord-purg
-cd /opt/bot-discord-purg
+git clone https://github.com/Purgito/purgito-bot.git ~/purgito-bot
+cd ~/purgito-bot
 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -558,21 +574,12 @@ pip install -r requirements.txt
 
 cp .env.example .env
 # Confirmar que copió un ARCHIVO, no un directorio (un `mkdir .env`
-# accidental durante un setup manual ya pasó una vez y es fácil no notarlo
-# hasta que el bot falla al arrancar con un error de parseo confuso):
+# accidental ya pasó una vez y el bot falla al arrancar con un error de
+# parseo confuso):
 test -f .env && echo "OK: .env es un archivo" || echo "MAL: revisar .env"
 
 nano .env
 ```
-
-### Railway (no es el despliegue de producción)
-
-`railway.json` solo fija el comando de arranque (`python src/bot.py`) para quien
-quiera probar el bot en Railway. **Producción es el servidor con systemd de
-arriba**; este repo no documenta ni prueba un despliegue en Railway. Si lo
-usas, ten en cuenta que su sistema de archivos es efímero: sin un Volume
-montado en `data/` la base (`bot.db`) y los flags de migración se pierden en
-cada deploy, y el cron de backup, nginx y la landing estática no existen ahí.
 
 ### Configurar systemd
 
@@ -584,44 +591,17 @@ sirve copiada tal cual. Generarla con
 
 ```bash
 deploy/render_service.sh <usuario> </ruta/al/checkout> > /tmp/bot-purg.service
-# ejemplo real (AWS, 2026-09-05):
-#   deploy/render_service.sh ubuntu /home/ubuntu/purgito-bot > /tmp/bot-purg.service
+# ejemplo (producción hoy):
+#   deploy/render_service.sh purgito /home/purgito/purgito-bot > /tmp/bot-purg.service
 
-cat /tmp/bot-purg.service   # revisar antes de copiar -- ¿dice lo que esperás?
+cat /tmp/bot-purg.service   # revisar antes de copiar -- ¿dice lo que esperas?
 sudo cp /tmp/bot-purg.service /etc/systemd/system/bot-purg.service
 ```
 
-Este cambio existe justamente porque el unit viejo tenía
-`/home/opc/purgito-bot` y `User=bot-purg` (un usuario que nunca se creó en
-ningún droplet real) hardcodeados directo en el archivo versionado — cada
-migración requería acordarse de editarlo a mano, y una vez se olvidó (ver
-[Actualizar en producción § Desplegar un cambio de
-infraestructura](#8-actualizar-en-producción)).
-
-> ⚠️ **Seguridad**: crea un usuario dedicado con `sudo useradd -r -s /bin/false bot-purg` y otórgale permisos sobre el checkout, en vez de correr el bot con un usuario que tiene sudo. **Ni el droplet de Oracle ni el de AWS hicieron esto** -- corren como el usuario real con sudo (`opc`/`ubuntu`). Cualquier RCE en el proceso del bot (una dependencia comprometida, un parser de imagen/feed malicioso) hoy equivale a comprometer una cuenta con sudo, no solo la cuenta del bot. Ver "Migrar a un usuario dedicado" abajo.
-
-#### Migrar a un usuario dedicado (pendiente)
-
-No se aplicó todavía en ningún droplet real -- requiere una ventana con el
-bot parado. Comandos propuestos, para correr a mano y con aprobación
-explícita antes de tocar producción (reemplazar `<usuario>`/`<ruta>` por
-los reales del servidor):
-
-```bash
-sudo useradd -r -s /sbin/nologin bot-purg
-sudo chown -R bot-purg:bot-purg <ruta>
-# el usuario real (opc/ubuntu/el que sea) sigue necesitando poder
-# actualizar el código (git pull) -- agregarlo al grupo alcanza para eso
-# sin volver a correr todo como ese usuario:
-sudo usermod -aG bot-purg <usuario>
-sudo chmod -R g+rX <ruta>
-
-deploy/render_service.sh bot-purg <ruta> | sudo tee /etc/systemd/system/bot-purg.service
-sudo systemctl daemon-reload
-sudo systemctl restart bot-purg
-sudo systemctl status bot-purg   # confirmar que arrancó como bot-purg
-journalctl -u bot-purg -f        # mirar por errores de permisos
-```
+El bot corre como un usuario normal (`purgito`), no como un usuario de sistema
+dedicado: no hace falta crear uno. El aislamiento viene del endurecimiento del
+propio unit (`NoNewPrivileges`, `ProtectSystem=full`, `CapabilityBoundingSet`
+vacío, etc.; ver [Seguridad del servidor](#seguridad-del-servidor)).
 
 Claves del unit:
 - `Restart=on-failure` + `RestartSec=15` — reinicio automático si el proceso muere, con espera entre intentos para no entrar en loops agresivos.
@@ -630,7 +610,7 @@ Claves del unit:
 - Sandboxing (`ProtectHome`, `ReadOnlyPaths`, `ReadWritePaths`,
   `ProtectSystem=strict`) queda **comentado por default** en la plantilla:
   esta combinación tiró `status=203/EXEC` en systemd real sobre Ubuntu
-  26.04 durante la migración a AWS, con el mismo binario andando perfecto
+  26.04 durante la migración de septiembre, con el mismo binario andando perfecto
   corrido a mano. La causa exacta de la interacción no se identificó — ver
   la nota completa dentro de `deploy/bot-purg.service.template` antes de
   descomentarlas en un servidor nuevo.
@@ -651,7 +631,7 @@ journalctl -u bot-purg -f
 ### Configurar nginx
 
 > ⚠️ **La config de nginx NO está versionada en este repo.** El archivo real y
-> autoritativo vive solo en el droplet, en `/etc/nginx/conf.d/purgito.conf`.
+> autoritativo vive solo en el servidor, en `/etc/nginx/conf.d/purgito.conf`.
 > Lo de abajo describe su estructura para poder reconstruirla, pero ante
 > cualquier duda manda el archivo del servidor, no esta guía.
 
@@ -722,7 +702,7 @@ server {
 
     # ── Authenticated Origin Pulls (desactivado) ───────────────────
     # Exige que solo Cloudflare pueda hablarle a este origin (mTLS): sin
-    # esto, cualquiera que descubra la IP del droplet puede saltarse
+    # esto, cualquiera que descubra la IP del servidor puede saltarse
     # Cloudflare (y su WAF/cache) y pegarle directo a nginx. Requiere:
     #   1. Activar "Authenticated Origin Pulls" en Cloudflare (SSL/TLS →
     #      Origin Server) y bajar su CA pull certificate desde ahí.
@@ -749,7 +729,7 @@ server {
     # todavía, un allowlist de IPs de Cloudflare en nginx alcanza para lo
     # mismo sin tocar TLS: bajar https://www.cloudflare.com/ips/ y agregar
     # un `allow <rango>;` por línea + `deny all;` al final de este server
-    # block (o el equivalente vía firewall del droplet). Más simple que AOP,
+    # block (o el equivalente vía firewall del servidor). Más simple que AOP,
     # mismo resultado: nada que no venga de Cloudflare llega a nginx.
 
     # ── Cabeceras de seguridad, para todo lo que sirve este server ──
@@ -927,7 +907,7 @@ sudo systemctl reload nginx
 ### Cloudflare (DNS + SSL)
 
 1. DNS → Add record tipo `A` por cada host (`purgito.app`, `www`, y los
-   `*.purg4t0ry.com` heredados), valor = IP del droplet, proxy ✅ (naranja).
+   `*.purg4t0ry.com` heredados), valor = IP del servidor, proxy ✅ (naranja).
    `panel.purgito.app` ya no se usa: no le hace falta registro.
 2. Cloudflare maneja el SSL automáticamente. No necesitas certbot ni HTTPS en nginx.
 3. SSL/TLS → Edge Certificates → activa **HSTS**. El panel maneja sesión con
@@ -957,8 +937,8 @@ despliega**: un `main` verde todavía hay que hacerlo `git pull` en el servidor.
 > el estado del servicio y que nginx responda bien, todo de una vez.
 
 ```bash
-ssh <usuario>@<servidor>          # ej. ubuntu@<ip-aws> hoy, opc@<ip-oracle> en el droplet viejo
-cd <ruta-del-checkout>             # ej. /home/ubuntu/purgito-bot hoy
+ssh <usuario>@<servidor>
+cd <ruta-del-checkout>             # hoy: /home/purgito/purgito-bot
 git pull
 source .venv/bin/activate
 pip install -r requirements.txt   # solo si requirements.txt cambió
@@ -967,243 +947,67 @@ sudo systemctl status bot-purg
 ```
 
 > Si `.env.example` tiene variables nuevas, añádelas manualmente a tu `.env` antes de reiniciar.
-> No copies `<usuario>`/`<ruta-del-checkout>` de un ejemplo viejo de esta
-> guía sin verificar contra el servidor real primero (`whoami`, `pwd`) —
-> ambos cambiaron entre el droplet de Oracle y el de AWS, y van a volver a
-> cambiar en la próxima migración.
+> **Observabilidad:** tras reiniciar, `curl -s http://127.0.0.1:8080/health/ready`
+> debe dar `{"ready": true}` y `python3 deploy/runbooks/purgito_runbooks.py diagnose_purgito`
+> resume el estado. El collector (`deploy/vector/vector.toml`) **no** forma parte del
+> deploy base: instalarlo requiere elegir un destino externo (ver
+> `docs/OBSERVABILITY.md` § Vector). `/health/ready` no está en el nginx de
+> arriba; publicarlo es opcional (solo para un monitor externo de PostgreSQL).
+> Verifica `<usuario>` y `<ruta-del-checkout>` contra el servidor real
+> (`whoami`, `pwd`): cambiaron en cada migración y van a volver a cambiar.
 
 ### Desplegar un cambio de infraestructura (systemd, nginx-adjacente)
 
-Un cambio a `deploy/bot-purg.service` (o cualquier archivo que se copia a mano
-fuera del checkout, como la config de nginx) **no existe para el droplet
-hasta que se pushea y se pullea ahí.** Ya pasó una vez (2026-08-12): un fix
-de rutas + hardening en `deploy/bot-purg.service` quedó commiteado solo en
-local, nunca llegó al droplet, y al reinstalar el servicio se copió la
-versión vieja del unit —con `WorkingDirectory`/`ExecStart` apuntando a una
-ruta que ya no existía— y el bot quedó en crash-loop (`status=203/EXEC`)
-hasta que se parcheó a mano en caliente.
+Un cambio a `deploy/bot-purg.service.template` (o a cualquier archivo que se
+copia a mano fuera del checkout, como la config de nginx) **no existe en el
+servidor hasta que se pushea y se hace `git pull` ahí.** Ya pasó (2026-08-12):
+un fix quedó commiteado solo en local, y al reinstalar el servicio se copió el
+unit viejo con rutas inexistentes; el bot quedó en crash-loop
+(`status=203/EXEC`) hasta que se parcheó a mano.
 
-Antes de tocar el unit de systemd en el droplet:
-
-1. `git diff` local del archivo que vas a desplegar — confirmar que es el
-   cambio que creés que es.
-2. Commitear y pushear.
-3. En el droplet: `git pull`, y después **confirmar con `cat`** que el
-   archivo que acabás de bajar es el que esperás — no asumir que el pull
-   trajo lo que pensás, es exactamente el paso que faltó la vez anterior.
+1. `git diff` del archivo que vas a desplegar: confirma que es el cambio que crees.
+2. Commitea y pushea.
+3. En el servidor: `git pull` y **confirma con `cat`** que el archivo que bajó
+   es el esperado.
+4. Genera el unit y cópialo:
    ```bash
-   cat deploy/bot-purg.service   # ¿dice lo que el repo local dice?
-   ```
-4. Recién ahí copiar el unit:
-   ```bash
-   sudo cp deploy/bot-purg.service /etc/systemd/system/bot-purg.service
+   deploy/render_service.sh <usuario> <ruta> | sudo tee /etc/systemd/system/bot-purg.service
    sudo systemctl daemon-reload
    sudo systemctl restart bot-purg
    ```
-5. **No cortar la sesión SSH todavía.** Mirar que arranque bien en vivo:
-   ```bash
-   journalctl -u bot-purg -f
-   ```
-   Si no levanta (`status=203/EXEC`, permisos, rutas que no existen), el
-   rollback es volver a copiar la versión anterior del unit (`git show
-   HEAD~1:deploy/bot-purg.service > /tmp/bot-purg.service.bak` si hace falta
-   reconstruirla) y repetir 4-5 con esa.
+5. **No cortes la sesión SSH todavía**: mira que arranque (`journalctl -u bot-purg -f`).
+   Si no levanta, repite 4 con la versión anterior del template
+   (`git show HEAD~1:deploy/bot-purg.service.template`).
 
 ### Migraciones de datos por servidor
 
-Además de los `ALTER TABLE` que corre `init_db()`, hay migraciones que
-necesitan la API de Discord y por eso corren **desde el bot, una vez por
-servidor**, en el `on_ready` del cog correspondiente. Son automáticas: no hay
-comando que ejecutar, solo hay que reiniciar el bot y mirar el log.
+Además del esquema (`src/schema_pg.sql`, que se aplica en cada arranque), hay
+migraciones que necesitan la API de Discord y corren **desde el bot, una vez por
+servidor**, en el `on_ready` del cog correspondiente (`applied_migrations`). Son
+automáticas: no hay comando que ejecutar. La única vigente es `corpus_allowlist_v1`
+(rellena `corpus_allowed_channels` con los canales de texto de cada servidor menos
+los ignorados). Está aplicada en todos los servidores existentes y no pisa lo que
+un admin ajuste después; si el log del primer arranque tras un restore muestra que
+falló para algún servidor, hay que configurar los canales a mano en
+`/es/dashboard/<id>/chat` → Corpus.
 
-| Migración | Qué hace | Log a buscar |
-|---|---|---|
-| `corpus_allowlist_v1` | Rellena `corpus_allowed_channels` con los canales de texto de cada servidor menos los ignorados | `Corpus: N canales habilitados en …` |
+### Buckets de R2 (estado actual)
 
-**Por qué importa:** el corpus pasó de "aprende de todos los canales menos los
-ignorados" a "aprende solo de los canales habilitados". Los servidores que ya
-existían tienen la lista vacía, que en el modelo nuevo significa *no aprender de
-nada*. Sin esta migración, todos los servidores activos dejarían de aprender el
-día del deploy, sin ningún error visible.
+Las imágenes, los GIFs y los backups tienen cada uno su bucket (ver
+[Cloudflare R2](#cloudflare-r2-imágenes-gifs-y-backups)). La migración desde el
+bucket único anterior terminó el 2026-10-02: el bucket viejo (`purgatory-gifs`) se
+eliminó junto con su credencial y **no se migró contenido histórico** (los objetos
+viejos ya no existían). Ese mismo día se limpiaron de la base las referencias al
+host viejo: 596 GIFs sin archivo recuperable, 510 filas de GIFs de Tenor/Giphy que
+conservan su URL pero perdieron la copia en R2, 1064 filas de `gif_objects` sin
+objeto, 46 registros de imágenes de embeds y las URLs de avatar/banner de
+`guild_bot_style`. Queda **una** plantilla de embed (`embed_templates`, contenido de
+un admin con una galería de imágenes) con URLs del host viejo, a propósito: el admin
+tiene que volver a subir las imágenes.
 
-Cada servidor se migra una sola vez (`applied_migrations`), así que un reinicio
-posterior **no pisa** lo que un admin haya ajustado desde el dashboard. Si el
-log muestra que falló para algún servidor, la única salida es configurar los
-canales a mano en `/es/dashboard/<id>/chat` → Corpus: el flag ya quedó marcado y
-no se reintenta sola (a propósito — reintentarla sobreescribiría configuración
-hecha a mano).
-
-Verificar después del restart:
-
-```bash
-journalctl -u bot-purg --since "5 min ago" | grep -i "Corpus:"
-```
-
-### Migrar a tres buckets de R2
-
-> ⚠️ **Estado en producción (2026-10-01): el paso `copy` NO se hizo.** Los
-> buckets nuevos solo tienen lo subido después de separarlos (`purgito-gifs`: 13
-> objetos, `purgito-images`: 0), pero la DB aún referencia 596 GIFs
-> (`corpus_gifs.url`), 1103 `corpus_gifs.media_url`, 46 imágenes de embeds y los
-> avatares/banners de `guild_bot_style` con el host viejo `pub-2e05…r2.dev`, que
-> ya no responde (401) y no está en `.env` (`R2_BUCKET_NAME`/`R2_PUBLIC_URL`
-> vacíos). Los GIFs viejos se rechazan con `host no permitido`.
-> **No corras `rewrite-db-urls --apply` antes de `copy --apply`**: las URLs
-> pasarían a apuntar a objetos inexistentes (verificado con `head_object`: 642 de
-> 642 faltan en los buckets nuevos). Desde 2026-10-02 `rewrite-db-urls` lo impide solo:
-> comprueba en el bucket nuevo cada objeto antes de reescribir su URL y deja intacta
-> la fila si falta (`destino-faltante`, exit 1). Un dry-run con la DB real da
-> exactamente 1103 `corpus_gifs.media_url`, 596 `corpus_gifs.url`, 46
-> `embed_uploaded_images`, 11+9 `guild_bot_style` (avatar+banner) y 1 plantilla de
-> embed, todas con el destino faltante.
->
-> **Bucket viejo (cerrado el 2026-10-02):** `purgatory-gifs` (host público
-> `pub-2e05…r2.dev`) **ya se eliminó** en Cloudflare junto con la credencial antigua, y
-> se decidió **no migrar nada histórico**: los objetos viejos no existen en ningún sitio.
-> Por eso no hay nada que correr con `copy`/`rewrite-db-urls` en producción. Lo que
-> queda es solo una decisión de producto, no crítica: la base sigue guardando esas URLs
-> muertas (596 `corpus_gifs.url`, 1103 `corpus_gifs.media_url`, 46 imágenes de
-> `embed_uploaded_images`, avatares/banners de `guild_bot_style` y 1 plantilla de embed).
-> Los GIFs viejos se rechazan con `host no permitido`; limpiar esas filas o pedir a los
-> admins que vuelvan a subirlas no se ha ejecutado.
-
-Antes todo vivía en un solo bucket (`R2_BUCKET_NAME` + `R2_PUBLIC_URL`). Ahora
-las imágenes, los GIFs y los backups tienen cada uno el suyo (ver
-[Cloudflare R2](#cloudflare-r2-imágenes-gifs-y-backups)). La migración no es
-destructiva en ningún paso: **el bucket viejo y sus objetos no se tocan**, y
-borrarlo es lo último, a mano, cuando ya no haga falta (en producción ya se hizo,
-ver arriba).
-
-**Cómo convive con el `.env` viejo (fallback transitorio).** Mientras falte
-`R2_IMAGES_BUCKET` / `R2_GIFS_BUCKET` (o sus URLs públicas), ese tipo de archivo
-cae en `R2_BUCKET_NAME` / `R2_PUBLIC_URL`: desplegar el código nuevo sin tocar
-el `.env` deja todo exactamente como estaba. Además `R2_PUBLIC_URL` sigue
-reconociéndose como alias de las URLs que la DB ya tiene guardadas, que apuntan
-al host viejo. El bot avisa en el log de arranque mientras cualquiera de las dos
-variables viejas siga definida. El bucket de backups **no** tiene fallback: sin
-`R2_BACKUP_BUCKET` no hay backups remotos. El fallback se va solo al borrar las
-dos variables viejas (paso 10) y `tests/test_r2_buckets.py` asegura que solo
-`src/r2.py` las lee.
-
-**Pasos** (el bot puede seguir corriendo hasta el paso 7):
-
-1. **Copia de seguridad previa.** `deploy/backup_db.sh` y guarda una copia de
-   tu `.env` actual.
-2. **Desplegar el código sin tocar el `.env`.** `git pull` y
-   `sudo systemctl restart bot-purg`. Todo sigue igual; en el log aparece el
-   aviso de que `R2_BUCKET_NAME` y `R2_PUBLIC_URL` siguen definidas.
-3. **Cloudflare (a mano).** Crea `purgito-images`, `purgito-gifs` y
-   `purgito-backups`; activa el acceso público solo en los dos primeros; y crea
-   un token **Object Read & Write** sobre los tres **y sobre el bucket viejo**
-   (la copia lo lee). Detalle en la sección de R2. No generes el token desde
-   código ni lo pegues en ningún archivo versionado.
-4. **Agregar al `.env` las variables nuevas, sin borrar las viejas.** Si el token
-   es nuevo, reemplaza también `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`. **No
-   reinicies todavía:** el bot lee el `.env` al arrancar, así que el proceso en
-   marcha sigue con lo anterior.
-5. **Copia en seco.**
-   ```bash
-   cd ~/purgito-bot && source .venv/bin/activate
-   python scripts/migrate_r2_buckets.py copy
-   ```
-   No escribe nada. Comprueba que los buckets existen y los puede leer, y
-   muestra cuántos objetos y bytes irían a cada destino, y por qué motivo
-   (`db-gif`, `db-imagen`, `prefijo-gifs`, `sin-referencia`, `ambos`). La
-   clasificación sale de la DB, no de la extensión: un `.gif` del pool de memes
-   es una imagen. Lo que debe quedar en 0: `error` y `distinto`.
-6. **Copia real.**
-   ```bash
-   python scripts/migrate_r2_buckets.py copy --apply --report /tmp/r2-copy.jsonl --sleep 0.05
-   python scripts/migrate_r2_buckets.py verify
-   ```
-   El bot puede seguir corriendo: solo lee del bucket viejo y escribe en los
-   nuevos. Es idempotente y se puede interrumpir y repetir. Con
-   `--skip-unreferenced` no copia lo que la DB no referencia. `verify` tiene que
-   terminar en `VERIFICACIÓN OK`.
-7. **Cambio de bucket (con el bot parado unos minutos).**
-   ```bash
-   sudo systemctl stop bot-purg
-   python scripts/migrate_r2_buckets.py copy --apply     # solo lo subido desde el paso 6
-   python scripts/migrate_r2_buckets.py verify
-   sudo systemctl start bot-purg
-   ```
-   Desde este arranque las subidas nuevas van a los buckets nuevos.
-8. **Comprobar en producción.** El log de arranque no debe avisar de nada de R2
-   salvo las variables viejas. Sube un GIF (`/gif_add` o el panel) y una imagen
-   desde el editor de embeds: las URLs tienen que empezar con
-   `R2_GIFS_PUBLIC_URL` y `R2_IMAGES_PUBLIC_URL`, abrir, y el objeto tiene que
-   aparecer en el bucket correcto del dashboard de Cloudflare. Corre
-   `deploy/backup_db.sh` a mano y mira `python scripts/r2_backup.py list`.
-9. **Reescribir las URLs guardadas (opcional, pero necesario antes del paso 11).**
-   La DB guarda URLs completas con el host viejo. Mientras `R2_PUBLIC_URL` siga
-   definida el bot las reconoce y el host viejo las sigue sirviendo, pero para
-   poder quitar cualquiera de los dos hay que reescribirlas. Es el único paso que
-   cambia la DB, por eso es aparte y explícito:
-   ```bash
-   python scripts/migrate_r2_buckets.py rewrite-db-urls            # dry-run
-   sudo systemctl stop bot-purg
-   python scripts/migrate_r2_buckets.py rewrite-db-urls --apply    # deja bot.db.pre-r2-rewrite-<fecha>
-   sudo systemctl start bot-purg
-   ```
-   Cambia solo el host (las URLs `gifs/...` y las de `corpus_gifs` al de GIFs, el
-   resto al de imágenes), en una sola transacción y con copia previa 0600. Una
-   fila que chocaría con otra ya existente se deja como está y se informa.
-10. **Quitar las variables viejas.** Comprueba que ya no dependes de ellas:
-    ```bash
-    python scripts/migrate_r2_buckets.py verify    # debe decir "la DB ya no referencia el host viejo"
-    ```
-    Borra `R2_BUCKET_NAME` y `R2_PUBLIC_URL` del `.env`, reinicia y confirma:
-    ```bash
-    grep -nE '^(R2_BUCKET_NAME|R2_PUBLIC_URL)=' .env    # sin resultados
-    journalctl -u bot-purg --since "2 min ago" | grep -i "R2"   # sin avisos
-    deploy/preflight_check.sh                            # "sin variables R2 del esquema viejo"
-    ```
-11. **Bucket viejo (manual, sin prisa).** Déjalo unos días o semanas. Bórralo
-    desde el dashboard de Cloudflare solo cuando `verify` esté en OK, la DB no
-    referencie el host viejo y el bot lleve un tiempo sano sin las variables
-    viejas. Ojo: los mensajes que el bot ya publicó en Discord con imágenes del
-    host viejo dejarán de mostrarlas cuando ese host desaparezca. Esto no lo
-    arregla ningún script.
-
-**Verificar que terminó bien.** `python scripts/migrate_r2_buckets.py verify`
-compara cada objeto del bucket viejo con su destino (existe y tiene el mismo
-tamaño), cuenta las filas de la DB que todavía llevan el host viejo y sale con
-código 1 si algo falta. A mano:
-
-```bash
-sqlite3 data/bot.db "SELECT COUNT(*) FROM corpus_gifs WHERE url LIKE 'https://<host-viejo>/%'"   # 0 tras el paso 9
-curl -sI "<una URL de GIF guardada>" | head -3     # 200 y content-type: image/gif
-```
-
-**Volver atrás.** Antes del paso 7 basta con no reiniciar. Después, restaurar el
-`.env` anterior (sin las variables nuevas) y reiniciar devuelve al bot al bucket
-viejo, que sigue intacto; lo subido desde el paso 7 existe solo en los buckets
-nuevos y hay que copiarlo de vuelta. Si ya corriste el paso 9, restaura también
-`bot.db.pre-r2-rewrite-<fecha>` con el bot parado (se pierden las escrituras
-posteriores a la copia). Pasado el paso 9 es más sano arreglar hacia adelante.
-
-### Reconciliar los GIFs de R2 (una sola vez)
-
-`scripts/reconcile_gif_objects.py` normaliza los objetos que ya están en el
-bucket al esquema content-addressed: deduplica el mismo archivo entre
-servidores, lo re-comprime con gifsicle y reconstruye la tabla `gif_objects`.
-Se corre a mano, una vez, después del deploy que trae la deduplicación.
-
-```bash
-sudo systemctl stop bot-purg          # evita subidas en paralelo
-cd /opt/bot-discord-purg && source .venv/bin/activate
-
-python scripts/reconcile_gif_objects.py                 # dry-run: solo informa
-python scripts/reconcile_gif_objects.py --limit 50      # prueba sobre 50 objetos
-python scripts/reconcile_gif_objects.py --apply         # ejecuta de verdad
-
-sudo systemctl start bot-purg
-```
-
-Sin `--apply` no escribe nada. Es idempotente: correrlo de nuevo no rompe nada.
-Con miles de objetos tarda, porque baja cada uno y espera `--sleep` segundos
-(default 0.1) entre llamadas a R2 para no saturar la API. Guardar el log — deja
-una línea por objeto subido o borrado.
+`src/r2.py` todavía acepta `R2_BUCKET_NAME`/`R2_PUBLIC_URL` como fallback heredado;
+en producción están vacías. `scripts/migrate_r2_buckets.py` queda solo como
+referencia de cómo se hizo.
 
 ### Deduplicar GIFs casi-duplicados (dedup perceptual)
 
@@ -1215,7 +1019,7 @@ esta feature, y de ahí en adelante cada vez que se quiera reprocesar el bucket.
 
 ```bash
 sudo systemctl stop bot-purg          # evita subidas en paralelo
-cd /opt/bot-discord-purg && source .venv/bin/activate
+cd <ruta-del-checkout> && source .venv/bin/activate
 pip install -r requirements.txt       # trae imagehash
 
 python scripts/backfill_gif_phashes.py           # backfill de phashes + reporte de clusters, sin fusionar
@@ -1310,6 +1114,15 @@ en [`docs/POSTGRES.md`](docs/POSTGRES.md). Resumen operativo:
 - Restaurar: ver `docs/POSTGRES.md` § Restaurar. **Siempre** termina con
   `scripts/reapply_deletions.py --apply` antes de arrancar el bot.
 
+**Estado del cron (2026-10-02): PENDIENTE DE VERIFICACIÓN — primer disparo automático.**
+Los backups existentes se lanzaron a mano; el primer disparo del cron es el domingo
+2026-10-04 03:17 UTC. Se comprobó que `pg_dump`, `pg_restore`, `age` y el intérprete
+del venv se resuelven con el `PATH` mínimo de cron y que `~/purgito-bot-backups`
+(0700) y `backup.log` (0600) tienen los permisos correctos. Para darlo por
+verificado, después de esa hora: una línea nueva `BACKUP COMPLETE` con fecha del
+domingo en `~/purgito-bot-backups/backup.log` y un `purgito-<fecha>.dump.age` nuevo
+en `python scripts/r2_backup.py list`.
+
 La copia local vive en el mismo disco que la instancia: lo que protege de
 perder el servidor es la copia del bucket de backups.
 
@@ -1325,7 +1138,7 @@ código 1 si algo está mal); corre después de cualquier cambio de red o de per
 | SSH | Solo por clave: `passwordauthentication no`, `kbdinteractiveauthentication no`, `pubkeyauthentication yes`. Se entra por Tailscale. | `sshd -T` |
 | PostgreSQL | localhost, `pg_hba` solo `purgito_app` por scram, sin replicación, `idle_in_transaction_session_timeout=5min`, log de queries lentas sin parámetros. | `deploy/harden_postgres.sh` |
 | systemd | `bot-purg`: NoNewPrivileges, PrivateTmp, PrivateDevices, ProtectSystem=full, ProtectProc, ProtectKernel*, ProtectControlGroups, RestrictAddressFamilies, RestrictNamespaces, CapabilityBoundingSet vacío, UMask=0077. Exposición `systemd-analyze security`: 3.1. | `deploy/bot-purg.service.template` |
-| Secretos | `.env` 0600; ningún secreto en git ni en su historial (comprobado por valor contra el `.env`); no hay secretos en el historial del shell ni en los logs. La clave privada de age no está en el servidor (se retiró el 2026-10-02 tras verificar un restore con la clave externa). Queda una copia antigua del `.env` en `~/.env.bak-pre-postgres` (0600): bórrala con `shred -n 3 -z -u` cuando ya no la necesites. | `security_check.sh` |
+| Secretos | `.env` 0600; ningún secreto en git ni en su historial (comprobado por valor contra el `.env`); no hay secretos en el historial del shell ni en los logs. La clave privada de age no está en el servidor (se retiró el 2026-10-02 tras verificar un restore con la clave externa). La copia antigua `~/.env.bak-pre-postgres` se destruyó con `shred` el 2026-10-02 (ext4 con journal: `shred` es de mejor esfuerzo). | `security_check.sh` |
 | Permisos | `~/purgito-bot-backups` 0700 y archivos 0600; `data/` 0750; `/home/purgito` 0751 (nginx sirve `landing/` desde ahí y necesita atravesarlo). | `stat` |
 
 **Cifrado en reposo del disco: NO.** `/dev/vda1` es ext4 plano (sin dm-crypt/LUKS) en
@@ -1361,24 +1174,24 @@ Plan de migración a un volumen cifrado (cuando haya una ventana):
 clave privada de age salió del servidor (la clave externa descifra un backup real;
 `security_check.sh` devuelve 0), SSH solo por clave, token de R2 antiguo revocado y
 bucket `purgatory-gifs` eliminado. Abiertos y no críticos: el cifrado en reposo del
-disco (arriba), la copia antigua `~/.env.bak-pre-postgres` y las URLs muertas del
-bucket viejo en la base (ver § "Migrar a tres buckets de R2").
+disco (arriba) y las URLs del bucket viejo que quedan en una plantilla de embed (ver § "Buckets de R2").
 
-### Dos puntos que ya estaban sin verificar, confirmados (histórico)
+### Capacidad (disco y memoria)
 
-1. **Ruta del clon en el servidor:** en el droplet de Oracle (hasta
-   2026-09-05) era `/home/opc/purgito-bot`, corriendo como `opc` (no
-   `bot-purg` -- ese usuario dedicado nunca se creó). En el servidor de AWS
-   actual es `/home/ubuntu/purgito-bot`, corriendo como `ubuntu` -- mismo
-   patrón, otro usuario y otra ruta. Ninguna de las dos es "la" ruta
-   correcta: `deploy/bot-purg.service.template` + `deploy/render_service.sh`
-   (ver [Configurar systemd](#configurar-systemd)) generan el unit real a
-   partir de lo que sea que decidas al clonar, así que esto no debería volver
-   a quedar hardcodeado en ningún archivo versionado.
-2. **`/var/www/purgito-landing` es un symlink** al `landing/` dentro del
-   checkout (confirmado tanto en Oracle como, tras la migración, en AWS).
-   `git pull` alcanza para publicar cambios de la landing, no hace falta
-   ningún paso de sincronización aparte.
+Medido el 2026-10-02: VM de 2 vCPU y 1,9 GB de RAM (con 2 GB de swap, 285–600 MB
+en uso), disco de 8,6 GB al 77 % (2,1 GB libres). La base pesa ~241 MB
+(`user_corpus` 136 MB, `corpus_messages` 90 MB) y crece ~4 MB por día; los dos
+dumps locales ocupan ~60 MB y `pg_wal` puede llegar a 1 GB.
+
+- El 2026-10-15 se liberan ≈ 384 MB al retirar el rollback de SQLite (ver
+  `docs/POSTGRES.md`).
+- **Umbrales:** disco al 85 % (≈ 1,3 GB libres) = planificar; al 90 % = actuar ya
+  (ampliar disco o mover a una VM mayor). Swap sostenido por encima de ~1 GB = revisar
+  qué crece antes de ampliar RAM.
+- **Recomendación futura (no hecha):** en la próxima migración de VM
+  (p. ej. la del disco cifrado, ver § Seguridad del servidor) dimensionar 25–30 GB de
+  disco y 4 GB de RAM. No hace falta tocar la infraestructura actual mientras se
+  respeten los umbrales.
 
 ---
 

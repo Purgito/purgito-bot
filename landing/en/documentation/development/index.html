@@ -397,7 +397,7 @@
 <ul>
   <li><code>src/bot.py</code> — Discord bot entrypoint, Gateway intents configuration, and cog initialization order.</li>
   <li><code>src/config.py</code> — Centralized module loading and validating environment variables (<code>.env</code>, <code>urls.env</code>, <code>limits.env</code>).</li>
-  <li><code>src/db.py</code> — Asynchronous SQLite persistence layer (<code>aiosqlite</code>), schema migrations, and write locking.</li>
+  <li><code>src/db.py</code> — PostgreSQL queries, automatic schema migrations, and transactions (asynchronous asyncpg access lives in <code>src/pgdb.py</code>).</li>
   <li><code>src/webapi.py</code> — <code>aiohttp.web</code> server containing all JSON REST routes, OAuth2 authentication, and webhook handlers.</li>
   <li><code>src/markov_engine.py</code> — Custom probabilistic first- and second-order Markov chain implementation.</li>
   <li><code>src/r2.py</code> — S3-compatible client for Cloudflare R2, media deduplication via SHA-256 and perceptual hashing.</li>

@@ -1,240 +1,128 @@
-# Portabilidad — qué no sobrevive una migración de servidor sola
+# Portabilidad — qué hay que llevarse al cambiar de servidor
 
-Auditoría de dónde el código o el proceso de deploy asumen que el bot vive
-para siempre en la misma instancia. Motivada por la pérdida del droplet de
-Oracle (Free Trial vencido, instancia reclamada sin aviso el 5 de septiembre
-de 2026) — migrar de servidor no es un caso raro acá, es el modo de
-operación esperado mientras el proyecto corra en free tiers.
+Inventario de dónde el código o el proceso de deploy dependen de que el bot
+viva en la misma máquina. Migrar de servidor no es un caso raro acá: ya pasó
+con Oracle (Free Trial reclamado sin aviso el 2026-09-05) y es esperable que
+vuelva a pasar. El flujo corto está en [`MIGRATION.md`](../MIGRATION.md); la
+referencia larga, en [`DEPLOY.md`](../DEPLOY.md).
 
-No es una lista de bugs a arreglar ya: es un inventario de riesgo, con una
-recomendación concreta por ítem. Los cambios de arquitectura grandes
-(Postgres, containers, backups a otra región) se evalúan aparte si el riesgo
-lo justifica.
+Estado a 2026-10-02: la base es PostgreSQL y los backups van cifrados con age a
+un bucket privado de R2. Esto reemplaza al análisis de la época SQLite, donde el
+único dato crítico era un archivo `data/bot.db` sin copia fuera del disco.
 
 ## Resumen por severidad
 
-| Severidad | Ítem |
-|---|---|
-| 🔴 Alta | `data/bot.db` no tiene backup fuera del disco de la instancia |
-| 🔴 Alta | Los flags de migración de una sola vez viven en `data/` como archivos sueltos, fuera del `.backup` de sqlite — restaurar solo `bot.db` los pierde y puede re-disparar un `DELETE` |
-| 🟡 Media | `SESSION_SECRET` sin copiar en la migración desloguea a todos los usuarios del dashboard (no es pérdida de datos, pero confunde si no se espera) |
-| 🟢 Baja | `data/bot.log` se pierde en cada migración | ya aceptado, solo se documenta para confirmar que no esconde nada crítico |
-| ✅ Sin riesgo encontrado | Rutas hardcodeadas fuera de `deploy/`, GIFs en disco local, certificados/claves atados a la IP vieja |
+| Severidad | Ítem | Estado |
+|---|---|---|
+| 🔴 Alta | Perder la clave privada de age: sin ella ningún backup se puede abrir | Una sola clave, guardada fuera del servidor. Un segundo destinatario no está configurado |
+| 🔴 Alta | Restaurar un backup sin reaplicar los borrados posteriores (`/borrar_mis_datos`) resucita datos de usuarios | Cubierto: `scripts/reapply_deletions.py --apply` es un paso obligatorio |
+| 🟡 Media | El túnel de `cloudflared` y el nodo de Tailscale están atados a la máquina | Hay que moverlos o recrearlos en el servidor nuevo |
+| 🟡 Media | `SESSION_SECRET` sin copiar desloguea a todos los usuarios del dashboard | Esperable, no es pérdida de datos |
+| 🟢 Baja | `data/bot.log` se pierde en cada migración | Aceptado |
+| ✅ Sin riesgo | GIFs e imágenes (viven en R2), rutas hardcodeadas, certificados | Verificado |
 
 ---
 
-## 1. `data/bot.db` — la base SQLite
+## 1. La base de datos y sus backups
 
-**Dónde vive:** `data/bot.db` (+ `data/bot.db-wal`, `data/bot.db-shm` mientras
-el proceso corre en modo WAL), en el disco de la instancia. Es la única
-copia — no hay réplica ni motor externo.
+**Dónde vive:** PostgreSQL local (`DATABASE_URL`), solo accesible desde la propia
+máquina. No hay réplica: la única copia viva es la del servidor.
 
-**Cómo se respalda hoy:** [`deploy/backup_db.sh`](../deploy/backup_db.sh)
-corre por cron, usa `sqlite3 .backup` (seguro contra el modo WAL) y escribe
-en `BACKUP_DIR` (default `/home/opc/purgito-bot-backups` — **mismo disco,
-misma instancia**, solo fuera del árbol de git). Poda backups de más de 14
-días. Según DEPLOY.md, a la fecha de esta auditoría **el cron todavía no
-está instalado en el droplet real** — es un procedimiento documentado para
-aplicar a mano, no algo que ya esté corriendo.
+**Cómo se respalda:** [`deploy/backup_db.sh`](../deploy/backup_db.sh) corre por cron
+(domingos 03:17 UTC), hace `pg_dump -Fc`, lo verifica con `pg_restore --list`, lo
+cifra con age (solo la clave **pública** está en el servidor) y lo sube al bucket
+privado `R2_BACKUP_BUCKET`. Se conservan los 2 más recientes, en el disco y en R2.
+La copia local está en el mismo disco que la base: lo que sobrevive a perder el
+servidor es la copia de R2.
 
-**El problema:** un backup en el mismo disco que el original protege contra
-"until una migración corrompió la base" o "un `DELETE` corrió sin `WHERE`",
-pero no contra lo que realmente pasó el 5 de septiembre: la instancia entera
-desapareció. Si Oracle hubiera reclamado el droplet con el cron de
-`backup_db.sh` ya instalado, los backups habrían desaparecido con la
-instancia igual que `bot.db`. No hay ninguna copia hoy que sobreviva a
-"se perdió el droplet completo": ni en R2, ni en otro storage, ni fuera del
-proveedor.
+**Qué llevarse al migrar:**
 
-**Recomendación concreta:**
-- Subir el backup a R2 (hoy semanal y ya implementado: ver `docs/POSTGRES.md`
-  § Backups; ya está integrado y pagado — `src/r2.py` ya
-  tiene cliente S3-compatible) bajo un prefijo separado del de GIFs, ej.
-  `db-backups/bot-<fecha>.db`, con su propio ciclo de vida/retención
-  (Object Lifecycle Rules de R2, o borrado manual del lado del bucket para
-  no reescribir lógica de negocio en `src/`). Es el cambio de más impacto
-  de todo este documento: convierte "hay que acordarse de scp-ear el
-  archivo a mano antes de que el proveedor decida reclamar la instancia
-  sin aviso" en "la migración empieza con `aws s3 cp` (o el CLI de R2)
-  desde cualquier lado, sin depender de que la instancia vieja siga viva".
-- Mientras eso no esté armado: agregar al checklist de "antes de destruir
-  la instancia vieja" (ver más abajo) un `scp` explícito de
-  `data/bot.db` + el directorio `data/` completo a una máquina que no sea
-  la instancia, no solo confiar en el cron local.
-- No se implementó en este pase — es justo el tipo de cambio que el pedido
-  original pidió discutir antes (agregar credenciales/lifecycle a R2 desde
-  un script de infra, no tocar `src/`), así que queda como recomendación,
-  no como código.
+1. Un backup reciente (si la instancia vieja sigue viva, lanza
+   `deploy/backup_db.sh` a mano antes de apagarla; si no, el último de R2:
+   `python scripts/r2_backup.py download latest --dest <carpeta>`).
+2. La **clave privada de age**, que no está en el servidor: sin ella el backup es
+   ilegible.
+3. El `.env` completo (ver § 3). `urls.env` y `limits.env` ya vienen con el
+   `git clone`.
 
-> **Actualización (2026-09-30): implementado.** `deploy/backup_db.sh` ahora sube
-> cada backup (y su tar de flags) a un bucket de R2 **aparte y privado**
-> (`R2_BACKUP_BUCKET`, en lugar de un prefijo dentro del de GIFs como proponía
-> arriba), y falla si la subida falla. Lo que sigue pendiente es la retención en
-> R2, que no tiene ninguna política: ver DEPLOY.md § "Subida a R2 (bucket
-> privado)". Para traer un backup a un servidor nuevo:
-> `python scripts/r2_backup.py download latest`.
+Procedimiento paso a paso: [`POSTGRES.md`](POSTGRES.md) § Restaurar. Siempre termina
+con `scripts/reapply_deletions.py --apply` antes de arrancar el bot.
 
-## 2. Flags de migración de una sola vez, sueltos en `data/`
+## 2. Flags sueltos de `data/` (solo hasta 2026-10-15)
 
-**Dónde viven:** `data/.images_wiped_v2` y `data/.chat_channels_split_v1`
-(ver `src/db.py`, función `init_db()`, líneas ~869-894). Son archivos
-sueltos con el texto `"done"`, sidecars de `bot.db` en el mismo directorio
-pero **fuera del archivo sqlite**.
+`data/.images_wiped_v2` y `data/.chat_channels_split_v1` eran flags de migración
+de la época SQLite. El código actual ya no los lee. Existen solo mientras dura el
+rollback a SQLite (ver [`POSTGRES.md`](POSTGRES.md) § Rollback temporal), porque el
+código viejo los usaba para no repetir un `DELETE FROM corpus_images`. No hacen falta
+en una migración a un servidor nuevo, y se borran el 2026-10-15 junto con
+`data/bot.db`.
 
-**Por qué importa:** `sqlite3 .backup` (lo que usa `backup_db.sh`) solo
-copia `bot.db`. Restaurar ese backup en un servidor nuevo — o simplemente
-clonar el repo y copiar `bot.db` a mano sin copiar el resto de `data/` —
-deja la base con las tablas migradas pero **sin los archivos de flag**. En
-el próximo arranque, `init_db()` no los encuentra y vuelve a correr esa
-rama:
+## 3. `SESSION_SECRET` no copiado
 
-- `.chat_channels_split_v1` ausente → repite el `INSERT OR IGNORE` de
-  `chat_channels` hacia `spontaneous_channels`/`mention_channels`. Es
-  idempotente por el `OR IGNORE` — no duplica filas ni pisa lo que un admin
-  ya cambió a mano. Riesgo real: bajo.
-- `.images_wiped_v2` ausente → corre `DELETE FROM corpus_images` **de
-  nuevo**, sin condición. Esto sí es destructivo: si la tabla ya tiene
-  contenido nuevo (imágenes de memes subidas después de la primera vez que
-  corrió esta migración), un servidor nuevo que restaure `bot.db` sin el
-  flag las borra todas en el primer arranque, en silencio, sin pedir
-  confirmación. Riesgo real: alto, y exactamente el tipo de cosa que nadie
-  nota hasta que un usuario pregunta por qué el corpus de imágenes está
-  vacío después de una migración.
+**Dónde vive:** `.env`, variable `SESSION_SECRET` (se deriva una clave Fernet con
+`sha256` para cifrar la cookie de sesión del dashboard).
 
-**Por qué el diseño actual es frágil en general (más allá de estos dos
-flags puntuales):** el criterio de "¿ya corrí esto?" vive en el filesystem,
-separado del dato que la migración toca, que vive en sqlite. Son dos
-sistemas de respaldo distintos (uno no tiene respaldo en absoluto) para un
-estado que debería ser uno solo.
+No es pérdida de datos: si el `.env` del servidor nuevo se arma a mano y se
+regenera `SESSION_SECRET`, todas las cookies activas dejan de descifrar y cada
+usuario vuelve a iniciar sesión. Lo preferido es copiar el `.env` completo; si el
+servidor viejo ya no existe, regenerarlo es aceptable y esperable.
 
-**Recomendación concreta:**
-- Corto plazo, sin tocar código: el checklist de migración (`DEPLOY.md` y
-  `MIGRATION.md`) tiene que decir explícitamente "copiar el directorio
-  `data/` completo, no solo `bot.db`" — ítem ya incluido en ambos
-  documentos de este mismo cambio.
-- Mejor arreglo, para discutir aparte (no se implementa en este pase por
-  pedido explícito de no tocar `src/db.py` sin confirmar antes): migrar
-  estos dos flags a la tabla `applied_migrations` que **ya existe** en
-  `db.py` y que ya se usa para el mismo propósito a nivel de guild
-  (`corpus_allowlist_v1`, ver DEPLOY.md § "Migraciones de datos por
-  servidor"). Sacaría el estado del filesystem por completo — quedaría
-  todo dentro del mismo `bot.db` que ya se respalda, sin que un backup
-  parcial pueda dejarlo en un estado inconsistente. Es un cambio de una
-  fila de SQL y dos `if` en `init_db()`, pero toca `src/db.py`, así que
-  queda pendiente de confirmación antes de tocarlo.
+`DISCORD_CLIENT_ID` y `DISCORD_CLIENT_SECRET` no tienen este problema: están atados
+a la aplicación de Discord, no a la instancia, mientras el redirect URI
+(`{DASHBOARD_BASE_URL}/auth/callback`) siga apuntando al dominio, que no cambia.
 
-## 3. `SESSION_SECRET` no copiado en la migración
+## 4. GIFs e imágenes: no hay estado local
 
-**Dónde vive:** `.env`, variable `SESSION_SECRET` (ver `src/config.py` y
-`src/webapi.py:5558-5559` — deriva una clave Fernet de 32 bytes vía
-`sha256(SESSION_SECRET)` para cifrar la cookie de sesión del dashboard).
+`r2.upload_gif_sync()` descarga el GIF a memoria, lo optimiza con `gifsicle` por
+stdin/stdout y lo sube directo a R2: nunca toca el disco de la instancia. No existe
+un directorio `gifs/` local. El barrido de huérfanos (`run_gif_orphan_sweep()`)
+compara keys de R2 contra la tabla `gif_objects`, es decir R2 + PostgreSQL son las
+únicas fuentes de verdad.
 
-**Por qué importa:** no es pérdida de datos — es una fuente de confusión
-predecible. Si el `.env` del servidor nuevo se arma copiando valores a mano
-en vez de copiar el archivo completo, es fácil regenerar `SESSION_SECRET`
-"por las dudas" en vez de reusar el viejo. Todas las cookies de sesión
-activas dejan de descifrar (clave distinta) y cada usuario logueado en el
-dashboard aparece deslogueado al primer request después del switch — no es
-un bug, pero sin este documento parece uno.
+Consecuencia: un servidor nuevo sirve la galería con normalidad desde el primer
+arranque, siempre que la base restaurada y las credenciales `R2_*` estén presentes.
 
-**Recomendación concreta:** el checklist de migración dice explícitamente
-"copiar `.env` completo del servidor viejo, no reconstruirlo variable por
-variable" como método preferido; si hay que reconstruirlo a mano (servidor
-viejo ya no accesible), documentar que perder `SESSION_SECRET` es
-aceptable y esperable (todos vuelven a loguearse), no un error a
-investigar.
+## 5. Rutas hardcodeadas: ninguna fuera de `deploy/`
 
-`DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` no tienen este problema: están
-atados a la Application de Discord, no a la instancia — el mismo valor
-sirve en cualquier servidor mientras el redirect URI (`{DASHBOARD_BASE_URL}
-/auth/callback`, configurado en el Developer Portal) siga apuntando al
-dominio correcto, que no cambia en una migración de servidor (solo la IP
-detrás del dominio cambia, vía Cloudflare).
+`src/` y `scripts/` calculan sus rutas relativas al checkout. Usuario y ruta se
+fijan solo al generar el unit de systemd con `deploy/render_service.sh <usuario>
+<ruta>`.
 
-## 4. GIFs — confirmado: no hay estado local que sobreviva ni que migrar
+## 6. Red, certificados y accesos atados a la máquina
 
-Se auditó específicamente si el flujo es "se guarda en disco local primero,
-se sube a R2 después" (lo que dejaría un servidor nuevo sin GIFs hasta
-recachear). **No es así:** `r2.upload_gif_sync()` (`src/r2.py`) descarga el
-GIF de la URL de origen a memoria (`io.BytesIO`), lo optimiza con
-`gifsicle` por stdin/stdout (sin archivos temporales) y sube el resultado
-directo a R2 — nunca toca el disco de la instancia. No existe un directorio
-`gifs/` local; no hay que buscarlo porque no está.
-
-El "barrido de huérfanos" que aparece en los logs (`run_gif_orphan_sweep()`,
-`src/cogs/gifs.py`) opera exclusivamente sobre **keys de R2** vs.
-referencias en `gif_objects` (la tabla de sqlite) — es limpieza del bucket,
-no del disco local. Confirma que R2 + `bot.db` son las dos únicas fuentes
-de verdad; ninguna vive solo en el disco de la instancia aparte de la DB ya
-cubierta en el punto 1.
-
-**Consecuencia real de una migración:** un servidor nuevo sirve la galería
-y el dashboard con normalidad desde el primer arranque, siempre que
-`bot.db` (con las URLs/hashes en `gif_objects`) y las credenciales `R2_*`
-en `.env` estén presentes. No hace falta re-cachear nada porque nunca hubo
-caché local que perder.
-
-## 5. Rutas hardcodeadas — confirmado: ninguna fuera de `deploy/`
-
-Se buscó en `src/` y `scripts/` cualquier path absoluto tipo `/home/opc/` o
-`/opt/bot-discord-purg/` escrito directo en código Python. No apareció
-ninguno — `src/db.py`, `src/bot.py` y `src/meme_generator.py` calculan sus
-rutas (`DATA_DIR`, `_LOG_PATH`, `_FONT_PATH`) relativas a
-`os.path.dirname(os.path.abspath(__file__))`, así que siguen al checkout
-sin importar dónde viva. Los únicos lugares con la ruta vieja hardcodeada
-son exactamente los ya identificados en la migración Oracle→AWS:
-`deploy/bot-purg.service` y `deploy/backup_db.sh` (sus defaults
-`DB_SRC`/`BACKUP_DIR`) — ambos se generalizan en este mismo cambio (ver
-`deploy/bot-purg.service.template` y `deploy/render_service.sh`).
-
-## 6. Certificados, claves, config atada a la IP vieja
-
-El bot no genera ni guarda ninguna clave SSH ni certificado propio. TLS lo
-termina Cloudflare, no nginx (el origin habla HTTP plano con Cloudflare —
-ver DEPLOY.md § Cloudflare); no hay `ssl_certificate` en el origin que
-migrar o revocar. No se encontró configuración de Cloudflare (reglas de
-página, WAF, Workers) que dependa de la IP vieja más allá de los A records
-obvios, que ya están en el checklist de DNS de `MIGRATION.md`. Ítem sin
-riesgo encontrado, se deja documentado para que la próxima auditoría no
-tenga que repetir la búsqueda desde cero.
+- **TLS:** lo termina Cloudflare, que llega al origen por un túnel saliente de
+  `cloudflared` hacia nginx por loopback. No hay certificado propio que migrar,
+  pero el **túnel hay que moverlo o recrearlo** en el servidor nuevo y apuntar el
+  DNS (ver `DEPLOY.md` § Cloudflare).
+- **Acceso de administración:** SSH solo por clave y a través de Tailscale. El nodo
+  de Tailscale es de la máquina vieja; en el servidor nuevo hay que unirlo de nuevo
+  y repetir `deploy/harden_firewall.sh` (tiene auto-reversión a los 15 minutos).
+- La config de nginx vive fuera del repo (`/etc/nginx/conf.d/purgito.conf`); se
+  reconstruye desde `DEPLOY.md` § Configurar nginx.
 
 ## 7. `bot.log`
 
-Vive en `data/bot.log` (+ rotados `bot.log.1`, `.2`, `.3` —
-`RotatingFileHandler(maxBytes=5_000_000, backupCount=3)`, ver `src/bot.py`).
-Se pierde en cada migración si no se copia a mano — **a propósito, esto está
-bien**: es el único ítem de esta lista donde la recomendación es "no hacer
-nada". Se confirma acá que ningún dato necesario para debugging vive
-*solo* en este log — todo lo que importa para operar el bot (config,
-estado de guilds, migraciones aplicadas) está en `bot.db`, y todo lo que
-importa para depurar un incidente puntual se pierde igual en cualquier
-`journalctl` si no se exportó antes, sea o no la primera migración.
+Vive en `data/bot.log` (+ rotados, `RotatingFileHandler` de 5 MB × 3, ver
+`src/bot.py`). Se pierde al migrar y **está bien**: nada necesario para operar el
+bot vive solo ahí (la configuración y el estado están en PostgreSQL).
 
 ---
 
 ## Checklist — antes de destruir la instancia vieja
 
-Pensado para correr en 5 minutos cuando un proveedor decide reclamar el
-servidor sin aviso (o antes de un apagado planeado). En orden:
+Pensado para correr en pocos minutos cuando un proveedor reclama el servidor sin
+aviso o antes de un apagado planeado. En orden:
 
-1. [ ] `scp` (o `rsync`) el directorio `data/` **completo** — no solo
-       `bot.db` — a una máquina que no sea esta instancia (tu laptop, otro
-       servidor, un bucket). Incluye los flags de migración
-       (`.images_wiped_v2`, `.chat_channels_split_v1`) y `bot.db-wal`/
-       `-shm` si el bot sigue corriendo (o pará el bot primero y copiá solo
-       `bot.db` ya consolidado).
-2. [ ] `scp` el `.env` completo (no reconstruirlo de memoria en el servidor
-       nuevo — ver punto 3 arriba sobre `SESSION_SECRET`).
-3. [ ] Confirmar que las credenciales `R2_*` en ese `.env` siguen siendo
-       válidas (R2 no depende de esta instancia, pero confirmá que el
-       token no tiene expiración próxima).
-4. [ ] Anotar la IP del droplet viejo únicamente para poder compararla
-       después con la nueva en los A records de Cloudflare — no hace falta
-       nada más de la IP en sí.
-5. [ ] Si hay un backup de `bot.db` corriendo por cron (`backup_db.sh`),
-       bajate también el más reciente de `BACKUP_DIR` — es una copia
-       adicional en caso de que el `scp` del paso 1 falle a mitad.
-6. [ ] Solo después de 1-5: destruir/dejar expirar la instancia vieja.
+1. [ ] Lanza `deploy/backup_db.sh` a mano (si la base todavía responde) y confirma
+       en `~/purgito-bot-backups/backup.log` la línea `BACKUP COMPLETE`, o baja el
+       último de R2 con `scripts/r2_backup.py`.
+2. [ ] Copia el `.env` completo fuera de la instancia (no reconstruirlo de memoria;
+       ver § 3).
+3. [ ] Confirma que tienes la **clave privada de age** (no está en el servidor).
+4. [ ] Confirma que las credenciales `R2_*` del `.env` siguen vigentes.
+5. [ ] Anota la IP vieja solo para compararla con la nueva al mover el túnel y el
+       DNS en Cloudflare.
+6. [ ] Solo después de 1-5: destruir o dejar expirar la instancia vieja.
 
-Ver [`MIGRATION.md`](../MIGRATION.md) para el flujo completo de levantar en
-el servidor nuevo a partir de estos archivos.
+Ver [`MIGRATION.md`](../MIGRATION.md) para levantar el servidor nuevo a partir de
+estos elementos.

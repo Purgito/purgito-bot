@@ -3,9 +3,9 @@
 Purgito guarda todo en **una sola base PostgreSQL** (desde la migración del
 2026-10-01; antes era SQLite en `data/bot.db`). Los datos de cada servidor de
 Discord conviven en las mismas tablas y se separan por la columna `guild_id`
-(43 de las 48 tablas la llevan; las otras 5 son globales por diseño:
-`gif_objects`, `lifecycle_state`, `pending_message_deletions`,
-`revoked_sessions`, `shared_embeds`).
+(43 de las 49 tablas la llevan; las otras 6 son globales por diseño:
+`deleted_user_tombstones`, `gif_objects`, `lifecycle_state`,
+`pending_message_deletions`, `revoked_sessions`, `shared_embeds`).
 No hay una base por servidor.
 
 Piezas del código:
@@ -29,6 +29,14 @@ Van en `.env` (secretos, gitignored; los nombres están en `.env.example`):
 | `DB_POOL_MIN` / `DB_POOL_MAX` | no | Tamaño del pool (default 2 / 10). |
 | `BACKUP_AGE_RECIPIENTS` | para backups a R2 | Clave(s) PÚBLICA(S) age (`age1...`) con las que `backup_db.sh` cifra. Sin ella, con R2 configurado, el backup falla (no sube nada en claro). Ver § Backups. |
 | `DELETION_TOMBSTONE_RETENTION_DAYS` | no (`limits.env`, 15) | Cuánto dura la lápida de un `/borrar_mis_datos`. Debe ser ≥ la retención de backups + 1. |
+
+## Observabilidad de la base
+
+- `GET /health/ready` (loopback) hace un `SELECT 1` con timeout de 2 s, cacheado 5 s. Si falla emite `database.health_failed` y suma a `purgito_db_connection_errors_total`; 3 fallos en 5 min abren la alerta `database.connection_failed_repeated`.
+- Un fallo en `init_db` al arrancar emite `database.connection_failed`.
+- El heartbeat del bot (`data/service_state.json`) **no usa PostgreSQL**: con la base caída el bot sigue reportando que está vivo y `/health/ready` da 503.
+- Diagnóstico por SSH: `python3 deploy/runbooks/purgito_runbooks.py diagnose_postgres` (`pg_isready`, conexiones vs `max_connections`, tamaño, transacción más vieja). Es solo lectura y no imprime credenciales.
+- Los logs nunca van a esta base. Ver [OBSERVABILITY.md](OBSERVABILITY.md).
 
 ## Preparar una base nueva (servidor desde cero)
 
@@ -54,9 +62,13 @@ configuración por defecto de PostgreSQL (`shared_buffers` 128–256 MB,
 > servidor de producción tiene ahora 2 GB de swap (`/swapfile`, en `/etc/fstab`).
 > Si montas otro servidor: `fallocate -l 2G /swapfile && chmod 600 /swapfile &&
 > mkswap /swapfile && swapon /swapfile` y la línea de fstab. Vigila el disco
-> (`df -h /`): con 8.6 GB, el swap, los dumps y la SQLite de rollback pesan.
+> (`df -h /`): con 8.6 GB, el swap y los dumps pesan (ver § "Capacidad" en DEPLOY.md).
 
 ## Migrar una SQLite existente
+
+> **Se retira el 2026-10-15** junto con el rollback (ver § "Rollback temporal a
+> SQLite") y con `scripts/migrate_sqlite_to_postgres.py`. La migración de
+> producción terminó el 2026-10-01 y no se va a repetir.
 
 ```bash
 sudo systemctl stop bot-purg                       # opcional: el snapshot es consistente aun con el bot corriendo
@@ -147,7 +159,13 @@ env -i HOME=$HOME USER=$USER LOGNAME=$USER SHELL=/bin/sh PATH=/usr/bin:/bin \
 tail -2 ~/purgito-bot-backups/backup.log   # OK backup -> ... cifrado con age ... subido a R2
 ```
 
-Verificado así el 2026-10-02: `pg_dump` y `age` se encuentran con ese PATH, el
+**Estado: PENDIENTE DE VERIFICACIÓN — primer disparo automático.** El cron
+(`17 3 * * 0`, domingo 03:17 UTC) todavía no se ejecutó solo: los backups que
+existen se lanzaron a mano. El primero automático es el 2026-10-04. Se da por
+verificado cuando `backup.log` tenga un `BACKUP COMPLETE` de esa hora y
+`scripts/r2_backup.py list` muestre el `.dump.age` nuevo.
+
+Verificado a mano, con el entorno de cron, el 2026-10-02: `pg_dump` y `age` se encuentran con ese PATH, el
 backup queda `.dump.age` 0600, sin archivos en claro, el objeto aparece en R2 y la
 prueba de restauración completa (bajar de R2 → descifrar → restaurar en una base
 de descarte → comparar catálogo, secuencias, índices, funciones y conteos con
@@ -201,6 +219,19 @@ a la base, caducan solas y no se exponen por ninguna API.
 
 ## Rollback temporal a SQLite
 
+> **Retirada pendiente — 2026-10-15.** Ese día (y solo si no hizo falta volver
+> atrás) se borra todo lo que existe únicamente para este procedimiento, y esta
+> sección y la de arriba ("Migrar una SQLite existente") se eliminan:
+> `data/bot.db`, `data/bot.db-shm`, `data/bot.db-wal`, los flags
+> `data/.images_wiped_v2` y `data/.chat_channels_split_v1` (el código SQLite viejo
+> los leería para no repetir migraciones; sin ellos podría rehacer un
+> `DELETE FROM corpus_images`), y en `~/purgito-bot-backups/`:
+> `bot-sqlite-pre-cutover-*.db`, su `.sha256`, `bot-pre-postgres-*.flags.tar.gz` y el
+> directorio `pre-gifcleanup-20261002T164117Z/` (CSV con las filas de GIFs que se
+> limpiaron el 2026-10-02, por si hacía falta revertir; borrarlo con `shred -u` cuando
+> ya no haga falta). Total ≈ 384 MB. Después se puede quitar el aviso de `deploy/preflight_check.sh`
+> sobre `data/bot.db` y `scripts/migrate_sqlite_to_postgres.py`.
+
 Es temporal: se conservan `data/bot.db` y `~/purgito-bot-backups/bot-sqlite-pre-cutover-*.db`
 (+ `.sha256`) **hasta el 2026-10-15**; pasada esa fecha se pueden borrar y este
 procedimiento deja de existir. El código de la rama actual **solo** habla PostgreSQL; volver a SQLite significa
@@ -222,7 +253,9 @@ PostgreSQL y no vuelve a la SQLite con este procedimiento.
 
 - Producción: `DATABASE_URL` → `purgito`. Desarrollo: crea tu propia base y
   `purgito_test` para los tests.
-- Tests: `.venv/bin/python -m pytest tests -q` (1 se salta porque necesita
+- Tests: `.venv/bin/python -m pytest tests -q`. CI corre la suite con Python 3.14 +
+  PostgreSQL 18 (el stack de producción) y, como piso de compatibilidad, con 3.12 +
+  PostgreSQL 16. (1 test se salta porque necesita
   Node.js, que no está instalado en el servidor, igual que los
   `landing/test_*.mjs`). Necesitan `TEST_DATABASE_URL` y el puerto de la web app
   libre (8 tests levantan la app real). Con el bot corriendo en la misma máquina,

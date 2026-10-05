@@ -346,7 +346,7 @@ HTML_PAGES = [
         "slug": "documentacion/almacenamiento",
         "src": "documentacion/almacenamiento.html",
         "title": "Almacenamiento — Documentación técnica",
-        "meta": "SQLite, Cloudflare R2, cachés en memoria y retención de "
+        "meta": "PostgreSQL, Cloudflare R2, cachés en memoria y retención de "
         "datos en Purgito.",
         "doc": True,
     },
@@ -493,7 +493,7 @@ HTML_PAGES_EN = [
         "slug": en_slug("documentacion/almacenamiento"),
         "src": "documentacion/en/almacenamiento.html",
         "title": "Storage — Technical Documentation",
-        "meta": "SQLite, Cloudflare R2, in-memory caches, and data retention in Purgito.",
+        "meta": "PostgreSQL, Cloudflare R2, in-memory caches, and data retention in Purgito.",
         "doc": True,
     },
     {
@@ -575,7 +575,7 @@ DOC_SECTIONS = [
         "slug": "documentacion/almacenamiento",
         "label": "Almacenamiento",
         "subs": [
-            ("sqlite", "SQLite"),
+            ("postgresql", "PostgreSQL"),
             ("r2", "R2"),
             ("cache", "Caché"),
             ("retencion", "Retención de datos"),
@@ -668,7 +668,7 @@ DOC_SECTIONS_EN = [
         "slug": en_slug("documentacion/almacenamiento"),
         "label": "Storage",
         "subs": [
-            ("sqlite", "SQLite"),
+            ("postgresql", "PostgreSQL"),
             ("r2", "R2"),
             ("cache", "Cache"),
             ("retention", "Data retention"),

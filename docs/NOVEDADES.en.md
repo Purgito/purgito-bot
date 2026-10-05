@@ -63,6 +63,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 - The Change history now shows the previous value for single-value settings: command prefix, Manager role, chat parameters (server-wide and per-channel), updates channel, and the bot's style.
 
 ### Fixed
+- GIFs saved before the latest storage change that could no longer be opened were removed from the server's collection. If someone shares one of those GIFs again, it is now saved properly instead of ending up with a broken link.
 - The dashboard's YouTube module showed an error ("emptyState is not defined") instead of the subscription list.
 - Stats showed every text channel as "read" even when only a few were actually enabled to learn from.
 - In Automatic reactions, adding an emoji closed the modal (you had to reopen it for each one) and adding several in a row often got blocked for too many requests.

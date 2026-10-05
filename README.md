@@ -6,7 +6,7 @@
 
 **Bot de Discord que aprende a hablar como tu servidor.**
 
-Cadenas de Markov · Editor de embeds · Colección de GIFs · Notificaciones de YouTube
+Cadenas de Markov · Editor de embeds · Colección de GIFs · Avisos de YouTube, Twitch y RSS
 
 [purgito.app](https://purgito.app) · [Invitar el bot](https://discord.com/oauth2/authorize?client_id=1471724794411089920) · [Soporte](https://discord.gg/5U7HKyxnBv)
 
@@ -21,7 +21,7 @@ Cadenas de Markov · Editor de embeds · Colección de GIFs · Notificaciones de
 - **Responde a menciones y replies** en los canales que elijas
 - **Memes** (`/momo`) — capciones con Groq (llama-4-scout) o Markov como fallback, sobre imágenes guardadas con 🎯 o subidas a mano
 - **Colección de GIFs** — los detecta en el chat y persiste en Cloudflare R2 los que vienen de Discord CDN
-- **YouTube** — avisa cuando un canal suscrito sube video nuevo
+- **YouTube, Twitch y RSS** — avisan cuando un canal suscrito sube video nuevo, entra en vivo o publica una entrada
 - **Anuncios programados**, frases especiales, reacciones custom, editor de embeds/botones (Components V2)
 
 Todo esto se configura desde el [dashboard web](https://purgito.app) (OAuth2 con Discord) o desde `/settings` y `/setup` en Discord.
@@ -51,6 +51,7 @@ cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POST
 |---|---|---|
 | `/generar` | Genera un mensaje con el modelo Markov del servidor | Todos |
 | `/imitar @usuario` | Genera un mensaje imitando el estilo del usuario | Todos |
+| `/imitar_mezcla @usuario1 @usuario2` | Mezcla el estilo de dos miembros en un solo mensaje | Todos |
 | `/momo`, `/meme` ⭐ | Genera un meme del pool de imágenes del servidor | Todos |
 | `/refeed` | Importa el historial del canal actual al corpus | Gestionar servidor |
 | `/refeed_channels` | Importa el historial de los canales configurados | Gestionar servidor |
@@ -60,7 +61,9 @@ cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POST
 | `/setup` | Asistente de configuración inicial | Gestionar servidor |
 | `/help` | Comandos y enlaces al dashboard | Todos |
 | `/vote` | Link para votar por Purgito en top.gg | Todos |
+| `/mis_datos` | Descarga en un JSON lo que Purgito guardó de tu estilo de escritura | Todos |
 | `/borrar_mis_datos` | Elimina tus datos guardados por Purgito | Todos |
+| `/dl <link>`, `/gif` | Descargan un video de Instagram, TikTok, X o Facebook / convierten un video o imagen a GIF (también como `!dl` y `!gif`) | Todos |
 
 ⭐ Requiere suscripción Premium en el servidor.
 

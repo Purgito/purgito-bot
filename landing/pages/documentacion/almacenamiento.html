@@ -1,18 +1,18 @@
 <h1>Almacenamiento</h1>
-<p>Purgito utiliza una arquitectura de almacenamiento basada en una base de datos relacional embebida SQLite local y almacenamiento de objetos compatible con S3 (Cloudflare R2) para archivos multimedia pesados.</p>
+<p>Purgito utiliza una arquitectura de almacenamiento basada en una base de datos relacional PostgreSQL local y almacenamiento de objetos compatible con S3 (Cloudflare R2) para archivos multimedia pesados.</p>
 
-<h2 id="sqlite">Base de datos SQLite y Rendimiento</h2>
-<p>Toda la persistencia relacional reside en un único archivo: <code>data/bot.db</code>. La conexión está gestionada de forma asíncrona mediante <code>aiosqlite</code> en <code>src/db.py</code> con las siguientes configuraciones de rendimiento:</p>
+<h2 id="postgresql">Base de datos PostgreSQL y Rendimiento</h2>
+<p>Toda la persistencia relacional vive en una base PostgreSQL (<code>DATABASE_URL</code>) que corre en la misma máquina y solo acepta conexiones locales. El acceso asíncrono está en <code>src/pgdb.py</code> (asyncpg), las consultas en <code>src/db.py</code> y el esquema canónico en <code>src/schema_pg.sql</code>, que se aplica en cada arranque:</p>
 
 <ul>
-  <li><code>PRAGMA journal_mode=WAL</code>: El modo <em>Write-Ahead Logging</em> permite lecturas concurrentes sin bloquear escrituras y reduce la contención de disco.</li>
-  <li><code>PRAGMA synchronous=NORMAL</code>: Garantiza integridad ante caídas del sistema operativo con un mínimo impacto en latencia de I/O.</li>
-  <li><code>PRAGMA foreign_keys=ON</code>: Mantiene la integridad referencial en eliminaciones en cascada.</li>
-  <li><strong>Bloqueo de escritura asíncrono</strong>: Un <code>asyncio.Lock</code> único serializa todas las transacciones de escritura desde Python para evitar errores de tipo <code>database is locked</code> en entornos de alta concurrencia.</li>
+  <li><strong>Pool de conexiones</strong> (<code>DB_POOL_MIN</code> / <code>DB_POOL_MAX</code>, por defecto 2 y 10): las lecturas sueltas no se bloquean entre sí.</li>
+  <li><strong>Transacciones explícitas</strong>: <code>async with db._db_lock</code> abre una transacción en una conexión del pool. Si el bloque termina con una excepción se revierte (<em>ROLLBACK</em>); si termina bien se confirma.</li>
+  <li><strong>Límites de espera</strong>: una consulta tarda como máximo 60 s y esperar una conexión libre del pool, 30 s; un pool agotado falla con un error en el log en vez de congelar el bot.</li>
+  <li><strong>Copias de seguridad</strong>: <code>deploy/backup_db.sh</code> vuelca la base con <code>pg_dump</code>, la cifra con age y la sube a un bucket privado de R2; antes de cifrar comprueba el volcado con <code>pg_restore --list</code>.</li>
 </ul>
 
 <h2 id="esquema">Esquema y Separación de Datos</h2>
-<p>La base de datos contiene más de 40 tablas organizadas por dominio. El aislamiento entre servidores se garantiza a nivel de esquema mediante columnas <code>guild_id</code> indexadas en cada tabla:</p>
+<p>La base de datos contiene 49 tablas organizadas por dominio. El aislamiento entre servidores se garantiza a nivel de esquema: 43 tablas llevan una columna <code>guild_id</code> y las otras 6 son globales por diseño (por ejemplo <code>gif_objects</code>, <code>revoked_sessions</code> y <code>shared_embeds</code>):</p>
 <ul>
   <li><strong>Configuración y estilo</strong>: <code>settings</code>, <code>guild_bot_style</code>, <code>channel_settings</code>, <code>ignored_channels</code>.</li>
   <li><strong>Listas de canales del chat</strong>: <code>spontaneous_channels</code>, <code>mention_channels</code>, <code>corpus_allowed_channels</code> — tres listas independientes (dónde habla, dónde responde a menciones y de dónde aprende), ver "Configuración del chat" en la guía.</li>

@@ -27,6 +27,7 @@ from db import (
 )
 from help_view import PURGITO_COLOR, HelpView, build_intro_embed
 from i18n import guild_locale, t
+from observability import hooks as observability_hooks
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ class General(commands.Cog):
         original = getattr(error, "original", error)
         command = interaction.command.name if interaction.command else "desconocido"
         log.error("Error en slash command /%s", command, exc_info=original)
+        observability_hooks.command_failed(command, original)
         try:
             msg = t("general.error.generic", locale)
             if not interaction.response.is_done():
@@ -137,6 +139,16 @@ class General(commands.Cog):
             log.debug(
                 "No se pudo avisar el error de /%s al usuario", command, exc_info=True
             )
+
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx: commands.Context) -> None:
+        observability_hooks.command_ok()
+
+    @commands.Cog.listener()
+    async def on_app_command_completion(
+        self, interaction: discord.Interaction, command
+    ) -> None:
+        observability_hooks.command_ok()
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx: commands.Context, error: Exception):
@@ -166,6 +178,7 @@ class General(commands.Cog):
             # para que el traceback del log muestre la causa y no el wrapper.
             original = getattr(error, "original", error)
             log.error("Error en comando %s", command, exc_info=original)
+            observability_hooks.command_failed(str(command), original)
             msg = t("general.error.generic", locale)
 
         try:

@@ -201,6 +201,25 @@ SUPPORT_URL = os.getenv("SUPPORT_URL", "https://purgito.app").rstrip("/")
 DOCS_URL = os.getenv("DOCS_URL", "https://purgito.app/es/documentacion").rstrip("/")
 REPO_URL = os.getenv("REPO_URL", "https://github.com/Purgito/purgito-bot").rstrip("/")
 
+# --- Observabilidad (docs/OBSERVABILITY.md) ---
+# Bearer para /metrics, /health/details e /internal/*. Vacío = esos endpoints
+# no existen (404). /health y /health/ready no lo necesitan.
+OBSERVABILITY_TOKEN = _env_compact("OBSERVABILITY_TOKEN")
+
+# --- Monitor externo (Purgito -> purgito-monitor en Railway; docs/OBSERVABILITY.md) ---
+# Opcional: sin MONITOR_ENABLED=true y las tres variables siguientes, Purgito
+# no envía nada y funciona exactamente igual. MONITOR_SHARED_SECRET nunca se loguea.
+MONITOR_ENABLED = os.getenv("MONITOR_ENABLED", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+MONITOR_BASE_URL = (os.getenv("MONITOR_BASE_URL") or "").strip().rstrip("/")
+# Identificador estable del nodo (NO el hostname, que puede cambiar al migrar).
+MONITOR_NODE_ID = (os.getenv("MONITOR_NODE_ID") or "").strip()
+MONITOR_SHARED_SECRET = _env_compact("MONITOR_SHARED_SECRET")
+MONITOR_HEARTBEAT_INTERVAL = max(10, env_int("MONITOR_HEARTBEAT_INTERVAL", 30))
+
 # --- Polar.sh (compra de premium) ---
 POLAR_ACCESS_TOKEN = _env_compact("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = _env_compact("POLAR_WEBHOOK_SECRET")

@@ -7,7 +7,8 @@ de videos nuevos de YouTube.
 ## Stack
 
 - Bot: Python + discord.py, arquitectura de cogs en `src/cogs/`
-- Python 3.11+ — CI corre en 3.12, el venv local está en 3.14
+- Python 3.11+ — producción y el venv local usan 3.14 y PostgreSQL 18; CI corre
+  ese stack y, como piso de compatibilidad, 3.12 + PostgreSQL 16
 - Web: aiohttp puro (`src/webapi.py`), **solo JSON** — auth OAuth2, `/api/*`
   y los endpoints públicos (webhook de Polar, health check). No renderiza
   HTML. Todo bajo `purgito.app` — ya no hay subdominio `panel.`
@@ -17,13 +18,15 @@ de videos nuevos de YouTube.
   más módulos ES nativos en `landing/js/` (sin bundler, sin build step)
 - DB: PostgreSQL (`DATABASE_URL`, asyncpg vía `src/pgdb.py`; esquema en
   `src/schema_pg.sql`). Guía: `docs/POSTGRES.md`. `data/bot.db` es la SQLite
-  anterior, conservada solo como rollback
+  anterior, conservada solo como rollback hasta el 2026-10-15 (ver
+  `docs/POSTGRES.md` § Rollback temporal; ese día se borra)
 
 ## Comandos
 
 ```bash
-# Tests — necesitan TEST_DATABASE_URL (base purgito_test) y el puerto 8080
-# libre (para el bot antes de correrlos). Usar el venv: pytest NO está en requirements.txt y el Python del
+# Tests — necesitan TEST_DATABASE_URL (base purgito_test). Con el bot corriendo
+# en la misma máquina usa WEB_PORT=18080 (8 tests levantan la app web real; no
+# hace falta parar el bot). Usar el venv: pytest NO está en requirements.txt y el Python del
 # sistema no tiene las dependencias (falla al importar asyncpg). Corre en
 # CI (.github/workflows/ci.yml).
 .venv/bin/python -m pytest tests -q
@@ -59,6 +62,9 @@ desde `tests/`.
 - `src/cogs/` — comandos y features del bot (chat, gifs, memes, youtube,
   rss, premium, anuncios, layout_buttons)
 - `src/webapi.py` — API JSON; ver zonas protegidas abajo
+- `src/observability/` — eventos estructurados, redacción de secretos, heartbeat,
+  métricas, reglas/alertas (ver "Observabilidad" abajo)
+- `deploy/runbooks/`, `deploy/vector/` — runbooks allowlisted y config del collector
 - `landing/` — sitio estático (index.html, style.css, script.js)
 - `landing/pages/` — cuerpos escritos a mano; `build_docs.py` les pega el
   navbar/footer/head y los escribe en `landing/es/<slug>/index.html`
@@ -111,6 +117,30 @@ archivo fuente se vuelve incómodo de mantener, la salida es archivar los
 años viejos en un archivo aparte (ej. `docs/NOVEDADES-2026.md`) enlazado
 desde la página actual — sigue siendo markdown plano, solo particionado, no
 una migración a JSON/DB. No lo hagas preventivamente: todavía no duele.
+
+## CHANGELOG vs NOVEDADES
+
+Dos documentos con audiencia distinta, no se consolidan:
+
+- `docs/NOVEDADES.md` / `.en.md`: producto, para quien administra un servidor (ver
+  arriba).
+- `CHANGELOG.md`: registro **técnico** para quien desarrolla o despliega (formato
+  Keep a Changelog, en `[Unreleased]` hasta que haya una release numerada): cambios de
+  infraestructura, de esquema, de seguridad, de dependencias. Puede nombrar archivos y
+  variables. Un cambio visible para admins va en NOVEDADES; uno que solo importa a
+  quien mantiene el código va en CHANGELOG; si es ambas cosas va en los dos con el
+  lenguaje de cada audiencia.
+
+## Documentación vigente vs histórica
+
+Vigente (debe reflejar el estado real; se actualiza junto con el código): `README.md`,
+`CONTRIBUTING.md`, `CLAUDE.md`, `DEPLOY.md`, `MIGRATION.md`, `SECURITY.md`,
+`docs/POSTGRES.md`, `docs/RUNBOOK.md`, `docs/PORTABILITY.md`, `docs/OBSERVABILITY.md`,
+`docs/SECURITY_EVENTS.md`, `docs/RUNBOOKS.md`, `docs/PRIVACY*`,
+`docs/TERMS*`, `docs/REFUNDS*`, `docs/NOVEDADES*` y la documentación técnica pública
+(`landing/pages/documentacion/`). Histórica: `docs/historico/` (auditorías, planes y
+specs ya ejecutados). Cada archivo histórico lleva el aviso «DOCUMENTO HISTÓRICO — NO
+USAR COMO PROCEDIMIENTO OPERATIVO»: no lo uses como instrucción, solo como contexto.
 
 ## Variables de entorno
 
@@ -184,21 +214,47 @@ Las probabilidades y frecuencias del chat (`auto_generate_every`,
 servidor. Las constantes de `config.py` quedaron solo como fallback. Rango
 válido en un único lugar: `db.CHAT_TUNABLES`.
 
+## Observabilidad (docs/OBSERVABILITY.md)
+
+Nodo observable; el control plane, el almacén central de logs y el monitor de
+disponibilidad viven **fuera** de este VM (PENDIENTE, no los montes acá).
+
+- Eventos: `observability.events.log_event("tipo", ...)`. El tipo tiene que estar
+  en `EVENT_TYPES` (un test falla si el catálogo y el código divergen). Campos
+  nuevos van a `data`. **Nunca** pases contenido de mensajes, corpus, cookies ni
+  tokens; la redacción (`redaction.py`) es una red de seguridad, no un permiso.
+- Seguridad vs logs vs `audit_log`: tres cosas distintas (ver
+  `docs/SECURITY_EVENTS.md`). `audit_log` no se toca. Para algo nuevo de
+  seguridad en `webapi.py`: `obs_hooks.security("tipo", ...)`.
+- `/health` sigue siendo `{"ok": true}` y es lo único (con `location = /health`)
+  que nginx publica. `/health/ready` es mínimo; `/health/details`, `/metrics` e
+  `/internal/alerts` exigen `OBSERVABILITY_TOKEN` y devuelven 404 si hay proxy.
+- Runbooks: solo registro cerrado en `deploy/runbooks/purgito_runbooks.py`;
+  jamás un endpoint que reciba comandos. Reglas de detección: solo detectan, sin
+  respuesta automática.
+- `bot.py` solo activa los JSONL y el estado en `_main()` (no al importar), para
+  que los tests no escriban en `data/`. Los tests que importan `bot` siguen igual.
+- Vector: `deploy/vector/vector.toml` se valida con
+  `vector validate --dangerously-allow-env-var-interpolation` y `vector test`.
+
 ## Zonas protegidas — no tocar sin confirmar antes
 
 En `src/webapi.py`, estas piezas sostienen funcionalidad real en
 producción: `_webhook_polar` + `_POLAR_*` (activa Premium), `_api_health`,
 `_api_premium_get`/`_api_premium_checkout` (inicia compras nuevas),
-`start_web_server`/`stop_web_server`. Si una tarea toca este archivo,
+`start_web_server`/`stop_web_server`. (La capa de observabilidad añadió un
+middleware y rutas en `start_web_server` y emite eventos en `_webhook_polar`
+antes de los `return` existentes; la lógica de esas piezas no cambió.) Si una tarea toca este archivo,
 identifica primero qué de esto se vería afectado y dilo antes de proceder.
 
 ## Deploy — es manual, no hay CI/CD
 
 El servidor de producción **no es fijo**: corrió en un droplet Oracle Linux
 hasta que Oracle reclamó esa instancia sin aviso al vencer el Free Trial
-(2026-09-05); desde entonces corre en un EC2 de AWS (Ubuntu). El free tier
-de esa cuenta AWS también vence (6 meses desde su creación) — otra
-migración de servidor no es un caso raro, es esperable. Por eso DEPLOY.md
+(2026-09-05); desde entonces corre en un servidor Ubuntu (usuario `purgito`, checkout en
+`/home/purgito/purgito-bot`). El proveedor y la fecha de vencimiento de ese
+servidor NO están confirmados en el repo: confirmarlos antes de asumir un free
+tier. Otra migración de servidor no es un caso raro, es esperable. Por eso DEPLOY.md
 está escrito para ser agnóstico de distro donde corresponde (Oracle
 Linux/`dnf`/SELinux vs. Ubuntu/`apt`, marcado explícitamente en cada
 sección) en vez de asumir un servidor específico. Si te toca migrar: `git

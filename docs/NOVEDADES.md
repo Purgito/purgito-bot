@@ -63,6 +63,7 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 - El Historial de cambios ahora muestra el valor anterior en los ajustes de un solo valor: prefijo de comandos, rol de Gestor, parámetros del chat (globales y por canal), canal de novedades y estilo del bot.
 
 ### Corregido
+- Los GIFs guardados antes del último cambio de almacenamiento que ya no se podían abrir se quitaron de la colección del servidor. Si alguien vuelve a compartir uno de esos GIFs, ahora se guarda bien en vez de quedar con un enlace roto.
 - El módulo YouTube del dashboard mostraba un error ("emptyState is not defined") en vez de la lista de suscripciones.
 - Estadísticas mostraba todos los canales de texto como "leídos" aunque solo unos pocos estuvieran habilitados para aprender.
 - En Reacciones automáticas, agregar un emoji cerraba el modal (había que reabrirlo para cada uno) y se bloqueaba seguido por exceso de solicitudes al agregar varios de una sentada.

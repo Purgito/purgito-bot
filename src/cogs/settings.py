@@ -530,6 +530,9 @@ class DatosCategory(SettingsCategory):
                         t("settings.corpus.wipe_mismatch", panel.locale), ephemeral=True
                     )
                     return
+                # El borrado puede pasar los 3 s que Discord da para responder:
+                # se confirma primero y refresh() edita el mensaje original.
+                await interaction.response.defer()
                 await wipe_corpus(panel.guild.id)
                 generation.reset_guild_caches(panel.guild.id)
                 await panel.refresh(interaction)
@@ -565,6 +568,10 @@ class DatosCategory(SettingsCategory):
                         t("settings.corpus.wipe_mismatch", panel.locale), ephemeral=True
                     )
                     return
+                # Borrar cientos de GIFs en R2 pasa de los 3 s que Discord da
+                # para responder: se confirma primero y refresh() edita el
+                # mensaje original.
+                await interaction.response.defer()
                 count = await wipe_gifs(panel.guild.id)
                 await panel.refresh(interaction)
                 await interaction.followup.send(

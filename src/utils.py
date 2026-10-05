@@ -8,6 +8,7 @@ from collections import OrderedDict, deque
 import discord
 
 import config
+from observability import hooks as observability_hooks
 
 log = logging.getLogger(__name__)
 
@@ -188,6 +189,7 @@ async def restart_loop_after_failure(
         f", espera {delay}s" if delay else "",
         exc_info=error,
     )
+    observability_hooks.background_failed(name, error)
 
     if count >= _LOOP_ALERT_THRESHOLD:
         last_alert = loop.__dict__.get("_purgito_last_alert")

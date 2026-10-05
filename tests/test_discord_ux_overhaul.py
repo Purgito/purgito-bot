@@ -304,3 +304,50 @@ def test_empty_corpus_reply():
     # la instrucción, ni mencionar el motor de generación como detalle interno.
     assert "Todavía no he aprendido" not in msg
     assert "Markov" not in msg
+
+
+# ─── Vaciar corpus / GIFs desde /settings: confirmar antes del trabajo lento ─────
+
+
+@pytest.mark.parametrize(
+    "button_key", ["settings.corpus.btn_wipe", "settings.corpus.btn_wipe_gifs"]
+)
+def test_vaciar_corpus_confirma_la_interaccion_antes_de_borrar(memory_db, button_key):
+    """Borrar tarda más de los 3 s que Discord da para responder: si el modal
+    no hace defer() primero, refresh() falla con 'Unknown interaction' aunque
+    el borrado ya se haya hecho (el segundo intento decía 0 borrados)."""
+    from i18n import t
+
+    guild = _make_guild([_make_channel(101, "general")])
+    panel = SettingsPanel(guild, "es", _USER_ADMIN)
+    panel.current_key = "datos"
+    asyncio.run(panel.rebuild())
+    btn = next(
+        i
+        for i in panel.children
+        if isinstance(i, discord.ui.Button) and i.label == t(button_key, "es")
+    )
+
+    opener = _make_interaction(_USER_ADMIN, guild=guild)
+    asyncio.run(btn.callback(opener))
+    modal = opener.response.send_modal.call_args.args[0]
+    modal.confirm_input._value = guild.name
+
+    inter = _make_interaction(_USER_ADMIN, guild=guild)
+    state = {"deferred": False}
+
+    async def _defer(*a, **k):
+        state["deferred"] = True
+
+    async def _edit_message(*a, **k):
+        raise discord.NotFound(MagicMock(status=404), "Unknown interaction")
+
+    inter.response.defer.side_effect = _defer
+    inter.response.is_done.side_effect = lambda: state["deferred"]
+    inter.response.edit_message.side_effect = _edit_message
+
+    asyncio.run(modal.on_submit(inter))
+
+    inter.response.defer.assert_awaited_once()
+    inter.edit_original_response.assert_awaited_once()
+    inter.followup.send.assert_awaited_once()

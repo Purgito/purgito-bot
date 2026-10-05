@@ -403,7 +403,7 @@
 </ul>
 
 <h2 id="corpus">Gestión del Corpus y Aprendizaje</h2>
-<p>Cada servidor dispone de un corpus aislado almacenado en la tabla <code>corpus_messages</code> de SQLite:</p>
+<p>Cada servidor dispone de un corpus aislado almacenado en la tabla <code>corpus_messages</code> de PostgreSQL:</p>
 <ul>
   <li><strong>Sanitización en la ingesta</strong>: Antes de insertarse en la base de datos, los mensajes entrantes se filtran mediante expresiones regulares para eliminar menciones de usuarios (<code>&lt;@id&gt;</code>), menciones de roles (<code>&lt;@&amp;id&gt;</code>), enlaces a canales (<code>&lt;#id&gt;</code>), URLs HTTP/HTTPS y fragmentos de código.</li>
   <li><strong>Control de canales</strong>: Solo los canales en la lista de aprendizaje (<code>corpus_allowed_channels</code>) alimentan el corpus. Un canal en la lista de silenciados (<code>ignored_channels</code>) queda completamente mudo — ni aprende ni responde, gane lo que gane en las demás listas.</li>

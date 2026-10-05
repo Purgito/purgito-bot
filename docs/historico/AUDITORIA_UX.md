@@ -1,3 +1,6 @@
+> **DOCUMENTO HISTÓRICO — NO USAR COMO PROCEDIMIENTO OPERATIVO.**
+> Auditoría de UX del 2026-07-03. Cita archivos que ya no existen (`src/gif_gallery.py`, `src/music_player.py`, `src/static/panel.js`, `src/pages/`) y una función de música que el bot ya no tiene; su hallazgo #1 (manejador global de errores de slash commands) ya está resuelto. No se verificó uno por uno el resto de hallazgos: revísalos contra el código antes de actuar.
+
 # Auditoría UX — "el usuario menos técnico posible"
 
 Fecha: 2026-07-03. Alcance: todos los cogs, `generation.py`, `webapi.py`,
