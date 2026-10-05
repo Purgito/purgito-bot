@@ -11,6 +11,7 @@ cooldown/max_concurrency de discord.py.
 
 import asyncio
 import os
+import shutil
 import tempfile
 from types import SimpleNamespace
 
@@ -18,6 +19,7 @@ import discord
 import pytest
 import yt_dlp
 
+import cobalt
 import cogs.download as download_mod
 import i18n
 import r2
@@ -96,6 +98,13 @@ def fake_prefix(monkeypatch):
         return None
 
     monkeypatch.setattr(download_mod, "get_guild_prefix", fake_get_guild_prefix)
+
+
+@pytest.fixture(autouse=True)
+def cobalt_apagado(monkeypatch):
+    # Importar config ejecuta load_dotenv: sin esto, quien corra los tests con
+    # COBALT_API_URL en su .env mandaría las descargas fallidas a su instancia.
+    monkeypatch.setattr(cobalt, "COBALT_API_URL", "")
 
 
 def _cog():
@@ -701,6 +710,147 @@ def test_download_video_no_deja_directorios_temporales_al_fallar(monkeypatch):
 
     assert len(created_dirs) == 2
     assert not any(os.path.exists(d) for d in created_dirs)
+
+
+# ── _download_video: respaldo con cobalt ──────────────────────────────────────
+#
+# Solo corre si yt-dlp falló de forma genérica (DownloadFailed) Y hay una
+# instancia configurada. Se mockea cobalt.download_video por completo (los
+# detalles del cliente están en test_cobalt.py) y yt_dlp.YoutubeDL como en los
+# tests de syndication de arriba.
+
+
+def _cobalt_encendido(monkeypatch, fake_download):
+    """Prende el respaldo y reemplaza la descarga; devuelve la lista de
+    llamadas (url, max_bytes)."""
+    monkeypatch.setattr(cobalt, "COBALT_API_URL", "http://127.0.0.1:9000")
+    calls: list[tuple[str, int]] = []
+
+    def fake(url, max_bytes):
+        calls.append((url, max_bytes))
+        return fake_download(url, max_bytes)
+
+    monkeypatch.setattr(cobalt, "download_video", fake)
+    return calls
+
+
+def _cobalt_ok(url, max_bytes):
+    tmp_dir = tempfile.mkdtemp(prefix="purgito_dl_test_")
+    path = os.path.join(tmp_dir, "cobalt_video.mp4")
+    with open(path, "wb") as f:
+        f.write(b"de-cobalt")
+    return path
+
+
+def test_download_video_usa_cobalt_si_yt_dlp_falla(monkeypatch):
+    _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+    calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+
+    path, is_sensitive = download_mod._download_video(
+        "https://instagram.com/reel/xyz", 5 * 1024 * 1024
+    )
+
+    shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+    assert calls == [("https://instagram.com/reel/xyz", 5 * 1024 * 1024)]
+    assert os.path.basename(path) == "cobalt_video.mp4"
+    # Cobalt no informa si el contenido es sensible: nunca queda marcado.
+    assert is_sensitive is False
+
+
+def test_download_video_no_toca_cobalt_si_yt_dlp_anda(monkeypatch):
+    _patch_ydl(monkeypatch, should_fail=lambda opts: False)
+    calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+
+    path, _ = download_mod._download_video(
+        "https://instagram.com/reel/xyz", 1024 * 1024
+    )
+
+    shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+    assert calls == []
+
+
+def test_download_video_sin_cobalt_configurado_falla_como_siempre(monkeypatch):
+    _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+    calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+    monkeypatch.setattr(cobalt, "COBALT_API_URL", "")
+
+    with pytest.raises(DownloadFailed):
+        download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+    assert calls == []
+
+
+def test_download_video_no_prueba_cobalt_con_un_post_sin_video(monkeypatch):
+    _patch_ydl(
+        monkeypatch,
+        should_fail=lambda opts: True,
+        fail_message="There is no video in this post",
+    )
+    calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+
+    with pytest.raises(NoVideoInPost):
+        download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+    assert calls == []
+
+
+def test_download_video_no_prueba_cobalt_si_yt_dlp_dice_que_pesa_de_mas(monkeypatch):
+    _patch_ydl(
+        monkeypatch,
+        should_fail=lambda opts: True,
+        fail_message="File is larger than max-filesize",
+    )
+    calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+
+    with pytest.raises(DownloadTooLarge):
+        download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+    assert calls == []
+
+
+def test_download_video_en_twitter_prueba_cobalt_despues_de_syndication(monkeypatch):
+    ydl_calls = _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+    cobalt_calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+
+    path, _ = download_mod._download_video("https://x.com/user/status/123", 1024 * 1024)
+
+    shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+    assert len(ydl_calls) == 2
+    assert len(cobalt_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "cobalt_error, expected",
+    [
+        (cobalt.CobaltTooLarge(1024), DownloadTooLarge),
+        (cobalt.CobaltNoVideo("picker sin videos"), NoVideoInPost),
+        (cobalt.CobaltError("instancia caída"), DownloadFailed),
+    ],
+)
+def test_download_video_traduce_los_errores_de_cobalt(
+    monkeypatch, cobalt_error, expected
+):
+    _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+
+    def fail(url, max_bytes):
+        raise cobalt_error
+
+    _cobalt_encendido(monkeypatch, fail)
+
+    with pytest.raises(expected):
+        download_mod._download_video("https://instagram.com/reel/xyz", 1024 * 1024)
+
+
+def test_dl_sube_el_video_que_bajo_cobalt(monkeypatch):
+    # De punta a punta por el comando: yt-dlp falla, cobalt entrega el archivo.
+    _patch_ydl(monkeypatch, should_fail=lambda opts: True)
+    _cobalt_encendido(monkeypatch, _cobalt_ok)
+    cog = _cog()
+    ctx = FakeContext()
+
+    asyncio.run(cog.dl.callback(cog, ctx, url="https://instagram.com/reel/xyz"))
+
+    assert len(ctx.reply_files) == 1
 
 
 # ── _embed_video_url / _embed_image_url / _is_direct_media_host /
