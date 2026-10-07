@@ -3,7 +3,6 @@
 - SESSION_SECRET corto: aviso al arrancar (no apaga el dashboard).
 - WEB_PORT inválido cae al default en vez de tumbar el import de config.
 - BOT_TRIGGER_NAME: el default es "purgito" (el que documenta todo lo demás).
-- LIFECYCLE_ANNOUNCE_CHANNEL_ID: se puede sobreescribir o apagar por .env.
 - bot.db y los sidecars de WAL se dejan en 0600; el unit de systemd fija
   UMask=0077 para que bot.db y bot.log nazcan así.
 
@@ -11,7 +10,6 @@ config.py lee el entorno al importarse, así que lo que depende de eso se
 prueba en un subproceso limpio en vez de recargar el módulo dentro de pytest
 (otros módulos ya tienen referencias a sus valores)."""
 
-import asyncio
 import os
 import pathlib
 import subprocess
@@ -34,11 +32,8 @@ def _config_en_subproceso(env_extra: dict, expr: str) -> subprocess.CompletedPro
         "DISCORD_CLIENT_SECRET": "",
         "BOT_TRIGGER_NAME": "",
         "WEB_PORT": "",
-        "LIFECYCLE_ANNOUNCE_CHANNEL_ID": "__ausente__",
         **env_extra,
     }
-    if env["LIFECYCLE_ANNOUNCE_CHANNEL_ID"] == "__ausente__":
-        del env["LIFECYCLE_ANNOUNCE_CHANNEL_ID"]
     return subprocess.run(
         [sys.executable, "-c", f"import config; print({expr})"],
         capture_output=True,
@@ -87,7 +82,7 @@ def test_secreto_largo_no_avisa():
     assert "menos de 32" not in r.stderr
 
 
-# ── WEB_PORT / BOT_TRIGGER_NAME / canal de lifecycle ─────────────────────────
+# ── WEB_PORT / BOT_TRIGGER_NAME ─────────────────────────
 
 
 @pytest.mark.parametrize("valor", ["abc", "", "0", "-5", "80.5"])
@@ -112,35 +107,6 @@ def test_trigger_name_se_normaliza():
         {"BOT_TRIGGER_NAME": "  Artemis "}, "config.BOT_TRIGGER_NAME"
     )
     assert r.stdout.strip() == "artemis"
-
-
-def test_lifecycle_channel_sin_definir_usa_el_de_produccion():
-    r = _config_en_subproceso(
-        {"LIFECYCLE_ANNOUNCE_CHANNEL_ID": "__ausente__"},
-        "config.LIFECYCLE_ANNOUNCE_CHANNEL_ID",
-    )
-    assert r.stdout.strip() == "1525941934043041822"
-
-
-@pytest.mark.parametrize("valor, esperado", [("", "None"), ("0", "None"), ("77", "77")])
-def test_lifecycle_channel_se_puede_apagar_o_cambiar(valor, esperado):
-    r = _config_en_subproceso(
-        {"LIFECYCLE_ANNOUNCE_CHANNEL_ID": valor},
-        "config.LIFECYCLE_ANNOUNCE_CHANNEL_ID",
-    )
-    assert r.stdout.strip() == esperado
-
-
-def test_aviso_de_lifecycle_no_hace_nada_si_esta_apagado(monkeypatch):
-    import bot as bot_mod
-
-    class _BotQueNoDebeTocarse:
-        def get_channel(self, _id):
-            raise AssertionError("no debía buscar ningún canal")
-
-    monkeypatch.setattr(config, "LIFECYCLE_ANNOUNCE_CHANNEL_ID", None)
-    monkeypatch.setattr(bot_mod, "bot", _BotQueNoDebeTocarse())
-    asyncio.run(bot_mod._send_lifecycle_notice("hola"))
 
 
 # ── Permisos de archivos ─────────────────────────────────────────────────────

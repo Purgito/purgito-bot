@@ -9,7 +9,6 @@ import logging
 import os
 import signal
 import sys
-from datetime import datetime, timezone
 
 import discord
 from discord.ext import commands
@@ -132,55 +131,14 @@ def _mark_stopped() -> None:
     obs_events.log_event("service.stopped")
 
 
-def _format_downtime(since_iso: str) -> str:
-    try:
-        since = datetime.fromisoformat(since_iso)
-    except ValueError:
-        return "un tiempo"
-    seconds = max(0, int((datetime.now(timezone.utc) - since).total_seconds()))
-    if seconds < 60:
-        return f"{seconds}s"
-    minutes = seconds // 60
-    if minutes < 60:
-        return f"{minutes} min"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours} h"
-    days = hours // 24
-    return f"{days} día{'s' if days != 1 else ''}"
-
-
-async def _send_lifecycle_notice(content: str) -> None:
-    """Best-effort: nunca propaga -- ni el arranque ni el apagado deben
-    trabarse porque Discord no responda o el canal no exista."""
-    if config.LIFECYCLE_ANNOUNCE_CHANNEL_ID is None:
-        return  # avisos apagados (LIFECYCLE_ANNOUNCE_CHANNEL_ID vacío o 0)
-    channel = bot.get_channel(config.LIFECYCLE_ANNOUNCE_CHANNEL_ID)
-    if channel is None:
-        try:
-            channel = await asyncio.wait_for(
-                bot.fetch_channel(config.LIFECYCLE_ANNOUNCE_CHANNEL_ID), timeout=3
-            )
-        except Exception:
-            log.warning(
-                "No se pudo obtener el canal de lifecycle %s",
-                config.LIFECYCLE_ANNOUNCE_CHANNEL_ID,
-            )
-            return
-    try:
-        await asyncio.wait_for(channel.send(content), timeout=3)
-    except Exception:
-        log.warning("No se pudo enviar el aviso de lifecycle", exc_info=True)
-
-
 _lifecycle_reported = False
 
 
 async def _report_lifecycle() -> None:
-    """Compara contra el último estado guardado para avisar si el bot volvió
-    de un apagado intencional o de una caída inesperada, y deja la marca en
-    False (corriendo) para la próxima vez. Solo una vez por proceso -- on_ready
-    también se dispara al reconectar."""
+    """Compara contra el último estado guardado para saber si el bot volvió
+    de un apagado intencional o de una caída inesperada (lo consume el monitor
+    externo), y deja la marca en False (corriendo) para la próxima vez. Solo
+    una vez por proceso -- on_ready también se dispara al reconectar."""
     global _lifecycle_reported
     if _lifecycle_reported:
         return
@@ -199,14 +157,6 @@ async def _report_lifecycle() -> None:
         _previous_shutdown = "clean"
     if _previous_run.get("crashed"):
         _previous_shutdown = "unexpected"
-
-    if prev is not None:
-        downtime = _format_downtime(prev["updated_at"])
-        if prev["clean_shutdown"]:
-            msg = f"✅ Purgito volvió (reinicio intencional) — estuvo abajo {downtime}."
-        else:
-            msg = f"⚠️ Purgito volvió después de una caída inesperada — estuvo abajo {downtime}."
-        await _send_lifecycle_notice(msg)
 
     try:
         await set_lifecycle_state(clean_shutdown=False)
@@ -238,9 +188,6 @@ async def _handle_shutdown_signal(sig: signal.Signals) -> None:
     except Exception:
         log.exception("No se pudo marcar clean_shutdown antes de apagar")
 
-    await _send_lifecycle_notice(
-        "🛑 Purgito se está apagando (parada/reinicio intencional)."
-    )
     client = obs_monitor.get()
     if client is not None:
         await client.flush(timeout=2.0)  # acotado: nunca traba el apagado
