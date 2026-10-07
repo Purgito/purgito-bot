@@ -7,7 +7,6 @@ from collections import OrderedDict, deque
 
 import discord
 
-import config
 from observability import hooks as observability_hooks
 
 log = logging.getLogger(__name__)
@@ -136,29 +135,12 @@ def chunk_message(text: str, max_length: int = 1900) -> list[str]:
 # migración a medias) reejecutaba el cuerpo en el acto y en bucle, con un
 # traceback por vuelta, y nadie se enteraba de que la función llevaba horas sin
 # andar. Acá los fallos se cuentan en una ventana, el reinicio espera cada vez
-# más y, pasado un umbral, avisa al canal del proyecto.
+# más y, pasado un umbral, loguea a nivel CRITICAL.
 _LOOP_FAILURE_WINDOW = 30 * 60  # segundos
 _LOOP_ALERT_THRESHOLD = 3  # fallos dentro de la ventana para avisar
 _LOOP_ALERT_COOLDOWN = 60 * 60  # un aviso por loop por hora, como mucho
 _LOOP_RESTART_DELAY_BASE = 10  # segundos; el primer fallo reinicia sin espera
 _LOOP_RESTART_DELAY_MAX = 600
-
-
-async def notify_ops(bot, content: str) -> None:
-    """Aviso de mejor esfuerzo al canal de avisos del proyecto
-    (config.LIFECYCLE_ANNOUNCE_CHANNEL_ID, el mismo de "Purgito volvió
-    después de una caída"). Nunca levanta: un aviso que no se pudo mandar no
-    puede agravar la falla que se está reportando."""
-    channel_id = config.LIFECYCLE_ANNOUNCE_CHANNEL_ID
-    if channel_id is None:
-        return
-    try:
-        channel = bot.get_channel(channel_id)
-        if channel is None:
-            channel = await asyncio.wait_for(bot.fetch_channel(channel_id), timeout=3)
-        await asyncio.wait_for(channel.send(content), timeout=3)
-    except Exception:
-        log.warning("No se pudo enviar el aviso al canal del proyecto", exc_info=True)
 
 
 async def restart_loop_after_failure(
@@ -200,12 +182,6 @@ async def restart_loop_after_failure(
                 name,
                 count,
                 _LOOP_FAILURE_WINDOW // 60,
-            )
-            await notify_ops(
-                bot,
-                f"⚠️ La tarea `{name}` falló {count} veces en los últimos "
-                f"{_LOOP_FAILURE_WINDOW // 60} minutos y se sigue reiniciando. "
-                "Revisa el log del servidor.",
             )
 
     if delay:

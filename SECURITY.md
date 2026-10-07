@@ -37,7 +37,7 @@ Las siguientes variables de entorno son sensibles. **Nunca las expongas en logs,
 | `GROQ_API_KEY` | Clave de facturación de la API de Groq. Las llamadas cuestan créditos de tu cuenta |
 | `TWITCH_CLIENT_SECRET` | Secreto de la aplicación de Twitch |
 
-Las variables `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL`, `R2_GIFS_BUCKET`, `R2_GIFS_PUBLIC_URL`, `R2_BACKUP_BUCKET`, `HOME_GUILD_ID`, `GUILD_ID`, `WEB_PORT`, `BOT_TRIGGER_NAME`, `LIFECYCLE_ANNOUNCE_CHANNEL_ID` y los límites de Markov no son secretas, pero tampoco deben exponerse innecesariamente.
+Las variables `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL`, `R2_GIFS_BUCKET`, `R2_GIFS_PUBLIC_URL`, `R2_BACKUP_BUCKET`, `HOME_GUILD_ID`, `GUILD_ID`, `WEB_PORT`, `BOT_TRIGGER_NAME` y los límites de Markov no son secretas, pero tampoco deben exponerse innecesariamente.
 
 El bucket de backups de R2 es **privado**: no tiene URL pública (no existe `R2_BACKUP_PUBLIC_URL`) y no se le activa la *Public Development URL*, un dominio personalizado ni CORS. Solo se lee con el token S3.
 

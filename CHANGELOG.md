@@ -10,6 +10,9 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Removed
+- Avisos de arranque/apagado y de loops caídos al canal de Discord del proyecto: se eliminan `LIFECYCLE_ANNOUNCE_CHANNEL_ID`, `bot._send_lifecycle_notice` y `utils.notify_ops`. `lifecycle_state` se conserva porque alimenta `previous_shutdown` del monitor externo; los loops que fallan siguen dejando `log.critical`.
+
 ### Added
 - Capa de observabilidad del nodo (`src/observability/`, ver `docs/OBSERVABILITY.md`, `docs/SECURITY_EVENTS.md`, `docs/RUNBOOKS.md`): eventos estructurados con schema v1 (`data/events.jsonl` y `data/security.jsonl`, 5 MB × 4 cada uno), redacción de secretos en logs de texto y JSON, request ids (`X-Request-ID`), heartbeat y estado del servicio sin PostgreSQL (`data/service_state.json`), `/health/ready`, y `/health/details`, `/metrics` (Prometheus) e `/internal/alerts` protegidos por `OBSERVABILITY_TOKEN` (nginx solo publica `/health`). Reglas de detección declarativas y modelo de alertas (`data/alerts.json`); solo detectan, no actúan.
 - Monitor externo opcional (`src/observability/monitor.py`, `MONITOR_*`): heartbeat y eventos importantes hacia `purgito-monitor` (Railway) firmados con HMAC-SHA256, best-effort con backoff y outbox acotado para eventos críticos; `/health` ahora devuelve `{"ok": true, "status": "ok"}` con `Cache-Control: no-store`. Métricas `purgito_monitor_*`.

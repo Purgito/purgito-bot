@@ -308,12 +308,6 @@ GUILD_ID=
 # Default: purgito
 BOT_TRIGGER_NAME=purgito
 
-# Canal donde Purgito avisa cuando arranca/se apaga y cuando una tarea en segundo
-# plano falla varias veces seguidas. Vacío o 0 apaga esos avisos (útil en una
-# instancia de desarrollo, para que no escriba en el canal de producción).
-# Default: el canal del proyecto
-# LIFECYCLE_ANNOUNCE_CHANNEL_ID=
-
 # Puerto del servidor web de la galería pública (gifs.purg4t0ry.com).
 # nginx hace proxy a este puerto. No exponer directamente a internet.
 # Default: 8080

@@ -532,9 +532,6 @@ def test_reinicios_repetidos_agregan_service_crash(tmp_path):
 
 
 def test_report_lifecycle_deriva_previous_shutdown(monkeypatch):
-    async def notice(_c):
-        return None
-
     async def set_state(clean_shutdown):
         return None
 
@@ -544,7 +541,6 @@ def test_report_lifecycle_deriva_previous_shutdown(monkeypatch):
 
         monkeypatch.setattr(bot_module, "get_lifecycle_state", get_state)
         monkeypatch.setattr(bot_module, "set_lifecycle_state", set_state)
-        monkeypatch.setattr(bot_module, "_send_lifecycle_notice", notice)
         monkeypatch.setattr(bot_module, "_lifecycle_reported", False)
         monkeypatch.setattr(bot_module, "_previous_run", run_info)
         monkeypatch.setattr(bot_module, "_previous_shutdown", "none")

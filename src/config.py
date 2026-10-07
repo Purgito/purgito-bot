@@ -84,15 +84,6 @@ def _env_int_or_none(name: str) -> int | None:
     return value or None
 
 
-def _env_channel_id(name: str, default: int) -> int | None:
-    """ID de canal con un default de producción. Ausente -> `default`; presente
-    pero vacío o "0" -> None (la función asociada queda apagada, útil para una
-    instancia de desarrollo que no debe escribir en el canal de producción)."""
-    if os.getenv(name) is None:
-        return default
-    return _env_int_or_none(name)
-
-
 def _env_compact(name: str) -> str:
     """Devuelve el valor sin espacios ni saltos.
 
@@ -132,13 +123,6 @@ PERMANENT_PREMIUM_GUILD_IDS: set[int] = {
     PURGATORY_GUILD_ID,
     1521362322331795487,
 }
-# Canal (tipo anuncio) donde Purgito avisa cuando arranca/se apaga (y cuando una
-# tarea en segundo plano falla varias veces seguidas). Se puede sobreescribir
-# con LIFECYCLE_ANNOUNCE_CHANNEL_ID en .env; vacío o "0" apaga los avisos -- así
-# una instancia de desarrollo no escribe en el canal de producción.
-LIFECYCLE_ANNOUNCE_CHANNEL_ID: int | None = _env_channel_id(
-    "LIFECYCLE_ANNOUNCE_CHANNEL_ID", 1525941934043041822
-)
 # Canal oficial de Purgito donde se publican las actualizaciones del bot.
 OFFICIAL_UPDATES_CHANNEL_ID = 1522754564971958453
 # env_int: un WEB_PORT mal escrito ("abc", "") cae al default en vez de tumbar el
