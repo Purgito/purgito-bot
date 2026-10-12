@@ -29,4 +29,4 @@ polar-sdk==0.31.7
 # BSD-2-Clause, Python puro sin dependencias propias, mantenida por el
 # proyecto Prometheus. Se usa su registro propio: no activa collectors de
 # plataforma.
-prometheus-client==0.25.0
+prometheus-client==0.26.0
