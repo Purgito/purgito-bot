@@ -18,3 +18,9 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    # init y analyze de CodeQL tienen que estar siempre en la misma versión;
+    # por separado el análisis falla con "configuration error".
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
