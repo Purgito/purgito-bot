@@ -9,7 +9,7 @@ feedparser==6.0.12
 # TikTok, Twitter/X y Facebook.
 yt-dlp==2026.8.19
 regex==2026.9.29
-Pillow==12.3.0
+Pillow==13.0.0
 imagehash==4.3.2
 # !gif (cogs/imagefx.py): convierte un video adjunto a GIF. Trae un binario
 # de ffmpeg propio empaquetado (ffmpeg-linux-x86_64 en este wheel) -- no hace
