@@ -10,6 +10,7 @@ El navegador nunca recibe ni envía el token interno: el companion lo añade al 
 (autenticación de servicio), que mantiene sus propias protecciones (loopback, Host y token).
 """
 
+import asyncio
 import base64
 import ipaddress
 import logging
@@ -225,6 +226,20 @@ def application(
         return result
 
     app = web.Application(middlewares=[private], client_max_size=8192)
+
+    if verifier is not None:
+
+        async def preload_keys(app):
+            # En segundo plano: el panel arranca aunque Cloudflare no responda en ese momento.
+            app["studio_preload"] = asyncio.ensure_future(verifier.preload())
+
+        async def stop_preload(app):
+            task = app.get("studio_preload")
+            if task is not None and not task.done():
+                task.cancel()
+
+        app.on_startup.append(preload_keys)
+        app.on_cleanup.append(stop_preload)
 
     files = asset_index(assets)
 

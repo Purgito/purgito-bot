@@ -12,6 +12,7 @@ Falla cerrado: cualquier irregularidad levanta ``AccessDenied`` con un código c
 import asyncio
 import base64
 import json
+import logging
 import re
 import time
 
@@ -24,6 +25,8 @@ _HOST = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{
 _AUD = re.compile(r"^[0-9a-f]{64}$")
 _EMAIL = re.compile(r"^[^@\s,;<>]{1,64}@[^@\s,;<>]{1,255}$")
 MAX_TOKEN = 8192
+
+log = logging.getLogger("studio.access")
 
 
 class AccessDenied(Exception):
@@ -120,6 +123,9 @@ async def fetch_jwks(team):
     async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as client:
         async with client.get(url, allow_redirects=False) as res:
             if res.status != 200:
+                log.warning(
+                    "studio.access claves: el equipo respondió HTTP %s", res.status
+                )
                 raise AccessDenied("keys-unavailable")
             body = await res.content.read(65537)
             if len(body) > 65536:
@@ -137,13 +143,58 @@ class AccessVerifier:
         leeway=30,
         key_ttl=3600,
         refetch_min=300,
+        failure_backoff=10,
+        max_stale=86400,
+        retry_delay=0.5,
     ):
         self.s = settings
         self._fetch = fetch_keys or (lambda: fetch_jwks(settings.team))
         self._clock, self._leeway = clock, leeway
         self._ttl, self._refetch_min = key_ttl, refetch_min
+        self._backoff, self._max_stale, self._retry_delay = (
+            failure_backoff,
+            max_stale,
+            retry_delay,
+        )
         self._keys, self._loaded, self._tried = {}, 0.0, 0.0
+        self._next_try = (
+            0.0  # tras un fallo de descarga: cuándo se puede volver a intentar
+        )
         self._lock = asyncio.Lock()
+
+    async def _download(self):
+        """Claves descargadas y legibles, o None si la descarga falla (dos intentos)."""
+        for attempt in (1, 2):
+            try:
+                jwks = await self._fetch()
+            except Exception as exc:  # incluye AccessDenied del propio descargador
+                log.warning(
+                    "studio.access claves no disponibles (intento %s): %s",
+                    attempt,
+                    type(exc).__name__,
+                )
+                if attempt == 1 and self._retry_delay:
+                    await asyncio.sleep(self._retry_delay)
+                continue
+            keys = {}
+            for jwk in (jwks or {}).get("keys", []) if isinstance(jwks, dict) else []:
+                key = public_key(jwk) if isinstance(jwk, dict) else None
+                if key is not None and isinstance(jwk.get("kid"), str):
+                    keys[jwk["kid"]] = key
+            return keys
+        return None
+
+    async def preload(self):
+        """Descarga las claves al arrancar para que el primer login no dependa de ello."""
+        async with self._lock:
+            now = self._clock()
+            self._tried = now
+            keys = await self._download()
+            if keys:
+                self._keys, self._loaded = keys, now
+                log.info("studio.access claves de Access cargadas (%s)", len(keys))
+            else:
+                self._next_try = now + self._backoff
 
     async def _key(self, kid):
         now = self._clock()
@@ -152,24 +203,25 @@ class AccessVerifier:
         async with self._lock:
             now = self._clock()
             stale = now - self._loaded >= self._ttl
-            # Un kid desconocido no puede forzar una descarga por petición.
-            if (
-                stale or kid not in self._keys
-            ) and now - self._tried >= self._refetch_min:
+            # Con claves válidas, un kid desconocido no puede forzar una descarga por petición.
+            # Sin claves (o caducadas), tras un fallo se reintenta a los pocos segundos.
+            usable = bool(self._keys) and not stale
+            window = self._tried + self._refetch_min if usable else self._next_try
+            if (stale or kid not in self._keys) and now >= window:
                 self._tried = now
-                try:
-                    jwks = await self._fetch()
-                except AccessDenied:
-                    raise
-                except Exception:
-                    raise AccessDenied("keys-unavailable") from None
-                keys = {}
-                for jwk in (jwks or {}).get("keys", []):
-                    key = public_key(jwk) if isinstance(jwk, dict) else None
-                    if key is not None and isinstance(jwk.get("kid"), str):
-                        keys[jwk["kid"]] = key
+                keys = await self._download()
                 if keys:
                     self._keys, self._loaded = keys, now
+                elif keys is None:
+                    self._next_try = now + self._backoff
+                    # Una renovación fallida no tira el acceso: las claves anteriores siguen
+                    # valiendo un tiempo acotado (Cloudflare no retira una clave de golpe).
+                    if not (kid in self._keys and now - self._loaded < self._max_stale):
+                        raise AccessDenied("keys-unavailable")
+                else:
+                    self._next_try = now + self._backoff
+            elif stale and now - self._loaded >= self._max_stale:
+                raise AccessDenied("keys-unavailable")
             if kid not in self._keys:
                 raise AccessDenied("kid")
             return self._keys[kid]
