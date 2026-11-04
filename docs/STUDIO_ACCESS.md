@@ -38,6 +38,7 @@ No se implementa ningún sistema propio de cuentas, contraseñas ni sesiones: la
 | 3 | **Validación del JWT en el panel**: firma RS256 con las claves públicas de nuestro equipo, `iss`, `aud` (esta aplicación), `exp`/`nbf`/`iat` y correo en `STUDIO_ACCESS_EMAILS` | `src/studio/access.py` | 403 |
 | 4 | `Host` exacto + par TCP en loopback (solo `cloudflared`, en el mismo host, puede llegar) | `local_server.py` | 404 |
 | 5 | Escrituras: `Origin` obligatorio e igual a `https://<host>`, `Sec-Fetch-Site`, JSON y cabecera `X-Studio-Request` (CSRF) | `local_server.py` | 403 |
+| 5b | Peticiones desde otro sitio (`Sec-Fetch-Site: cross-site`): 403, salvo la navegación de nivel superior que lee el documento (`GET`/`HEAD` a `/` o `/index.html`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`). Es la vuelta desde `<equipo>.cloudflareaccess.com` tras el código de un solo uso, y sus recargas; el JWT y el correo se verifican igual. Datos, recursos, iframes y escrituras entre sitios siguen bloqueados | `local_server.py` | 403 |
 | 6 | Autenticación de servicio panel → backend: `Bearer` interno; el navegador **nunca** lo ve; el JWT, las cookies y las cabeceras de proxy **no se reenvían** al backend | `local_server.py` | — |
 | 7 | El backend conserva sus puertas: loopback, `Host` loopback, sin cabeceras de proxy y token | `src/studio/http.py` | 404 / 401 |
 | 8 | CSP estricta (sin scripts ni estilos en línea, sin recursos externos), `frame-ancestors 'none'`, `no-store`, HSTS en la entrada remota | `local_server.py` | — |
@@ -204,7 +205,9 @@ En el navegador: abrir `https://studio.purgito.app`, identificarse con Google co
 MFA y comprobar que el panel carga; con uno **no** autorizado, que Access lo rechaza; y con uno autorizado pero
 sin segundo factor, que no entra. Confirmar en `journalctl -u studio-purg`
 una línea `studio.access identidad=<correo> GET /`. Un acceso denegado en el origen deja
-`studio.access denegado status=403 motivo=<código>` (sin el token).
+`studio.access denegado status=403 motivo=<código>` (sin el token). Los rechazos posteriores a la verificación del
+JWT (`origin`, `fetch-site`, `origin-required`, `write-headers`) añaden el método, la ruta y las cabeceras
+`Sec-Fetch-Site`/`Mode`/`Dest`, para distinguir una navegación de un subrecurso.
 
 ## Actualización
 

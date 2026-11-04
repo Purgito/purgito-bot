@@ -32,6 +32,9 @@ _TYPES = {
     ".svg": "image/svg+xml",
 }
 _ROOT_FILES = {"index.html", "favicon.svg"}
+# Únicas rutas a las que se puede llegar navegando desde otro sitio (la vuelta de Cloudflare Access).
+# La interfaz enruta con #, así que el documento siempre es este; nunca datos ni recursos.
+_DOCUMENTS = {"/", "/index.html"}
 _DIRS = {"css", "js", "fonts"}
 # Cualquier cabecera que delate un intermediario: el acceso local nunca pasa por uno.
 _PROXY_HEADERS = (
@@ -83,6 +86,23 @@ def asset_index(assets):
     return index
 
 
+def _top_level_read(request):
+    """Navegación de nivel superior que solo lee el documento del panel.
+
+    Tras el código de un solo uso, Cloudflare Access devuelve al navegador a Studio desde
+    <equipo>.cloudflareaccess.com: esa navegación (y sus recargas) llega con Sec-Fetch-Site: cross-site.
+    Se acepta solo si es GET/HEAD, al documento, en modo navigate y con destino document. Un iframe,
+    un fetch, un <script> o un formulario POST desde otro sitio no cumplen alguna de las cuatro.
+    No sustituye a nada: el JWT y el correo ya se verificaron antes de llegar aquí.
+    """
+    return (
+        request.method in ("GET", "HEAD")
+        and request.path in _DOCUMENTS
+        and request.headers.get("Sec-Fetch-Mode") == "navigate"
+        and request.headers.get("Sec-Fetch-Dest") == "document"
+    )
+
+
 def _is_loopback(remote):
     try:
         return ipaddress.ip_address(remote or "").is_loopback
@@ -100,8 +120,22 @@ def application(
     local_origins = {f"http://{h}" for h in local_hosts}
     verifier = AccessVerifier(access, keys_fetcher) if access else None
 
-    def denied(status, reason):
-        log.warning("studio.access denegado status=%s motivo=%s", status, reason)
+    def denied(status, reason, request=None):
+        if request is None:
+            log.warning("studio.access denegado status=%s motivo=%s", status, reason)
+        else:
+            # Qué se pidió y cómo, para distinguir una navegación de un subrecurso. Nunca el token.
+            h = request.headers
+            log.warning(
+                "studio.access denegado status=%s motivo=%s %s %r site=%r mode=%r dest=%r",
+                status,
+                reason,
+                request.method,
+                request.path[:200],
+                h.get("Sec-Fetch-Site"),
+                h.get("Sec-Fetch-Mode"),
+                h.get("Sec-Fetch-Dest"),
+            )
         return web.Response(status=status, headers={"Cache-Control": "no-store"})
 
     async def authenticate(request):
@@ -151,11 +185,13 @@ def application(
             return denied(403, exc.code), None
         origin = request.headers.get("Origin")
         if origin and origin != f"https://{access.host}":
-            return denied(403, "origin"), None
-        if request.headers.get("Sec-Fetch-Site") == "cross-site":
-            return denied(403, "fetch-site"), None
+            return denied(403, "origin", request), None
+        if request.headers.get(
+            "Sec-Fetch-Site"
+        ) == "cross-site" and not _top_level_read(request):
+            return denied(403, "fetch-site", request), None
         if request.method not in ("GET", "HEAD") and origin is None:
-            return denied(403, "origin-required"), None
+            return denied(403, "origin-required", request), None
         return None, claims["email"]
 
     @web.middleware
@@ -167,7 +203,7 @@ def application(
             request.content_type != "application/json"
             or request.headers.get("X-Studio-Request") != "1"
         ):
-            return web.Response(status=403)
+            return denied(403, "write-headers", request)
         if who != "local" and (request.method == "POST" or request.path == "/"):
             log.info(
                 "studio.access identidad=%s %s %s", who, request.method, request.path
