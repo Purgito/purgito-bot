@@ -50,25 +50,37 @@ _CSP = (
 )
 
 
-def resolve_asset(assets, path):
-    """Archivo estático permitido para ``path`` o None. Lista cerrada; sin recorrido de directorios."""
-    parts = [p for p in path.split("/") if p]
-    if not parts:
-        parts = ["index.html"]
-    if "\x00" in path or any(p.startswith(".") or "\\" in p for p in parts):
-        return None
-    if len(parts) == 1 and parts[0] not in _ROOT_FILES:
-        return None
-    if len(parts) > 1 and parts[0] not in _DIRS:
-        return None
-    name = parts[-1]
-    if name.startswith("test_") or Path(name).suffix not in _TYPES:
-        return None
-    root = assets.resolve()
-    target = (root / "/".join(parts)).resolve()
-    if root not in target.parents or not target.is_file():
-        return None
-    return target
+def asset_index(assets):
+    """{ruta URL: archivo} de todo lo que el panel puede servir. Lista cerrada, construida UNA vez al
+    arrancar a partir de lo que hay en disco: una petición solo hace una búsqueda en este diccionario,
+    así que ningún dato de la petición llega jamás a una ruta del sistema de archivos."""
+    root = Path(assets).resolve()
+    index = {}
+
+    def add(url, candidate):
+        file = (
+            candidate.resolve()
+        )  # un enlace simbólico hacia fuera de la raíz queda excluido
+        if (
+            root in file.parents
+            and file.is_file()
+            and file.suffix in _TYPES
+            and not file.name.startswith(("test_", "."))
+        ):
+            index[url] = file
+
+    for name in _ROOT_FILES:
+        add(f"/{name}", root / name)
+    add("/", root / "index.html")
+    for directory in _DIRS:
+        base = root / directory
+        if not base.is_dir():
+            continue
+        for candidate in base.rglob("*"):
+            if any(part.startswith(".") for part in candidate.relative_to(base).parts):
+                continue
+            add("/" + candidate.relative_to(root).as_posix(), candidate)
+    return index
 
 
 def _is_loopback(remote):
@@ -178,8 +190,10 @@ def application(
 
     app = web.Application(middlewares=[private], client_max_size=8192)
 
+    files = asset_index(assets)
+
     async def static(request):
-        target = resolve_asset(assets, request.path)
+        target = files.get(request.path)
         if target is None:
             return web.Response(status=404)
         headers = (
@@ -187,8 +201,12 @@ def application(
             if target.suffix == ".woff2"
             else {"Cache-Control": "no-cache"}
         )
+        try:
+            body = target.read_bytes()
+        except OSError:
+            return web.Response(status=404)
         return web.Response(
-            body=target.read_bytes(),
+            body=body,
             content_type=_TYPES[target.suffix].split(";")[0],
             charset="utf-8" if target.suffix != ".woff2" else None,
             headers=headers,

@@ -684,3 +684,30 @@ def test_panel_process_does_not_load_the_bots_configuration():
         check=True,
     )
     assert out.stdout.strip() == "[]"
+
+
+def test_http_path_traversal_attempts_never_reach_files_outside_the_allowlist():
+    from yarl import URL
+
+    async def test(ui, signer, backend, app):
+        headers = remote(signer)
+        for raw in (
+            "/js/%2e%2e/css/studio.css",
+            "/js/..%2fcss/studio.css",
+            "/%2e%2e/%2e%2e/etc/passwd",
+            "/js/%2e%2e%2f%2e%2e%2fsrc/studio/access.py",
+            "/css/..%5c..%5csrc/studio/access.py",
+            "/js/main.mjs%00.css",
+            "/js/main.mjs/",
+            "/src/studio/access.py",
+            "/index.html/../../README.md",
+            "/js/test_derive.mjs",
+            "/fonts/OFL.txt",
+        ):
+            response = await ui.get(URL(raw, encoded=True), headers=headers)
+            assert response.status in (404, 400), (raw, response.status)
+            assert "def " not in await response.text()
+        # Control: la ruta legítima sí responde.
+        assert (await ui.get("/js/main.mjs", headers=headers)).status == 200
+
+    run_panel(test)

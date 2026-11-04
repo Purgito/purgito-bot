@@ -1340,13 +1340,14 @@ def test_annotation_saved_now_is_listed_even_if_window_ended_earlier(backend):
 
 
 def test_static_assets_use_a_closed_allowlist_without_path_traversal(tmp_path):
-    from studio.local_server import resolve_asset
+    from studio.local_server import asset_index
 
     root = tmp_path / "studio"
     (root / "js").mkdir(parents=True)
     (root / "css").mkdir()
     (root / "fonts").mkdir()
     (root / "other").mkdir()
+    (root / "js" / ".oculto").mkdir()
     for name in (
         "index.html",
         "favicon.svg",
@@ -1356,28 +1357,45 @@ def test_static_assets_use_a_closed_allowlist_without_path_traversal(tmp_path):
         "fonts/f.woff2",
         "other/x.css",
         "js/.hidden.mjs",
+        "js/.oculto/y.mjs",
         "js/notes.txt",
         "Development.Dockerfile",
     ):
         (root / name).write_text("x")
     (tmp_path / "secret.css").write_text("secreto")
     (root / "js" / "link.mjs").symlink_to(tmp_path / "secret.css")
-    ok = lambda p: resolve_asset(root, p) is not None  # noqa: E731
-    assert ok("/") and ok("/index.html") and ok("/favicon.svg")
-    assert ok("/js/main.mjs") and ok("/css/a.css") and ok("/fonts/f.woff2")
+    index = asset_index(root)
+    served = set(index)
+    assert served == {
+        "/",
+        "/index.html",
+        "/favicon.svg",
+        "/js/main.mjs",
+        "/css/a.css",
+        "/fonts/f.woff2",
+    }
+    assert all(root.resolve() in f.parents for f in index.values())
+    # Cualquier otra cosa que pida un cliente es simplemente una clave que no existe.
     for bad in (
-        "/js/test_x.mjs",  # pruebas no se sirven
-        "/other/x.css",  # directorio fuera de la lista
+        "/js/test_x.mjs",
+        "/other/x.css",
         "/js/.hidden.mjs",
-        "/js/notes.txt",  # extensión no permitida
+        "/js/.oculto/y.mjs",
+        "/js/notes.txt",
         "/Development.Dockerfile",
         "/../secret.css",
         "/js/../../secret.css",
+        "/js/../secret.css",
         "/js/%2e%2e/secret.css",
         "/js/link.mjs",  # enlace simbólico hacia fuera
         "/js\\..\\secret.css",
         "/js/main.mjs\x00.css",
         "/nope.html",
         "/js/",
+        "//etc/passwd",
+        "",
     ):
-        assert not ok(bad), bad
+        assert index.get(bad) is None, bad
+    # Lo que aparezca después de arrancar no se sirve hasta reiniciar: la lista no se reconstruye por petición.
+    (root / "js" / "nuevo.mjs").write_text("x")
+    assert "/js/nuevo.mjs" not in index and "/js/nuevo.mjs" in asset_index(root)
