@@ -146,6 +146,16 @@ def test_tunnel_descarga_el_archivo_y_respeta_la_extension(monkeypatch, tmp_dirs
         assert f.read() == b"unodos"
 
 
+def test_tunnel_con_una_imagen_es_un_post_sin_video(monkeypatch, tmp_dirs):
+    _patch_http(
+        monkeypatch,
+        {"status": "tunnel", "url": f"{BASE}/tunnel?id=1", "filename": "tw_1.jpg"},
+    )
+
+    with pytest.raises(cobalt.CobaltNoVideo):
+        cobalt.download_video(LINK, 1024)
+
+
 def test_tunnel_se_descarga_siempre_de_la_instancia_configurada(monkeypatch, tmp_dirs):
     # La respuesta trae el API_URL público de cobalt (otro host que el
     # loopback con el que habla el bot): se descarga igual de COBALT_API_URL,

@@ -26,6 +26,9 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 - `deploy/vector/vector.toml`: configuración del collector local → destino externo (validada con Vector 0.58.0; no instalado).
 - Dependencia nueva: `prometheus-client==0.25.0` (Apache-2.0 AND BSD-2-Clause). Variables nuevas: `OBSERVABILITY_TOKEN`, `PURGITO_ENV`.
 
+### Fixed
+- `!dl` con links de X/Twitter: yt-dlp responde "No video could be found in this tweet" incluso con tuits que sí tienen video, y eso cortaba el flujo antes del respaldo de cobalt; ahora en X se prueba cobalt también en ese caso. Un `tunnel` de cobalt con una imagen (tuit de fotos) deja de guardarse como `.mp4` y se trata como post sin video. Además, la instancia de cobalt no estaba desplegada en este servidor (`COBALT_API_URL` sin definir): se levantó con `~/cobalt/docker-compose.yml` según DEPLOY.md.
+
 ### Changed
 - Base de datos: SQLite → PostgreSQL 18 (asyncpg vía `src/pgdb.py`, esquema en `src/schema_pg.sql`), cutover del 2026-10-01. Guía en `docs/POSTGRES.md`. `data/bot.db` y su copia pre-cutover se conservan solo como rollback hasta el 2026-10-15.
 - R2: tres buckets con rol fijo (imágenes, GIFs, backups privado). El bucket único anterior se eliminó el 2026-10-02 sin migrar contenido histórico.

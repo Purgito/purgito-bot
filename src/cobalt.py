@@ -52,6 +52,8 @@ _FETCH_TIMEOUT = (5, 30)
 _DOWNLOAD_DEADLINE_SECONDS = 60
 _VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".mkv", ".gif"}
 _PICKER_VIDEO_TYPES = {"video", "gif"}
+# Un tuit de fotos llega como `tunnel` con una imagen: no es un video.
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 class CobaltError(Exception):
@@ -120,7 +122,10 @@ def _pick_media(data: dict) -> tuple[str, str | None]:
     if status in ("tunnel", "redirect"):
         url = data.get("url")
         if isinstance(url, str) and url:
-            return url, data.get("filename")
+            filename = data.get("filename")
+            if os.path.splitext(filename or "")[1].lower() in _IMAGE_EXTENSIONS:
+                raise CobaltNoVideo("cobalt devolvió una imagen")
+            return url, filename
         raise CobaltError(f"{status} sin url")
     if status == "picker":
         for item in data.get("picker") or []:

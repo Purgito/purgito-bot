@@ -180,14 +180,20 @@ def _download_video(url: str, max_bytes: int) -> tuple[str, bool]:
 
     Primero yt-dlp. Si falla de forma genérica (DownloadFailed) y hay una
     instancia de cobalt configurada, la prueba como respaldo (ver
-    cobalt.py). NoVideoInPost y DownloadTooLarge no la prueban: el primero
-    ya es una respuesta definitiva (el post es una foto) y el segundo se
-    corta antes de bajar nada. Cobalt no informa si el contenido es
+    cobalt.py). DownloadTooLarge no la prueba (se corta antes de bajar nada) y
+    NoVideoInPost tampoco, salvo en X, donde yt-dlp dice "no hay video" aun
+    con tuits que lo tienen. Cobalt no informa si el contenido es
     sensible, así que un video que llega por ahí nunca queda marcado y se
     sube en cualquier canal."""
     try:
         return _download_video_ytdlp(url, max_bytes)
-    except DownloadFailed:
+    except (DownloadFailed, NoVideoInPost) as e:
+        # El "No video could be found in this tweet" de yt-dlp sale también con
+        # tuits que SÍ tienen video (su extractor de X falla y lo reporta así),
+        # así que en X no es una respuesta definitiva: cobalt decide. En el
+        # resto de los sitios sigue siéndolo.
+        if isinstance(e, NoVideoInPost) and not _is_twitter_url(url):
+            raise
         if not cobalt.configured():
             raise
         log.info(

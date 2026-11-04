@@ -794,6 +794,40 @@ def test_download_video_no_prueba_cobalt_con_un_post_sin_video(monkeypatch):
     assert calls == []
 
 
+def test_download_video_prueba_cobalt_si_yt_dlp_dice_sin_video_en_un_tuit(
+    monkeypatch,
+):
+    # El extractor de X de yt-dlp reporta "No video could be found" también con
+    # tuits que sí tienen video.
+    _patch_ydl(
+        monkeypatch,
+        should_fail=lambda opts: True,
+        fail_message="No video could be found in this tweet",
+    )
+    calls = _cobalt_encendido(monkeypatch, _cobalt_ok)
+
+    path, _ = download_mod._download_video("https://x.com/u/status/1", 1024 * 1024)
+
+    shutil.rmtree(os.path.dirname(path), ignore_errors=True)
+    assert calls == [("https://x.com/u/status/1", 1024 * 1024)]
+
+
+def test_download_video_tuit_de_fotos_sigue_siendo_sin_video(monkeypatch):
+    _patch_ydl(
+        monkeypatch,
+        should_fail=lambda opts: True,
+        fail_message="No video could be found in this tweet",
+    )
+
+    def solo_fotos(url, max_bytes):
+        raise cobalt.CobaltNoVideo("cobalt devolvió una imagen")
+
+    _cobalt_encendido(monkeypatch, solo_fotos)
+
+    with pytest.raises(NoVideoInPost):
+        download_mod._download_video("https://x.com/u/status/1", 1024 * 1024)
+
+
 def test_download_video_no_prueba_cobalt_si_yt_dlp_dice_que_pesa_de_mas(monkeypatch):
     _patch_ydl(
         monkeypatch,
