@@ -422,3 +422,14 @@ SIEM distribuido, clústeres de logs, Kafka, Elasticsearch/OpenSearch, SOAR, EDR
 feeds de threat intelligence, contención o bloqueo automático de IPs/usuarios,
 ejecución remota de comandos arbitrarios, detección de anomalías con ML,
 multi-región, alta disponibilidad, provisión de un segundo VM.
+
+
+## Analítica privada de producto (opt-in)
+
+[Purgito Studio](STUDIO.md) reutiliza el pool PostgreSQL y el token de acceso
+interno, pero sus agregados responden a uso/adopción, no a salud operativa. No
+se emiten al flujo JSONL, Prometheus, Vector ni al monitor externo. La UI se sirve
+solo por loopback desde `scripts/studio.py`, fuera de la landing pública.
+`STUDIO_ENABLED=false` es el valor predeterminado; consultar la guía antes de
+activar la recopilación. La cobertura y la falta de históricos se muestran de
+forma explícita.

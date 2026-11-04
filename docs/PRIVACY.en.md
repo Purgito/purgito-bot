@@ -106,6 +106,24 @@ Purgito **does not store** the card number, billing details, or the buyer's emai
 
 ---
 
+## Aggregate product analytics (optional)
+
+The operator may enable Purgito Studio to measure bot usage and quality. This
+module stores hourly counts by feature, registered command, outcome and version,
+installation inventories and observed membership changes. Server HMAC keys allow
+community-level counts and cohorts without exposing Discord server IDs in the
+panel. These are pseudonyms, not identifiers of people. Studio does not collect
+message text, command arguments, user IDs or channel IDs.
+
+New Studio data stays in the bot's PostgreSQL database and is not sent to external
+analytics services. Only authorized operators can access the private panel.
+Retention defaults to 90 days (configurable from 7 to 365), with daily cleanup
+while the collector is enabled; backups follow their own retention policy. These
+conditions apply to Studio; other bot features and integrations remain covered
+by the preceding sections.
+
+---
+
 # 2. Use of information
 
 The information collected is used exclusively to provide the bot's features, including:
