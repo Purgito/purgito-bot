@@ -58,18 +58,73 @@ Límites que conviene conocer:
   (`studio.access identidad=<correo> POST /internal/studio/annotations`).
 - **Quién entra lo decide la política de Access** (fuente de verdad). `STUDIO_ACCESS_EMAILS` repite esa lista
   para que un error en la política (p. ej. «cualquiera con @gmail») no abra el panel.
-- Con códigos de un solo uso por correo (One-time PIN), quien controle un buzón autorizado entra. Si eso
-  preocupa, usa un proveedor de identidad con MFA (Google, GitHub…) en la misma política.
+- **Google + MFA: Access no puede exigir que Google haya hecho MFA.** La regla «Authentication method = mfa» solo
+  funciona con Okta, Microsoft Entra y OIDC/SAML genéricos. Con Google, el segundo factor se exige con la **MFA
+  independiente de Cloudflare** (app de autenticación, llave de seguridad o biometría), que no depende del
+  proveedor. Ver «Quién puede entrar». Con códigos de un solo uso por correo, quien controle el buzón entra.
 - El acceso remoto no cambia lo que Studio mide ni guarda: sigue siendo agregado y sin datos de personas.
 
-## Quién puede entrar (decisión pendiente)
+## Quién puede entrar (decisión pendiente: faltan los correos)
 
-Propuesta de partida, a confirmar:
+**No se configura ninguna política definitiva hasta tener la lista explícita de correos autorizados.**
+Propuesta de partida (preferencia indicada: Google con MFA y sesiones de 8 horas):
 
-- Política **Allow**, regla **Include → Emails** con los operadores de Purgito (lista corta y nominal).
-- Proveedor: **One-time PIN** (ya viene activo, sin configurar nada) o Google con MFA.
-- Duración de sesión: **8 horas**.
-- Mismos correos en `STUDIO_ACCESS_EMAILS`.
+- **Identidad:** Google como único método de inicio de sesión de esta aplicación.
+- **Política** `Operadores de Studio`: **Allow**, regla **Include → Emails** con la lista explícita (sin
+  dominios completos ni «cualquiera con Google»).
+- **Segundo factor:** **MFA independiente de Cloudflare** activada en esa política (ver abajo), con app de
+  autenticación y/o llave de seguridad. Duración de la autenticación MFA acorde con la sesión (8 h).
+- **Sesión de la aplicación:** 8 horas.
+- Los mismos correos en `STUDIO_ACCESS_EMAILS` (el panel los vuelve a comprobar contra el JWT).
+
+### Google y MFA, en concreto
+- Cloudflare **no puede verificar** que la cuenta de Google tenga la verificación en dos pasos: la exigencia por
+  «Authentication method» no está disponible con Google (solo Okta, Entra, OIDC y SAML genéricos). Activar la
+  verificación en dos pasos en Google es recomendable, pero Access no lo comprueba.
+- Lo que sí se puede exigir es la **MFA independiente de Cloudflare**: *Zero Trust → Access controls → Access
+  settings → Allow multi-factor authentication* (elige métodos y duración) y, en la política, *Multi-factor
+  authentication (MFA)* con ajustes propios. Cada persona registra su dispositivo en
+  `<equipo>.cloudflareaccess.com` → *Account → MFA devices → Add an MFA device* (un autenticador TOTP por
+  persona, varias llaves de seguridad o biometrías WebAuthn).
+- **A comprobar con tu cuenta antes de depender de ello:** que tu plan de Zero Trust incluya MFA independiente,
+  y probar con un usuario real que sin el segundo factor se deniega.
+- Cloudflare avisa de que algunos proveedores devuelven valores `amr` no estándar: no se usa la coincidencia por
+  `amr`; se usa la MFA independiente.
+
+### Alta de Google como proveedor (una vez)
+En Google Cloud Console → *APIs y servicios → Credenciales → Crear ID de cliente de OAuth* (tipo «Aplicación
+web»); como URI de redirección autorizada: `https://<equipo>.cloudflareaccess.com/cdn-cgi/access/callback`.
+Copia el ID y el secreto de cliente a *Zero Trust → Settings → Authentication → Login methods → Add new →
+Google*. El secreto de cliente de Google es un secreto: se pega solo en el panel de Cloudflare.
+
+## Secuencia de activación
+
+Cada paso se verifica antes de pasar al siguiente. Si uno falla, se detiene y se revierte solo ese paso.
+Nada de esto se ha ejecutado.
+
+1. **Merge aprobado, con el CI en verde.** Lo decide una persona; no se fusiona automáticamente. El único fallo
+   admisible es el de `pip-audit` por Pillow 12.3.0, ajeno a Studio, mientras la PR #136 no se integre.
+2. **Instalación y verificación del servicio local en la VM** («En la VM» abajo): código desplegado, entorno
+   `/etc/purgito/studio.env`, unit `studio-purg`. Verificación local: 401 en la entrada local sin contraseña,
+   403 en la remota sin JWT, 404 con otro `Host`, y solo 127.0.0.1 en escucha. **El bot no se reinicia.**
+3. **Cloudflare Access** con la **lista explícita de correos** (sin definir aún) y MFA: aplicación
+   `studio.purgito.app`, Google como único método, política Allow por correos y MFA independiente, sesión de 8 h.
+4. **Validación de la identidad en el origen:** `STUDIO_ACCESS_TEAM`, `STUDIO_ACCESS_AUD` (la etiqueta de la
+   aplicación del paso 3) y `STUDIO_ACCESS_EMAILS` en `/etc/purgito/studio.env`; reiniciar solo `studio-purg`;
+   el registro debe decir «Acceso remoto activo…». Sin la etiqueta AUD correcta el panel rechaza todo (falla
+   cerrado), que es lo esperado hasta este paso.
+5. **Ruta pública del túnel existente:** `studio.purgito.app` → `http://127.0.0.1:18081`, con *Protect with
+   Access* activado. Solo después de los pasos 3 y 4.
+6. **Pruebas reales, permitido y denegado, sin exponer tokens:** (a) un correo autorizado entra, supera la MFA y
+   ve el panel; (b) una cuenta de Google **no** autorizada es rechazada por Access; (c) un correo autorizado
+   **sin** segundo factor registrado no entra; (d) sin sesión, `curl` a `/` y a `/internal/studio/report` da 302
+   al inicio de sesión de Cloudflare, nunca datos; (e) en `journalctl -u studio-purg` aparece la identidad del
+   acceso permitido y el código del denegado, sin el token.
+7. **Verificación del frontend con datos reales:** las siete vistas, filtros, comparación, tablas, anotaciones y
+   estados vacíos con los datos productivos, en escritorio y móvil. Hasta aquí solo se ha probado con datos
+   sintéticos.
+8. **Reversión sin afectar al bot** (sección «Reversión»): cortar la ruta del túnel, o `systemctl stop
+   studio-purg`, o quitar la aplicación de Access. El bot, la base de datos y los datos de Studio no se tocan.
 
 ## Cambios exactos
 
@@ -78,12 +133,14 @@ panel exige el JWT en el origen y respondería 403, pero no hay motivo para abri
 
 ### En Cloudflare (Zero Trust)
 
-1. **Proveedor de identidad.** *Settings → Authentication*: comprueba que *One-time PIN* está habilitado (o
-   añade el proveedor elegido).
+1. **Proveedor de identidad.** *Settings → Authentication*: añade **Google** (ver arriba) y activa la **MFA
+   independiente** (*Access controls → Access settings*).
 2. **Aplicación de Access.** *Access → Applications → Add an application → Self-hosted*:
-   - Nombre: `Purgito Studio`. Duración de sesión: `8 hours`.
+   - Nombre: `Purgito Studio`. Duración de sesión: `8 hours`. Métodos de inicio de sesión aceptados: **solo
+     Google** (desactiva One-time PIN para esta aplicación).
    - Dominio de la aplicación: `studio.purgito.app`, **sin ruta** (así protege también `/internal/*`).
-   - Política `Operadores de Studio`: acción **Allow**, *Include → Emails* con la lista aprobada.
+   - Política `Operadores de Studio`: acción **Allow**, *Include → Emails* con la lista aprobada, y en la
+     política la **MFA independiente** activada (app de autenticación y/o llave de seguridad).
    - En los ajustes de cookies: *HTTP Only* activado.
    - Guarda y copia la **Application Audience (AUD) Tag** (64 caracteres hex) → `STUDIO_ACCESS_AUD`.
    - El **nombre del equipo** (`<equipo>.cloudflareaccess.com`) está en *Settings → Custom pages* → `STUDIO_ACCESS_TEAM`.
@@ -143,8 +200,9 @@ curl -sI https://studio.purgito.app/ | head -3                       # 302 al lo
 curl -s -o /dev/null -w '%{http_code}\n' https://studio.purgito.app/internal/studio/report   # 302, nunca datos
 ```
 
-En el navegador: abrir `https://studio.purgito.app`, identificarse con un correo autorizado y comprobar que
-el panel carga; con uno **no** autorizado, que Access lo rechaza. Confirmar en `journalctl -u studio-purg`
+En el navegador: abrir `https://studio.purgito.app`, identificarse con Google con un correo autorizado, superar la
+MFA y comprobar que el panel carga; con uno **no** autorizado, que Access lo rechaza; y con uno autorizado pero
+sin segundo factor, que no entra. Confirmar en `journalctl -u studio-purg`
 una línea `studio.access identidad=<correo> GET /`. Un acceso denegado en el origen deja
 `studio.access denegado status=403 motivo=<código>` (sin el token).
 
