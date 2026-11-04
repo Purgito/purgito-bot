@@ -130,7 +130,7 @@ def test_load_references_tolera_una_db_sin_algunas_tablas():
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public' "
         "AND tablename <> 'corpus_gifs'"
     ).fetchall():
-        c.execute(f'DROP TABLE "{name}"')
+        c.execute(f'DROP TABLE "{name}" CASCADE')
     c.execute(
         "INSERT INTO corpus_gifs (guild_id, url) VALUES (1, ?)",
         (f"{OLD_URL}/gifs/aa/x.gif",),

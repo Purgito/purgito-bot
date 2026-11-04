@@ -214,6 +214,14 @@ Las probabilidades y frecuencias del chat (`auto_generate_every`,
 servidor. Las constantes de `config.py` quedaron solo como fallback. Rango
 válido en un único lugar: `db.CHAT_TUNABLES`.
 
+## Analítica privada de producto
+
+`src/studio/` guarda solo agregados y pseudónimos de servidor en el pool existente.
+`studio/` es una UI privada separada de `landing/`, servida por loopback con
+`scripts/studio.py` y el token de observabilidad existente. No publicar sus rutas
+ni enviar sus datos al flujo de eventos/exportadores. Desactivada por defecto:
+ver `docs/STUDIO.md` para métricas, retención y pruebas aisladas.
+
 ## Observabilidad (docs/OBSERVABILITY.md)
 
 Nodo observable; el control plane, el almacén central de logs y el monitor de

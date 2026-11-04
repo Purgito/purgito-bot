@@ -97,3 +97,12 @@ cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POST
 ## 📄 Licencia
 
 **MIT + Commons Clause**: libre para usar, modificar y redistribuir, pero no para venderlo ni ofrecerlo como servicio pago (hosting, SaaS, soporte) cuyo valor derive sustancialmente del bot. Texto completo en [LICENSE](LICENSE).
+
+
+## Purgito Studio (privado, opcional)
+
+Analítica de producto para operadores: instalaciones observadas, actividad, uso
+de funciones, errores, latencia, cohortes, versiones y anotaciones. No es una
+página pública de estadísticas ni sustituye al monitoreo operativo. Está apagada
+por defecto y no reconstruye históricos inexistentes. Instalación y privacidad:
+[docs/STUDIO.md](docs/STUDIO.md).

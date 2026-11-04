@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Purgito Studio · Privado</title>
+    <link rel="stylesheet" href="/studio.css" />
+    <script type="module" src="/studio.js"></script>
+  </head>
+  <body>
+    <aside>
+      <a class="brand" href="/"
+        >P<span>•</span>
+        <div>
+          Purgito <strong>Studio</strong><small>ANALÍTICA PRIVADA</small>
+        </div></a
+      >
+      <nav aria-label="Vistas de analítica" id="nav">
+        <button data-view="overview" aria-current="page">Resumen</button
+        ><button data-view="growth">Comunidades</button
+        ><button data-view="retention">Retención</button
+        ><button data-view="features">Funciones</button
+        ><button data-view="reliability">Calidad</button
+        ><button data-view="versions">Versiones</button
+        ><button data-view="updates">Actualizaciones</button>
+      </nav>
+      <p class="aside-note">
+        Instalar no es utilizar.<br />Sin medición no hay histórico.
+      </p>
+      <span class="private">● Solo acceso privado</span>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">PURGITO / PRODUCTO</p>
+          <h1 id="title">Resumen</h1>
+          <p id="subtitle">
+            Qué se usa, qué falla y dónde merece la pena trabajar.
+          </p>
+        </div>
+        <span id="freshness" class="badge">Cargando…</span>
+      </header>
+      <form id="filters" class="filters">
+        <label
+          >Desde (UTC)<input id="start" type="datetime-local" required /></label
+        ><label
+          >Hasta (UTC)<input id="end" type="datetime-local" required /></label
+        ><label
+          >Versión<select id="version">
+            <option value="">Todas</option>
+          </select></label
+        ><label
+          >Función<select id="feature">
+            <option value="">Todas</option>
+          </select></label
+        ><label
+          >Resultado<select id="result">
+            <option value="">Todos</option>
+            <option value="ok">Correcto</option>
+            <option value="error">Fallo</option>
+            <option value="refused">Rechazo de Discord</option>
+            <option value="rejected">Validación previa</option>
+          </select></label
+        ><label
+          >Comparar<select id="comparison">
+            <option value="previous">Período anterior</option>
+            <option value="custom">Personalizado</option>
+          </select></label
+        ><label id="compare-label" hidden
+          >Fin comparación (UTC)<input
+            id="compare-end"
+            type="datetime-local" /></label
+        ><button class="primary" type="submit">Aplicar</button>
+      </form>
+      <p id="period-label" class="muted"></p>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <section id="content" aria-busy="true">
+        <p class="empty">Consultando el registro local…</p>
+      </section>
+      <details class="definitions">
+        <summary>Qué significa cada métrica</summary>
+        <dl id="definitions"></dl>
+        <p>
+          Prometheus y el monitor operativo siguen midiendo salud. Studio mide
+          uso y adopción; no sustituye esas señales.
+        </p>
+      </details>
+      <footer>
+        Datos agregados en tu infraestructura. Sin conversaciones, perfiles de
+        personas ni servicios de analítica externos.
+      </footer>
+    </main>
+  </body>
+</html>

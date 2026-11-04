@@ -209,6 +209,11 @@ jobs:
       - name: Historial
         run: node landing/test_historial.mjs
 
+      # Studio (UI privada, fuera de landing/): sin bundler ni dependencias, así
+      # que basta comprobar que el módulo parsea.
+      - name: Sintaxis del JS de Studio
+        run: node --check studio/studio.js
+
   secrets:
     name: Escaneo de secretos (gitleaks)
     runs-on: ubuntu-latest

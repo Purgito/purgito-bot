@@ -542,3 +542,44 @@ CREATE TABLE IF NOT EXISTS deleted_user_tombstones (
 );
 
 CREATE INDEX IF NOT EXISTS idx_deleted_user_tombstones_expires ON deleted_user_tombstones(expires_at);
+
+-- Studio: agregados privados, sin contenido, IDs de personas ni IDs de guild en claro.
+CREATE TABLE IF NOT EXISTS studio_meta (
+    key TEXT PRIMARY KEY, value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS studio_sessions (
+    id UUID PRIMARY KEY, version TEXT NOT NULL, started_at TIMESTAMPTZ NOT NULL,
+    flushed_until TIMESTAMPTZ NOT NULL, clean BOOLEAN NOT NULL DEFAULT FALSE,
+    dropped BIGINT NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS studio_batches (
+    id UUID PRIMARY KEY, at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS studio_batches_at ON studio_batches(at);
+CREATE TABLE IF NOT EXISTS studio_usage (
+    hour TIMESTAMPTZ NOT NULL, guild_key TEXT NOT NULL, feature TEXT NOT NULL,
+    command TEXT NOT NULL, source TEXT NOT NULL, result TEXT NOT NULL,
+    version TEXT NOT NULL, n BIGINT NOT NULL, duration_n BIGINT NOT NULL,
+    duration_sum DOUBLE PRECISION NOT NULL, histogram BIGINT[] NOT NULL,
+    PRIMARY KEY(hour, guild_key, feature, command, source, result, version)
+);
+CREATE INDEX IF NOT EXISTS studio_usage_guild_hour ON studio_usage(guild_key, hour);
+CREATE TABLE IF NOT EXISTS studio_lifecycle (
+    id UUID PRIMARY KEY, at TIMESTAMPTZ NOT NULL, guild_key TEXT NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('join', 'leave', 'rejoin')), version TEXT NOT NULL, sequence BIGSERIAL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS studio_lifecycle_guild_at ON studio_lifecycle(guild_key, at);
+CREATE INDEX IF NOT EXISTS studio_lifecycle_at ON studio_lifecycle(at);
+CREATE TABLE IF NOT EXISTS studio_inventory (
+    day DATE PRIMARY KEY, observed_at TIMESTAMPTZ NOT NULL, version TEXT NOT NULL,
+    installed INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS studio_presence (
+    day DATE NOT NULL REFERENCES studio_inventory(day) ON DELETE CASCADE,
+    guild_key TEXT NOT NULL, PRIMARY KEY(day, guild_key)
+);
+CREATE TABLE IF NOT EXISTS studio_annotations (
+    id UUID PRIMARY KEY, at TIMESTAMPTZ NOT NULL, title TEXT NOT NULL,
+    note TEXT NOT NULL, version TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS studio_annotations_at ON studio_annotations(at);

@@ -1,0 +1,39 @@
+# Base desechable, sin puertos públicos ni credenciales/datos de producción.
+name: purgito-studio-review
+services:
+  db:
+    image: postgres:18
+    mem_limit: 512m
+    cpus: 1
+    environment:
+      POSTGRES_USER: studio_test
+      POSTGRES_PASSWORD: development-only
+      POSTGRES_DB: purgito_test
+    networks: [private]
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U studio_test -d purgito_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  tests:
+    mem_limit: 2g
+    cpus: 2
+    build:
+      context: ..
+      dockerfile: studio/Development.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TEST_DATABASE_URL: postgresql://studio_test:development-only@db/purgito_test
+      DATABASE_URL: postgresql://studio_test:development-only@db/purgito_test
+      WEB_PORT: "18080"
+    networks: [private, test-egress]
+    volumes:
+      - ..:/work
+networks:
+  private:
+    internal: true
+  test-egress: {}

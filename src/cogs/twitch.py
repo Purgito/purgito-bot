@@ -11,6 +11,8 @@ import time
 
 import discord
 import requests
+from studio import runtime as studio_runtime
+
 from discord.ext import commands, tasks
 
 import config
@@ -232,25 +234,30 @@ class Twitch(commands.Cog):
                     role_id = sub.get("mention_role_id")
                     mention = f"<@&{role_id}> " if role_id else ""
                     locale = await guild_locale(sub["guild_id"])
-                    await channel.send(
-                        mention
-                        + t(
-                            "twitch.now_live",
-                            locale,
-                            login=sub["twitch_login"],
-                            title=stream["title"],
-                            url=stream["url"],
-                        ),
-                        # Mismo motivo que youtube.new_video: el título del
-                        # stream lo escribe la persona en vivo, no el
-                        # servidor -- solo se permite el rol que el admin
-                        # configuró como aviso.
-                        allowed_mentions=discord.AllowedMentions(
-                            everyone=False,
-                            users=False,
-                            roles=[discord.Object(id=role_id)] if role_id else False,
-                        ),
-                    )
+                    with studio_runtime.measure_delivery(
+                        sub["guild_id"], "twitch", source="background"
+                    ):
+                        await channel.send(
+                            mention
+                            + t(
+                                "twitch.now_live",
+                                locale,
+                                login=sub["twitch_login"],
+                                title=stream["title"],
+                                url=stream["url"],
+                            ),
+                            # Mismo motivo que youtube.new_video: el título del
+                            # stream lo escribe la persona en vivo, no el
+                            # servidor -- solo se permite el rol que el admin
+                            # configuró como aviso.
+                            allowed_mentions=discord.AllowedMentions(
+                                everyone=False,
+                                users=False,
+                                roles=[discord.Object(id=role_id)]
+                                if role_id
+                                else False,
+                            ),
+                        )
                     await update_last_stream_id(
                         sub["guild_id"], sub["twitch_user_id"], stream["id"]
                     )

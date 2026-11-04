@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from studio import runtime as studio_runtime
 import random
 import time
 from collections.abc import Awaitable, Callable
@@ -921,7 +922,10 @@ class Chat(commands.Cog):
                         gif_file = await get_live_gif(message.guild.id)
                         if gif_file:
                             try:
-                                await message.channel.send(file=gif_file)
+                                with studio_runtime.measure_delivery(
+                                    message.guild.id, "gifs", source="spontaneous"
+                                ):
+                                    await message.channel.send(file=gif_file)
                                 await bump_counter(message.guild.id, "gifs_enviados")
                                 return
                             except (discord.Forbidden, discord.HTTPException) as e:
@@ -947,10 +951,13 @@ class Chat(commands.Cog):
                             )
                         else:
                             final = generation.post_process_reply(text)
-                        for chunk in chunk_message(final):
-                            await message.channel.send(
-                                chunk, allowed_mentions=_SAFE_MENTIONS
-                            )
+                        with studio_runtime.measure_delivery(
+                            message.guild.id, "chat", source="spontaneous"
+                        ):
+                            for chunk in chunk_message(final):
+                                await message.channel.send(
+                                    chunk, allowed_mentions=_SAFE_MENTIONS
+                                )
                         await bump_counter(message.guild.id, "mensajes_enviados")
                 except (discord.Forbidden, discord.HTTPException) as e:
                     log.warning(
@@ -1012,7 +1019,10 @@ class Chat(commands.Cog):
             gif_file = await get_live_gif(message.guild.id)
             if gif_file:
                 try:
-                    await message.reply(file=gif_file)
+                    with studio_runtime.measure_delivery(
+                        message.guild.id, "gifs", source="mention"
+                    ):
+                        await message.reply(file=gif_file)
                     await bump_counter(message.guild.id, "gifs_enviados")
                     return
                 except (discord.Forbidden, discord.HTTPException) as e:
@@ -1062,8 +1072,11 @@ class Chat(commands.Cog):
         else:
             reply = generation.post_process_reply(text)
         try:
-            for chunk in chunk_message(reply):
-                await message.reply(chunk, allowed_mentions=_SAFE_MENTIONS)
+            with studio_runtime.measure_delivery(
+                message.guild.id, "chat", source="mention"
+            ):
+                for chunk in chunk_message(reply):
+                    await message.reply(chunk, allowed_mentions=_SAFE_MENTIONS)
         except (discord.Forbidden, discord.HTTPException) as e:
             # El mensaje original puede borrarse entre on_message y que termine
             # de generarse la respuesta Markov -- ahí Discord rechaza el
@@ -1078,8 +1091,11 @@ class Chat(commands.Cog):
         await bump_counter(message.guild.id, "mensajes_enviados")
 
     async def _send_trigger_reply(self, message: discord.Message, text: str) -> None:
-        for chunk in chunk_message(text):
-            await message.channel.send(chunk, allowed_mentions=_SAFE_MENTIONS)
+        with studio_runtime.measure_delivery(
+            message.guild.id, "chat", source="trigger"
+        ):
+            for chunk in chunk_message(text):
+                await message.channel.send(chunk, allowed_mentions=_SAFE_MENTIONS)
         await bump_counter(message.guild.id, "mensajes_enviados")
 
     async def _run_trigger_action(
