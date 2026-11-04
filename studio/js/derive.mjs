@@ -31,15 +31,19 @@ export function buildModel(data, nowMs = Date.now()) {
   const end = ms(data.period.end);
   const cstart = ms(data.period.compare_start);
   const cend = ms(data.period.compare_end);
-  const step = windowStep(start, end);
-  const times = buckets(start, end, step);
-  const ptimes = buckets(cstart, cend, step).slice(0, times.length);
   const cur = data.current;
   const prev = data.previous;
+  // Un bot en ejecución anterior a la serie por horas no envía `hourly`: dibujar horas sin datos mostraría
+  // una línea plana en cero con uso real. En ese caso se degrada a días y se avisa (`degraded`).
+  const wantsHours = windowStep(start, end) === "hour";
+  const hasHourly = Array.isArray(cur.hourly) && Array.isArray(prev.hourly);
+  const step = wantsHours && hasHourly ? "hour" : "day";
+  const times = buckets(start, end, step);
+  const ptimes = buckets(cstart, cend, step).slice(0, times.length);
   const gaps = gapsMs(cur.coverage);
   const pgaps = gapsMs(prev.coverage);
-  const rows = step === "hour" ? cur.hourly || [] : cur.daily;
-  const prows = step === "hour" ? prev.hourly || [] : prev.daily;
+  const rows = step === "hour" ? cur.hourly : cur.daily;
+  const prows = step === "hour" ? prev.hourly : prev.daily;
   const pick = (field) => fillSeries(rows, times, step, gaps, field);
   const ppick = (field) => fillSeries(prows, ptimes, step, pgaps, field);
 
@@ -66,6 +70,7 @@ export function buildModel(data, nowMs = Date.now()) {
     cstart,
     cend,
     step,
+    degraded: wantsHours && !hasHourly,
     times,
     ptimes,
     gaps,
