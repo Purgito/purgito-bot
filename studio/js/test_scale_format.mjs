@@ -91,4 +91,22 @@ t("paths", () => {
   assert.equal(S.roundedBar(0, 0, 10, 0, 4), "");
   assert.ok(S.roundedBar(0, 0, 10, 20, 4).startsWith("M0 20"));
 });
+t("fmtShare/fmtRate: nunca «100 %» si falta algo ni «0 %» si hay algo", () => {
+  assert.equal(F.fmtShare(699, 701), "99,7\u00a0%");
+  assert.equal(F.fmtShare(4999, 5000), ">\u00a099,9\u00a0%");
+  assert.equal(F.fmtShare(1, 5000), "<\u00a00,1\u00a0%");
+  assert.equal(F.fmtShare(0, 10), "0\u00a0%");
+  assert.equal(F.fmtShare(10, 10), "100\u00a0%");
+  assert.equal(F.fmtShare(1, 0), "—");
+  assert.equal(F.fmtRate(0.04, 1), "<\u00a00,1\u00a0%");
+  assert.equal(F.fmtRate(99.96, 1), ">\u00a099,9\u00a0%");
+  assert.equal(F.fmtRate(0.32, 2), "0,32\u00a0%");
+  assert.equal(F.fmtRate(null), "—");
+});
+t("shortVersion/isCommit: solo los hash de Git se acortan y enlazan", () => {
+  assert.equal(F.shortVersion("ca7215a0123456789abcdef0123456789abcdef0"), "ca7215a");
+  assert.equal(F.shortVersion("unversioned"), "unversioned");
+  assert.equal(F.isCommit("ca7215a"), true);
+  assert.equal(F.isCommit("v1.2"), false);
+});
 console.log("todas las pruebas puras pasaron");

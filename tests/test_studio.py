@@ -312,7 +312,7 @@ def test_private_http_and_companion_ui(backend, monkeypatch):
                 for asset in (
                     "/js/main.mjs",
                     "/css/studio.css",
-                    "/fonts/outfit-latin.woff2",
+                    "/fonts/lexend-latin.woff2",
                     "/favicon.svg",
                 ):
                     assert (await ui.get(asset, headers=valid)).status == 200, asset

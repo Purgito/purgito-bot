@@ -14,6 +14,34 @@ export const fmtNum = (n, digits = 1) => (finite(n) ? num(digits).format(n) : "�
 export const fmtPct = (n, digits = 1) =>
   finite(n) ? `${num(digits).format(n)}${NBSP}%` : "—";
 
+/**
+ * Proporción part/total como porcentaje sin redondeos engañosos: nunca "100 %" si falta algo ni
+ * "0 %" si hay algo. 699 de 701 -> "99,7 %"; 1 de 5000 -> "< 0,1 %"; 4999 de 5000 -> "> 99,9 %".
+ */
+export function fmtShare(part, total, digits = 1) {
+  if (!finite(part) || !finite(total) || total <= 0) return "—";
+  const pct = (100 * part) / total;
+  const floor = 10 ** -digits;
+  if (part === 0) return `0${NBSP}%`;
+  if (part === total) return `100${NBSP}%`;
+  if (pct < floor) return `<${NBSP}${num(digits).format(floor)}${NBSP}%`;
+  if (pct > 100 - floor) return `>${NBSP}${num(digits).format(100 - floor)}${NBSP}%`;
+  return fmtPct(pct, digits);
+}
+
+/** Identificador corto de commit si lo parece; si no, tal cual (nunca se inventa un nombre). */
+export const shortVersion = (v) => (/^[0-9a-f]{7,40}$/i.test(v || "") ? v.slice(0, 7) : v || "—");
+export const isCommit = (v) => /^[0-9a-f]{7,40}$/i.test(v || "");
+
+/** Porcentaje ya calculado por el backend (redondeado a 2 decimales), con el mismo criterio. */
+export function fmtRate(pct, digits = 1) {
+  if (!finite(pct)) return "—";
+  const floor = 10 ** -digits;
+  if (pct > 0 && pct < floor) return `<${NBSP}${num(digits).format(floor)}${NBSP}%`;
+  if (pct < 100 && pct > 100 - floor) return `>${NBSP}${num(digits).format(100 - floor)}${NBSP}%`;
+  return fmtPct(pct, digits);
+}
+
 /** 1.234 -> "1,2 K" · 12.345 -> "12 K" · 1.234.567 -> "1,2 M". Solo para ejes y espacios cortos. */
 export function fmtCompact(n) {
   if (!finite(n)) return "—";

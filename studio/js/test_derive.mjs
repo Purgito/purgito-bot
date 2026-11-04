@@ -130,4 +130,67 @@ t("backend sin serie por horas: degrada a días con aviso, sin inventar una lín
   long.period.compare_start = iso(day0 - 10 * DAY);
   assert.equal(D.buildModel(long).degraded, false);
 });
+t("rateDelta: por debajo de 0,05 pp no hay flecha ni «0 pp»", () => {
+  const same = D.rateDelta(0.32, 0.29, { status: "comparable" });
+  assert.equal(same.tone, "neutral");
+  assert.equal(same.text, "= sin cambio");
+  assert.doesNotMatch(same.spoken, /0 puntos/);
+  assert.equal(D.rateDelta(0.5, 0.3, { status: "comparable" }).text, "▲ 0,2 pp");
+});
+t("qualitySignal: describe sin diagnosticar; dos fallos no son un incidente", () => {
+  assert.equal(D.qualitySignal({ successes: 0, errors: 0 }).tone, "none");
+  assert.equal(D.qualitySignal({ successes: 699, errors: 0, error_pct: 0 }).text, "Sin fallos en lo medido");
+  const two = D.qualitySignal({ successes: 699, errors: 2, error_pct: 0.29 });
+  assert.equal(two.tone, "calm");
+  assert.equal(two.text, "Fallos por debajo del 1 %");
+  const small = D.qualitySignal({ successes: 3, errors: 2, error_pct: 40 });
+  assert.equal(small.tone, "calm");
+  assert.match(small.text, /2 fallos en 5 intentos/);
+  assert.equal(D.qualitySignal({ successes: 90, errors: 10, error_pct: 10 }).tone, "attention");
+  assert.equal(D.qualitySignal({ successes: 970, errors: 30, error_pct: 3 }).tone, "watch");
+});
+t("p95Interval: intervalo del histograma, nunca una cifra exacta", () => {
+  assert.deepEqual(D.p95Interval({ p95_ms_upper_bound: 2500 }), [1000, 2500]);
+  assert.deepEqual(D.p95Interval({ p95_ms_upper_bound: 25 }), [0, 25]);
+  assert.deepEqual(D.p95Interval({ p95_over_30000_ms: true }), [30000, null]);
+  assert.equal(D.p95Interval({ p95_ms_upper_bound: null }), null);
+});
+t("featureGroups: usado, sin uso observado y sin instrumentar nunca se mezclan", () => {
+  const g = D.featureGroups([
+    { feature: "chat", uses: 10, coverage: "deliveries" },
+    { feature: "gifs", uses: 30, coverage: "commands_and_deliveries" },
+    { feature: "rss", uses: 0, coverage: "deliveries" },
+    { feature: "privacy", uses: null, coverage: "not_instrumented" },
+  ]);
+  assert.deepEqual(g.used.map((f) => f.feature), ["gifs", "chat"]);
+  assert.deepEqual(g.idle.map((f) => f.feature), ["rss"]);
+  assert.deepEqual(g.blind.map((f) => f.feature), ["privacy"]);
+  assert.equal(g.total, 40);
+});
+t("versionLanes: tramos por día de inventario, sin rellenar días sin inventario", () => {
+  const inv = [0, 1, 2, 5, 6].map((i) => ({ t: day0 + i * DAY, version: i < 2 ? "aaaaaaa" : "bbbbbbb" }));
+  const lanes = D.versionLanes(inv, [{ kind: "release", version: "bbbbbbb", t: day0 + 2 * DAY }]);
+  assert.deepEqual(lanes.map((l) => l.version), ["aaaaaaa", "bbbbbbb"]);
+  assert.equal(lanes[1].spans.length, 2);
+  assert.equal(lanes[1].release.kind, "release");
+});
+t("horizonState y retentionSummary: lo inmaduro es una fecha, la media es ponderada", () => {
+  const st = D.horizonState("2026-11-01", 7, day0 + 3 * DAY);
+  assert.equal(st.pending, true);
+  assert.equal(st.at, day0 + 8 * DAY);
+  assert.equal(D.horizonState("2026-11-01", 1, day0 + 9 * DAY).pending, false);
+  const rows = [
+    { size: 10, horizons: [{ days: 1, eligible: true, active_pct: 50 }, { days: 7, eligible: false, active_pct: null }, { days: 28, eligible: false }] },
+    { size: 30, horizons: [{ days: 1, eligible: true, active_pct: 70 }, { days: 7, eligible: false }, { days: 28, eligible: false }] },
+  ];
+  const s = D.retentionSummary(rows, "active_pct");
+  assert.equal(s[0].value, 65);
+  assert.equal(s[0].weight, 40);
+  assert.equal(s[1].value, null);
+});
+t("commandFeature: el catálogo del bot asigna cada comando a su función", () => {
+  const of = D.commandFeature([{ source: "slash", command: "gifs", feature: "gifs" }]);
+  assert.equal(of({ source: "slash", command: "gifs" }), "gifs");
+  assert.equal(of({ source: "prefix", command: "gifs" }), null);
+});
 console.log("todas las pruebas de derivación pasaron");

@@ -161,32 +161,76 @@ instrumentar», no un cero de adopción.
 
 ## Interfaz y filtros
 
-Siete vistas con navegación lateral: **Resumen** (frase de estado, cifra principal, tarjetas,
-uso en el tiempo, funciones más usadas, resultados y estado de la medición), **Comunidades**,
-**Retención** (mapa de cohortes D1/D7/D28), **Funciones**, **Calidad**, **Versiones** y
-**Actualizaciones**. Sin framework ni bundler: módulos ES nativos en `studio/js/`, CSS en
-`studio/css/` y la tipografía de marca (Outfit y Lexend) en `studio/fonts/`. La vista y los filtros
-viven en la URL (`#/retencion?p=7d&v=…`), así que se puede enlazar y el botón «atrás» funciona.
+Siete vistas en tres grupos de navegación lateral. Cada una tiene su propia composición:
 
+- **Visión general**: **Resumen**, con una cifra protagonista (comunidades que usaron Purgito sobre las
+  observadas), cuatro cifras de apoyo (instalaciones, usos, tasa de fallo con su denominador y
+  latencia), el pulso de actividad (usos o comunidades activas), dónde se concentra el uso y una señal
+  compacta de calidad.
+- **Producto y adopción**:
+  - **Comunidades**: población instalada, instaladas frente a activas con una marca por comunidad
+    observada, y entradas y salidas con libro de movimientos.
+  - **Retención**: horizontes D1, D7 y D28 y matriz de cohortes; lo inmaduro muestra la fecha en que
+    podrá leerse.
+  - **Funciones**: reparto del uso, tabla ordenable con detalle desplegable por función (comandos,
+    latencia y accesos a su actividad y su calidad), funciones sin uso observado y sin instrumentar por
+    separado, y explorador de comandos.
+- **Operación y evolución**:
+  - **Calidad**: fiabilidad, rechazos operativos y rendimiento en carriles separados, el momento de
+    los fallos, dónde se concentran (al elegir una función se filtra) y latencia por función con el
+    p95 como intervalo del histograma.
+  - **Versiones**: versión en ejecución enlazada a su commit, carriles por inventario diario y
+    comparación descriptiva.
+  - **Actualizaciones**: historial por día; el registro se abre en un panel lateral.
+
+Sin framework ni bundler: módulos ES nativos en `studio/js/`, CSS en `studio/css/` y tipografías en
+`studio/fonts/`:
+- Lexend: marca, títulos y cifras protagonistas.
+- IBM Plex Sans: texto y datos, con cifras tabulares.
+- Fira Code: solo hashes de commit y comandos.
+
+La vista y los filtros viven en la URL (`#/retencion?p=7d&v=…`), así que se puede enlazar y el botón
+«atrás» funciona.
+
+- **Regla del período.** Bajo el título de cada vista, una tira muestra la ventana elegida, lo medido,
+  los huecos de cobertura (con trama) y las anotaciones (glifos). Un clic abre el detalle de cobertura.
+  La gravedad se indica con proporción: completa en tono neutro, parcial en ámbar e insuficiente en
+  rojo. Los avisos que cambian la lectura de una cifra (p. ej. «mínimo») aparecen junto a esa cifra.
 - **Períodos.** Presets de 24 h, 3 días, 7, 28 y 90 días y «Desde el inicio» (el primer día completo
   medido; por horas si hay menos de 3 días), más un rango personalizado. Hasta 72 h se mide por
   **horas** y termina ahora; los períodos más largos se miden por **días y terminan en la medianoche
   UTC anterior**, de modo que ningún día del gráfico queda a medias (un día parcial parecería una
   caída). Quien necesite lo de hoy usa 24 h o 3 días. En un rango personalizado los tramos parciales
   se dibujan con trazo discontinuo y punto hueco, y el tooltip dice cuánto se midió. Un tramo con
-  hueco de cobertura nunca se rellena: se marca rayado.
-- **Filtros** de versión, función y resultado, y comparar o no con el período anterior. Los filtros
-  se aplican al instante; el rango personalizado se valida antes de pedir datos.
-- **Gráficos.** Cada gráfico tiene crosshair con tooltip (también con teclado: flechas, Inicio/Fin,
-  Esc), leyenda cuando hay más de una serie, marcadores ◆ de las anotaciones y una **vista de tabla**
-  equivalente. Las comparaciones parciales se rotulan «solo lo observado».
-- **Estados vacíos.** Explican qué falta y cuándo habrá datos (hitos D1/D7/D28 y de comparación con
-  cuenta atrás); nunca presentan un cero inventado.
-- **Accesibilidad.** Contraste ≥ 4,5:1 en todo el texto, navegación por teclado, regiones y títulos
-  en orden, tablas con desplazamiento accesibles, `prefers-reduced-motion` y `forced-colors`.
-  Los colores de datos se validaron con el validador de paletas (banda de luminosidad, croma,
-  separación para daltonismo ≥ 8 y contraste ≥ 3:1) sobre la superficie del panel. Tema oscuro, con el
-  cian de marca como acento.
+  hueco de cobertura nunca se rellena: se marca con trama.
+- **Filtros** de versión, función y resultado en un desplegable; cada filtro activo queda visible como
+  un chip que se puede quitar. Funciones, Calidad y Versiones ofrecen accesos que aplican el filtro
+  correspondiente. Comparar o no con el período anterior es un interruptor que dice con qué fechas se
+  compara o por qué no se puede. El rango personalizado se valida antes de pedir datos.
+- **Gráficos.** Cada gráfico tiene:
+  - crosshair con tooltip, también con teclado (flechas, Inicio/Fin, Esc);
+  - unidad del eje y leyenda cuando hay más de una serie;
+  - glifos de anotación por tipo: rombo lleno (versión), rombo hueco (cambio) y círculo
+    (observación);
+  - una **vista de tabla** equivalente.
+
+  Las comparaciones parciales se rotulan «solo lo observado». Los porcentajes no se redondean de forma
+  engañosa: nunca «100 %» si hubo algún fallo ni «0 %» si hubo algo, sino «> 99,9 %» o «< 0,1 %». El
+  p95 se presenta como el tramo del histograma que lo contiene, no como un percentil exacto. Una tasa
+  con fallos y menos de 30 intentos se marca como «muestra pequeña».
+- **Estados vacíos.** Se integran en la composición y explican qué falta y cuándo habrá datos (fecha
+  de la primera lectura de D1/D7/D28 e hitos de comparación). Nunca presentan un cero inventado.
+- **Accesibilidad.**
+  - Contraste ≥ 4,5:1 en todo el texto (axe-core sin violaciones en las siete vistas y en los cuatro
+    escenarios de datos).
+  - Navegación por teclado y foco visible; regiones y títulos en orden; tablas con desplazamiento
+    accesibles.
+  - Ayuda contextual ⓘ como texto en el DOM (no en `title`); `prefers-reduced-motion` y
+    `forced-colors`.
+  - Colores de datos: los semánticos (correcto, fallo, rechazo de Discord, validación) nunca
+    distinguen categorías, y los categóricos nunca juzgan. La paleta categórica mantiene ΔE ≥ 8 entre
+    pares en visión normal, deuteranopía, protanopía y tritanopía, con contraste ≥ 3:1 sobre el fondo.
+  - Tema oscuro; el cian de marca se reserva para el período actual, lo activo y el foco.
 
 La respuesta de datos añade `hourly` (serie por horas, solo para ventanas de hasta 72 h) sin cambiar
 ningún campo existente. Filtros de período UTC, versión, función y resultado. Comparación anterior de

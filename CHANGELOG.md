@@ -19,6 +19,17 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 ### Added
 - Purgito Studio privado y opt-in: agregados horarios de uso, inventarios observados, movimientos y cohortes; siete vistas HTML/CSS/JS, comparación y anotaciones. Reutiliza el pool PostgreSQL y OBSERVABILITY_TOKEN sin exportar la telemetría de producto. Incluye buffer acotado, lotes idempotentes, retención y pruebas con PostgreSQL 18. Ver docs/STUDIO.md.
 - Purgito Studio, segunda etapa: frontend rediseñado (navegación lateral, portada con estado y cifra principal, gráficos con tooltip y teclado, vista de tabla, mapa de cohortes, estados vacíos con hitos, accesibilidad verificada con axe-core) en módulos ES nativos sin dependencias; las ventanas de más de 72 h terminan en la medianoche UTC y las de hasta 72 h se miden por horas (`hourly`, campo nuevo y aditivo del informe); las anotaciones se listan hasta ahora. Los tests de la lógica pura de JS (`studio/js/test_*.mjs`) y la sintaxis de todos los módulos corren en el job de Node del CI.
+- Purgito Studio, tercera etapa (rediseño de la interfaz, sin cambios de backend ni del contrato del informe):
+  - Shell nuevo: navegación agrupada, regla del período con cobertura y anotaciones integradas, filtros
+    secundarios en un desplegable con chips y estado de la medición en la barra lateral.
+  - Una composición propia por vista.
+  - Gráficos SVG nuevos (`charts.mjs`): tira de reparto, escala logarítmica de latencia con el p95 como
+    intervalo, rejilla de comunidades, carriles de versiones y minicolumnas.
+  - Paleta de datos semántica y categórica (`palette.mjs`).
+  - Porcentajes sin redondeo engañoso (`fmtShare`/`fmtRate`); sin «▲ 0 pp».
+  - Tipografías: IBM Plex Sans 400/600 sustituye a Outfit; Fira Code se reutiliza de la landing.
+  - Lógica pura nueva en `derive.mjs` con sus pruebas.
+  - `tests/test_studio_browser.py` se adapta a los selectores nuevos.
 - Acceso remoto opcional a Studio por Cloudflare Tunnel + Access: el panel verifica en el origen el JWT de Access (RS256, emisor, audiencia, vigencia y correo autorizado) con `cryptography`, sin dependencias nuevas; entrada local con token intacta; falla cerrado y sin configuración no existe. Unit de systemd `deploy/studio-purg.service.template` (+ `render_studio_service.sh`, `studio.env.example`) que no lee el `.env` del bot. Sin aplicar en producción: ver docs/STUDIO_ACCESS.md.
 - Capa de observabilidad del nodo (`src/observability/`, ver `docs/OBSERVABILITY.md`, `docs/SECURITY_EVENTS.md`, `docs/RUNBOOKS.md`): eventos estructurados con schema v1 (`data/events.jsonl` y `data/security.jsonl`, 5 MB × 4 cada uno), redacción de secretos en logs de texto y JSON, request ids (`X-Request-ID`), heartbeat y estado del servicio sin PostgreSQL (`data/service_state.json`), `/health/ready`, y `/health/details`, `/metrics` (Prometheus) e `/internal/alerts` protegidos por `OBSERVABILITY_TOKEN` (nginx solo publica `/health`). Reglas de detección declarativas y modelo de alertas (`data/alerts.json`); solo detectan, no actúan.
 - Monitor externo opcional (`src/observability/monitor.py`, `MONITOR_*`): heartbeat y eventos importantes hacia `purgito-monitor` (Railway) firmados con HMAC-SHA256, best-effort con backoff y outbox acotado para eventos críticos; `/health` ahora devuelve `{"ok": true, "status": "ok"}` con `Cache-Control: no-store`. Métricas `purgito_monitor_*`.
