@@ -121,7 +121,7 @@ Nada de esto se ha ejecutado.
    **sin** segundo factor registrado no entra; (d) sin sesión, `curl` a `/` y a `/internal/studio/report` da 302
    al inicio de sesión de Cloudflare, nunca datos; (e) en `journalctl -u studio-purg` aparece la identidad del
    acceso permitido y el código del denegado, sin el token.
-7. **Verificación del frontend con datos reales:** las siete vistas, filtros, comparación, tablas, anotaciones y
+7. **Verificación del frontend con datos reales:** las ocho vistas, filtros, comparación, tablas, anotaciones y
    estados vacíos con los datos productivos, en escritorio y móvil. Hasta aquí solo se ha probado con datos
    sintéticos.
 8. **Reversión sin afectar al bot** (sección «Reversión»): cortar la ruta del túnel, o `systemctl stop

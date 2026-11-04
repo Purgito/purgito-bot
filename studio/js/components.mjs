@@ -10,6 +10,7 @@ const PATHS = {
   growth: "M9 11a3 3 0 100-6 3 3 0 000 6zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M17 10.5a2.5 2.5 0 100-5M17.5 14.2c2 .5 3.5 2.4 3.5 4.8",
   retention: "M4 5h4v4H4zM10 5h4v4h-4zM16 5h4v4h-4zM4 11h4v4H4zM10 11h4v4h-4zM4 17h4v3H4z",
   features: "M4 6h10M4 12h16M4 18h6",
+  commands: "M4 7l5 5-5 5M12 18h8",
   reliability: "M3 12h4l2.5-6 4 12 2.5-6H21",
   versions: "M6 3v18M6 8c6 0 6 4 12 4M18 12v9",
   updates: "M12 4v16M6 8h6M12 14h6M6 8a1.5 1.5 0 11-.01 0M18 14a1.5 1.5 0 11-.01 0",

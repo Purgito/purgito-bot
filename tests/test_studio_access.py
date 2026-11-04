@@ -344,6 +344,7 @@ class Backend:
         self.requests = []
         app = web.Application()
         app.router.add_get("/internal/studio/report", self.handle)
+        app.router.add_get("/internal/studio/commands", self.handle)
         app.router.add_post("/internal/studio/annotations", self.handle)
         self.server = TestServer(app)
 
@@ -972,5 +973,58 @@ def test_local_admin_entry_keeps_its_behaviour_with_navigation_headers():
             },
         )
         assert report.status == 200
+
+    run_panel(test)
+
+
+def test_command_explorer_data_has_the_same_protections_as_the_report():
+    async def test(ui, signer, backend, app):
+        url = "/internal/studio/commands?start=1"
+        same = {
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+        }
+        # Con JWT válido y desde la propia página: llega al backend con el token de servicio.
+        ok = await ui.get(url, headers=remote(signer, **same))
+        assert ok.status == 200 and len(backend.requests) == 1
+        sent = backend.requests[-1]["headers"]
+        assert sent["Authorization"] == f"Bearer {TOKEN}"
+        assert not {k.lower() for k in sent} & {"cf-access-jwt-assertion", "cookie"}
+        assert TOKEN not in await ok.text()
+        # Sin JWT, con JWT falso, con el token interno o con la identidad «anunciada»: 403.
+        base = {"Host": HOST, **same}
+        for extra in (
+            {},
+            {"Cf-Access-Jwt-Assertion": "x.y.z"},
+            {"Authorization": BasicAuth("admin", TOKEN).encode()},
+            {"Cf-Access-Authenticated-User-Email": EMAIL},
+        ):
+            assert (await ui.get(url, headers={**base, **extra})).status == 403, extra
+        # Desde otro sitio (navegación o subrecurso) no se abre, ni siquiera con JWT válido.
+        for over in (
+            {
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document",
+            },
+            {
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+            },
+        ):
+            assert (await ui.get(url, headers=remote(signer, **over))).status == 403
+        # Solo lectura: no admite escrituras.
+        post = remote(signer, Origin=f"https://{HOST}", **{"X-Studio-Request": "1"})
+        assert (
+            await ui.post("/internal/studio/commands", headers=post, json={})
+        ).status in (403, 405)
+        assert len(backend.requests) == 1
+        # La entrada local conserva su contraseña.
+        local = {"Host": "127.0.0.1:18081"}
+        assert (await ui.get(url, headers=local)).status == 401
+        valid = {**local, "Authorization": BasicAuth("admin", TOKEN).encode()}
+        assert (await ui.get(url, headers=valid)).status == 200
 
     run_panel(test)

@@ -17,7 +17,7 @@ from studio import runtime
 from studio.http import register, encode
 from studio.local_server import application
 from studio.model import Settings, period, utcnow
-from studio.report import report
+from studio.report import commands_report, report
 from studio.runtime import Collector
 from studio.store import Store
 from observability.runtime import internal_access
@@ -1399,3 +1399,97 @@ def test_static_assets_use_a_closed_allowlist_without_path_traversal(tmp_path):
     # Lo que aparezca después de arrancar no se sirve hasta reiniciar: la lista no se reconstruye por petición.
     (root / "js" / "nuevo.mjs").write_text("x")
     assert "/js/nuevo.mjs" not in index and "/js/nuevo.mjs" in asset_index(root)
+
+
+def test_command_explorer_ranks_tracks_history_and_hides_servers(backend):
+    store, settings = backend
+    end = hour_floor(utcnow())
+    c, clock = setup(store, settings, end - timedelta(days=5))
+    big, small = 1111111111111111111, 2222222222222222222
+    c.observe_inventory([big, small, 3])
+    # !dl: dos días, tres servidores muy desiguales. /dl: otra entrada del mismo nombre.
+    for hours_ago, guild, count in (
+        (30, big, 8),
+        (5, big, 1),
+        (5, small, 1),
+        (4, 3, 1),
+    ):
+        clock[0] = end - timedelta(hours=hours_ago)
+        c.record(
+            guild,
+            "download",
+            source="prefix",
+            command="dl",
+            duration_ms=120,
+            count=count,
+        )
+    clock[0] = end - timedelta(hours=5)
+    c.record(small, "download", source="slash", command="dl", result="error", count=2)
+    c.record(big, "chat", source="mention", count=50)  # sin comando: no entra
+    clock[0] = end - timedelta(hours=100)  # periodo anterior (ventana de 48 h)
+    c.record(big, "download", source="prefix", command="dl", count=4)
+    clock[0] = end + timedelta(minutes=5)
+    assert asyncio.run(c.flush())
+    params = {"start": (end - timedelta(hours=48)).isoformat(), "end": end.isoformat()}
+    r = asyncio.run(commands_report(store, params))
+    assert r["step"] == "hour"
+    prefix, slash = r["commands"]  # 11 usos frente a 2: el orden es por usos
+    assert (prefix["source"], prefix["command"], prefix["feature"]) == (
+        "prefix",
+        "dl",
+        "download",
+    )
+    assert (prefix["uses"], prefix["served"], prefix["guilds"]) == (11, 3, 3)
+    assert prefix["top_shares"] == [
+        round(9 / 11, 4),
+        round(1 / 11, 4),
+        round(1 / 11, 4),
+    ]
+    assert [(p["uses"], p["served"]) for p in prefix["series"]] == [
+        (8, 1),
+        (2, 2),
+        (1, 1),
+    ]
+    assert (
+        prefix["previous"]["uses"] == 0
+    )  # el 4 de antes cae fuera del periodo anterior de 48 h
+    assert prefix["first_seen"] <= end - timedelta(hours=100) <= prefix["last_seen"]
+    assert (slash["source"], slash["errors"], slash["successes"], slash["guilds"]) == (
+        "slash",
+        2,
+        0,
+        1,
+    )
+    assert slash["top_shares"] == [1.0]
+    assert (
+        r["totals"]["current"]["uses"] == 13 and r["totals"]["current"]["served"] == 3
+    )
+    # Sin claves de servidor ni identificadores en toda la respuesta.
+    dumped = json.dumps(r, default=encode)
+    assert "guild_key" not in dumped and str(big) not in dumped
+    assert settings.guild_key(big) not in dumped
+    # Filtros del informe: solo errores.
+    only_errors = asyncio.run(commands_report(store, dict(params, result="error")))
+    assert [(x["source"], x["uses"]) for x in only_errors["commands"]] == [("slash", 2)]
+    # Ventana larga: serie diaria; fechas invalidas se rechazan como en el informe.
+    long = asyncio.run(
+        commands_report(
+            store,
+            {"start": (end - timedelta(days=10)).isoformat(), "end": end.isoformat()},
+        )
+    )
+    assert long["step"] == "day" and all(
+        "day" in p for x in long["commands"] for p in x["series"]
+    )
+    with pytest.raises(ValueError):
+        asyncio.run(commands_report(store, {"feature": "no-existe"}))
+    empty = asyncio.run(
+        commands_report(
+            store,
+            {
+                "start": (end - timedelta(days=60)).isoformat(),
+                "end": (end - timedelta(days=50)).isoformat(),
+            },
+        )
+    )
+    assert empty["commands"] == [] and empty["totals"]["current"]["uses"] == 0

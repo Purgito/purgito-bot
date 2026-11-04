@@ -7,6 +7,7 @@ export const VIEWS = {
   growth: { slug: "comunidades", title: "Comunidades", icon: "growth", group: "product" },
   retention: { slug: "retencion", title: "Retención", icon: "retention", group: "product" },
   features: { slug: "funciones", title: "Funciones", icon: "features", group: "product" },
+  commands: { slug: "comandos", title: "Comandos", icon: "commands", group: "product" },
   reliability: { slug: "calidad", title: "Calidad", icon: "reliability", group: "operation" },
   versions: { slug: "versiones", title: "Versiones", icon: "versions", group: "operation" },
   updates: { slug: "actualizaciones", title: "Actualizaciones", icon: "updates", group: "operation" },
@@ -23,7 +24,7 @@ export const PRESETS = [
 ];
 const PRESET_IDS = new Set([...PRESETS.map((p) => p.id), "since", "custom"]);
 
-export const emptyFilters = () => ({ preset: "", start: "", end: "", compareEnd: "", version: "", feature: "", result: "", compare: true });
+export const emptyFilters = () => ({ preset: "", start: "", end: "", compareEnd: "", version: "", feature: "", result: "", compare: true, cmd: "" });
 
 export function parseHash(hash) {
   const [path, query = ""] = String(hash || "").replace(/^#\/?/, "").split("?");
@@ -39,6 +40,7 @@ export function parseHash(hash) {
   filters.end = q.get("e") || "";
   filters.compareEnd = q.get("c") || "";
   filters.compare = q.get("cmp") !== "0";
+  filters.cmd = q.get("k") || "";
   return { view, filters };
 }
 
@@ -52,6 +54,8 @@ export function buildHash(view, filters) {
   }
   for (const [key, value] of [["v", filters.version], ["f", filters.feature], ["r", filters.result]]) if (value) q.set(key, value);
   if (!filters.compare) q.set("cmp", "0");
+  // El comando elegido solo viaja en su propia vista; no ensucia los enlaces de las demás.
+  if (view === "commands" && filters.cmd) q.set("k", filters.cmd);
   const query = q.toString();
   return `#/${VIEWS[view].slug}${query ? `?${query}` : ""}`;
 }

@@ -64,6 +64,9 @@ operación aprobada y empezar una medición nueva; no borrar tablas del bot.
 ```bash
 curl -H "Authorization: Bearer $OBSERVABILITY_TOKEN" \
   http://127.0.0.1:8080/internal/studio/report
+# Explorador de comandos (mismos parámetros de período y filtros que el informe):
+curl -H "Authorization: Bearer $OBSERVABILITY_TOKEN" \
+  http://127.0.0.1:8080/internal/studio/commands
 ```
 
 5. Ejecutar la interfaz privada en el mismo host:
@@ -149,6 +152,14 @@ Solo se sirven archivos de una lista cerrada (`index.html`, `favicon.svg` y los 
   Primera actividad significa primera **en los datos retenidos**, no primer uso
   histórico. Los servidores de la línea base no tienen fecha de instalación nueva.
 
+**Dependencia de servidores (Comandos).** Para cada comando se calcula, sobre los intentos del período, cuántos
+servidores distintos lo intentaron y qué fracción aportan los cinco mayores. «Un solo servidor» = un único
+servidor; «concentrado» = el mayor aporta ≥ 50 %; «repartido» = el resto. La respuesta de
+`/internal/studio/commands` contiene solo esas fracciones, nunca claves ni identificadores de servidor. Con menos
+de 20 intentos se avisa de que el reparto puede cambiar enseguida. «Primera ejecución observada» es la primera
+en los datos retenidos, no el primer uso de toda la vida. Un comando solo existe para Studio si se ejecutó:
+el nombre registrado (sin argumentos) es lo único que se guarda.
+
 El catálogo de comandos sale de los comandos registrados, sin parámetros. Los
 adaptadores actuales cubren prefijo y slash, respuestas del chat (mención, trigger,
 espontáneo y GIF), entrega de memes por trigger y avisos entregados de YouTube,
@@ -161,7 +172,7 @@ instrumentar», no un cero de adopción.
 
 ## Interfaz y filtros
 
-Siete vistas en tres grupos de navegación lateral. Cada una tiene su propia composición:
+Ocho vistas en tres grupos de navegación lateral. Cada una tiene su propia composición:
 
 - **Visión general**: **Resumen**, con una cifra protagonista (comunidades que usaron Purgito sobre las
   observadas), cuatro cifras de apoyo (instalaciones, usos, tasa de fallo con su denominador y
@@ -174,7 +185,14 @@ Siete vistas en tres grupos de navegación lateral. Cada una tiene su propia com
     podrá leerse.
   - **Funciones**: reparto del uso, tabla ordenable con detalle desplegable por función (comandos,
     latencia y accesos a su actividad y su calidad), funciones sin uso observado y sin instrumentar por
-    separado, y explorador de comandos.
+    separado, y los cinco comandos más usados con acceso al explorador completo.
+  - **Comandos**: explorador de comandos. Cabecera con cuántos comandos distintos se usaron (frente a los
+    registrados), ejecuciones, comunidades, el más usado y la tasa de fallo; ranking con búsqueda (nombre o
+    función), tipo (prefijo `!` o slash `/`), orden (usos, comunidades, cambio, fallos, nombre), evolución en
+    miniatura, cambio frente al período anterior y la fracción que aporta el mayor servidor; y la ficha del comando
+    elegido (se enlaza con `#/comandos?k=prefix%3Adl`): primera y última ejecución observadas, evolución por
+    hora/día con los huecos de cobertura sin rellenar, resultado, latencia y de cuántos servidores depende. Los
+    comandos registrados sin ejecuciones se listan aparte como «sin uso observado», no como un cero verificado.
 - **Operación y evolución**:
   - **Calidad**: fiabilidad, rechazos operativos y rendimiento en carriles separados, el momento de
     los fallos, dónde se concentran (al elegir una función se filtra) y latencia por función con el

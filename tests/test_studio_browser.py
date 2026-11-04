@@ -54,7 +54,10 @@ async def studio(store, settings, monkeypatch, *, demo, port):
     await store.start(collector.session_id, now.replace(microsecond=0))
     collector.bot = type("Bot", (), {"is_ready": lambda self: True, "guilds": []})()
     await collector.flush()
-    collector.catalog = {("slash", "ayuda"): "general"}
+    collector.catalog = {
+        ("slash", "ayuda"): "general",
+        ("prefix", "sin-uso"): "general",
+    }
     monkeypatch.setattr(runtime, "_current", collector)
     monkeypatch.setattr(webapi, "OBSERVABILITY_TOKEN", TOKEN)
     api = web.Application(
@@ -107,6 +110,7 @@ def test_empty_state_navigation_privacy_and_mobile(backend, monkeypatch):
                     "Comunidades",
                     "Retención",
                     "Funciones",
+                    "Comandos",
                     "Calidad",
                     "Versiones",
                     "Actualizaciones",
@@ -256,6 +260,7 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                     "growth": "Entradas y salidas",
                     "retention": "Cohortes por primera actividad",
                     "features": "Funciones usadas",
+                    "commands": "De cuántos servidores depende",
                     "reliability": "Calidad por función",
                     "versions": "Versiones en el período",
                     "updates": "Registrar un cambio",
@@ -280,11 +285,39 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                 await page.get_by_role("button", name="Usos").click()
                 assert await page.locator('th[aria-sort="ascending"]').count() == 1
                 assert "Sin instrumentar" in await page.locator("#content").inner_text()
+                # Funciones resume los comandos y lleva al explorador.
+                await page.get_by_role("button", name="Explorar los").click()
+                await ready(page)
+                assert await page.locator("#title").inner_text() == "Comandos"
+                # Explorador: buscar conserva el foco; elegir un comando lo abre en la URL y mantiene el foco.
                 await page.fill("#cmd-filter", "ayuda")
                 await page.wait_for_timeout(150)
                 assert await page.locator("#cmd-filter").evaluate(
                     "e => e === document.activeElement"
                 )
+                rows = page.locator(".crow-btn")
+                assert await rows.count() == 2  # /ayuda y !ayuda
+                await rows.nth(1).click()
+                await ready(page)
+                assert "k=" in page.url
+                assert (
+                    await page.locator(".crow-btn")
+                    .nth(1)
+                    .evaluate("e => e === document.activeElement")
+                )
+                assert await page.locator(".crow-btn[aria-pressed='true']").count() == 1
+                assert "ayuda" in await page.locator(".cd-name").inner_text()
+                await page.fill("#cmd-filter", "no-existe-este-comando")
+                await page.wait_for_timeout(150)
+                assert (
+                    "Ningún comando coincide"
+                    in await page.locator("#content").inner_text()
+                )
+                await page.fill("#cmd-filter", "")
+                await page.wait_for_timeout(150)
+                # Los comandos sin uso se listan aparte, sin inventar un cero.
+                await page.locator(".cidle summary").click()
+                assert "sin-uso" in await page.locator(".cidle").inner_text()
                 # Calidad: los rechazos de Discord se muestran aparte de los fallos.
                 await page.locator('#nav a[data-view="reliability"]').click()
                 await ready(page)

@@ -317,3 +317,67 @@ export function movementTotals(model) {
   const rejoins = sum(model.rejoins);
   return { entries, exits, rejoins, net: entries + rejoins - exits, any: entries + exits + rejoins > 0 };
 }
+
+/* ---------------------------------------------------------------- comandos */
+
+/** Muestra mínima por comando para hablar de «dependencia» sin matices. */
+export const SMALL_COMMAND_SAMPLE = 20;
+
+/** Identidad de un comando: la misma palabra por prefijo y por slash son dos entradas distintas. */
+export const commandId = (c) => `${c.source}:${c.command}`;
+
+/** Lo que el usuario escribe delante: `!` para prefijo (el valor por defecto) y `/` para slash. */
+export const commandGlyph = (source) => (source === "prefix" ? "!" : source === "slash" ? "/" : "");
+
+/**
+ * De cuántos servidores depende un comando. Solo informa de la forma del reparto (cuántos y qué
+ * fracción de los intentos aporta el mayor); nunca de cuáles son.
+ */
+export function concentration(c) {
+  const guilds = c.guilds || 0;
+  const shares = c.top_shares || [];
+  if (!c.uses || !guilds || !shares.length) return { kind: "none", guilds: 0, top1: null, top3: null, small: true };
+  const top1 = shares[0];
+  const top3 = Math.min(1, shares.slice(0, 3).reduce((a, b) => a + b, 0));
+  const kind = guilds === 1 ? "single" : top1 >= 0.5 ? "concentrated" : "spread";
+  return { kind, guilds, top1, top3, small: c.uses < SMALL_COMMAND_SAMPLE };
+}
+
+/** Cambio frente al período anterior: respeta la política de comparación y marca lo que no existía. */
+export function commandChange(c, comparison) {
+  if (!comparison || comparison.status === "not_comparable") return null;
+  const prev = c.previous?.uses ?? 0;
+  if (!prev) return c.uses ? { kind: "new" } : null;
+  const difference = c.uses - prev;
+  return { kind: "delta", difference, info: deltaInfo({ difference, pct: Math.round((1000 * difference) / prev) / 10, status: comparison.status }, null) };
+}
+
+const SORTS = {
+  uses: (a, b) => b.uses - a.uses,
+  served: (a, b) => b.served - a.served || b.uses - a.uses,
+  change: (a, b) => (b.uses - (b.previous?.uses ?? 0)) - (a.uses - (a.previous?.uses ?? 0)) || b.uses - a.uses,
+  errors: (a, b) => (b.error_pct ?? -1) - (a.error_pct ?? -1) || b.errors - a.errors || b.uses - a.uses,
+  name: (a, b) => a.command.localeCompare(b.command, "es") || a.source.localeCompare(b.source),
+};
+export const COMMAND_SORTS = Object.keys(SORTS);
+
+/** Filtra por texto (nombre o función) y por tipo de entrada, y ordena. No modifica la entrada. */
+export function rankCommands(rows, { query = "", source = "", sort = "uses", featureLabel = (f) => f } = {}) {
+  const q = query.trim().toLowerCase().replace(/^[!/]/, "");
+  const match = (c) => (!source || c.source === source)
+    && (!q || c.command.toLowerCase().includes(q) || String(featureLabel(c.feature) ?? "").toLowerCase().includes(q));
+  return rows.filter(match).sort(SORTS[sort] || SORTS.uses);
+}
+
+/** Registrados en el catálogo del bot sin ninguna ejecución en el período, agrupados por función. */
+export function unusedCommands(catalog = [], used = []) {
+  const seen = new Set(used.map(commandId));
+  return catalog.filter((c) => !seen.has(commandId(c)));
+}
+
+/** Series de un comando alineadas al eje del gráfico: lo que está en un hueco de cobertura es null. */
+export function commandSeries(row, times, step, gaps) {
+  const rows = row.series || [];
+  const ok = fillSeries(rows.map((r) => ({ ...r, ok: r.uses - r.errors })), times, step, gaps, "ok");
+  return { ok, errors: fillSeries(rows, times, step, gaps, "errors"), uses: fillSeries(rows, times, step, gaps, "uses"), served: fillSeries(rows, times, step, gaps, "served") };
+}

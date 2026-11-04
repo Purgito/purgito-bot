@@ -2,8 +2,8 @@
 // comandos la componen. Lo instrumentado sin uso y lo no instrumentado se muestran aparte: no medir no
 // es lo mismo que cero.
 import { shareStrip, swatch } from "../charts.mjs";
-import { deltaChip, emptyNote, help, icon, sectionHead, segmented } from "../components.mjs";
-import { commandFeature, featureGroups, p95Interval, SMALL_SAMPLE } from "../derive.mjs";
+import { deltaChip, emptyNote, goTo, help, icon, sectionHead } from "../components.mjs";
+import { commandFeature, commandGlyph, featureGroups, p95Interval, SMALL_SAMPLE } from "../derive.mjs";
 import { h } from "../dom.mjs";
 import { fmtInt, fmtMs, fmtNum, fmtRate, fmtShare } from "../format.mjs";
 import { categorical, OTHER } from "../palette.mjs";
@@ -17,7 +17,7 @@ const COVERAGE = {
 };
 const SOURCE = { prefix: "Prefijo", slash: "Slash", mention: "Mención", trigger: "Trigger", spontaneous: "Espontáneo", background: "Aviso", delivery: "Entrega" };
 
-const ui = { key: "uses", dir: -1, open: null, cmdFilter: "", cmdSource: "", cmdSort: "uses", cmdLimit: 12 };
+const ui = { key: "uses", dir: -1, open: null };
 
 /** Abre el detalle de una función al llegar desde otra página. */
 export function focusFeature(id) {
@@ -91,32 +91,18 @@ function featureTable(used, total, ctx, cmdsOf) {
     h("tbody", {}, body)));
 }
 
-function commandExplorer(data, ctx, featureOf) {
+/** Los cinco comandos más usados, con la puerta al explorador completo. */
+function topCommands(data, ctx, featureOf) {
   const all = data.current.commands;
-  const labels = Object.fromEntries(data.current.features.map((f) => [f.feature, f.label]));
   if (!all.length) return emptyNote({ title: "Sin comandos ejecutados", text: "Aparecerán cuando alguien use un comando registrado." });
-  const sources = [...new Set(all.map((c) => c.source))];
-  const q = ui.cmdFilter.toLowerCase();
-  let list = all.filter((c) => c.command.toLowerCase().includes(q) && (!ui.cmdSource || c.source === ui.cmdSource));
-  const sortKey = { uses: (c) => c.uses, errors: (c) => c.errors, error_pct: (c) => c.error_pct ?? -1, served: (c) => c.served }[ui.cmdSort];
-  list = [...list].sort((a, b) => sortKey(b) - sortKey(a) || b.uses - a.uses);
-  const shown = list.slice(0, ui.cmdLimit);
+  const labels = Object.fromEntries(data.current.features.map((f) => [f.feature, f.label]));
   const max = Math.max(1, ...all.map((c) => c.uses));
-  const search = h("label", { class: "search" }, icon("search", { size: 16 }), h("input", { type: "search", class: "input", id: "cmd-filter", placeholder: "Buscar comando", "aria-label": "Buscar comando", value: ui.cmdFilter, autocomplete: "off", oninput: (e) => { ui.cmdFilter = e.target.value; ui.cmdLimit = 12; ctx.rerender({ keepFocus: "cmd-filter" }); } }));
-  const order = h("label", { class: "field field-inline" }, h("span", { class: "field-label" }, "Ordenar por"),
-    h("select", { class: "input", onchange: (e) => { ui.cmdSort = e.target.value; ctx.rerender(); } }, [["uses", "Intentos"], ["served", "Comunidades"], ["errors", "Fallos"], ["error_pct", "Tasa de fallo"]].map(([v, t]) => h("option", { value: v, selected: v === ui.cmdSort ? true : null }, t))));
-  const sourceSeg = sources.length > 1 ? segmented("cmd-source", [["", "Todas"], ...sources.map((s) => [s, SOURCE[s] || s])], ui.cmdSource, (v) => { ui.cmdSource = v; ui.cmdLimit = 12; ctx.rerender(); }, "Tipo de entrada", { small: true }) : null;
   return h("div", { class: "cmds" },
-    h("div", { class: "cmds-tools" }, search, sourceSeg, order),
-    shown.length ? h("div", { class: "table-wrap" }, h("table", { class: "table ctable" }, h("caption", { class: "sr-only" }, "Uso por comando"),
-      h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "Comando"), h("th", { scope: "col" }, "Función"), h("th", { scope: "col", class: "num" }, "Intentos"), h("th", { scope: "col", class: "num" }, "Comunidades"), h("th", { scope: "col", class: "num" }, "Tasa de fallo"))),
-      h("tbody", {}, shown.map((c) => h("tr", {},
-        h("th", { scope: "row" }, h("code", { class: "cmd" }, c.command), h("span", { class: "src" }, SOURCE[c.source] || c.source)),
-        h("td", {}, labels[featureOf(c)] || h("span", { class: "muted" }, "—")),
-        h("td", { class: "num cell-uses" }, bar(c.uses, max), h("span", { class: "cell-num" }, fmtInt(c.uses))),
-        h("td", { class: "num" }, fmtInt(c.served)),
-        h("td", { class: "num" }, failCell(c))))))) : h("p", { class: "empty-text" }, "Ningún comando coincide con la búsqueda."),
-    shown.length < list.length ? h("button", { type: "button", class: "btn btn-quiet more", onclick: () => { ui.cmdLimit += 24; ctx.rerender(); } }, `Mostrar ${fmtInt(Math.min(24, list.length - shown.length))} más de ${fmtInt(list.length - shown.length)}`) : null);
+    h("ol", { class: "cmd-top" }, all.slice(0, 5).map((c) => h("li", {},
+      h("code", { class: "cmd" }, h("span", { class: "cmd-glyph" }, commandGlyph(c.source)), c.command),
+      h("span", { class: "muted" }, labels[featureOf(c)] || ""),
+      bar(c.uses, max), h("span", { class: "num" }, fmtInt(c.uses)), h("span", { class: "num muted" }, `${fmtInt(c.served)} ${c.served === 1 ? "comunidad" : "comunidades"}`)))),
+    goTo(`Explorar los ${fmtInt(all.length)} comandos con su historia y su reparto por servidores`, () => ctx.nav("commands")));
 }
 
 export function features(ctx) {
@@ -155,8 +141,8 @@ export function features(ctx) {
         h("ul", { class: "pills pills-blind" }, blind.map((f) => h("li", {}, f.label)))) : null));
 
   root.append(h("section", { class: "fcmds", "aria-labelledby": "fc-t" },
-    sectionHead("Comandos", { id: "fc-t", sub: "solo comandos registrados, nunca sus argumentos" }),
-    commandExplorer(data, ctx, featureOf)));
+    sectionHead("Comandos más usados", { id: "fc-t", sub: "solo comandos registrados, nunca sus argumentos" }),
+    topCommands(data, ctx, featureOf)));
   return root;
 }
 
