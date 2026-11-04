@@ -76,4 +76,12 @@ t("fetchKey ignora 'comparar' (solo presentación)", () => {
   assert.equal(F.fetchKey(a), F.fetchKey({ ...a, compare: false }));
   assert.notEqual(F.fetchKey(a), F.fetchKey({ ...a, version: "x" }));
 });
+t("el comando elegido viaja solo en su vista y no obliga a pedir datos", () => {
+  const f = { ...F.emptyFilters(), preset: "7d", cmd: "prefix:dl" };
+  assert.equal(F.buildHash("commands", f), "#/comandos?p=7d&k=prefix%3Adl");
+  assert.equal(F.buildHash("features", f), "#/funciones?p=7d");
+  assert.deepEqual(F.parseHash(F.buildHash("commands", f)), { view: "commands", filters: f });
+  assert.equal(F.parseHash("#/comandos").filters.cmd, "");
+  assert.equal(F.fetchKey(f), F.fetchKey({ ...f, cmd: "slash:imitar" }));
+});
 console.log("todas las pruebas de filtros pasaron");

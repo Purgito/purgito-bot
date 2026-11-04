@@ -10,6 +10,9 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Added
+- Studio: vista **Comandos**, un explorador completo del uso real de cada comando (`!gif`, `!dl`, `/imitar`…): ranking con búsqueda, filtro por tipo, varios órdenes y cambio frente al período anterior, y ficha con historial por hora/día (con los huecos de cobertura sin rellenar), resultado, latencia y de cuántos servidores depende. Nuevo endpoint de solo lectura `GET /internal/studio/commands` (mismo gate, período y filtros que `/report`) que aprovecha la tabla `studio_usage` existente: sin esquema nuevo, sin métricas nuevas y sin identificar servidores (solo cuántos son y qué fracción aporta cada uno). El panel lo reenvía con la misma autenticación de servicio y las mismas protecciones de Access que `/report`. El explorador antiguo de Funciones se sustituye por los cinco comandos más usados y un acceso a la vista nueva.
+
 ### Fixed
 - Studio: tras introducir el código de un solo uso de Cloudflare Access, el panel respondía 403 (y seguía así al recargar) porque la vuelta desde `<equipo>.cloudflareaccess.com` es una navegación entre sitios y el origen rechazaba todo `Sec-Fetch-Site: cross-site`, aun con un JWT válido. Ahora se admite solo la navegación de nivel superior que lee el documento (`GET`/`HEAD` a `/`, modo `navigate`, destino `document`); la validación del JWT, la lista de correos, la puerta de loopback/Host y las protecciones CSRF de las escrituras no cambian. Los rechazos registran método, ruta y cabeceras `Sec-Fetch-*` (nunca el token), y el rechazo de escrituras sin JSON/`X-Studio-Request` deja de ser silencioso.
 

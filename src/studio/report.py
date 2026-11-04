@@ -129,8 +129,11 @@ def compare(current, previous):
     }
 
 
-async def _window(c, start, end, params):
-    args = [
+_WHERE = "hour >= $1 AND hour < $2 AND ($3::text IS NULL OR version=$3) AND ($4::text IS NULL OR feature=$4) AND ($5::text IS NULL OR result=$5)"
+
+
+def _args(start, end, params):
+    return [
         start,
         end,
         params.get("version") or None,
@@ -138,7 +141,11 @@ async def _window(c, start, end, params):
         params.get("result") or None,
         list(ACTIVE_SOURCES),
     ]
-    where = "hour >= $1 AND hour < $2 AND ($3::text IS NULL OR version=$3) AND ($4::text IS NULL OR feature=$4) AND ($5::text IS NULL OR result=$5)"
+
+
+async def _window(c, start, end, params):
+    args = _args(start, end, params)
+    where = _WHERE
     summary = stats(
         await c.fetchrow(f"SELECT {_STATS} FROM studio_usage WHERE {where}", *args)
     )
@@ -473,5 +480,135 @@ async def report(store, params, catalog=None, now=None):
             "latency": "Comandos: desde el hook previo hasta finalizar; entregas: tiempo del envío instrumentado. Media ponderada y límite superior aproximado del bucket p95. No mide todo el recorrido de Discord.",
             "coverage": "Sin datos no significa cero y los huecos nunca se rellenan. Cobertura = fracción del período con captura confirmada: completa (≥ 99,5 % y sin registros descartados), parcial (≥ 90 %) o insuficiente (< 90 %). Comparable: ambos períodos completos. Solo lo observado: ambos ≥ 90 % pero alguno parcial; lo observado es un mínimo del uso real, no se extrapola y no es una estimación representativa. Ninguna variación incluye prueba de significancia: son diferencias descriptivas. No comparable: alguno < 90 %, sin diferencia ni porcentaje. Los huecos se listan con su duración. Las métricas de crecimiento no usan el filtro de función.",
             "scope": "Comandos y adaptadores explícitos: no se leen conversaciones, ni se cuentan todas las líneas de logs como uso. Una función con cero registros no se declara ignorada fuera de esta cobertura.",
+        },
+    }
+
+
+# Rankings, historia y dependencia de servidores por comando. Los comandos con nombre son los que tienen
+# `command` no vacío (respuestas del chat y entregas no lo tienen). Nunca sale una clave de servidor:
+# solo cuántos servidores hay y qué fracción de los intentos aporta cada uno, sin identificarlo.
+_COMMAND_LIMIT = 300
+_TOP_SHARES = 5
+
+
+def _share_rows(rows):
+    """{(source, command): [intentos por servidor, de mayor a menor]}."""
+    per = {}
+    for r in rows:
+        per.setdefault((r["source"], r["command"]), []).append(r["uses"])
+    for counts in per.values():
+        counts.sort(reverse=True)
+    return per
+
+
+async def commands_report(store, params, now=None):
+    now = now or utcnow()
+    start, end, cstart, cend = period(params, now)
+    hourly = end - start <= timedelta(hours=72)
+    bucket = "hour" if hourly else "hour::date"
+    key = "at" if hourly else "day"
+    async with (
+        store.pool.acquire(timeout=3) as c,
+        c.transaction(isolation="repeatable_read", readonly=True),
+    ):
+        await c.execute("SET LOCAL statement_timeout = '5s'")
+        await c.execute("SET LOCAL TIME ZONE 'UTC'")
+        args = _args(start, end, params)
+        named = f"{_WHERE} AND command <> ''"
+        rows = await c.fetch(
+            f"""SELECT command, source, mode() WITHIN GROUP (ORDER BY feature) AS feature, {_STATS}
+            FROM studio_usage WHERE {named} GROUP BY command, source ORDER BY uses DESC, command LIMIT {_COMMAND_LIMIT}""",
+            *args,
+        )
+        previous = {
+            (r["source"], r["command"]): stats(r)
+            for r in await c.fetch(
+                f"""SELECT command, source, {_STATS} FROM studio_usage WHERE {named}
+                GROUP BY command, source""",
+                *_args(cstart, cend, params),
+            )
+        }
+        totals = {}
+        for name, window in (("current", (start, end)), ("previous", (cstart, cend))):
+            totals[name] = stats(
+                await c.fetchrow(
+                    f"SELECT {_STATS} FROM studio_usage WHERE {named}",
+                    *_args(*window, params),
+                )
+            )
+        per_guild = _share_rows(
+            await c.fetch(
+                f"""SELECT command, source, guild_key, sum(n)::bigint AS uses
+                FROM studio_usage WHERE {named} GROUP BY command, source, guild_key""",
+                *args[:5],
+            )
+        )
+        series = {}
+        for r in await c.fetch(
+            f"""SELECT command, source, {bucket} AS {key},
+            COALESCE(sum(n),0)::bigint AS uses,
+            COALESCE(sum(n) FILTER(WHERE result='error'),0)::bigint AS errors,
+            count(DISTINCT guild_key) FILTER(WHERE result='ok') AS served
+            FROM studio_usage WHERE {named} GROUP BY command, source, {bucket} ORDER BY {bucket}""",
+            *args[:5],
+        ):
+            point = {
+                key: r[key],
+                "uses": r["uses"],
+                "errors": r["errors"],
+                "served": r["served"],
+            }
+            series.setdefault((r["source"], r["command"]), []).append(point)
+        seen = {
+            (r["source"], r["command"]): (r["first"], r["last"])
+            for r in await c.fetch(
+                """SELECT command, source, min(hour) AS first, max(hour) AS last
+                FROM studio_usage WHERE command <> '' GROUP BY command, source"""
+            )
+        }
+    commands = []
+    for row in rows:
+        ident = (row["source"], row["command"])
+        row = stats(row)
+        counts = per_guild.get(ident, [])
+        total = sum(counts)
+        row["guilds"] = len(counts)
+        row["top_shares"] = (
+            [round(n / total, 4) for n in counts[:_TOP_SHARES]] if total else []
+        )
+        first, last = seen.get(ident, (None, None))
+        row["first_seen"], row["last_seen"] = first, last
+        row["series"] = series.get(ident, [])
+        prev = previous.get(ident)
+        row["previous"] = (
+            {k: prev[k] for k in ("uses", "successes", "errors", "served")}
+            if prev
+            else {"uses": 0, "successes": 0, "errors": 0, "served": 0}
+        )
+        commands.append(row)
+    return {
+        "generated_at": now,
+        "period": {
+            "start": start,
+            "end": end,
+            "compare_start": cstart,
+            "compare_end": cend,
+        },
+        "step": "hour" if hourly else "day",
+        "commands": commands,
+        "truncated": len(rows) >= _COMMAND_LIMIT,
+        "totals": {
+            name: {
+                k: t[k]
+                for k in (
+                    "uses",
+                    "successes",
+                    "errors",
+                    "rejected",
+                    "refused",
+                    "served",
+                )
+            }
+            for name, t in totals.items()
         },
     }

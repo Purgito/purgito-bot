@@ -9,7 +9,7 @@ from aiohttp import web
 
 from . import runtime
 from .model import parse_time
-from .report import report
+from .report import commands_report, report
 
 
 def encode(value):
@@ -62,6 +62,21 @@ def register(app, existing_gate):
                 503,
             )
 
+    async def get_commands(request):
+        if (blocked := gate(request)) is not None:
+            return blocked
+        try:
+            return response(await commands_report(runtime.get().store, request.query))
+        except ValueError:
+            return response({"error": "Solicitud inválida"}, 400)
+        except Exception:
+            return response(
+                {
+                    "error": "Analítica temporalmente no disponible. Vuelve a intentarlo."
+                },
+                503,
+            )
+
     async def annotate(request):
         if (blocked := gate(request)) is not None:
             return blocked
@@ -96,4 +111,5 @@ def register(app, existing_gate):
             return response({"error": "No se pudo guardar la anotación"}, 503)
 
     app.router.add_get("/internal/studio/report", get_report)
+    app.router.add_get("/internal/studio/commands", get_commands)
     app.router.add_post("/internal/studio/annotations", annotate)

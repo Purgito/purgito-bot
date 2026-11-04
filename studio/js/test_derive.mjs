@@ -193,4 +193,56 @@ t("commandFeature: el catálogo del bot asigna cada comando a su función", () =
   assert.equal(of({ source: "slash", command: "gifs" }), "gifs");
   assert.equal(of({ source: "prefix", command: "gifs" }), null);
 });
+
+const cmd = (source, command, uses, extra = {}) => ({ source, command, feature: "download", uses, served: 1, errors: 0, successes: uses, guilds: 1, top_shares: [1], previous: { uses: 0 }, series: [], ...extra });
+t("comandos: identidad y glifo distinguen prefijo y slash", () => {
+  assert.equal(D.commandId(cmd("prefix", "dl", 1)), "prefix:dl");
+  assert.notEqual(D.commandId(cmd("prefix", "dl", 1)), D.commandId(cmd("slash", "dl", 1)));
+  assert.deepEqual(["prefix", "slash", "mention"].map(D.commandGlyph), ["!", "/", ""]);
+});
+t("comandos: dependencia de servidores sin identificarlos", () => {
+  assert.equal(D.concentration(cmd("prefix", "gif", 7)).kind, "single");
+  assert.equal(D.concentration(cmd("prefix", "gif", 100, { guilds: 3, top_shares: [0.8, 0.1, 0.1] })).kind, "concentrated");
+  const wide = D.concentration(cmd("prefix", "gif", 100, { guilds: 20, top_shares: [0.2, 0.15, 0.1, 0.1, 0.1] }));
+  assert.equal(wide.kind, "spread");
+  assert.equal(wide.small, false);
+  assert.ok(Math.abs(wide.top3 - 0.45) < 1e-9);
+  assert.equal(D.concentration(cmd("prefix", "gif", 7)).small, true); // pocas ejecuciones: se avisa
+  assert.equal(D.concentration(cmd("prefix", "x", 0, { guilds: 0, top_shares: [] })).kind, "none");
+});
+t("comandos: el cambio respeta la política de comparación y no inventa bases", () => {
+  const c = cmd("prefix", "dl", 15, { previous: { uses: 10 } });
+  assert.equal(D.commandChange(c, { status: "not_comparable" }), null);
+  assert.equal(D.commandChange(null, undefined), null);
+  const up = D.commandChange(c, { status: "comparable" });
+  assert.equal(up.difference, 5);
+  assert.match(up.info.text, /▲ 5 \(50\D*%\)/);
+  assert.equal(D.commandChange(c, { status: "partial" }).info.kind, "partial");
+  assert.equal(D.commandChange(cmd("prefix", "dl", 4), { status: "comparable" }).kind, "new");
+  assert.equal(D.commandChange(cmd("prefix", "dl", 0), { status: "comparable" }), null);
+});
+t("comandos: búsqueda (con o sin prefijo), tipo, orden y catálogo sin uso", () => {
+  const rows = [cmd("prefix", "dl", 14), cmd("prefix", "gif", 7, { served: 5 }), cmd("slash", "imitar", 2, { feature: "chat", errors: 1, error_pct: 50 })];
+  const names = (o) => D.rankCommands(rows, o).map(D.commandId);
+  assert.deepEqual(names({}), ["prefix:dl", "prefix:gif", "slash:imitar"]);
+  assert.deepEqual(names({ query: "!GIF" }), ["prefix:gif"]);
+  assert.deepEqual(names({ query: "/dl" }), ["prefix:dl"]);
+  assert.deepEqual(names({ source: "slash" }), ["slash:imitar"]);
+  assert.deepEqual(names({ query: "conversación", featureLabel: (f) => (f === "chat" ? "Conversación" : f) }), ["slash:imitar"]);
+  assert.deepEqual(names({ sort: "served" }), ["prefix:gif", "prefix:dl", "slash:imitar"]);
+  assert.deepEqual(names({ sort: "errors" })[0], "slash:imitar");
+  assert.deepEqual(names({ sort: "name" }), ["prefix:dl", "prefix:gif", "slash:imitar"]);
+  assert.equal(rows[0].command, "dl"); // no se modifica la entrada
+  const catalog = [{ source: "prefix", command: "dl" }, { source: "slash", command: "dl" }, { source: "prefix", command: "ping" }];
+  assert.deepEqual(D.unusedCommands(catalog, rows).map(D.commandId), ["slash:dl", "prefix:ping"]);
+});
+t("comandos: la serie respeta los huecos de cobertura (nunca un cero inventado)", () => {
+  const times = [day0, day0 + DAY, day0 + 2 * DAY, day0 + 3 * DAY];
+  const row = cmd("prefix", "dl", 6, { series: [{ day: "2026-11-01", uses: 4, errors: 1, served: 2 }, { day: "2026-11-03", uses: 2, errors: 0, served: 1 }] });
+  const s = D.commandSeries(row, times, "day", [{ start: day0 + 3 * DAY, end: day0 + 4 * DAY }]);
+  assert.deepEqual(s.uses, [4, 0, 2, null]);
+  assert.deepEqual(s.ok, [3, 0, 2, null]);
+  assert.deepEqual(s.errors, [1, 0, 0, null]);
+  assert.deepEqual(s.served, [2, 0, 1, null]);
+});
 console.log("todas las pruebas de derivación pasaron");

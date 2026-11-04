@@ -1,6 +1,6 @@
 // Orquestador: navegación, contexto del período (regla, comparación y filtros), carga de datos,
 // diálogos y estado de la medición.
-import { ApiError, getReport, postAnnotation } from "./api.mjs";
+import { ApiError, getCommands, getReport, postAnnotation } from "./api.mjs";
 import { coverageStrip, hideTip, noteIcon, NOTE_KIND, periodRuler } from "./charts.mjs";
 import { closeHelps, icon } from "./components.mjs";
 import { buildModel, COVERAGE_LABEL } from "./derive.mjs";
@@ -9,6 +9,7 @@ import { buildHash, emptyFilters, fetchKey, GROUPS, parseHash, PRESETS, rangeFor
 import { ago, fmtDateTime, fmtDay, fmtDuration, fmtInt, fmtPct, shortVersion, toLocalInput } from "./format.mjs";
 import { DAY, HOUR } from "./scale.mjs";
 import { communities } from "./views/communities.mjs";
+import { commands } from "./views/commands.mjs";
 import { features } from "./views/features.mjs";
 import { overview } from "./views/overview.mjs";
 import { reliability } from "./views/reliability.mjs";
@@ -16,12 +17,12 @@ import { retention } from "./views/retention.mjs";
 import { updates } from "./views/updates.mjs";
 import { versions } from "./views/versions.mjs";
 
-const RENDERERS = { overview, growth: communities, retention, features, reliability, versions, updates };
+const RENDERERS = { overview, growth: communities, retention, features, commands, reliability, versions, updates };
 const $ = (id) => document.getElementById(id);
 const REFRESH_MS = 60_000;
 const RESULT_LABEL = { ok: "Correcto", error: "Fallo", refused: "Rechazo de Discord", rejected: "Validación previa" };
 
-const state = { view: "overview", filters: emptyFilters(), data: null, model: null, key: "", controller: null, coverageStart: null, error: null };
+const state = { view: "overview", filters: emptyFilters(), data: null, cmds: null, cmdsKey: "", model: null, key: "", controller: null, coverageStart: null, error: null };
 
 /* ----------------------------------------------------------------- shell */
 
@@ -283,9 +284,16 @@ async function load({ silent = false } = {}) {
   try {
     if (!state.filters.preset || (state.coverageStart === null && state.filters.preset === "since")) await bootstrap();
     const range = currentRange();
-    const data = await getReport(toQuery(state.filters, range), controller.signal);
+    const query = toQuery(state.filters, range);
+    // Los comandos tienen su propio endpoint (series y reparto por servidor): solo se piden en su vista.
+    const [data, cmds] = await Promise.all([
+      getReport(query, controller.signal),
+      state.view === "commands" ? getCommands(query, controller.signal) : null,
+    ]);
     if (state.controller !== controller) return;
     state.data = data;
+    state.cmdsKey = cmds ? fetchKey(state.filters) : "";
+    if (cmds) state.cmds = cmds;
     state.coverageStart = data.coverage_started_at ? Date.parse(data.coverage_started_at) : state.coverageStart;
     state.key = fetchKey(state.filters);
     state.error = null;
@@ -326,7 +334,7 @@ function renderView(data = visibleData()) {
   const content = $("content");
   const model = state.model;
   const ctx = {
-    data, model, filters: state.filters,
+    data, model, filters: state.filters, commands: state.cmdsKey === state.key ? state.cmds : null,
     nav: (view, patch = {}) => navigate(patch, view),
     setFilters: (patch) => navigate(patch),
     openCoverage,
@@ -370,7 +378,8 @@ function apply({ focus = false } = {}) {
   state.view = parsed.view;
   state.filters = parsed.filters;
   syncNav();
-  if (state.data && fetchKey(state.filters) === state.key) {
+  const key = fetchKey(state.filters);
+  if (state.data && key === state.key && (state.view !== "commands" || state.cmdsKey === key)) {
     paint();
   } else {
     buildFilterBar();

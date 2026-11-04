@@ -278,6 +278,7 @@ def application(
             )
 
     app.router.add_get("/internal/studio/report", proxy)
+    app.router.add_get("/internal/studio/commands", proxy)
     app.router.add_post("/internal/studio/annotations", proxy)
     app.router.add_get("/{path:.*}", static)
     return app

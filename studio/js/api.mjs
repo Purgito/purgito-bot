@@ -22,6 +22,8 @@ async function request(url, options = {}) {
 
 export const getReport = (query, signal) => request(`/internal/studio/report?${query}`, { signal });
 
+export const getCommands = (query, signal) => request(`/internal/studio/commands?${query}`, { signal });
+
 export const postAnnotation = (body) =>
   request("/internal/studio/annotations", {
     method: "POST",
