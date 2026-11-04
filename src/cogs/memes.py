@@ -3,6 +3,7 @@
 import asyncio
 import io
 import logging
+from studio import runtime as studio_runtime
 import os
 import time
 
@@ -381,10 +382,13 @@ async def handle_meme_command(message: discord.Message) -> None:
 
     # message.guild está garantizado acá (se cortó arriba si era un DM) y esto
     # siempre es un mensaje de texto, nunca un slash: el crédito corresponde.
-    await message.reply(
-        file=discord.File(io.BytesIO(meme_bytes), filename="meme.png"),
-        **sent_by_credit(locale, message.author),
-    )
+    with studio_runtime.measure_delivery(
+        message.guild.id if message.guild else None, "memes", source="trigger"
+    ):
+        await message.reply(
+            file=discord.File(io.BytesIO(meme_bytes), filename="meme.png"),
+            **sent_by_credit(locale, message.author),
+        )
 
 
 class Memes(commands.Cog):

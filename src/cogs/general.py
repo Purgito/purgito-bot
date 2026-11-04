@@ -7,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import r2
+from studio import runtime as studio_runtime
 from cogs.premium import discard_premium_guild
 from config import PERMANENT_PREMIUM_GUILD_IDS, PURGATORY_GUILD_ID, env_int
 from db import (
@@ -94,6 +95,7 @@ class General(commands.Cog):
     async def on_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
+        studio_runtime.finish_command(interaction, error=error, slash=True)
         locale = await guild_locale(interaction.guild.id if interaction.guild else None)
         if isinstance(error, app_commands.CommandOnCooldown):
             # No es un error real: avisar el tiempo de espera, sin loguear ni
