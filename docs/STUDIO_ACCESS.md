@@ -231,10 +231,18 @@ Del menos al más drástico; ninguno toca los datos de Studio ni el bot:
    `/etc/systemd/system/studio-purg.service` y `/etc/purgito/studio.env`.
 4. **Quitar la aplicación de Access** en Cloudflare cuando ya no haya ruta.
 
-Administración local de emergencia, sin Cloudflare ni servicio:
-`cd <checkout> && .venv/bin/python scripts/studio.py` + `ssh -L 18081:127.0.0.1:18081 <usuario>@<vm>` y abrir
-`http://127.0.0.1:18081` (usuario `admin`, contraseña `OBSERVABILITY_TOKEN`). Desactivar Studio por completo
-sigue siendo `STUDIO_ENABLED=false` en el `.env` del bot (ver STUDIO.md): conserva los datos.
+Administración local de emergencia, sin Cloudflare: con el servicio `studio-purg` en marcha, su entrada local
+sigue disponible. Abre un túnel `ssh -L 18081:127.0.0.1:18081 <usuario>@<vm>` y entra en `http://127.0.0.1:18081`
+(usuario `admin`, contraseña `OBSERVABILITY_TOKEN`); no hay que lanzar nada a mano. Sin el servicio, se puede
+ejecutar `cd <checkout> && .venv/bin/python scripts/studio.py` y abrir el mismo túnel. Desactivar Studio por
+completo sigue siendo `STUDIO_ENABLED=false` en el `.env` del bot (ver STUDIO.md): conserva los datos.
+
+## Compatibilidad con un bot anterior a la serie por horas
+
+El informe incluye `hourly` solo desde Studio v2. Si el bot en ejecución es anterior (no se ha reiniciado desde
+entonces), el panel **no dibuja horas sin datos**: muestra esas ventanas por días, lo avisa en la barra de calidad
+(«El bot en ejecución aún no envía la serie por horas…») y los tramos parciales se marcan con punto hueco. La
+serie por horas llega sola con el siguiente reinicio del bot; no hay que tocar el panel.
 
 ## Qué cubren las pruebas
 
