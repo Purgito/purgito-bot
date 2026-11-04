@@ -52,8 +52,8 @@ def register(app, existing_gate):
             result = await report(collector.store, request.query, collector.catalog)
             result["collector"] = collector.health()
             return response(result)
-        except ValueError as exc:
-            return response({"error": str(exc)}, 400)
+        except ValueError:
+            return response({"error": "Solicitud inválida"}, 400)
         except Exception:
             return response(
                 {
