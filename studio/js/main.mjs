@@ -124,7 +124,8 @@ function qualityBar() {
     : cmp.status === "partial" ? "Comparación parcial: solo lo observado"
     : "Sin comparación: el período anterior no tiene cobertura suficiente";
   clear(q, coverageChip(cov.status, cov.ratio, { onClick: openCoverage }), h("span", {}, cmpText),
-    h("span", { class: "period-label" }, `${fmtDateTime(data.period.start)} → ${fmtDateTime(data.period.end)} · agregación ${state.model.step === "hour" ? "por hora" : "por día"}`));
+    h("span", { class: "period-label" }, `${fmtDateTime(data.period.start)} → ${fmtDateTime(data.period.end)} · agregación ${state.model.step === "hour" ? "por hora" : "por día"}`),
+    state.model.degraded ? h("span", { class: "period-label", role: "note" }, "El bot en ejecución aún no envía la serie por horas (llega con su próximo reinicio): se muestra por días.") : null);
 }
 
 function freshness() {

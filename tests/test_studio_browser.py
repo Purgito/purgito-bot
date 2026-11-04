@@ -375,3 +375,45 @@ def test_coverage_dialog_lists_gaps_and_comparison_policy(backend, monkeypatch):
                 assert not problems, problems
 
     asyncio.run(go())
+
+
+def test_backend_without_hourly_series_degrades_to_days_with_notice(
+    backend, monkeypatch
+):
+    """Un bot en ejecución anterior a `hourly` no debe dibujar una línea plana en cero con uso real."""
+    playwright = pytest.importorskip("playwright.async_api")
+    store, settings = backend
+
+    async def go():
+        async with studio(store, settings, monkeypatch, demo=True, port=18084) as base:
+            async with playwright.async_playwright() as p:
+                browser, page, problems = await open_page(p)
+
+                async def old_backend(route):
+                    response = await route.fetch()
+                    body = await response.json()
+                    for window in ("current", "previous"):
+                        body[window].pop("hourly", None)
+                    await route.fulfill(response=response, json=body)
+
+                await page.route("**/internal/studio/report*", old_backend)
+                await page.goto(f"{base}/#/resumen?p=72h")
+                await ready(page)
+                quality = await page.locator("#quality").inner_text()
+                assert "aún no envía la serie por horas" in quality
+                assert (
+                    "agregación por día" in quality
+                    and "por hora" not in quality.split("aún no envía")[0]
+                )
+                # El uso real aparece (tabla del gráfico), no ceros.
+                await page.get_by_role("button", name="Ver como tabla").first.click()
+                cells = await page.locator(
+                    ".panel table.table tbody tr td"
+                ).all_inner_texts()
+                assert any(c.strip() not in ("0", "Sin medición", "") for c in cells), (
+                    cells
+                )
+                assert not problems, problems
+                await browser.close()
+
+    asyncio.run(go())

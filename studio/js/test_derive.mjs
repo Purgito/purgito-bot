@@ -109,4 +109,25 @@ t("statusSentence: sin medición, sin uso y con uso", () => {
   used.current.coverage = { ...used.current.coverage, status: "partial", ratio: 0.93 };
   assert.match(D.statusSentence(used, D.buildModel(used)), /parciales: lo observado es un mínimo/);
 });
+t("backend sin serie por horas: degrada a días con aviso, sin inventar una línea plana", () => {
+  const old = base({ growth: [] });
+  old.current.daily = [{ day: "2026-11-01", uses: 7, active: 2, errors: 0, successes: 7, refused: 0 }];
+  delete old.current.hourly;
+  delete old.previous.hourly;
+  const model = D.buildModel(old, day0 + DAY);
+  assert.equal(model.step, "day");
+  assert.equal(model.degraded, true);
+  assert.equal(model.uses[0], 7); // el uso real se ve, no un cero
+  // Con serie por horas disponible, nada cambia.
+  const modern = base();
+  const ok = D.buildModel(modern, day0 + DAY);
+  assert.equal(ok.step, "hour");
+  assert.equal(ok.degraded, false);
+  // Una ventana larga nunca es «degradada»: ya era por días.
+  const long = base();
+  delete long.current.hourly;
+  long.period.end = iso(day0 + 10 * DAY);
+  long.period.compare_start = iso(day0 - 10 * DAY);
+  assert.equal(D.buildModel(long).degraded, false);
+});
 console.log("todas las pruebas de derivación pasaron");
