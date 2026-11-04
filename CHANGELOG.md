@@ -10,6 +10,9 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Fixed
+- Studio: tras introducir el código de un solo uso de Cloudflare Access, el panel respondía 403 (y seguía así al recargar) porque la vuelta desde `<equipo>.cloudflareaccess.com` es una navegación entre sitios y el origen rechazaba todo `Sec-Fetch-Site: cross-site`, aun con un JWT válido. Ahora se admite solo la navegación de nivel superior que lee el documento (`GET`/`HEAD` a `/`, modo `navigate`, destino `document`); la validación del JWT, la lista de correos, la puerta de loopback/Host y las protecciones CSRF de las escrituras no cambian. Los rechazos registran método, ruta y cabeceras `Sec-Fetch-*` (nunca el token), y el rechazo de escrituras sin JSON/`X-Studio-Request` deja de ser silencioso.
+
 ### Removed
 - Avisos de arranque/apagado y de loops caídos al canal de Discord del proyecto: se eliminan `LIFECYCLE_ANNOUNCE_CHANNEL_ID`, `bot._send_lifecycle_notice` y `utils.notify_ops`. `lifecycle_state` se conserva porque alimenta `previous_shutdown` del monitor externo; los loops que fallan siguen dejando `log.critical`.
 

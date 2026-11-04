@@ -711,3 +711,266 @@ def test_http_path_traversal_attempts_never_reach_files_outside_the_allowlist():
         assert (await ui.get("/js/main.mjs", headers=headers)).status == 200
 
     run_panel(test)
+
+
+# ------------------------------------- vuelta de Cloudflare Access (navegación entre sitios)
+
+# Lo que envía el navegador al volver de <equipo>.cloudflareaccess.com tras el código de un solo uso
+# (y también al recargar esa misma página: Chrome conserva el Sec-Fetch-Site de la navegación original).
+ACCESS_RETURN = {
+    "Sec-Fetch-Site": "cross-site",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-User": "?1",
+    "Referer": f"https://{TEAM}/",
+}
+
+
+def test_access_login_redirect_loads_studio_for_an_authorized_user(caplog):
+    async def test(ui, signer, backend, app):
+        with caplog.at_level(logging.INFO, logger="studio.access"):
+            page = await ui.get("/", headers=remote(signer, **ACCESS_RETURN))
+            assert page.status == 200 and "Purgito Studio" in await page.text()
+            # Las protecciones de la respuesta siguen intactas.
+            assert "frame-ancestors 'none'" in page.headers["Content-Security-Policy"]
+            assert page.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+            assert (
+                await ui.get("/index.html", headers=remote(signer, **ACCESS_RETURN))
+            ).status == 200
+            # Sin Sec-Fetch-User (redirección automática o recarga) también entra.
+            no_user = {k: v for k, v in ACCESS_RETURN.items() if k != "Sec-Fetch-User"}
+            assert (await ui.get("/", headers=remote(signer, **no_user))).status == 200
+            assert (await ui.head("/", headers=remote(signer, **no_user))).status == 200
+        assert any(f"identidad={EMAIL} GET /" in r.getMessage() for r in caplog.records)
+        # Después, la propia página carga sus recursos y datos como mismo origen.
+        same = {
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+        }
+        assert (
+            await ui.get("/js/main.mjs", headers=remote(signer, **same))
+        ).status == 200
+        report = await ui.get(
+            "/internal/studio/report?start=1", headers=remote(signer, **same)
+        )
+        assert report.status == 200
+
+    run_panel(test)
+
+
+def test_access_redirect_exception_never_replaces_the_jwt(caplog):
+    async def test(ui, signer, backend, app):
+        import time
+
+        base = {"Host": HOST, "X-Forwarded-For": "203.0.113.7", **ACCESS_RETURN}
+        intruder = Signer()  # firma con una clave que no es la del equipo
+        now = int(time.time())
+        fresh = {"exp": now + 3600, "iat": now - 5, "nbf": now - 5}
+        cases = {
+            "missing": base,
+            "malformed": {**base, "Cf-Access-Jwt-Assertion": "x.y.z"},
+            "signature": {
+                **base,
+                "Cf-Access-Jwt-Assertion": intruder.token(fresh, kid=signer.kid),
+            },
+            "exp": {
+                **base,
+                "Cf-Access-Jwt-Assertion": signer.token(
+                    {"exp": now - 3600, "iat": now - 7200, "nbf": now - 7200}
+                ),
+            },
+            "aud": {
+                **base,
+                "Cf-Access-Jwt-Assertion": signer.token({**fresh, "aud": ["b" * 64]}),
+            },
+            "iss": {
+                **base,
+                "Cf-Access-Jwt-Assertion": signer.token(
+                    {**fresh, "iss": "https://otro.cloudflareaccess.com"}
+                ),
+            },
+            "email": {
+                **base,
+                "Cf-Access-Jwt-Assertion": signer.token(
+                    {**fresh, "email": "otro@example.test"}
+                ),
+            },
+            "alg": {
+                **base,
+                "Cf-Access-Jwt-Assertion": signer.token(fresh, header={"alg": "HS256"}),
+            },
+        }
+        for code, headers in cases.items():
+            caplog.clear()
+            with caplog.at_level(logging.WARNING, logger="studio.access"):
+                response = await ui.get("/", headers=headers)
+            assert response.status == 403, code
+            assert f"motivo={code}" in caplog.text, code
+        # Identidad «anunciada» por cabecera tampoco vale en la navegación de vuelta.
+        spoof = {**base, "Cf-Access-Authenticated-User-Email": EMAIL}
+        assert (await ui.get("/", headers=spoof)).status == 403
+        # Ni el token interno.
+        basic = {**base, "Authorization": BasicAuth("admin", TOKEN).encode()}
+        assert (await ui.get("/", headers=basic)).status == 403
+        # Otro Host o un par que no es loopback siguen sin existir.
+        assert (
+            await ui.get(
+                "/", headers=remote(signer, Host="otro.example.test", **ACCESS_RETURN)
+            )
+        ).status == 404
+        assert backend.requests == []
+
+    run_panel(test)
+
+
+def test_cross_site_writes_stay_blocked_even_when_disguised_as_navigation(caplog):
+    async def test(ui, signer, backend, app):
+        url = "/internal/studio/annotations"
+        body = {"at": "2026-11-01T00:00:00Z", "title": "x"}
+        # Envío de formulario desde otro sitio (navegación POST de nivel superior).
+        form = remote(signer, Origin="https://evil.example", **ACCESS_RETURN)
+        assert (await ui.post(url, headers=form, data="title=x")).status == 403
+        assert (await ui.post(url, headers=form, json=body)).status == 403
+        assert (await ui.post("/", headers=form, data="title=x")).status == 403
+        # Aunque copie todo lo de una escritura legítima salvo el sitio de origen.
+        disguised = remote(
+            signer,
+            Origin=f"https://{HOST}",
+            **{**ACCESS_RETURN, "X-Studio-Request": "1"},
+        )
+        assert (await ui.post(url, headers=disguised, json=body)).status == 403
+        cors = remote(
+            signer,
+            Origin=f"https://{HOST}",
+            **{
+                "Sec-Fetch-Site": "cross-site",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+                "X-Studio-Request": "1",
+            },
+        )
+        assert (await ui.post(url, headers=cors, json=body)).status == 403
+        # Un POST sin Origin, aun con el resto de cabeceras correctas, tampoco.
+        no_origin = remote(signer, **{**ACCESS_RETURN, "X-Studio-Request": "1"})
+        assert (await ui.post(url, headers=no_origin, json=body)).status == 403
+        # El método forma parte de la excepción: un POST al documento que imita una navegación
+        # se corta en la comprobación de sitio, no más tarde por casualidad.
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="studio.access"):
+            assert (await ui.post("/", headers=disguised, json=body)).status == 403
+        assert "motivo=fetch-site POST '/'" in caplog.text
+        for method in ("PUT", "PATCH", "DELETE"):
+            assert (
+                await ui.request(method, "/", headers=remote(signer, **ACCESS_RETURN))
+            ).status in (403, 405), method
+        assert backend.requests == []
+
+    run_panel(test)
+
+
+def test_redirect_exception_only_covers_the_top_level_document(caplog):
+    async def test(ui, signer, backend, app):
+        def cross(**over):
+            return remote(signer, **{**ACCESS_RETURN, **over})
+
+        # Datos internos: ni como navegación ni como subrecurso desde otro sitio.
+        for path in ("/internal/studio/report", "/internal/studio/report?start=1"):
+            assert (await ui.get(path, headers=cross())).status == 403, path
+            assert (
+                await ui.get(
+                    path,
+                    headers=cross(
+                        **{"Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}
+                    ),
+                )
+            ).status == 403, path
+        # Recursos estáticos navegados o incluidos desde otro sitio.
+        for path in (
+            "/js/main.mjs",
+            "/css/studio.css",
+            "/fonts/lexend-latin.woff2",
+            "/favicon.svg",
+        ):
+            assert (await ui.get(path, headers=cross())).status == 403, path
+            assert (
+                await ui.get(
+                    path,
+                    headers=cross(
+                        **{"Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Dest": "script"}
+                    ),
+                )
+            ).status == 403, path
+        # El documento, pero no como navegación de nivel superior.
+        for over in (
+            {"Sec-Fetch-Dest": "iframe"},
+            {"Sec-Fetch-Dest": "frame"},
+            {"Sec-Fetch-Dest": "embed"},
+            {"Sec-Fetch-Dest": "object"},
+            {"Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"},
+            {"Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Dest": "empty"},
+            {"Sec-Fetch-Mode": "nested-navigate"},
+            {"Sec-Fetch-Mode": "Navigate"},  # sin normalizar: no se adivina
+        ):
+            assert (await ui.get("/", headers=cross(**over))).status == 403, over
+        missing_mode = {k: v for k, v in cross().items() if k != "Sec-Fetch-Mode"}
+        missing_dest = {k: v for k, v in cross().items() if k != "Sec-Fetch-Dest"}
+        assert (await ui.get("/", headers=missing_mode)).status == 403
+        assert (await ui.get("/", headers=missing_dest)).status == 403
+        # Un Origin ajeno en la navegación sigue bloqueado.
+        assert (
+            await ui.get("/", headers=cross(Origin="https://evil.example"))
+        ).status == 403
+        # Rutas fuera de la lista no se convierten en 200 ni filtran nada.
+        assert (await ui.get("/src/studio/access.py", headers=cross())).status in (
+            403,
+            404,
+        )
+        assert backend.requests == []
+        # Los rechazos dicen qué se pidió y cómo (sin token) para poder diagnosticar.
+        caplog.clear()
+        token_headers = cross(**{"Sec-Fetch-Dest": "iframe"})
+        with caplog.at_level(logging.WARNING, logger="studio.access"):
+            await ui.get("/", headers=token_headers)
+        logged = caplog.text
+        assert "motivo=fetch-site" in logged and "dest='iframe'" in logged
+        assert token_headers["Cf-Access-Jwt-Assertion"].split(".")[1] not in logged
+
+    run_panel(test)
+
+
+def test_local_admin_entry_keeps_its_behaviour_with_navigation_headers():
+    async def test(ui, signer, backend, app):
+        local = {"Host": "127.0.0.1:18081"}
+        valid = {**local, "Authorization": BasicAuth("admin", TOKEN).encode()}
+        typed = {
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Dest": "document",
+        }
+        assert (await ui.get("/", headers={**valid, **typed})).status == 200
+        assert (await ui.get("/", headers={**local, **typed})).status == 401
+        # La excepción remota no existe en la entrada local: entre sitios sigue siendo 403.
+        assert (await ui.get("/", headers={**valid, **ACCESS_RETURN})).status == 403
+        # Ni el JWT de Access ni cabeceras de proxy abren la entrada local.
+        assert (
+            await ui.get(
+                "/",
+                headers={**local, **typed, "Cf-Access-Jwt-Assertion": signer.token()},
+            )
+        ).status == 404
+        assert (
+            await ui.get("/", headers={**valid, **typed, "X-Forwarded-For": "1.2.3.4"})
+        ).status == 404
+        report = await ui.get(
+            "/internal/studio/report",
+            headers={
+                **valid,
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+            },
+        )
+        assert report.status == 200
+
+    run_panel(test)
