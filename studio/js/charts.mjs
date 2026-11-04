@@ -255,7 +255,7 @@ export function timeChart(o) {
             if (j < 0 || j >= ypx.length || ypx[j] == null || (part(j) && j > i)) continue;
             svg.append(s("path", { d: linePath([[xs[i], ypx[i]], [xs[j], ypx[j]]]), stroke: item.color, class: "line line-partial" }));
           }
-          if (!item.muted) svg.append(s("circle", { cx: xs[i], cy: ypx[i], r: 4, class: "dot dot-hollow", stroke: item.color }));
+          if (!item.muted) svg.append(s("circle", { cx: xs[i], cy: ypx[i], r: 4, class: "dot-hollow", stroke: item.color }));
         }
         if (!item.muted) {
           const lastI = item.values.findLastIndex((v, i) => v != null && !part(i));

@@ -413,6 +413,15 @@ def test_backend_without_hourly_series_degrades_to_days_with_notice(
                 assert any(c.strip() not in ("0", "Sin medición", "") for c in cells), (
                     cells
                 )
+                await page.get_by_role("button", name="Ver gráfico").first.click()
+                # Los tramos parciales se dibujan con punto hueco: su contorno debe verse (no ser del color del fondo).
+                hollow = page.locator(".plot .dot-hollow")
+                assert await hollow.count() >= 1
+                stroke = await hollow.first.evaluate("e => getComputedStyle(e).stroke")
+                surface = await page.evaluate(
+                    "getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()"
+                )
+                assert surface == "#111820" and stroke != "rgb(17, 24, 32)", stroke
                 assert not problems, problems
                 await browser.close()
 
