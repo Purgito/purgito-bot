@@ -1,149 +1,131 @@
-// Resumen: el estado de Purgito de un vistazo y la puerta a cada detalle.
-import { coverageStrip, legend, rankedBars, seriesTable, segmentedBar, sparkline, timeChart } from "../charts.mjs";
-import { badge, emptyState, milestoneList, panel, stat } from "../components.mjs";
-import { deltaInfo, milestones, rateDelta, statusSentence } from "../derive.mjs";
+// Resumen: el estado de Purgito de un vistazo. Una protagonista (comunidades que usaron Purgito), cuatro
+// cifras de apoyo, el pulso de actividad y dos puertas: dónde está el uso y cómo de bien funciona.
+import { legend, miniColumns, seriesTable, shareStrip, swatch, timeChart } from "../charts.mjs";
+import { chartOrTable, deltaChip, emptyNote, figure, goTo, milestoneTrack, sectionHead, segmented } from "../components.mjs";
+import { deltaInfo, featureGroups, milestones, qualitySignal, rateDelta, statusSentence } from "../derive.mjs";
 import { h } from "../dom.mjs";
-import { fmtDay, fmtDuration, fmtInt, fmtMs, fmtPct, ago } from "../format.mjs";
+import { fmtDay, fmtInt, fmtMs, fmtRate, fmtShare } from "../format.mjs";
+import { C, categorical, OTHER } from "../palette.mjs";
+import { focusFeature } from "./features.mjs";
 
-export const COLORS = {
-  series1: "var(--series-1)",
-  prev: "var(--prev)",
-  good: "var(--good)",
-  critical: "var(--critical)",
-  serious: "var(--serious)",
-  neutral: "var(--prev)",
-};
+const ui = { metric: "uses" };
 
-export function usageSeries(model, comparison, data) {
-  const list = [{ key: "uses", name: "Período actual", values: model.uses, color: COLORS.series1, area: true }];
-  const prevHasData = data.previous.coverage.ratio > 0 && model.prevUses.some((v) => v);
-  if (comparison.status !== "not_comparable" && prevHasData)
-    list.push({ key: "prev", name: "Período anterior", values: model.prevUses, color: COLORS.prev, muted: true });
+export function usageSeries(model, comparison, data, metric = "uses") {
+  const name = metric === "uses" ? "Ejecuciones y entregas" : "Comunidades activas";
+  const cur = metric === "uses" ? model.uses : model.active;
+  const prev = metric === "uses" ? model.prevUses : model.prevActive;
+  const list = [{ key: metric, name, values: cur, color: C.current, area: true }];
+  const prevHasData = data.previous.coverage.ratio > 0 && prev.some((v) => v);
+  if (comparison.status !== "not_comparable" && prevHasData) list.push({ key: "prev", name: "Período anterior", values: prev, color: C.prev, muted: true });
   return list;
 }
 
-export function overview({ data, model, nav, openCoverage }) {
+function hero(data, model) {
   const cur = data.current;
   const s = cur.summary;
   const partial = cur.coverage.status !== "complete";
-  const root = h("div", { class: "stack" });
-  root.append(h("p", { class: "lead" }, statusSentence(data, model)));
-
-  if (!model.measuring) {
-    root.append(
-      emptyState({
-        title: "Todavía no hay mediciones",
-        text: "Studio empieza a guardar datos cuando el bot se conecta a Discord con la recopilación activada. Cuando haya un primer volcado, esta portada se llena sola.",
-      }),
-    );
-    return root;
-  }
-
-  const inv = data.latest_inventory;
-  const attempts = s.successes + s.errors;
-  root.append(
-    h("div", { class: "kpis" },
-      stat({
-        hero: true,
-        label: "Comunidades activas",
-        value: fmtInt(s.active),
-        delta: deltaInfo(data.delta.active, true),
-        trend: sparkline(model.active, { label: "Comunidades activas por tramo", width: 140, height: 40 }),
-        note: cur.observed_communities ? `de ${fmtInt(cur.observed_communities)} observadas` : "Sin inventario del período",
-        partial,
-      }),
-      stat({
-        label: "Servidores instalados",
-        value: fmtInt(inv?.installed),
-        note: inv ? `Inventario del ${fmtDay(inv.observed_at)}` : "Sin inventario",
-        trend: model.inventory.length > 1 ? sparkline(model.inventory.map((i) => i.installed), { label: "Servidores instalados por día" }) : null,
-      }),
-      stat({
-        label: "Ejecuciones y entregas",
-        value: fmtInt(s.uses),
-        delta: deltaInfo(data.delta.uses, true),
-        trend: sparkline(model.uses, { label: "Ejecuciones y entregas por tramo" }),
-        partial,
-      }),
-      stat({
-        label: "Tasa de fallo",
-        value: fmtPct(s.error_pct),
-        delta: rateDelta(s.error_pct, data.previous.summary.error_pct, data.comparison, false),
-        note: attempts ? `${fmtInt(s.errors)} fallos en ${fmtInt(attempts)} intentos` : "Sin intentos registrados",
-      }),
-      stat({
-        label: "Latencia media",
-        value: fmtMs(s.mean_ms),
-        note: s.p95_ms_upper_bound ? `p95 ≤ ${fmtMs(s.p95_ms_upper_bound)}` : s.p95_over_30000_ms ? "p95 > 30 s" : "Sin muestras de latencia",
-      }),
-    ),
-  );
-
-  const unit = model.step === "hour" ? "por hora" : "por día";
-  const series = usageSeries(model, data.comparison, data);
-  const usageBody = model.hasUsage
-    ? timeChart({ times: model.times, step: model.step, series, gaps: model.gaps, window: [model.start, model.end], annotations: model.annotations, label: `Ejecuciones y entregas ${unit}`, height: 300 })
-    : emptyState({
-        compact: true,
-        title: "Sin uso registrado en lo medido",
-        text: cur.coverage.status === "complete" ? "Nadie ha ejecutado comandos ni recibido entregas en este período." : "Una cobertura incompleta no permite afirmar que no hubo uso.",
-      });
-  const top = cur.features.filter((f) => f.uses).sort((a, b) => b.uses - a.uses).slice(0, 5);
-  root.append(
-    h("div", { class: "grid grid-wide" },
-      panel({
-        title: "Uso en el período",
-        subtitle: `Ejecuciones y entregas ${unit} · UTC`,
-        legend: series.length > 1 ? legend(series.map((i) => ({ name: i.name, color: i.color }))) : null,
-        body: usageBody,
-        table: model.hasUsage ? seriesTable(model.times, model.step, series) : null,
-      }),
-      panel({
-        title: "Qué se usa",
-        subtitle: "Funciones con más ejecuciones",
-        body: top.length
-          ? h("div", {}, rankedBars(top.map((f) => ({ label: f.label, hint: `${fmtInt(f.served)} ${f.served === 1 ? "comunidad" : "comunidades"}`, value: f.uses }))), h("button", { type: "button", class: "btn btn-link", onclick: () => nav("features") }, "Ver todas las funciones"))
-          : emptyState({ compact: true, title: "Sin funciones usadas todavía", text: "Aparecerán aquí en cuanto haya ejecuciones o entregas." }),
-      }),
-    ),
-  );
-
-  const outcome = [
-    { label: "Correctas", value: s.successes, color: COLORS.good, note: "Terminaron bien" },
-    { label: "Fallos", value: s.errors, color: COLORS.critical, note: "Errores que Purgito debe atender" },
-    { label: "Rechazos de Discord", value: s.refused, color: COLORS.serious, note: "Permisos del bot, canal o mensaje borrado: no cuentan como fallo" },
-    { label: "Validaciones previas", value: s.rejected, color: COLORS.neutral, note: "Permisos de quien invoca, argumentos o cooldown" },
-  ];
-  const total = outcome.reduce((a, o) => a + o.value, 0);
-  const col = data.collector;
-  const cov = cur.coverage;
-  const mile = milestones(model.coverageStart, model.nowMs, Math.round((model.end - model.start) / 86_400_000) || 1).filter((m) => !m.done);
-  root.append(
-    h("div", { class: "grid grid-even" },
-      panel({
-        title: "Resultados",
-        subtitle: "Cómo terminaron las ejecuciones y entregas",
-        body: total ? h("div", {}, segmentedBar(outcome, { total }), h("button", { type: "button", class: "btn btn-link", onclick: () => nav("reliability") }, "Ver calidad en detalle")) : emptyState({ compact: true, title: "Sin resultados que mostrar", text: "Todavía no hay ejecuciones en este período." }),
-      }),
-      panel({
-        title: "Estado de la medición",
-        subtitle: "Qué parte del período está medida",
-        body: h("div", { class: "measure" },
-          coverageStrip(cov, model.start, model.end, { label: `Cobertura del período: ${fmtPct(cov.ratio * 100)}` }),
-          h("dl", { class: "facts" },
-            h("div", {}, h("dt", {}, "Cobertura"), h("dd", {}, fmtPct(cov.ratio * 100), cov.gap_count ? ` · ${cov.gap_count} ${cov.gap_count === 1 ? "hueco" : "huecos"} (${fmtDuration(cov.gap_seconds)})` : "")),
-            h("div", {}, h("dt", {}, "Último volcado"), h("dd", {}, col.last_flush ? ago(col.last_flush, model.nowMs) : "Ninguno todavía")),
-            h("div", {}, h("dt", {}, "Descartes"), h("dd", {}, col.dropped ? `${fmtInt(col.dropped)} registros` : "Ninguno")),
-            h("div", {}, h("dt", {}, "Versión"), h("dd", {}, col.version)),
-            h("div", {}, h("dt", {}, "Retención"), h("dd", {}, `${col.retention_days} días`)),
-          ),
-          h("button", { type: "button", class: "btn btn-link", onclick: openCoverage }, "Ver detalle de cobertura"),
-          mile.length ? h("div", { class: "measure-next" }, h("h3", {}, "Cuándo habrá más datos"), milestoneList(mile.slice(0, 3), model.nowMs)) : null,
-        ),
-      }),
-    ),
-  );
-  return root;
+  const observed = cur.observed_communities;
+  const delta = deltaInfo(data.delta.active, true);
+  return h("section", { class: "hero", "aria-labelledby": "hero-t" },
+    h("h2", { class: "sr-only", id: "hero-t" }, "Estado general"),
+    h("p", { class: "hero-statement" },
+      h("span", { class: "hero-figure" }, fmtInt(s.active)),
+      h("span", { class: "hero-words" }, s.active === 1 ? "comunidad usó Purgito" : "comunidades usaron Purgito",
+        h("span", { class: "hero-of" }, observed ? `de las ${fmtInt(observed)} observadas en el período (${fmtShare(s.active, observed, 0)})` : "sin inventario del período para calcular la proporción"))),
+    h("div", { class: "hero-meta" }, deltaChip(delta), partial ? h("span", { class: "minimum" }, "mínimo: parte del período sin medir") : null),
+    h("p", { class: "sr-only" }, statusSentence(data, model)));
 }
 
-export { badge };
+function supporting(data, model) {
+  const s = data.current.summary;
+  const inv = data.latest_inventory;
+  const attempts = s.successes + s.errors;
+  const partial = data.current.coverage.status !== "complete";
+  return h("div", { class: "figures figures-4" },
+    figure({ label: "Instalado en", value: fmtInt(inv?.installed), unit: inv ? (inv.installed === 1 ? "servidor" : "servidores") : null, note: inv ? `Inventario del ${fmtDay(inv.observed_at)}` : "Sin inventario todavía", info: data.definitions?.installed }),
+    figure({ label: "Ejecuciones y entregas", value: fmtInt(s.uses), delta: deltaInfo(data.delta.uses, null), minimum: partial }),
+    figure({ label: "Tasa de fallo", value: attempts ? fmtRate(s.error_pct, 2) : "—", delta: rateDelta(s.error_pct, data.previous.summary.error_pct, data.comparison, false), note: attempts ? `${fmtInt(s.errors)} de ${fmtInt(attempts)} intentos` : "Sin intentos registrados", info: data.definitions?.errors }),
+    figure({ label: "Latencia media", value: fmtMs(s.mean_ms), note: s.p95_ms_upper_bound ? `El 95 % por debajo de ${fmtMs(s.p95_ms_upper_bound)}` : s.p95_over_30000_ms ? "El 5 % más lento supera 30 s" : "Sin muestras de latencia", info: data.definitions?.latency }));
+}
+
+function pulse(data, model, rerender) {
+  const unit = model.step === "hour" ? "por hora" : "por día";
+  const series = usageSeries(model, data.comparison, data, ui.metric);
+  const name = ui.metric === "uses" ? "Ejecuciones y entregas" : "Comunidades activas";
+  const toggle = segmented("pulse-metric", [["uses", "Usos"], ["active", "Comunidades"]], ui.metric, (v) => { ui.metric = v; rerender(); }, "Métrica del gráfico", { small: true });
+  if (!model.hasUsage)
+    return h("section", { class: "pulse", "aria-labelledby": "pulse-t" }, sectionHead("Actividad", { id: "pulse-t" }),
+      emptyNote({ title: "Sin uso registrado en lo medido", text: data.current.coverage.status === "complete" ? "Nadie ha ejecutado comandos ni recibido entregas en este período." : "Con la cobertura incompleta no se puede afirmar que no hubo uso." }));
+  const chart = timeChart({ times: model.times, step: model.step, series, gaps: model.gaps, window: [model.start, model.end], annotations: model.annotations, label: `${name} ${unit}`, height: 280, unit: ui.metric === "uses" ? "usos" : "comunidades" });
+  const { button, body } = chartOrTable(chart, seriesTable(model.times, model.step, series));
+  return h("section", { class: "pulse", "aria-labelledby": "pulse-t" },
+    sectionHead("Actividad", { id: "pulse-t", sub: `${name.toLowerCase()} ${unit}, UTC`, actions: [toggle, button] }),
+    series.length > 1 ? legend(series.map((i) => ({ name: i.name, color: i.color, kind: i.muted ? "dash" : "line" }))) : null,
+    body);
+}
+
+function where(data, nav) {
+  const { used, total } = featureGroups(data.current.features);
+  if (!used.length)
+    return h("section", { class: "where", "aria-labelledby": "where-t" }, sectionHead("Dónde está el uso", { id: "where-t" }),
+      emptyNote({ title: "Sin funciones usadas todavía", text: "Aparecerán en cuanto haya ejecuciones o entregas." }));
+  const top = used.slice(0, 5);
+  const rest = used.slice(5);
+  const restUses = rest.reduce((a, f) => a + f.uses, 0);
+  const color = categorical(top.map((f) => f.feature));
+  const parts = [...top.map((f) => ({ key: f.feature, label: f.label, value: f.uses, color: color(f.feature) })), ...(restUses ? [{ key: "other", label: `Otras ${rest.length}`, value: restUses, color: OTHER }] : [])];
+  const lead = top.length > 1 ? `${top[0].label} y ${top[1].label} reúnen el ${fmtShare(top[0].uses + top[1].uses, total, 0)} del uso` : `${top[0].label} reúne todo el uso`;
+  return h("section", { class: "where", "aria-labelledby": "where-t" },
+    sectionHead("Dónde está el uso", { id: "where-t", sub: lead }),
+    shareStrip(parts, { ariaLabel: `Reparto del uso: ${parts.map((p) => `${p.label} ${fmtShare(p.value, total)}`).join(", ")}` }),
+    h("ol", { class: "share-list" }, parts.map((p) => {
+      const f = used.find((x) => x.feature === p.key);
+      return h("li", {},
+        h("button", { type: "button", class: "share-row", onclick: () => { if (p.key !== "other") focusFeature(p.key); nav("features"); } },
+          swatch(p.color, "box"),
+          h("span", { class: "share-name" }, p.label),
+          h("span", { class: "share-num" }, fmtInt(p.value)),
+          h("span", { class: "share-pct" }, fmtShare(p.value, total)),
+          h("span", { class: "share-reach" }, f ? `${fmtInt(f.served)} ${f.served === 1 ? "comunidad" : "comunidades"}` : "")));
+    })),
+    goTo("Ver todas las funciones", () => nav("features")));
+}
+
+function signal(data, model, nav) {
+  const s = data.current.summary;
+  const q = qualitySignal(s);
+  const unit = model.step === "hour" ? "por hora" : "por día";
+  return h("section", { class: `signal signal-${q.tone}`, "aria-labelledby": "signal-t" },
+    sectionHead("Calidad", { id: "signal-t" }),
+    h("p", { class: "signal-line" }, h("span", { class: "sev", "aria-hidden": "true" }), q.text),
+    q.attempts ? h("div", { class: "signal-body" },
+      miniColumns(model.errors, { color: C.error, label: `Fallos ${unit}: ${fmtInt(s.errors)} en total` }),
+      h("dl", { class: "facts facts-compact" },
+        h("div", {}, h("dt", {}, "Fallos"), h("dd", {}, `${fmtInt(s.errors)} de ${fmtInt(q.attempts)}`)),
+        h("div", {}, h("dt", {}, "Rechazos de Discord"), h("dd", {}, fmtInt(s.refused))),
+        h("div", {}, h("dt", {}, "Validaciones previas"), h("dd", {}, fmtInt(s.rejected))))) : null,
+    goTo("Abrir el diagnóstico", () => nav("reliability")));
+}
+
+export function overview({ data, model, nav, rerender }) {
+  const root = h("div", { class: "page page-overview" });
+  if (!model.measuring) {
+    root.append(emptyNote({
+      tone: "first",
+      title: "Studio todavía no ha medido nada",
+      text: "La recopilación empieza cuando el bot se conecta a Discord con Studio activado. Con el primer volcado, esta portada se llena sola.",
+    }));
+    return root;
+  }
+  if (!model.hasUsage && model.nowMs - model.coverageStart < 2 * 3_600_000) {
+    root.append(h("p", { class: "lead" }, statusSentence(data, model)));
+  }
+  root.append(h("div", { class: "overview-top" }, hero(data, model), supporting(data, model)));
+  root.append(pulse(data, model, rerender));
+  root.append(h("div", { class: "overview-pair" }, where(data, nav), signal(data, model, nav)));
+  const days = Math.max(1, Math.round((model.end - model.start) / 86_400_000));
+  const mile = milestones(model.coverageStart, model.nowMs, days).filter((m) => !m.done);
+  if (mile.length)
+    root.append(h("section", { class: "upcoming", "aria-labelledby": "up-t" }, sectionHead("Cuándo habrá más datos", { id: "up-t", sub: `se mide desde el ${fmtDay(model.coverageStart)}` }), milestoneTrack(mile, model.coverageStart, model.nowMs)));
+  return root;
+}

@@ -173,9 +173,9 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                 browser, page, problems = await open_page(p)
                 await page.goto(f"{base}/")
                 await ready(page)
-                # Portada: una cifra principal, tarjetas, gráfico y estado de la medición.
-                assert await page.locator(".kpi-hero .kpi-value").inner_text()
-                assert await page.locator(".kpi").count() == 5
+                # Portada: una protagonista, cuatro cifras de apoyo, el pulso y la regla del período.
+                assert await page.locator(".hero-figure").inner_text()
+                assert await page.locator(".figures .fig").count() == 4
                 assert await page.locator(".plot").count() >= 1
                 assert "Cobertura" in await page.locator("#quality").inner_text()
                 # Las ventanas largas terminan en medianoche UTC: ningún día del gráfico queda a medias.
@@ -184,47 +184,51 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                     in page.requests[-1].split("end=")[1].split("&")[0]
                 )
                 # Gráfico: crosshair con tooltip, también con teclado.
-                box = await page.locator(".plot .overlay").first.bounding_box()
+                box = await page.locator(".pulse .plot .overlay").first.bounding_box()
                 await page.mouse.move(
                     box["x"] + box["width"] * 0.6, box["y"] + box["height"] / 2
                 )
                 assert await page.locator("#tooltip").is_visible()
                 await page.mouse.move(0, 0)
                 assert not await page.locator("#tooltip").is_visible()
-                await page.locator(".chart").first.focus()
+                await page.locator(".pulse .chart").first.focus()
                 await page.keyboard.press("ArrowLeft")
                 assert await page.locator("#tooltip").is_visible()
                 await page.keyboard.press("Escape")
                 assert not await page.locator("#tooltip").is_visible()
                 # Cada gráfico tiene su tabla equivalente.
                 await page.get_by_role("button", name="Ver como tabla").first.click()
-                assert await page.locator(".panel table.table").first.is_visible()
+                assert await page.locator(".pulse table.table").first.is_visible()
                 assert await page.get_by_role("button", name="Ver gráfico").count() >= 1
+                await page.get_by_role("button", name="Ver gráfico").first.click()
                 # Filtros: período por horas, versión y comparación.
                 before = len(page.requests)
                 await page.locator('label:has(input[value="72h"])').click()
                 await ready(page)
                 assert len(page.requests) > before and "p=72h" in page.url
-                assert (
-                    "agregación por hora" in await page.locator("#quality").inner_text()
-                )
+                assert "por hora" in await page.locator(".pulse .sec-sub").inner_text()
                 await page.locator('label:has(input[value="7d"])').click()
                 await ready(page)
+                # Los filtros secundarios viven en un desplegable; el activo queda como chip eliminable.
+                await page.locator(".filters-pop summary").click()
                 await page.select_option("#f-version", "7ee712b")
                 await ready(page)
                 assert (
                     "v=7ee712b" in page.url and "version=7ee712b" in page.requests[-1]
                 )
-                await page.locator("#f-compare").uncheck()
+                assert await page.locator(".chips .chip").count() == 1
+                await page.locator("#f-compare").uncheck(force=True)
                 await ready(page)
                 assert (
                     "cmp=0" in page.url
                     and "Comparación desactivada"
                     in await page.locator("#quality").inner_text()
                 )
-                await page.locator("#f-compare").check()
-                await page.get_by_role("button", name="Quitar filtros").click()
+                await page.locator("#f-compare").check(force=True)
                 await ready(page)
+                await page.locator(".chip-x").first.click()
+                await ready(page)
+                assert "v=" not in page.url
                 # Personalizado: valida antes de pedir datos.
                 await page.locator(".custom summary").click()
                 await page.fill("#c-start", "2026-10-02T00:00")
@@ -251,7 +255,7 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                 expectations = {
                     "growth": "Entradas y salidas",
                     "retention": "Cohortes por primera actividad",
-                    "features": "Todas las funciones",
+                    "features": "Funciones usadas",
                     "reliability": "Calidad por función",
                     "versions": "Versiones en el período",
                     "updates": "Registrar un cambio",
@@ -291,6 +295,8 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                 # Actualizaciones: texto malicioso se muestra literal; la anotación se guarda y aparece.
                 await page.locator('#nav a[data-view="updates"]').click()
                 await ready(page)
+                await page.locator("#new-note").click()
+                assert await page.locator("dialog#sheet").evaluate("d => d.open")
                 evil = "<img src=x onerror=window.pwned=1>"
                 await page.fill('input[name="title"]', evil)
                 await page.select_option('select[name="kind"]', "release")
@@ -303,11 +309,14 @@ def test_populated_views_filters_charts_tables_dialogs_and_annotations(
                 assert await page.locator(".timeline h3").first.inner_text() == evil
                 assert await page.evaluate("window.pwned === undefined")
                 assert await page.locator(".timeline img").count() == 0
+                assert (
+                    "Anotación guardada" in await page.locator("#content").inner_text()
+                )
+                await page.locator("#new-note").click()
                 await page.fill('input[name="title"]', "")
                 await page.get_by_role("button", name="Guardar anotación").click()
-                assert (
-                    "título" in await page.locator("#content .form-error").inner_text()
-                )
+                assert "título" in await page.locator("#sheet .form-error").inner_text()
+                await page.keyboard.press("Escape")
                 # Capturas para revisión visual.
                 SHOTS.mkdir(exist_ok=True)
                 for view in (
@@ -361,7 +370,7 @@ def test_coverage_dialog_lists_gaps_and_comparison_policy(backend, monkeypatch):
                 await page.goto(f"{base}/#/resumen?p=28d")
                 await ready(page)
                 quality = await page.locator("#quality").inner_text()
-                assert "Cobertura" in quality and "Comparación parcial" in quality
+                assert "Cobertura" in quality and "Comparando con" in quality
                 # Una comparación con cobertura parcial se declara «solo lo observado», nunca como estimación.
                 assert "solo lo observado" in quality
                 await page.locator("button.cov-chip").click()
@@ -373,5 +382,56 @@ def test_coverage_dialog_lists_gaps_and_comparison_policy(backend, monkeypatch):
                 )
                 await browser.close()
                 assert not problems, problems
+
+    asyncio.run(go())
+
+
+def test_backend_without_hourly_series_degrades_to_days_with_notice(
+    backend, monkeypatch
+):
+    """Un bot en ejecución anterior a `hourly` no debe dibujar una línea plana en cero con uso real."""
+    playwright = pytest.importorskip("playwright.async_api")
+    store, settings = backend
+
+    async def go():
+        async with studio(store, settings, monkeypatch, demo=True, port=18084) as base:
+            async with playwright.async_playwright() as p:
+                browser, page, problems = await open_page(p)
+
+                async def old_backend(route):
+                    response = await route.fetch()
+                    body = await response.json()
+                    for window in ("current", "previous"):
+                        body[window].pop("hourly", None)
+                    await route.fulfill(response=response, json=body)
+
+                await page.route("**/internal/studio/report*", old_backend)
+                await page.goto(f"{base}/#/resumen?p=72h")
+                await ready(page)
+                quality = await page.locator("#quality").inner_text()
+                assert "aún no envía la serie por horas" in quality
+                assert (
+                    "por día" in quality
+                    and "por hora" not in quality.split("aún no envía")[0]
+                )
+                # El uso real aparece (tabla del gráfico), no ceros.
+                await page.get_by_role("button", name="Ver como tabla").first.click()
+                cells = await page.locator(
+                    ".pulse table.table tbody tr td"
+                ).all_inner_texts()
+                assert any(c.strip() not in ("0", "Sin medición", "") for c in cells), (
+                    cells
+                )
+                await page.get_by_role("button", name="Ver gráfico").first.click()
+                # Los tramos parciales se dibujan con punto hueco: su contorno debe verse (no ser del color del fondo).
+                hollow = page.locator(".plot .dot-hollow")
+                assert await hollow.count() >= 1
+                stroke = await hollow.first.evaluate("e => getComputedStyle(e).stroke")
+                background = await page.evaluate(
+                    "getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()"
+                )
+                assert background == "#111a20" and stroke != "rgb(17, 26, 32)", stroke
+                assert not problems, problems
+                await browser.close()
 
     asyncio.run(go())

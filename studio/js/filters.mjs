@@ -3,14 +3,15 @@ import { fromLocalInput } from "./format.mjs";
 import { DAY, HOUR } from "./scale.mjs";
 
 export const VIEWS = {
-  overview: { slug: "resumen", title: "Resumen", icon: "overview", blurb: "Qué ocurre con Purgito, de un vistazo" },
-  growth: { slug: "comunidades", title: "Comunidades", icon: "growth", blurb: "Instalaciones, entradas, salidas y adopción" },
-  retention: { slug: "retencion", title: "Retención", icon: "retention", blurb: "Cuántas comunidades vuelven (D1, D7, D28)" },
-  features: { slug: "funciones", title: "Funciones", icon: "features", blurb: "Qué se usa, cuánto y con qué cobertura" },
-  reliability: { slug: "calidad", title: "Calidad", icon: "reliability", blurb: "Fallos, rechazos de Discord y latencia" },
-  versions: { slug: "versiones", title: "Versiones", icon: "versions", blurb: "Uso y calidad por versión del bot" },
-  updates: { slug: "actualizaciones", title: "Actualizaciones", icon: "updates", blurb: "Cambios registrados para leer los gráficos" },
+  overview: { slug: "resumen", title: "Resumen", icon: "overview", group: "general" },
+  growth: { slug: "comunidades", title: "Comunidades", icon: "growth", group: "product" },
+  retention: { slug: "retencion", title: "Retención", icon: "retention", group: "product" },
+  features: { slug: "funciones", title: "Funciones", icon: "features", group: "product" },
+  reliability: { slug: "calidad", title: "Calidad", icon: "reliability", group: "operation" },
+  versions: { slug: "versiones", title: "Versiones", icon: "versions", group: "operation" },
+  updates: { slug: "actualizaciones", title: "Actualizaciones", icon: "updates", group: "operation" },
 };
+export const GROUPS = { general: "Visión general", product: "Producto y adopción", operation: "Operación y evolución" };
 const BY_SLUG = Object.fromEntries(Object.entries(VIEWS).map(([k, v]) => [v.slug, k]));
 
 export const PRESETS = [

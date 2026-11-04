@@ -409,7 +409,7 @@ def test_remote_entry_serves_the_panel_only_with_a_valid_access_token():
         assert "font-src 'self'" in page.headers["Content-Security-Policy"]
         assert page.headers["Strict-Transport-Security"].startswith("max-age=")
         assert page.headers["Cache-Control"] == "no-cache"
-        for asset in ("/js/main.mjs", "/css/studio.css", "/fonts/outfit-latin.woff2"):
+        for asset in ("/js/main.mjs", "/css/studio.css", "/fonts/lexend-latin.woff2"):
             assert (await ui.get(asset, headers=remote(signer))).status == 200
         assert (
             await ui.get("/js/test_derive.mjs", headers=remote(signer))

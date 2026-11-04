@@ -31,15 +31,19 @@ export function buildModel(data, nowMs = Date.now()) {
   const end = ms(data.period.end);
   const cstart = ms(data.period.compare_start);
   const cend = ms(data.period.compare_end);
-  const step = windowStep(start, end);
-  const times = buckets(start, end, step);
-  const ptimes = buckets(cstart, cend, step).slice(0, times.length);
   const cur = data.current;
   const prev = data.previous;
+  // Un bot en ejecución anterior a la serie por horas no envía `hourly`: dibujar horas sin datos mostraría
+  // una línea plana en cero con uso real. En ese caso se degrada a días y se avisa (`degraded`).
+  const wantsHours = windowStep(start, end) === "hour";
+  const hasHourly = Array.isArray(cur.hourly) && Array.isArray(prev.hourly);
+  const step = wantsHours && hasHourly ? "hour" : "day";
+  const times = buckets(start, end, step);
+  const ptimes = buckets(cstart, cend, step).slice(0, times.length);
   const gaps = gapsMs(cur.coverage);
   const pgaps = gapsMs(prev.coverage);
-  const rows = step === "hour" ? cur.hourly || [] : cur.daily;
-  const prows = step === "hour" ? prev.hourly || [] : prev.daily;
+  const rows = step === "hour" ? cur.hourly : cur.daily;
+  const prows = step === "hour" ? prev.hourly : prev.daily;
   const pick = (field) => fillSeries(rows, times, step, gaps, field);
   const ppick = (field) => fillSeries(prows, ptimes, step, pgaps, field);
 
@@ -48,6 +52,7 @@ export function buildModel(data, nowMs = Date.now()) {
     t: dayTime(r.day),
     installed: r.installed,
     observed_at: r.observed_at,
+    version: r.version,
   }));
   const moves = new Map();
   for (const g of data.growth) {
@@ -66,6 +71,7 @@ export function buildModel(data, nowMs = Date.now()) {
     cstart,
     cend,
     step,
+    degraded: wantsHours && !hasHourly,
     times,
     ptimes,
     gaps,
@@ -75,6 +81,7 @@ export function buildModel(data, nowMs = Date.now()) {
     errors: pick("errors"),
     successes: pick("successes"),
     refused: pick("refused"),
+    rejected: pick("rejected"),
     prevUses: ppick("uses"),
     prevActive: ppick("active"),
     dayTimes,
@@ -123,15 +130,16 @@ export function rateDelta(cur, prev, comparison, goodWhenUp = false) {
   if (cur == null || prev == null) return { kind: "none", text: "Sin base comparable", title: "" };
   const diff = Math.round((cur - prev) * 100) / 100;
   const partial = comparison.status === "partial";
-  const sign = Math.sign(diff);
+  // Por debajo de lo que se muestra (0,05 pp) no hay cambio que enseñar: nunca «▲ 0 pp».
+  const sign = Math.abs(diff) < 0.05 ? 0 : Math.sign(diff);
   return {
     kind: partial ? "partial" : "full",
     tone: sign === 0 ? "neutral" : sign > 0 === goodWhenUp ? "good" : "bad",
-    text: `${partial ? "≈ " : ""}${sign > 0 ? "▲" : sign < 0 ? "▼" : "="} ${fmtNum(Math.abs(diff), 1)} pp`,
+    text: sign === 0 ? `${partial ? "≈ " : ""}= sin cambio` : `${partial ? "≈ " : ""}${sign > 0 ? "▲" : "▼"} ${fmtNum(Math.abs(diff), 1)} pp`,
     title: partial
       ? "Solo lo observado: parte de un período no se midió."
       : "Puntos porcentuales frente al período anterior.",
-    spoken: `${sign > 0 ? "Sube" : sign < 0 ? "Baja" : "Sin cambio"} ${fmtNum(Math.abs(diff), 1)} puntos porcentuales`,
+    spoken: sign === 0 ? "Sin cambio frente al período anterior" : `${sign > 0 ? "Sube" : "Baja"} ${fmtNum(Math.abs(diff), 1)} puntos porcentuales`,
   };
 }
 
@@ -152,7 +160,7 @@ export function milestones(coverageStartMs, nowMs, rangeDays) {
     { key: "d28", label: "Retención D28", at: at(29), note: "Cuatro semanas tras la primera cohorte" },
     {
       key: "compare",
-      label: `Comparar ${rangeDays} días con el período anterior`,
+      label: `Comparar ${rangeDays} ${rangeDays === 1 ? "día" : "días"} con el período anterior`,
       at: at(2 * rangeDays),
       note: "Hace falta cobertura de los dos períodos",
     },
@@ -194,4 +202,118 @@ export function statusSentence(data, model) {
 
 export function sumGaps(coverage) {
   return fmtDuration(coverage?.gap_seconds ?? 0);
+}
+
+/* -------------------------------------------------------------- calidad */
+
+/**
+ * Señal compacta de fiabilidad. Describe, no diagnostica: dos fallos no son un incidente.
+ * tone: none (sin intentos) · calm · watch (≥ 1 % con muestra suficiente) · attention (≥ 5 % con ≥ 50 intentos).
+ */
+export function qualitySignal(summary) {
+  const attempts = (summary.successes || 0) + (summary.errors || 0);
+  if (!attempts) return { tone: "none", attempts, text: "Sin intentos registrados" };
+  const pct = summary.error_pct ?? 0;
+  if (!summary.errors) return { tone: "calm", attempts, text: "Sin fallos en lo medido" };
+  const small = attempts < 50;
+  const tone = small ? "calm" : pct >= 5 ? "attention" : pct >= 1 ? "watch" : "calm";
+  const text = small
+    ? `${fmtInt(summary.errors)} ${summary.errors === 1 ? "fallo" : "fallos"} en ${fmtInt(attempts)} intentos`
+    : tone === "attention" ? "Fallos por encima del 5 %" : tone === "watch" ? "Fallos entre el 1 % y el 5 %" : "Fallos por debajo del 1 %";
+  return { tone, attempts, small, text };
+}
+
+/** Muestra mínima por debajo de la cual una tasa se marca como poco fiable. */
+export const SMALL_SAMPLE = 30;
+
+/** Intervalo del histograma que contiene el p95 [inferior, superior] en ms, o null. */
+const P95_BOUNDS = [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000];
+export function p95Interval(row) {
+  if (row.p95_over_30000_ms) return [30000, null];
+  const up = row.p95_ms_upper_bound;
+  if (!up) return null;
+  const i = P95_BOUNDS.indexOf(up);
+  return [i > 0 ? P95_BOUNDS[i - 1] : 0, up];
+}
+
+/* -------------------------------------------------------------- funciones */
+
+/** Separa lo usado, lo instrumentado sin uso observado y lo no instrumentado (nunca se mezclan). */
+export function featureGroups(features) {
+  const used = features.filter((f) => f.uses > 0).sort((a, b) => b.uses - a.uses);
+  const idle = features.filter((f) => f.coverage !== "not_instrumented" && !(f.uses > 0));
+  const blind = features.filter((f) => f.coverage === "not_instrumented");
+  const total = used.reduce((a, f) => a + f.uses, 0);
+  return { used, idle, blind, total };
+}
+
+/** Comandos del período agrupados por función según el catálogo del bot ({source|command: feature}). */
+export function commandFeature(catalog = []) {
+  const map = new Map(catalog.map((c) => [`${c.source}|${c.command}`, c.feature]));
+  return (c) => map.get(`${c.source}|${c.command}`) || null;
+}
+
+/* ---------------------------------------------------------------- versiones */
+
+/**
+ * Tramos de días en que cada versión aparece en el inventario diario. Es una aproximación por día
+ * (el inventario se toma una vez al día), no la hora exacta del despliegue.
+ */
+export function versionLanes(inventory, annotations = []) {
+  const lanes = new Map();
+  for (const row of [...inventory].sort((a, b) => a.t - b.t)) {
+    if (!row.version) continue;
+    const lane = lanes.get(row.version) || { version: row.version, spans: [], first: row.t, last: row.t };
+    const prev = lane.spans.at(-1);
+    if (prev && row.t - prev.end <= DAY) prev.end = row.t;
+    else lane.spans.push({ start: row.t, end: row.t });
+    lane.last = row.t;
+    lanes.set(row.version, lane);
+  }
+  for (const a of annotations) {
+    if (a.kind === "release" && a.version && lanes.has(a.version)) lanes.get(a.version).release = a;
+  }
+  return [...lanes.values()].sort((a, b) => a.first - b.first);
+}
+
+/* --------------------------------------------------------------- retención */
+
+/** Media ponderada por tamaño de cohorte, solo con cohortes maduras. */
+export function retentionSummary(rows, metricKey) {
+  return [1, 7, 28].map((days) => {
+    let weight = 0;
+    let acc = 0;
+    let n = 0;
+    let baseline = false;
+    for (const r of rows) {
+      const hz = r.horizons.find((x) => x.days === days);
+      if (hz?.eligible && hz[metricKey] != null) {
+        weight += r.size;
+        acc += hz[metricKey] * r.size;
+        n += 1;
+        baseline ||= Boolean(r.baseline);
+      }
+    }
+    return { days, value: weight ? acc / weight : null, n, weight, baseline };
+  });
+}
+
+/**
+ * Cuándo podrá leerse un horizonte no maduro: el día objetivo tiene que terminar. Si ya terminó y aun así
+ * no es elegible, faltó cobertura continua o inventario (no se volverá elegible).
+ */
+export function horizonState(cohortDay, days, nowMs) {
+  const target = ms(`${cohortDay}T00:00:00Z`) + days * DAY;
+  const ready = target + DAY;
+  return ready > nowMs ? { pending: true, at: ready } : { pending: false, at: ready };
+}
+
+/* -------------------------------------------------------------- comunidades */
+
+export function movementTotals(model) {
+  const sum = (list) => list.reduce((a, b) => a + b, 0);
+  const entries = sum(model.entries);
+  const exits = sum(model.exits);
+  const rejoins = sum(model.rejoins);
+  return { entries, exits, rejoins, net: entries + rejoins - exits, any: entries + exits + rejoins > 0 };
 }
