@@ -162,6 +162,16 @@ async def _window(c, start, end, params):
     ]
     for row in daily:
         row["day"] = row["day"].isoformat()
+    # Ventanas cortas: una serie por horas (si no, 72 h serían solo 3-4 puntos).
+    hourly = []
+    if end - start <= timedelta(hours=72):
+        hourly = [
+            stats(r)
+            for r in await c.fetch(
+                f"SELECT hour AS at,{_STATS} FROM studio_usage WHERE {where} GROUP BY hour ORDER BY hour",
+                *args,
+            )
+        ]
     denominator = await c.fetchval(
         """SELECT count(DISTINCT p.guild_key) FROM studio_presence p JOIN studio_inventory i USING(day)
       WHERE day >= $1::date AND day <= $2::date AND ($3::text IS NULL OR i.version=$3)""",
@@ -183,6 +193,7 @@ async def _window(c, start, end, params):
         "commands": [r for r in commands if r["command"]],
         "versions": versions,
         "daily": daily,
+        "hourly": hourly,
         "observed_communities": denominator,
         "coverage": coverage,
         "coverage_complete": coverage["status"] == "complete",
@@ -324,7 +335,9 @@ async def report(store, params, catalog=None, now=None):
             for r in await c.fetch(
                 "SELECT * FROM studio_annotations WHERE at >= $1 AND at <= $2 ORDER BY at",
                 start,
-                parse_time(params["end"]) if params.get("end") else now,
+                # Hasta ahora, no hasta el fin de la ventana: una nota guardada hoy debe verse aunque
+                # el período termine en la medianoche anterior. Nunca hay notas futuras (se validan al crear).
+                max(now, parse_time(params["end"])) if params.get("end") else now,
             )
         ]
         versions = [

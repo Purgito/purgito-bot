@@ -208,3 +208,51 @@ comprobó en una base desechable (tablas y filas del bot idénticas antes y desp
   `git diff --check` y `deploy/backup_db_test.sh`: correctos.
 - No ejecutado: contenedores Docker/Compose (permiso del socket), `shellcheck`, carga
   real del bot, PostgreSQL nativo del host y corte eléctrico.
+
+## Segunda etapa: frontend rediseñado y acceso privado por Internet
+
+Fecha: 4 de noviembre de 2026. Base: `main` en `78f6a05` (Studio ya integrado y activo en producción).
+Esta etapa **no** cambia definiciones estadísticas, la recopilación ni las tablas.
+
+### Resultados
+| Entorno | Resultado |
+|---|---|
+| Python 3.14.10 + PostgreSQL 18.6 + clientes 18.6 + `age` + Chromium, suite completa | **2.338 correctas**, 0 omitidas, 0 fallidas |
+| Python 3.12.16 + PostgreSQL 16.15 (piso de CI, sin Playwright) | **2.335 correctas**, 3 omitidas (Chromium), 0 fallidas |
+| `studio/js/test_*.mjs` (formato, escalas, derivación, filtros) + `node --check` de todos los módulos | correctos |
+| Ruff, formato, `build_docs.py --check`, tests JS de la landing, `git diff --check`, `shellcheck` 0.11 sobre `deploy/*.sh`, `actionlint` sobre `ci.yml` | correctos |
+| axe-core 4.10.2 (WCAG 2.0/2.1 A y AA + buenas prácticas) sobre las 7 vistas en 1440 px y 390 px | **0 violaciones** (14 combinaciones) |
+| Validador de paletas de la guía de visualización (modo oscuro, superficie `#111820`) | banda de luminosidad, croma, CVD ≥ 8 (8,4), diferencia normal ≥ 15 (19,3) y contraste ≥ 3:1: todo en verde |
+| `systemd-analyze security --offline` sobre el unit renderizado | exposición **3,3 «OK»** |
+
+Docker/Compose sigue sin poder usarse (permiso del socket); el entorno equivalente es el de la validación anterior.
+
+### Defectos encontrados y corregidos durante el trabajo
+- **Último punto del gráfico parecía una caída.** Un día parcial (1 hora medida) se dibujaba como un valor
+  completo. Solución de fondo: las ventanas de más de 72 h terminan en la medianoche UTC; los tramos parciales
+  restantes (rangos personalizados, huecos de cobertura) se marcan con conector discontinuo y punto hueco, sin
+  extrapolar. Una hora con un reinicio dentro cae en la misma categoría.
+- **Una anotación guardada «ahora» desaparecía de la lista** (el período terminaba en la medianoche anterior y el
+  informe solo devolvía notas hasta el fin de la ventana). El informe devuelve ahora las notas desde el inicio
+  del período hasta ahora (nunca hay notas futuras). Prueba: `test_annotation_saved_now_is_listed_even_if_window_ended_earlier`.
+- **Un rango personalizado vacío no se detectaba** (`Date.parse(":00Z")` devuelve un número en V8). Prueba de JS.
+- Contraste insuficiente de texto oscuro sobre celdas medias del mapa de cohortes; títulos que saltaban de h1 a
+  h3; región sin landmark; tablas con desplazamiento sin acceso por teclado. Detectados por axe y capturas; corregidos.
+
+### Seguridad del acceso remoto
+`tests/test_studio_access.py` (15 pruebas) cubre configuración todo-o-nada, JWT válido, caducado, aún no vigente,
+firma alterada, firmado con otra clave, emisor, audiencia de otra aplicación del mismo equipo, correo no autorizado,
+token de servicio sin correo, algoritmos `none`/`HS256`/mayúsculas/otros (incluido el ataque clásico de confusión
+RS256/HS256), `kid`, rotación de claves y descargas acotadas, fallo del endpoint de claves (deniega), descarga
+solo por HTTPS del equipo; y de la entrada remota: sin JWT, con identidad suplantada por cabecera, con `Host`
+ajeno, peers que no son loopback, CSRF de escrituras, que el token interno, el JWT y las cookies no cruzan, que
+el registro identifica al autor sin guardar el token, que la entrada local no cambia, y que el proceso del panel
+no carga la configuración del bot.
+**Pruebas de mutación:** se debilitaron 11 controles de uno en uno (audiencia, emisor, caducidad, algoritmo, lista
+de correos, verificación de firma, peer loopback, `Origin` obligatorio, reenvío del JWT al backend, cabeceras de
+proxy en la entrada local, `Host` remoto); **en los 11 casos al menos una prueba falló**, y el código se restauró.
+
+### No probado (requiere cuenta, red o root reales)
+El flujo de login de Cloudflare Access, la descarga de claves desde `cloudflareaccess.com`, el arranque del
+servicio bajo systemd en la VM, la interfaz con datos reales y con carga productiva, y la validación opcional del
+JWT en el túnel. Los datos de las capturas son sintéticos (`tests/studio_demo.py`).

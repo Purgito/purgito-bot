@@ -1,207 +1,377 @@
 """Opcional: pip install playwright && python -m playwright install chromium.
-Solo test DB; ninguna red o sesión real de Discord. Screenshot vacío en data/.
+
+Backend real + panel real + PostgreSQL de pruebas, sin Discord ni red externa. Los datos son sintéticos
+(tests/studio_demo.py) y solo existen en la base de pruebas. Las capturas van a data/ (ignorado por Git).
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
+import uuid
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 import pytest
 
+import pg_support
 import webapi
 from studio import runtime
 from studio.http import register
 from studio.local_server import application
-from studio.model import utcnow
-from test_studio import setup, TOKEN, KEY
-import pg_support
-from studio.model import Settings
+from studio.model import Settings, utcnow
+from studio.runtime import Collector
 from studio.store import Store
+from studio_demo import seed_demo
+from test_studio import KEY, TOKEN
+
+TABLES = "studio_sessions, studio_usage, studio_inventory, studio_presence, studio_lifecycle, studio_annotations, studio_batches, studio_meta"
+SHOTS = Path("data")
 
 
 @pytest.fixture
 def backend():
     database = asyncio.run(pg_support.connect())
-    settings = Settings(enabled=True, key=KEY, version="v1")
-    yield Store(database, settings), settings
+    settings = Settings(enabled=True, key=KEY, version="7ee712b")
+    store = Store(database, settings)
+
+    async def clean():
+        async with store.pool.acquire() as c:
+            await c.execute(f"TRUNCATE {TABLES} CASCADE")
+
+    asyncio.run(clean())
+    yield store, settings
     asyncio.run(database.close())
 
 
-def test_browser_seven_views_filters_notes_empty_and_mobile(backend, monkeypatch):
-    playwright = pytest.importorskip("playwright.async_api")
-    store, settings = backend
-    collector, _ = setup(store, settings, utcnow() - timedelta(days=1))
+@asynccontextmanager
+async def studio(store, settings, monkeypatch, *, demo, port):
+    now = utcnow()
+    if demo:
+        async with store.pool.acquire() as c:
+            await seed_demo(c, settings, now)
+    collector = Collector(store, settings)
+    await store.start(collector.session_id, now.replace(microsecond=0))
+    collector.bot = type("Bot", (), {"is_ready": lambda self: True, "guilds": []})()
+    await collector.flush()
+    collector.catalog = {("slash", "ayuda"): "general"}
     monkeypatch.setattr(runtime, "_current", collector)
     monkeypatch.setattr(webapi, "OBSERVABILITY_TOKEN", TOKEN)
-
-    async def run():
-        app = web.Application(
-            middlewares=[webapi._csrf_origin_middleware, webapi._error_middleware]
-        )
-        register(app, webapi._internal_gate)
-        async with TestServer(app) as api:
-            async with TestServer(
-                application(TOKEN, backend_port=api.port), host="127.0.0.1", port=18081
-            ) as ui:
-                async with playwright.async_playwright() as p:
-                    browser = await p.chromium.launch(args=["--no-sandbox"])
-                    context = await browser.new_context(
-                        http_credentials={"username": "admin", "password": TOKEN},
-                        viewport={"width": 1440, "height": 1000},
-                    )
-                    page = await context.new_page()
-                    errors = []
-                    page.on("pageerror", lambda e: errors.append(str(e)))
-                    await page.goto(str(ui.make_url("/")))
-                    await page.wait_for_selector('#content[aria-busy="false"]')
-                    assert await page.locator("#title").inner_text() == "Resumen"
-                    assert await page.locator("#content .value").all_inner_texts() == [
-                        "Sin datos",
-                        "0",
-                        "0",
-                        "No calculable",
-                    ]
-                    assert (
-                        "cobertura insuficiente"
-                        in await page.locator("#notice").inner_text()
-                    )
-                    Path("data").mkdir(exist_ok=True)
-                    await page.screenshot(
-                        path="data/studio-preview-empty.png", full_page=True
-                    )
-                    for name, title in [
-                        ("growth", "Comunidades"),
-                        ("retention", "Retención"),
-                        ("features", "Funciones"),
-                        ("reliability", "Calidad"),
-                        ("versions", "Versiones"),
-                        ("updates", "Actualizaciones"),
-                    ]:
-                        await page.locator(f'button[data-view="{name}"]').click()
-                        assert await page.locator("#title").inner_text() == title
-                    await page.locator(".annotation-form input[name=at]").fill(
-                        (utcnow() - timedelta(days=1)).isoformat()[:16]
-                    )
-                    await page.locator(".annotation-form input[name=title]").fill(
-                        "Prueba <img src=x onerror=alert(1)>"
-                    )
-                    await page.locator(".annotation-form textarea").fill(
-                        "Nota privada de prueba; no es actividad del bot."
-                    )
-                    await page.get_by_role("button", name="Guardar", exact=True).click()
-                    await page.wait_for_selector(".note h3")
-                    assert "<img src=x" in await page.locator(".note h3").inner_text()
-                    assert await page.locator(".note img").count() == 0
-                    await page.reload()
-                    await page.wait_for_selector('#content[aria-busy="false"]')
-                    await page.locator('button[data-view="updates"]').click()
-                    assert await page.locator(".note h3").count() == 1
-                    await page.locator("#feature").select_option("chat")
-                    await page.get_by_role("button", name="Aplicar", exact=True).click()
-                    await page.wait_for_selector('#content[aria-busy="false"]')
-                    await page.locator('button[data-view="features"]').click()
-                    assert (
-                        await page.locator("#content article")
-                        .first.locator("tbody tr")
-                        .count()
-                        == 1
-                    )
-                    assert (
-                        "Conversación"
-                        in await page.locator("#content article").first.inner_text()
-                    )
-                    await page.locator("#comparison").select_option("custom")
-                    await page.locator("#compare-end").fill(
-                        (utcnow() - timedelta(days=35)).isoformat()[:16]
-                    )
-                    async with page.expect_response(
-                        lambda r: "/internal/studio/report?" in r.url
-                    ) as compared:
-                        await page.get_by_role(
-                            "button", name="Aplicar", exact=True
-                        ).click()
-                    comparison_response = await compared.value
-                    assert comparison_response.status == 200
-                    comparison_data = await comparison_response.json()
-                    assert (
-                        comparison_data["period"]["compare_end"]
-                        != comparison_data["period"]["start"]
-                    )
-                    await page.wait_for_selector('#content[aria-busy="false"]')
-                    assert await page.evaluate("Object.keys(localStorage).length") == 0
-                    assert not errors
-                    await page.set_viewport_size({"width": 390, "height": 844})
-                    assert await page.evaluate(
-                        "document.documentElement.scrollWidth <= innerWidth + 1"
-                    )
-                    await page.screenshot(
-                        path="data/studio-preview-mobile.png", full_page=True
-                    )
-                    await browser.close()
-
-    asyncio.run(run())
+    api = web.Application(
+        middlewares=[webapi._csrf_origin_middleware, webapi._error_middleware]
+    )
+    register(api, webapi._internal_gate)
+    async with TestServer(api) as backend_server:
+        panel = application(TOKEN, backend_port=backend_server.port, port=port)
+        async with TestServer(panel, host="127.0.0.1", port=port):
+            yield f"http://127.0.0.1:{port}"
 
 
-def test_browser_shows_baseline_cohorts_coverage_notes_and_discord_refusals(
+async def open_page(playwright, *, width=1440, height=900):
+    browser = await playwright.chromium.launch(args=["--no-sandbox"])
+    context = await browser.new_context(
+        http_credentials={"username": "admin", "password": TOKEN},
+        viewport={"width": width, "height": height},
+    )
+    page = await context.new_page()
+    problems = []
+    page.on("pageerror", lambda e: problems.append(str(e)))
+    page.on("console", lambda m: m.type == "error" and problems.append(m.text))
+    page.requests = []
+    page.on(
+        "request",
+        lambda r: "/internal/studio/report" in r.url and page.requests.append(r.url),
+    )
+    return browser, page, problems
+
+
+async def ready(page):
+    await page.wait_for_selector('#content[aria-busy="false"]')
+    await page.wait_for_timeout(150)
+
+
+def test_empty_state_navigation_privacy_and_mobile(backend, monkeypatch):
+    playwright = pytest.importorskip("playwright.async_api")
+    store, settings = backend
+
+    async def go():
+        async with studio(store, settings, monkeypatch, demo=False, port=18081) as base:
+            async with playwright.async_playwright() as p:
+                browser, page, problems = await open_page(p)
+                await page.goto(f"{base}/")
+                await ready(page)
+                assert await page.locator("#title").inner_text() == "Resumen"
+                assert "empezó a medir" in await page.locator(".lead").inner_text()
+                assert await page.locator("#nav a").all_inner_texts() == [
+                    "Resumen",
+                    "Comunidades",
+                    "Retención",
+                    "Funciones",
+                    "Calidad",
+                    "Versiones",
+                    "Actualizaciones",
+                ]
+                assert await page.locator('#nav a[aria-current="page"]').count() == 1
+                # Los estados vacíos explican qué falta y cuándo habrá datos; nunca un cero inventado.
+                await page.locator('#nav a[data-view="retention"]').click()
+                await ready(page)
+                text = await page.locator("#content").inner_text()
+                assert "Sin cohortes" in text or "Todavía no hay cohortes" in text
+                assert "Retención D1" in text and "en " in text
+                assert "#/retencion" in page.url
+                await page.go_back()
+                await ready(page)
+                assert await page.locator("#title").inner_text() == "Resumen"
+                # Sin credenciales ni datos en el almacenamiento del navegador.
+                storage = await page.evaluate(
+                    "JSON.stringify([localStorage, sessionStorage, document.cookie])"
+                )
+                assert TOKEN not in storage and "guild_key" not in storage
+                assert TOKEN not in await page.content()
+                SHOTS.mkdir(exist_ok=True)
+                await page.screenshot(
+                    path=str(SHOTS / "studio-ui-empty.png"), full_page=True
+                )
+                await browser.close()
+                # Móvil: sin desbordamiento horizontal y con menú lateral.
+                browser, page, mobile_problems = await open_page(
+                    p, width=390, height=844
+                )
+                await page.goto(f"{base}/")
+                await ready(page)
+                assert await page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth"
+                )
+                assert await page.evaluate(
+                    "document.getElementById('sidebar').getBoundingClientRect().right <= 0"
+                )
+                await page.locator("#menu").click()
+                await page.locator('#nav a[data-view="features"]').click()
+                await ready(page)
+                assert await page.locator("#title").inner_text() == "Funciones"
+                assert await page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth"
+                )
+                await page.screenshot(
+                    path=str(SHOTS / "studio-ui-mobile.png"), full_page=True
+                )
+                await browser.close()
+                assert not problems and not mobile_problems, (problems, mobile_problems)
+
+    asyncio.run(go())
+
+
+def test_populated_views_filters_charts_tables_dialogs_and_annotations(
     backend, monkeypatch
 ):
     playwright = pytest.importorskip("playwright.async_api")
-    from test_studio import seed_history
-
     store, settings = backend
-    now = utcnow()
 
-    async def seed():
-        async with store.pool.acquire() as conn:
-            await seed_history(conn, settings, now)
-            await conn.execute(
-                "INSERT INTO studio_usage VALUES($1,$2,'youtube','','background','refused','v1',7,0,0,$3)",
-                now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=5),
-                settings.guild_key(1),
-                [0] * 11,
-            )
-
-    asyncio.run(seed())
-    collector, _ = setup(store, settings, now)
-    monkeypatch.setattr(runtime, "_current", collector)
-    monkeypatch.setattr(webapi, "OBSERVABILITY_TOKEN", TOKEN)
-
-    async def run():
-        app = web.Application(
-            middlewares=[webapi._csrf_origin_middleware, webapi._error_middleware]
-        )
-        register(app, webapi._internal_gate)
-        async with TestServer(app) as api:
-            async with TestServer(
-                application(TOKEN, backend_port=api.port, port=18082),
-                host="127.0.0.1",
-                port=18082,
-            ) as ui:
-                async with playwright.async_playwright() as p:
-                    browser = await p.chromium.launch(args=["--no-sandbox"])
-                    context = await browser.new_context(
-                        http_credentials={"username": "admin", "password": TOKEN}
+    async def go():
+        async with studio(store, settings, monkeypatch, demo=True, port=18082) as base:
+            async with playwright.async_playwright() as p:
+                browser, page, problems = await open_page(p)
+                await page.goto(f"{base}/")
+                await ready(page)
+                # Portada: una cifra principal, tarjetas, gráfico y estado de la medición.
+                assert await page.locator(".kpi-hero .kpi-value").inner_text()
+                assert await page.locator(".kpi").count() == 5
+                assert await page.locator(".plot").count() >= 1
+                assert "Cobertura" in await page.locator("#quality").inner_text()
+                # Las ventanas largas terminan en medianoche UTC: ningún día del gráfico queda a medias.
+                assert (
+                    "T00%3A00%3A00.000Z"
+                    in page.requests[-1].split("end=")[1].split("&")[0]
+                )
+                # Gráfico: crosshair con tooltip, también con teclado.
+                box = await page.locator(".plot .overlay").first.bounding_box()
+                await page.mouse.move(
+                    box["x"] + box["width"] * 0.6, box["y"] + box["height"] / 2
+                )
+                assert await page.locator("#tooltip").is_visible()
+                await page.mouse.move(0, 0)
+                assert not await page.locator("#tooltip").is_visible()
+                await page.locator(".chart").first.focus()
+                await page.keyboard.press("ArrowLeft")
+                assert await page.locator("#tooltip").is_visible()
+                await page.keyboard.press("Escape")
+                assert not await page.locator("#tooltip").is_visible()
+                # Cada gráfico tiene su tabla equivalente.
+                await page.get_by_role("button", name="Ver como tabla").first.click()
+                assert await page.locator(".panel table.table").first.is_visible()
+                assert await page.get_by_role("button", name="Ver gráfico").count() >= 1
+                # Filtros: período por horas, versión y comparación.
+                before = len(page.requests)
+                await page.locator('label:has(input[value="72h"])').click()
+                await ready(page)
+                assert len(page.requests) > before and "p=72h" in page.url
+                assert (
+                    "agregación por hora" in await page.locator("#quality").inner_text()
+                )
+                await page.locator('label:has(input[value="7d"])').click()
+                await ready(page)
+                await page.select_option("#f-version", "7ee712b")
+                await ready(page)
+                assert (
+                    "v=7ee712b" in page.url and "version=7ee712b" in page.requests[-1]
+                )
+                await page.locator("#f-compare").uncheck()
+                await ready(page)
+                assert (
+                    "cmp=0" in page.url
+                    and "Comparación desactivada"
+                    in await page.locator("#quality").inner_text()
+                )
+                await page.locator("#f-compare").check()
+                await page.get_by_role("button", name="Quitar filtros").click()
+                await ready(page)
+                # Personalizado: valida antes de pedir datos.
+                await page.locator(".custom summary").click()
+                await page.fill("#c-start", "2026-10-02T00:00")
+                await page.fill("#c-end", "2026-10-01T00:00")
+                await page.get_by_role("button", name="Aplicar período").click()
+                assert (
+                    "posterior"
+                    in await page.locator(".popover .form-error").inner_text()
+                )
+                await page.keyboard.press("Escape")
+                # Diálogos accesibles.
+                await page.locator("#open-glossary").click()
+                assert await page.locator("dialog#glossary").evaluate("d => d.open")
+                assert "Cobertura" in await page.locator("dialog#glossary").inner_text()
+                await page.keyboard.press("Escape")
+                assert not await page.locator("dialog#glossary").evaluate("d => d.open")
+                await page.locator("button.cov-chip").click()
+                assert (
+                    "Período anterior"
+                    in await page.locator("#coverage-dialog").inner_text()
+                )
+                await page.keyboard.press("Escape")
+                # Vistas: cada una renderiza su contenido propio.
+                expectations = {
+                    "growth": "Entradas y salidas",
+                    "retention": "Cohortes por primera actividad",
+                    "features": "Todas las funciones",
+                    "reliability": "Calidad por función",
+                    "versions": "Versiones en el período",
+                    "updates": "Registrar un cambio",
+                }
+                for view, text in expectations.items():
+                    await page.locator(f'#nav a[data-view="{view}"]').click()
+                    await ready(page)
+                    assert text in await page.locator("#content").inner_text(), view
+                # Retención: celdas con valor y cambio de métrica.
+                await page.locator('#nav a[data-view="retention"]').click()
+                await ready(page)
+                assert await page.locator("td.heat").count() > 0
+                await page.locator('label:has(input[value="installed"])').click()
+                await ready(page)
+                assert (
+                    "presente en el inventario"
+                    in await page.locator("#content").inner_text()
+                )
+                # Funciones: ordenar y filtrar comandos; las no instrumentadas no son un cero.
+                await page.locator('#nav a[data-view="features"]').click()
+                await ready(page)
+                await page.get_by_role("button", name="Usos").click()
+                assert await page.locator('th[aria-sort="ascending"]').count() == 1
+                assert "Sin instrumentar" in await page.locator("#content").inner_text()
+                await page.fill("#cmd-filter", "ayuda")
+                await page.wait_for_timeout(150)
+                assert await page.locator("#cmd-filter").evaluate(
+                    "e => e === document.activeElement"
+                )
+                # Calidad: los rechazos de Discord se muestran aparte de los fallos.
+                await page.locator('#nav a[data-view="reliability"]').click()
+                await ready(page)
+                content = await page.locator("#content").inner_text()
+                assert (
+                    "Rechazos de Discord" in content and "fuera de la tasa" in content
+                )
+                # Actualizaciones: texto malicioso se muestra literal; la anotación se guarda y aparece.
+                await page.locator('#nav a[data-view="updates"]').click()
+                await ready(page)
+                evil = "<img src=x onerror=window.pwned=1>"
+                await page.fill('input[name="title"]', evil)
+                await page.select_option('select[name="kind"]', "release")
+                await page.fill('input[name="version"]', "v-test")
+                await page.fill(
+                    'textarea[name="note"]', "<script>window.pwned=2</script> nota"
+                )
+                await page.get_by_role("button", name="Guardar anotación").click()
+                await page.wait_for_selector(".timeline h3:has-text('onerror')")
+                assert await page.locator(".timeline h3").first.inner_text() == evil
+                assert await page.evaluate("window.pwned === undefined")
+                assert await page.locator(".timeline img").count() == 0
+                await page.fill('input[name="title"]', "")
+                await page.get_by_role("button", name="Guardar anotación").click()
+                assert (
+                    "título" in await page.locator("#content .form-error").inner_text()
+                )
+                # Capturas para revisión visual.
+                SHOTS.mkdir(exist_ok=True)
+                for view in (
+                    "overview",
+                    "growth",
+                    "retention",
+                    "features",
+                    "reliability",
+                    "versions",
+                    "updates",
+                ):
+                    await page.locator(f'#nav a[data-view="{view}"]').click()
+                    await ready(page)
+                    await page.screenshot(
+                        path=str(SHOTS / f"studio-ui-{view}.png"), full_page=True
                     )
-                    page = await context.new_page()
-                    errors = []
-                    page.on("pageerror", lambda e: errors.append(str(e)))
-                    await page.goto(str(ui.make_url("/")))
-                    await page.wait_for_selector('#content[aria-busy="false"]')
-                    notice = await page.locator("#notice").inner_text()
-                    assert "hueco(s)" in notice and "registros descartados" in notice
-                    assert "Comparación parcial" in notice
-                    overview = await page.locator("#content").inner_text()
-                    assert "no es una estimación representativa" in overview
-                    await page.get_by_role("button", name="Retención").click()
-                    text = await page.locator("#content").inner_text()
-                    assert "Primera actividad observada" in text
-                    assert "línea base" in text and "con entrada verificada" in text
-                    await page.get_by_role("button", name="Calidad").click()
-                    text = await page.locator("#content").inner_text()
-                    assert "Rechazos de Discord" in text
-                    assert not errors
-                    await browser.close()
+                await browser.close()
+                assert not problems, problems
 
-    asyncio.run(run())
+    asyncio.run(go())
+
+
+def test_coverage_dialog_lists_gaps_and_comparison_policy(backend, monkeypatch):
+    playwright = pytest.importorskip("playwright.async_api")
+    store, settings = backend
+
+    async def go():
+        async with studio(store, settings, monkeypatch, demo=False, port=18083) as base:
+            end = utcnow().replace(minute=0, second=0, microsecond=0)
+            async with store.pool.acquire() as c:
+                await c.execute("TRUNCATE studio_sessions CASCADE")
+                spans = [
+                    (end - timedelta(days=70), end - timedelta(days=9)),
+                    (end - timedelta(days=8, hours=12), end + timedelta(minutes=3)),
+                ]
+                for n, (a, b) in enumerate(spans):
+                    await c.execute(
+                        "INSERT INTO studio_sessions(id,version,started_at,flushed_until) VALUES($1,'v1',$2,$3)",
+                        uuid.UUID(int=70 + n),
+                        a,
+                        b,
+                    )
+                await c.execute(
+                    "INSERT INTO studio_usage VALUES($1,$2,'chat','','mention','ok','v1',9,0,0,$3)",
+                    end - timedelta(days=3),
+                    settings.guild_key(1),
+                    [0] * 11,
+                )
+            async with playwright.async_playwright() as p:
+                browser, page, problems = await open_page(p)
+                await page.goto(f"{base}/#/resumen?p=28d")
+                await ready(page)
+                quality = await page.locator("#quality").inner_text()
+                assert "Cobertura" in quality and "Comparación parcial" in quality
+                # Una comparación con cobertura parcial se declara «solo lo observado», nunca como estimación.
+                assert "solo lo observado" in quality
+                await page.locator("button.cov-chip").click()
+                dialog = await page.locator("#coverage-dialog").inner_text()
+                assert (
+                    "Huecos" in dialog
+                    and "Período anterior" in dialog
+                    and "Solo lo observado" in dialog
+                )
+                await browser.close()
+                assert not problems, problems
+
+    asyncio.run(go())
