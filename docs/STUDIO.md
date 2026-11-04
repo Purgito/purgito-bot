@@ -81,6 +81,9 @@ ssh -L 18081:127.0.0.1:18081 <usuario>@<host-privado>
 Abrir `http://127.0.0.1:18081`. El navegador pide usuario **admin** y como contraseña
 el **OBSERVABILITY_TOKEN existente**. La autenticación Basic solo cruza loopback o
 el túnel cifrado SSH. No publicar el puerto ni ponerlo detrás del proxy público.
+Este es el **acceso local de administración**, que se conserva siempre. Para abrirlo desde el
+navegador sin túnel SSH y sin lanzarlo a mano, ver [STUDIO_ACCESS.md](STUDIO_ACCESS.md): servicio de
+systemd + Cloudflare Tunnel + Cloudflare Access, con la identidad verificada en el origen.
 El companion convierte la credencial ya validada en el Bearer que entiende el
 backend; no gestiona usuarios, sesiones ni contraseñas nuevas. No utiliza la sesión
 OAuth de los administradores de servidores de Discord: esa autorización no da
@@ -92,6 +95,8 @@ se combina con la comprobación del peer y Host loopback; cabeceras de proxy,
 credenciales ausentes o incorrectas y contenido JSON inválido se rechazan. Las
 anotaciones usan además Origin/Fetch-Site y una cabecera de escritura explícita en
 el companion. CSP, no-store y ausencia de scripts externos se aplican a toda la UI.
+Solo se sirven archivos de una lista cerrada (`index.html`, `favicon.svg` y los directorios
+`css/`, `js/`, `fonts/`; nunca las pruebas `test_*`), sin recorrido de directorios.
 
 ## Qué se mide
 
@@ -156,12 +161,40 @@ instrumentar», no un cero de adopción.
 
 ## Interfaz y filtros
 
-Resumen, Comunidades, Retención, Funciones, Calidad, Versiones y Actualizaciones.
-Filtros de período UTC, versión, función y resultado. Comparación anterior de igual
-duración o una ventana personalizada anterior de igual longitud. Los datos de uso
+Siete vistas con navegación lateral: **Resumen** (frase de estado, cifra principal, tarjetas,
+uso en el tiempo, funciones más usadas, resultados y estado de la medición), **Comunidades**,
+**Retención** (mapa de cohortes D1/D7/D28), **Funciones**, **Calidad**, **Versiones** y
+**Actualizaciones**. Sin framework ni bundler: módulos ES nativos en `studio/js/`, CSS en
+`studio/css/` y la tipografía de marca (Outfit y Lexend) en `studio/fonts/`. La vista y los filtros
+viven en la URL (`#/retencion?p=7d&v=…`), así que se puede enlazar y el botón «atrás» funciona.
+
+- **Períodos.** Presets de 24 h, 3 días, 7, 28 y 90 días y «Desde el inicio» (el primer día completo
+  medido; por horas si hay menos de 3 días), más un rango personalizado. Hasta 72 h se mide por
+  **horas** y termina ahora; los períodos más largos se miden por **días y terminan en la medianoche
+  UTC anterior**, de modo que ningún día del gráfico queda a medias (un día parcial parecería una
+  caída). Quien necesite lo de hoy usa 24 h o 3 días. En un rango personalizado los tramos parciales
+  se dibujan con trazo discontinuo y punto hueco, y el tooltip dice cuánto se midió. Un tramo con
+  hueco de cobertura nunca se rellena: se marca rayado.
+- **Filtros** de versión, función y resultado, y comparar o no con el período anterior. Los filtros
+  se aplican al instante; el rango personalizado se valida antes de pedir datos.
+- **Gráficos.** Cada gráfico tiene crosshair con tooltip (también con teclado: flechas, Inicio/Fin,
+  Esc), leyenda cuando hay más de una serie, marcadores ◆ de las anotaciones y una **vista de tabla**
+  equivalente. Las comparaciones parciales se rotulan «solo lo observado».
+- **Estados vacíos.** Explican qué falta y cuándo habrá datos (hitos D1/D7/D28 y de comparación con
+  cuenta atrás); nunca presentan un cero inventado.
+- **Accesibilidad.** Contraste ≥ 4,5:1 en todo el texto, navegación por teclado, regiones y títulos
+  en orden, tablas con desplazamiento accesibles, `prefers-reduced-motion` y `forced-colors`.
+  Los colores de datos se validaron con el validador de paletas (banda de luminosidad, croma,
+  separación para daltonismo ≥ 8 y contraste ≥ 3:1) sobre la superficie del panel. Tema oscuro, con el
+  cian de marca como acento.
+
+La respuesta de datos añade `hourly` (serie por horas, solo para ventanas de hasta 72 h) sin cambiar
+ningún campo existente. Filtros de período UTC, versión, función y resultado. Comparación anterior de
+igual duración o una ventana personalizada anterior de igual longitud. Los datos de uso
 son horarios: se ajusta el comienzo hacia abajo y el fin a la última hora completa;
 la respuesta muestra los límites efectivos. Las anotaciones conservan su hora
-exacta hasta el fin solicitado. Máximo 90 días por ventana.
+exacta y se listan desde el inicio del período hasta ahora (una nota guardada hoy se ve aunque
+el período termine en la medianoche anterior; las notas nunca son futuras). Máximo 90 días por ventana.
 
 **Cobertura y comparación.** La cobertura de un período es la fracción de su duración
 cubierta por sesiones de captura confirmadas; cada hueco se lista con su duración y
@@ -253,7 +286,8 @@ TEST_DATABASE_URL=<postgresql de pruebas> WEB_PORT=18080 \
 node landing/test_lang.mjs
 node landing/test_dash.mjs
 node landing/test_historial.mjs
-node --check studio/studio.js
+for f in studio/js/*.mjs studio/js/views/*.mjs; do node --check "$f"; done
+for t in studio/js/test_*.mjs; do node "$t"; done
 .venv/bin/python scripts/benchmark_studio.py --events 20000
 ```
 
