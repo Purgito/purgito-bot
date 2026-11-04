@@ -11,6 +11,7 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 ## [Unreleased]
 
 ### Fixed
+- Studio: un fallo puntual al descargar las claves públicas de Cloudflare Access dejaba a todo el mundo fuera 5 minutos (403 `keys-unavailable` y luego `kid`), porque el límite contra descargas forzadas también se aplicaba tras un error. Ahora la descarga se reintenta enseguida una vez y, si vuelve a fallar, a los 10 s; si ya había claves, una renovación fallida sigue usando las anteriores hasta 24 h; las claves se cargan al arrancar el panel, y se registra la causa del fallo. El límite de 5 minutos para `kid` desconocidos con claves válidas no cambia.
 - Studio: tras introducir el código de un solo uso de Cloudflare Access, el panel respondía 403 (y seguía así al recargar) porque la vuelta desde `<equipo>.cloudflareaccess.com` es una navegación entre sitios y el origen rechazaba todo `Sec-Fetch-Site: cross-site`, aun con un JWT válido. Ahora se admite solo la navegación de nivel superior que lee el documento (`GET`/`HEAD` a `/`, modo `navigate`, destino `document`); la validación del JWT, la lista de correos, la puerta de loopback/Host y las protecciones CSRF de las escrituras no cambian. Los rechazos registran método, ruta y cabeceras `Sec-Fetch-*` (nunca el token), y el rechazo de escrituras sin JSON/`X-Studio-Request` deja de ser silencioso.
 
 ### Removed

@@ -293,6 +293,102 @@ def test_key_endpoint_failures_deny_instead_of_allowing():
     )
 
 
+def test_a_failed_key_download_does_not_lock_users_out(caplog):
+    """Un fallo puntual al descargar las claves no puede dejar 5 minutos sin entrar (2026-11-04)."""
+    signer = Signer()
+    clock = [NOW]
+    plan = []  # lo que devuelve cada descarga: True = claves, o una excepción
+    calls = []
+
+    async def fetch():
+        calls.append(clock[0])
+        outcome = plan.pop(0) if plan else True
+        if outcome is not True:
+            raise outcome
+        return {"keys": [signer.jwk]}
+
+    def fresh():
+        return signer.token({"exp": clock[0] + 3600, "iat": clock[0], "nbf": clock[0]})
+
+    v = AccessVerifier(settings(), fetch, clock=lambda: clock[0], retry_delay=0)
+    # Un corte de una sola descarga se absorbe con el reintento inmediato.
+    plan[:] = [OSError("reset")]
+    check(v, fresh())
+    assert len(calls) == 2
+
+    # Dos fallos seguidos: se deniega, pero se vuelve a intentar a los pocos segundos, no a los 5 minutos.
+    v = AccessVerifier(settings(), fetch, clock=lambda: clock[0], retry_delay=0)
+    calls.clear()
+    plan[:] = [OSError("sin red"), TimeoutError()]
+    with caplog.at_level(logging.WARNING, logger="studio.access"):
+        assert denied(v, fresh()) == "keys-unavailable"
+    assert "OSError" in caplog.text or "TimeoutError" in caplog.text
+    assert (
+        denied(v, fresh()) == "keys-unavailable"
+    )  # dentro de la espera corta: sin descargar
+    assert len(calls) == 2
+    clock[0] += 11
+    check(v, fresh())  # recuperado sin reiniciar el servicio
+    assert len(calls) == 3
+
+    # Con claves ya cargadas, un fallo al renovarlas no tira el acceso: siguen valiendo las anteriores.
+    clock[0] += 3601  # caché caducada
+    plan[:] = [OSError("x"), OSError("y")]
+    check(v, fresh())
+    assert len(calls) == 5
+    # ...pero no para siempre: pasado el límite de antigüedad, se deniega.
+    clock[0] += 86400
+    plan[:] = [OSError("x"), OSError("y")]
+    assert denied(v, fresh()) == "keys-unavailable"
+
+    # El límite de 5 minutos para kid desconocidos se mantiene con claves válidas.
+    v = AccessVerifier(settings(), fetch, clock=lambda: clock[0], retry_delay=0)
+    calls.clear()
+    check(v, fresh())
+    for _ in range(5):
+        assert denied(v, signer.token(kid="otro")) == "kid"
+    assert len(calls) == 1
+
+
+def test_keys_are_loaded_when_the_panel_starts(caplog):
+    signer = Signer()
+    calls = []
+
+    async def fetch():
+        calls.append(1)
+        return {"keys": [signer.jwk]}
+
+    async def go():
+        app = application(
+            TOKEN, backend_port=1, port=18081, access=settings(), keys_fetcher=fetch
+        )
+        with caplog.at_level(logging.INFO, logger="studio.access"):
+            async with TestClient(TestServer(app)) as ui:
+                for _ in range(50):
+                    if calls:
+                        break
+                    await asyncio.sleep(0.01)
+                assert calls == [1]
+                assert (await ui.get("/", headers=remote(signer))).status == 200
+                assert calls == [1]  # el primer login ya no descarga
+
+    asyncio.run(go())
+    assert "claves de Access cargadas" in caplog.text
+
+    async def boom():
+        raise OSError("sin red")
+
+    async def start_without_network():
+        app = application(
+            TOKEN, backend_port=1, port=18081, access=settings(), keys_fetcher=boom
+        )
+        async with TestClient(TestServer(app)) as ui:  # arranca igual
+            await asyncio.sleep(0.05)
+            assert (await ui.get("/", headers=remote(signer))).status == 403
+
+    asyncio.run(start_without_network())
+
+
 def test_jwks_download_only_uses_the_team_https_endpoint(monkeypatch):
     seen = {}
 
