@@ -309,10 +309,16 @@ def test_private_http_and_companion_ui(backend, monkeypatch):
                 assert (
                     await ui.get("/internal/studio/report", headers=valid)
                 ).status == 200
-                assert (await ui.get("/studio.js", headers=valid)).status == 200
+                for asset in (
+                    "/js/main.mjs",
+                    "/css/studio.css",
+                    "/fonts/outfit-latin.woff2",
+                    "/favicon.svg",
+                ):
+                    assert (await ui.get(asset, headers=valid)).status == 200, asset
                 assert (
                     await ui.get(
-                        "/studio.js",
+                        "/js/main.mjs",
                         headers={**valid, "Origin": "https://evil.example"},
                     )
                 ).status == 403
@@ -1272,3 +1278,106 @@ def test_remote_peer_is_refused_even_with_valid_token_and_loopback_host(
         )
 
     asyncio.run(run())
+
+
+def test_hourly_series_only_for_short_windows(backend):
+    store, settings = backend
+    end = hour_floor(utcnow())
+    c, clock = setup(store, settings, end - timedelta(days=5))
+    for hours_ago, count in ((30, 2), (5, 3)):
+        clock[0] = end - timedelta(hours=hours_ago)
+        c.record(1, "chat", source="mention", count=count)
+    clock[0] = end + timedelta(minutes=5)
+    assert asyncio.run(c.flush())
+    short = asyncio.run(
+        report(
+            store,
+            {"start": (end - timedelta(hours=48)).isoformat(), "end": end.isoformat()},
+        )
+    )
+    assert [(r["at"].hour, r["uses"]) for r in short["current"]["hourly"]] == [
+        ((end - timedelta(hours=30)).hour, 2),
+        ((end - timedelta(hours=5)).hour, 3),
+    ]
+    assert short["previous"]["hourly"] == []
+    assert sum(r["uses"] for r in short["current"]["daily"]) == 5  # daily intacto
+    long = asyncio.run(
+        report(
+            store,
+            {"start": (end - timedelta(days=10)).isoformat(), "end": end.isoformat()},
+        )
+    )
+    assert long["current"]["hourly"] == []  # ventana larga: solo diario
+    assert "guild_key" not in json.dumps(short, default=encode)
+
+
+def test_annotation_saved_now_is_listed_even_if_window_ended_earlier(backend):
+    store, settings = backend
+    end = hour_floor(utcnow()) - timedelta(hours=5)  # ventana cerrada antes de «ahora»
+    c, _ = setup(store, settings, end - timedelta(days=3))
+    asyncio.run(
+        store.annotate(
+            utcnow() - timedelta(minutes=1), "Desplegado hoy", "", "v9", "release"
+        )
+    )
+    asyncio.run(store.annotate(end - timedelta(days=1), "Anterior", "", "", "change"))
+    r = asyncio.run(
+        report(
+            store,
+            {"start": (end - timedelta(days=2)).isoformat(), "end": end.isoformat()},
+        )
+    )
+    assert [n["title"] for n in r["annotations"]] == ["Anterior", "Desplegado hoy"]
+    older = asyncio.run(
+        report(
+            store,
+            {"start": (end - timedelta(hours=6)).isoformat(), "end": end.isoformat()},
+        )
+    )
+    assert [n["title"] for n in older["annotations"]] == [
+        "Desplegado hoy"
+    ]  # fuera del inicio: no
+
+
+def test_static_assets_use_a_closed_allowlist_without_path_traversal(tmp_path):
+    from studio.local_server import resolve_asset
+
+    root = tmp_path / "studio"
+    (root / "js").mkdir(parents=True)
+    (root / "css").mkdir()
+    (root / "fonts").mkdir()
+    (root / "other").mkdir()
+    for name in (
+        "index.html",
+        "favicon.svg",
+        "js/main.mjs",
+        "js/test_x.mjs",
+        "css/a.css",
+        "fonts/f.woff2",
+        "other/x.css",
+        "js/.hidden.mjs",
+        "js/notes.txt",
+        "Development.Dockerfile",
+    ):
+        (root / name).write_text("x")
+    (tmp_path / "secret.css").write_text("secreto")
+    (root / "js" / "link.mjs").symlink_to(tmp_path / "secret.css")
+    ok = lambda p: resolve_asset(root, p) is not None  # noqa: E731
+    assert ok("/") and ok("/index.html") and ok("/favicon.svg")
+    assert ok("/js/main.mjs") and ok("/css/a.css") and ok("/fonts/f.woff2")
+    for bad in (
+        "/js/test_x.mjs",  # pruebas no se sirven
+        "/other/x.css",  # directorio fuera de la lista
+        "/js/.hidden.mjs",
+        "/js/notes.txt",  # extensión no permitida
+        "/Development.Dockerfile",
+        "/../secret.css",
+        "/js/../../secret.css",
+        "/js/%2e%2e/secret.css",
+        "/js/link.mjs",  # enlace simbólico hacia fuera
+        "/js\\..\\secret.css",
+        "/js/main.mjs\x00.css",
+        "/nope.html",
+        "/js/",
+    ):
+        assert not ok(bad), bad

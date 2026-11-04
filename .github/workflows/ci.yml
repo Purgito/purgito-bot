@@ -209,10 +209,13 @@ jobs:
       - name: Historial
         run: node landing/test_historial.mjs
 
-      # Studio (UI privada, fuera de landing/): sin bundler ni dependencias, así
-      # que basta comprobar que el módulo parsea.
-      - name: Sintaxis del JS de Studio
-        run: node --check studio/studio.js
+      # Studio (UI privada, fuera de landing/): módulos ES nativos, sin bundler ni dependencias.
+      # Se comprueba la sintaxis de todos y se ejecutan las pruebas de la lógica pura (formato,
+      # escalas, series, filtros).
+      - name: Studio (sintaxis y pruebas de JS)
+        run: |
+          for f in studio/js/*.mjs studio/js/views/*.mjs; do node --check "$f"; done
+          for t in studio/js/test_*.mjs; do node "$t"; done
 
   secrets:
     name: Escaneo de secretos (gitleaks)
