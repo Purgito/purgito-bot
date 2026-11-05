@@ -34,12 +34,16 @@
 # nunca llegaron a R2. Sin R2_BACKUP_BUCKET el backup queda solo en local y el
 # log lo dice.
 #
+# Disco: se niega a empezar (y a cifrar) si no quedan MIN_FREE_MB (400) libres tras el
+# backup, para no dejar sin espacio a PostgreSQL, que vive en el mismo filesystem.
+#
 # Variables (todas opcionales):
 #   DATABASE_URL                         postgresql://usuario:clave@host:5432/base (default: la del .env)
 #   BACKUP_DIR                           destino local
 #   KEEP_LAST                            cuántos backups se conservan en el DISCO (default: 2, mínimo 1)
 #   R2_KEEP_DAILY / R2_KEEP_WEEKLY       retención en R2: diarios y domingos (default: 7 y 2)
 #   BACKUP_MAX_AGE_DAYS                  antigüedad máxima en R2 (default: 14; la de la política de privacidad)
+#   MIN_FREE_MB / BACKUP_EST_MB          reserva de disco que debe quedar libre (default 400) y estimación del dump sin backups previos (150)
 #   BACKUP_ALERT_WEBHOOK                 webhook de Discord al que avisar si el backup falla (default: el del .env)
 #   ENV_FILE                             .env del que leer DATABASE_URL y R2_BACKUP_BUCKET (default: el del repo)
 #   BACKUP_AGE_RECIPIENTS                claves públicas age (age1...), separadas por espacio o coma (default: la del .env)
@@ -58,12 +62,20 @@ ENV_FILE="${ENV_FILE:-$script_dir/../.env}"
 R2_KEEP_DAILY="${R2_KEEP_DAILY:-7}"
 R2_KEEP_WEEKLY="${R2_KEEP_WEEKLY:-2}"
 BACKUP_MAX_AGE_DAYS="${BACKUP_MAX_AGE_DAYS:-14}"
+# Reserva de disco: tras el backup tienen que quedar libres al menos MIN_FREE_MB en el
+# filesystem. PostgreSQL vive en el mismo disco: si el backup lo llenara, la base podría
+# caerse al no poder escribir WAL. BACKUP_EST_MB estima el dump si aún no hay backups.
+MIN_FREE_MB="${MIN_FREE_MB:-400}"
+BACKUP_EST_MB="${BACKUP_EST_MB:-150}"
 PYTHON="${PYTHON:-$script_dir/../.venv/bin/python}"
 AGE="${AGE:-age}"
 REVOKED_RECIPIENTS="$script_dir/age-revoked-recipients.txt"
 UPLOADER="$script_dir/../scripts/r2_backup.py"
 
 log() { echo "$(date -Is) $*"; }
+
+# MB libres en el filesystem de $1.
+free_mb() { df -Pm "$1" | awk 'NR==2 {print $4}'; }
 
 env_value() {
     [ -f "$ENV_FILE" ] || return 0
@@ -100,7 +112,7 @@ if [[ ! "$KEEP_LAST" =~ ^[1-9][0-9]*$ ]]; then
     echo "$(date -Is) ERROR KEEP_LAST='$KEEP_LAST' no es válido: tiene que ser un entero >= 1 (default 2). No se hizo backup." >&2
     exit 1
 fi
-for v in R2_KEEP_DAILY BACKUP_MAX_AGE_DAYS; do
+for v in R2_KEEP_DAILY BACKUP_MAX_AGE_DAYS MIN_FREE_MB BACKUP_EST_MB; do
     if [[ ! "${!v}" =~ ^[1-9][0-9]*$ ]]; then
         echo "$(date -Is) ERROR $v='${!v}' no es válido: entero >= 1. No se hizo backup." >&2
         exit 1
@@ -176,8 +188,23 @@ if [ "$n_recipients" -eq 0 ] && [ -n "$backup_bucket" ]; then
     exit 1
 fi
 
-log "BACKUP START (db=$PGDATABASE host=$PGHOST, retención: los $KEEP_LAST más recientes)"
-if ! pg_dump -Fc --no-owner -f "$plain"; then
+# Espacio: el dump en claro y el cifrado conviven un instante (2 x tamaño del dump). El
+# tamaño se estima con el backup más reciente del disco (o BACKUP_EST_MB si no hay).
+last_backup="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'purgito-*.dump.age' -printf '%T@ %s\n' 2>/dev/null | sort -rn | awk 'NR==1 {print $2}')"
+if [ -n "$last_backup" ]; then est_mb=$(( (last_backup + 1048575) / 1048576 )); else est_mb="$BACKUP_EST_MB"; fi
+need_mb=$(( est_mb * 2 + MIN_FREE_MB ))
+have_mb="$(free_mb "$BACKUP_DIR")"
+if [ "$have_mb" -lt "$need_mb" ]; then
+    echo "$(date -Is) ERROR espacio insuficiente en $BACKUP_DIR: libres ${have_mb} MB, hacen falta ${need_mb} MB (2 x ${est_mb} MB del dump + ${MIN_FREE_MB} MB de reserva para PostgreSQL). No se hizo backup." >&2
+    exit 1
+fi
+
+log "BACKUP START (db=$PGDATABASE host=$PGHOST, retención: los $KEEP_LAST más recientes; libres ${have_mb} MB)"
+# nice: que el volcado no le quite CPU al bot. pg_dump solo lee la base; si algo lo mata
+# (falta de disco, señal), no deja nada a medias en PostgreSQL y el trap borra los temporales.
+NICE=()
+command -v nice >/dev/null 2>&1 && NICE=(nice -n 10)
+if ! "${NICE[@]}" pg_dump -Fc --no-owner -f "$plain"; then
     echo "$(date -Is) ERROR backup failed (db=$PGDATABASE host=$PGHOST)" >&2
     exit 1
 fi
@@ -192,7 +219,13 @@ tables="$(grep -c ' TABLE DATA ' <<<"$listing")"
 log "DUMP VERIFIED (pg_restore --list ok, $tables tablas con datos)"
 
 if [ "$n_recipients" -gt 0 ]; then
-    if ! "$AGE" "${age_args[@]}" -o "$partial" "$plain"; then
+    plain_mb=$(( ($(stat -c %s "$plain") + 1048575) / 1048576 ))
+    have_mb="$(free_mb "$BACKUP_DIR")"
+    if [ "$have_mb" -lt $(( plain_mb + MIN_FREE_MB )) ]; then
+        echo "$(date -Is) ERROR sin espacio para cifrar: libres ${have_mb} MB, hacen falta ${plain_mb} MB + ${MIN_FREE_MB} MB de reserva. Se borra el dump en claro y no se hizo backup." >&2
+        exit 1
+    fi
+    if ! "${NICE[@]}" "$AGE" "${age_args[@]}" -o "$partial" "$plain"; then
         echo "$(date -Is) ERROR no se pudo cifrar el backup con age" >&2
         exit 1
     fi

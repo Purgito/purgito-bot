@@ -11,6 +11,7 @@ desde un backup"). No lo usa el bot.
     python scripts/r2_backup.py check [--max-age-hours 36]    # ¿el último backup es reciente?
     python scripts/r2_backup.py prune-ledger [--max-age-days 15] [--apply]
     python scripts/r2_backup.py preflight                    # solo lectura: ¿es seguro correr un backup?
+    python scripts/r2_backup.py access-check                 # solo lectura: ¿los tokens están separados?
     python scripts/r2_backup.py download latest --dest ~/restore
     python scripts/r2_backup.py download purgito-20261001-031700.dump --dest ~/restore
 
@@ -447,6 +448,75 @@ def cmd_preflight(args) -> int:
     return 1 if problems else 0
 
 
+def _can_list(client, bucket: str) -> bool:
+    """True si el token puede listar el bucket; False si R2 responde que no tiene
+    permiso. Cualquier otro error se propaga (no es una respuesta sobre permisos)."""
+    from botocore.exceptions import ClientError
+
+    try:
+        client.list_objects_v2(Bucket=bucket, MaxKeys=1)
+        return True
+    except ClientError as e:
+        code = str(e.response.get("Error", {}).get("Code", ""))
+        status = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        if code in ("AccessDenied", "403", "Forbidden") or status == 403:
+            return False
+        raise
+
+
+def cmd_access_check(args) -> int:
+    """Solo lectura (un ListObjectsV2 de 1 elemento por par token/bucket): comprueba que
+    el token de backups SOLO ve el bucket de backups y que el de imágenes/GIFs NO ve el
+    de backups. Mientras comparten acceso sale con 1 y lo dice."""
+    backups = r2.bucket_for(r2.BACKUPS)
+    images = r2.bucket_for(r2.IMAGES)
+    gifs = r2.bucket_for(r2.GIFS)
+    bk_client = r2.get_backup_client()
+    img_client = r2.get_client()
+    if not backups or bk_client is None or img_client is None:
+        _err("faltan credenciales (R2_BACKUP_* y/o R2_ACCESS_KEY_ID) o buckets")
+        return 1
+    problems = []
+    if (
+        os.getenv("R2_BACKUP_ACCESS_KEY_ID", "").strip()
+        == os.getenv("R2_ACCESS_KEY_ID", "").strip()
+    ):
+        problems.append(
+            "R2_BACKUP_ACCESS_KEY_ID es el mismo token que R2_ACCESS_KEY_ID"
+        )
+    checks = [
+        ("token de backups", bk_client, backups, True),
+        ("token de backups", bk_client, images, False),
+        ("token de backups", bk_client, gifs, False),
+        ("token de imágenes/GIFs", img_client, backups, False),
+        ("token de imágenes/GIFs", img_client, images, True),
+        ("token de imágenes/GIFs", img_client, gifs, True),
+    ]
+    for who, client, bucket, expected in checks:
+        if not bucket:
+            continue
+        try:
+            got = _can_list(client, bucket)
+        except Exception as e:  # noqa: BLE001 - se informa, no se adivina
+            problems.append(
+                f"{who} sobre {bucket}: error inesperado ({type(e).__name__})"
+            )
+            continue
+        verdict = "OK" if got == expected else "FALLO"
+        print(
+            f"{who:<24} -> {bucket:<18} {'puede' if got else 'no puede'} listar "
+            f"(esperado: {'sí' if expected else 'no'}) {verdict}"
+        )
+        if got != expected:
+            problems.append(
+                f"{who} {'no puede' if not got else 'puede'} listar {bucket}"
+            )
+    for p in problems:
+        _err(p)
+    print("ACCESS-CHECK: OK" if not problems else "ACCESS-CHECK: FALLÓ")
+    return 1 if problems else 0
+
+
 def _flags_key_for(key: str) -> str | None:
     return key[: -len(".db")] + ".flags.tar.gz" if key.endswith(".db") else None
 
@@ -549,6 +619,12 @@ def main(argv=None) -> int:
     pf.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_AGE_DAYS)
     pf.add_argument("--prefix", default=BACKUP_PREFIX)
     pf.set_defaults(func=cmd_preflight)
+
+    ac = sub.add_parser(
+        "access-check",
+        help="comprueba (solo lectura) que los tokens de R2 están separados",
+    )
+    ac.set_defaults(func=cmd_access_check)
 
     dl = sub.add_parser("download", help="baja un backup (y su tar de flags)")
     dl.add_argument("name", help="key del backup, o 'latest' para el más reciente")

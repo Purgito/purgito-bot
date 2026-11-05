@@ -258,6 +258,7 @@ def _run_backup_sh(tmp_path, recipients):
         BACKUP_DIR=str(tmp_path / "backups"),
         PYTHON=str(stub),
         ENV_FILE=str(tmp_path / "sin-env"),
+        MIN_FREE_MB="1",
         BACKUP_AGE_RECIPIENTS=recipients,
         R2_BACKUP_BUCKET=BUCKET,
     )
@@ -330,3 +331,186 @@ def test_la_politica_de_privacidad_dice_lo_mismo_que_el_codigo():
     assert "14 días" in es and "15 días" in es
     assert "last 7 days" in en and "last 2 Sundays" in en
     assert "14 days" in en and "15 days" in en
+
+
+# ─── guardia de espacio en disco ─────────────────────────────────────────────
+
+
+@needs_shell_tools
+def test_backup_db_no_empieza_si_no_queda_reserva_de_disco(tmp_path):
+    stub = tmp_path / "fake-python"
+    stub.write_text("#!/bin/bash\nexit 0\n")
+    stub.chmod(0o755)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("R2_")}
+    env.update(
+        DATABASE_URL=os.environ["TEST_DATABASE_URL"],
+        BACKUP_DIR=str(tmp_path / "backups"),
+        PYTHON=str(stub),
+        ENV_FILE=str(tmp_path / "sin-env"),
+        BACKUP_AGE_RECIPIENTS=NEW_KEY,
+        R2_BACKUP_BUCKET=BUCKET,
+        MIN_FREE_MB="999999999",  # imposible: ningún disco tiene tanto libre
+    )
+    proc = subprocess.run(
+        ["bash", str(ROOT / "deploy" / "backup_db.sh")],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert proc.returncode == 1
+    assert "espacio insuficiente" in proc.stderr and "No se hizo backup" in proc.stderr
+    # no empezó: ni dump, ni temporales, ni nada en el directorio
+    assert [p.name for p in (tmp_path / "backups").iterdir()] == []
+
+
+@needs_shell_tools
+def test_backup_db_con_espacio_de_sobra_no_deja_temporales(tmp_path):
+    proc = _run_backup_sh(tmp_path, NEW_KEY)
+    assert proc.returncode == 0, proc.stderr
+    nombres = [p.name for p in (tmp_path / "backups").iterdir()]
+    assert not any(n.endswith((".plain", ".partial")) for n in nombres)
+
+
+# ─── access-check (separación de tokens) ─────────────────────────────────────
+
+IMG, GIF = "purgito-images", "purgito-gifs"
+
+
+def _tokens(monkeypatch, *, backups_denied, images_denied):
+    """Dos "tokens" falsos sobre los mismos tres buckets, con permisos distintos."""
+    bk = FakeS3(BUCKET, IMG, GIF)
+    im = FakeS3(BUCKET, IMG, GIF)
+    bk.denied = set(backups_denied)
+    im.denied = set(images_denied)
+    monkeypatch.setattr(r2, "get_backup_client", lambda: bk)
+    monkeypatch.setattr(r2, "get_client", lambda: im)
+    monkeypatch.setenv("R2_BACKUP_BUCKET", BUCKET)
+    monkeypatch.setenv("R2_IMAGES_BUCKET", IMG)
+    monkeypatch.setenv("R2_GIFS_BUCKET", GIF)
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "clave-imagenes")
+    monkeypatch.setenv("R2_BACKUP_ACCESS_KEY_ID", "clave-backups")
+    return bk, im
+
+
+def test_access_check_ok_cuando_los_tokens_estan_separados(monkeypatch, capsys):
+    _tokens(monkeypatch, backups_denied={IMG, GIF}, images_denied={BUCKET})
+    assert r2_backup.main(["access-check"]) == 0
+    assert "ACCESS-CHECK: OK" in capsys.readouterr().out
+
+
+def test_access_check_falla_si_el_token_de_imagenes_llega_a_los_backups(
+    monkeypatch, capsys
+):
+    _tokens(monkeypatch, backups_denied={IMG, GIF}, images_denied=set())
+    assert r2_backup.main(["access-check"]) == 1
+    captured = capsys.readouterr()
+    assert "ACCESS-CHECK: FALLÓ" in captured.out
+    assert "token de imágenes/GIFs puede listar purgito-backups" in captured.err
+
+
+def test_access_check_falla_si_el_token_de_backups_ve_imagenes(monkeypatch, capsys):
+    _tokens(monkeypatch, backups_denied={GIF}, images_denied={BUCKET})
+    assert r2_backup.main(["access-check"]) == 1
+    assert "token de backups puede listar purgito-images" in capsys.readouterr().err
+
+
+def test_access_check_falla_si_es_el_mismo_token(monkeypatch, capsys):
+    _tokens(monkeypatch, backups_denied={IMG, GIF}, images_denied={BUCKET})
+    monkeypatch.setenv("R2_BACKUP_ACCESS_KEY_ID", "clave-imagenes")
+    assert r2_backup.main(["access-check"]) == 1
+    assert "mismo token" in capsys.readouterr().err
+
+
+def test_access_check_solo_lista_nunca_escribe_ni_borra(monkeypatch):
+    bk, im = _tokens(monkeypatch, backups_denied={IMG, GIF}, images_denied={BUCKET})
+    r2_backup.main(["access-check"])
+    for fake in (bk, im):
+        assert {c[0] for c in fake.calls} <= {"list_objects_v2"}
+
+
+# ─── gen2_config.sh (configuración con vuelta atrás) ─────────────────────────
+
+CONFIG_SH = ROOT / "deploy" / "gen2_config.sh"
+ENV_ORIGINAL = (
+    "DISCORD_TOKEN=secreto-que-no-se-toca\n"
+    f"BACKUP_AGE_RECIPIENTS={OLD_KEY}\n"
+    "R2_SECRET_ACCESS_KEY=otro-secreto\n"
+    "WEB_PORT=8080\n"
+)
+
+
+def _config(tmp_path, *args, env_text=ENV_ORIGINAL):
+    envf = tmp_path / ".env"
+    if not envf.exists():
+        envf.write_text(env_text)
+        envf.chmod(0o600)
+    proc = subprocess.run(
+        ["bash", str(CONFIG_SH), *args],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "ENV_FILE": str(envf),
+            "STATE_FILE": str(tmp_path / "estado" / "prev"),
+        },
+        timeout=30,
+    )
+    return proc, envf
+
+
+def test_config_dry_run_no_cambia_nada(tmp_path):
+    proc, envf = _config(tmp_path, "apply", NEW_KEY)
+    assert proc.returncode == 0, proc.stderr
+    assert envf.read_text() == ENV_ORIGINAL
+    assert "dry-run" in proc.stdout
+    assert not (tmp_path / "estado").exists()
+
+
+def test_config_apply_cambia_solo_dos_variables_y_conserva_permisos(tmp_path):
+    proc, envf = _config(tmp_path, "apply", NEW_KEY, "--yes")
+    assert proc.returncode == 0, proc.stderr
+    texto = envf.read_text()
+    assert f"BACKUP_AGE_RECIPIENTS={NEW_KEY}" in texto
+    assert "R2_BACKUP_PREFIX=gen2/" in texto
+    assert OLD_KEY not in texto
+    for intacta in (
+        "DISCORD_TOKEN=secreto-que-no-se-toca",
+        "R2_SECRET_ACCESS_KEY=otro-secreto",
+        "WEB_PORT=8080",
+    ):
+        assert intacta in texto
+    assert oct(envf.stat().st_mode & 0o777) == "0o600"
+    # nunca se imprimen las otras líneas del .env
+    assert "secreto" not in proc.stdout + proc.stderr
+    state = tmp_path / "estado" / "prev"
+    assert oct(state.stat().st_mode & 0o777) == "0o600"
+    assert OLD_KEY in state.read_text()
+
+
+def test_config_revert_restaura_el_env_exacto_y_quita_el_prefijo(tmp_path):
+    _config(tmp_path, "apply", NEW_KEY, "--yes")
+    proc, envf = _config(tmp_path, "revert", "--yes")
+    assert proc.returncode == 0, proc.stderr
+    assert sorted(envf.read_text().splitlines()) == sorted(ENV_ORIGINAL.splitlines())
+    assert "R2_BACKUP_PREFIX" not in envf.read_text()
+    assert oct(envf.stat().st_mode & 0o777) == "0o600"
+    assert not (tmp_path / "estado" / "prev").exists()
+
+
+def test_config_no_se_aplica_dos_veces_ni_con_la_clave_vieja_ni_con_basura(tmp_path):
+    assert _config(tmp_path, "apply", NEW_KEY, "--yes")[0].returncode == 0
+    assert (
+        _config(tmp_path, "apply", NEW_KEY, "--yes")[0].returncode != 0
+    )  # ya aplicado
+    nuevo = tmp_path / "otro"
+    nuevo.mkdir()
+    assert _config(nuevo, "apply", OLD_KEY, "--yes")[0].returncode != 0  # revocada
+    assert _config(nuevo, "apply", "age1corta", "--yes")[0].returncode != 0
+    assert (nuevo / ".env").read_text() == ENV_ORIGINAL
+
+
+def test_config_revert_sin_estado_falla_sin_tocar_el_env(tmp_path):
+    proc, envf = _config(tmp_path, "revert", "--yes")
+    assert proc.returncode != 0
+    assert envf.read_text() == ENV_ORIGINAL

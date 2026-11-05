@@ -234,6 +234,7 @@ def _run_backup(
         BACKUP_DIR=str(tmp_path / "backups"),
         PYTHON=str(stub),
         ENV_FILE=str(tmp_path / "sin-env"),
+        MIN_FREE_MB="1",
     )
     env.pop("BACKUP_AGE_RECIPIENTS", None)
     if bucket is not None:

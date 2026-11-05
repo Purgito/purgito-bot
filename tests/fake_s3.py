@@ -50,6 +50,9 @@ class FakeS3:
         self.buckets: dict[str, dict[str, dict]] = {name: {} for name in buckets}
         self.calls: list[tuple[str, str, str | None]] = []
         self.fail_put = False
+        self.denied: set[str] = (
+            set()
+        )  # buckets para los que este "token" no tiene permiso
 
     # ── helpers de los tests ────────────────────────────────────────────────
     def seed(self, bucket: str, key: str, body: bytes = b"x", **meta) -> None:
@@ -69,6 +72,14 @@ class FakeS3:
 
     # ── API de boto3 ────────────────────────────────────────────────────────
     def _bucket(self, name: str, op: str) -> dict:
+        if name in self.denied:
+            raise ClientError(
+                {
+                    "Error": {"Code": "AccessDenied", "Message": "Access Denied"},
+                    "ResponseMetadata": {"HTTPStatusCode": 403},
+                },
+                op,
+            )
         if name not in self.buckets:
             raise _not_found(op, "NoSuchBucket")
         return self.buckets[name]
@@ -144,6 +155,12 @@ class FakeS3:
             copied["Metadata"] = dict(kw.get("Metadata") or {})
         self._bucket(Bucket, "CopyObject")[Key] = copied
         return {}
+
+    def list_objects_v2(self, Bucket, MaxKeys=1000, Prefix=""):
+        self.calls.append(("list_objects_v2", Bucket, Prefix))
+        objects = self._bucket(Bucket, "ListObjectsV2")
+        keys = [k for k in sorted(objects) if k.startswith(Prefix)][:MaxKeys]
+        return {"Contents": [{"Key": k, "Size": len(objects[k]["Body"])} for k in keys]}
 
     def get_paginator(self, name):
         assert name == "list_objects_v2"

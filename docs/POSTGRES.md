@@ -290,6 +290,43 @@ purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no l
   **nunca** se restauran sobre producción sin pasar por este paso; para inspeccionarlos,
   usa una base aislada.
 
+### Plazos: 14 días para los dumps, 15 para el registro (excepción documentada)
+
+| Qué | Dónde | Cuánto vive | Por qué |
+|---|---|---|---|
+| Dump de la base (`gen2/purgito-*.dump.age`, copias locales, copias de prueba en el PC) | R2, disco, equipo del titular | **menos de 14 días** | promesa de `docs/PRIVACY.md` |
+| Lápida de usuario o de servidor (`deleted_user_tombstones`, `purged_guild_tombstones`) | base de datos | **15 días** | un dump creado justo antes del borrado vive hasta 14 días: la lápida tiene que durar más que él (+1 de margen) |
+| Instantánea del registro (`gen2/ledger/privacy-ledger-*.jsonl.age`) | R2 y 3 copias locales | **15 días** como máximo (siempre quedan las 3 últimas) | contiene lápidas vigentes, que viven hasta 15 días |
+| Exclusión del aprendizaje | base de datos y cada instantánea | mientras la persona la mantenga | es una preferencia, no un borrado |
+
+La única excepción a "menos de 14 días" es el registro (15), y es deliberada: sin ella, un
+backup de 13 días restaurado podría devolver datos borrados en los últimos 2 días. Está
+publicada en la política de privacidad (§ lápidas y copia del registro).
+
+**El registro se recupera sin la base y sin el servidor:** la instantánea está en R2, cifrada
+con la clave age de los backups. Con la clave privada (en tu equipo) y sin tocar PostgreSQL:
+`age -d -i <clave> -o registro.jsonl gen2/ledger/privacy-ledger-<fecha>.jsonl.age` y
+`reapply_deletions.py --ledger - --apply < registro.jsonl` después de restaurar el dump.
+Lo único de lo que depende es la clave age y R2 (si quieres una tercera vía independiente,
+baja la última instantánea a tu PC junto con el dump de la prueba mensual). La pérdida
+máxima es una hora de eliminaciones (cron horario de `export_ledger.sh`).
+
+### Activación de la generación 2 (lista de comprobación)
+
+1. Reglas de Bucket Lock y lifecycle en Cloudflare (tabla de arriba), **antes** del primer backup.
+2. Tokens separados creados por el titular y escritos en el `.env` por SSH privado
+   (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`). `r2_backup.py access-check`
+   (solo lectura) comprueba que el token de backups solo ve `purgito-backups` y que el de
+   imágenes/GIFs no lo ve; mientras el de imágenes siga siendo el antiguo, saldrá `FALLÓ`.
+3. `deploy/gen2_config.sh apply <age1...>` (dry-run) y luego `--yes`: cambia solo
+   `BACKUP_AGE_RECIPIENTS` y `R2_BACKUP_PREFIX`; `revert --yes` los devuelve.
+4. `r2_backup.py preflight` debe dar `PREFLIGHT: OK`.
+5. Espacio: `backup_db.sh` se niega a empezar (y a cifrar) si tras el backup no quedan
+   `MIN_FREE_MB` (400) libres; el dump usa `nice`. Un `pg_dump` interrumpido no deja nada
+   a medias en PostgreSQL y el `trap` borra los temporales.
+6. Primer backup manual, descarga desde R2 y restauración real en PostgreSQL 18 aislado
+   (siguiente sección). Solo entonces se reactiva el cron.
+
 ### Probar la restauración en Windows (equipo del titular)
 
 La clave privada nunca va al servidor, así que la prueba se hace en tu PC, con
