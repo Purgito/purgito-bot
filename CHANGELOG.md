@@ -23,6 +23,7 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 - `docs/PRIVACY*.md` y `docs/POSTGRES.md` describen la cantidad, duración y eliminación reales de las copias, el registro de lápidas y la prueba de restauración en Windows.
 
 ### Removed
+- Sistema de memes y Groq: `cogs/memes.py` (`/momo`, `/meme`, trigger "purgito generar", reacción 🎯, `auto_meme_task`), `meme_generator.py`, `GROQ_API_KEY`/`GROQ_GUILD_COOLDOWN`/`MEME_MAX_BYTES`, la dependencia `groq`, el panel `/settings` → Memes, la categoría de ayuda, `MAX_IMAGES_PER_GUILD_*` y los textos asociados. `is_valid_image` pasa a `src/image_validation.py` (lo usan `imagefx` e `image_filters`). Las tablas `meme_schedule` y `corpus_images` siguen en el esquema y en `_GUILD_PURGE_TABLES` (su `DROP` es una migración posterior y separada, con backup verificado).
 - Avisos de arranque/apagado y de loops caídos al canal de Discord del proyecto: se eliminan `LIFECYCLE_ANNOUNCE_CHANNEL_ID`, `bot._send_lifecycle_notice` y `utils.notify_ops`. `lifecycle_state` se conserva porque alimenta `previous_shutdown` del monitor externo; los loops que fallan siguen dejando `log.critical`.
 
 ### Changed

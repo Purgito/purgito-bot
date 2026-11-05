@@ -64,8 +64,7 @@ MAX_MENTION_RATE_LIMIT = 1000
 
 # Prefijo de símbolo por defecto (bot.py lo usa si el guild no tiene
 # settings.custom_prefix). El prefijo de palabra ("purgito ") no es
-# configurable por guild -- viene de config.BOT_TRIGGER_NAME, el mismo que ya
-# usa el trigger de texto de memes ("purgito generar").
+# configurable por guild -- viene de config.BOT_TRIGGER_NAME.
 DEFAULT_COMMAND_PREFIX = "!"
 MAX_CUSTOM_PREFIX_LENGTH = 10
 
@@ -2983,108 +2982,10 @@ async def is_channel_ignored(guild_id: int, channel_id: int) -> bool:
     return row is not None
 
 
-async def add_meme_schedule(
-    guild_id: int, channel_id: int, interval_minutes: int
-) -> bool:
-    db = await get_db()
-    async with _db_lock:
-        cursor = await db.execute(
-            "INSERT INTO meme_schedule (guild_id, channel_id, interval_minutes) VALUES (?, ?, ?) "
-            "ON CONFLICT (guild_id, channel_id) DO UPDATE SET "
-            "interval_minutes=excluded.interval_minutes, last_posted_at=NULL, last_error=NULL",
-            (guild_id, channel_id, interval_minutes),
-        )
-        inserted = cursor.rowcount > 0
-        await db.commit()
-    return inserted
-
-
-async def remove_meme_schedule(guild_id: int, channel_id: int) -> bool:
-    db = await get_db()
-    async with _db_lock:
-        cursor = await db.execute(
-            "DELETE FROM meme_schedule WHERE guild_id=? AND channel_id=?",
-            (guild_id, channel_id),
-        )
-        removed = cursor.rowcount > 0
-        await db.commit()
-    return removed
-
-
-async def list_meme_schedules(guild_id: int) -> list[dict]:
-    db = await get_db()
-    async with db.execute(
-        "SELECT channel_id, interval_minutes, last_posted_at, last_error "
-        "FROM meme_schedule WHERE guild_id=? ORDER BY channel_id",
-        (guild_id,),
-    ) as cursor:
-        rows = await cursor.fetchall()
-    return [
-        {
-            "channel_id": r[0],
-            "interval_minutes": r[1],
-            "last_posted_at": r[2],
-            "last_error": r[3],
-        }
-        for r in rows
-    ]
-
-
 # make_interval(mins => ...) para las queries de vencimiento: el LEAST evita que
 # un interval_minutes absurdo (la API valida 5-1440, pero la columna es BIGINT)
 # desborde el ::int y tumbe la query completa.
 _MINS_INTERVAL = "make_interval(mins => LEAST(interval_minutes, 100000000)::int)"
-
-
-async def get_due_meme_schedules() -> list[dict]:
-    db = await get_db()
-    async with db.execute(
-        "SELECT guild_id, channel_id, interval_minutes, last_error FROM meme_schedule "
-        "WHERE last_posted_at IS NULL "
-        "   OR (interval_minutes IS NOT NULL AND "
-        "       utc_text_plus(last_posted_at, " + _MINS_INTERVAL + ") IS NULL) "
-        "   OR utc_text_plus(last_posted_at, " + _MINS_INTERVAL + ") <= utc_now()"
-    ) as cursor:
-        rows = await cursor.fetchall()
-    return [
-        {
-            "guild_id": r[0],
-            "channel_id": r[1],
-            "interval_minutes": r[2],
-            "last_error": r[3],
-        }
-        for r in rows
-    ]
-
-
-async def update_meme_last_posted(guild_id: int, channel_id: int) -> None:
-    db = await get_db()
-    async with _db_lock:
-        await db.execute(
-            "UPDATE meme_schedule SET last_posted_at = utc_now() WHERE guild_id=? AND channel_id=?",
-            (guild_id, channel_id),
-        )
-        await db.commit()
-
-
-MEME_SCHEDULE_ERROR_NO_POOL_IMAGES = "sin_imagenes"
-MEME_SCHEDULE_ERROR_EMPTY_CORPUS = "corpus_vacio"
-
-
-async def set_meme_schedule_error(
-    guild_id: int, channel_id: int, error: str | None
-) -> None:
-    """Marca (o limpia, con error=None) por qué auto_meme_task viene
-    salteando este canal: MEME_SCHEDULE_ERROR_NO_POOL_IMAGES o
-    MEME_SCHEDULE_ERROR_EMPTY_CORPUS. Mismo patrón que
-    set_youtube_sub_error -- ver cogs/memes.py.auto_meme_task."""
-    db = await get_db()
-    async with _db_lock:
-        await db.execute(
-            "UPDATE meme_schedule SET last_error=? WHERE guild_id=? AND channel_id=?",
-            (error, guild_id, channel_id),
-        )
-        await db.commit()
 
 
 def _weekdays_to_csv(weekdays: list[int] | None) -> str | None:
@@ -4137,105 +4038,6 @@ async def update_announcement_last_sent(announcement_id: int) -> None:
             (announcement_id,),
         )
         await db.commit()
-
-
-async def save_image_url(guild_id: int, url: str) -> bool:
-    u = (url or "").strip()
-    if not u:
-        return False
-    max_images = _limit_for_guild(
-        guild_id,
-        "MAX_IMAGES_PER_GUILD_FREE",
-        "MAX_IMAGES_PER_GUILD_PREMIUM",
-        75,
-        200,
-    )
-    db = await get_db()
-    evicted_url: str | None = None
-    async with _db_lock:
-        async with db.execute(
-            "SELECT 1 FROM corpus_images WHERE guild_id=? AND url=? LIMIT 1",
-            (guild_id, u),
-        ) as cur:
-            already_exists = await cur.fetchone()
-        if not already_exists:
-            async with db.execute(
-                "SELECT COUNT(*) FROM corpus_images WHERE guild_id=?", (guild_id,)
-            ) as cur:
-                row = await cur.fetchone()
-            if row and int(row[0]) >= max_images:
-                async with db.execute(
-                    "SELECT id, url FROM corpus_images WHERE guild_id=? ORDER BY id ASC LIMIT 1",
-                    (guild_id,),
-                ) as cur:
-                    oldest = await cur.fetchone()
-                if oldest:
-                    await db.execute(
-                        "DELETE FROM corpus_images WHERE id=?", (oldest[0],)
-                    )
-                    evicted_url = oldest[1]
-        cursor = await db.execute(
-            "INSERT OR IGNORE INTO corpus_images (guild_id, url) VALUES (?, ?)",
-            (guild_id, u),
-        )
-        inserted = _was_inserted(cursor)
-        await db.commit()
-    if evicted_url:
-        await r2.delete_image_url(evicted_url)
-    return inserted
-
-
-async def get_random_image_url(guild_id: int) -> str | None:
-    """Retorna una URL de imagen random del pool del server."""
-    db = await get_db()
-    async with db.execute(
-        "SELECT url FROM corpus_images WHERE guild_id=? ORDER BY random() LIMIT 1",
-        (guild_id,),
-    ) as cursor:
-        row = await cursor.fetchone()
-    return row[0] if row else None
-
-
-async def count_image_urls(guild_id: int) -> int:
-    db = await get_db()
-    async with db.execute(
-        "SELECT COUNT(*) FROM corpus_images WHERE guild_id=?",
-        (guild_id,),
-    ) as cursor:
-        row = await cursor.fetchone()
-    return int(row[0] if row else 0)
-
-
-async def delete_image_url(guild_id: int, url: str) -> None:
-    db = await get_db()
-    async with _db_lock:
-        await db.execute(
-            "DELETE FROM corpus_images WHERE guild_id=? AND url=?",
-            (guild_id, url),
-        )
-        await db.commit()
-
-
-async def get_random_image_url_excluding(
-    guild_id: int,
-    exclude_url: str | None = None,
-) -> str | None:
-    db = await get_db()
-    if exclude_url:
-        async with db.execute(
-            "SELECT url FROM corpus_images "
-            "WHERE guild_id=? AND url != ? "
-            "ORDER BY random() LIMIT 1",
-            (guild_id, exclude_url),
-        ) as cursor:
-            row = await cursor.fetchone()
-    else:
-        async with db.execute(
-            "SELECT url FROM corpus_images WHERE guild_id=? ORDER BY random() LIMIT 1",
-            (guild_id,),
-        ) as cursor:
-            row = await cursor.fetchone()
-    return row[0] if row else None
 
 
 def frases_limit(guild_id: int | None) -> int:

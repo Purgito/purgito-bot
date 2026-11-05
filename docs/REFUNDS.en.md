@@ -49,12 +49,12 @@ fraud, chargeback, or unresolved payment failure.
 
 When a server stops having Premium (due to cancellation, revocation, or
 the end of the paid period), the content it had already saved (message
-corpus, GIFs, meme images, embed templates, scheduled announcements,
+corpus, GIFs, embed templates, scheduled announcements,
 special phrases, etc.) **isn't deleted**. It simply stops being able to
 keep growing beyond the free plan's limits.
 
 How the surplus behaves depends on the category. For corpus messages,
-GIFs, and meme images, the system discards the oldest content as new
+and GIFs, the system discards the oldest content as new
 content is saved, so the surplus converges on its own through normal use
 of the bot. For embed templates, scheduled announcements, and special
 phrases there's no automatic discarding: you simply can't create new

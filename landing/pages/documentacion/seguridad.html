@@ -29,7 +29,7 @@
 <p>Purgito implementa limitadores de tasa (<em>rate limiters</em>) en múltiples capas independientes:</p>
 <ul>
   <li><strong>Límite por IP en API pública</strong>: Protege los endpoints <code>/health</code>, <code>/api/status</code> y <code>/auth/*</code> contra escaneos automáticos y ataques de denegación de servicio.</li>
-  <li><strong>Límite por usuario en comandos</strong>: Enfriamientos (<em>cooldowns</em>) en comandos intensivos de Discord (generación de memes, imitación de miembros, refeed de canales).</li>
+  <li><strong>Límite por usuario en comandos</strong>: Enfriamientos (<em>cooldowns</em>) en comandos intensivos de Discord (imitación de miembros, refeed de canales).</li>
   <li><strong>Límite por canal en respuestas espontáneas</strong>: Cadencia mínima obligatoria entre respuestas automáticas en un mismo canal para prevenir saturación del chat.</li>
   <li><strong>Semáforo de CPU</strong>: Tope global de ejecuciones concurrentes de cadenas de Markov para impedir que un servidor monopolice los recursos del proceso compartido.</li>
 </ul>

@@ -838,7 +838,6 @@ def test_guia_purgito_page_structure_and_integration():
         "chat",
         "corpus",
         "gifs",
-        "memes",
         "reacciones",
         "frases-y-packs",
         "triggers",

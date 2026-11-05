@@ -235,7 +235,7 @@ HTML_PAGES = [
         "src": "premium.html",
         "title": "Purgito Premium",
         "meta": "Lleva tu servidor al siguiente nivel con Purgito Premium: memoria ampliada "
-        "de 50.000 mensajes, memes automáticos, 4.000 GIFs y soporte prioritario.",
+        "de 50.000 mensajes, 4.000 GIFs y soporte prioritario.",
     },
     # Las 5 entradas de perfil/dashboard llevan "noindex": True -- requieren
     # sesión y renderizan vacías hasta que el JS resuelve el login, así que
@@ -301,7 +301,7 @@ HTML_PAGES = [
         "src": "guia.html",
         "title": "Guía de Purgito — Cómo funciona el bot",
         "meta": "Aprende cómo funciona Purgito, desde el sistema de aprendizaje y Chat "
-        "hasta GIFs, memes, embeds, YouTube y Premium.",
+        "hasta GIFs, embeds, YouTube y Premium.",
         "guia": True,
     },
     {
@@ -389,7 +389,7 @@ HTML_PAGES_EN = [
         "src": "en/premium.html",
         "title": "Purgito Premium",
         "meta": "Take your server to the next level with Purgito Premium: "
-        "50,000-message extended memory, automatic memes, 4,000 GIFs, and "
+        "50,000-message extended memory, 4,000 GIFs, and "
         "priority support.",
     },
     {
@@ -448,7 +448,7 @@ HTML_PAGES_EN = [
         "src": "en/guia.html",
         "title": "Purgito Guide — How the bot works",
         "meta": "Learn how Purgito works, from the learning system and Chat "
-        "to GIFs, memes, embeds, YouTube, and Premium.",
+        "to GIFs, embeds, YouTube, and Premium.",
         "guia": True,
     },
     {
@@ -754,7 +754,6 @@ GUIA_SECTIONS = [
     ("corpus", "Corpus"),
     ("imitar", "Imitar a un usuario"),
     ("gifs", "GIFs"),
-    ("memes", "Memes"),
     ("descargas", "Descargas y filtros de imagen"),
     ("reacciones", "Reacciones"),
     ("frases-y-packs", "Frases y packs"),
@@ -780,7 +779,6 @@ GUIA_SECTIONS_EN = [
     ("corpus", "Corpus"),
     ("impersonation", "Imitating a user"),
     ("gifs", "GIFs"),
-    ("memes", "Memes"),
     ("downloads", "Downloads and image filters"),
     ("reactions", "Reactions"),
     ("phrases-and-packs", "Phrases and packs"),

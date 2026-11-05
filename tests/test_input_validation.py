@@ -362,11 +362,3 @@ def test_la_key_de_upload_sale_del_contenido():
     upload = _handler_source("_api_embeds_upload")
     assert "filename" not in upload
     assert "_sniff_image(data)" in upload  # la extensión sale de los bytes
-
-    # En memes.py el filename del adjunto solo alimenta splitext() (elegir
-    # cuál adjunto es imagen) y un log con %r. Nunca una ruta ni un comando.
-    memes_src = (_SRC / "cogs/memes.py").read_text(encoding="utf-8")
-    usos = [ln.strip() for ln in memes_src.splitlines() if ".filename" in ln]
-    assert usos, "cambió el manejo de adjuntos en memes.py: revisar a mano"
-    for uso in usos:
-        assert "splitext" in uso or uso == "image_att.filename,", uso

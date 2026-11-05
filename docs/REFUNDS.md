@@ -51,12 +51,12 @@ resuelto.
 
 Cuando un servidor deja de tener Premium (por cancelación, revocación, o
 fin del período pagado), el contenido que ya tenía guardado (corpus de
-mensajes, GIFs, imágenes para memes, plantillas de embeds, anuncios
+mensajes, GIFs, plantillas de embeds, anuncios
 programados, frases especiales, etc.) **no se borra**. Simplemente deja
 de poder seguir creciendo más allá de los límites del plan gratuito.
 
 Cómo se comporta el excedente depende de la categoría. En mensajes de
-corpus, GIFs e imágenes para memes, el sistema descarta lo más viejo a
+corpus, GIFs, el sistema descarta lo más viejo a
 medida que se guarda contenido nuevo, así que el excedente converge
 solo con el uso normal del bot. En plantillas de embeds, anuncios
 programados y frases especiales no hay descarte automático: simplemente

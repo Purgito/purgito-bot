@@ -368,7 +368,7 @@ async def report(store, params, catalog=None, now=None):
             else None
         )
     command_features = set((catalog or {}).values())
-    delivery_features = {"chat", "gifs", "memes", "youtube", "twitch", "rss"}
+    delivery_features = {"chat", "gifs", "youtube", "twitch", "rss"}
     for row in current["features"]:
         row["coverage"] = (
             "commands_and_deliveries"

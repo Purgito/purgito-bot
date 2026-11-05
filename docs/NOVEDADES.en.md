@@ -37,6 +37,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 - `/dl` now also exists as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` is also a slash command now, but stays server-only, with the option to upload a video or image directly, on top of a link.
 
 ### Improved
+- Memes (`/momo`, `/meme`, automatic memes and the 🎯 reaction) and the Groq integration are retired: Purgito no longer sends messages or images from your server to any external AI service. The Premium limits and perks that depended on memes are removed too.
 - Privacy: Purgito's backups are now encrypted and delete themselves after 14 days. `/borrar_mis_datos` still deletes instantly from the live database; if a backup ever had to be restored, your deletion is applied again before the bot starts. Full details are in the privacy policy.
 - Privacy: backups are now made every day (they used to be weekly) and still never reach 14 days. If one ever had to be restored, servers that had already been deleted and learning opt-outs are also re-applied.
 - Text commands that upload a file (`!dl`, `!gif`, image-editing ones like `!deepfry` or `!caption`, and `purgito generar`) now add “Sent by @user” to the message, so it's clear who requested it even if they delete their command. Slash commands (`/dl`, `/gif`) don't need it: Discord already shows who used them.

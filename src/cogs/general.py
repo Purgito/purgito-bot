@@ -294,7 +294,7 @@ class General(commands.Cog):
                                 item["content_hash"], item["url"]
                             )
                         if images_ok and not rejoined:
-                            # Imágenes del pool de memes + las que el panel
+                            # Imágenes del pool heredado + las que el panel
                             # subió para embeds/anuncios: las dos viven en R2
                             # bajo {guild_id}/ y ninguna otra fila las borraba.
                             image_urls = await list_image_urls(guild_id)

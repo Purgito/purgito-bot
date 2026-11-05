@@ -71,7 +71,6 @@ se actualiza en `<ruta>/.env`; después `sudo systemctl restart bot-purg`.
 | `SESSION_SECRET` | Generar uno nuevo (`python3 -c "import secrets; print(secrets.token_hex(32))"`) | Todas las sesiones del dashboard dejan de descifrar: todos tienen que volver a iniciar sesión (esperado, no es un bug) |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Cloudflare → R2 → API Tokens: crear uno nuevo y borrar el viejo | Mientras el bot corra con el token borrado, subir y borrar imágenes y GIFs falla, y `backup_db.sh` no puede subir el backup (la corrida falla a propósito) |
 | `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` | Panel de Polar (Settings → Developers / el webhook) | Si cambias el webhook secret, actualiza también el `.env` o los webhooks se rechazarán (firma inválida) |
-| `GROQ_API_KEY` | Consola de Groq | Los captions de memes con IA vuelven a Markov hasta actualizarla |
 | `TWITCH_CLIENT_SECRET` | Consola de Twitch | Los avisos de Twitch fallan hasta actualizarlo |
 
 Si el secreto llegó a un commit: además de rotarlo, corre gitleaks contra el

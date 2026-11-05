@@ -30,7 +30,7 @@ _NEAR_RATIO = 0.9
 
 # No repetir el mismo aviso en cada corrida del loop mientras el servidor
 # siga en la misma franja -- in-memory a propósito, mismo patrón que el
-# resto de los cooldowns del bot (GROQ_GUILD_COOLDOWN, _EXPORT_COOLDOWN_SECONDS,
+# resto de los cooldowns del bot (_EXPORT_COOLDOWN_SECONDS,
 # etc.): perder el historial en un restart cuesta como mucho un aviso de
 # más cada tanto, no justifica una tabla nueva solo para esto.
 _ALERT_COOLDOWN_SECONDS = 24 * 60 * 60

@@ -27,7 +27,6 @@ Guía completa para levantar Purgito de cero. Cubre setup local para desarrollo 
 4. [Variables de entorno — referencia completa](#4-variables-de-entorno--referencia-completa)
 5. [Servicios opcionales](#5-servicios-opcionales)
    - [Cloudflare R2 (imágenes, GIFs y backups)](#cloudflare-r2-imágenes-gifs-y-backups)
-   - [Groq (captions de memes con IA)](#groq-captions-de-memes-con-ia)
    - [cobalt (respaldo de `!dl`)](#cobalt-respaldo-de-dl)
 6. [Correr en desarrollo](#6-correr-en-desarrollo)
 7. [Deploy en producción](#7-deploy-en-producción)
@@ -301,10 +300,8 @@ HOME_GUILD_ID=
 # pueden tardar hasta 1 hora en aparecer globalmente.
 GUILD_ID=
 
-# Nombre con el que se activa el trigger de memes por texto plano y el prefijo de
-# palabra de los comandos de texto.
-# Ej: con "purgito", escribir "purgito generar" en un reply a una imagen genera un
-# meme y "purgito dl <link>" descarga un video.
+# Prefijo de palabra de los comandos de texto.
+# Ej: con "purgito", "purgito dl <link>" descarga un video.
 # Default: purgito
 BOT_TRIGGER_NAME=purgito
 
@@ -321,15 +318,6 @@ WEB_PORT=8080
 # USER_MARKOV_TRAINING_MESSAGES y GUILD_DATA_RETENTION_DAYS viven en limits.env
 # (versionado). Un .env viejo que aún las defina sigue ganando sobre limits.env:
 # bórralas del .env para que mande el valor versionado.
-
-# ═══════════════════════════════════════════════════════════
-#  OPCIONAL — Groq (captions de memes con visión IA)
-# ═══════════════════════════════════════════════════════════
-
-# API Key de Groq para captions con llama-4-scout (modelo de visión).
-# Sin esta key los captions se generan con Markov local.
-# Obtener en: https://console.groq.com → API Keys
-GROQ_API_KEY=
 
 # ═══════════════════════════════════════════════════════════
 #  OPCIONAL — Cloudflare R2 (3 buckets: imágenes, GIFs y backups)
@@ -379,7 +367,7 @@ un backup nunca sale de su bucket.
 
 | Bucket sugerido | Variables | Acceso | Qué guarda |
 |---|---|---|---|
-| `purgito-images` | `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL` | público (URL) | imágenes del pool de memes y subidas del editor de embeds, con keys `{guild_id}/{md5}.{ext}` |
+| `purgito-images` | `R2_IMAGES_BUCKET`, `R2_IMAGES_PUBLIC_URL` | público (URL) | imágenes subidas desde el editor de embeds, con keys `{guild_id}/{md5}.{ext}` |
 | `purgito-gifs` | `R2_GIFS_BUCKET`, `R2_GIFS_PUBLIC_URL` | público (URL) | GIFs deduplicados, con keys `gifs/<2 primeros del hash>/<sha256>.gif` |
 | `purgito-backups` | `R2_BACKUP_BUCKET` | **privado** | copias cifradas de la base (`purgito-<fecha>.dump.age`) |
 
@@ -414,14 +402,6 @@ Crear y configurar:
 7. Completa las variables `R2_*` en `.env`. El bot comprueba la configuración al
    arrancar y loguea qué falta (imágenes o GIFs sin su bucket o su URL pública se
    apagan por separado; el otro sigue funcionando).
-
-### Groq (captions de memes con IA)
-
-1. Creá cuenta en [console.groq.com](https://console.groq.com)
-2. **API Keys** → **Create API Key**
-3. Copia la key → `GROQ_API_KEY` en `.env`
-
-El bot usa `meta-llama/llama-4-scout-17b-16e-instruct` para analizar imágenes. Si la key no está o Groq falla, hace fallback automático a Markov.
 
 ### cobalt (respaldo de `!dl`)
 
@@ -1076,8 +1056,8 @@ de recuperar el GIF que un servidor afectado quiso guardar originalmente
 hace es dejar de servirle contenido ajeno. Ese servidor vuelve a tener su
 propio GIF recién cuando alguien lo vuelva a postear.
 
-Nunca toca objetos referenciados por `corpus_images` (las imágenes de memes
-también pueden ser `.gif`), ni los huérfanos, que solo informa.
+Nunca toca objetos referenciados por `corpus_images` (las imágenes del pool
+heredado también pueden ser `.gif`), ni los huérfanos, que solo informa.
 
 ### Backups de PostgreSQL
 

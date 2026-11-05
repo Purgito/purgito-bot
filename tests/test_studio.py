@@ -400,7 +400,7 @@ def test_command_adapters_rejections_deduplication_and_deliveries(backend, monke
         with pytest.raises(RuntimeError):
             with runtime.measure_delivery(1, "youtube", source="background"):
                 raise RuntimeError("contenido privado que nunca se almacena")
-        with runtime.measure_delivery(1, "memes", source="trigger"):
+        with runtime.measure_delivery(1, "rss", source="trigger"):
             pass
         await runtime.stop()
         async with store.pool.acquire() as conn:

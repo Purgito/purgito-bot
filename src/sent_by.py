@@ -1,6 +1,5 @@
 """Crédito "Enviado por <usuario>" para el contenido que el bot sube suelto
-como respuesta a un comando (cogs/download.py, cogs/imagefx.py,
-cogs/memes.py).
+como respuesta a un comando (cogs/download.py, cogs/imagefx.py).
 
 Si borran el mensaje del comando, el reply del bot queda sin referencia y el
 archivo sigue en el canal sin decir quién lo pidió -- para moderar, el crédito
@@ -8,7 +7,7 @@ tiene que estar en el propio mensaje del bot. Solo se agrega donde ese
 mensaje sale "suelto": un comando de texto (prefijo o "purgito <palabra>")
 dentro de un servidor. No en un slash (Discord ya pega "<usuario> usó /dl" a
 la respuesta) ni en un DM (solo están el usuario y el bot). Tampoco en lo que
-el bot postea por su cuenta (memes automáticos, GIFs espontáneos): ahí no hay
+el bot postea por su cuenta (GIFs espontáneos): ahí no hay
 nadie a quien atribuirle nada.
 """
 
@@ -28,7 +27,7 @@ _MENTIONS = discord.AllowedMentions(
 
 def sent_by_credit(locale: str, author: discord.abc.User) -> dict:
     """kwargs (content + allowed_mentions) para el reply que sube el archivo.
-    Para quien no tiene un Context (un on_message, ej. cogs/memes.py) y ya
+    Para quien no tiene un Context (un on_message) y ya
     sabe que está en un servidor, respondiendo a un mensaje suelto; el resto
     usa reply_with_file."""
     return {

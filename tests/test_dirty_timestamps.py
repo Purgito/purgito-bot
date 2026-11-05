@@ -1,4 +1,4 @@
-"""Fechas malformadas en las queries de vencimiento (meme_schedule,
+"""Fechas malformadas en las queries de vencimiento (
 scheduled_announcements, guild_departures).
 
 SQLite devolvía NULL ante una fecha inválida y la fila simplemente no cumplía
@@ -32,61 +32,6 @@ def conn(monkeypatch):
 
 def _sql(conn, sql, params=()):
     return asyncio.run(conn.execute(sql, params))
-
-
-def _meme(conn, guild, last_posted_at, interval=60):
-    _sql(
-        conn,
-        "INSERT INTO meme_schedule (guild_id, channel_id, interval_minutes, last_posted_at) "
-        "VALUES (?, 1, ?, ?)",
-        (guild, interval, last_posted_at),
-    )
-
-
-def _due_memes():
-    return sorted(s["guild_id"] for s in asyncio.run(db.get_due_meme_schedules()))
-
-
-# --- meme_schedule -----------------------------------------------------------
-
-
-def test_meme_datos_validos_se_comportan_como_siempre(conn):
-    _meme(conn, 1, None)  # nunca posteado: vence
-    _meme(conn, 2, _ago(minutes=61))  # pasó el intervalo: vence
-    _meme(conn, 3, _ago(minutes=30))  # todavía no
-    assert _due_memes() == [1, 2]
-
-
-@pytest.mark.parametrize(
-    "malo",
-    [
-        "no es una fecha",
-        "",
-        "2026-13-45 99:99:99",  # con forma de fecha pero imposible
-        "0000-00-00 00:00:00",
-        "9999-12-31 23:59:59",  # la suma se sale de rango
-        "ayer",
-    ],
-)
-def test_meme_una_fila_malformada_no_tumba_a_las_demas(conn, malo):
-    _meme(conn, 1, _ago(minutes=61))  # válida y vencida
-    _meme(conn, 2, malo)  # inválida
-    _meme(conn, 3, _ago(minutes=5))  # válida, no vencida
-    due = _due_memes()  # no levanta
-    assert 1 in due and 3 not in due
-
-
-def test_meme_fila_malformada_se_trata_como_vencida_y_se_cura_al_publicar(conn):
-    _meme(conn, 2, "basura")
-    assert _due_memes() == [2]
-    asyncio.run(db.update_meme_last_posted(2, 1))
-    assert _due_memes() == []  # ya con fecha válida
-
-
-def test_meme_intervalo_gigante_no_desborda(conn):
-    _meme(conn, 1, _ago(minutes=5), interval=9_000_000_000)
-    _meme(conn, 2, _ago(minutes=61))
-    assert _due_memes() == [2]
 
 
 # --- scheduled_announcements -------------------------------------------------

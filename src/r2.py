@@ -484,7 +484,7 @@ def compute_gif_fingerprint(data: bytes) -> GifFingerprint | None:
         import imagehash
 
         # Rechaza imágenes descomprimidas gigantes (decompression bomb) antes
-        # de decodificar -- mismo valor y motivo que meme_generator.py.
+        # de decodificar -- mismo valor y motivo que image_validation.py.
         # Repetido a propósito (no importado desde ahí): esto no puede
         # depender de que algún OTRO módulo se haya importado antes para
         # tener efecto -- Image.MAX_IMAGE_PIXELS es un global del proceso,

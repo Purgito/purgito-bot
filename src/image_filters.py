@@ -19,7 +19,7 @@ from PIL import (
     ImageSequence,
 )
 
-from meme_generator import _ALLOWED_FORMATS
+from image_validation import _ALLOWED_FORMATS
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _FONT_PATH = os.path.join(_BASE_DIR, "assets", "Impact.ttf")
@@ -45,7 +45,7 @@ def _png_bytes(img: Image.Image) -> bytes:
 def _draw_outlined_text(img: Image.Image, text: str, position: str) -> None:
     """Dibuja `text` en Impact blanco con borde negro, arriba o abajo de
     `img` (modifica `img` in place). Mismo algoritmo de ajuste de tamaño de
-    fuente que meme_generator.render_meme, pero sin su lógica de split por
+    fuente que usaba el generador de memes (retirado), pero sin su lógica de split por
     conectores ("PERO"/"CUANDO"/etc.) -- esa existe para repartir un caption
     autogenerado en una sola oración entre arriba/abajo, y acá el usuario ya
     especifica cada parte explícitamente."""

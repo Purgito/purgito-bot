@@ -60,7 +60,7 @@ from cogs import download as download_mod
 from cogs.gifs import is_valid_gif_bytes
 from config import IMAGEFX_MAX_BYTES, env_int
 from i18n import guild_locale, t
-from meme_generator import is_valid_image
+from image_validation import is_valid_image
 from sent_by import reply_with_file
 from utils import LRUDict
 
@@ -94,8 +94,7 @@ GIF_MAX_DURATION_SECONDS = 8
 # Cooldown compartido por TODOS los filtros de imagen/GIF de este cog, no uno
 # por comando: son ~30 comandos de costo parecido, así que un cooldown por
 # nombre de comando (lo que da @commands.cooldown por default) se evade
-# rotando entre ellos -- mismo problema que ya resolvió _check_meme_cooldown
-# en cogs/memes.py para /momo vs. el trigger de texto.
+# rotando entre ellos.
 _FX_COOLDOWN_SECONDS = 6
 _fx_cooldowns: LRUDict = LRUDict(1024)
 
@@ -506,7 +505,7 @@ async def _resolve_image_bytes(ctx: commands.Context) -> bytes:
     """Adjunto propio -> adjunto del mensaje respondido -> avatar de quien
     invoca. with_static_format fuerza un PNG estático incluso si el avatar
     es animado -- is_valid_image no acepta GIF (ver _ALLOWED_FORMATS en
-    meme_generator.py)."""
+    image_validation.py)."""
     attachment = await _find_attachment(ctx, _IMAGE_EXTS)
     if attachment is not None:
         if attachment.size > IMAGEFX_MAX_BYTES:

@@ -11,7 +11,6 @@ import db
 import generation
 import webapi
 from cogs.chat import Chat
-from cogs.memes import Memes
 
 
 @pytest.fixture
@@ -297,44 +296,6 @@ def test_imitar_command_with_learning_excluded_user(memory_db):
         )
         result = await generation.generate_markov_for_user(guild_id, author_id)
         assert result is None
-
-    asyncio.run(_run())
-
-
-def test_memes_interaction_exclusion(memory_db):
-    async def _run():
-        bot = MagicMock()
-        bot.user.id = 11111
-        cog = Memes(bot)
-        guild_id = 4444
-        user_id = 5555
-
-        await db.set_user_exclusion(
-            guild_id, user_id, exclude_interaction=True, exclude_learning=False
-        )
-
-        # Mensaje con trigger de meme
-        msg = MagicMock()
-        msg.author.bot = False
-        msg.author.id = user_id
-        msg.guild.id = guild_id
-        msg.content = "purgito momo"
-
-        with patch(
-            "cogs.memes.handle_meme_command", new_callable=AsyncMock
-        ) as mock_momo:
-            await cog.on_message(msg)
-            mock_momo.assert_not_called()
-
-        # Reaccion 🎯 en raw reaction add
-        payload = MagicMock()
-        payload.emoji = "🎯"
-        payload.guild_id = guild_id
-        payload.user_id = user_id
-
-        with patch.object(bot, "get_channel") as mock_get_chan:
-            await cog.on_raw_reaction_add(payload)
-            mock_get_chan.assert_not_called()
 
     asyncio.run(_run())
 

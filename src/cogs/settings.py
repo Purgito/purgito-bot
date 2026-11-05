@@ -19,27 +19,22 @@ from cogs.twitch import resolve_twitch_channel
 from cogs.youtube import resolve_youtube_channel
 from config import PANEL_URL, get_dashboard_url
 from db import (
-    MEME_SCHEDULE_ERROR_EMPTY_CORPUS,
-    MEME_SCHEDULE_ERROR_NO_POOL_IMAGES,
     TWITCH_ERROR_CHANNEL_NOT_FOUND,
     TWITCH_ERROR_NO_PERMISSION,
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
     add_corpus_channel,
-    add_meme_schedule,
     add_scheduled_announcement,
     add_twitch_sub,
     add_youtube_sub,
     count_guild_corpus_messages,
     get_chat_settings,
     list_corpus_channels,
-    list_meme_schedules,
     list_scheduled_announcements,
     list_twitch_subs,
     list_youtube_subs,
     remember_welcome_channel,
     remove_corpus_channel,
-    remove_meme_schedule,
     remove_scheduled_announcement,
     remove_twitch_sub,
     remove_youtube_sub,
@@ -924,133 +919,6 @@ class TwitchCategory(SettingsCategory):
         return items
 
 
-class MemesCategory(SettingsCategory):
-    key = "memes"
-    emoji = "😏"
-    premium_only = True
-
-    async def build_embed(self, panel: SettingsPanel) -> discord.Embed:
-        if not is_premium_guild(panel.guild.id):
-            return _premium_locked_embed(panel, self)
-        schedules = await list_meme_schedules(panel.guild.id)
-        body = t("settings.memes.body", panel.locale)
-        if schedules:
-            lines = []
-            for s in schedules:
-                line = f"• <#{s['channel_id']}> — " + t(
-                    "settings.memes.entry",
-                    panel.locale,
-                    hours=s["interval_minutes"] // 60,
-                )
-                if s["last_error"] == MEME_SCHEDULE_ERROR_NO_POOL_IMAGES:
-                    line += "\n  ⚠️ " + t(
-                        "settings.memes.error_no_pool_images", panel.locale
-                    )
-                elif s["last_error"] == MEME_SCHEDULE_ERROR_EMPTY_CORPUS:
-                    line += "\n  ⚠️ " + t(
-                        "settings.memes.error_empty_corpus", panel.locale
-                    )
-                lines.append(line)
-            body += "\n\n" + "\n".join(lines)
-        else:
-            body += "\n\n" + t("settings.memes.none", panel.locale)
-        if getattr(panel, "memes_pending_interval", None):
-            body += "\n\n" + t("settings.memes.activate_pending_hint", panel.locale)
-        return discord.Embed(
-            title=self.title(panel.locale), description=body[:4000], color=PURGITO_COLOR
-        )
-
-    async def build_items(self, panel: SettingsPanel) -> list[discord.ui.Item]:
-        schedules = await list_meme_schedules(panel.guild.id)
-        items: list[discord.ui.Item] = []
-
-        if schedules:
-            channel_names = {
-                s["channel_id"]: getattr(
-                    panel.guild.get_channel(s["channel_id"]),
-                    "name",
-                    str(s["channel_id"]),
-                )
-                for s in schedules
-            }
-            remove_select = discord.ui.Select(
-                placeholder=t("settings.memes.remove_placeholder", panel.locale),
-                options=[
-                    discord.SelectOption(
-                        label=f"#{channel_names[s['channel_id']]}"[:100],
-                        value=str(s["channel_id"]),
-                    )
-                    for s in schedules[:25]
-                ],
-                row=1,
-            )
-
-            async def on_remove(interaction: discord.Interaction):
-                await remove_meme_schedule(panel.guild.id, int(remove_select.values[0]))
-                await panel.refresh(interaction)
-
-            remove_select.callback = on_remove
-            items.append(remove_select)
-
-        pending_interval: int | None = getattr(panel, "memes_pending_interval", None)
-        if pending_interval:
-            channel_select = discord.ui.ChannelSelect(
-                channel_types=[discord.ChannelType.text],
-                placeholder=t(
-                    "settings.memes.activate_channel_placeholder", panel.locale
-                ),
-                row=2,
-            )
-
-            async def on_channel(interaction: discord.Interaction):
-                await add_meme_schedule(
-                    panel.guild.id, channel_select.values[0].id, pending_interval * 60
-                )
-                panel.memes_pending_interval = None
-                await panel.refresh(interaction)
-
-            channel_select.callback = on_channel
-            items.append(channel_select)
-        else:
-            activate_btn = discord.ui.Button(
-                label=t("settings.memes.btn_activate", panel.locale),
-                style=discord.ButtonStyle.primary,
-                row=2,
-            )
-
-            class ActivateModal(SafeModal):
-                def __init__(self):
-                    super().__init__(
-                        title=t("settings.memes.activate_modal_title", panel.locale)
-                    )
-                    self.interval_input = discord.ui.TextInput(
-                        label=t("settings.memes.activate_modal_field", panel.locale)[
-                            :45
-                        ],
-                        max_length=3,
-                    )
-                    self.add_item(self.interval_input)
-
-                async def on_submit(self, interaction: discord.Interaction):
-                    raw = self.interval_input.value.strip()
-                    if not raw.isdigit() or not (2 <= int(raw) <= 24):
-                        await interaction.response.send_message(
-                            t("settings.memes.activate_invalid", panel.locale),
-                            ephemeral=True,
-                        )
-                        return
-                    panel.memes_pending_interval = int(raw)
-                    await panel.refresh(interaction)
-
-            async def on_activate(interaction: discord.Interaction):
-                await interaction.response.send_modal(ActivateModal())
-
-            activate_btn.callback = on_activate
-            items.append(activate_btn)
-
-        return items
-
-
 class AnunciosCategory(SettingsCategory):
     key = "anuncios"
     emoji = "📢"
@@ -1300,7 +1168,6 @@ CATEGORIES: list[SettingsCategory] = [
     AprendizajeCategory(),
     YouTubeCategory(),
     TwitchCategory(),
-    MemesCategory(),
     AnunciosCategory(),
     DatosCategory(),
 ]

@@ -45,7 +45,6 @@ EXTENSIONS = [
     "cogs.premium",  # primero: expone is_premium_guild al resto
     "cogs.chat",
     "cogs.gifs",
-    "cogs.memes",
     "cogs.youtube",
     "cogs.twitch",
     "cogs.rss",
@@ -93,13 +92,12 @@ class PurgitoBot(commands.Bot):
 
 async def get_prefix(_bot: commands.Bot, message: discord.Message) -> list[str]:
     """Símbolo (custom por guild, default "!") + prefijo de palabra fijo
-    ("purgito ", de config.BOT_TRIGGER_NAME) -- mismo trigger que ya usa el
-    texto de memes ("purgito generar"), así no hay un segundo concepto de
-    "palabra mágica" por separado. Fuera de un guild (DM) solo el símbolo
+    ("purgito ", de config.BOT_TRIGGER_NAME), así hay un solo concepto de
+    "palabra mágica". Fuera de un guild (DM) solo el símbolo
     default: no hay guild_id para resolver un custom_prefix.
 
     El prefijo de palabra se busca sin importar mayúsculas/minúsculas (igual
-    que is_meme_trigger en cogs/memes.py) pero se devuelve con el casing
+    que el resto de triggers de texto) pero se devuelve con el casing
     exacto que escribió el usuario ("Purgito dl", "PURGITO dl", etc.):
     discord.py compara cada prefijo devuelto contra message.content con un
     startswith case-sensitive, así que un "purgito " fijo en minúsculas

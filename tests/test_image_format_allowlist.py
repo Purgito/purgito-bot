@@ -1,5 +1,5 @@
 """Auditoría sección Dependencias/supply chain, ronda 2: los dos puntos que
-decodifican bytes no confiables con Pillow (meme_generator.is_valid_image,
+decodifican bytes no confiables con Pillow (image_validation.is_valid_image,
 alimentado por adjuntos de Discord con extensión falseable, y
 r2.compute_gif_fingerprint, alimentado por contenido de una URL de host
 confiable pero no de contenido garantizado) restringen
@@ -13,7 +13,7 @@ import io
 import pytest
 from PIL import Image
 
-import meme_generator
+import image_validation
 import r2
 
 
@@ -25,17 +25,17 @@ def _encode(fmt: str, mode: str = "RGB", size=(4, 4)) -> bytes:
 
 @pytest.mark.parametrize("fmt", ["PNG", "JPEG", "WEBP"])
 def test_is_valid_image_acepta_los_formatos_permitidos(fmt):
-    assert meme_generator.is_valid_image(_encode(fmt)) is True
+    assert image_validation.is_valid_image(_encode(fmt)) is True
 
 
 def test_is_valid_image_rechaza_un_formato_real_pero_no_permitido():
     """BMP es una imagen perfectamente válida para Pillow -- lo que prueba
     que el rechazo viene de formats=, no de que el archivo esté corrupto."""
-    assert meme_generator.is_valid_image(_encode("BMP")) is False
+    assert image_validation.is_valid_image(_encode("BMP")) is False
 
 
 def test_is_valid_image_rechaza_contenido_no_imagen():
-    assert meme_generator.is_valid_image(b"no es una imagen") is False
+    assert image_validation.is_valid_image(b"no es una imagen") is False
 
 
 def test_compute_gif_fingerprint_acepta_gif():

@@ -2,7 +2,7 @@
 vivo. A diferencia de YouTube (RSS público, sin credenciales), Twitch exige
 una app registrada (TWITCH_CLIENT_ID/TWITCH_CLIENT_SECRET en .env, ver
 .env.example) -- si no están configuradas, la feature queda desactivada por
-completo sin romper el resto del bot (mismo criterio que GROQ_API_KEY)."""
+completo sin romper el resto del bot."""
 
 import asyncio
 import logging

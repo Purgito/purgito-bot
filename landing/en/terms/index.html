@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-WKd3mshplJu0bSHCOuscp8u+lTAXZ//gb7ZhgNE035k=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Terms of Service — Purgito</title>
 <meta name="description" content="Purgito&#x27;s terms of service: acceptable use, license, generated content, subscriptions, and limits of liability.">
@@ -387,7 +387,7 @@
   <section class="box doc-sec" id="seccion-1">
     <h2 class="doc-sec-title">1. Acceptable Use</h2>
     <div class="doc-body">
-<p>Purgito is designed for entertainment, meme generation, task automation, and interaction through local text generation (Markov chains) and optional integrations with external models (Groq for meme captions).</p>
+<p>Purgito is designed for entertainment, task automation, and interaction through local text generation (Markov chains).</p>
 <p>By using the bot you agree that you <strong>must not</strong>:</p>
 <ul><li>Use the bot to generate, distribute, or promote illegal content or content that violates Discord&#x27;s Terms of Service.</li><li>Attempt to abuse the bot&#x27;s features through spam, malicious automation, or any action intended to affect its availability.</li><li>Attempt to breach the bot&#x27;s security, infrastructure, or operation.</li><li>Use the bot for activities that infringe on third-party rights.</li></ul>
     </div>
@@ -403,9 +403,9 @@
     <h2 class="doc-sec-title">3. Generated Content</h2>
     <div class="doc-body">
 <p>Purgito can generate text using:</p>
-<ul><li>Local Markov chains trained on server messages (used for chat, automatic replies, and as a fallback for memes).</li><li>External AI models (Groq), optionally and exclusively for writing captions in the meme feature when <code class="cmd">GROQ_API_KEY</code> is configured.</li></ul>
+<ul><li>Local Markov chains trained on server messages (used for chat and automatic replies).</li></ul>
 <p>Because of the probabilistic nature of these systems:</p>
-<ul><li>Generated content can contain errors, incoherent phrases, in-jokes, offensive language, or references present in the server where it was trained or referenced.</li><li>Generated responses are automatically produced content and <strong>don&#x27;t necessarily reflect the developer&#x27;s opinion or intent</strong>.</li><li>The developer doesn&#x27;t manually review every response or meme the bot generates.</li></ul>
+<ul><li>Generated content can contain errors, incoherent phrases, in-jokes, offensive language, or references present in the server where it was trained or referenced.</li><li>Generated responses are automatically produced content and <strong>don&#x27;t necessarily reflect the developer&#x27;s opinion or intent</strong>.</li><li>The developer doesn&#x27;t manually review every response the bot generates.</li></ul>
 <p>Server administrators are responsible for moderating the bot&#x27;s use within their community.</p>
 <h3>Redistributed third-party content (<code class="cmd">!dl</code>)</h3>
 <p>The <code class="cmd">!dl</code> command downloads a public video from Instagram, TikTok, Twitter/X, or Facebook from a link a user pastes, and uploads it to the same Discord channel.</p>
@@ -417,7 +417,7 @@
     <div class="doc-body">
 <p>Purgito offers a <strong>Premium</strong> plan per server, available from the dashboard (purgito.app).</p>
 <h3>What Premium unlocks</h3>
-<ul><li>Meme generation: the manual command (<code class="cmd">/momo</code>), the text trigger, and automatic scheduling — the entire meme feature is Premium-exclusive, not available on the free plan.</li><li>Extended limit for messages stored in memory (corpus).</li><li>Extended limit for user messages in memory.</li><li>Extended limit for saved GIFs.</li><li>Extended collection of meme images.</li></ul>
+<ul><li>Extended limit for messages stored in memory (corpus).</li><li>Extended limit for user messages in memory.</li><li>Extended limit for saved GIFs.</li></ul>
 <p>The exact limits for each plan are shown in the dashboard, in each server&#x27;s Premium section.</p>
 <h3>Payment processing</h3>
 <p>Payments are processed through <strong>Polar.sh</strong>, which acts as the <strong>Merchant of Record</strong>: the purchase agreement is between the payer and Polar.sh, not directly with Purgito&#x27;s developer. Polar&#x27;s <a href="https://polar.sh/legal/terms" target="_blank" rel="noopener">Terms</a> and <a href="https://polar.sh/legal/checkout-buyer-terms" target="_blank" rel="noopener">Buyer Terms</a> apply.</p>

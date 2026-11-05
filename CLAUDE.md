@@ -1,7 +1,7 @@
 # Purgito
 
 Bot de Discord (Python + discord.py) con panel web. Aprende el estilo de
-chat de cada servidor (cadenas de Markov), genera memes, guarda GIFs y avisa
+chat de cada servidor (cadenas de Markov), guarda GIFs y avisa
 de videos nuevos de YouTube.
 
 ## Stack
@@ -59,7 +59,7 @@ desde `tests/`.
 
 ## Directorios clave
 
-- `src/cogs/` — comandos y features del bot (chat, gifs, memes, youtube,
+- `src/cogs/` — comandos y features del bot (chat, gifs, youtube,
   rss, premium, anuncios, layout_buttons)
 - `src/webapi.py` — API JSON; ver zonas protegidas abajo
 - `src/observability/` — eventos estructurados, redacción de secretos, heartbeat,
@@ -156,7 +156,7 @@ Tres archivos, con reglas distintas:
   en pares `_FREE` / `_PREMIUM`: `MAX_CORPUS_MESSAGES_PER_GUILD_*`,
   `MAX_CORPUS_MESSAGES_PER_GUILD_TOTAL_*`,
   `MAX_USER_CORPUS_MESSAGES_PER_GUILD_*`, `MAX_GIFS_PER_GUILD_*`,
-  `MAX_IMAGES_PER_GUILD_*`, `MAX_ANNOUNCEMENTS_PER_GUILD_*`,
+  `MAX_ANNOUNCEMENTS_PER_GUILD_*`,
   `MAX_EMBED_TEMPLATES_PER_GUILD_*`. También viven acá `REFEED_*`,
   `MARKOV_TRAINING_MESSAGES`, `USER_MARKOV_TRAINING_MESSAGES`,
   `GUILD_DATA_RETENTION_DAYS` y `AUDIT_LOG_RETENTION_DAYS`. Sin par: `MAX_GIF_DOWNLOAD_BYTES`,
