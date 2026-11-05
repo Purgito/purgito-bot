@@ -90,10 +90,15 @@ fi
 
 say "código de root en $OPT (de HEAD=$rev)"
 run install -d -m 0755 -o root -g root "$OPT" "$OPT/src" "$OPT/scripts" "$OPT/deploy"
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
 for f in "${FILES[@]}"; do
     path="${f%%:*}"; mode="${f##*:}"
     if [ "$apply" = 1 ]; then
-        git -C "$repo" show "HEAD:$path" | install -m "$mode" -o root -g root /dev/stdin "$OPT/$path"
+        git -C "$repo" show "HEAD:$path" > "$tmpdir/blob"
+        install -m "$mode" -o root -g root "$tmpdir/blob" "$OPT/$path"
+        # Lo instalado tiene que ser byte a byte lo commiteado.
+        [ "$(sha256sum < "$tmpdir/blob")" = "$(sha256sum < "$OPT/$path")" ] || die "$OPT/$path no coincide con HEAD:$path"
     else
         echo "   (dry-run) HEAD:$path -> $OPT/$path ($mode, root)"
     fi
