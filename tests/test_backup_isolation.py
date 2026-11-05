@@ -380,6 +380,7 @@ def test_el_instalador_no_habilita_el_timer_ni_toca_el_cron_ni_el_bot():
     ):
         assert no not in sh, f"el instalador no debería contener {no!r}"
     assert "pg_read_all_data" in sh and "NOSUPERUSER" in sh
+    assert "GRANT CONNECT ON DATABASE" in sh  # la base revoca CONNECT a PUBLIC
     assert (
         'git -C "$repo" show "HEAD:$path"' in sh
     )  # instala lo commiteado, no el árbol de trabajo

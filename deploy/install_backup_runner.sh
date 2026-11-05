@@ -13,7 +13,7 @@
 #   - /etc/purgito/backup.env  root:root 0600: configuración y, después, las credenciales de
 #                            R2 de backups (las escribes tú con set_backup_credentials.sh);
 #   - /var/backups/purgito   dumps cifrados, purgito_backup 0700 (el bot no puede leerlos);
-#   - rol PostgreSQL `purgito_backup` de SOLO LECTURA (pg_read_all_data), por socket local con
+#   - rol PostgreSQL `purgito_backup` de SOLO LECTURA (pg_read_all_data + CONNECT), por socket local con
 #     autenticación peer: no hay contraseña de base de datos para este usuario;
 #   - purgito-backup.service y .timer en /etc/systemd/system. El timer NO se habilita.
 #
@@ -22,6 +22,7 @@
 set -euo pipefail
 
 RUNNER_USER="purgito_backup"
+DB_NAME="purgito"   # la base endurece CONNECT para PUBLIC: hay que concederlo explícitamente
 OPT="/opt/purgito-backup"
 ENVF="/etc/purgito/backup.env"
 BKDIR="/var/backups/purgito"
@@ -132,8 +133,8 @@ ENV
 fi
 
 say "rol PostgreSQL $RUNNER_USER (solo lectura, peer por socket local)"
-sql="DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$RUNNER_USER') THEN CREATE ROLE $RUNNER_USER LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 2; END IF; END \$\$; GRANT pg_read_all_data TO $RUNNER_USER;"
-if [ "$apply" = 1 ]; then sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "$sql"; else echo "   (dry-run) CREATE ROLE $RUNNER_USER LOGIN ...; GRANT pg_read_all_data"; fi
+sql="DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$RUNNER_USER') THEN CREATE ROLE $RUNNER_USER LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 2; END IF; END \$\$; GRANT pg_read_all_data TO $RUNNER_USER; GRANT CONNECT ON DATABASE $DB_NAME TO $RUNNER_USER;"
+if [ "$apply" = 1 ]; then sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "$sql"; else echo "   (dry-run) CREATE ROLE $RUNNER_USER LOGIN ...; GRANT pg_read_all_data; GRANT CONNECT ON DATABASE $DB_NAME"; fi
 
 say "unidades systemd (el timer NO se habilita)"
 run install -m 0644 -o root -g root "$repo/deploy/purgito-backup.service" /etc/systemd/system/purgito-backup.service
