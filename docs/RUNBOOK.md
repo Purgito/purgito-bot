@@ -107,22 +107,23 @@ webhook desde Discord en cada canal afectado invalida el token viejo.
    con Postgres parado).
 3. Comprueba: `psql "$DATABASE_URL" -c "SELECT count(*) FROM settings"` y
    `systemctl status postgresql`. Si responde bien, el problema no es la DB.
-4. Si no, restaura el backup más reciente que pase la verificación (hay como máximo
-   2, el último y el anterior; se hacen cada semana, así que lo escrito después del
+4. Si no, restaura el backup más reciente que pase la verificación (en el disco hay 2;
+   en R2, 7 diarios + 2 semanales; se hacen cada día, así que lo escrito después del
    último se pierde). Los backups
    son `.dump.age` (cifrados): hace falta la clave PRIVADA de age, que NO está en el
    servidor (tu gestor de contraseñas / copia offline). Si solo queda la copia de R2:
    `python scripts/r2_backup.py download latest --dest <carpeta>`. Luego
    `AGE_IDENTITY=<clave> deploy/restore_check.sh <ruta-al-backup>` y el procedimiento de
-   `docs/POSTGRES.md` § "Restaurar" (incluye `scripts/reapply_deletions.py --apply`,
+   `docs/POSTGRES.md` § "Restaurar" (incluye `scripts/reapply_deletions.py --ledger - --apply`,
    obligatorio antes de arrancar: vuelve a borrar a quien pidió `/borrar_mis_datos`
-   después del backup).
+   y los servidores purgados después del backup, y restaura las exclusiones, con el
+   registro externo `ledger/` de R2).
 5. `sudo systemctl start bot-purg` y revisa el log.
 6. Si perdiste todo el servidor (el caso de Oracle): sigue
    [`MIGRATION.md`](../MIGRATION.md).
 
-Los backups son semanales y se conservan como máximo 2 (el más reciente y el
-anterior), en `BACKUP_DIR` y en R2 (`docs/POSTGRES.md` § Backups). Los de `BACKUP_DIR`
+Los backups son diarios: 2 en `BACKUP_DIR` y 7 diarios + 2 semanales en R2
+(ninguno llega a 14 días) (`docs/POSTGRES.md` § Backups). Los de `BACKUP_DIR`
 viven en el mismo disco que la base. Si el
 servidor completo se perdió, la copia que sobrevive es la del bucket privado de
 R2 (`R2_BACKUP_BUCKET`), siempre que `backup_db.sh` la haya estado subiendo; sin

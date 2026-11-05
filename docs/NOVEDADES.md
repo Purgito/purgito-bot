@@ -38,6 +38,7 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 
 ### Mejorado
 - Privacidad: las copias de seguridad de Purgito ahora van cifradas y se eliminan solas a los 14 días. `/borrar_mis_datos` sigue borrando al instante de la base activa; si algún día hubiera que restaurar una copia, el borrado se vuelve a aplicar antes de arrancar. Todo el detalle está en la política de privacidad.
+- Privacidad: las copias de seguridad ahora se hacen todos los días (antes, cada semana) y siguen sin llegar nunca a los 14 días. Si hubiera que restaurar una, también se vuelven a aplicar los servidores que ya se habían borrado y las exclusiones del aprendizaje.
 - Los comandos de texto que suben un archivo (`!dl`, `!gif`, los de edición de imagen como `!deepfry` o `!caption`, y `purgito generar`) ahora agregan «Enviado por @usuario» al mensaje, así se sabe quién lo pidió aunque borre su comando. Con los comandos de barra (`/dl`, `/gif`) no hace falta: Discord ya muestra quién los usó.
 - El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
 - El selector para cambiar de servidor en el dashboard ya no se ve apretado contra el borde del menú.

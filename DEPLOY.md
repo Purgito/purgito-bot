@@ -1087,18 +1087,22 @@ en [`docs/POSTGRES.md`](docs/POSTGRES.md). Resumen operativo:
 - [`deploy/backup_db.sh`](deploy/backup_db.sh) corre por cron: `pg_dump -Fc`,
   verifica con `pg_restore --list`, **cifra con age** (`BACKUP_AGE_RECIPIENTS`, solo
   la clave pública; la privada vive fuera del servidor), sube el `.dump.age` a
-  `R2_BACKUP_BUCKET` (bucket **privado**, sin URL pública), y poda locales y de R2:
-  **se conservan como máximo 2 backups, el más reciente y el anterior** (`KEEP_LAST=2`,
-  por cantidad, no por edad). Con bucket y sin destinatarios no hace backup: no
-  sube nada en claro. Si la subida falla, la corrida termina con error y no poda nada.
+  `R2_BACKUP_BUCKET` (bucket **privado**, sin URL pública, con su **propio token**
+  `R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`) y poda por separado:
+  **disco: las 2 más recientes** (`KEEP_LAST=2`); **R2: 7 diarios + 2 semanales, nada de
+  14 días o más** (`R2_KEEP_DAILY`, `R2_KEEP_WEEKLY`, `BACKUP_MAX_AGE_DAYS`). Con bucket y
+  sin destinatarios no hace backup: no sube nada en claro. Si la subida falla, la corrida
+  termina con error, no poda nada y avisa a `BACKUP_ALERT_WEBHOOK` si está definido.
   Lee `DATABASE_URL`, `R2_BACKUP_BUCKET` y `BACKUP_AGE_RECIPIENTS` del `.env` del repo
   (cron no lo carga).
-- Cron **semanal** (domingo 03:17 UTC): `17 3 * * 0 /ruta/purgito-bot/deploy/backup_db.sh >> ~/purgito-bot-backups/backup.log 2>&1`
+- Cron **diario** (03:17 UTC): `17 3 * * * /ruta/purgito-bot/deploy/backup_db.sh >> ~/purgito-bot-backups/backup.log 2>&1`
+- Registro de eliminaciones fuera de la base (cron horario, `deploy/export_ledger.sh`): ver `docs/POSTGRES.md` § Registro de eliminaciones.
 - Los backups llevan el corpus y tokens de webhook: `.dump.age` 0600 en
   `~/purgito-bot-backups/` (0700).
-- Retención de R2: la aplica `r2_backup.py prune --keep 2` desde el propio script (el
-  token no puede tocar lifecycle rules). Opcional: lifecycle de 35 días o más y, si
-  usas Bucket Lock, de 7 días como máximo (detalle en `docs/POSTGRES.md` § Retención en R2).
+- Retención de R2: la aplica `r2_backup.py prune-gfs --apply` desde el propio script (el
+  token no puede tocar lifecycle rules). Reglas opcionales del dashboard compatibles
+  con la política: lifecycle de 14 días y Bucket Lock de 6 días como máximo (detalle en
+  `docs/POSTGRES.md` § Retención en R2).
 - Ver/bajar de R2: `python scripts/r2_backup.py list` y
   `python scripts/r2_backup.py download latest --dest ~/restore`.
 - Prueba de restauración (sin tocar la base activa):

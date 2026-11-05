@@ -28,7 +28,10 @@ Van en `.env` (secretos, gitignored; los nombres están en `.env.example`):
 | `TEST_DATABASE_URL` | solo para tests | Base **distinta** (`purgito_test`). Los tests la vacían: nunca apuntarla a producción. |
 | `DB_POOL_MIN` / `DB_POOL_MAX` | no | Tamaño del pool (default 2 / 10). |
 | `BACKUP_AGE_RECIPIENTS` | para backups a R2 | Clave(s) PÚBLICA(S) age (`age1...`) con las que `backup_db.sh` cifra. Sin ella, con R2 configurado, el backup falla (no sube nada en claro). Ver § Backups. |
-| `DELETION_TOMBSTONE_RETENTION_DAYS` | no (`limits.env`, 15) | Cuánto dura la lápida de un `/borrar_mis_datos`. Debe ser ≥ la retención de backups + 1. |
+| `R2_BACKUP_ACCESS_KEY_ID` / `R2_BACKUP_SECRET_ACCESS_KEY` | para backups a R2 | Token de R2 **solo** del bucket de backups (Object Read & Write, "Apply to specific buckets only"). Sin fallback al token de imágenes/GIFs. |
+| `R2_KEEP_DAILY` / `R2_KEEP_WEEKLY` / `BACKUP_MAX_AGE_DAYS` | no (7 / 2 / 14) | Retención en R2: diarios, domingos y tope de edad. `KEEP_LAST` (2) es solo la del disco. |
+| `BACKUP_ALERT_WEBHOOK` | no | Webhook de Discord que recibe un aviso si el backup o la exportación del registro fallan. |
+| `DELETION_TOMBSTONE_RETENTION_DAYS` | no (`limits.env`, 15) | Cuánto dura una lápida (usuario o servidor). Debe ser ≥ la antigüedad máxima de un backup (14) + 1. |
 
 ## Observabilidad de la base
 
@@ -92,25 +95,39 @@ journalctl -u bot-purg -f          # o tail -f data/bot.log
 
 ## Backups
 
-`deploy/backup_db.sh` (cron **semanal**, domingo 03:17 UTC) hace `pg_dump -Fc`, lo
-verifica con `pg_restore --list`, lo **cifra con [age](https://age-encryption.org)**,
-sube el cifrado al bucket **privado** `R2_BACKUP_BUCKET` y poda: **se conservan como
-máximo 2 backups, el más reciente y el anterior** (`KEEP_LAST=2`), tanto en el disco
-como en R2. Al aparecer un tercero se borra el más antiguo; con 1 o 2 no se borra
-nada. La retención es por cantidad, no por edad. Los backups quedan en
-`~/purgito-bot-backups/` como `purgito-<fecha>.dump.age` (0600; la carpeta, 0700). El
-dump en claro solo existe un instante en un temporal 0600 y se borra siempre.
+`deploy/backup_db.sh` (cron **diario**, 03:17 UTC) hace `pg_dump -Fc`, lo verifica con
+`pg_restore --list`, lo **cifra con [age](https://age-encryption.org)**, sube el cifrado
+al bucket **privado** `R2_BACKUP_BUCKET` y poda. La retención está **separada**:
+
+| Dónde | Qué se conserva | Variable |
+|---|---|---|
+| Disco | las **2** más recientes (el disco es chico) | `KEEP_LAST=2` |
+| R2 | **7 diarios + 2 semanales** (el de cada uno de los 2 últimos domingos) | `R2_KEEP_DAILY=7`, `R2_KEEP_WEEKLY=2` |
+| Tope de edad | ningún backup llega a **14 días** (promesa de `docs/PRIVACY.md`) | `BACKUP_MAX_AGE_DAYS=14` |
+
+Los backups quedan en `~/purgito-bot-backups/` como `purgito-<fecha>.dump.age` (0600; la
+carpeta, 0700). El dump en claro solo existe un instante en un temporal 0600 y se borra
+siempre. R2 usa un **token propio** (`R2_BACKUP_ACCESS_KEY_ID` /
+`R2_BACKUP_SECRET_ACCESS_KEY`) restringido en Cloudflare al bucket de backups: el token
+de imágenes y GIFs (`R2_ACCESS_KEY_ID`) no puede leerlos ni borrarlos, y el de backups no
+toca imágenes ni GIFs. Sin las dos variables propias, los backups a R2 fallan: no hay
+fallback al otro token.
 
 ```
 pg_dump -Fc → pg_restore --list (verifica) → age -r <pública> → .dump.age 0600
             → R2 privado (r2_backup.py upload: rechaza todo lo que no sea age)
-            → prune R2 y disco: solo los 2 más recientes (KEEP_LAST=2)
+            → prune-gfs en R2 (7 diarios + 2 domingos, < 14 días) y prune local (2)
+            → si algo falla: aviso a BACKUP_ALERT_WEBHOOK (sin secretos)
 ```
 
-- **Cuánto vive un backup:** con corridas semanales, el más reciente tiene entre 0 y
-  7 días y el anterior entre 7 y 14. Si una corrida falla (subida a R2 caída, etc.)
-  no se poda nada: los dos backups previos se quedan hasta la siguiente corrida que
-  salga bien. El peor caso de pérdida al restaurar es una semana de datos.
+- **Cuánto vive un backup:** como máximo 13 días y unas horas. `prune-gfs` se niega a
+  podar si el backup más nuevo ya tiene 14 días o más (si los backups dejaron de salir,
+  podar sería quedarse sin ninguno). El peor caso de pérdida al restaurar es un día.
+- **Alertas:** `BACKUP_ALERT_WEBHOOK` (webhook de Discord) recibe un aviso si
+  `backup_db.sh` termina con error. Contra el silencio (el cron no corrió), añade una
+  comprobación de frescura: `r2_backup.py check --max-age-hours 36` sale con código 1 si
+  el último backup de R2 es más viejo (por ejemplo en un cron aparte cada 6 h, o desde
+  el monitor externo).
 
 - **Sin `BACKUP_AGE_RECIPIENTS` y con bucket de R2, la corrida falla**: nunca se
   sube un dump en claro. Sin bucket, queda un `.dump` en claro solo local y el log
@@ -123,14 +140,15 @@ pg_dump -Fc → pg_restore --list (verifica) → age -r <pública> → .dump.age
   copia offline. `deploy/security_check.sh` falla mientras haya una en el servidor.
 - Generar un par (en TU máquina, no en producción): `age-keygen -o purgito-recovery.txt`
   imprime la pública; pon esa en `BACKUP_AGE_RECIPIENTS`. Rotar = añadir la nueva
-  pública, esperar 2 corridas semanales (así los 2 backups conservados ya la incluyen
-  y ninguno depende solo de la vieja) y quitarla.
+  pública, esperar a que todos los backups conservados (14 días) la incluyan, y quitarla.
+  Nunca cambies `BACKUP_AGE_RECIPIENTS` antes de comprobar que la clave privada nueva
+  descifra (ver § Probar la restauración en Windows).
 - Los backups viejos en R2 y en disco no se descifran con una clave nueva: se
   descifran con la que tenían al hacerse.
 
-En producción el cron ya está instalado (`crontab -l`):
-`17 3 * * 0 /home/purgito/purgito-bot/deploy/backup_db.sh >> ~/purgito-bot-backups/backup.log 2>&1`
-(domingo 03:17 UTC). El script funciona con el entorno vacío de cron (lee
+En producción el cron es (`crontab -l`):
+`17 3 * * * /home/purgito/purgito-bot/deploy/backup_db.sh >> ~/purgito-bot-backups/backup.log 2>&1`
+(diario, 03:17 UTC). El script funciona con el entorno vacío de cron (lee
 `DATABASE_URL`, `R2_BACKUP_BUCKET` y `BACKUP_AGE_RECIPIENTS` del `.env`). Revisa
 `~/purgito-bot-backups/backup.log`: cada corrida deja una línea por etapa
 (`BACKUP START`, `DUMP CREATED`, `DUMP VERIFIED`, `ENCRYPTED`, `UPLOADED`,
@@ -140,7 +158,8 @@ En producción el cron ya está instalado (`crontab -l`):
 ```bash
 bash deploy/backup_db.sh                          # a mano
 .venv/bin/python scripts/r2_backup.py list        # ver los de R2
-.venv/bin/python scripts/r2_backup.py prune             # dry-run de la retención de R2 (conserva los 2 más recientes)
+.venv/bin/python scripts/r2_backup.py prune-gfs         # dry-run de la retención de R2 (7 diarios + 2 domingos, < 14 días)
+.venv/bin/python scripts/r2_backup.py check             # falla si el último backup tiene más de 36 h
 .venv/bin/python scripts/r2_backup.py download latest --dest ~/restore
 AGE_IDENTITY=~/clave-privada.txt bash deploy/restore_check.sh r2:latest   # baja de R2, descifra, restaura, verifica
 ```
@@ -159,11 +178,10 @@ env -i HOME=$HOME USER=$USER LOGNAME=$USER SHELL=/bin/sh PATH=/usr/bin:/bin \
 tail -2 ~/purgito-bot-backups/backup.log   # OK backup -> ... cifrado con age ... subido a R2
 ```
 
-**Estado: PENDIENTE DE VERIFICACIÓN — primer disparo automático.** El cron
-(`17 3 * * 0`, domingo 03:17 UTC) todavía no se ejecutó solo: los backups que
-existen se lanzaron a mano. El primero automático es el 2026-10-04. Se da por
-verificado cuando `backup.log` tenga un `BACKUP COMPLETE` de esa hora y
-`scripts/r2_backup.py list` muestre el `.dump.age` nuevo.
+**Estado de la generación 2 (claves age nuevas, bucket `purgito-backups-v2`):** se da por
+operativa cuando (1) `backup.log` tiene un `BACKUP COMPLETE` con el cifrado nuevo,
+(2) `r2_backup.py list` muestra el `.dump.age` en el bucket nuevo y (3) la prueba de
+§ "Probar la restauración en Windows" pasó con la clave privada guardada fuera del servidor.
 
 Verificado a mano, con el entorno de cron, el 2026-10-02: `pg_dump` y `age` se encuentran con ese PATH, el
 backup queda `.dump.age` 0600, sin archivos en claro, el objeto aparece en R2 y la
@@ -174,18 +192,24 @@ del cron con la umask del usuario; no contiene secretos.
 
 ### Retención en R2
 
-El token de la app (Object Read & Write sobre los 3 buckets) **no** puede leer ni
-escribir reglas de *lifecycle* ni CORS (`AccessDenied`), así que la retención no
-depende del dashboard: `backup_db.sh` llama a `r2_backup.py prune --keep 2 --apply`
-después de cada subida. La regla es por cantidad: los 2 `purgito-*.dump[.age]` más
-recientes (por nombre, que lleva la fecha) y nada más; con 1 o 2 no borra nada. Solo
-cuenta objetos `purgito-*` con contenido: no toca otras keys del bucket.
+El token de la app **no** puede leer ni escribir reglas de *lifecycle*, *Bucket Lock* ni CORS
+(`AccessDenied`): esas reglas se ponen a mano en el dashboard de Cloudflare. La retención
+no depende de ellas: `backup_db.sh` llama a `r2_backup.py prune-gfs --apply` después de
+cada subida (7 diarios + 2 domingos, nada de 14 días o más; solo cuenta objetos
+`purgito-*` con contenido y no toca otras keys del bucket). Las reglas del dashboard son
+una red de seguridad que **tiene que ser compatible** con esos plazos:
 
-Si además quieres una red de seguridad en Cloudflare, que no choque con esa regla:
-una *lifecycle rule* de *Delete objects* tras **35 días o más** (con corridas
-semanales nunca debería actuar; una de 14 días podría vaciar el bucket si fallan dos
-corridas seguidas) y, si usas *Bucket Lock*, con retención de **7 días como máximo**
-(una mayor haría fallar el borrado del backup anterior).
+| Regla en `purgito-backups-v2` | Valor | Por qué |
+|---|---|---|
+| *Object lifecycle*: borrar objetos | **14 días** (prefijo `purgito-`) y **15 días** (prefijo `ledger/`) | Tope de la política de privacidad por si el script no corre. |
+| *Bucket Lock* (antiborrado), si lo usas | **6 días** como máximo, prefijo `purgito-` | Protege de un borrado masivo con el token robado. Los diarios se podan a los 7 días: un bloqueo mayor haría fallar la poda (HTTP 409 `ObjectLockedByBucketPolicy`) y se perderían los plazos. |
+| Nada de bloqueos indefinidos ni de más de 14 días | | Incumplirían la política publicada. |
+
+Los backups de la generación anterior (cifrados con una clave age perdida) no los toca
+nada de esto mientras `R2_BACKUP_BUCKET` apunte al bucket nuevo. Para protegerlos sin
+bloqueos indefinidos: *Bucket Lock* de **14 días** sobre el bucket viejo (cubre lo ya
+subido y no admite nada nuevo si ya no se usa) + *lifecycle* de 14 días; caducan solos
+a los 14 días de su creación, como promete la política.
 
 ## Restaurar
 
@@ -196,26 +220,70 @@ sudo systemctl stop bot-purg
 age -d -i ~/clave-privada.txt -o ~/restore/restore.dump ~/restore/purgito-<fecha>.dump.age
 # 2. restaurar
 pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" ~/restore/restore.dump
-# 3. REAPLICAR LOS BORRADOS posteriores al backup (obligatorio antes de arrancar)
-.venv/bin/python scripts/reapply_deletions.py            # dry-run: cuántas filas
-.venv/bin/python scripts/reapply_deletions.py --apply
+# 3. REAPLICAR LOS BORRADOS posteriores al backup (obligatorio antes de arrancar), con
+#    el registro de eliminaciones externo (ver más abajo). El registro en claro viaja por
+#    la entrada estándar: no toca el disco del servidor.
+.venv/bin/python scripts/reapply_deletions.py --ledger - < registro.jsonl     # dry-run
+.venv/bin/python scripts/reapply_deletions.py --ledger - --apply < registro.jsonl
 # 4. limpiar el dump descifrado y la clave, y arrancar
 shred -u ~/restore/restore.dump ~/clave-privada.txt
 sudo systemctl start bot-purg
 ```
 
-El paso 3 existe por privacidad: un backup anterior a un `/borrar_mis_datos` aún
-tiene los datos del usuario. Cada borrado deja una lápida en
-`deleted_user_tombstones` (solo `user_id`, `deleted_at`, `expires_at`; sin
-contenido ni servidores; caduca a los `DELETION_TOMBSTONE_RETENTION_DAYS`=15 días
-= 14 días de backups (dos semanales) + 1 de margen; la purga `guild_cleanup_task`). El script vuelve a
-borrar a esos usuarios con el mismo SQL que `db.delete_user_data`, elimina las
-lápidas vencidas y no imprime ids. Límite conocido: el borrado de un *servidor*
-(tras los 30 días de gracia) no deja lápida; restaurar un backup anterior puede
-resucitar los datos de un servidor ya purgado hasta que el backup caduque.
+El paso 3 existe por privacidad: un backup anterior a un `/borrar_mis_datos` o a la
+purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no la tiene.
 
-Las lápidas son datos personales (un id de usuario): solo las ve quien tiene acceso
-a la base, caducan solas y no se exponen por ninguna API.
+### Registro de eliminaciones (lápidas + copia externa)
+
+- Cada `/borrar_mis_datos` deja una lápida en `deleted_user_tombstones` y cada purga de
+  servidor (`purge_guild_data`) una en `purged_guild_tombstones` (solo el id y dos fechas;
+  sin contenido). Duran `DELETION_TOMBSTONE_RETENTION_DAYS`=**15** días: los 14 de
+  antigüedad máxima de un backup + 1 de margen. Pasado ese plazo ya no existe ningún
+  backup anterior al borrado, y conservar el id no tiene justificación; la purga
+  diaria (`guild_cleanup_task`) las elimina.
+- Si se pierde la base, se pierden también sus lápidas. Por eso `deploy/export_ledger.sh`
+  (cron **cada hora**, no instalado por defecto) guarda en R2, cifrada con la clave age de
+  los backups, una instantánea con **solo** las lápidas vigentes y las exclusiones activas
+  (`ledger/privacy-ledger-<fecha>.jsonl.age`; ids y fechas, nunca contenido). Se
+  conservan 15 días como máximo (siempre las 3 últimas), y 3 copias locales en
+  `~/purgito-bot-backups/ledger/`. La pérdida máxima del registro es de una hora.
+  Cron propuesto: `7 * * * * /home/purgito/purgito-bot/deploy/export_ledger.sh >> ~/purgito-bot-backups/ledger.log 2>&1`.
+- `reapply_deletions.py --ledger` funde la instantánea con la base (conserva la
+  expiración más lejana y **nunca quita una exclusión**), borra lo de cada usuario y
+  servidor con lápida vigente (mismo SQL que `db.delete_user_data` y `purge_guild_data`),
+  restaura las exclusiones y elimina las lápidas vencidas. No imprime ids.
+  Descifrar la instantánea (`age -d -i <clave> ledger/<archivo>.jsonl.age`) se hace en el
+  equipo del titular, con la clave privada.
+- Son datos personales (ids de Discord): solo los ve quien tiene acceso a la base o a la
+  clave age, caducan solos y no se exponen por ninguna API.
+- Los backups de la generación anterior (clave perdida) y cualquier backup restaurado
+  **nunca** se restauran sobre producción sin pasar por este paso; para inspeccionarlos,
+  usa una base aislada.
+
+### Probar la restauración en Windows (equipo del titular)
+
+La clave privada nunca va al servidor, así que la prueba se hace en tu PC, con
+PostgreSQL 18 en un contenedor desechable. Con PowerShell (Docker Desktop y `age` instalados):
+
+```powershell
+$k = "E:\purgito-age-prod-2026-11.txt"            # clave privada (USB con BitLocker)
+$w = Join-Path $env:TEMP "purgito-restore"; New-Item -ItemType Directory $w | Out-Null
+scp purgito@purgito-vm:purgito-bot-backups/purgito-FECHA.dump.age $w
+age -d -i $k -o "$w\restore.dump" "$w\purgito-FECHA.dump.age"
+docker run -d --name pg-prueba -e POSTGRES_PASSWORD=desechable -p 127.0.0.1:55432:5432 postgres:18
+docker cp "$w\restore.dump" pg-prueba:/tmp/restore.dump
+docker exec pg-prueba createdb -U postgres prueba
+docker exec pg-prueba pg_restore -U postgres --no-owner --exit-on-error -d prueba /tmp/restore.dump
+docker exec pg-prueba psql -U postgres -d prueba -Atc "select (select count(*) from corpus_messages), (select count(*) from user_corpus), (select count(*) from information_schema.tables where table_schema='public')"
+docker rm -f pg-prueba
+Remove-Item -Recurse -Force $w
+```
+
+Compara los tres números con producción (`psql`: mismas consultas; los de producción
+serán mayores si hubo mensajes después del backup). Un dump descifrado es dato personal:
+hazlo en un disco cifrado (BitLocker) y bórralo al terminar; no lo subas a ningún sitio.
+La prueba se repite una vez al mes y siempre tras cambiar de clave age o de versión de
+PostgreSQL. **El sistema de backups no cuenta como terminado hasta que esta prueba pasa.**
 
 ## Rollback temporal a SQLite
 

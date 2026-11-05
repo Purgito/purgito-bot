@@ -10,6 +10,14 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Security
+- Backups: token de R2 propio (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`, `r2.get_backup_client`) sin fallback al de imágenes/GIFs; `delete_backup_sync` solo acepta keys `purgito-*`, `bot-*` y `ledger/*` sin `..`.
+- Registro de eliminaciones fuera de la base: `purged_guild_tombstones` (lápida de servidores purgados, 15 días), `src/privacy_ledger.py`, `scripts/export_privacy_ledger.py` + `deploy/export_ledger.sh` (instantánea cifrada con age en `ledger/` de R2, ids y fechas) y `reapply_deletions.py --ledger` (funde el registro, purga servidores, restaura exclusiones sin quitar ninguna).
+
+### Changed (backups)
+- Retención de backups separada: disco `KEEP_LAST=2`; R2 `prune-gfs` = 7 diarios + 2 domingos, nada de 14 días o más (`R2_KEEP_DAILY`, `R2_KEEP_WEEKLY`, `BACKUP_MAX_AGE_DAYS`). Cron diario. `r2_backup.py check` (frescura) y `prune-ledger`. Aviso por `BACKUP_ALERT_WEBHOOK` si `backup_db.sh` falla.
+- `docs/PRIVACY*.md` y `docs/POSTGRES.md` describen la cantidad, duración y eliminación reales de las copias, el registro de lápidas y la prueba de restauración en Windows.
+
 ### Removed
 - Avisos de arranque/apagado y de loops caídos al canal de Discord del proyecto: se eliminan `LIFECYCLE_ANNOUNCE_CHANNEL_ID`, `bot._send_lifecycle_notice` y `utils.notify_ops`. `lifecycle_state` se conserva porque alimenta `previous_shutdown` del monitor externo; los loops que fallan siguen dejando `log.critical`.
 

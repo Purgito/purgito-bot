@@ -38,6 +38,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 
 ### Improved
 - Privacy: Purgito's backups are now encrypted and delete themselves after 14 days. `/borrar_mis_datos` still deletes instantly from the live database; if a backup ever had to be restored, your deletion is applied again before the bot starts. Full details are in the privacy policy.
+- Privacy: backups are now made every day (they used to be weekly) and still never reach 14 days. If one ever had to be restored, servers that had already been deleted and learning opt-outs are also re-applied.
 - Text commands that upload a file (`!dl`, `!gif`, image-editing ones like `!deepfry` or `!caption`, and `purgito generar`) now add “Sent by @user” to the message, so it's clear who requested it even if they delete their command. Slash commands (`/dl`, `/gif`) don't need it: Discord already shows who used them.
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
 - The server switcher in the dashboard no longer looks cramped against the sidebar's edge.
