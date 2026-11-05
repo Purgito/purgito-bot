@@ -405,7 +405,14 @@ def test_el_instalador_exige_root_y_no_aplica_sin_apply():
 
 def test_backup_task_solo_admite_subcomandos_de_lectura():
     sh = (ROOT / "deploy" / "backup_task.sh").read_text()
-    for permitido in ("preflight", "list", "check", "access-check", "head"):
+    for permitido in (
+        "preflight",
+        "list",
+        "check",
+        "access-check",
+        "head",
+        "ledger-dry-run",
+    ):
         assert permitido in sh
     for no in ("upload", "prune", "download", "delete"):
         assert (
