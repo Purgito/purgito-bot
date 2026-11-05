@@ -236,7 +236,9 @@ def test_el_script_no_imprime_ids_de_usuario(conn, capsys):
     import os
 
     assert (
-        reapply_deletions.main(["--dsn", os.environ["TEST_DATABASE_URL"], "--apply"])
+        reapply_deletions.main(
+            ["--dsn", os.environ["TEST_DATABASE_URL"], "--apply", "--sin-registro"]
+        )
         == 0
     )
 

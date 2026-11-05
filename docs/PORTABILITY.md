@@ -15,7 +15,7 @@ un bucket privado de R2. Esto reemplaza al análisis de la época SQLite, donde 
 | Severidad | Ítem | Estado |
 |---|---|---|
 | 🔴 Alta | Perder la clave privada de age: sin ella ningún backup se puede abrir | Una sola clave, guardada fuera del servidor. Un segundo destinatario no está configurado |
-| 🔴 Alta | Restaurar un backup sin reaplicar los borrados posteriores (`/borrar_mis_datos`) resucita datos de usuarios | Cubierto: `scripts/reapply_deletions.py --apply` es un paso obligatorio |
+| 🔴 Alta | Restaurar un backup sin reaplicar los borrados posteriores (`/borrar_mis_datos`) resucita datos de usuarios | Cubierto: `scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` es un paso obligatorio |
 | 🟡 Media | El túnel de `cloudflared` y el nodo de Tailscale están atados a la máquina | Hay que moverlos o recrearlos en el servidor nuevo |
 | 🟡 Media | `SESSION_SECRET` sin copiar desloguea a todos los usuarios del dashboard | Esperable, no es pérdida de datos |
 | 🟢 Baja | `data/bot.log` se pierde en cada migración | Aceptado |
@@ -46,7 +46,7 @@ servidor es la copia de R2.
    `git clone`.
 
 Procedimiento paso a paso: [`POSTGRES.md`](POSTGRES.md) § Restaurar. Siempre termina
-con `scripts/reapply_deletions.py --apply` antes de arrancar el bot.
+con `scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` antes de arrancar el bot.
 
 ## 2. Flags sueltos de `data/` (solo hasta 2026-10-15)
 

@@ -14,7 +14,12 @@ from discord import app_commands
 from discord.ext import commands
 
 import generation
-from db import export_user_data
+from db import (
+    GLOBAL_EXCLUSION_GUILD_ID,
+    export_user_data,
+    get_user_exclusion,
+    set_user_exclusion,
+)
 from help_view import PURGITO_COLOR
 from i18n import guild_locale, t
 from utils import LRUDict, SafeView
@@ -188,6 +193,39 @@ class Privacy(commands.Cog):
         view = _ConfirmDeleteView(author_id=interaction.user.id, locale=locale)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         view.message = await interaction.original_response()
+
+    @app_commands.command(
+        name="privacidad",
+        description="Elige si Purgito aprende de tus mensajes e interactúa contigo, en todos los servidores.",
+    )
+    @app_commands.choices(
+        accion=[
+            app_commands.Choice(name="Excluirme", value="on"),
+            app_commands.Choice(name="Volver a participar", value="off"),
+            app_commands.Choice(name="Ver mi estado", value="status"),
+        ]
+    )
+    async def privacidad(
+        self, interaction: discord.Interaction, accion: app_commands.Choice[str]
+    ) -> None:
+        """Exclusión GLOBAL del propio usuario (fila guild_id=0 en excluded_users).
+        Solo actúa sobre interaction.user: nunca se acepta otro id."""
+        locale = await guild_locale(interaction.guild.id if interaction.guild else None)
+        user_id = interaction.user.id
+        try:
+            if accion.value == "status":
+                current = await get_user_exclusion(GLOBAL_EXCLUSION_GUILD_ID, user_id)
+                key = "privacy.exclude.status_on" if current else "privacy.exclude.status_off"
+            elif accion.value == "on":
+                await set_user_exclusion(GLOBAL_EXCLUSION_GUILD_ID, user_id, True, True)
+                key = "privacy.exclude.on_done"
+            else:
+                await set_user_exclusion(GLOBAL_EXCLUSION_GUILD_ID, user_id, False, False)
+                key = "privacy.exclude.off_done"
+        except Exception:
+            log.exception("privacidad: falló la acción %s (user %s)", accion.value, user_id)
+            key = "privacy.exclude.error"
+        await interaction.response.send_message(t(key, locale), ephemeral=True)
 
     @app_commands.command(
         name="mis_datos",

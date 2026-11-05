@@ -798,6 +798,64 @@ class Chat(commands.Cog):
                     payload.message_id,
                 )
 
+    @commands.Cog.listener()
+    async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
+        """Un mensaje editado deja de estar en el corpus: la copia aprendida tiene el
+        texto viejo, que su autor ya retiró. No se reaprende la versión nueva."""
+        # MESSAGE_UPDATE también llega al resolverse un embed, sin cambio de texto.
+        if not payload.guild_id or "content" not in payload.data:
+            return
+        try:
+            res = await delete_message_from_corpus(payload.guild_id, payload.message_id)
+            if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
+                generation.reset_guild_caches(payload.guild_id)
+        except Exception:
+            log.exception(
+                "Error al quitar un mensaje editado del corpus (guild %s, msg %s)",
+                payload.guild_id,
+                payload.message_id,
+            )
+
+    @commands.Cog.listener()
+    async def on_raw_bulk_message_delete(
+        self, payload: discord.RawBulkMessageDeleteEvent
+    ):
+        if not payload.guild_id:
+            return
+        removed = 0
+        for message_id in payload.message_ids:
+            try:
+                res = await delete_message_from_corpus(payload.guild_id, message_id)
+                removed += res.get("corpus_messages", 0) + res.get("user_corpus", 0)
+            except Exception:
+                log.exception(
+                    "Error en borrado masivo del corpus (guild %s, msg %s)",
+                    payload.guild_id,
+                    message_id,
+                )
+        if removed:
+            generation.reset_guild_caches(payload.guild_id)
+
+    async def _purge_channel_corpus(self, guild_id: int, channel_id: int) -> None:
+        try:
+            res = await delete_channel_corpus(guild_id, channel_id)
+            if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
+                generation.reset_guild_caches(guild_id)
+        except Exception:
+            log.exception(
+                "Error al borrar el corpus de un canal eliminado (guild %s, canal %s)",
+                guild_id,
+                channel_id,
+            )
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
+        await self._purge_channel_corpus(channel.guild.id, channel.id)
+
+    @commands.Cog.listener()
+    async def on_raw_thread_delete(self, payload: discord.RawThreadDeleteEvent):
+        await self._purge_channel_corpus(payload.guild_id, payload.thread_id)
+
     async def _on_message_impl(self, message: discord.Message) -> None:
         if is_meme_trigger(self.bot, message):
             return  # lo maneja el cog de memes; no entra al corpus

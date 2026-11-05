@@ -87,7 +87,7 @@ explicación, ver `MIGRATION.md`.
       `pg_restore`, siguiendo `docs/POSTGRES.md` § Preparar una base nueva y
       § Restaurar. La clave privada de age se trae temporalmente desde fuera
       del servidor. **Siempre** termina con
-      `scripts/reapply_deletions.py --apply` antes de arrancar el bot: vuelve a
+      `scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` antes de arrancar el bot: vuelve a
       aplicar los borrados (`/borrar_mis_datos`) posteriores al backup.
 - [ ] Poner `DATABASE_URL`, `R2_BACKUP_BUCKET` y `BACKUP_AGE_RECIPIENTS` en el
       `.env` e instalar el cron de backups (ver § Backups de PostgreSQL).
@@ -1112,7 +1112,7 @@ en [`docs/POSTGRES.md`](docs/POSTGRES.md). Resumen operativo:
   `<base>_restorecheck`, ver `docs/POSTGRES.md`). `bash deploy/backup_db_test.sh`
   autoprueba los scripts (requiere `TEST_DATABASE_URL` y `age`).
 - Restaurar: ver `docs/POSTGRES.md` § Restaurar. **Siempre** termina con
-  `scripts/reapply_deletions.py --apply` antes de arrancar el bot.
+  `scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` antes de arrancar el bot.
 
 **Estado del cron (2026-10-02): PENDIENTE DE VERIFICACIÓN — primer disparo automático.**
 Los backups existentes se lanzaron a mano; el primer disparo del cron es el domingo

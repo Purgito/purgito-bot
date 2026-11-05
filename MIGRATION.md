@@ -66,7 +66,7 @@ test -f .env && echo "OK: .env es un archivo" || echo "MAL -- revisar"
 Instala PostgreSQL 18, crea el rol y la base, restaura el último backup y
 **reaplica los borrados** siguiendo [`docs/POSTGRES.md`](docs/POSTGRES.md)
 (§ Preparar una base nueva y § Restaurar). El paso de
-`scripts/reapply_deletions.py --apply` es obligatorio antes de arrancar el
+`scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` es obligatorio antes de arrancar el
 bot: sin él, un backup anterior a un `/borrar_mis_datos` resucita los datos de
 ese usuario.
 

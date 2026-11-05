@@ -114,6 +114,8 @@ def reapply(conn, *, apply: bool) -> dict:
             stats["user_corpus"] += conn.execute(
                 db._SQL_DELETE_USER_CORPUS_OF_AUTHOR, (user_id,)
             ).rowcount
+            conn.execute(db._SQL_DELETE_GIF_SENDERS_OF_USER, (user_id,))
+            conn.execute(db._SQL_DELETE_BOOSTS_OF_USER, (user_id,))
         else:
             stats["user_corpus"] += conn.execute(
                 "SELECT count(*) FROM user_corpus WHERE author_id=?", (user_id,)
@@ -163,7 +165,21 @@ def main(argv=None) -> int:
         help="instantánea del registro de privacidad ya descifrada (JSONL); "
         "'-' lee de la entrada estándar",
     )
+    ap.add_argument(
+        "--sin-registro",
+        action="store_true",
+        help="restaurar SIN el registro externo (solo lápidas del propio backup); "
+        "por defecto se exige --ledger: sin él se pueden resucitar borrados",
+    )
     args = ap.parse_args(argv)
+    if not args.ledger and not args.sin_registro:
+        print(
+            "ERROR: falta --ledger (registro externo de eliminaciones). Sin él un "
+            "backup viejo puede devolver datos ya borrados. Si de verdad no hay "
+            "registro, repite con --sin-registro. No se tocó nada.",
+            file=sys.stderr,
+        )
+        return 1
     ledger = None
     if args.ledger:
         try:

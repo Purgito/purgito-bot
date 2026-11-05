@@ -292,6 +292,16 @@ purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no l
 - Los backups de la generación anterior (clave perdida) y cualquier backup restaurado
   **nunca** se restauran sobre producción sin pasar por este paso; para inspeccionarlos,
   usa una base aislada.
+- **Limitación pendiente (mensajes individuales).** El registro externo solo cubre
+  lápidas de usuario y de servidor y exclusiones. Un mensaje suelto que alguien borra,
+  edita o que desaparece en un borrado masivo o con su canal se quita del corpus de la
+  base viva, pero **no** deja lápida ni va al registro: si se restaura un backup anterior,
+  ese mensaje reaparece hasta que se vuelva a limpiar a mano. Está aceptado de forma
+  explícita y sin resolver.
+- **Restaurar sin registro.** `reapply_deletions.py` exige `--ledger`: sin él termina con
+  código 1 y sin tocar la base. Solo `--sin-registro` (explícito) permite correr con las
+  lápidas del propio backup. Si la instantánea falta o es inválida también falla sin tocar
+  la base.
 
 ### Plazos: 14 días para los dumps, 15 para el registro (excepción documentada)
 

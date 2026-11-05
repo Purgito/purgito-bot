@@ -617,6 +617,10 @@ _SQL_DELETE_CORPUS_OF_AUTHOR = (
     ")"
 )
 _SQL_DELETE_USER_CORPUS_OF_AUTHOR = "DELETE FROM user_corpus WHERE author_id=?"
+# Otros datos personales atribuibles (quién envió un GIF, desde cuándo impulsa un
+# servidor). También los usa scripts/reapply_deletions.py tras una restauración.
+_SQL_DELETE_GIF_SENDERS_OF_USER = "DELETE FROM gif_senders WHERE user_id=?"
+_SQL_DELETE_BOOSTS_OF_USER = "DELETE FROM member_boost_records WHERE user_id=?"
 
 
 def _tombstone_retention_days() -> int:
@@ -690,6 +694,11 @@ async def delete_user_data(author_id: int) -> dict:
         cur_uc = await db.execute(_SQL_DELETE_USER_CORPUS_OF_AUTHOR, (author_id,))
         user_corpus_deleted = cur_uc.rowcount
 
+        cur_gs = await db.execute(_SQL_DELETE_GIF_SENDERS_OF_USER, (author_id,))
+        gif_senders_deleted = cur_gs.rowcount
+        cur_bo = await db.execute(_SQL_DELETE_BOOSTS_OF_USER, (author_id,))
+        boosts_deleted = cur_bo.rowcount
+
         # Lápida (solo el id y dos fechas), en la MISMA transacción: o se borra y
         # queda anotado, o no pasó nada. Se escribe aunque no hubiera filas
         # vivas: un backup anterior puede tenerlas. Ver el docstring del módulo
@@ -716,6 +725,8 @@ async def delete_user_data(author_id: int) -> dict:
         "corpus_messages_deleted": corpus_messages_deleted,
         "traceable_deleted": corpus_messages_deleted,
         "unknown_deleted": unknown_deleted,
+        "gif_senders_deleted": gif_senders_deleted,
+        "boosts_deleted": boosts_deleted,
         "guild_ids": guild_ids,
     }
     log.info(
@@ -2665,6 +2676,11 @@ async def list_exempt_channels(guild_id: int) -> list[int]:
 
 # ─── Usuarios excluidos (interacción y aprendizaje) ───────────────────────────
 
+# Exclusión GLOBAL del usuario (la pide él mismo con /privacidad): fila con
+# guild_id = 0, que ningún servidor real tiene. Vale en todos los servidores y
+# sobrevive a que un servidor se purgue (purge_guild_data solo borra su guild_id).
+GLOBAL_EXCLUSION_GUILD_ID = 0
+
 
 async def is_user_excluded_from_interaction(guild_id: int, user_id: int) -> bool:
     """True si el usuario está excluido de interacciones (respuestas, reacciones, triggers) en este guild."""
@@ -2672,8 +2688,8 @@ async def is_user_excluded_from_interaction(guild_id: int, user_id: int) -> bool
         return False
     db = await get_db()
     async with db.execute(
-        "SELECT 1 FROM excluded_users WHERE guild_id=? AND user_id=? AND exclude_interaction=1",
-        (guild_id, user_id),
+        "SELECT 1 FROM excluded_users WHERE guild_id IN (?, ?) AND user_id=? AND exclude_interaction=1",
+        (guild_id, GLOBAL_EXCLUSION_GUILD_ID, user_id),
     ) as cursor:
         return await cursor.fetchone() is not None
 
@@ -2684,8 +2700,8 @@ async def is_user_excluded_from_learning(guild_id: int, user_id: int) -> bool:
         return False
     db = await get_db()
     async with db.execute(
-        "SELECT 1 FROM excluded_users WHERE guild_id=? AND user_id=? AND exclude_learning=1",
-        (guild_id, user_id),
+        "SELECT 1 FROM excluded_users WHERE guild_id IN (?, ?) AND user_id=? AND exclude_learning=1",
+        (guild_id, GLOBAL_EXCLUSION_GUILD_ID, user_id),
     ) as cursor:
         return await cursor.fetchone() is not None
 
