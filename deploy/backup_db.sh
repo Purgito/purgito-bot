@@ -42,6 +42,7 @@
 #   BACKUP_DIR                           destino local
 #   KEEP_LAST                            cuántos backups se conservan en el DISCO (default: 2, mínimo 1)
 #   R2_KEEP_DAILY / R2_KEEP_WEEKLY       retención en R2: diarios y domingos (default: 7 y 2)
+#   R2_MIN_AGE_DAYS                      no propone borrar en R2 nada más joven (Bucket Lock de 6 días; default 6)
 #   BACKUP_MAX_AGE_DAYS                  antigüedad máxima en R2 (default: 14; la de la política de privacidad)
 #   SKIP_PRUNE=1                         no poda nada (ni R2 ni disco); solo para el primer backup manual
 #   MIN_FREE_MB / BACKUP_EST_MB          reserva de disco que debe quedar libre (default 400) y estimación del dump sin backups previos (150)
@@ -63,6 +64,8 @@ ENV_FILE="${ENV_FILE:-$script_dir/../.env}"
 R2_KEEP_DAILY="${R2_KEEP_DAILY:-7}"
 R2_KEEP_WEEKLY="${R2_KEEP_WEEKLY:-2}"
 BACKUP_MAX_AGE_DAYS="${BACKUP_MAX_AGE_DAYS:-14}"
+# Bucket Lock de R2 sobre gen2/purgito-: no se intenta borrar nada más joven que esto.
+R2_MIN_AGE_DAYS="${R2_MIN_AGE_DAYS:-6}"
 # Reserva de disco: tras el backup tienen que quedar libres al menos MIN_FREE_MB en el
 # filesystem. PostgreSQL vive en el mismo disco: si el backup lo llenara, la base podría
 # caerse al no poder escribir WAL. BACKUP_EST_MB estima el dump si aún no hay backups.
@@ -115,7 +118,7 @@ if [[ ! "$KEEP_LAST" =~ ^[1-9][0-9]*$ ]]; then
     echo "$(date -Is) ERROR KEEP_LAST='$KEEP_LAST' no es válido: tiene que ser un entero >= 1 (default 2). No se hizo backup." >&2
     exit 1
 fi
-for v in R2_KEEP_DAILY BACKUP_MAX_AGE_DAYS MIN_FREE_MB BACKUP_EST_MB; do
+for v in R2_KEEP_DAILY BACKUP_MAX_AGE_DAYS R2_MIN_AGE_DAYS MIN_FREE_MB BACKUP_EST_MB; do
     if [[ ! "${!v}" =~ ^[1-9][0-9]*$ ]]; then
         echo "$(date -Is) ERROR $v='${!v}' no es válido: entero >= 1. No se hizo backup." >&2
         exit 1
@@ -272,7 +275,7 @@ if [ -n "$backup_bucket" ]; then
     # el backup de hoy ya está hecho y subido.
     if [ "$SKIP_PRUNE" = "1" ]; then
         log "R2 PRUNE OMITIDO (SKIP_PRUNE=1): no se borra nada en R2"
-    elif ! "$PYTHON" "$UPLOADER" prune-gfs --daily "$R2_KEEP_DAILY" --weekly "$R2_KEEP_WEEKLY" --max-age-days "$BACKUP_MAX_AGE_DAYS" --apply; then
+    elif ! "$PYTHON" "$UPLOADER" prune-gfs --daily "$R2_KEEP_DAILY" --weekly "$R2_KEEP_WEEKLY" --max-age-days "$BACKUP_MAX_AGE_DAYS" --min-age-days "$R2_MIN_AGE_DAYS" --apply; then
         echo "$(date -Is) ERROR no se pudo podar los backups viejos de R2 (el backup de hoy sí se subió)" >&2
         prune_failed=1
     fi

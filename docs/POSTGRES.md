@@ -30,6 +30,7 @@ Van en `.env` (secretos, gitignored; los nombres están en `.env.example`):
 | `BACKUP_AGE_RECIPIENTS` | para backups a R2 | Clave(s) PÚBLICA(S) age (`age1...`) con las que `backup_db.sh` cifra. Sin ella, con R2 configurado, el backup falla (no sube nada en claro). Ver § Backups. |
 | `R2_BACKUP_ACCESS_KEY_ID` / `R2_BACKUP_SECRET_ACCESS_KEY` | para backups a R2 | Token de R2 **solo** del bucket de backups (Object Read & Write, "Apply to specific buckets only"). Sin fallback al token de imágenes/GIFs. |
 | `R2_BACKUP_PREFIX` | no (`gen2/`) | Generación de backups dentro del bucket. Solo `gen<N>/` con N >= 2; la raíz y `gen1/` (lo histórico) se rechazan. |
+| `R2_MIN_AGE_DAYS` | no (6) | La poda de R2 no intenta borrar nada más joven (el Bucket Lock de `gen2/purgito-`). |
 | `R2_KEEP_DAILY` / `R2_KEEP_WEEKLY` / `BACKUP_MAX_AGE_DAYS` | no (7 / 2 / 14) | Retención en R2: diarios, domingos y tope de edad. `KEEP_LAST` (2) es solo la del disco. |
 | `BACKUP_ALERT_WEBHOOK` | no | Webhook de Discord que recibe un aviso si el backup o la exportación del registro fallan. |
 | `DELETION_TOMBSTONE_RETENTION_DAYS` | no (`limits.env`, 15) | Cuánto dura una lápida (usuario o servidor). Debe ser ≥ la antigüedad máxima de un backup (14) + 1. |
@@ -234,6 +235,8 @@ porque un bloqueo de todo el bucket frenaría la poda de `gen2/`):
 | *Bucket Lock* (antiborrado) | `purgito-` | **14 días** | protege los `.dump.age` históricos de la raíz (los de `gen2/` empiezan por `gen2/`, no coinciden) |
 | *Bucket Lock* | `luks-header` y `privacy-prefs` | **14 días** | igual, para el resto de la generación 1 |
 | *Bucket Lock* | `gen2/purgito-` | **6 días** como máximo | protege los backups nuevos de un borrado masivo; los diarios se podan a los 7 días, un bloqueo mayor haría fallar la poda (HTTP 409 `ObjectLockedByBucketPolicy`) |
+
+`prune-gfs` no propone borrar nada con menos de `R2_MIN_AGE_DAYS` (6) días: un backup manual el mismo día que el del timer deja dos del mismo día, y el más viejo se conserva unos días más en vez de provocar un 409 en cada pasada (`tests/test_retention_lock_compat.py` simula 400 días contra estas reglas).
 | *Object lifecycle*: borrar | `gen2/purgito-` | 14 días | tope de la política por si el script no corre |
 | *Object lifecycle*: borrar | `gen2/ledger/` | 15 días | idem para el registro de eliminaciones |
 | *Object lifecycle*: borrar (opcional) | `purgito-`, `luks-header`, `privacy-prefs` | 14 días | hace que la generación 1 caduque sola a los 14 días, como promete la política. Si prefieres decidir a mano, no la actives y bórralos tú antes de cumplir los 14 días (o cambia la política) |
@@ -336,6 +339,16 @@ sudo /opt/purgito-backup/deploy/backup_task.sh preflight           # solo lectur
 sudo /opt/purgito-backup/deploy/backup_task.sh access-check        # solo lectura (token de backups)
 sudo systemctl start purgito-backup.service                        # UN backup (SKIP_PRUNE=1 en backup.env)
 ```
+
+Otras piezas del runner (todas con el mismo usuario y sandbox; **ningún timer se habilita al instalar**):
+
+| Unidad | Qué hace | Frecuencia |
+|---|---|---|
+| `purgito-backup.timer` → `.service` | dump cifrado a `gen2/` y poda | diario 03:17 UTC |
+| `purgito-ledger.timer` → `.service` | exporta el registro de eliminaciones a `gen2/ledger/` y poda las vencidas | cada hora (:07) |
+| `purgito-backup-check.timer` → `.service` | avisa por `BACKUP_ALERT_WEBHOOK` si el último backup tiene más de 36 h o el último registro más de 3 h | cada 6 h (:40) |
+
+El webhook de alertas se guarda sin eco: `sudo /opt/purgito-backup/deploy/set_backup_credentials.sh --webhook`.
 
 Las credenciales de imágenes y GIFs sí van en el `.env` del bot: `deploy/set_media_credentials.sh`
 (pide los dos valores sin eco) y después `r2_backup.py media-check` (solo lectura) y reiniciar `bot-purg`.

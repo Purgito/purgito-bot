@@ -148,6 +148,9 @@ class PrunePlanError(Exception):
 DEFAULT_KEEP_DAILY = 7
 DEFAULT_KEEP_WEEKLY = 2
 DEFAULT_MAX_AGE_DAYS = 14
+# Bucket Lock de Cloudflare sobre gen2/purgito-: R2 rechaza (HTTP 409) borrar algo más joven. La poda
+# no lo intenta: lo deja para la pasada en que ya tenga esta edad (sigue siendo < 14 días).
+DEFAULT_MIN_AGE_DAYS = 6
 
 
 def backup_time(key: str):
@@ -172,13 +175,17 @@ def prune_plan_gfs(
     weekly: int = DEFAULT_KEEP_WEEKLY,
     max_age_days: int = DEFAULT_MAX_AGE_DAYS,
     prefix: str = BACKUP_PREFIX,
+    min_age_days: float = 0,
 ):
     """(válidos, conservados, a borrar) con la retención de la política de privacidad:
 
     - diarios: el backup más reciente de cada uno de los últimos `daily` días UTC;
     - semanales: el backup de los últimos `weekly` domingos (UTC);
     - todo con menos de `max_age_days` días: lo más viejo se borra siempre;
-    - el backup más nuevo nunca se borra.
+    - el backup más nuevo nunca se borra;
+    - nada con menos de `min_age_days` se propone para borrar (lo protege el Bucket Lock: p. ej.
+      un backup manual el mismo día que el del timer deja dos del mismo día; el más viejo se
+      conserva unos días más y se borra cuando ya puede).
 
     Falla (PrunePlanError) en vez de borrar si el más nuevo ya supera `max_age_days`
     o si algún parámetro es inválido: si los backups dejaron de salir, podar sería
@@ -215,6 +222,11 @@ def prune_plan_gfs(
                 sundays.append(k)
     kept.update(sundays[:weekly])
     victims = [k for k in stamped if k not in kept]
+    if min_age_days > 0:
+        floor = timedelta(days=min_age_days)
+        protegidos = [k for k in victims if now - dated[k] < floor]
+        kept |= set(protegidos)
+        victims = [k for k in victims if k not in set(protegidos)]
     return valid, sorted(kept | set(undated)), victims
 
 
@@ -308,6 +320,7 @@ def cmd_prune_gfs(args) -> int:
             args.weekly,
             args.max_age_days,
             args.prefix,
+            args.min_age_days,
         )
     except (ValueError, PrunePlanError) as e:
         _err(str(e))
@@ -339,23 +352,37 @@ def cmd_prune_gfs(args) -> int:
 
 
 def cmd_check(args) -> int:
-    """Sale 1 si no hay backup válido o el más reciente tiene más de --max-age-hours."""
+    """Sale 1 si no hay backup válido o el más reciente tiene más de --max-age-hours.
+    Con --ledger mira las instantáneas del registro de eliminaciones (`ledger/`) en vez de los dumps."""
     from datetime import timedelta
 
     try:
-        valid = valid_backups(r2.list_backups_sync(), args.prefix)
+        listing = r2.list_backups_sync()
     except r2.BackupError as e:
         _err(str(e))
         return 1
-    stamped = [(backup_time(k), k) for k in valid if backup_time(k)]
+    if args.ledger:
+        stamped = [
+            (ledger_time(k), k)
+            for k, size, _m in listing
+            if ledger_time(k) and size > 0
+        ]
+        what = "instantánea del registro"
+    else:
+        stamped = [
+            (backup_time(k), k)
+            for k in valid_backups(listing, args.prefix)
+            if backup_time(k)
+        ]
+        what = "backup"
     if not stamped:
-        _err("no hay ningún backup válido con fecha en el bucket de backups")
+        _err(f"no hay ninguna {what} válida con fecha en el bucket de backups")
         return 1
     when, key = max(stamped)
     age = _now() - when
-    print(f"último backup: {key} ({age.total_seconds() / 3600:.1f} h)")
+    print(f"última {what}: {key} ({age.total_seconds() / 3600:.1f} h)")
     if age > timedelta(hours=args.max_age_hours):
-        _err(f"el último backup tiene más de {args.max_age_hours} h")
+        _err(f"la última {what} tiene más de {args.max_age_hours} h")
         return 1
     return 0
 
@@ -439,6 +466,7 @@ def cmd_preflight(args) -> int:
             args.weekly,
             args.max_age_days,
             args.prefix,
+            args.min_age_days,
         )
         _keys, _kl, ledger_victims = prune_plan_ledger(r2.list_backups_sync(), _now())
         planned = [prefix + k for k in [*victims, *ledger_victims]]
@@ -670,6 +698,12 @@ def main(argv=None) -> int:
     pg.add_argument("--daily", type=int, default=DEFAULT_KEEP_DAILY)
     pg.add_argument("--weekly", type=int, default=DEFAULT_KEEP_WEEKLY)
     pg.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_AGE_DAYS)
+    pg.add_argument(
+        "--min-age-days",
+        type=float,
+        default=DEFAULT_MIN_AGE_DAYS,
+        help="no propone borrar nada más joven (Bucket Lock; default: %(default)s)",
+    )
     pg.add_argument("--prefix", default=BACKUP_PREFIX)
     pg.add_argument("--apply", action="store_true", help="borra de verdad")
     pg.set_defaults(func=cmd_prune_gfs)
@@ -678,6 +712,11 @@ def main(argv=None) -> int:
         "check", help="falla si el último backup es más viejo que N horas"
     )
     ck.add_argument("--max-age-hours", type=int, default=36)
+    ck.add_argument(
+        "--ledger",
+        action="store_true",
+        help="comprueba la última instantánea del registro de eliminaciones (ledger/)",
+    )
     ck.add_argument("--prefix", default=BACKUP_PREFIX)
     ck.set_defaults(func=cmd_check)
 
@@ -695,6 +734,7 @@ def main(argv=None) -> int:
     pf.add_argument("--daily", type=int, default=DEFAULT_KEEP_DAILY)
     pf.add_argument("--weekly", type=int, default=DEFAULT_KEEP_WEEKLY)
     pf.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_AGE_DAYS)
+    pf.add_argument("--min-age-days", type=float, default=DEFAULT_MIN_AGE_DAYS)
     pf.add_argument("--prefix", default=BACKUP_PREFIX)
     pf.set_defaults(func=cmd_preflight)
 

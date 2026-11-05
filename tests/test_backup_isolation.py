@@ -411,3 +411,137 @@ def test_backup_task_solo_admite_subcomandos_de_lectura():
         assert (
             f"{no})" not in sh and f" {no} " not in sh.split("case")[1].split("esac")[0]
         )
+
+
+# ─── registro de eliminaciones y vigilancia en el runner ─────────────────────
+
+RUNNER_UNITS = ["purgito-backup", "purgito-ledger", "purgito-backup-check"]
+
+
+@pytest.mark.parametrize("unit", RUNNER_UNITS)
+def test_las_unidades_del_runner_estan_aisladas_y_su_timer_no_se_habilita_solo(unit):
+    service = (ROOT / "deploy" / f"{unit}.service").read_text()
+    assert "User=purgito_backup" in service
+    assert "EnvironmentFile=/etc/purgito/backup.env" in service
+    assert "ExecStart=/opt/purgito-backup/deploy/" in service  # código de root
+    assert "ReadWritePaths=/var/backups/purgito" in service
+    for hard in (
+        "NoNewPrivileges=yes",
+        "ProtectSystem=strict",
+        "ProtectHome=yes",
+        "CapabilityBoundingSet=",
+    ):
+        assert hard in service
+    assert "/home/purgito" not in service
+    timer = (ROOT / "deploy" / f"{unit}.timer").read_text()
+    assert "OnCalendar=" in timer
+
+
+def test_el_instalador_incluye_el_registro_y_la_vigilancia():
+    sh = (ROOT / "deploy" / "install_backup_runner.sh").read_text()
+    for f in (
+        "scripts/export_privacy_ledger.py",
+        "src/privacy_ledger.py",
+        "deploy/export_ledger.sh",
+        "deploy/backup_check.sh",
+    ):
+        assert f in sh
+    for u in RUNNER_UNITS:
+        assert u in sh
+
+
+def test_el_exportador_del_registro_no_necesita_drivers_de_python():
+    """El python3 del sistema no tiene asyncpg/psycopg: el exportador lee con psql."""
+    codigo = (ROOT / "scripts" / "export_privacy_ledger.py").read_text()
+    for prohibido in (
+        "import pgsync",
+        "import asyncpg",
+        "import psycopg",
+        "from pgsync",
+    ):
+        assert prohibido not in codigo
+    assert "psql" in codigo
+
+
+@needs_tools
+def test_el_exportador_funciona_con_entorno_libpq_sin_database_url(
+    tmp_path, monkeypatch
+):
+    from urllib.parse import urlparse
+
+    spec = importlib.util.spec_from_file_location(
+        "export_privacy_ledger", ROOT / "scripts" / "export_privacy_ledger.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    u = urlparse(os.environ["TEST_DATABASE_URL"])
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("PGUSER", u.username or "")
+    monkeypatch.setenv("PGHOST", u.hostname or "")
+    monkeypatch.setenv("PGPORT", str(u.port or 5432))
+    monkeypatch.setenv("PGDATABASE", u.path.lstrip("/"))
+    monkeypatch.setenv("BACKUP_DIR", str(tmp_path / "b"))
+    assert mod.main(["--dry-run"]) == 0
+    assert not (tmp_path / "b").exists()
+
+
+def test_check_ledger_falla_si_la_ultima_instantanea_es_vieja(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    fake = FakeS3(BUCKET)
+    monkeypatch.setattr(r2, "get_backup_client", lambda: fake)
+    monkeypatch.setenv("R2_BACKUP_BUCKET", BUCKET)
+
+    def key(dt):
+        return (
+            "gen2/ledger/privacy-ledger-" + dt.strftime("%Y%m%dT%H%M%S") + "Z.jsonl.age"
+        )
+
+    ahora = datetime.now(timezone.utc)
+    assert r2_backup.main(["check", "--ledger"]) == 1  # no hay ninguna
+    fake.seed(BUCKET, key(ahora - timedelta(hours=5)))
+    assert r2_backup.main(["check", "--ledger", "--max-age-hours", "3"]) == 1
+    fake.seed(BUCKET, key(ahora - timedelta(minutes=20)))
+    assert r2_backup.main(["check", "--ledger", "--max-age-hours", "3"]) == 0
+
+
+def test_set_backup_credentials_webhook_solo_toca_esa_variable(tmp_path):
+    f = _bk_env(tmp_path)
+    hook = "https://discord.com/api/webhooks/123456789/AbC_def-GHI"
+    proc = subprocess.run(
+        ["bash", str(ROOT / "deploy" / "set_backup_credentials.sh"), "--webhook"],
+        input=hook + "\n",
+        capture_output=True,
+        text=True,
+        env={**os.environ, "ENV_FILE": str(f)},
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert f"BACKUP_ALERT_WEBHOOK={hook}" in f.read_text()
+    for linea in BK_ENV.splitlines():
+        assert linea in f.read_text()
+    assert "AbC_def" not in proc.stdout + proc.stderr
+    assert oct(f.stat().st_mode & 0o777) == "0o600"
+
+
+@pytest.mark.parametrize(
+    "malo",
+    [
+        "http://discord.com/api/webhooks/1/x",
+        "https://evil.example/api/webhooks/1/x",
+        "no-es-url",
+        "",
+    ],
+)
+def test_set_backup_credentials_webhook_rechaza_urls_raras(tmp_path, malo):
+    f = _bk_env(tmp_path)
+    proc = subprocess.run(
+        ["bash", str(ROOT / "deploy" / "set_backup_credentials.sh"), "--webhook"],
+        input=malo + "\n",
+        capture_output=True,
+        text=True,
+        env={**os.environ, "ENV_FILE": str(f)},
+        timeout=30,
+    )
+    assert proc.returncode != 0
+    assert f.read_text() == BK_ENV

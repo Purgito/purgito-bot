@@ -1,0 +1,10 @@
+# Cada 6 horas. NO se habilita al instalar.
+[Unit]
+Description=Vigilancia periódica de backups y registro de Purgito
+
+[Timer]
+OnCalendar=*-*-* 00/6:40:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

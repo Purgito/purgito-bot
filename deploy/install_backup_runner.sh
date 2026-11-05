@@ -15,7 +15,9 @@
 #   - /var/backups/purgito   dumps cifrados, purgito_backup 0700 (el bot no puede leerlos);
 #   - rol PostgreSQL `purgito_backup` de SOLO LECTURA (pg_read_all_data + CONNECT), por socket local con
 #     autenticación peer: no hay contraseña de base de datos para este usuario;
-#   - purgito-backup.service y .timer en /etc/systemd/system. El timer NO se habilita.
+#   - purgito-backup (backup diario), purgito-ledger (registro de privacidad, cada hora) y
+#     purgito-backup-check (vigilancia cada 6 h): .service y .timer en /etc/systemd/system.
+#     Ningún timer se habilita al instalar.
 #
 # Desinstalar (--remove) quita /opt/purgito-backup y las unidades, y deja el usuario, el rol,
 # /etc/purgito/backup.env y /var/backups/purgito para que no se pierda ningún dump.
@@ -54,12 +56,17 @@ FILES=(
     "deploy/age-revoked-recipients.txt:0644"
     "deploy/set_backup_credentials.sh:0755"
     "deploy/backup_task.sh:0755"
+    "deploy/backup_check.sh:0755"
+    "deploy/export_ledger.sh:0755"
+    "src/privacy_ledger.py:0644"
+    "scripts/export_privacy_ledger.py:0755"
 )
+UNITS=(purgito-backup purgito-ledger purgito-backup-check)
 
 if [ "$remove" = 1 ]; then
     say "desinstalar: $OPT y las unidades systemd (se conservan usuario, rol, $ENVF y $BKDIR)"
-    run systemctl disable --now purgito-backup.timer 2>/dev/null || true
-    run rm -rf "$OPT" /etc/systemd/system/purgito-backup.service /etc/systemd/system/purgito-backup.timer
+    for u in "${UNITS[@]}"; do run systemctl disable --now "$u.timer" 2>/dev/null || true; done
+    run rm -rf "$OPT" /etc/systemd/system/purgito-backup.* /etc/systemd/system/purgito-ledger.* /etc/systemd/system/purgito-backup-check.*
     run systemctl daemon-reload
     [ "$apply" = 1 ] || echo "(dry-run: añade --apply)"
     exit 0
@@ -74,6 +81,11 @@ for f in "${FILES[@]}"; do
     if ! git -C "$repo" diff --quiet HEAD -- "${f%%:*}"; then
         die "${f%%:*} tiene cambios sin commitear: se instala lo commiteado, revisa antes"
     fi
+done
+for u in "${UNITS[@]}"; do
+    for ext in service timer; do
+        git -C "$repo" cat-file -e "HEAD:deploy/$u.$ext" 2>/dev/null || die "deploy/$u.$ext no está commiteado en HEAD"
+    done
 done
 command -v age >/dev/null && command -v pg_dump >/dev/null || die "faltan age o pg_dump"
 /usr/bin/python3 -c "import boto3, requests" 2>/dev/null || die "el python3 del sistema necesita boto3 y requests"
@@ -142,8 +154,16 @@ sql="DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='$RUNNER_US
 if [ "$apply" = 1 ]; then sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -c "$sql"; else echo "   (dry-run) CREATE ROLE $RUNNER_USER LOGIN ...; GRANT pg_read_all_data; GRANT CONNECT ON DATABASE $DB_NAME"; fi
 
 say "unidades systemd (el timer NO se habilita)"
-run install -m 0644 -o root -g root "$repo/deploy/purgito-backup.service" /etc/systemd/system/purgito-backup.service
-run install -m 0644 -o root -g root "$repo/deploy/purgito-backup.timer" /etc/systemd/system/purgito-backup.timer
+for u in "${UNITS[@]}"; do
+    for ext in service timer; do
+        if [ "$apply" = 1 ]; then
+            git -C "$repo" show "HEAD:deploy/$u.$ext" > "$tmpdir/unit"
+            install -m 0644 -o root -g root "$tmpdir/unit" "/etc/systemd/system/$u.$ext"
+        else
+            echo "   (dry-run) HEAD:deploy/$u.$ext -> /etc/systemd/system/$u.$ext"
+        fi
+    done
+done
 run systemctl daemon-reload
 
 [ "$apply" = 1 ] || echo "(dry-run: no se cambió nada; añade --apply)"

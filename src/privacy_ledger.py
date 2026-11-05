@@ -38,25 +38,41 @@ def _now_text(now: datetime) -> str:
     return now.astimezone(timezone.utc).strftime(_TS_FMT)
 
 
+USERS_SQL = (
+    "SELECT user_id, deleted_at, expires_at FROM deleted_user_tombstones "
+    "WHERE expires_at > {now} ORDER BY user_id"
+)
+GUILDS_SQL = (
+    "SELECT purged_guild_id, purged_at, expires_at FROM purged_guild_tombstones "
+    "WHERE expires_at > {now} ORDER BY purged_guild_id"
+)
+EXCLUSIONS_SQL = (
+    "SELECT guild_id, user_id, exclude_interaction, exclude_learning, created_at "
+    "FROM excluded_users ORDER BY guild_id, user_id"
+)
+
+
 def build_snapshot(conn, now: datetime | None = None) -> list[dict]:
-    """Registros de la instantánea (header, datos, footer) a partir de una conexión
-    síncrona de pgsync. Solo lápidas vigentes (`expires_at > ahora`)."""
+    """Registros de la instantánea a partir de una conexión síncrona de pgsync (tests y
+    herramientas del checkout). Solo lápidas vigentes (`expires_at > ahora`)."""
     now = now or datetime.now(timezone.utc)
     now_text = _now_text(now)
-    users = conn.execute(
-        "SELECT user_id, deleted_at, expires_at FROM deleted_user_tombstones "
-        "WHERE expires_at > ? ORDER BY user_id",
-        (now_text,),
-    ).fetchall()
-    guilds = conn.execute(
-        "SELECT purged_guild_id, purged_at, expires_at FROM purged_guild_tombstones "
-        "WHERE expires_at > ? ORDER BY purged_guild_id",
-        (now_text,),
-    ).fetchall()
-    exclusions = conn.execute(
-        "SELECT guild_id, user_id, exclude_interaction, exclude_learning, created_at "
-        "FROM excluded_users ORDER BY guild_id, user_id"
-    ).fetchall()
+    return snapshot_from_rows(
+        conn.execute(USERS_SQL.format(now="?"), (now_text,)).fetchall(),
+        conn.execute(GUILDS_SQL.format(now="?"), (now_text,)).fetchall(),
+        conn.execute(EXCLUSIONS_SQL).fetchall(),
+        now,
+    )
+
+
+def snapshot_from_rows(
+    users, guilds, exclusions, now: datetime | None = None
+) -> list[dict]:
+    """Registros de la instantánea (header, datos, footer) a partir de las filas de las
+    tres consultas (USERS_SQL, GUILDS_SQL, EXCLUSIONS_SQL). No depende de ningún driver:
+    el exportador del runner aislado las obtiene con `psql`."""
+    now = now or datetime.now(timezone.utc)
+    now_text = _now_text(now)
     out: list[dict] = [
         {"type": "header", "version": SNAPSHOT_VERSION, "exported_at": now_text}
     ]

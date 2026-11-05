@@ -5,7 +5,8 @@
 # el servicio. Los valores no pasan por argumentos (no salen en `ps`), no van al historial,
 # no se imprimen y no se copian a ningún otro sitio.
 #
-#   sudo /opt/purgito-backup/deploy/set_backup_credentials.sh
+#   sudo /opt/purgito-backup/deploy/set_backup_credentials.sh             # las 2 credenciales de R2
+#   sudo /opt/purgito-backup/deploy/set_backup_credentials.sh --webhook   # el webhook de alertas de Discord
 #
 # Se ejecuta SOLO desde la copia de root en /opt/purgito-backup: el script del checkout del
 # bot es escribible por el usuario del bot, y alguien con acceso a ese usuario podría
@@ -28,6 +29,26 @@ if [ "$ENV_FILE" = "/etc/purgito/backup.env" ]; then
         || die "$self no es de root o es escribible por otros: no se continúa"
 fi
 [ -f "$ENV_FILE" ] || die "no existe $ENV_FILE (lo crea deploy/install_backup_runner.sh)"
+
+if [ "${1:-}" = "--webhook" ]; then
+    IFS= read -rsp "BACKUP_ALERT_WEBHOOK (URL del webhook de Discord): " hook; echo >&2
+    if [[ ! "$hook" =~ ^https://(discord|discordapp)\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+$ ]]; then
+        die "no parece una URL de webhook de Discord (https://discord.com/api/webhooks/<id>/<token>). No se cambió nada."
+    fi
+    tmp="$(mktemp "$ENV_FILE.XXXXXX")"
+    trap 'rm -f "$tmp"' EXIT
+    NEW_HOOK="$hook" awk '
+        /^BACKUP_ALERT_WEBHOOK=/ { if (!h) { print "BACKUP_ALERT_WEBHOOK=" ENVIRON["NEW_HOOK"]; h = 1 } ; next }
+        { print }
+        END { if (!h) print "BACKUP_ALERT_WEBHOOK=" ENVIRON["NEW_HOOK"] }' "$ENV_FILE" > "$tmp"
+    unset hook
+    if [ "$(id -u)" = "0" ]; then chown root:root "$tmp"; fi
+    chmod 600 "$tmp"
+    mv "$tmp" "$ENV_FILE"
+    trap - EXIT
+    echo "OK: BACKUP_ALERT_WEBHOOK guardado en $ENV_FILE ($(stat -c '%U:%G %a' "$ENV_FILE"))." >&2
+    exit 0
+fi
 
 IFS= read -rsp "R2_BACKUP_ACCESS_KEY_ID (token Backups): " key_id; echo >&2
 IFS= read -rsp "R2_BACKUP_SECRET_ACCESS_KEY (token Backups): " secret; echo >&2

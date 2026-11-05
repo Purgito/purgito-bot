@@ -27,12 +27,15 @@ from datetime import datetime, timezone
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from dotenv import load_dotenv  # noqa: E402
+try:  # el runner aislado no tiene python-dotenv ni .env: el entorno lo da systemd
+    from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(os.path.join(ROOT, ".env"))
+    if os.access(os.path.join(ROOT, ".env"), os.R_OK):
+        load_dotenv(os.path.join(ROOT, ".env"))
+except ImportError:  # pragma: no cover - depende del entorno
+    pass
 
 import backup_recipients  # noqa: E402
-import pgsync  # noqa: E402
 import privacy_ledger  # noqa: E402
 import r2  # noqa: E402
 
@@ -94,13 +97,36 @@ def _alert() -> None:
         pass
 
 
+def _query(sql: str) -> list[list[str]]:
+    """Filas de una consulta de SOLO LECTURA con `psql --csv` (sin drivers de Python).
+    Conexión: DATABASE_URL si está; si no, el entorno libpq (PGUSER/PGHOST/PGDATABASE), que
+    es como se conecta el runner aislado (rol de solo lectura, socket local, sin contraseña)."""
+    cmd = ["psql", "-X", "-q", "--csv", "-t", "-v", "ON_ERROR_STOP=1"]
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url:
+        cmd.append(url)
+    elif not (os.getenv("PGUSER") and os.getenv("PGDATABASE")):
+        raise RuntimeError("falta DATABASE_URL o PGUSER+PGDATABASE")
+    cmd += ["-c", sql]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if proc.returncode != 0:
+        # psql puede nombrar la tabla o el usuario; nunca la contraseña (no viaja en argv)
+        raise RuntimeError(f"psql falló: {proc.stderr.strip().splitlines()[-1][:160]}")
+    import csv
+    import io
+
+    return [row for row in csv.reader(io.StringIO(proc.stdout)) if row]
+
+
 def run(args) -> int:
     now = datetime.now(timezone.utc)
-    conn = pgsync.connect(os.getenv("DATABASE_URL"))
-    try:
-        records = privacy_ledger.build_snapshot(conn, now)
-    finally:
-        conn.close()
+    now_text = now.strftime("%Y-%m-%d %H:%M:%S")
+    records = privacy_ledger.snapshot_from_rows(
+        _query(privacy_ledger.USERS_SQL.format(now=f"'{now_text}'")),
+        _query(privacy_ledger.GUILDS_SQL.format(now=f"'{now_text}'")),
+        _query(privacy_ledger.EXCLUSIONS_SQL),
+        now,
+    )
     text = privacy_ledger.dumps(records)
     privacy_ledger.loads(text)  # lo que se exporta tiene que poder leerse de vuelta
     counts = records[-1]["counts"]

@@ -603,7 +603,7 @@ def test_backup_db_poda_r2_diaria_y_semanal_y_falla_si_la_poda_falla(
     llamadas = log.read_text().splitlines()
     i = llamadas.index("prune-gfs")
     # 7 diarios + 2 semanales, nada de 14 días o más; ya no es "los N últimos"
-    assert llamadas[i : i + 8] == [
+    assert llamadas[i : i + 10] == [
         "prune-gfs",
         "--daily",
         "7",
@@ -611,6 +611,8 @@ def test_backup_db_poda_r2_diaria_y_semanal_y_falla_si_la_poda_falla(
         "2",
         "--max-age-days",
         "14",
+        "--min-age-days",
+        "6",
         "--apply",
     ]
     assert "--keep" not in llamadas
