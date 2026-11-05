@@ -1,0 +1,12 @@
+# Diario a las 03:17 UTC. NO se habilita al instalar: se activa a propósito
+# (sudo systemctl enable --now purgito-backup.timer) cuando la restauración está probada.
+[Unit]
+Description=Backup diario de Purgito (gen2)
+
+[Timer]
+OnCalendar=*-*-* 03:17:00 UTC
+Persistent=true
+RandomizedDelaySec=0
+
+[Install]
+WantedBy=timers.target

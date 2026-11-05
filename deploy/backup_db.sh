@@ -43,6 +43,7 @@
 #   KEEP_LAST                            cuántos backups se conservan en el DISCO (default: 2, mínimo 1)
 #   R2_KEEP_DAILY / R2_KEEP_WEEKLY       retención en R2: diarios y domingos (default: 7 y 2)
 #   BACKUP_MAX_AGE_DAYS                  antigüedad máxima en R2 (default: 14; la de la política de privacidad)
+#   SKIP_PRUNE=1                         no poda nada (ni R2 ni disco); solo para el primer backup manual
 #   MIN_FREE_MB / BACKUP_EST_MB          reserva de disco que debe quedar libre (default 400) y estimación del dump sin backups previos (150)
 #   BACKUP_ALERT_WEBHOOK                 webhook de Discord al que avisar si el backup falla (default: el del .env)
 #   ENV_FILE                             .env del que leer DATABASE_URL y R2_BACKUP_BUCKET (default: el del repo)
@@ -65,6 +66,8 @@ BACKUP_MAX_AGE_DAYS="${BACKUP_MAX_AGE_DAYS:-14}"
 # Reserva de disco: tras el backup tienen que quedar libres al menos MIN_FREE_MB en el
 # filesystem. PostgreSQL vive en el mismo disco: si el backup lo llenara, la base podría
 # caerse al no poder escribir WAL. BACKUP_EST_MB estima el dump si aún no hay backups.
+# SKIP_PRUNE=1: no poda nada (ni en R2 ni en el disco). Para el primer backup manual.
+SKIP_PRUNE="${SKIP_PRUNE:-0}"
 MIN_FREE_MB="${MIN_FREE_MB:-400}"
 BACKUP_EST_MB="${BACKUP_EST_MB:-150}"
 PYTHON="${PYTHON:-$script_dir/../.venv/bin/python}"
@@ -129,24 +132,28 @@ fi
 # Lee UNA variable del .env sin ejecutarlo (nada de `source .env`).
 database_url="${DATABASE_URL:-}"
 [ -n "$database_url" ] || database_url="$(env_value DATABASE_URL)"
-if [ -z "$database_url" ]; then
-    echo "$(date -Is) ERROR falta DATABASE_URL (entorno o $ENV_FILE)" >&2
+if [ -z "$database_url" ] && [ -n "${PGUSER:-}" ] && [ -n "${PGDATABASE:-}" ]; then
+    # Entorno libpq (PGUSER/PGHOST/PGDATABASE): es el caso del runner aislado, que se
+    # conecta por el socket local con un rol de solo lectura (peer, sin contraseña).
+    export PGHOST="${PGHOST:-/var/run/postgresql}"
+elif [ -z "$database_url" ]; then
+    echo "$(date -Is) ERROR falta DATABASE_URL (entorno o $ENV_FILE) o PGUSER+PGDATABASE" >&2
     exit 1
+else
+    # postgresql://user:clave@host:puerto/base -> variables PG* (la clave no viaja en
+    # la línea de comandos, donde `ps` la mostraría).
+    re='^postgres(ql)?://([^:@/]+)(:([^@]*))?@([^:/]+)(:([0-9]+))?/([^?]+)'
+    if [[ ! "$database_url" =~ $re ]]; then
+        echo "$(date -Is) ERROR DATABASE_URL no tiene la forma postgresql://usuario:clave@host:puerto/base" >&2
+        exit 1
+    fi
+    export PGUSER="${BASH_REMATCH[2]}"
+    PGPASSWORD="$(printf '%b' "${BASH_REMATCH[4]//%/\\x}")"
+    export PGPASSWORD
+    export PGHOST="${BASH_REMATCH[5]}"
+    export PGPORT="${BASH_REMATCH[7]:-5432}"
+    export PGDATABASE="${BASH_REMATCH[8]}"
 fi
-
-# postgresql://user:clave@host:puerto/base -> variables PG* (la clave no viaja en
-# la línea de comandos, donde `ps` la mostraría).
-re='^postgres(ql)?://([^:@/]+)(:([^@]*))?@([^:/]+)(:([0-9]+))?/([^?]+)'
-if [[ ! "$database_url" =~ $re ]]; then
-    echo "$(date -Is) ERROR DATABASE_URL no tiene la forma postgresql://usuario:clave@host:puerto/base" >&2
-    exit 1
-fi
-export PGUSER="${BASH_REMATCH[2]}"
-PGPASSWORD="$(printf '%b' "${BASH_REMATCH[4]//%/\\x}")"
-export PGPASSWORD
-export PGHOST="${BASH_REMATCH[5]}"
-export PGPORT="${BASH_REMATCH[7]:-5432}"
-export PGDATABASE="${BASH_REMATCH[8]}"
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -263,7 +270,9 @@ if [ -n "$backup_bucket" ]; then
     # Retención en R2: diarios + domingos con tope de edad (no depende de una
     # regla de lifecycle del dashboard; el tope de 14 días lo cumple el propio script). Un fallo se avisa y hace fallar la corrida, pero
     # el backup de hoy ya está hecho y subido.
-    if ! "$PYTHON" "$UPLOADER" prune-gfs --daily "$R2_KEEP_DAILY" --weekly "$R2_KEEP_WEEKLY" --max-age-days "$BACKUP_MAX_AGE_DAYS" --apply; then
+    if [ "$SKIP_PRUNE" = "1" ]; then
+        log "R2 PRUNE OMITIDO (SKIP_PRUNE=1): no se borra nada en R2"
+    elif ! "$PYTHON" "$UPLOADER" prune-gfs --daily "$R2_KEEP_DAILY" --weekly "$R2_KEEP_WEEKLY" --max-age-days "$BACKUP_MAX_AGE_DAYS" --apply; then
         echo "$(date -Is) ERROR no se pudo podar los backups viejos de R2 (el backup de hoy sí se subió)" >&2
         prune_failed=1
     fi
@@ -298,7 +307,11 @@ prune_local() {
     done
     log "LOCAL PRUNE: $kept conservado(s), $deleted borrado(s)"
 }
-prune_local "$KEEP_LAST"
+if [ "$SKIP_PRUNE" = "1" ]; then
+    log "LOCAL PRUNE OMITIDO (SKIP_PRUNE=1): no se borra nada en el disco"
+else
+    prune_local "$KEEP_LAST"
+fi
 
 log "BACKUP COMPLETE: OK backup -> $dest (pg_restore --list ok, $tables tablas con datos, $state, $remote)"
 [ "$prune_failed" -eq 0 ] || exit 1

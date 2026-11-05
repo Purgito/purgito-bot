@@ -12,6 +12,7 @@ desde un backup"). No lo usa el bot.
     python scripts/r2_backup.py prune-ledger [--max-age-days 15] [--apply]
     python scripts/r2_backup.py preflight                    # solo lectura: ¿es seguro correr un backup?
     python scripts/r2_backup.py access-check                 # solo lectura: ¿los tokens están separados?
+    python scripts/r2_backup.py media-check                  # solo lectura: ¿el token de imágenes/GIFs funciona y no ve los backups?
     python scripts/r2_backup.py download latest --dest ~/restore
     python scripts/r2_backup.py download purgito-20261001-031700.dump --dest ~/restore
 
@@ -41,9 +42,17 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from dotenv import load_dotenv  # noqa: E402
+# Con el runner aislado (/opt/purgito-backup) no hay .env del bot ni python-dotenv: las
+# variables llegan por EnvironmentFile de systemd. Se carga el .env solo si existe y se puede
+# leer (en el checkout del bot, como siempre).
+try:
+    from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(os.path.join(ROOT, ".env"))
+    _dotenv = os.path.join(ROOT, ".env")
+    if os.access(_dotenv, os.R_OK):
+        load_dotenv(_dotenv)
+except ImportError:  # pragma: no cover - depende del entorno
+    pass
 
 import r2  # noqa: E402
 
@@ -464,21 +473,67 @@ def _can_list(client, bucket: str) -> bool:
         raise
 
 
+def cmd_media_check(args) -> int:
+    """Solo lectura (ListObjectsV2 de 1 elemento): el token de imágenes/GIFs (R2_ACCESS_KEY_ID)
+    tiene que poder listar sus dos buckets y NO el de backups. No necesita las credenciales de
+    backups, así que se puede usar antes de tenerlas."""
+    client = r2.get_client()
+    images, gifs, backups = (
+        r2.bucket_for(r2.IMAGES),
+        r2.bucket_for(r2.GIFS),
+        r2.bucket_for(r2.BACKUPS),
+    )
+    if client is None or not images or not gifs:
+        _err(
+            "faltan R2_ENDPOINT_URL, R2_ACCESS_KEY_ID/SECRET o los buckets de imágenes/GIFs"
+        )
+        return 1
+    problems = []
+    for bucket, expected in ((images, True), (gifs, True), (backups, False)):
+        if not bucket:
+            continue
+        try:
+            got = _can_list(client, bucket)
+        except Exception as e:  # noqa: BLE001 - se informa, no se adivina
+            problems.append(f"{bucket}: error inesperado ({type(e).__name__})")
+            continue
+        print(
+            f"token de imágenes/GIFs -> {bucket:<18} {'puede' if got else 'no puede'} listar "
+            f"(esperado: {'sí' if expected else 'no'}) {'OK' if got == expected else 'FALLO'}"
+        )
+        if got != expected:
+            problems.append(
+                f"el token de imágenes/GIFs {'no puede' if not got else 'puede'} listar {bucket}"
+            )
+    for p in problems:
+        _err(p)
+    print("MEDIA-CHECK: OK" if not problems else "MEDIA-CHECK: FALLÓ")
+    return 1 if problems else 0
+
+
 def cmd_access_check(args) -> int:
     """Solo lectura (un ListObjectsV2 de 1 elemento por par token/bucket): comprueba que
     el token de backups SOLO ve el bucket de backups y que el de imágenes/GIFs NO ve el
-    de backups. Mientras comparten acceso sale con 1 y lo dice."""
+    de backups. Mientras comparten acceso sale con 1 y lo dice.
+
+    --backup-only: solo las comprobaciones del token de backups (es lo único que ve el
+    runner aislado; el lado de imágenes/GIFs lo comprueba `media-check` en el bot)."""
     backups = r2.bucket_for(r2.BACKUPS)
     images = r2.bucket_for(r2.IMAGES)
     gifs = r2.bucket_for(r2.GIFS)
     bk_client = r2.get_backup_client()
-    img_client = r2.get_client()
-    if not backups or bk_client is None or img_client is None:
+    img_client = None if args.backup_only else r2.get_client()
+    if (
+        not backups
+        or bk_client is None
+        or (img_client is None and not args.backup_only)
+    ):
         _err("faltan credenciales (R2_BACKUP_* y/o R2_ACCESS_KEY_ID) o buckets")
         return 1
     problems = []
     if (
-        os.getenv("R2_BACKUP_ACCESS_KEY_ID", "").strip()
+        not args.backup_only
+        and os.getenv("R2_BACKUP_ACCESS_KEY_ID", "").strip()
         == os.getenv("R2_ACCESS_KEY_ID", "").strip()
     ):
         problems.append(
@@ -488,10 +543,13 @@ def cmd_access_check(args) -> int:
         ("token de backups", bk_client, backups, True),
         ("token de backups", bk_client, images, False),
         ("token de backups", bk_client, gifs, False),
-        ("token de imágenes/GIFs", img_client, backups, False),
-        ("token de imágenes/GIFs", img_client, images, True),
-        ("token de imágenes/GIFs", img_client, gifs, True),
     ]
+    if not args.backup_only:
+        checks += [
+            ("token de imágenes/GIFs", img_client, backups, False),
+            ("token de imágenes/GIFs", img_client, images, True),
+            ("token de imágenes/GIFs", img_client, gifs, True),
+        ]
     for who, client, bucket, expected in checks:
         if not bucket:
             continue
@@ -515,6 +573,26 @@ def cmd_access_check(args) -> int:
         _err(p)
     print("ACCESS-CHECK: OK" if not problems else "ACCESS-CHECK: FALLÓ")
     return 1 if problems else 0
+
+
+def cmd_head(args) -> int:
+    """Solo lectura: HEAD de un objeto de la generación vigente (tamaño, fecha, sha256 que
+    guardó la subida)."""
+    try:
+        key = r2._backup_relative_key(args.name)
+        client, bucket = r2._backup_client_and_bucket()
+        head = client.head_object(Bucket=bucket, Key=r2.backup_prefix() + key)
+    except r2.BackupError as e:
+        _err(str(e))
+        return 1
+    except Exception as e:  # noqa: BLE001
+        _err(f"no se pudo leer {args.name}: {type(e).__name__}")
+        return 1
+    print(f"ubicación: {bucket}/{r2.backup_prefix()}{key}")
+    print(f"tamaño:    {head.get('ContentLength')} bytes")
+    print(f"fecha:     {head.get('LastModified')}")
+    print(f"sha256:    {(head.get('Metadata') or {}).get('sha256', '(sin metadato)')}")
+    return 0
 
 
 def _flags_key_for(key: str) -> str | None:
@@ -620,11 +698,31 @@ def main(argv=None) -> int:
     pf.add_argument("--prefix", default=BACKUP_PREFIX)
     pf.set_defaults(func=cmd_preflight)
 
+    mc = sub.add_parser(
+        "media-check",
+        help="comprueba (solo lectura) el token de imágenes/GIFs y que no ve los backups",
+    )
+    mc.set_defaults(func=cmd_media_check)
+
     ac = sub.add_parser(
         "access-check",
         help="comprueba (solo lectura) que los tokens de R2 están separados",
     )
+    ac.add_argument(
+        "--backup-only",
+        action="store_true",
+        help="solo el token de backups (no usa R2_ACCESS_KEY_ID)",
+    )
     ac.set_defaults(func=cmd_access_check)
+
+    hd = sub.add_parser(
+        "head",
+        help="tamaño y sha256 (metadato de la subida) de un objeto de la generación vigente",
+    )
+    hd.add_argument(
+        "name", help="key relativa, p. ej. purgito-20261105-203045.dump.age"
+    )
+    hd.set_defaults(func=cmd_head)
 
     dl = sub.add_parser("download", help="baja un backup (y su tar de flags)")
     dl.add_argument("name", help="key del backup, o 'latest' para el más reciente")

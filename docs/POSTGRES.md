@@ -223,7 +223,7 @@ dashboard.
 | Token | Permiso | Buckets | Dónde vive | Para qué |
 |---|---|---|---|---|
 | Imágenes y GIFs (`R2_ACCESS_KEY_ID`) | Object Read & Write | `purgito-images`, `purgito-gifs` | `.env` del bot | el bot; **no** ve `purgito-backups` |
-| Backups (`R2_BACKUP_ACCESS_KEY_ID`) | Object Read & Write | solo `purgito-backups` | `.env` del servidor | subir y podar `gen2/` |
+| Backups (`R2_BACKUP_ACCESS_KEY_ID`) | Object Read & Write | solo `purgito-backups` | `/etc/purgito/backup.env` (root:root 0600), **no** en el `.env` del bot | subir y podar `gen2/` |
 | Restauración (solo en tu PC) | **Object Read only** | solo `purgito-backups` | Proton Pass, tu PC | bajar dumps para probarlos; no puede escribir ni borrar |
 
 **Reglas en el dashboard de `purgito-backups`** (todas por prefijo; ninguna regla sin prefijo,
@@ -311,21 +311,48 @@ Lo único de lo que depende es la clave age y R2 (si quieres una tercera vía in
 baja la última instantánea a tu PC junto con el dump de la prueba mensual). La pérdida
 máxima es una hora de eliminaciones (cron horario de `export_ledger.sh`).
 
+### Runner aislado de backups (el bot no puede leer sus credenciales)
+
+El bot carga el `.env` entero en su entorno y su usuario (`purgito`) puede leerlo y modificar
+los scripts del checkout. Por eso las credenciales de backups **no van al `.env`** y el backup
+no corre como el bot:
+
+| Pieza | Dónde | Propietario |
+|---|---|---|
+| Usuario del runner | `purgito_backup` (sin login ni home) | sistema |
+| Código de backups | `/opt/purgito-backup/` (copia de lo commiteado, `git show HEAD:`) | root:root; el bot no puede modificarlo |
+| Configuración y credenciales R2 | `/etc/purgito/backup.env` | root:root 0600; lo lee solo systemd (`EnvironmentFile=`) |
+| Dumps | `/var/backups/purgito/` | `purgito_backup` 0700 |
+| Acceso a PostgreSQL | rol `purgito_backup`, `pg_read_all_data`, socket local con `peer` | sin contraseña |
+| Servicio | `purgito-backup.service` (sandbox) y `purgito-backup.timer` (no habilitado) | root |
+
+El bot corre con `NoNewPrivileges=yes`, así que tampoco puede escalar con `sudo`.
+
+```bash
+sudo deploy/install_backup_runner.sh --recipient age1...           # dry-run
+sudo deploy/install_backup_runner.sh --recipient age1... --apply   # instala (no toca bot, Studio ni cron)
+sudo /opt/purgito-backup/deploy/set_backup_credentials.sh          # tú tecleas las 2 credenciales, sin eco
+sudo /opt/purgito-backup/deploy/backup_task.sh preflight           # solo lectura
+sudo /opt/purgito-backup/deploy/backup_task.sh access-check        # solo lectura (token de backups)
+sudo systemctl start purgito-backup.service                        # UN backup (SKIP_PRUNE=1 en backup.env)
+```
+
+Las credenciales de imágenes y GIFs sí van en el `.env` del bot: `deploy/set_media_credentials.sh`
+(pide los dos valores sin eco) y después `r2_backup.py media-check` (solo lectura) y reiniciar `bot-purg`.
+
 ### Activación de la generación 2 (lista de comprobación)
 
 1. Reglas de Bucket Lock y lifecycle en Cloudflare (tabla de arriba), **antes** del primer backup.
-2. Tokens separados creados por el titular y escritos en el `.env` por SSH privado
-   (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`). `r2_backup.py access-check`
-   (solo lectura) comprueba que el token de backups solo ve `purgito-backups` y que el de
-   imágenes/GIFs no lo ve; mientras el de imágenes siga siendo el antiguo, saldrá `FALLÓ`.
-3. `deploy/gen2_config.sh apply <age1...>` (dry-run) y luego `--yes`: cambia solo
-   `BACKUP_AGE_RECIPIENTS` y `R2_BACKUP_PREFIX`; `revert --yes` los devuelve.
-4. `r2_backup.py preflight` debe dar `PREFLIGHT: OK`.
-5. Espacio: `backup_db.sh` se niega a empezar (y a cifrar) si tras el backup no quedan
+2. Tokens separados creados por el titular. Medios → `.env` del bot (`set_media_credentials.sh`);
+   backups → `/etc/purgito/backup.env` (`set_backup_credentials.sh`). Comprobación: `media-check`
+   (bot) y `backup_task.sh access-check` (runner): cada token ve solo lo suyo.
+3. `backup_task.sh preflight` debe dar `PREFLIGHT: OK`.
+4. Espacio: `backup_db.sh` se niega a empezar (y a cifrar) si tras el backup no quedan
    `MIN_FREE_MB` (400) libres; el dump usa `nice`. Un `pg_dump` interrumpido no deja nada
    a medias en PostgreSQL y el `trap` borra los temporales.
-6. Primer backup manual, descarga desde R2 y restauración real en PostgreSQL 18 aislado
-   (siguiente sección). Solo entonces se reactiva el cron.
+5. Primer backup manual (`systemctl start purgito-backup.service`), descarga desde R2 y
+   restauración real en PostgreSQL 18 aislado (siguiente sección). Solo entonces se quita
+   `SKIP_PRUNE=1` de `backup.env` y se habilita el timer (`systemctl enable --now purgito-backup.timer`).
 
 ### Probar la restauración en Windows (equipo del titular)
 
