@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src
 import db  # noqa: E402
 import pgsync  # noqa: E402
 import privacy_ledger  # noqa: E402
+import privacy_requests  # noqa: E402
 
 
 def merge_ledger(conn, ledger: dict) -> dict:
@@ -45,7 +46,12 @@ def merge_ledger(conn, ledger: dict) -> dict:
     transacción del llamador. Solo lápidas vigentes; conserva la expiración más
     lejana; las exclusiones solo se suman (GREATEST), nunca se quitan."""
     now = conn.execute("SELECT utc_now()").fetchone()[0]
-    stats = {"lapidas_usuario": 0, "lapidas_servidor": 0, "exclusiones": 0}
+    stats = {
+        "lapidas_usuario": 0,
+        "lapidas_servidor": 0,
+        "exclusiones": 0,
+        "solicitudes": 0,
+    }
     for rec in ledger["user_tombstones"]:
         if rec["expires_at"] <= now:
             continue
@@ -86,6 +92,29 @@ def merge_ledger(conn, ledger: dict) -> dict:
             ),
         )
         stats["exclusiones"] += 1
+    # Solicitudes del Centro de Privacidad que seguían abiertas al exportar: se recrean (con
+    # su fecha límite original) para que el trabajador las procese al arrancar el bot.
+    for rec in ledger.get("deletion_requests", []):
+        if conn.execute(
+            "SELECT 1 FROM privacy_requests WHERE user_id=? AND kind='delete' "
+            "AND status <> 'completed'",
+            (rec["user_id"],),
+        ).fetchone():
+            continue
+        conn.execute(
+            "INSERT INTO privacy_requests (user_id, kind, status, source, created_at, "
+            "due_at, next_attempt_at) VALUES (?, 'delete', 'pending', 'restore', ?, ?, ?)",
+            (rec["user_id"], rec["created_at"], rec["due_at"], now),
+        )
+        new_id = conn.execute(
+            "SELECT id FROM privacy_requests WHERE user_id=? AND kind='delete' "
+            "AND status <> 'completed'",
+            (rec["user_id"],),
+        ).fetchone()[0]
+        privacy_requests.append_log_sync(
+            conn, new_id, "restored_from_ledger", {"due_at": rec["due_at"]}, now
+        )
+        stats["solicitudes"] += 1
     return stats
 
 
@@ -116,6 +145,7 @@ def reapply(conn, *, apply: bool) -> dict:
             ).rowcount
             conn.execute(db._SQL_DELETE_GIF_SENDERS_OF_USER, (user_id,))
             conn.execute(db._SQL_DELETE_BOOSTS_OF_USER, (user_id,))
+            conn.execute(db._SQL_DELETE_FRASES_OF_USER, (user_id,))
         else:
             stats["user_corpus"] += conn.execute(
                 "SELECT count(*) FROM user_corpus WHERE author_id=?", (user_id,)
@@ -200,7 +230,8 @@ def main(argv=None) -> int:
                 f"registro externo ({ledger['exported_at']}): "
                 f"lápidas de usuario={merged['lapidas_usuario']} "
                 f"de servidor={merged['lapidas_servidor']} "
-                f"exclusiones restauradas={merged['exclusiones']}"
+                f"exclusiones restauradas={merged['exclusiones']} "
+                f"solicitudes recreadas={merged['solicitudes']}"
                 f"{'' if args.apply else ' (dry-run: no se guarda)'}"
             )
         stats = reapply(conn, apply=args.apply)

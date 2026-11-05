@@ -11,6 +11,12 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 ## [Unreleased]
 
 ### Security
+- Centro de Privacidad (backend): `privacy_requests` (cola persistente de solicitudes de eliminación, plazo de 7 días, reintentos con espera creciente, arrendamiento que sobrevive a caídas) y `privacy_request_log` (solo-añadir, encadenado por hash, sin ids de persona; `privacy_requests.verify_log`). API: `GET /api/me/privacy`, `PUT /api/me/privacy/exclusion`, `POST /api/me/privacy/requests`, `GET /api/me/privacy/export`. Trabajador cada 60 s en `cogs/privacy.py`.
+- Exclusión global: fila `excluded_users.guild_id = 0` (`db.GLOBAL_EXCLUSION_GUILD_ID`), comando `/privacidad`; `save_corpus_and_user_message` la comprueba como última barrera.
+- `delete_user_data` borra además `gif_senders`, `member_boost_records` y `frases_especiales`; `db.build_user_export`/`export_payload` alimentan `/mis_datos` y la API.
+- Registro externo de eliminaciones: nuevo registro `deletion_request` (solicitudes abiertas); `reapply_deletions.py` las recrea y ahora EXIGE `--ledger` (o `--sin-registro`).
+- Avisos por Gmail (`privacy_alerts.py`, `deploy/set_privacy_alert_credentials.sh`) para solicitudes fallidas, próximas a vencer y vencidas; sin credenciales el aviso queda pendiente.
+- Se retiran el sistema de memes y la integración con Groq (sin tocar las tablas).
 - Backups: token de R2 propio (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`, `r2.get_backup_client`) sin fallback al de imágenes/GIFs; `delete_backup_sync` solo acepta keys `purgito-*`, `bot-*` y `ledger/*` sin `..`.
 - Registro de eliminaciones fuera de la base: `purged_guild_tombstones` (lápida de servidores purgados, 15 días), `src/privacy_ledger.py`, `scripts/export_privacy_ledger.py` + `deploy/export_ledger.sh` (instantánea cifrada con age en `ledger/` de R2, ids y fechas) y `reapply_deletions.py --ledger` (funde el registro, purga servidores, restaura exclusiones sin quitar ninguna).
 

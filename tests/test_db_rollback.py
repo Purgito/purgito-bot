@@ -141,6 +141,8 @@ def test_falla_real_en_una_secuencia_de_dos_execute_de_una_funcion_real(
 
         def flaky_execute(sql, params=()):
             nonlocal call_count
+            if sql.lstrip().upper().startswith("SELECT"):
+                return real_execute(sql, params)  # lecturas (p. ej. la guardia de exclusión)
             call_count += 1
             if call_count == 2 and "user_corpus" in sql:
                 raise RuntimeError("disco lleno simulado en el segundo execute()")

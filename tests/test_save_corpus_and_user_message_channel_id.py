@@ -130,6 +130,8 @@ def test_corpus_messages_y_user_corpus_siguen_atomicos_bajo_un_solo_lock(memory_
 
         def flaky_execute(sql, params=()):
             nonlocal call_count
+            if sql.lstrip().upper().startswith("SELECT"):
+                return real_execute(sql, params)  # lecturas (guardia de exclusión)
             call_count += 1
             if call_count == 2 and "user_corpus" in sql:
                 raise RuntimeError("boom en el segundo execute")

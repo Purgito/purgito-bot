@@ -106,3 +106,39 @@ def test_el_restore_exige_el_registro_externo(capsys):
     rc = reapply_deletions.main(["--dsn", os.environ["TEST_DATABASE_URL"], "--apply"])
     assert rc == 1
     assert "falta --ledger" in capsys.readouterr().err
+
+
+def test_privacidad_bloquea_el_aprendizaje_por_todas_las_rutas(memory_db):
+    """Con la exclusión global activa: el guardado en vivo descarta, la imitación no genera
+    y nada queda en user_corpus ni corpus_messages, en ningún servidor."""
+    from types import SimpleNamespace
+
+    async def _run():
+        await db.set_user_exclusion(db.GLOBAL_EXCLUSION_GUILD_ID, 31, True, True)
+        cog = Chat(MagicMock())
+        for guild in (900, 901):
+            msg = SimpleNamespace(
+                id=guild,
+                channel=SimpleNamespace(id=5),
+                author=SimpleNamespace(id=31, display_name="x"),
+                content="una frase larga suficiente para entrar al corpus",
+            )
+            assert await cog._save_message_to_corpus(guild, msg) == "discarded"
+        assert await generation.generate_markov_for_user(900, 31) is None
+        conn = await db.get_db()
+        for table, col in (("user_corpus", "author_id"), ("corpus_messages", "guild_id")):
+            if table == "user_corpus":
+                async with conn.execute(f"SELECT count(*) FROM {table} WHERE {col}=31") as c:
+                    assert (await c.fetchone())[0] == 0
+        async with conn.execute("SELECT count(*) FROM corpus_messages WHERE guild_id IN (900, 901)") as c:
+            assert (await c.fetchone())[0] == 0
+        # Al volver a participar, el mismo mensaje sí se guarda.
+        await db.set_user_exclusion(db.GLOBAL_EXCLUSION_GUILD_ID, 31, False, False)
+        msg = SimpleNamespace(
+            id=1, channel=SimpleNamespace(id=5),
+            author=SimpleNamespace(id=31, display_name="x"),
+            content="una frase larga suficiente para entrar al corpus",
+        )
+        assert await cog._save_message_to_corpus(900, msg) == "saved"
+
+    asyncio.run(_run())

@@ -11,6 +11,9 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 ## Novedades recientes
 
 ### Nuevo
+- Comando `/privacidad`: cada persona puede excluirse de que Purgito aprenda de sus mensajes e interactúe con ella, en todos los servidores a la vez.
+- Solicitud de eliminación de datos desde la cuenta en purgito.app, con plazo máximo de 7 días.
+- `/mis_datos` ahora incluye también los GIFs que enviaste, tus boosts, tus frases especiales y tus exclusiones.
 - `!dl` ahora también descarga YouTube Shorts (links `youtube.com/shorts/...`). Los videos normales de YouTube siguen sin funcionar.
 - Límites de uso visibles por servidor: mensajes aprendidos, GIFs e imágenes de memes tienen un tope, y el dashboard avisa cuando un servidor se acerca a agotarlo.
 - Categoría **Frases** en `/settings`: agregar, ver y borrar frases especiales desde Discord, sin pasar por el dashboard.

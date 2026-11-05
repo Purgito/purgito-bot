@@ -11,6 +11,9 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 ## Recent updates
 
 ### New
+- `/privacidad` command: anyone can opt out of Purgito learning from their messages and interacting with them, on every server at once.
+- Data deletion requests from your account on purgito.app, with a maximum of 7 days to complete.
+- `/mis_datos` now also includes the GIFs you sent, your boosts, your special phrases and your exclusions.
 - `!dl` now also downloads YouTube Shorts (`youtube.com/shorts/...` links). Regular YouTube videos still don't work.
 - Visible usage limits per server: learned messages, GIFs, and meme images each have a cap, and the dashboard warns when a server is getting close to it.
 - **Phrases** category in `/settings`: add, view, and delete special phrases straight from Discord, without opening the dashboard.

@@ -192,6 +192,8 @@ Independientemente de lo anterior, cualquier usuario puede solicitar en cualquie
 
 El comando `/borrar_mis_datos`, disponible para cualquier persona en cualquier servidor donde esté Purgito, borra de forma permanente e inmediata de la base de datos activa, en **todos** los servidores donde hayas escrito:
 
+Además del comando, la persona puede **solicitar la eliminación de sus datos desde su cuenta en purgito.app** (Centro de Privacidad). La solicitud queda registrada de inmediato y se procesa en un plazo máximo de **7 días naturales**; si un intento falla, se reintenta hasta completarla. El registro de cada solicitud (número, fechas, intentos y resultado) se conserva 90 días y **no contiene tu identificador ni contenido**; pasado ese plazo la solicitud se elimina. Desde la misma cuenta puedes activar o quitar la exclusión global y descargar una copia de tus datos (que incluye mensajes de estilo, GIFs enviados, boosts, frases especiales a tu nombre y tus exclusiones).
+
 - Tu estilo de escritura guardado para la función de imitación (`/imitar`).
 - Los mensajes que Purgito aprendió de ti para generar texto.
 

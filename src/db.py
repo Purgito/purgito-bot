@@ -518,6 +518,10 @@ async def save_corpus_and_user_message(
     text = (content or "").strip()
     if not text:
         return False, False
+    # Última barrera: aunque un llamador nuevo olvide comprobarlo, una persona excluida
+    # (en este servidor o globalmente con /privacidad) nunca entra al corpus.
+    if await is_user_excluded_from_learning(guild_id, author_id):
+        return False, False
 
     db = await get_db()
     async with _db_lock:
@@ -620,6 +624,7 @@ _SQL_DELETE_USER_CORPUS_OF_AUTHOR = "DELETE FROM user_corpus WHERE author_id=?"
 # servidor). También los usa scripts/reapply_deletions.py tras una restauración.
 _SQL_DELETE_GIF_SENDERS_OF_USER = "DELETE FROM gif_senders WHERE user_id=?"
 _SQL_DELETE_BOOSTS_OF_USER = "DELETE FROM member_boost_records WHERE user_id=?"
+_SQL_DELETE_FRASES_OF_USER = "DELETE FROM frases_especiales WHERE user_id=?"
 
 
 def _tombstone_retention_days() -> int:
@@ -697,6 +702,8 @@ async def delete_user_data(author_id: int) -> dict:
         gif_senders_deleted = cur_gs.rowcount
         cur_bo = await db.execute(_SQL_DELETE_BOOSTS_OF_USER, (author_id,))
         boosts_deleted = cur_bo.rowcount
+        cur_fr = await db.execute(_SQL_DELETE_FRASES_OF_USER, (author_id,))
+        frases_deleted = cur_fr.rowcount
 
         # Lápida (solo el id y dos fechas), en la MISMA transacción: o se borra y
         # queda anotado, o no pasó nada. Se escribe aunque no hubiera filas
@@ -726,6 +733,7 @@ async def delete_user_data(author_id: int) -> dict:
         "unknown_deleted": unknown_deleted,
         "gif_senders_deleted": gif_senders_deleted,
         "boosts_deleted": boosts_deleted,
+        "frases_deleted": frases_deleted,
         "guild_ids": guild_ids,
     }
     log.info(
@@ -790,6 +798,112 @@ async def export_user_data(author_id: int) -> dict[int, list[dict]]:
             }
         )
     return by_guild
+
+
+async def build_user_export(author_id: int) -> dict:
+    """Todo lo que Purgito guarda atribuido a `author_id`, para /mis_datos y la API del
+    Centro de Privacidad (una sola definición, para que no diverjan): mensajes de estilo por
+    servidor, GIFs que envió, boosts, frases especiales a su nombre, exclusiones y solicitudes
+    de eliminación. Solo lectura. No incluye corpus_messages (copia colectiva sin dueño) ni
+    audit_log (acciones administrativas con su propia retención, ver docs/PRIVACY.md).
+    Mismo principio de seguridad que delete_user_data: `author_id` debe ser la persona
+    autenticada, jamás un valor elegido por quien pide."""
+    by_guild = await export_user_data(author_id)
+    conn = await get_db()
+
+    async def _rows(sql: str) -> list:
+        async with conn.execute(sql, (author_id,)) as cur:
+            return await cur.fetchall()
+
+    gifs = [
+        {
+            "gif_id": r[0],
+            "guild_id": str(r[1]),
+            "url": r[2],
+            "channel_id": r[3],
+            "message_id": r[4],
+            "send_count": r[5],
+            "first_seen": r[6],
+            "last_seen": r[7],
+        }
+        for r in await _rows(
+            "SELECT gs.gif_id, gs.guild_id, cg.url, gs.channel_id, gs.message_id, "
+            "gs.send_count, gs.first_seen, gs.last_seen FROM gif_senders gs "
+            "LEFT JOIN corpus_gifs cg ON cg.id = gs.gif_id "
+            "WHERE gs.user_id=? ORDER BY gs.guild_id, gs.gif_id"
+        )
+    ]
+    boosts = [
+        {"guild_id": str(r[0]), "premium_since": r[1], "recorded_at": r[2]}
+        for r in await _rows(
+            "SELECT guild_id, premium_since, created_at FROM member_boost_records "
+            "WHERE user_id=? ORDER BY guild_id"
+        )
+    ]
+    frases = [
+        {"guild_id": str(r[0]), "frase": r[1], "created_at": r[2]}
+        for r in await _rows(
+            "SELECT guild_id, frase, created_at FROM frases_especiales "
+            "WHERE user_id=? ORDER BY guild_id, id"
+        )
+    ]
+    exclusions = [
+        {
+            "scope": "global" if r[0] == GLOBAL_EXCLUSION_GUILD_ID else "server",
+            "guild_id": None if r[0] == GLOBAL_EXCLUSION_GUILD_ID else str(r[0]),
+            "exclude_interaction": bool(r[1]),
+            "exclude_learning": bool(r[2]),
+            "created_at": r[3],
+        }
+        for r in await _rows(
+            "SELECT guild_id, exclude_interaction, exclude_learning, created_at "
+            "FROM excluded_users WHERE user_id=? ORDER BY guild_id"
+        )
+    ]
+    requests = [
+        {
+            "id": r[0],
+            "status": r[1],
+            "created_at": r[2],
+            "due_at": r[3],
+            "completed_at": r[4],
+        }
+        for r in await _rows(
+            "SELECT id, status, created_at, due_at, completed_at "
+            "FROM privacy_requests WHERE user_id=? ORDER BY id"
+        )
+    ]
+    return {
+        "messages_by_guild": by_guild,
+        "gifs": gifs,
+        "boosts": boosts,
+        "special_phrases": frases,
+        "exclusions": exclusions,
+        "deletion_requests": requests,
+    }
+
+
+def export_payload(user_id: int, data: dict, exported_at: str, guild_name=None) -> dict:
+    """JSON que se entrega a la persona (comando /mis_datos y API): una sola forma para
+    ambos. `guild_name` es un callable guild_id -> nombre|None (el bot conoce los nombres)."""
+    names = guild_name or (lambda _gid: None)
+    return {
+        "user_id": str(user_id),
+        "exported_at": exported_at,
+        "servers": [
+            {
+                "guild_id": str(guild_id),
+                "guild_name": names(guild_id),
+                "messages": rows,
+            }
+            for guild_id, rows in data["messages_by_guild"].items()
+        ],
+        "gifs": data["gifs"],
+        "boosts": data["boosts"],
+        "special_phrases": data["special_phrases"],
+        "exclusions": data["exclusions"],
+        "deletion_requests": data["deletion_requests"],
+    }
 
 
 async def count_guild_corpus_messages(guild_id: int) -> int:

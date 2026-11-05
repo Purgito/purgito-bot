@@ -192,6 +192,8 @@ Regardless of the above, any user can request at any time that their own informa
 
 The `/borrar_mis_datos` command, available to anyone on any server where Purgito is present, permanently and immediately deletes from the live database, across **every** server where you've written:
 
+Besides the command, a person can **request deletion of their data from their account on purgito.app** (Privacy Center). The request is recorded immediately and processed within a maximum of **7 calendar days**; if an attempt fails, it is retried until it completes. The record of each request (number, dates, attempts and result) is kept for 90 days and **contains neither your identifier nor any content**; after that period the request is deleted. From the same account you can turn the global opt-out on or off and download a copy of your data (saved style messages, GIFs you sent, boosts, special phrases in your name and your exclusions).
+
 - Your writing style saved for the impersonation feature (`/imitar`).
 - The messages Purgito learned from you to generate text.
 

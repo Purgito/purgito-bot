@@ -183,6 +183,7 @@ def test_la_instantanea_lleva_solo_lapidas_vigentes_y_las_exclusiones(conn):
         "user_tombstone": 1,
         "guild_tombstone": 1,
         "exclusion": 1,
+        "deletion_request": 0,
     }
     ids = {r.get("user_id") for r in records if r["type"] == "user_tombstone"}
     assert ids == {10}  # la vencida (11) no se exporta
@@ -296,7 +297,12 @@ def test_un_restore_viejo_sin_lapidas_se_corrige_con_el_registro_externo(conn):
 
     merged, stats = _sync(aplicar)
 
-    assert merged == {"lapidas_usuario": 1, "lapidas_servidor": 1, "exclusiones": 1}
+    assert merged == {
+        "lapidas_usuario": 1,
+        "lapidas_servidor": 1,
+        "exclusiones": 1,
+        "solicitudes": 0,
+    }
     # el usuario 10 desaparece de todos los servidores; el 20 queda (salvo en el servidor 500)
     assert _rows(conn, "SELECT count(*) FROM user_corpus WHERE author_id=10")[0][0] == 0
     # el servidor 500 desaparece entero (incluido el usuario 20 allí)

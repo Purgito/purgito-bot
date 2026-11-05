@@ -39,6 +39,7 @@ from urllib.parse import urlencode, urlparse
 import aiohttp
 import discord
 import generation
+import privacy_requests
 import regex
 from aiohttp import web
 from aiohttp_session import get_session, setup as setup_session
@@ -87,6 +88,11 @@ from cogs.updates import check_updates_channel_permissions
 from cogs.youtube import resolve_youtube_channel
 from tasks import get_task_manager
 from db import (
+    GLOBAL_EXCLUSION_GUILD_ID,
+    build_user_export,
+    export_payload,
+    get_user_exclusion,
+    set_user_exclusion,
     get_db,
     CHAT_TUNABLES,
     DEFAULT_COMMAND_PREFIX,
@@ -6201,6 +6207,99 @@ async def _api_me(request: web.Request) -> web.Response:
     return web.json_response(body, headers={"Cache-Control": "no-store"})
 
 
+# ─── Centro de Privacidad (backend) ───────────────────────────────────────────
+# Todo actúa SOLO sobre la persona autenticada (session["user_id"]): ningún endpoint acepta un
+# user_id en la ruta, la query o el cuerpo. Los POST/PUT pasan por la defensa CSRF de Origin.
+
+
+async def _privacy_user_id(request: web.Request) -> int | None:
+    session = await get_session(request)
+    if not await _session_logged_in(session):
+        return None
+    return _to_int(session.get("user_id"))
+
+
+async def _privacy_state(user_id: int) -> dict:
+    excl = await get_user_exclusion(GLOBAL_EXCLUSION_GUILD_ID, user_id)
+    reqs = await privacy_requests.user_requests(user_id)
+    return {
+        "exclusion": {
+            "enabled": bool(excl and (excl["exclude_learning"] or excl["exclude_interaction"])),
+            "since": excl["created_at"] if excl else None,
+        },
+        "requests": reqs,
+        "deadline_days": privacy_requests.REQUEST_DEADLINE_DAYS,
+    }
+
+
+async def _api_me_privacy_get(request: web.Request) -> web.Response:
+    user_id = await _privacy_user_id(request)
+    if user_id is None:
+        return web.json_response({"error": "no autenticado"}, status=401)
+    return web.json_response(
+        await _privacy_state(user_id), headers={"Cache-Control": "no-store"}
+    )
+
+
+async def _api_me_privacy_exclusion_put(request: web.Request) -> web.Response:
+    """Exclusión GLOBAL y persistente: el bot deja de aprender de la persona y de interactuar
+    con ella en todos los servidores. Es la misma fila que escribe /privacidad."""
+    user_id = await _privacy_user_id(request)
+    if user_id is None:
+        return web.json_response({"error": "no autenticado"}, status=401)
+    data = await _json_body(request)
+    enabled = (data or {}).get("enabled")
+    if not isinstance(enabled, bool):
+        return web.json_response({"error": "enabled debe ser true o false"}, status=400)
+    await set_user_exclusion(GLOBAL_EXCLUSION_GUILD_ID, user_id, enabled, enabled)
+    log.info("privacy.exclusion: user=%s enabled=%s (api)", user_id, enabled)
+    return web.json_response(
+        await _privacy_state(user_id), headers={"Cache-Control": "no-store"}
+    )
+
+
+async def _api_me_privacy_requests_post(request: web.Request) -> web.Response:
+    """Solicita la eliminación de todos sus datos. Se registra al instante y se procesa de
+    forma diferida (plazo máximo de 7 días naturales, con reintentos). Pedir de nuevo con una
+    solicitud abierta devuelve la misma (200) en vez de duplicarla."""
+    user_id = await _privacy_user_id(request)
+    if user_id is None:
+        return web.json_response({"error": "no autenticado"}, status=401)
+    req, created = await privacy_requests.create_request(user_id, source="api")
+    log.info("privacy.request: id=%s created=%s (api)", req["id"], created)
+    body = {
+        "request": {
+            k: req[k] for k in ("id", "status", "created_at", "due_at", "attempts")
+        },
+        "created": created,
+    }
+    return web.json_response(
+        body, status=201 if created else 200, headers={"Cache-Control": "no-store"}
+    )
+
+
+async def _api_me_privacy_export_get(request: web.Request) -> web.Response:
+    user_id = await _privacy_user_id(request)
+    if user_id is None:
+        return web.json_response({"error": "no autenticado"}, status=401)
+    data = await build_user_export(user_id)
+    bot = request.app["bot"]
+    payload = export_payload(
+        user_id,
+        data,
+        discord.utils.utcnow().isoformat(),
+        lambda gid: getattr(bot.get_guild(gid), "name", None),
+    )
+    return web.Response(
+        text=json.dumps(payload, ensure_ascii=False, indent=2),
+        content_type="application/json",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": 'attachment; filename="purgito_mis_datos.json"',
+        },
+    )
+
+
 async def _auth_error(request: web.Request) -> web.Response:
     # HTML autocontenido: la hoja de estilos del panel ya no existe.
     if request.query.get("reason") == "no_guilds":
@@ -6784,6 +6883,10 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get("/api/me/guilds", _api_me_guilds)
         app.router.add_get("/api/me/billing", _api_me_billing)
         app.router.add_post("/api/me/billing/portal", _api_me_billing_portal)
+        app.router.add_get("/api/me/privacy", _api_me_privacy_get)
+        app.router.add_put("/api/me/privacy/exclusion", _api_me_privacy_exclusion_put)
+        app.router.add_post("/api/me/privacy/requests", _api_me_privacy_requests_post)
+        app.router.add_get("/api/me/privacy/export", _api_me_privacy_export_get)
         # Público (sin scope de guild): el editor de embeds lo pide antes de
         # saber en qué servidor va a pegar el contenido compartido.
         app.router.add_get("/api/embeds/share/{share_id}", _api_embeds_share_get)

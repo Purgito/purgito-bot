@@ -9,8 +9,11 @@ la vuelve a aplicar después de un restore, antes de arrancar el bot.
 
 Qué contiene (solo identificadores y fechas, nada de contenido de mensajes):
   - lápidas vigentes de usuarios (/borrar_mis_datos) y de servidores purgados;
-  - las exclusiones activas (excluded_users): son preferencias del usuario, y un
-    restore anterior a su elección las perdería.
+  - las exclusiones activas (excluded_users), incluida la global (guild_id = 0): son
+    preferencias del usuario, y un restore anterior a su elección las perdería;
+  - las solicitudes de eliminación del Centro de Privacidad que siguen ABIERTAS
+    (privacy_requests): usuario y fechas, para que un restore no pierda una solicitud
+    que aún no se había procesado. Las completadas ya están en la lápida del usuario.
 
 Cuánto dura cada cosa (justificación en docs/PRIVACY.md):
   - una lápida, 15 días (DELETION_TOMBSTONE_RETENTION_DAYS): 14 de antigüedad
@@ -52,6 +55,12 @@ EXCLUSIONS_SQL = (
 )
 
 
+REQUESTS_SQL = (
+    "SELECT user_id, created_at, due_at FROM privacy_requests "
+    "WHERE status <> 'completed' ORDER BY id"
+)
+
+
 def build_snapshot(conn, now: datetime | None = None) -> list[dict]:
     """Registros de la instantánea a partir de una conexión síncrona de pgsync (tests y
     herramientas del checkout). Solo lápidas vigentes (`expires_at > ahora`)."""
@@ -62,11 +71,12 @@ def build_snapshot(conn, now: datetime | None = None) -> list[dict]:
         conn.execute(GUILDS_SQL.format(now="?"), (now_text,)).fetchall(),
         conn.execute(EXCLUSIONS_SQL).fetchall(),
         now,
+        conn.execute(REQUESTS_SQL).fetchall(),
     )
 
 
 def snapshot_from_rows(
-    users, guilds, exclusions, now: datetime | None = None
+    users, guilds, exclusions, now: datetime | None = None, requests=()
 ) -> list[dict]:
     """Registros de la instantánea (header, datos, footer) a partir de las filas de las
     tres consultas (USERS_SQL, GUILDS_SQL, EXCLUSIONS_SQL). No depende de ningún driver:
@@ -105,6 +115,15 @@ def snapshot_from_rows(
         }
         for r in exclusions
     ]
+    out += [
+        {
+            "type": "deletion_request",
+            "user_id": int(r[0]),
+            "created_at": str(r[1]),
+            "due_at": str(r[2]),
+        }
+        for r in requests
+    ]
     out.append(
         {
             "type": "footer",
@@ -112,6 +131,7 @@ def snapshot_from_rows(
                 "user_tombstone": len(users),
                 "guild_tombstone": len(guilds),
                 "exclusion": len(exclusions),
+                "deletion_request": len(requests),
             },
         }
     )
@@ -138,14 +158,21 @@ def loads(text: str) -> dict:
         raise LedgerError("cabecera ausente o versión desconocida")
     if foot.get("type") != "footer":
         raise LedgerError("falta el pie: la instantánea está truncada")
-    kinds = {"user_tombstone": [], "guild_tombstone": [], "exclusion": []}
+    kinds = {
+        "user_tombstone": [],
+        "guild_tombstone": [],
+        "exclusion": [],
+        "deletion_request": [],
+    }
     for rec in records[1:-1]:
         kind = rec.get("type")
         if kind not in kinds:
             raise LedgerError(f"registro desconocido: {kind!r}")
         kinds[kind].append(rec)
     for kind, items in kinds.items():
-        if foot.get("counts", {}).get(kind) != len(items):
+        # Las instantáneas anteriores a las solicitudes no traen ese conteo: valen 0.
+        default = 0 if kind == "deletion_request" else None
+        if foot.get("counts", {}).get(kind, default) != len(items):
             raise LedgerError(f"el pie no coincide con los registros de {kind}")
     for rec in kinds["user_tombstone"]:
         _require_int(rec, "user_id")
@@ -155,11 +182,14 @@ def loads(text: str) -> dict:
         _require_int(
             rec, "guild_id", "user_id", "exclude_interaction", "exclude_learning"
         )
+    for rec in kinds["deletion_request"]:
+        _require_int(rec, "user_id")
     return {
         "exported_at": head.get("exported_at", ""),
         "user_tombstones": kinds["user_tombstone"],
         "guild_tombstones": kinds["guild_tombstone"],
         "exclusions": kinds["exclusion"],
+        "deletion_requests": kinds["deletion_request"],
     }
 
 

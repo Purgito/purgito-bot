@@ -59,6 +59,24 @@ async def _fake_locale(guild_id):
     return "es"
 
 
+def _wrap(fake):
+    """El cog ahora usa db.build_user_export (todo lo atribuible); estos tests siguen
+    describiendo solo los mensajes por servidor."""
+
+    async def wrapped(author_id):
+        by_guild = await fake(author_id)
+        return {
+            "messages_by_guild": by_guild,
+            "gifs": [],
+            "boosts": [],
+            "special_phrases": [],
+            "exclusions": [],
+            "deletion_requests": [],
+        }
+
+    return wrapped
+
+
 @pytest.fixture(autouse=True)
 def _patch_guild_locale(monkeypatch):
     monkeypatch.setattr(privacy_mod, "guild_locale", _fake_locale)
@@ -69,7 +87,7 @@ def test_sin_datos_avisa_vacio_sin_adjuntar_archivo(monkeypatch):
     async def fake_export(author_id):
         return {}
 
-    monkeypatch.setattr(privacy_mod, "export_user_data", fake_export)
+    monkeypatch.setattr(privacy_mod, "build_user_export", _wrap(fake_export))
 
     cog = Privacy(SimpleNamespace())
     inter = FakeInteraction(user_id=_AUTHOR_A)
@@ -87,7 +105,7 @@ def test_con_datos_adjunta_json_valido_con_los_mensajes(monkeypatch):
             2: [{"channel_id": 20, "content": "chau", "created_at": "2026-01-02"}],
         }
 
-    monkeypatch.setattr(privacy_mod, "export_user_data", fake_export)
+    monkeypatch.setattr(privacy_mod, "build_user_export", _wrap(fake_export))
 
     bot = SimpleNamespace(get_guild=lambda gid: SimpleNamespace(name=f"guild-{gid}"))
     cog = Privacy(bot)
@@ -116,7 +134,7 @@ def test_guild_desconocido_no_rompe_y_deja_nombre_nulo(monkeypatch):
     async def fake_export(author_id):
         return {999: [{"channel_id": 1, "content": "x", "created_at": "2026-01-01"}]}
 
-    monkeypatch.setattr(privacy_mod, "export_user_data", fake_export)
+    monkeypatch.setattr(privacy_mod, "build_user_export", _wrap(fake_export))
 
     bot = SimpleNamespace(get_guild=lambda gid: None)
     cog = Privacy(bot)
@@ -134,7 +152,7 @@ def test_respeta_el_cooldown_por_usuario(monkeypatch):
         calls.append(author_id)
         return {}
 
-    monkeypatch.setattr(privacy_mod, "export_user_data", fake_export)
+    monkeypatch.setattr(privacy_mod, "build_user_export", _wrap(fake_export))
 
     cog = Privacy(SimpleNamespace())
     inter1 = FakeInteraction(user_id=_AUTHOR_A)
@@ -154,7 +172,7 @@ def test_el_cooldown_es_por_usuario_no_compartido(monkeypatch):
         calls.append(author_id)
         return {}
 
-    monkeypatch.setattr(privacy_mod, "export_user_data", fake_export)
+    monkeypatch.setattr(privacy_mod, "build_user_export", _wrap(fake_export))
 
     cog = Privacy(SimpleNamespace())
     asyncio.run(cog.mis_datos.callback(cog, FakeInteraction(user_id=_AUTHOR_A)))
@@ -169,7 +187,7 @@ def test_error_durante_la_exportacion_no_filtra_detalle_y_queda_logueado(
     async def boom(author_id):
         raise RuntimeError("fallo de db simulado, no debería llegar al usuario")
 
-    monkeypatch.setattr(privacy_mod, "export_user_data", boom)
+    monkeypatch.setattr(privacy_mod, "build_user_export", _wrap(boom))
 
     cog = Privacy(SimpleNamespace())
     inter = FakeInteraction(user_id=_AUTHOR_A)

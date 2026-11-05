@@ -11,12 +11,15 @@ import time
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import generation
+import privacy_alerts
+import privacy_requests
 from db import (
     GLOBAL_EXCLUSION_GUILD_ID,
-    export_user_data,
+    build_user_export,
+    export_payload,
     get_user_exclusion,
     set_user_exclusion,
 )
@@ -172,6 +175,32 @@ def _check_export_cooldown(user_id: int) -> int | None:
 class Privacy(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._worker_cycles = 0
+
+    async def cog_load(self) -> None:
+        self.privacy_worker.start()
+
+    async def cog_unload(self) -> None:
+        self.privacy_worker.cancel()
+
+    @tasks.loop(seconds=60)
+    async def privacy_worker(self) -> None:
+        """Procesa las solicitudes de eliminación del Centro de Privacidad (API) y envía los
+        avisos pendientes. Todo el estado vive en la base: si el bot se reinicia, el próximo
+        ciclo retoma lo que haya quedado (ver privacy_requests)."""
+        try:
+            await privacy_requests.process_due(generation.forget_user)
+            if privacy_alerts.configured():
+                await privacy_requests.dispatch_alerts(privacy_alerts.send_alert)
+            self._worker_cycles += 1
+            if self._worker_cycles % 60 == 1:
+                await privacy_requests.purge_old()
+        except Exception:
+            log.exception("privacy_worker: ciclo fallido; se reintenta en el siguiente")
+
+    @privacy_worker.before_loop
+    async def _before_privacy_worker(self) -> None:
+        await self.bot.wait_until_ready()
 
     @app_commands.command(
         name="borrar_mis_datos",
@@ -244,7 +273,7 @@ class Privacy(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
         try:
-            by_guild = await export_user_data(interaction.user.id)
+            data = await build_user_export(interaction.user.id)
         except Exception:
             log.exception(
                 "privacy.user_export: fallo exportando datos de author_id=%s",
@@ -255,39 +284,45 @@ class Privacy(commands.Cog):
             )
             return
 
+        by_guild = data["messages_by_guild"]
         total_messages = sum(len(rows) for rows in by_guild.values())
-        if total_messages == 0:
+        extras = {
+            "gifs": len(data["gifs"]),
+            "boosts": len(data["boosts"]),
+            "phrases": len(data["special_phrases"]),
+            "exclusions": len(data["exclusions"]),
+        }
+        if total_messages == 0 and not any(extras.values()):
             await interaction.followup.send(
                 t("privacy.export.empty", locale), ephemeral=True
             )
             return
 
-        payload = {
-            "user_id": str(interaction.user.id),
-            "exported_at": discord.utils.utcnow().isoformat(),
-            "servers": [
-                {
-                    "guild_id": str(guild_id),
-                    "guild_name": getattr(self.bot.get_guild(guild_id), "name", None),
-                    "messages": rows,
-                }
-                for guild_id, rows in by_guild.items()
-            ],
-        }
+        payload = export_payload(
+            interaction.user.id,
+            data,
+            discord.utils.utcnow().isoformat(),
+            lambda gid: getattr(self.bot.get_guild(gid), "name", None),
+        )
         buf = io.BytesIO(json.dumps(payload, ensure_ascii=False, indent=2).encode())
         log.info(
-            "privacy.user_export: author_id=%s messages=%d guilds=%d",
+            "privacy.user_export: author_id=%s messages=%d guilds=%d gifs=%d boosts=%d",
             interaction.user.id,
             total_messages,
             len(by_guild),
+            extras["gifs"],
+            extras["boosts"],
         )
+        summary = t(
+            "privacy.export.result",
+            locale,
+            count=total_messages,
+            guilds=len(by_guild),
+        )
+        if any(extras.values()):
+            summary += "\n" + t("privacy.export.result_extra", locale, **extras)
         await interaction.followup.send(
-            t(
-                "privacy.export.result",
-                locale,
-                count=total_messages,
-                guilds=len(by_guild),
-            ),
+            summary,
             file=discord.File(buf, filename="purgito_mis_datos.json"),
             ephemeral=True,
         )

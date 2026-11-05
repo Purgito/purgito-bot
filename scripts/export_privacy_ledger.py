@@ -126,13 +126,15 @@ def run(args) -> int:
         _query(privacy_ledger.GUILDS_SQL.format(now=f"'{now_text}'")),
         _query(privacy_ledger.EXCLUSIONS_SQL),
         now,
+        _query(privacy_ledger.REQUESTS_SQL),
     )
     text = privacy_ledger.dumps(records)
     privacy_ledger.loads(text)  # lo que se exporta tiene que poder leerse de vuelta
     counts = records[-1]["counts"]
     _log(
         f"LEDGER: {counts['user_tombstone']} lápida(s) de usuario, "
-        f"{counts['guild_tombstone']} de servidor, {counts['exclusion']} exclusión(es)"
+        f"{counts['guild_tombstone']} de servidor, {counts['exclusion']} exclusión(es), "
+        f"{counts['deletion_request']} solicitud(es) abierta(s)"
     )
     if args.dry_run:
         return 0
