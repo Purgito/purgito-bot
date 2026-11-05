@@ -624,10 +624,6 @@ class Gifs(commands.Cog):
             return
         if (message.content or "").strip().startswith("!"):
             return
-        from cogs.memes import is_meme_trigger
-
-        if is_meme_trigger(self.bot, message):
-            return
         if await is_channel_ignored(message.guild.id, message.channel.id):
             return
         if await is_user_excluded_from_learning(message.guild.id, message.author.id):

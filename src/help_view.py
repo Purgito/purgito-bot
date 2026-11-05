@@ -42,17 +42,6 @@ CATEGORIES = {
             ("{prefix}ping", "help.cat.admin.cmd.ping"),
         ],
     },
-    "memes": {
-        "emoji": "😏",
-        "row": 1,
-        "intro_key": "help.cat.memes.intro",
-        "commands": [
-            ("/momo · /meme", "help.cat.memes.cmd.momo"),
-            ("Responder a una imagen + “generar”", "help.cat.memes.cmd.reply_generar"),
-            ("Reacción 🎯 a una imagen", "help.cat.memes.cmd.reaction"),
-            ("/settings → Memes", "help.cat.memes.cmd.settings"),
-        ],
-    },
     "youtube": {
         "emoji": "📺",
         "row": 1,

@@ -1,5 +1,5 @@
-"""Los 7 @tasks.loop periódicos del bot (RSS, YouTube, Twitch, cupos,
-anuncios x2, meme automático) mueren para siempre ante cualquier excepción
+"""Los 6 @tasks.loop periódicos del bot (RSS, YouTube, Twitch, cupos,
+anuncios x2) mueren para siempre ante cualquier excepción
 que discord.ext.tasks no reintente por su cuenta (ver
 Loop._valid_exception: solo cubre errores de red/gateway) -- sin un
 @loop.error que llame a .restart(), un sqlite3.OperationalError transitorio
@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 import cogs.anuncios as anuncios_mod
-import cogs.memes as memes_mod
 import cogs.quota_alerts as quota_alerts_mod
 import cogs.rss as rss_mod
 import cogs.twitch as twitch_mod
@@ -26,7 +25,6 @@ _CASES = [
     (quota_alerts_mod.QuotaAlerts, "check_quotas"),
     (anuncios_mod.Anuncios, "check_announcements"),
     (anuncios_mod.Anuncios, "sweep_pending_deletions"),
-    (memes_mod.Memes, "auto_meme_task"),
 ]
 
 

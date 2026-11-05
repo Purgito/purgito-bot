@@ -15,7 +15,6 @@ from discord.ext import commands
 import generation
 import i18n
 from cogs.gifs import get_live_gif, save_gif_candidates
-from cogs.memes import is_meme_trigger
 from config import (
     BOT_TRIGGER_NAME,
     REFEED_ALL_MAX_MESSAGES,
@@ -799,8 +798,6 @@ class Chat(commands.Cog):
                 )
 
     async def _on_message_impl(self, message: discord.Message) -> None:
-        if is_meme_trigger(self.bot, message):
-            return  # lo maneja el cog de memes; no entra al corpus
         content = (message.content or "").strip()
         if content.startswith(OTHER_BOT_PREFIXES):
             return  # comando de prefijo (propio o de otro bot): ver OTHER_BOT_PREFIXES
@@ -811,7 +808,7 @@ class Chat(commands.Cog):
             )
         # Símbolo custom del guild (si difiere del default, ya cubierto arriba)
         # y el prefijo de palabra ("purgito dl ...", mismo BOT_TRIGGER_NAME que
-        # ya usa el trigger de texto de memes) -- ninguno de los dos es un
+        # usa para sus comandos de texto) -- ninguno de los dos es un
         # comando de bot.py, no un mensaje de charla real.
         if content.startswith(own_symbol_prefix) or content.lower().startswith(
             f"{BOT_TRIGGER_NAME} "

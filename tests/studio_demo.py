@@ -12,7 +12,6 @@ from datetime import timedelta
 FEATURES = {
     "chat": (["", "", "ping"], ["mention", "spontaneous", "trigger"], 60),
     "gifs": (["gif", "gifs"], ["prefix", "slash", "spontaneous"], 14),
-    "memes": (["meme"], ["trigger", "prefix"], 9),
     "youtube": ([""], ["background"], 5),
     "general": (["ayuda", "ping", "info"], ["prefix", "slash"], 10),
     "download": (["descargar"], ["slash"], 4),

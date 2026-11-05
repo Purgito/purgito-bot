@@ -11,7 +11,6 @@ import re
 FEATURES = {
     "chat": "Conversación",
     "gifs": "GIFs",
-    "memes": "Memes",
     "youtube": "YouTube",
     "twitch": "Twitch",
     "rss": "RSS",

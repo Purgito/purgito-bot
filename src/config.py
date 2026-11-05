@@ -97,9 +97,8 @@ ENABLE_MESSAGE_CONTENT = os.getenv(
     "ENABLE_MESSAGE_CONTENT", "true"
 ).strip().lower() in ("1", "true", "yes")
 GUILD_ID_ENV = os.getenv("GUILD_ID")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 # Sin estas dos, cogs/twitch.py se carga pero no arranca el chequeo periódico
-# (feature desactivada, resto del bot funciona igual -- mismo criterio que GROQ_API_KEY).
+# (feature desactivada, resto del bot funciona igual).
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", "")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", "")
 # Instancia PROPIA de cobalt (src/cobalt.py): respaldo de "!dl" para cuando
@@ -140,8 +139,6 @@ USER_MARKOV_TRAINING_MESSAGES = env_int("USER_MARKOV_TRAINING_MESSAGES", 2_000)
 SPECIAL_PHRASE_PROBABILITY = 0.05
 SPECIAL_PHRASE_COOLDOWN = 40 * 60  # 40 minutos en segundos
 
-GROQ_GUILD_COOLDOWN = 10.0
-
 # [FALLBACK] Frecuencia de los mensajes espontáneos. Desde que existe la tab
 # CHAT del dashboard esto se configura **por servidor** (columnas
 # settings.auto_generate_every / auto_generate_probability, con los mismos
@@ -150,7 +147,6 @@ GROQ_GUILD_COOLDOWN = 10.0
 AUTO_GENERATE_EVERY = 15
 AUTO_GENERATE_PROBABILITY = float(os.getenv("AUTO_GENERATE_PROBABILITY", "0.6"))
 
-MEME_MAX_BYTES = 10 * 1024 * 1024
 IMAGEFX_MAX_BYTES = 10 * 1024 * 1024
 
 # Timezone para los anuncios programados en modo "hora fija" (cogs/anuncios.py).
