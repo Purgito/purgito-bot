@@ -30,6 +30,7 @@ def s3(monkeypatch):
     """Cliente falso con los tres buckets y la configuración nueva completa."""
     fake = FakeS3(IMAGES_BUCKET, GIFS_BUCKET, BACKUP_BUCKET)
     monkeypatch.setattr(r2, "get_client", lambda: fake)
+    monkeypatch.setattr(r2, "get_backup_client", lambda: fake)
     monkeypatch.setenv("R2_IMAGES_BUCKET", IMAGES_BUCKET)
     monkeypatch.setenv("R2_IMAGES_PUBLIC_URL", IMAGES_URL)
     monkeypatch.setenv("R2_GIFS_BUCKET", GIFS_BUCKET)
@@ -550,3 +551,23 @@ def test_el_prefijo_exige_la_barra_final_contra_hosts_que_empiezan_igual(s3):
     assert r2.image_key_from_url(f"{IMAGES_URL}.evil.com/1/x.png") is None
     assert r2.gif_key_from_url(None) is None
     assert r2.gif_key_from_url(f"{GIFS_URL}/gifs/ab/x.gif") == "gifs/ab/x.gif"
+
+
+def test_los_clientes_de_imagenes_y_de_backups_no_comparten_credenciales(monkeypatch):
+    """El token de imágenes/GIFs no abre el bucket de backups y viceversa: son
+    dos clientes con credenciales distintas."""
+    for name in ("_client", "_backup_client"):
+        monkeypatch.setattr(r2, name, None)
+    monkeypatch.setattr(r2, "_checked", False)
+    monkeypatch.setattr(r2, "_backup_checked", False)
+    monkeypatch.setenv("R2_ENDPOINT_URL", "https://example.r2.cloudflarestorage.com")
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "clave-imagenes")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secreto-imagenes")
+    monkeypatch.setenv("R2_BACKUP_ACCESS_KEY_ID", "clave-backups")
+    monkeypatch.setenv("R2_BACKUP_SECRET_ACCESS_KEY", "secreto-backups")
+
+    imagenes, backups = r2.get_client(), r2.get_backup_client()
+
+    assert imagenes is not backups
+    assert imagenes._request_signer._credentials.access_key == "clave-imagenes"
+    assert backups._request_signer._credentials.access_key == "clave-backups"

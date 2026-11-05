@@ -601,6 +601,9 @@ async def delete_recent_corpus(guild_id: int, hours: int = 24) -> dict:
     return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
 
 
+# Duración de una lápida (usuario o servidor) = antigüedad máxima de un backup
+# (14 días, docs/PRIVACY.md) + 1 día de margen: pasado ese plazo ya no existe
+# ningún backup anterior al borrado, y conservar el id no tiene justificación.
 DELETION_TOMBSTONE_RETENTION_DAYS = 15
 
 # SQL del borrado de un autor, compartido por delete_user_data y por
@@ -729,15 +732,19 @@ async def delete_user_data(author_id: int) -> dict:
 
 
 async def purge_expired_deletion_tombstones() -> int:
-    """Borra las lápidas de /borrar_mis_datos que ya cumplieron su plazo (ningún
-    backup anterior al borrado puede seguir existiendo). Devuelve cuántas."""
+    """Borra las lápidas (de /borrar_mis_datos y de servidores purgados) que ya
+    cumplieron su plazo (ningún backup anterior al borrado puede seguir
+    existiendo). Devuelve cuántas."""
     db = await get_db()
     async with _db_lock:
         cursor = await db.execute(
             "DELETE FROM deleted_user_tombstones WHERE expires_at <= utc_now()"
         )
+        cursor_guilds = await db.execute(
+            "DELETE FROM purged_guild_tombstones WHERE expires_at <= utc_now()"
+        )
         await db.commit()
-    return max(cursor.rowcount, 0)
+    return max(cursor.rowcount, 0) + max(cursor_guilds.rowcount, 0)
 
 
 async def export_user_data(author_id: int) -> dict[int, list[dict]]:
@@ -5486,6 +5493,20 @@ async def purge_guild_data(guild_id: int) -> None:
     async with _db_lock:
         for table in _GUILD_PURGE_TABLES:
             await db.execute(f"DELETE FROM {table} WHERE guild_id=?", (guild_id,))
+        # Lápida en la MISMA transacción: o se purga y queda anotado, o no pasó
+        # nada. Ver purged_guild_tombstones y scripts/reapply_deletions.py.
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(days=_tombstone_retention_days())
+        await db.execute(
+            "INSERT INTO purged_guild_tombstones (purged_guild_id, purged_at, expires_at) "
+            "VALUES (?, ?, ?) ON CONFLICT (purged_guild_id) DO UPDATE SET "
+            "purged_at=excluded.purged_at, expires_at=excluded.expires_at",
+            (
+                guild_id,
+                now.strftime("%Y-%m-%d %H:%M:%S"),
+                expires.strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
         await db.commit()
     log.info(
         "purge_guild_data: guild %s purgado de %d tablas",

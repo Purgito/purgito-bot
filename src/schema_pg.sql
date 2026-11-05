@@ -543,6 +543,19 @@ CREATE TABLE IF NOT EXISTS deleted_user_tombstones (
 
 CREATE INDEX IF NOT EXISTS idx_deleted_user_tombstones_expires ON deleted_user_tombstones(expires_at);
 
+-- Lápida de un servidor purgado (purge_guild_data): solo el id y dos fechas, sin
+-- contenido. Misma función y misma duración que deleted_user_tombstones: que un
+-- backup anterior a la purga no "resucite" los datos de un servidor ya borrado.
+-- La columna NO se llama guild_id a propósito: purge_guild_data no debe borrarla.
+CREATE TABLE IF NOT EXISTS purged_guild_tombstones (
+    purged_guild_id BIGINT NOT NULL,
+    purged_at TEXT NOT NULL DEFAULT utc_now(),
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (purged_guild_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_purged_guild_tombstones_expires ON purged_guild_tombstones(expires_at);
+
 -- Studio: agregados privados, sin contenido, IDs de personas ni IDs de guild en claro.
 CREATE TABLE IF NOT EXISTS studio_meta (
     key TEXT PRIMARY KEY, value TEXT NOT NULL

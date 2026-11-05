@@ -12,6 +12,18 @@ más que la vida de los backups. Tras un restore, este script:
     .venv/bin/python scripts/reapply_deletions.py            # dry-run: solo cuenta
     .venv/bin/python scripts/reapply_deletions.py --apply    # lo hace
 
+Además de las lápidas de la propia base (que un backup anterior no tiene), acepta la
+instantánea del registro de privacidad exportada fuera del servidor
+(scripts/export_privacy_ledger.py, src/privacy_ledger.py) con --ledger:
+
+    age -d -i <clave> instantanea.jsonl.age | ssh servidor \\
+        '.venv/bin/python scripts/reapply_deletions.py --ledger - --apply'
+
+La instantánea trae lápidas de usuarios y de servidores purgados, y las exclusiones
+activas. Se funde con la base (nunca se quita una restricción), se borra lo de cada
+usuario/servidor con lápida vigente y se restauran las exclusiones. Con `-` lee de la
+entrada estándar: así el registro en claro no toca el disco del servidor.
+
 Va DESPUÉS de pg_restore y ANTES de arrancar el bot (`sudo systemctl stop bot-purg`
 mientras tanto). Una sola transacción. Idempotente. No imprime ids de usuario,
 solo cantidades: las lápidas son datos personales y tampoco van a los logs.
@@ -25,6 +37,56 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src
 
 import db  # noqa: E402
 import pgsync  # noqa: E402
+import privacy_ledger  # noqa: E402
+
+
+def merge_ledger(conn, ledger: dict) -> dict:
+    """Funde una instantánea (privacy_ledger.loads) en la base, dentro de la
+    transacción del llamador. Solo lápidas vigentes; conserva la expiración más
+    lejana; las exclusiones solo se suman (GREATEST), nunca se quitan."""
+    now = conn.execute("SELECT utc_now()").fetchone()[0]
+    stats = {"lapidas_usuario": 0, "lapidas_servidor": 0, "exclusiones": 0}
+    for rec in ledger["user_tombstones"]:
+        if rec["expires_at"] <= now:
+            continue
+        conn.execute(
+            "INSERT INTO deleted_user_tombstones (user_id, deleted_at, expires_at) "
+            "VALUES (?, ?, ?) ON CONFLICT (user_id) DO UPDATE SET "
+            "expires_at=GREATEST(deleted_user_tombstones.expires_at, excluded.expires_at)",
+            (rec["user_id"], rec["deleted_at"], rec["expires_at"]),
+        )
+        stats["lapidas_usuario"] += 1
+    live_guilds = set()
+    for rec in ledger["guild_tombstones"]:
+        if rec["expires_at"] <= now:
+            continue
+        conn.execute(
+            "INSERT INTO purged_guild_tombstones (purged_guild_id, purged_at, expires_at) "
+            "VALUES (?, ?, ?) ON CONFLICT (purged_guild_id) DO UPDATE SET "
+            "expires_at=GREATEST(purged_guild_tombstones.expires_at, excluded.expires_at)",
+            (rec["guild_id"], rec["purged_at"], rec["expires_at"]),
+        )
+        live_guilds.add(rec["guild_id"])
+        stats["lapidas_servidor"] += 1
+    for rec in ledger["exclusions"]:
+        if rec["guild_id"] in live_guilds:
+            continue  # el servidor se purga entero; su exclusión no tiene sentido
+        conn.execute(
+            "INSERT INTO excluded_users (guild_id, user_id, exclude_interaction, "
+            "exclude_learning, created_at) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT (guild_id, user_id) DO UPDATE SET "
+            "exclude_interaction=GREATEST(excluded_users.exclude_interaction, excluded.exclude_interaction), "
+            "exclude_learning=GREATEST(excluded_users.exclude_learning, excluded.exclude_learning)",
+            (
+                rec["guild_id"],
+                rec["user_id"],
+                rec["exclude_interaction"],
+                rec["exclude_learning"],
+                rec["created_at"],
+            ),
+        )
+        stats["exclusiones"] += 1
+    return stats
 
 
 def reapply(conn, *, apply: bool) -> dict:
@@ -62,9 +124,31 @@ def reapply(conn, *, apply: bool) -> dict:
                 "AND uc.guild_id=cm.guild_id AND uc.message_id=cm.message_id)",
                 (user_id,),
             ).fetchone()[0]
+    live_guilds = [
+        r[0]
+        for r in conn.execute(
+            "SELECT purged_guild_id FROM purged_guild_tombstones WHERE expires_at > ?",
+            (now,),
+        ).fetchall()
+    ]
+    stats["lapidas_servidor_vigentes"] = len(live_guilds)
+    stats["filas_servidores"] = 0
+    for guild_id in live_guilds:
+        for table in db._GUILD_PURGE_TABLES:
+            if apply:
+                stats["filas_servidores"] += conn.execute(
+                    f"DELETE FROM {table} WHERE guild_id=?", (guild_id,)
+                ).rowcount
+            else:
+                stats["filas_servidores"] += conn.execute(
+                    f"SELECT count(*) FROM {table} WHERE guild_id=?", (guild_id,)
+                ).fetchone()[0]
     if apply:
         conn.execute(
             "DELETE FROM deleted_user_tombstones WHERE expires_at <= ?", (now,)
+        )
+        conn.execute(
+            "DELETE FROM purged_guild_tombstones WHERE expires_at <= ?", (now,)
         )
     return stats
 
@@ -73,9 +157,36 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dsn", help="default: DATABASE_URL")
     ap.add_argument("--apply", action="store_true", help="aplica los borrados")
+    ap.add_argument(
+        "--ledger",
+        metavar="ARCHIVO",
+        help="instantánea del registro de privacidad ya descifrada (JSONL); "
+        "'-' lee de la entrada estándar",
+    )
     args = ap.parse_args(argv)
+    ledger = None
+    if args.ledger:
+        try:
+            raw = (
+                sys.stdin.read()
+                if args.ledger == "-"
+                else open(args.ledger, encoding="utf-8").read()
+            )
+            ledger = privacy_ledger.loads(raw)
+        except (OSError, privacy_ledger.LedgerError) as e:
+            print(f"ERROR: instantánea inválida: {e}", file=sys.stderr)
+            return 1
     conn = pgsync.connect(args.dsn)
     try:
+        if ledger is not None:
+            merged = merge_ledger(conn, ledger)
+            print(
+                f"registro externo ({ledger['exported_at']}): "
+                f"lápidas de usuario={merged['lapidas_usuario']} "
+                f"de servidor={merged['lapidas_servidor']} "
+                f"exclusiones restauradas={merged['exclusiones']}"
+                f"{'' if args.apply else ' (dry-run: no se guarda)'}"
+            )
         stats = reapply(conn, apply=args.apply)
         if args.apply:
             conn.commit()
@@ -92,6 +203,10 @@ def main(argv=None) -> int:
     print(
         f"filas {verbo}: user_corpus={stats['user_corpus']} "
         f"corpus_messages={stats['corpus_messages']}"
+    )
+    print(
+        f"servidores purgados vigentes: {stats['lapidas_servidor_vigentes']} | "
+        f"filas {verbo}: {stats['filas_servidores']}"
     )
     return 0
 
