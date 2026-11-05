@@ -38,8 +38,18 @@ def memory_db():
                 await conn.execute(f"DELETE FROM {t}")
             await conn.commit()
 
-    asyncio.run(_clean())
+    async def _clean_all():
+        await _clean()
+        conn = await db.get_db()
+        async with db._db_lock:
+            for t in ("deleted_message_tombstones", "deleted_channel_tombstones",
+                      "audit_log", "scheduled_announcements"):
+                await conn.execute(f"DELETE FROM {t}")
+            await conn.commit()
+
+    asyncio.run(_clean_all())
     yield
+    asyncio.run(_clean_all())  # estas tablas las leen otros tests (p. ej. el registro externo)
     asyncio.run(db.close_db())
 
 

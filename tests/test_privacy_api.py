@@ -24,6 +24,7 @@ def memory_db():
 
     asyncio.run(_clean())
     yield
+    asyncio.run(_clean())
     asyncio.run(db.close_db())
 
 

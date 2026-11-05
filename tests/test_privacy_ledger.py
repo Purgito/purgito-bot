@@ -179,12 +179,15 @@ def test_la_instantanea_lleva_solo_lapidas_vigentes_y_las_exclusiones(conn):
     records = _sync(privacy_ledger.build_snapshot)
     tipos = [r["type"] for r in records]
     assert tipos[0] == "header" and tipos[-1] == "footer"
-    assert records[-1]["counts"] == {
+    counts = records[-1]["counts"]
+    # El ancla del registro depende de lo que haya en privacy_request_log (0 o 1): se comprueba aparte.
+    assert {k: counts[k] for k in ("user_tombstone", "guild_tombstone", "exclusion", "deletion_request")} == {
         "user_tombstone": 1,
         "guild_tombstone": 1,
         "exclusion": 1,
         "deletion_request": 0,
     }
+    assert counts["log_anchor"] in (0, 1)
     ids = {r.get("user_id") for r in records if r["type"] == "user_tombstone"}
     assert ids == {10}  # la vencida (11) no se exporta
 
@@ -302,6 +305,8 @@ def test_un_restore_viejo_sin_lapidas_se_corrige_con_el_registro_externo(conn):
         "lapidas_servidor": 1,
         "exclusiones": 1,
         "solicitudes": 0,
+        "mensajes_registrados": 0,
+        "canales_registrados": 0,
     }
     # el usuario 10 desaparece de todos los servidores; el 20 queda (salvo en el servidor 500)
     assert _rows(conn, "SELECT count(*) FROM user_corpus WHERE author_id=10")[0][0] == 0
