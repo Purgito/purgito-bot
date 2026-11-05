@@ -10,6 +10,7 @@ desde un backup"). No lo usa el bot.
     python scripts/r2_backup.py prune-gfs [--daily 7 --weekly 2 --max-age-days 14] [--apply]
     python scripts/r2_backup.py check [--max-age-hours 36]    # ¿el último backup es reciente?
     python scripts/r2_backup.py prune-ledger [--max-age-days 15] [--apply]
+    python scripts/r2_backup.py preflight                    # solo lectura: ¿es seguro correr un backup?
     python scripts/r2_backup.py download latest --dest ~/restore
     python scripts/r2_backup.py download purgito-20261001-031700.dump --dest ~/restore
 
@@ -374,6 +375,78 @@ def cmd_prune_ledger(args) -> int:
     return 1 if failed else 0
 
 
+def cmd_preflight(args) -> int:
+    """Comprobación de SOLO LECTURA antes del primer backup (o tras cambiar la
+    configuración). No sube ni borra nada. Falla (1) si algo no es seguro:
+      - el prefijo de la generación no es gen<N>/ con N >= 2;
+      - los destinatarios age faltan, no son age1... o están revocados;
+      - la retención no es coherente con la política de privacidad;
+      - alguna poda tocaría un objeto de fuera de la generación vigente."""
+    import backup_recipients
+
+    problems = []
+    try:
+        prefix = r2.backup_prefix()
+        bucket = r2.bucket_for(r2.BACKUPS)
+        if not bucket:
+            raise r2.BackupError("falta R2_BACKUP_BUCKET")
+    except r2.BackupError as e:
+        _err(str(e))
+        return 1
+    print(f"bucket: {bucket} | generación vigente: {prefix}")
+    try:
+        recipients = backup_recipients.parse_recipients(
+            os.getenv("BACKUP_AGE_RECIPIENTS", "")
+        )
+        print(
+            f"destinatarios age: {len(recipients)} "
+            f"({', '.join(backup_recipients.short(x) for x in recipients)}), ninguno revocado"
+        )
+    except ValueError as e:
+        problems.append(str(e))
+    if not (1 <= args.daily <= args.max_age_days and args.weekly >= 0):
+        problems.append("retención incoherente (daily/weekly/max-age-days)")
+    elif args.max_age_days > 14:
+        problems.append(
+            f"max-age-days={args.max_age_days}: la política de privacidad promete menos de 14 días"
+        )
+    print(
+        f"retención en R2: {args.daily} diarios + {args.weekly} domingos, "
+        f"menos de {args.max_age_days} días"
+    )
+    try:
+        everything = r2.list_all_keys_readonly_sync()
+        mine = {k for k, _s, _m in r2.list_backups_sync()}
+        outside = [k for k, _s, _m in everything if not k.startswith(prefix)]
+        print(
+            f"objetos en el bucket: {len(everything)} | de la generación vigente: "
+            f"{len(mine)} | históricos (fuera del prefijo, intocables): {len(outside)}"
+        )
+        _valid, _kept, victims = prune_plan_gfs(
+            r2.list_backups_sync(),
+            _now(),
+            args.daily,
+            args.weekly,
+            args.max_age_days,
+            args.prefix,
+        )
+        _keys, _kl, ledger_victims = prune_plan_ledger(r2.list_backups_sync(), _now())
+        planned = [prefix + k for k in [*victims, *ledger_victims]]
+        stray = [k for k in planned if not k.startswith(prefix) or k in set(outside)]
+        print(
+            f"la poda borraría {len(planned)} objeto(s) de la generación vigente y "
+            f"{len(stray)} del histórico"
+        )
+        if stray:
+            problems.append("una poda tocaría objetos históricos")
+    except (r2.BackupError, PrunePlanError) as e:
+        problems.append(str(e))
+    for p in problems:
+        _err(p)
+    print("PREFLIGHT: OK" if not problems else "PREFLIGHT: FALLÓ")
+    return 1 if problems else 0
+
+
 def _flags_key_for(key: str) -> str | None:
     return key[: -len(".db")] + ".flags.tar.gz" if key.endswith(".db") else None
 
@@ -467,6 +540,15 @@ def main(argv=None) -> int:
     pl.add_argument("--max-age-days", type=int, default=DEFAULT_LEDGER_MAX_AGE_DAYS)
     pl.add_argument("--apply", action="store_true", help="borra de verdad")
     pl.set_defaults(func=cmd_prune_ledger)
+
+    pf = sub.add_parser(
+        "preflight", help="comprobación de solo lectura antes de correr backups"
+    )
+    pf.add_argument("--daily", type=int, default=DEFAULT_KEEP_DAILY)
+    pf.add_argument("--weekly", type=int, default=DEFAULT_KEEP_WEEKLY)
+    pf.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_AGE_DAYS)
+    pf.add_argument("--prefix", default=BACKUP_PREFIX)
+    pf.set_defaults(func=cmd_preflight)
 
     dl = sub.add_parser("download", help="baja un backup (y su tar de flags)")
     dl.add_argument("name", help="key del backup, o 'latest' para el más reciente")

@@ -271,10 +271,10 @@ def test_backup_va_al_bucket_de_backups_y_solo_a_ese(s3, tmp_path):
     key = r2.upload_backup_file_sync(str(db))
 
     assert key == "bot-20260812-031700.db"
-    assert s3.keys(BACKUP_BUCKET) == {key}
+    assert s3.keys(BACKUP_BUCKET) == {"gen2/" + key}  # generación vigente
     assert s3.keys(IMAGES_BUCKET) == s3.keys(GIFS_BUCKET) == set()
     assert {bucket for _op, bucket, _k in s3.calls} == {BACKUP_BUCKET}
-    obj = s3.buckets[BACKUP_BUCKET][key]
+    obj = s3.buckets[BACKUP_BUCKET]["gen2/" + key]
     # nada pensado para servirse: sin Cache-Control ni URL
     assert "CacheControl" not in obj
     assert obj["Metadata"]["sha256"] == _hash(db.read_bytes())
@@ -343,7 +343,7 @@ def test_backup_download_verifica_el_sha256(s3, tmp_path):
     assert dest.read_bytes() == b"contenido"
     assert oct(dest.stat().st_mode & 0o777) == "0o600"
 
-    s3.buckets[BACKUP_BUCKET]["bot-1.db"]["Body"] = b"corrupto!!"
+    s3.buckets[BACKUP_BUCKET]["gen2/bot-1.db"]["Body"] = b"corrupto!!"
     with pytest.raises(r2.BackupError, match="sha256"):
         r2.download_backup_sync("bot-1.db", str(tmp_path / "otro.db"))
 
@@ -354,7 +354,7 @@ def test_list_backups_ordena_por_fecha(s3):
         "bot-20260811-031700.db",
         "bot-20260813-031700.db",
     ):
-        s3.seed(BACKUP_BUCKET, name)
+        s3.seed(BACKUP_BUCKET, "gen2/" + name)
 
     assert [k for k, _s, _m in r2.list_backups_sync()] == [
         "bot-20260811-031700.db",

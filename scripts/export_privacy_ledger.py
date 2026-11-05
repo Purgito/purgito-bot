@@ -31,11 +31,11 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(os.path.join(ROOT, ".env"))
 
+import backup_recipients  # noqa: E402
 import pgsync  # noqa: E402
 import privacy_ledger  # noqa: E402
 import r2  # noqa: E402
 
-AGE_PUBKEY = re.compile(r"^age1[a-z0-9]{50,}$")
 KEEP_LOCAL = 3
 
 
@@ -48,15 +48,7 @@ def _log(msg: str) -> None:
 
 
 def parse_recipients(raw: str) -> list[str]:
-    recipients = raw.replace(",", " ").split()
-    if not recipients:
-        raise ValueError(
-            "falta BACKUP_AGE_RECIPIENTS: nunca se exporta el registro en claro"
-        )
-    for r in recipients:
-        if not AGE_PUBKEY.match(r):
-            raise ValueError("BACKUP_AGE_RECIPIENTS: una clave no parece age1...")
-    return recipients
+    return backup_recipients.parse_recipients(raw)
 
 
 def encrypt(plain_path: str, out_path: str, recipients: list[str], age: str) -> None:

@@ -1,0 +1,7 @@
+# Claves PÚBLICAS age que NUNCA deben usarse para cifrar backups nuevos.
+# backup_db.sh, export_privacy_ledger.py y `r2_backup.py preflight` se niegan a correr
+# si BACKUP_AGE_RECIPIENTS contiene alguna. Una por línea; los comentarios empiezan por #.
+#
+# Generación 1: la clave privada correspondiente se perdió (incidente del 2026-11-05).
+# Los backups cifrados con ella siguen en el bucket, sin leerse, hasta que caduquen.
+age1aa0eyjhwnjzx8hh9h56grrd4fhpgegggy777dt88edrsur8zvdesgrxn87

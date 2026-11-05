@@ -463,7 +463,9 @@ def test_exporta_cifrado_sube_a_ledger_y_no_deja_nada_en_claro(
     assert oct(local[0].stat().st_mode & 0o777) == "0o600"
     assert not any(p.name.startswith(".ledger-") for p in local)
     claves = fake.keys("purgito-backups")
-    assert len(claves) == 1 and next(iter(claves)).startswith("ledger/privacy-ledger-")
+    assert len(claves) == 1 and next(iter(claves)).startswith(
+        "gen2/ledger/privacy-ledger-"
+    )
     # cifrado de verdad: sin la clave no se lee, con ella sí
     crudo = local[0].read_bytes()
     assert crudo.startswith(b"age-encryption.org/v1") and b"tombstone" not in crudo

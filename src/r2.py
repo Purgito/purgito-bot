@@ -39,6 +39,7 @@ import io
 import ipaddress
 import logging
 import os
+import re
 import socket
 import subprocess
 import threading
@@ -1017,6 +1018,55 @@ class BackupError(Exception):
     """No se pudo subir, listar o bajar un backup."""
 
 
+# ── Generaciones de backups dentro de UN solo bucket ─────────────────────────
+# El bucket de backups mezcla generaciones. Todo lo que este módulo lista, sube,
+# baja o borra vive bajo el prefijo de la generación vigente (`gen2/` por defecto,
+# R2_BACKUP_PREFIX); los objetos anteriores (generación 1: `purgito-*.dump.age`,
+# `luks-header-*`, `privacy-prefs.*` en la raíz del bucket, cifrados con una clave
+# age perdida) quedan FUERA de su alcance: ni los lista, así que ninguna poda puede
+# tocarlos, ni acepta una key que salga del prefijo. Es una barrera contra errores
+# de código, no contra un token robado: un token de R2 se limita a un bucket, no a
+# un prefijo (la protección frente a eso es Bucket Lock, ver docs/POSTGRES.md).
+DEFAULT_BACKUP_PREFIX = "gen2/"
+_BACKUP_PREFIX_RE = re.compile(r"^gen([2-9]|[1-9][0-9]+)/$")  # gen1 = el histórico
+_BACKUP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def backup_prefix() -> str:
+    """Prefijo de la generación vigente. Solo `gen<N>/` con N >= 2: la raíz del
+    bucket y `gen1/` (lo histórico) nunca son un destino válido."""
+    prefix = _env("R2_BACKUP_PREFIX") or DEFAULT_BACKUP_PREFIX
+    if not _BACKUP_PREFIX_RE.match(prefix):
+        raise BackupError(
+            f"R2_BACKUP_PREFIX={prefix!r} no es válido: tiene que ser gen2/, gen3/, ... "
+            "(la raíz del bucket y gen1/ son los backups históricos y no se usan)"
+        )
+    return prefix
+
+
+def _backup_relative_key(key: str, *, allow_ledger: bool = True) -> str:
+    """Valida una key RELATIVA a la generación: un nombre simple (`purgito-...`) o
+    `ledger/<nombre>`. Sin `..`, sin `/` inicial, sin carpetas anidadas."""
+    parts = key.split("/")
+    ok = (
+        len(parts) == 1
+        and _BACKUP_NAME_RE.match(parts[0])
+        or (
+            allow_ledger
+            and len(parts) == 2
+            and parts[0] == "ledger"
+            and _BACKUP_NAME_RE.match(parts[1])
+        )
+    )
+    if not ok or ".." in key:
+        raise BackupError(f"key de backup no válida: {key!r}")
+    return key
+
+
+def _backup_full_key(key: str) -> str:
+    return backup_prefix() + _backup_relative_key(key)
+
+
 def _backup_client_and_bucket():
     client = get_backup_client()
     bucket = bucket_for(BACKUPS)
@@ -1041,7 +1091,8 @@ def upload_backup_file_sync(path: str, key: str | None = None) -> str:
     estar y no sirve. Sin CacheControl ni ContentDisposition: no es contenido
     para servir, y el bucket no tiene cómo servirlo."""
     client, bucket = _backup_client_and_bucket()
-    key = key or os.path.basename(path)
+    key = _backup_relative_key(key or os.path.basename(path))
+    full_key = backup_prefix() + key
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -1055,12 +1106,12 @@ def upload_backup_file_sync(path: str, key: str | None = None) -> str:
         # copia de la base (pg_dump -Fc) cabe de sobra; el tope de un PUT simple es 5 GiB.
         client.put_object(
             Bucket=bucket,
-            Key=key,
+            Key=full_key,
             Body=data,
             ContentType="application/octet-stream",
             Metadata={"sha256": digest},
         )
-        head = client.head_object(Bucket=bucket, Key=key)
+        head = client.head_object(Bucket=bucket, Key=full_key)
     except Exception as e:
         raise BackupError(f"falló la subida de {key} a R2: {e}") from e
     if head.get("ContentLength") != len(data):
@@ -1072,14 +1123,37 @@ def upload_backup_file_sync(path: str, key: str | None = None) -> str:
 
 
 def list_backups_sync() -> list[tuple[str, int, object]]:
-    """(key, tamaño, fecha) de los backups del bucket, del más viejo al más
-    nuevo. Los nombres llevan la fecha (`bot-YYYYMMDD-HHMMSS`), así que el
-    orden alfabético es el cronológico."""
+    """(key relativa, tamaño, fecha) de los backups de la generación vigente, del
+    más viejo al más nuevo. Lista SOLO bajo el prefijo (`Prefix=`): los objetos de
+    generaciones anteriores ni aparecen. Los nombres llevan la fecha
+    (`purgito-YYYYMMDD-HHMMSS`), así que el orden alfabético es el cronológico."""
     client, bucket = _backup_client_and_bucket()
+    prefix = backup_prefix()
     try:
         out = []
         paginator = client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=bucket):
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                if obj["Key"].startswith(prefix):
+                    out.append(
+                        (
+                            obj["Key"][len(prefix) :],
+                            obj["Size"],
+                            obj.get("LastModified"),
+                        )
+                    )
+    except Exception as e:
+        raise BackupError(f"no se pudo listar el bucket de backups: {e}") from e
+    return sorted(out)
+
+
+def list_all_keys_readonly_sync() -> list[tuple[str, int, object]]:
+    """Todas las keys del bucket, de TODAS las generaciones, solo para informar
+    (`r2_backup.py preflight`). Nada la usa para borrar."""
+    client, bucket = _backup_client_and_bucket()
+    try:
+        out = []
+        for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
             for obj in page.get("Contents", []):
                 out.append((obj["Key"], obj["Size"], obj.get("LastModified")))
     except Exception as e:
@@ -1087,34 +1161,30 @@ def list_backups_sync() -> list[tuple[str, int, object]]:
     return sorted(out)
 
 
-_BACKUP_DELETABLE_PREFIXES = ("purgito-", "bot-", "ledger/")
-
-
 def delete_backup_sync(key: str) -> None:
-    """Borra UN objeto del bucket de backups (poda por antigüedad, ver
-    scripts/r2_backup.py prune): un backup `purgito-*` / `bot-*` o una
-    instantánea del registro de eliminaciones `ledger/*`. Nunca toca los
-    buckets de imágenes ni de GIFs (este cliente ni siquiera tiene permiso)."""
-    ok = key.startswith(_BACKUP_DELETABLE_PREFIXES) and ".." not in key
-    if key.startswith("ledger/"):
-        ok = ok and key.count("/") == 1 and len(key) > len("ledger/")
-    else:
-        ok = ok and "/" not in key
-    if not ok:
+    """Borra UN objeto de la generación vigente (poda por antigüedad, ver
+    scripts/r2_backup.py): un backup `purgito-*` o una instantánea del registro de
+    eliminaciones `ledger/*`. `key` es relativa; la key real es siempre
+    `<prefijo de la generación>/<key>`, así que una key que intente salir del
+    prefijo (`../`, absoluta, de otra generación) se rechaza antes de llamar a R2."""
+    key = _backup_relative_key(key)
+    if not key.startswith(("purgito-", "ledger/")):
         raise BackupError(f"no se borra {key!r}: no parece un backup")
+    full_key = backup_prefix() + key
     client, bucket = _backup_client_and_bucket()
     try:
-        client.delete_object(Bucket=bucket, Key=key)
+        client.delete_object(Bucket=bucket, Key=full_key)
     except Exception as e:
         raise BackupError(f"no se pudo borrar {key} de R2: {e}") from e
 
 
 def download_backup_sync(key: str, dest_path: str) -> str:
-    """Baja un backup a `dest_path` (0600: lleva el corpus y los tokens de webhook) y comprueba
-    el sha256 que guardó la subida, si el objeto lo trae."""
+    """Baja un backup de la generación vigente a `dest_path` (0600: lleva el corpus
+    y los tokens de webhook) y comprueba el sha256 que guardó la subida."""
+    key = _backup_relative_key(key)
     client, bucket = _backup_client_and_bucket()
     try:
-        resp = client.get_object(Bucket=bucket, Key=key)
+        resp = client.get_object(Bucket=bucket, Key=backup_prefix() + key)
         data = resp["Body"].read()
     except Exception as e:
         raise BackupError(f"no se pudo bajar {key}: {e}") from e

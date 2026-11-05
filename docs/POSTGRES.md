@@ -29,6 +29,7 @@ Van en `.env` (secretos, gitignored; los nombres están en `.env.example`):
 | `DB_POOL_MIN` / `DB_POOL_MAX` | no | Tamaño del pool (default 2 / 10). |
 | `BACKUP_AGE_RECIPIENTS` | para backups a R2 | Clave(s) PÚBLICA(S) age (`age1...`) con las que `backup_db.sh` cifra. Sin ella, con R2 configurado, el backup falla (no sube nada en claro). Ver § Backups. |
 | `R2_BACKUP_ACCESS_KEY_ID` / `R2_BACKUP_SECRET_ACCESS_KEY` | para backups a R2 | Token de R2 **solo** del bucket de backups (Object Read & Write, "Apply to specific buckets only"). Sin fallback al token de imágenes/GIFs. |
+| `R2_BACKUP_PREFIX` | no (`gen2/`) | Generación de backups dentro del bucket. Solo `gen<N>/` con N >= 2; la raíz y `gen1/` (lo histórico) se rechazan. |
 | `R2_KEEP_DAILY` / `R2_KEEP_WEEKLY` / `BACKUP_MAX_AGE_DAYS` | no (7 / 2 / 14) | Retención en R2: diarios, domingos y tope de edad. `KEEP_LAST` (2) es solo la del disco. |
 | `BACKUP_ALERT_WEBHOOK` | no | Webhook de Discord que recibe un aviso si el backup o la exportación del registro fallan. |
 | `DELETION_TOMBSTONE_RETENTION_DAYS` | no (`limits.env`, 15) | Cuánto dura una lápida (usuario o servidor). Debe ser ≥ la antigüedad máxima de un backup (14) + 1. |
@@ -178,7 +179,7 @@ env -i HOME=$HOME USER=$USER LOGNAME=$USER SHELL=/bin/sh PATH=/usr/bin:/bin \
 tail -2 ~/purgito-bot-backups/backup.log   # OK backup -> ... cifrado con age ... subido a R2
 ```
 
-**Estado de la generación 2 (claves age nuevas, bucket `purgito-backups-v2`):** se da por
+**Estado de la generación 2 (claves age nuevas, prefijo `gen2/` del bucket `purgito-backups`):** se da por
 operativa cuando (1) `backup.log` tiene un `BACKUP COMPLETE` con el cifrado nuevo,
 (2) `r2_backup.py list` muestra el `.dump.age` en el bucket nuevo y (3) la prueba de
 § "Probar la restauración en Windows" pasó con la clave privada guardada fuera del servidor.
@@ -190,26 +191,55 @@ de descarte → comparar catálogo, secuencias, índices, funciones y conteos co
 producción → reaplicar una lápida de prueba) pasó. `backup.log` lo crea la shell
 del cron con la umask del usuario; no contiene secretos.
 
-### Retención en R2
+### Generaciones dentro de `purgito-backups` y retención en R2
 
-El token de la app **no** puede leer ni escribir reglas de *lifecycle*, *Bucket Lock* ni CORS
-(`AccessDenied`): esas reglas se ponen a mano en el dashboard de Cloudflare. La retención
-no depende de ellas: `backup_db.sh` llama a `r2_backup.py prune-gfs --apply` después de
-cada subida (7 diarios + 2 domingos, nada de 14 días o más; solo cuenta objetos
-`purgito-*` con contenido y no toca otras keys del bucket). Las reglas del dashboard son
-una red de seguridad que **tiene que ser compatible** con esos plazos:
+Un solo bucket, dos generaciones separadas por prefijo:
 
-| Regla en `purgito-backups-v2` | Valor | Por qué |
-|---|---|---|
-| *Object lifecycle*: borrar objetos | **14 días** (prefijo `purgito-`) y **15 días** (prefijo `ledger/`) | Tope de la política de privacidad por si el script no corre. |
-| *Bucket Lock* (antiborrado), si lo usas | **6 días** como máximo, prefijo `purgito-` | Protege de un borrado masivo con el token robado. Los diarios se podan a los 7 días: un bloqueo mayor haría fallar la poda (HTTP 409 `ObjectLockedByBucketPolicy`) y se perderían los plazos. |
-| Nada de bloqueos indefinidos ni de más de 14 días | | Incumplirían la política publicada. |
+| Generación | Dónde | Cifrado con | Estado |
+|---|---|---|---|
+| 1 (histórica) | raíz del bucket: `purgito-*.dump.age`, `luks-header-*`, `privacy-prefs.*` | clave age antigua (**perdida**) | no se lee ni se toca; caduca a los 14 días de su creación |
+| 2 (vigente) | `gen2/purgito-*.dump.age` y `gen2/ledger/privacy-ledger-*.jsonl.age` | clave age nueva | la usan `backup_db.sh` y `export_ledger.sh` |
 
-Los backups de la generación anterior (cifrados con una clave age perdida) no los toca
-nada de esto mientras `R2_BACKUP_BUCKET` apunte al bucket nuevo. Para protegerlos sin
-bloqueos indefinidos: *Bucket Lock* de **14 días** sobre el bucket viejo (cubre lo ya
-subido y no admite nada nuevo si ya no se usa) + *lifecycle* de 14 días; caducan solos
-a los 14 días de su creación, como promete la política.
+`R2_BACKUP_PREFIX` (default `gen2/`) solo acepta `gen<N>/` con N >= 2: la raíz y `gen1/`
+nunca son un destino. Todo lo que hace `src/r2.py` con backups (subir, listar, bajar,
+borrar) va **bajo ese prefijo**: la generación 1 ni aparece en los listados, así que ninguna
+poda puede tocarla, y una key que intente salir del prefijo (`../`, absoluta, de otra
+generación) se rechaza antes de llamar a R2. Es una barrera contra errores de código; frente
+a un token robado, la protección son las reglas de Cloudflare de más abajo.
+`r2_backup.py preflight` (solo lectura) lo comprueba contra el bucket real antes del primer
+backup. Además, `deploy/age-revoked-recipients.txt` lista las claves públicas que nunca deben
+usarse (la de la generación 1): `backup_db.sh`, el exportador del registro y `preflight` se
+niegan a correr si `BACKUP_AGE_RECIPIENTS` contiene alguna.
+
+La retención no depende de reglas del dashboard: `backup_db.sh` llama a
+`r2_backup.py prune-gfs --apply` después de cada subida (7 diarios + 2 domingos, nada de 14
+días o más; solo cuenta `purgito-*` de la generación vigente). Las reglas de Cloudflare son una
+red de seguridad que **tiene que ser compatible** con esos plazos. El token de la app no puede
+escribir reglas de *lifecycle* ni de *Bucket Lock* (`AccessDenied`): se ponen a mano en el
+dashboard.
+
+**Tokens (todos limitados por bucket; un token de R2 no se puede limitar a un prefijo):**
+
+| Token | Permiso | Buckets | Dónde vive | Para qué |
+|---|---|---|---|---|
+| Imágenes y GIFs (`R2_ACCESS_KEY_ID`) | Object Read & Write | `purgito-images`, `purgito-gifs` | `.env` del bot | el bot; **no** ve `purgito-backups` |
+| Backups (`R2_BACKUP_ACCESS_KEY_ID`) | Object Read & Write | solo `purgito-backups` | `.env` del servidor | subir y podar `gen2/` |
+| Restauración (solo en tu PC) | **Object Read only** | solo `purgito-backups` | Proton Pass, tu PC | bajar dumps para probarlos; no puede escribir ni borrar |
+
+**Reglas en el dashboard de `purgito-backups`** (todas por prefijo; ninguna regla sin prefijo,
+porque un bloqueo de todo el bucket frenaría la poda de `gen2/`):
+
+| Regla | Prefijo | Valor | Por qué |
+|---|---|---|---|
+| *Bucket Lock* (antiborrado) | `purgito-` | **14 días** | protege los `.dump.age` históricos de la raíz (los de `gen2/` empiezan por `gen2/`, no coinciden) |
+| *Bucket Lock* | `luks-header` y `privacy-prefs` | **14 días** | igual, para el resto de la generación 1 |
+| *Bucket Lock* | `gen2/purgito-` | **6 días** como máximo | protege los backups nuevos de un borrado masivo; los diarios se podan a los 7 días, un bloqueo mayor haría fallar la poda (HTTP 409 `ObjectLockedByBucketPolicy`) |
+| *Object lifecycle*: borrar | `gen2/purgito-` | 14 días | tope de la política por si el script no corre |
+| *Object lifecycle*: borrar | `gen2/ledger/` | 15 días | idem para el registro de eliminaciones |
+| *Object lifecycle*: borrar (opcional) | `purgito-`, `luks-header`, `privacy-prefs` | 14 días | hace que la generación 1 caduque sola a los 14 días, como promete la política. Si prefieres decidir a mano, no la actives y bórralos tú antes de cumplir los 14 días (o cambia la política) |
+
+Nada de bloqueos indefinidos ni de más de 14 días: incumplirían la política publicada. El
+bloqueo no impide que el lifecycle borre el objeto cuando se cumple el plazo del bloqueo.
 
 ## Restaurar
 
@@ -244,7 +274,7 @@ purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no l
 - Si se pierde la base, se pierden también sus lápidas. Por eso `deploy/export_ledger.sh`
   (cron **cada hora**, no instalado por defecto) guarda en R2, cifrada con la clave age de
   los backups, una instantánea con **solo** las lápidas vigentes y las exclusiones activas
-  (`ledger/privacy-ledger-<fecha>.jsonl.age`; ids y fechas, nunca contenido). Se
+  (`gen2/ledger/privacy-ledger-<fecha>.jsonl.age`; ids y fechas, nunca contenido). Se
   conservan 15 días como máximo (siempre las 3 últimas), y 3 copias locales en
   `~/purgito-bot-backups/ledger/`. La pérdida máxima del registro es de una hora.
   Cron propuesto: `7 * * * * /home/purgito/purgito-bot/deploy/export_ledger.sh >> ~/purgito-bot-backups/ledger.log 2>&1`.

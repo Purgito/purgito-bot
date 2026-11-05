@@ -20,6 +20,13 @@ import r2
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKUP_BUCKET = "purgito-backups"
+G = "gen2/"  # generación vigente de los backups dentro del bucket
+
+
+def bk_keys(s3):
+    """Keys de la generación vigente, sin el prefijo."""
+    return {k[len(G) :] for k in s3.keys(BACKUP_BUCKET) if k.startswith(G)}
+
 
 _spec = importlib.util.spec_from_file_location(
     "r2_backup", ROOT / "scripts" / "r2_backup.py"
@@ -58,8 +65,8 @@ def test_upload_sube_en_el_orden_pedido_y_solo_al_bucket_de_backups(
 
     assert rc == 0
     puts = [key for _op, _bucket, key in s3.ops("put_object")]
-    assert puts == [flags.name, db.name]  # los flags antes que la base
-    assert s3.keys(BACKUP_BUCKET) == {flags.name, db.name}
+    assert puts == [G + flags.name, G + db.name]  # los flags antes que la base
+    assert bk_keys(s3) == {flags.name, db.name}
     assert s3.keys("purgito-images") == s3.keys("purgito-gifs") == set()
     assert "OK subido" in capsys.readouterr().out
 
@@ -72,7 +79,7 @@ def test_upload_falla_con_codigo_1_si_la_subida_falla(s3, tmp_path, capsys):
 
     assert rc == 1
     assert "ERROR" in capsys.readouterr().err
-    assert s3.keys(BACKUP_BUCKET) == set()
+    assert bk_keys(s3) == set()
 
 
 def test_upload_corta_en_el_primer_error_y_no_sube_la_base(s3, tmp_path, monkeypatch):
@@ -89,7 +96,7 @@ def test_upload_corta_en_el_primer_error_y_no_sube_la_base(s3, tmp_path, monkeyp
     monkeypatch.setattr(r2, "upload_backup_file_sync", solo_la_base_sube)
 
     assert r2_backup.main(["upload", str(flags), str(db)]) == 1
-    assert s3.keys(BACKUP_BUCKET) == set()
+    assert bk_keys(s3) == set()
 
 
 def test_upload_con_un_archivo_inexistente_falla_sin_subir_nada(s3, tmp_path):
@@ -111,7 +118,7 @@ def test_upload_sin_bucket_configurado_es_un_error_no_un_exito_silencioso(
 
 
 def test_list_muestra_los_backups(s3, capsys):
-    s3.seed(BACKUP_BUCKET, "bot-20260812-031700.db", b"123")
+    s3.seed(BACKUP_BUCKET, G + "bot-20260812-031700.db", b"123")
 
     assert r2_backup.main(["list"]) == 0
     assert "bot-20260812-031700.db\t3" in capsys.readouterr().out
@@ -441,8 +448,8 @@ def test_upload_rechaza_todo_si_un_solo_archivo_esta_en_claro(s3, tmp_path):
 
 
 def test_download_latest_elige_tambien_los_dump_age(s3, tmp_path):
-    s3.seed(BACKUP_BUCKET, "purgito-20261001-000000.dump", b"viejo")
-    s3.seed(BACKUP_BUCKET, "purgito-20261002-000000.dump.age", b"nuevo")
+    s3.seed(BACKUP_BUCKET, G + "purgito-20261001-000000.dump", b"viejo")
+    s3.seed(BACKUP_BUCKET, G + "purgito-20261002-000000.dump.age", b"nuevo")
 
     assert r2_backup.main(["download", "latest", "--dest", str(tmp_path)]) == 0
     assert (tmp_path / "purgito-20261002-000000.dump.age").read_bytes() == b"nuevo"
@@ -527,29 +534,27 @@ def test_prune_keep_menor_que_1_se_rechaza():
 
 def test_prune_cli_keep_menor_que_1_falla_sin_borrar(s3, capsys):
     for k in _nombres(3):
-        s3.seed(BACKUP_BUCKET, k, b"x")
+        s3.seed(BACKUP_BUCKET, G + k, b"x")
 
     assert r2_backup.main(["prune", "--keep", "0", "--apply"]) == 1
-    assert len(s3.keys(BACKUP_BUCKET)) == 3
+    assert len(bk_keys(s3)) == 3
 
 
 @pytest.mark.parametrize("cuantos,quedan", [(1, 1), (2, 2), (3, 2), (4, 2)])
 def test_prune_cli_apply_deja_2_y_dry_run_no_borra(s3, capsys, cuantos, quedan):
     for k in _nombres(cuantos):
-        s3.seed(BACKUP_BUCKET, k, b"x")
-    s3.seed(BACKUP_BUCKET, "bot-20260101-000000.db", b"sqlite")  # no se toca
+        s3.seed(BACKUP_BUCKET, G + k, b"x")
+    s3.seed(BACKUP_BUCKET, G + "bot-20260101-000000.db", b"sqlite")  # no se toca
 
     assert r2_backup.main(["prune"]) == 0  # dry-run
     out = capsys.readouterr().out
     assert f"R2 PRUNE: {cuantos} backup(s) válido(s)" in out
-    assert len(s3.keys(BACKUP_BUCKET)) == cuantos + 1
+    assert len(bk_keys(s3)) == cuantos + 1
 
     assert r2_backup.main(["prune", "--apply"]) == 0
     out = capsys.readouterr().out
     assert f"R2 PRUNE: {quedan} conservado(s), {cuantos - quedan} borrados" in out
-    assert s3.keys(BACKUP_BUCKET) == set(_nombres(cuantos)[-quedan:]) | {
-        "bot-20260101-000000.db"
-    }
+    assert bk_keys(s3) == set(_nombres(cuantos)[-quedan:]) | {"bot-20260101-000000.db"}
     if cuantos > 2:  # el log dice qué conservó y qué borró
         assert f"conservo {_nombres(cuantos)[-1]}" in out
         assert f"borrado {_nombres(cuantos)[0]}" in out
@@ -558,24 +563,24 @@ def test_prune_cli_apply_deja_2_y_dry_run_no_borra(s3, capsys, cuantos, quedan):
 def test_prune_cli_prefix_acota_a_unos_objetos_de_prueba(s3):
     reales = _nombres(3)
     for k in reales:
-        s3.seed(BACKUP_BUCKET, k, b"real")
+        s3.seed(BACKUP_BUCKET, G + k, b"real")
     pruebas = [f"purgito-zztest-{i}.dump.age" for i in range(4)]
     for k in pruebas:
-        s3.seed(BACKUP_BUCKET, k, b"prueba")
+        s3.seed(BACKUP_BUCKET, G + k, b"prueba")
 
     assert r2_backup.main(["prune", "--prefix", "purgito-zztest-", "--apply"]) == 0
 
-    assert s3.keys(BACKUP_BUCKET) == set(reales) | set(pruebas[-2:])
+    assert bk_keys(s3) == set(reales) | set(pruebas[-2:])
 
 
 def test_delete_backup_solo_acepta_keys_de_backup(s3):
-    s3.seed(BACKUP_BUCKET, "purgito-20261001-000000.dump.age", b"x")
+    s3.seed(BACKUP_BUCKET, G + "purgito-20261001-000000.dump.age", b"x")
 
     for malo in ("../x", "gifs/ab/x.gif", "imagen.png", "purgito-x/../../y"):
-        with pytest.raises(r2.BackupError, match="no parece un backup"):
+        with pytest.raises(r2.BackupError, match="no parece un backup|no válida"):
             r2.delete_backup_sync(malo)
     r2.delete_backup_sync("purgito-20261001-000000.dump.age")
-    assert s3.keys(BACKUP_BUCKET) == set()
+    assert bk_keys(s3) == set()
 
 
 @needs_shell_tools
@@ -942,22 +947,22 @@ def test_gfs_parametros_invalidos_se_rechazan(daily, weekly, age):
 def test_gfs_cli_apply_borra_solo_los_victimas_y_dry_run_no_borra(s3, capsys):
     ahora = datetime.now(timezone.utc)
     for d in range(20):
-        s3.seed(BACKUP_BUCKET, _dump(ahora - timedelta(days=d))[0])
-    s3.seed(BACKUP_BUCKET, "privacy-prefs.csv.age")
-    antes = len(s3.keys(BACKUP_BUCKET))
+        s3.seed(BACKUP_BUCKET, G + _dump(ahora - timedelta(days=d))[0])
+    s3.seed(BACKUP_BUCKET, G + "privacy-prefs.csv.age")
+    antes = len(bk_keys(s3))
     assert r2_backup.main(["prune-gfs"]) == 0
-    assert len(s3.keys(BACKUP_BUCKET)) == antes
+    assert len(bk_keys(s3)) == antes
     assert r2_backup.main(["prune-gfs", "--apply"]) == 0
-    quedan = s3.keys(BACKUP_BUCKET)
+    quedan = bk_keys(s3)
     assert "privacy-prefs.csv.age" in quedan
     assert len(quedan) <= 9 + 1
 
 
 def test_check_falla_si_el_ultimo_backup_es_viejo(s3):
     ahora = datetime.now(timezone.utc)
-    s3.seed(BACKUP_BUCKET, _dump(ahora - timedelta(hours=60))[0])
+    s3.seed(BACKUP_BUCKET, G + _dump(ahora - timedelta(hours=60))[0])
     assert r2_backup.main(["check", "--max-age-hours", "36"]) == 1
-    s3.seed(BACKUP_BUCKET, _dump(ahora - timedelta(hours=2))[0])
+    s3.seed(BACKUP_BUCKET, G + _dump(ahora - timedelta(hours=2))[0])
     assert r2_backup.main(["check", "--max-age-hours", "36"]) == 0
 
 

@@ -15,6 +15,7 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 - Registro de eliminaciones fuera de la base: `purged_guild_tombstones` (lápida de servidores purgados, 15 días), `src/privacy_ledger.py`, `scripts/export_privacy_ledger.py` + `deploy/export_ledger.sh` (instantánea cifrada con age en `ledger/` de R2, ids y fechas) y `reapply_deletions.py --ledger` (funde el registro, purga servidores, restaura exclusiones sin quitar ninguna).
 
 ### Changed (backups)
+- Los backups nuevos usan el MISMO bucket `purgito-backups` bajo el prefijo de generación `gen2/` (`R2_BACKUP_PREFIX`, solo `gen<N>/` con N >= 2): `r2.py` lista, sube, baja y borra únicamente bajo ese prefijo (claves relativas validadas), de modo que ninguna poda ve ni toca la generación 1 de la raíz. `r2_backup.py preflight` (solo lectura) lo comprueba; `deploy/age-revoked-recipients.txt` + `src/backup_recipients.py` impiden cifrar con la clave age antigua.
 - Retención de backups separada: disco `KEEP_LAST=2`; R2 `prune-gfs` = 7 diarios + 2 domingos, nada de 14 días o más (`R2_KEEP_DAILY`, `R2_KEEP_WEEKLY`, `BACKUP_MAX_AGE_DAYS`). Cron diario. `r2_backup.py check` (frescura) y `prune-ledger`. Aviso por `BACKUP_ALERT_WEBHOOK` si `backup_db.sh` falla.
 - `docs/PRIVACY*.md` y `docs/POSTGRES.md` describen la cantidad, duración y eliminación reales de las copias, el registro de lápidas y la prueba de restauración en Windows.
 

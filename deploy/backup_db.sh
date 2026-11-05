@@ -60,6 +60,7 @@ R2_KEEP_WEEKLY="${R2_KEEP_WEEKLY:-2}"
 BACKUP_MAX_AGE_DAYS="${BACKUP_MAX_AGE_DAYS:-14}"
 PYTHON="${PYTHON:-$script_dir/../.venv/bin/python}"
 AGE="${AGE:-age}"
+REVOKED_RECIPIENTS="$script_dir/age-revoked-recipients.txt"
 UPLOADER="$script_dir/../scripts/r2_backup.py"
 
 log() { echo "$(date -Is) $*"; }
@@ -154,6 +155,16 @@ n_recipients=0
 for r in $recipients; do
     if [[ ! "$r" =~ ^age1[a-z0-9]{50,}$ ]]; then
         echo "$(date -Is) ERROR BACKUP_AGE_RECIPIENTS: '$r' no parece una clave pública age (age1...)" >&2
+        exit 1
+    fi
+    # Claves revocadas (generación 1: su clave privada se perdió): un backup cifrado
+    # con ellas no se podría restaurar. Sin la lista no se sabe: se niega.
+    if [ ! -r "$REVOKED_RECIPIENTS" ]; then
+        echo "$(date -Is) ERROR falta $REVOKED_RECIPIENTS: no se puede comprobar que la clave no esté revocada. No se hizo backup." >&2
+        exit 1
+    fi
+    if grep -qxF -- "$r" "$REVOKED_RECIPIENTS"; then
+        echo "$(date -Is) ERROR BACKUP_AGE_RECIPIENTS contiene una clave REVOCADA (age-revoked-recipients.txt): su clave privada no existe. No se hizo backup." >&2
         exit 1
     fi
     age_args+=(-r "$r")

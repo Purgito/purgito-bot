@@ -1087,8 +1087,10 @@ en [`docs/POSTGRES.md`](docs/POSTGRES.md). Resumen operativo:
 - [`deploy/backup_db.sh`](deploy/backup_db.sh) corre por cron: `pg_dump -Fc`,
   verifica con `pg_restore --list`, **cifra con age** (`BACKUP_AGE_RECIPIENTS`, solo
   la clave pública; la privada vive fuera del servidor), sube el `.dump.age` a
-  `R2_BACKUP_BUCKET` (bucket **privado**, sin URL pública, con su **propio token**
-  `R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`) y poda por separado:
+  `R2_BACKUP_BUCKET` (bucket **privado**, sin URL pública) bajo el prefijo `gen2/`
+  (`R2_BACKUP_PREFIX`; lo que hay en la raíz del bucket es la generación 1 y no se toca),
+  con su **propio token** (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`), y poda
+  por separado:
   **disco: las 2 más recientes** (`KEEP_LAST=2`); **R2: 7 diarios + 2 semanales, nada de
   14 días o más** (`R2_KEEP_DAILY`, `R2_KEEP_WEEKLY`, `BACKUP_MAX_AGE_DAYS`). Con bucket y
   sin destinatarios no hace backup: no sube nada en claro. Si la subida falla, la corrida
