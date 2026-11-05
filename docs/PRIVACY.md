@@ -31,7 +31,6 @@ Estos mensajes pueden utilizarse para:
 - Entrenar cadenas de Markov locales.
 - Generar respuestas automáticas en el chat.
 - Imitar el estilo de escritura de los usuarios.
-- Servir como muestra acotada de vocabulario en la generación de memes (localmente con Markov o mediante la integración opcional con Groq si está configurada).
 
 Los canales marcados como **NSFW** en Discord quedan siempre fuera de este aprendizaje: Purgito nunca guarda mensajes de un canal NSFW, sin excepción ni forma de habilitarlo manualmente para el corpus. Si un canal que ya estaba habilitado para el corpus se marca como NSFW más adelante, el historial que ya se había guardado de ese canal se purga de inmediato.
 
@@ -43,7 +42,7 @@ El bot puede almacenar:
 
 - URLs de imágenes.
 - URLs de GIFs.
-- Archivos multimedia necesarios para las funciones de la galería de GIFs, la colección de memes y las plantillas de anuncios/embeds.
+- Archivos multimedia necesarios para las funciones de la galería de GIFs y las plantillas de anuncios/embeds.
 
 Cuando corresponde, dichos archivos pueden almacenarse de forma persistente mediante Cloudflare R2.
 
@@ -129,7 +128,6 @@ e integraciones del bot siguen las secciones anteriores.
 La información recopilada se utiliza exclusivamente para proporcionar las funciones del bot, incluyendo:
 
 - Generación de texto mediante cadenas de Markov locales.
-- Generación de memes y captions (de forma local o mediante la integración opcional con Groq).
 - Galería de GIFs.
 - Automatizaciones del servidor.
 - Configuración de comandos y preferencias.
@@ -145,16 +143,7 @@ Purgito utiliza servicios externos para determinadas funciones. Cada proveedor p
 ## Discord y almacenamiento
 
 - **Discord**: Para la comunicación, recepción de eventos, autenticación y envío de mensajes en la plataforma.
-- **Cloudflare R2**: Para el almacenamiento persistente de archivos multimedia (imágenes de memes del pool del servidor y GIFs subidos a la galería) y, en un espacio privado aparte, de las copias de seguridad cifradas descritas en la sección 4.
-
-## Groq API (Captions de memes con IA)
-
-- **Qué es y para qué se utiliza**: Groq es un proveedor externo de inferencia de modelos de inteligencia artificial (visión y lenguaje) utilizado de forma opcional y exclusiva para analizar imágenes y redactar captions en la función de memes.
-- **Qué datos pueden enviarse**: La imagen utilizada para el meme (codificada en base64) y una muestra limitada del corpus del servidor (hasta un máximo de 25 mensajes cortos y 15 mensajes largos, como referencia de vocabulario y tono).
-- **Cuándo interviene**: Únicamente al solicitar o ejecutarse la generación de un meme (comando `/momo`, respuesta con trigger a imagen o meme programado) y siempre que la clave `GROQ_API_KEY` haya sido configurada por el operador del bot.
-- **Alcance acotado**: Groq no procesa las conversaciones habituales del chat ni recibe el corpus completo de ningún servidor. La conversación general de Purgito funciona en su totalidad de forma local.
-- **Fallback local**: Si Groq no está configurado, no está disponible o falla, la generación del caption se realiza íntegramente de forma local mediante cadenas de Markov.
-- **Publicidad**: Los datos transmitidos a Groq en esta función no son utilizados por Purgito con fines publicitarios ni de venta de datos.
+- **Cloudflare R2**: Para el almacenamiento persistente de archivos multimedia (GIFs subidos a la galería e imágenes subidas desde el editor de embeds) y, en un espacio privado aparte, de las copias de seguridad cifradas descritas en la sección 4.
 
 ## Twitch API (avisos de transmisiones en vivo)
 

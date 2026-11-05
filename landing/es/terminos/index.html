@@ -387,7 +387,7 @@
   <section class="box doc-sec" id="seccion-1">
     <h2 class="doc-sec-title">1. Uso Aceptable</h2>
     <div class="doc-body">
-<p>Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante generación de texto local (cadenas de Markov) e integraciones opcionales con modelos externos (Groq para captions de memes).</p>
+<p>Purgito está diseñado para el entretenimiento, la automatización de tareas y la interacción mediante generación de texto local (cadenas de Markov).</p>
 <p>Al utilizar el bot aceptas que <strong>no debes</strong>:</p>
 <ul><li>Utilizar el bot para generar, distribuir o promover contenido ilegal o que infrinja los Términos de Servicio de Discord.</li><li>Intentar abusar de las funciones del bot mediante spam, automatizaciones maliciosas o cualquier acción destinada a afectar su disponibilidad.</li><li>Intentar vulnerar la seguridad, infraestructura o funcionamiento del bot.</li><li>Utilizar el bot para actividades que infrinjan derechos de terceros.</li></ul>
     </div>
@@ -403,9 +403,9 @@
     <h2 class="doc-sec-title">3. Contenido Generado</h2>
     <div class="doc-body">
 <p>Purgito puede generar texto utilizando:</p>
-<ul><li>Cadenas de Markov locales entrenadas con mensajes del servidor (utilizadas para el chat, respuestas automáticas y como fallback de memes).</li><li>Modelos externos de IA (Groq), de forma opcional y exclusiva para la redacción de captions en la función de memes cuando <code class="cmd">GROQ_API_KEY</code> está configurada.</li></ul>
+<ul><li>Cadenas de Markov locales entrenadas con mensajes del servidor (utilizadas para el chat y las respuestas automáticas).</li></ul>
 <p>Debido a la naturaleza probabilística de estos sistemas:</p>
-<ul><li>El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado o referenciado.</li><li>Las respuestas generadas representan contenido producido automáticamente y <strong>no reflejan necesariamente la opinión o intención del desarrollador</strong>.</li><li>El desarrollador no revisa manualmente cada respuesta o meme generado por el bot.</li></ul>
+<ul><li>El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado o referenciado.</li><li>Las respuestas generadas representan contenido producido automáticamente y <strong>no reflejan necesariamente la opinión o intención del desarrollador</strong>.</li><li>El desarrollador no revisa manualmente cada respuesta generada por el bot.</li></ul>
 <p>Los administradores del servidor son responsables de moderar el uso del bot dentro de su comunidad.</p>
 <h3>Contenido de terceros redistribuido (<code class="cmd">!dl</code>)</h3>
 <p>El comando <code class="cmd">!dl</code> descarga un video público de Instagram, TikTok, Twitter/X o Facebook a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.</p>
@@ -417,7 +417,7 @@
     <div class="doc-body">
 <p>Purgito ofrece un plan <strong>premium</strong> por servidor, contratable desde el dashboard (purgito.app).</p>
 <h3>Qué desbloquea premium</h3>
-<ul><li>Generación de memes: el comando manual (<code class="cmd">/momo</code>), el trigger de texto y la programación automática — toda la función de memes es exclusiva de premium, no disponible en el plan gratuito.</li><li>Límite ampliado de mensajes guardados en memoria (corpus).</li><li>Límite ampliado de mensajes de usuario en memoria.</li><li>Límite ampliado de GIFs guardados.</li><li>Colección ampliada de imágenes para memes.</li></ul>
+<ul><li>Límite ampliado de mensajes guardados en memoria (corpus).</li><li>Límite ampliado de mensajes de usuario en memoria.</li><li>Límite ampliado de GIFs guardados.</li></ul>
 <p>Los límites exactos de cada plan se muestran en el dashboard, en la sección Premium de cada servidor.</p>
 <h3>Procesamiento de pagos</h3>
 <p>Los pagos se procesan a través de <strong>Polar.sh</strong>, que actúa como <strong>Merchant of Record</strong>: el contrato de compra se celebra entre quien paga y Polar.sh, no directamente con el desarrollador de Purgito. Aplican los <a href="https://polar.sh/legal/terms" target="_blank" rel="noopener">Términos de Polar</a> y los <a href="https://polar.sh/legal/checkout-buyer-terms" target="_blank" rel="noopener">Términos para compradores de Polar</a>.</p>

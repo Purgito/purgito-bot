@@ -10,7 +10,7 @@ Purgito is a public Discord bot used by multiple servers. Purgatory is one of th
 
 # 1. Acceptable Use
 
-Purgito is designed for entertainment, meme generation, task automation, and interaction through local text generation (Markov chains) and optional integrations with external models (Groq for meme captions).
+Purgito is designed for entertainment, task automation, and interaction through local text generation (Markov chains).
 
 By using the bot you agree that you **must not**:
 
@@ -33,14 +33,13 @@ The software is provided **"as is"**, without warranties of any kind, express or
 
 Purgito can generate text using:
 
-- Local Markov chains trained on server messages (used for chat, automatic replies, and as a fallback for memes).
-- External AI models (Groq), optionally and exclusively for writing captions in the meme feature when `GROQ_API_KEY` is configured.
+- Local Markov chains trained on server messages (used for chat and automatic replies).
 
 Because of the probabilistic nature of these systems:
 
 - Generated content can contain errors, incoherent phrases, in-jokes, offensive language, or references present in the server where it was trained or referenced.
 - Generated responses are automatically produced content and **don't necessarily reflect the developer's opinion or intent**.
-- The developer doesn't manually review every response or meme the bot generates.
+- The developer doesn't manually review every response the bot generates.
 
 Server administrators are responsible for moderating the bot's use within their community.
 
@@ -58,11 +57,9 @@ Purgito offers a **Premium** plan per server, available from the dashboard (purg
 
 ## What Premium unlocks
 
-- Meme generation: the manual command (`/momo`), the text trigger, and automatic scheduling — the entire meme feature is Premium-exclusive, not available on the free plan.
 - Extended limit for messages stored in memory (corpus).
 - Extended limit for user messages in memory.
 - Extended limit for saved GIFs.
-- Extended collection of meme images.
 
 The exact limits for each plan are shown in the dashboard, in each server's Premium section.
 

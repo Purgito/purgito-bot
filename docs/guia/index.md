@@ -22,7 +22,6 @@ detalle.
 | Función | Qué hace |
 |---|---|
 | [Chat que aprende](/es/documentacion/chat) | Cadenas de Markov entrenadas con los mensajes de tu servidor |
-| [`/momo` y `/meme`](/es/documentacion/memes) | Genera memes a partir de las imágenes que tu comunidad va guardando |
 | [Galería de GIFs](/es/documentacion/gifs) | Colección de GIFs por servidor, administrable desde una galería web |
 | [Premium](/es/documentacion/premium) | Qué desbloquea, precios, y cómo cancelar o gestionar tu suscripción |
 

@@ -151,7 +151,7 @@ Solo se sirven archivos de una lista cerrada (`index.html`, `favicon.svg` y los 
 
 El catálogo de comandos sale de los comandos registrados, sin parámetros. Los
 adaptadores actuales cubren prefijo y slash, respuestas del chat (mención, trigger,
-espontáneo y GIF), entrega de memes por trigger y avisos entregados de YouTube,
+espontáneo y GIF), avisos entregados de YouTube,
 Twitch y RSS. No se convierte toda línea de log, formulario o mensaje recibido en
 un «uso». Las excepciones anteriores a un adaptador de entrega y acciones internas
 no instrumentadas siguen en observabilidad operativa; no se presentan como éxitos

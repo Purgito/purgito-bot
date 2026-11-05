@@ -10,7 +10,7 @@ Purgito es un bot público de Discord, usado por múltiples servidores. Purgator
 
 # 1. Uso Aceptable
 
-Purgito está diseñado para el entretenimiento, la generación de memes, la automatización de tareas y la interacción mediante generación de texto local (cadenas de Markov) e integraciones opcionales con modelos externos (Groq para captions de memes).
+Purgito está diseñado para el entretenimiento, la automatización de tareas y la interacción mediante generación de texto local (cadenas de Markov).
 
 Al utilizar el bot aceptas que **no debes**:
 
@@ -33,14 +33,13 @@ El software se proporciona **"tal cual"**, sin garantías de ningún tipo, expre
 
 Purgito puede generar texto utilizando:
 
-- Cadenas de Markov locales entrenadas con mensajes del servidor (utilizadas para el chat, respuestas automáticas y como fallback de memes).
-- Modelos externos de IA (Groq), de forma opcional y exclusiva para la redacción de captions en la función de memes cuando `GROQ_API_KEY` está configurada.
+- Cadenas de Markov locales entrenadas con mensajes del servidor (utilizadas para el chat y las respuestas automáticas).
 
 Debido a la naturaleza probabilística de estos sistemas:
 
 - El contenido generado puede contener errores, frases incoherentes, humor interno, lenguaje ofensivo o referencias presentes en el servidor donde fue entrenado o referenciado.
 - Las respuestas generadas representan contenido producido automáticamente y **no reflejan necesariamente la opinión o intención del desarrollador**.
-- El desarrollador no revisa manualmente cada respuesta o meme generado por el bot.
+- El desarrollador no revisa manualmente cada respuesta generada por el bot.
 
 Los administradores del servidor son responsables de moderar el uso del bot dentro de su comunidad.
 
@@ -58,11 +57,9 @@ Purgito ofrece un plan **premium** por servidor, contratable desde el dashboard 
 
 ## Qué desbloquea premium
 
-- Generación de memes: el comando manual (`/momo`), el trigger de texto y la programación automática — toda la función de memes es exclusiva de premium, no disponible en el plan gratuito.
 - Límite ampliado de mensajes guardados en memoria (corpus).
 - Límite ampliado de mensajes de usuario en memoria.
 - Límite ampliado de GIFs guardados.
-- Colección ampliada de imágenes para memes.
 
 Los límites exactos de cada plan se muestran en el dashboard, en la sección Premium de cada servidor.
 

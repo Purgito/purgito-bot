@@ -19,7 +19,6 @@ Cadenas de Markov · Editor de embeds · Colección de GIFs · Avisos de YouTube
 - **Markov automático** — aprende del chat y suelta respuestas al estilo del servidor, con frecuencia y probabilidad configurables
 - **`/imitar`** — imita el estilo de escritura de un miembro
 - **Responde a menciones y replies** en los canales que elijas
-- **Memes** (`/momo`) — capciones con Groq (llama-4-scout) o Markov como fallback, sobre imágenes guardadas con 🎯 o subidas a mano
 - **Colección de GIFs** — los detecta en el chat y persiste en Cloudflare R2 los que vienen de Discord CDN
 - **YouTube, Twitch y RSS** — avisan cuando un canal suscrito sube video nuevo, entra en vivo o publica una entrada
 - **Anuncios programados**, frases especiales, reacciones custom, editor de embeds/botones (Components V2)
@@ -38,7 +37,7 @@ cp .env.example .env   # completar DISCORD_TOKEN como mínimo
 python src/bot.py
 ```
 
-Guía completa (variables de entorno, R2, Groq, deploy en producción) en
+Guía completa (variables de entorno, R2, deploy en producción) en
 [`CONTRIBUTING.md`](CONTRIBUTING.md) y [`DEPLOY.md`](DEPLOY.md). Base de datos, backups
 cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POSTGRES.md) y
 [`DEPLOY.md`](DEPLOY.md) § Seguridad del servidor.
@@ -52,7 +51,6 @@ cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POST
 | `/generar` | Genera un mensaje con el modelo Markov del servidor | Todos |
 | `/imitar @usuario` | Genera un mensaje imitando el estilo del usuario | Todos |
 | `/imitar_mezcla @usuario1 @usuario2` | Mezcla el estilo de dos miembros en un solo mensaje | Todos |
-| `/momo`, `/meme` ⭐ | Genera un meme del pool de imágenes del servidor | Todos |
 | `/refeed` | Importa el historial del canal actual al corpus | Gestionar servidor |
 | `/refeed_channels` | Importa el historial de los canales configurados | Gestionar servidor |
 | `/corpus_info` | Cuántos mensajes aprendió Purgito en el canal actual | Todos |
@@ -79,7 +77,7 @@ cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POST
 │   ├── webapi.py      # API JSON del dashboard (auth, /api/*, webhooks)
 │   ├── db.py          # queries (PostgreSQL vía pgdb.py)
 │   ├── markov_engine.py, generation.py   # Motor Markov y auto-respuestas
-│   ├── meme_generator.py, r2.py          # Memes (Pillow) y Cloudflare R2
+│   ├── image_validation.py, r2.py        # Validación de imágenes y Cloudflare R2
 │   └── locales/       # Traducciones
 ├── landing/            # Sitio estático + dashboard (HTML/CSS/JS plano, sin build step)
 ├── data/               # logs y caches (la DB es PostgreSQL: DATABASE_URL)

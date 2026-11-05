@@ -395,11 +395,11 @@
 <h3>Message content</h3>
 <p>When the learning features are enabled, the bot stores the content of text messages sent in allowed channels.</p>
 <p>These messages may be used to:</p>
-<ul><li>Train local Markov chains.</li><li>Generate automatic chat replies.</li><li>Mimic users&#x27; writing style.</li><li>Serve as a limited vocabulary sample in meme generation (locally with Markov, or through the optional Groq integration if configured).</li></ul>
+<ul><li>Train local Markov chains.</li><li>Generate automatic chat replies.</li><li>Mimic users&#x27; writing style.</li></ul>
 <p>Channels marked <strong>NSFW</strong> in Discord are always excluded from this learning: Purgito never stores messages from an NSFW channel, with no exception and no way to manually enable it for the corpus. If a channel that was already enabled for the corpus gets marked NSFW later, the history already saved from that channel is purged immediately.</p>
 <h3>Media</h3>
 <p>The bot may store:</p>
-<ul><li>Image URLs.</li><li>GIF URLs.</li><li>Media files needed for the GIF gallery, meme collection, and announcement/embed template features.</li></ul>
+<ul><li>Image URLs.</li><li>GIF URLs.</li><li>Media files needed for the GIF gallery and announcement/embed template features.</li></ul>
 <p>Where applicable, these files may be stored persistently via Cloudflare R2.</p>
 <p>For every GIF saved to the gallery, the bot also records who sent it: user ID, channel, and source message, plus how many times they shared it (including re-sharing a GIF someone else already saved). The GIF catalog in the admin panel, visible to the server&#x27;s admins, shows this data with a direct link to the original message and a filter to see one person&#x27;s GIFs.</p>
 <h3>Display name</h3>
@@ -431,7 +431,7 @@
     <h2 class="doc-sec-title">2. Use of information</h2>
     <div class="doc-body">
 <p>The information collected is used exclusively to provide the bot&#x27;s features, including:</p>
-<ul><li>Text generation via local Markov chains.</li><li>Meme and caption generation (locally, or through the optional Groq integration).</li><li>GIF gallery.</li><li>Server automations.</li><li>Command and preference configuration.</li></ul>
+<ul><li>Text generation via local Markov chains.</li><li>GIF gallery.</li><li>Server automations.</li><li>Command and preference configuration.</li></ul>
 <p>Data is <strong>never sold</strong>, nor used by Purgito for advertising.</p>
     </div>
   </section>
@@ -440,9 +440,7 @@
     <div class="doc-body">
 <p>Purgito uses external services for certain features. Each provider processes only the information necessary to provide its service.</p>
 <h3>Discord and storage</h3>
-<ul><li><strong>Discord</strong>: For platform communication, receiving events, authentication, and sending messages.</li><li><strong>Cloudflare R2</strong>: For persistent storage of media files (images in the server&#x27;s meme pool and GIFs uploaded to the gallery) and, in a separate private space, the encrypted backups described in section 4.</li></ul>
-<h3>Groq API (AI meme captions)</h3>
-<ul><li><strong>What it is and what it&#x27;s used for</strong>: Groq is an external AI model inference provider (vision and language) used optionally and exclusively to analyze images and write captions in the meme feature.</li><li><strong>What data may be sent</strong>: The image used for the meme (base64-encoded) and a limited sample of the server&#x27;s corpus (up to a maximum of 25 short messages and 15 long messages, as a reference for vocabulary and tone).</li><li><strong>When it&#x27;s used</strong>: Only when a meme is requested or generated (<code class="cmd">/momo</code> command, image-trigger reply, or scheduled meme), and only when the <code class="cmd">GROQ_API_KEY</code> has been configured by the bot&#x27;s operator.</li><li><strong>Narrow scope</strong>: Groq doesn&#x27;t process regular chat conversations and doesn&#x27;t receive any server&#x27;s full corpus. Purgito&#x27;s general conversation runs entirely locally.</li><li><strong>Local fallback</strong>: If Groq isn&#x27;t configured, unavailable, or fails, caption generation happens entirely locally via Markov chains.</li><li><strong>Advertising</strong>: Data sent to Groq for this feature isn&#x27;t used by Purgito for advertising or data sale.</li></ul>
+<ul><li><strong>Discord</strong>: For platform communication, receiving events, authentication, and sending messages.</li><li><strong>Cloudflare R2</strong>: For persistent storage of media files (GIFs uploaded to the gallery and images uploaded from the embed editor) and, in a separate private space, the encrypted backups described in section 4.</li></ul>
 <h3>Twitch API (live stream notifications)</h3>
 <ul><li><strong>What it is and what it&#x27;s used for</strong>: Twitch is the streaming platform whose API is queried, optionally, to post in a Discord channel when a Twitch channel an admin configured goes live.</li><li><strong>What&#x27;s sent</strong>: No information about the server&#x27;s users. The bot uses its own application credentials (not any Discord user&#x27;s) to query public Twitch data, such as whether a channel is live and the stream title.</li><li><strong>When it&#x27;s used</strong>: Only if the bot&#x27;s operator configured <code class="cmd">TWITCH_CLIENT_ID</code>/<code class="cmd">TWITCH_CLIENT_SECRET</code>; otherwise the feature stays disabled.</li></ul>
 <h3>Social media video download (<code class="cmd">!dl</code>)</h3>
