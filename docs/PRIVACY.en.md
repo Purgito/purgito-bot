@@ -207,6 +207,8 @@ This deletion is specifically for the message-learning data described above, and
 
 Any user can also request a copy of their own information with the `/mis_datos` command, available on any server where Purgito is present. It generates a JSON file with your saved writing style and the messages Purgito learned from you, grouped by server, and sends it to you privately. It's the read-only counterpart to `/borrar_mis_datos`: it doesn't delete anything.
 
+Any user can also **opt out** with the `/privacidad` command, on any server where Purgito is present: from then on Purgito stops learning from their messages and stops interacting with that person on **every** server, and the preference is kept until the person chooses to participate again with the same command. Opting out does not delete what was already stored: use `/borrar_mis_datos` for that. In addition, if you edit or delete a message on Discord, or the channel that contained it is deleted, Purgito removes it from what it learned.
+
 ---
 
 # 5. User rights

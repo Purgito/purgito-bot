@@ -207,6 +207,8 @@ Este borrado está pensado específicamente para los datos de aprendizaje de men
 
 Cualquier usuario puede además solicitar una copia de su propia información con el comando `/mis_datos`, disponible en cualquier servidor donde esté Purgito. Genera un archivo JSON con tu estilo de escritura guardado y los mensajes que Purgito aprendió de ti, agrupados por servidor, y te lo envía de forma privada. Es el complemento de solo lectura de `/borrar_mis_datos`: no borra nada.
 
+Cualquier usuario puede también **excluirse** con el comando `/privacidad`, en cualquier servidor donde esté Purgito: desde ese momento Purgito deja de aprender de sus mensajes y de interactuar con esa persona en **todos** los servidores, y la preferencia se conserva hasta que la persona decida volver a participar con el mismo comando. La exclusión no borra lo que ya estaba guardado: para eso sirve `/borrar_mis_datos`. Además, si editas o eliminas un mensaje en Discord, o se borra el canal que lo contenía, Purgito lo retira de lo que aprendió.
+
 ---
 
 # 5. Derechos de los usuarios
