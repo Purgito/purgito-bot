@@ -64,8 +64,7 @@ MAX_MENTION_RATE_LIMIT = 1000
 
 # Prefijo de símbolo por defecto (bot.py lo usa si el guild no tiene
 # settings.custom_prefix). El prefijo de palabra ("purgito ") no es
-# configurable por guild -- viene de config.BOT_TRIGGER_NAME, el mismo que ya
-# usa el trigger de texto de memes ("purgito generar").
+# configurable por guild -- viene de config.BOT_TRIGGER_NAME.
 DEFAULT_COMMAND_PREFIX = "!"
 MAX_CUSTOM_PREFIX_LENGTH = 10
 

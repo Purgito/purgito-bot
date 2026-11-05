@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-WKd3mshplJu0bSHCOuscp8u+lTAXZ//gb7ZhgNE035k=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discord — Technical Documentation — Purgito</title>
 <meta name="description" content="Cogs, events, permissions, and interactions of Purgito&#x27;s bot.">
@@ -401,7 +401,6 @@
 <tr><td><code>premium</code></td><td><code>src/cogs/premium.py</code></td><td>Quota verification and Premium status checks (<code>is_premium_guild</code>). Loaded first to expose quota helpers to other cogs.</td></tr>
 <tr><td><code>chat</code></td><td><code>src/cogs/chat.py</code></td><td>Message capture, cleaning for the corpus, reply probability evaluation, Markov engine invocation, and mention handling.</td></tr>
 <tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>GIF detection in messages, native URL extraction (Tenor/Giphy), optional compression, and deduplicated uploads to Cloudflare R2.</td></tr>
-<tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>Server image gallery, meme template rendering, caption generation via Markov or Groq AI, and emoji reaction capture.</td></tr>
 <tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>Periodic monitoring of YouTube RSS channel feeds and automatic alert dispatching to configured Discord channels.</td></tr>
 <tr><td><code>twitch</code></td><td><code>src/cogs/twitch.py</code></td><td>Monitors the Twitch API and automatically alerts when a subscribed channel goes live (requires app credentials in <code>.env</code>; without them, the feature stays disabled without affecting the rest of the bot).</td></tr>
 <tr><td><code>rss</code></td><td><code>src/cogs/rss.py</code></td><td>Periodic monitoring of generic RSS/Atom feeds and automatic alert dispatching to configured Discord channels.</td></tr>
@@ -426,7 +425,6 @@
   <li><code>on_member_join</code>: Detects new member joins and dispatches the configured Welcome message.</li>
   <li><code>on_member_remove</code>: Detects member departures and dispatches the configured Goodbye message.</li>
   <li><code>on_member_update</code>: Idempotently detects boost transitions and dispatches the configured Boost thank you message.</li>
-  <li><code>on_raw_reaction_add</code>: Captures reactions for automatic emoji triggers and meme image collection.</li>
   <li><code>on_guild_join</code>: Inserts the server into the database, sets default configuration, and posts the welcome onboarding guide.</li>
   <li><code>on_guild_remove</code>: Marks the server with a <code>left_at</code> timestamp in the database, starting the retention grace period before permanent purging.</li>
   <li><code>on_guild_channel_update</code>: Updates cached channel metadata to keep the web dashboard synchronized.</li>

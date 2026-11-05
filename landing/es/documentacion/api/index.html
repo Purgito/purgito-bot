@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-WKd3mshplJu0bSHCOuscp8u+lTAXZ//gb7ZhgNE035k=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>API — Documentación técnica — Purgito</title>
 <meta name="description" content="Autenticación, sesiones, endpoints y webhooks de la API de Purgito.">
@@ -454,7 +454,6 @@
   <li><code>GET /api/server/{id}/premium</code>, <code>POST .../premium/checkout</code>: Estado Premium del servidor e inicio de la sesión de pago en Polar.</li>
   <li><code>GET /api/guilds/{id}/audit</code>: Registro de auditoría de cambios realizados desde el dashboard (nota el prefijo <code>/guilds/</code>, distinto al resto).</li>
 </ul>
-<p>No existe un endpoint dedicado a imágenes del banco de memes: esa función se administra íntegramente desde Discord (reacciones y comandos), sin superficie en el dashboard todavía.</p>
 
 <h2 id="webhooks-de-pago">Webhooks de Pago (Polar)</h2>
 <p><code>POST /webhooks/polar</code> recibe notificaciones de eventos de suscripción y facturación emitidos por Polar:</p>

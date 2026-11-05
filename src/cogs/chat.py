@@ -159,7 +159,7 @@ _recent_message_ids: LRUDict = LRUDict(2048)
 # ThreadPoolExecutor default compartido por todo el proceso) y no tenían
 # ningún límite: a diferencia de una mención, ningún miembro necesita permiso
 # de admin para invocarlos, así que cualquiera podía spamearlos en loop.
-# Mismo patrón que _check_meme_cooldown en cogs/memes.py.
+# Mismo patrón que _FX_COOLDOWN_SECONDS en cogs/imagefx.py.
 _GENERATE_COOLDOWN_SECONDS = 10
 _generate_cooldowns: LRUDict = LRUDict(1024)
 

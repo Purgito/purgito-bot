@@ -94,8 +94,7 @@ GIF_MAX_DURATION_SECONDS = 8
 # Cooldown compartido por TODOS los filtros de imagen/GIF de este cog, no uno
 # por comando: son ~30 comandos de costo parecido, así que un cooldown por
 # nombre de comando (lo que da @commands.cooldown por default) se evade
-# rotando entre ellos -- mismo problema que ya resolvió _check_meme_cooldown
-# en cogs/memes.py para /momo vs. el trigger de texto.
+# rotando entre ellos.
 _FX_COOLDOWN_SECONDS = 6
 _fx_cooldowns: LRUDict = LRUDict(1024)
 

@@ -11,9 +11,8 @@
 <tr><td><code>ENABLE_MESSAGE_CONTENT</code></td><td><code>boolean</code></td><td>Habilita el intent privilegiado de contenido de mensajes (<code>message_content</code>). Requerido para capturar el corpus.</td></tr>
 <tr><td><code>GUILD_ID</code></td><td><code>integer</code></td><td>ID de servidor de desarrollo para sincronización instantánea de comandos slash durante pruebas locales.</td></tr>
 <tr><td><code>HOME_GUILD_ID</code></td><td><code>integer</code></td><td>ID del servidor propio del desarrollador o de soporte: recibe Premium automáticamente al migrarse a la tabla <code>premium_guilds</code>.</td></tr>
-<tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Nombre clave o palabra reservada que dispara la generación de memes y respuestas contextuales por texto.</td></tr>
+<tr><td><code>BOT_TRIGGER_NAME</code></td><td><code>string</code></td><td>Nombre clave o palabra reservada que antecede a los comandos de texto (por ejemplo, «purgito dl»).</td></tr>
 <tr><td><code>BOT_OWNER_ID</code></td><td><code>integer</code></td><td>ID de usuario de Discord del propietario del bot con acceso a comandos de mantenimiento.</td></tr>
-<tr><td><code>GROQ_API_KEY</code></td><td><code>string</code></td><td>Clave API de Groq para generación de captions de memes mediante modelos de visión por IA. Si no se define, se utiliza el motor de Markov.</td></tr>
 <tr><td><code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code></td><td><code>string</code></td><td>Credenciales de la app de Twitch para el cog <code>twitch</code>. Sin ellas, los avisos de transmisiones en vivo quedan desactivados sin afectar al resto del bot.</td></tr>
 <tr><td><code>REFEED_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Límite máximo de mensajes leídos al reentrenar un canal individual con <code>/refeed</code>.</td></tr>
 <tr><td><code>REFEED_ALL_MAX_MESSAGES</code></td><td><code>integer</code></td><td>Límite máximo de mensajes acumulados al reentrenar todos los canales del servidor con <code>/refeed_all</code>.</td></tr>
@@ -59,7 +58,6 @@
 <tr><td><code>MAX_GIFS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de GIFs en el catálogo del servidor (1.500 / 4.000).</td></tr>
 <tr><td><code>MAX_GIF_DOWNLOAD_BYTES</code></td><td>Tamaño máximo en bytes permitido al descargar un GIF remoto (por defecto: 8 MB).</td></tr>
 <tr><td><code>GIF_LOSSY_LEVEL</code></td><td>Nivel de compresión con pérdida aplicado al optimizar GIFs para almacenamiento en R2.</td></tr>
-<tr><td><code>MAX_IMAGES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de imágenes guardadas en el banco de memes del servidor (75 / 200).</td></tr>
 <tr><td><code>MAX_ANNOUNCEMENTS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de anuncios automatizados programables en el servidor (3 / 10).</td></tr>
 <tr><td><code>MAX_EMBED_TEMPLATES_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de plantillas guardadas en el diseñador de mensajes (20 / 50).</td></tr>
 <tr><td><code>MAX_EMBED_IMAGE_UPLOAD_BYTES</code></td><td>Tamaño máximo en bytes de imágenes subidas al editor de embeds (por defecto: 8 MB).</td></tr>
@@ -70,5 +68,5 @@
 <tr><td><code>MAX_CHANNEL_TRIGGERS_PER_GUILD_FREE</code> / <code>_PREMIUM</code></td><td>Tope de triggers de auto-respuesta por servidor (10 / 30).</td></tr>
 <tr><td><code>MAX_DL_VIDEO_BYTES</code></td><td>Tamaño máximo en bytes de un video que <code>!dl</code> descarga antes de subirlo al canal (por defecto: 100 MB).</td></tr>
 <tr><td><code>MAX_GIF_SOURCE_VIDEO_BYTES</code></td><td>Tamaño máximo en bytes del video fuente que <code>!gif</code> acepta antes de convertirlo a GIF (por defecto: 25 MB).</td></tr>
-<tr><td><code>GIF_PHASH_MAX_DISTANCE</code></td><td>Distancia de Hamming máxima entre dos GIFs para considerarlos el mismo meme y fusionarlos (dedup perceptual).</td></tr>
+<tr><td><code>GIF_PHASH_MAX_DISTANCE</code></td><td>Distancia de Hamming máxima entre dos GIFs para considerarlos el mismo GIF y fusionarlos (dedup perceptual).</td></tr>
 </table>

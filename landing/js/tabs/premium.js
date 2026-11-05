@@ -6,9 +6,6 @@ import { t, addStrings } from '../core/i18n.js';
 
 addStrings({
   es: {
-    'tabsPremium.rowAutoMemes.benefit': 'Memes automáticos programados',
-    'tabsPremium.rowAutoMemes.free': 'No disponible',
-    'tabsPremium.rowAutoMemes.premium': 'Disponible',
     'tabsPremium.rowCorpus.benefit': 'Mensajes guardados en memoria (corpus)',
     'tabsPremium.rowCorpus.free': '15.000',
     'tabsPremium.rowCorpus.premium': '50.000',
@@ -18,9 +15,6 @@ addStrings({
     'tabsPremium.rowGifs.benefit': 'GIFs guardados',
     'tabsPremium.rowGifs.free': '1.500',
     'tabsPremium.rowGifs.premium': '4.000',
-    'tabsPremium.rowImages.benefit': 'Imágenes en la colección de memes',
-    'tabsPremium.rowImages.free': '75',
-    'tabsPremium.rowImages.premium': '200',
     'tabsPremium.rowEmbeds.benefit': 'Plantillas de embeds guardadas',
     'tabsPremium.rowEmbeds.free': '20',
     'tabsPremium.rowEmbeds.premium': '50',
@@ -37,12 +31,8 @@ addStrings({
     'tabsPremium.benefitUserCorpus.label': 'Memoria personalizada por usuario',
     'tabsPremium.benefitGifs.metric': '4.000 GIFs',
     'tabsPremium.benefitGifs.label': 'Límite de GIFs guardados ampliado',
-    'tabsPremium.benefitImages.metric': '200 imágenes',
-    'tabsPremium.benefitImages.label': 'Colección de memes ampliada',
     'tabsPremium.benefitEmbeds.metric': '50 plantillas',
     'tabsPremium.benefitEmbeds.label': 'Límite de plantillas de embeds ampliado',
-    'tabsPremium.benefitAutoMemes.metric': 'Desbloqueado',
-    'tabsPremium.benefitAutoMemes.label': 'Memes automáticos programados',
     'tabsPremium.manageTitle': 'Gestión de la suscripción y facturación',
     'tabsPremium.manageDesc': 'La administración de la suscripción personal, facturas, método de pago y cancelación se realiza exclusivamente desde el perfil de la cuenta del comprador.',
     'tabsPremium.manageLink': 'Facturación en Mi Perfil →',
@@ -79,9 +69,6 @@ addStrings({
     'tabsPremium.infoP3': 'Cancelar la suscripción no corta los beneficios de inmediato: el servidor conserva todas las funciones premium hasta que finalice el período ya abonado.',
   },
   en: {
-    'tabsPremium.rowAutoMemes.benefit': 'Scheduled automatic memes',
-    'tabsPremium.rowAutoMemes.free': 'Not available',
-    'tabsPremium.rowAutoMemes.premium': 'Available',
     'tabsPremium.rowCorpus.benefit': 'Messages stored in memory (corpus)',
     'tabsPremium.rowCorpus.free': '15,000',
     'tabsPremium.rowCorpus.premium': '50,000',
@@ -91,9 +78,6 @@ addStrings({
     'tabsPremium.rowGifs.benefit': 'Saved GIFs',
     'tabsPremium.rowGifs.free': '1,500',
     'tabsPremium.rowGifs.premium': '4,000',
-    'tabsPremium.rowImages.benefit': 'Images in the meme collection',
-    'tabsPremium.rowImages.free': '75',
-    'tabsPremium.rowImages.premium': '200',
     'tabsPremium.rowEmbeds.benefit': 'Saved embed templates',
     'tabsPremium.rowEmbeds.free': '20',
     'tabsPremium.rowEmbeds.premium': '50',
@@ -110,12 +94,8 @@ addStrings({
     'tabsPremium.benefitUserCorpus.label': 'Custom per-user memory',
     'tabsPremium.benefitGifs.metric': '4,000 GIFs',
     'tabsPremium.benefitGifs.label': 'Expanded saved GIF limit',
-    'tabsPremium.benefitImages.metric': '200 images',
-    'tabsPremium.benefitImages.label': 'Expanded meme collection',
     'tabsPremium.benefitEmbeds.metric': '50 templates',
     'tabsPremium.benefitEmbeds.label': 'Expanded embed template limit',
-    'tabsPremium.benefitAutoMemes.metric': 'Unlocked',
-    'tabsPremium.benefitAutoMemes.label': 'Scheduled automatic memes',
     'tabsPremium.manageTitle': 'Subscription and billing management',
     'tabsPremium.manageDesc': 'Managing your personal subscription, invoices, payment method, and cancellation is done exclusively from the buyer\'s account profile.',
     'tabsPremium.manageLink': 'Billing in My Profile →',
@@ -181,20 +161,16 @@ export async function loadPremium() {
     const loc = currentLocale();
 
     const premiumRows = [
-      ['Memes automáticos programados', 'No disponible', 'Disponible'],
       ['Mensajes guardados en memoria (corpus)', '15.000', '50.000'],
       ['Mensajes de usuario en memoria', '2.000', '8.000'],
       ['GIFs guardados', '1.500', '4.000'],
-      ['Imágenes en la colección de memes', '75', '200'],
       ['Plantillas de embeds guardadas', '20', '50']
     ];
 
     const displayRows = loc === 'en' ? [
-      [t('tabsPremium.rowAutoMemes.benefit'), t('tabsPremium.rowAutoMemes.free'), t('tabsPremium.rowAutoMemes.premium')],
       [t('tabsPremium.rowCorpus.benefit'), t('tabsPremium.rowCorpus.free'), t('tabsPremium.rowCorpus.premium')],
       [t('tabsPremium.rowUserCorpus.benefit'), t('tabsPremium.rowUserCorpus.free'), t('tabsPremium.rowUserCorpus.premium')],
       [t('tabsPremium.rowGifs.benefit'), t('tabsPremium.rowGifs.free'), t('tabsPremium.rowGifs.premium')],
-      [t('tabsPremium.rowImages.benefit'), t('tabsPremium.rowImages.free'), t('tabsPremium.rowImages.premium')],
       [t('tabsPremium.rowEmbeds.benefit'), t('tabsPremium.rowEmbeds.free'), t('tabsPremium.rowEmbeds.premium')],
     ] : premiumRows;
 
@@ -225,20 +201,10 @@ export async function loadPremium() {
               el('div', { class: 'benefit-metric' }, t('tabsPremium.benefitGifs.metric') /* 4.000 */),
               el('div', { class: 'benefit-label' }, t('tabsPremium.benefitGifs.label')))),
           el('div', { class: 'premium-benefit-card' },
-            el('div', { class: 'benefit-icon' }, icon('image')),
-            el('div', { class: 'benefit-content' },
-              el('div', { class: 'benefit-metric' }, t('tabsPremium.benefitImages.metric') /* 200 */),
-              el('div', { class: 'benefit-label' }, t('tabsPremium.benefitImages.label')))),
-          el('div', { class: 'premium-benefit-card' },
             el('div', { class: 'benefit-icon' }, icon('layout')),
             el('div', { class: 'benefit-content' },
               el('div', { class: 'benefit-metric' }, t('tabsPremium.benefitEmbeds.metric') /* 50 */),
-              el('div', { class: 'benefit-label' }, t('tabsPremium.benefitEmbeds.label')))),
-          el('div', { class: 'premium-benefit-card' },
-            el('div', { class: 'benefit-icon' }, icon('clock')),
-            el('div', { class: 'benefit-content' },
-              el('div', { class: 'benefit-metric' }, t('tabsPremium.benefitAutoMemes.metric')),
-              el('div', { class: 'benefit-label' }, t('tabsPremium.benefitAutoMemes.label'))))));
+              el('div', { class: 'benefit-label' }, t('tabsPremium.benefitEmbeds.label')))))));
 
       const manageBox = el('div', { class: 'premium-manage-callout' },
         el('div', { class: 'premium-manage-info' },

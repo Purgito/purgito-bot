@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-WKd3mshplJu0bSHCOuscp8u+lTAXZ//gb7ZhgNE035k=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discord — Documentación técnica — Purgito</title>
 <meta name="description" content="Cogs, eventos, permisos e interacciones del bot de Purgito.">
@@ -401,7 +401,6 @@
 <tr><td><code>premium</code></td><td><code>src/cogs/premium.py</code></td><td>Verificación de cuotas y estado Premium (<code>is_premium_guild</code>). Se carga primero para exponer helpers de límites al resto de cogs.</td></tr>
 <tr><td><code>chat</code></td><td><code>src/cogs/chat.py</code></td><td>Captura y limpieza de mensajes para el corpus, evaluación de probabilidad de respuesta, invocación del motor de Markov y manejo de menciones.</td></tr>
 <tr><td><code>gifs</code></td><td><code>src/cogs/gifs.py</code></td><td>Detección de GIFs en mensajes, extracción de URLs nativas (Tenor/Giphy), compresión opcional y subida con deduplicación hacia Cloudflare R2.</td></tr>
-<tr><td><code>memes</code></td><td><code>src/cogs/memes.py</code></td><td>Banco de imágenes del servidor, generación de plantillas de memes, captions mediante Markov o Groq IA, y captura por reacción de emojis.</td></tr>
 <tr><td><code>youtube</code></td><td><code>src/cogs/youtube.py</code></td><td>Monitoreo periódico de feeds RSS de canales de YouTube y despacho automatizado de notificaciones a canales de Discord configurados.</td></tr>
 <tr><td><code>twitch</code></td><td><code>src/cogs/twitch.py</code></td><td>Monitoreo de la API de Twitch y aviso automático cuando un canal suscrito empieza una transmisión en vivo (requiere credenciales de app en <code>.env</code>; sin ellas, la feature queda desactivada sin afectar al resto del bot).</td></tr>
 <tr><td><code>rss</code></td><td><code>src/cogs/rss.py</code></td><td>Monitoreo periódico de feeds RSS/Atom genéricos y despacho automatizado de notificaciones a canales de Discord configurados.</td></tr>
@@ -426,7 +425,6 @@
   <li><code>on_member_join</code>: Detecta la entrada de nuevos miembros y despacha el mensaje configurado de Bienvenida.</li>
   <li><code>on_member_remove</code>: Detecta la salida de miembros y despacha el mensaje configurado de Despedida.</li>
   <li><code>on_member_update</code>: Detecta de forma idempotente la transición de inicio de boost y despacha el mensaje de agradecimiento.</li>
-  <li><code>on_raw_reaction_add</code>: Captura de reacciones en mensajes para triggers automáticos de emojis y adición de imágenes al banco de memes.</li>
   <li><code>on_guild_join</code>: Registra el servidor en la base de datos, inicializa la configuración predeterminada y envía el mensaje de bienvenida y guía rápida.</li>
   <li><code>on_guild_remove</code>: Marca el servidor con marca temporal <code>left_at</code> en la base de datos, iniciando el período de gracia antes del purgado definitivo de datos.</li>
   <li><code>on_guild_channel_update</code>: Actualiza metadatos y nombres de canales en caché local para mantener sincronizado el dashboard.</li>

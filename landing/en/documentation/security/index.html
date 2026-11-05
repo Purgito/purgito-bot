@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-WKd3mshplJu0bSHCOuscp8u+lTAXZ//gb7ZhgNE035k=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Security — Technical Documentation — Purgito</title>
 <meta name="description" content="Purgito&#x27;s security model: OAuth2, sessions, permissions, and rate limits.">
@@ -421,7 +421,7 @@
 <p>Purgito employs rate limiters across independent operational layers:</p>
 <ul>
   <li><strong>IP Rate Limiting on Public API</strong>: Shields public endpoints (<code>/health</code>, <code>/api/status</code>, <code>/auth/*</code>) against denial-of-service attempts and aggressive web crawlers.</li>
-  <li><strong>User Command Cooldowns</strong>: Enforces per-user cooldowns on CPU-intensive Discord commands (meme rendering, member imitation, channel refeeding).</li>
+  <li><strong>User Command Cooldowns</strong>: Enforces per-user cooldowns on CPU-intensive Discord commands (member imitation, channel refeeding).</li>
   <li><strong>Channel Reply Throttling</strong>: Enforces a minimum interval between spontaneous replies within the same channel to eliminate chat spam.</li>
   <li><strong>Global CPU Semaphore</strong>: Caps simultaneous Markov model compilations process-wide, ensuring no single server can starve shared CPU capacity.</li>
 </ul>

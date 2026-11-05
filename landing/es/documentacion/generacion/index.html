@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-x33fnn7c+B8bWBdx6WKYb2DVAEq+A1tu3CBpOTmm97Y=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-WKd3mshplJu0bSHCOuscp8u+lTAXZ//gb7ZhgNE035k=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Motor de generación — Documentación técnica — Purgito</title>
 <meta name="description" content="Cómo genera texto Purgito: cadenas de Markov, corpus, concurrencia y límites.">
@@ -391,7 +391,7 @@
 </details>
   <main id="contenido" class="docs-content">
 <h1>Motor de generación</h1>
-<p>Purgito utiliza una arquitectura híbrida para la generación de contenido: un motor propio de cadenas de Markov probabilísticas de primer y segundo orden para la conversación en el chat, y una integración opcional con modelos de visión por IA (Groq) para subtitular memes automáticamente.</p>
+<p>Purgito genera el contenido con un motor propio de cadenas de Markov probabilísticas de primer y segundo orden para la conversación en el chat.</p>
 
 <h2 id="motor-markov">Funcionamiento del Motor de Markov</h2>
 <p>El motor de Markov (<code>src/markov_engine.py</code>) modela estadísticamente las secuencias de palabras observadas en el corpus de mensajes del servidor:</p>

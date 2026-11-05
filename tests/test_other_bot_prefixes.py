@@ -163,8 +163,8 @@ def test_prefijo_custom_del_guild_no_entra_al_corpus(cog, monkeypatch):
 
 
 def test_prefijo_de_palabra_no_entra_al_corpus(cog):
-    """ "purgito dl <link>" es un comando (BOT_TRIGGER_NAME + espacio), mismo
-    criterio que "purgito generar" en is_meme_trigger -- no es charla real."""
+    """ "purgito dl <link>" es un comando (BOT_TRIGGER_NAME + espacio), no es
+    charla real."""
     chat, saved = cog
 
     m = FakeMessage(f"{BOT_TRIGGER_NAME} dl https://instagram.com/x", mention=False)

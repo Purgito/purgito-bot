@@ -2,7 +2,7 @@
 
 Documenta patrones que ya existen y se repitieron dentro del tab CHAT
 (`js/dash.js` + `dash.css`), para no reinventarlos al propagar la misma
-arquitectura de información a GIFS/MEMES/EMBEDS/PREMIUM/YOUTUBE/HISTORIAL.
+arquitectura de información a GIFS/EMBEDS/PREMIUM/YOUTUBE/HISTORIAL.
 No es una spec de componentes que todavía no existen — si CHAT no tiene un
 patrón hoy (estado vacío, modal de confirmación), no está acá; se documenta
 cuando haya una instancia real.

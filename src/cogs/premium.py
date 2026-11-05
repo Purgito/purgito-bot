@@ -16,7 +16,7 @@ _premium_guild_ids: set[int] = set()
 
 
 def is_premium_guild(guild_id: int | None) -> bool:
-    """Retorna True si el guild tiene acceso a features premium (memes, pool de imágenes, etc.)."""
+    """Retorna True si el guild tiene acceso a features premium (límites ampliados, etc.)."""
     if guild_id in PERMANENT_PREMIUM_GUILD_IDS or guild_id == PURGATORY_GUILD_ID:
         return True
     if guild_id is None:

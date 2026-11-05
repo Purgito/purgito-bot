@@ -21,8 +21,6 @@ ROOT = Path(__file__).resolve().parents[1]
 PREMIUM_JS = ROOT / "landing" / "js" / "tabs" / "premium.js"
 
 # Etiqueta de la fila en premiumRows -> (env del plan free, env del premium).
-# "Memes automáticos programados" queda afuera a propósito: es la única fila
-# que no es numérica ("No disponible"/"Disponible").
 FILAS = {
     "Mensajes guardados en memoria (corpus)": (
         "MAX_CORPUS_MESSAGES_PER_GUILD_FREE",
@@ -33,10 +31,6 @@ FILAS = {
         "MAX_USER_CORPUS_MESSAGES_PER_GUILD_PREMIUM",
     ),
     "GIFs guardados": ("MAX_GIFS_PER_GUILD_FREE", "MAX_GIFS_PER_GUILD_PREMIUM"),
-    "Imágenes en la colección de memes": (
-        "MAX_IMAGES_PER_GUILD_FREE",
-        "MAX_IMAGES_PER_GUILD_PREMIUM",
-    ),
     "Plantillas de embeds guardadas": (
         "MAX_EMBED_TEMPLATES_PER_GUILD_FREE",
         "MAX_EMBED_TEMPLATES_PER_GUILD_PREMIUM",
