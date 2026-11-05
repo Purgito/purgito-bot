@@ -1,4 +1,5 @@
-// Página de cuenta (/es/perfil, /es/perfil/servidores, /es/perfil/conexiones, /es/perfil/facturacion):
+// Página de cuenta (/es/perfil, /es/perfil/servidores, /es/perfil/conexiones, /es/perfil/facturacion,
+// /es/perfil/privacidad):
 // header compacto, tabs y contenido por tab. Los tabs son links reales a cuatro
 // páginas estáticas distintas — no hay SPA que valga la pena acá.
 //
@@ -10,6 +11,7 @@ import { apiFetch } from '/js/core/api.js';
 import { el, spinner, emptyState, renderError, guildIcon, userAvatar, toast } from '/js/core/dom.js';
 import { currentLocale, formatDate, getDashboardUrl, getPerfilUrl, getLoginUrl } from '/js/core/config.js';
 import { t, addStrings } from './core/i18n.js';
+import { parseUtc, openRequest, describeRequest, history, shouldPoll } from './core/privacy.js';
 
 addStrings({
   es: {
@@ -75,6 +77,46 @@ addStrings({
     'perfil.permanentPremiumDesc': 'Premium permanente otorgado por Purgito. No requiere suscripción ni renovación.',
     'perfil.yourSubscriptions': 'Tus suscripciones',
     'perfil.permanentPremium': 'Premium permanente',
+    'perfil.tabs.privacidad': 'Privacidad',
+    'perfil.priv.title': 'Centro de Privacidad',
+    'perfil.priv.intro': 'Controla qué guarda Purgito de ti. Los cambios valen en todos los servidores.',
+    'perfil.priv.excl.title': 'Exclusión global',
+    'perfil.priv.excl.desc': 'Purgito deja de aprender de tus mensajes y de responderte, reaccionar o activar triggers contigo, en todos los servidores. Lo que ya guardó sigue ahí hasta que pidas eliminarlo.',
+    'perfil.priv.excl.switch': 'Excluirme en todos los servidores',
+    'perfil.priv.excl.on': 'Activa',
+    'perfil.priv.excl.off': 'Desactivada',
+    'perfil.priv.excl.since': 'Desde {date}',
+    'perfil.priv.excl.enabled': 'Exclusión activada',
+    'perfil.priv.excl.disabled': 'Exclusión desactivada',
+    'perfil.priv.saveError': 'No se pudo guardar el cambio, intenta de nuevo',
+    'perfil.priv.copy.title': 'Copia de tus datos',
+    'perfil.priv.copy.desc': 'Descarga en JSON tu estilo guardado, los GIFs que enviaste, tus boosts, las frases especiales a tu nombre, tus exclusiones y tus solicitudes.',
+    'perfil.priv.copy.button': 'Descargar mis datos',
+    'perfil.priv.copy.busy': 'Preparando archivo…',
+    'perfil.priv.copy.error': 'No se pudo generar el archivo, intenta de nuevo',
+    'perfil.priv.del.title': 'Eliminar mis datos',
+    'perfil.priv.del.desc': 'Borra para siempre lo que Purgito guardó de ti en todos los servidores: mensajes de estilo, GIFs enviados y boosts. Tu nombre se quita de las frases, los anuncios y el historial del panel que creaste, que se quedan en el servidor. Se procesa en un máximo de {days} días y no se puede deshacer.',
+    'perfil.priv.del.backups': 'Las copias de seguridad caducan en menos de 14 días y no se leen. Si alguna se restaurara, tu eliminación se vuelve a aplicar.',
+    'perfil.priv.del.tip': 'Para que Purgito no vuelva a aprender de ti, activa también la exclusión.',
+    'perfil.priv.del.button': 'Solicitar eliminación',
+    'perfil.priv.del.confirm': 'Esto no se puede deshacer. ¿Eliminar todos mis datos?',
+    'perfil.priv.del.confirmYes': 'Sí, eliminar mis datos',
+    'perfil.priv.del.cancel': 'Cancelar',
+    'perfil.priv.del.created': 'Solicitud registrada',
+    'perfil.priv.del.exists': 'Ya tienes una solicitud en curso',
+    'perfil.priv.del.error': 'No se pudo registrar la solicitud, intenta de nuevo',
+    'perfil.priv.req.number': 'Solicitud #{id}',
+    'perfil.priv.req.created': 'Creada',
+    'perfil.priv.req.due': 'Plazo máximo',
+    'perfil.priv.req.completedAt': 'Completada',
+    'perfil.priv.req.daysLeft': 'Quedan {n} día(s) de plazo',
+    'perfil.priv.req.overdue': 'Está tardando más de lo previsto. Ya se avisó para revisarla.',
+    'perfil.priv.state.queued': 'En cola',
+    'perfil.priv.state.processing': 'Procesando',
+    'perfil.priv.state.retrying': 'Reintentando',
+    'perfil.priv.state.completed': 'Completada',
+    'perfil.priv.history': 'Solicitudes anteriores',
+    'perfil.priv.policy': 'Detalle completo en la política de privacidad →',
   },
   en: {
     'perfil.tabs.servidores': 'Servers',
@@ -139,6 +181,46 @@ addStrings({
     'perfil.permanentPremiumDesc': 'Permanent Premium granted by Purgito. No subscription or renewal required.',
     'perfil.yourSubscriptions': 'Your subscriptions',
     'perfil.permanentPremium': 'Permanent Premium',
+    'perfil.tabs.privacidad': 'Privacy',
+    'perfil.priv.title': 'Privacy Center',
+    'perfil.priv.intro': 'Control what Purgito keeps about you. Changes apply on every server.',
+    'perfil.priv.excl.title': 'Global opt-out',
+    'perfil.priv.excl.desc': 'Purgito stops learning from your messages and stops replying to you, reacting to you or firing triggers on you, on every server. What it already stored stays until you request its deletion.',
+    'perfil.priv.excl.switch': 'Opt me out on every server',
+    'perfil.priv.excl.on': 'On',
+    'perfil.priv.excl.off': 'Off',
+    'perfil.priv.excl.since': 'Since {date}',
+    'perfil.priv.excl.enabled': 'Opt-out turned on',
+    'perfil.priv.excl.disabled': 'Opt-out turned off',
+    'perfil.priv.saveError': 'Could not save the change, try again',
+    'perfil.priv.copy.title': 'Copy of your data',
+    'perfil.priv.copy.desc': 'Download as JSON your saved style, the GIFs you sent, your boosts, the special phrases in your name, your opt-outs and your requests.',
+    'perfil.priv.copy.button': 'Download my data',
+    'perfil.priv.copy.busy': 'Preparing file…',
+    'perfil.priv.copy.error': 'Could not generate the file, try again',
+    'perfil.priv.del.title': 'Delete my data',
+    'perfil.priv.del.desc': 'Permanently deletes what Purgito stored about you on every server: style messages, sent GIFs and boosts. Your name is removed from the phrases, announcements and panel history you created, which stay on the server. It is processed within {days} days at most and cannot be undone.',
+    'perfil.priv.del.backups': 'Backups expire in under 14 days and are never read. If one is ever restored, your deletion is applied again.',
+    'perfil.priv.del.tip': 'So Purgito does not learn from you again, turn on the opt-out too.',
+    'perfil.priv.del.button': 'Request deletion',
+    'perfil.priv.del.confirm': 'This cannot be undone. Delete all my data?',
+    'perfil.priv.del.confirmYes': 'Yes, delete my data',
+    'perfil.priv.del.cancel': 'Cancel',
+    'perfil.priv.del.created': 'Request recorded',
+    'perfil.priv.del.exists': 'You already have a request in progress',
+    'perfil.priv.del.error': 'Could not record the request, try again',
+    'perfil.priv.req.number': 'Request #{id}',
+    'perfil.priv.req.created': 'Created',
+    'perfil.priv.req.due': 'Deadline',
+    'perfil.priv.req.completedAt': 'Completed',
+    'perfil.priv.req.daysLeft': '{n} day(s) left',
+    'perfil.priv.req.overdue': 'This is taking longer than expected. We have already been alerted to review it.',
+    'perfil.priv.state.queued': 'Queued',
+    'perfil.priv.state.processing': 'Processing',
+    'perfil.priv.state.retrying': 'Retrying',
+    'perfil.priv.state.completed': 'Completed',
+    'perfil.priv.history': 'Previous requests',
+    'perfil.priv.policy': 'Full details in the privacy policy →',
   },
 });
 
@@ -146,6 +228,7 @@ const TABS = [
   { key: 'servidores', label: 'Servidores', path: '/servidores' },
   { key: 'conexiones', label: 'Conexiones', path: '/conexiones' },
   { key: 'facturacion', label: 'Facturación', path: '/facturacion' },
+  { key: 'privacidad', label: 'Privacidad', path: '/privacidad' },
   { key: 'perfil', label: 'Perfil', path: '' },
 ];
 
@@ -331,6 +414,182 @@ async function tabServidores(box, locale) {
   await load(false);
 }
 
+// ── Privacidad ────────────────────────────────────────────────────────────────
+// Todo actúa sobre la sesión: la API no acepta ningún id de persona. Los textos del plazo
+// salen del propio backend (deadline_days), no de una constante del frontend.
+
+const PRIVACY_POLL_MS = 20_000;
+
+function privDate(d, withTime) {
+  if (!d) return '—';
+  return withTime
+    ? d.toLocaleString(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' })
+    : formatDate(d, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function privCard(title, ...children) {
+  return el('section', { class: 'pf-stat-card pf-priv-card' },
+    el('h2', { class: 'pf-priv-title' }, title),
+    ...children);
+}
+
+function privSwitch(checked, label, onToggle) {
+  const btn = el('button', {
+    class: 'pf-switch', type: 'button', role: 'switch',
+    'aria-checked': String(checked), 'aria-label': label,
+    onclick: () => onToggle(btn),
+  }, el('span', { class: 'pf-switch-knob' }));
+  return btn;
+}
+
+function exclusionCard(state, refresh) {
+  const on = Boolean(state.exclusion && state.exclusion.enabled);
+  const since = on ? parseUtc(state.exclusion.since) : null;
+  const pill = el('span', { class: 'pf-pill ' + (on ? 'pf-pill--ok' : 'pf-pill--dim') },
+    on ? t('perfil.priv.excl.on') : t('perfil.priv.excl.off'));
+
+  const toggle = privSwitch(on, t('perfil.priv.excl.switch'), async (btn) => {
+    btn.disabled = true;
+    try {
+      await apiFetch('/api/me/privacy/exclusion', { method: 'PUT', body: { enabled: !on } });
+      toast(t(!on ? 'perfil.priv.excl.enabled' : 'perfil.priv.excl.disabled'), 'ok');
+      await refresh();
+    } catch (e) {
+      btn.disabled = false;
+      toast(t('perfil.priv.saveError'), 'err');
+    }
+  });
+
+  return privCard(t('perfil.priv.excl.title'),
+    el('p', { class: 'pf-priv-desc dim' }, t('perfil.priv.excl.desc')),
+    el('div', { class: 'pf-priv-row' },
+      el('div', { class: 'pf-priv-switch-label' },
+        el('span', {}, t('perfil.priv.excl.switch')), pill,
+        since ? el('span', { class: 'dim pf-priv-small' }, t('perfil.priv.excl.since', { date: privDate(since) })) : null),
+      toggle));
+}
+
+async function downloadExport(btn) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = t('perfil.priv.copy.busy');
+  try {
+    // apiFetch parsea JSON; aquí se necesita el archivo tal cual.
+    const r = await fetch('/api/me/privacy/export', { credentials: 'include' });
+    if (r.status === 401) { location.href = getLoginUrl(); return; }
+    if (!r.ok) throw new Error(String(r.status));
+    const url = URL.createObjectURL(await r.blob());
+    const a = el('a', { href: url, download: 'purgito_mis_datos.json' });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  } catch (e) {
+    toast(t('perfil.priv.copy.error'), 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+function copyCard() {
+  const btn = el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => downloadExport(btn) },
+    t('perfil.priv.copy.button'));
+  return privCard(t('perfil.priv.copy.title'),
+    el('p', { class: 'pf-priv-desc dim' }, t('perfil.priv.copy.desc')),
+    el('div', { class: 'pf-actions' }, btn));
+}
+
+function requestRow(req, { compact = false } = {}) {
+  const v = describeRequest(req);
+  const rows = [[t('perfil.priv.req.created'), privDate(v.created, true)]];
+  if (v.state === 'completed') rows.push([t('perfil.priv.req.completedAt'), privDate(v.completed, true)]);
+  else rows.push([t('perfil.priv.req.due'), privDate(v.due, true)]);
+  return el('div', { class: 'pf-priv-req' + (compact ? ' pf-priv-req--compact' : '') },
+    el('div', { class: 'pf-priv-req-head' },
+      el('span', { class: 'pf-priv-req-id' }, t('perfil.priv.req.number', { id: req.id })),
+      el('span', { class: 'pf-pill ' + (v.state === 'completed' ? 'pf-pill--ok' : v.overdue ? 'pf-pill--warn' : 'pf-pill--accent') },
+        t(`perfil.priv.state.${v.state}`))),
+    el('div', { class: 'pf-account-details' },
+      rows.map(([k, val]) => el('div', { class: 'pf-acc-item' },
+        el('span', { class: 'pf-acc-label' }, k), el('span', { class: 'pf-acc-val' }, val)))),
+    v.state !== 'completed' && !v.overdue && v.daysLeft !== null
+      ? el('p', { class: 'dim pf-priv-small' }, t('perfil.priv.req.daysLeft', { n: v.daysLeft })) : null,
+    v.overdue ? el('p', { class: 'pf-priv-warn' }, t('perfil.priv.req.overdue')) : null);
+}
+
+function deleteCard(state, refresh) {
+  const open = openRequest(state.requests);
+  const box = el('div', { class: 'pf-priv-del-actions' });
+
+  function showButton() {
+    box.innerHTML = '';
+    box.append(el('button', { class: 'btn btn-danger', type: 'button', onclick: showConfirm },
+      t('perfil.priv.del.button')));
+  }
+  function showConfirm() {
+    box.innerHTML = '';
+    box.append(el('div', { class: 'pf-priv-confirm', role: 'alertdialog', 'aria-label': t('perfil.priv.del.confirm') },
+      el('p', {}, t('perfil.priv.del.confirm')),
+      el('div', { class: 'pf-actions' },
+        el('button', { class: 'btn btn-danger', type: 'button', onclick: submit }, t('perfil.priv.del.confirmYes')),
+        el('button', { class: 'btn btn-secondary', type: 'button', onclick: showButton }, t('perfil.priv.del.cancel')))));
+  }
+  async function submit(ev) {
+    ev.currentTarget.disabled = true;
+    try {
+      const res = await apiFetch('/api/me/privacy/requests', { method: 'POST', body: {} });
+      toast(t(res.created ? 'perfil.priv.del.created' : 'perfil.priv.del.exists'), 'ok');
+      await refresh();
+    } catch (e) {
+      showButton();
+      toast(t('perfil.priv.del.error'), 'err');
+    }
+  }
+
+  if (!open) showButton();
+  const past = history(state.requests);
+  return privCard(t('perfil.priv.del.title'),
+    el('p', { class: 'pf-priv-desc dim' }, t('perfil.priv.del.desc', { days: state.deadline_days })),
+    el('p', { class: 'pf-priv-desc dim pf-priv-small' }, t('perfil.priv.del.backups')),
+    open ? requestRow(open) : box,
+    open ? null : el('p', { class: 'pf-priv-desc dim pf-priv-small' }, t('perfil.priv.del.tip')),
+    past.length
+      ? el('div', { class: 'pf-priv-history' },
+        el('h3', { class: 'pf-priv-sub' }, t('perfil.priv.history')),
+        past.map((r) => requestRow(r, { compact: true })))
+      : null);
+}
+
+async function tabPrivacidad(box, locale) {
+  let timer = null;
+
+  async function render() {
+    let state;
+    try {
+      state = await apiFetch('/api/me/privacy');
+    } catch (e) {
+      box.innerHTML = '';
+      renderError(box, e);
+      return;
+    }
+    box.innerHTML = '';
+    const policy = locale === 'en' ? '/en/privacy' : `/${locale}/privacidad`;
+    box.append(el('div', { class: 'pf-priv' },
+      el('p', { class: 'pf-priv-intro dim' }, t('perfil.priv.intro')),
+      exclusionCard(state, render),
+      copyCard(),
+      deleteCard(state, render),
+      el('a', { class: 'link-accent pf-priv-policy', href: policy }, t('perfil.priv.policy'))));
+    clearTimeout(timer);
+    // Mientras haya una solicitud abierta, el estado se refresca solo.
+    if (shouldPoll(state.requests)) timer = setTimeout(() => { if (box.isConnected) render(); }, PRIVACY_POLL_MS);
+  }
+
+  box.append(spinner());
+  await render();
+}
+
 function tabConexiones(box) {
   box.append(emptyState(t('perfil.connectionsUnavailable')));
 }
@@ -478,6 +737,7 @@ export async function initPerfil() {
   if (tab === 'perfil') await tabPerfil(box, me, locale);
   else if (tab === 'conexiones') tabConexiones(box);
   else if (tab === 'facturacion') await tabFacturacion(box, locale);
+  else if (tab === 'privacidad') await tabPrivacidad(box, locale);
   else await tabServidores(box, locale);
 }
 

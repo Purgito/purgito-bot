@@ -277,7 +277,7 @@ purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no l
 - Si se pierde la base, se pierden también sus lápidas. Por eso `deploy/export_ledger.sh`
   (cron **cada hora**, no instalado por defecto) guarda en R2, cifrada con la clave age de
   los backups, una instantánea con **solo** las lápidas vigentes y las exclusiones activas
-  (`gen2/ledger/privacy-ledger-<fecha>.jsonl.age`; ids y fechas, nunca contenido). Se
+  (`gen2/ledger/privacy-ledger-<fecha>.jsonl.age`; ids y fechas, nunca contenido; además de lápidas y exclusiones lleva solicitudes abiertas, lápidas de mensajes y canales y el ancla del registro encadenado). Se
   conservan 15 días como máximo (siempre las 3 últimas), y 3 copias locales en
   `~/purgito-bot-backups/ledger/`. La pérdida máxima del registro es de una hora.
   Cron propuesto: `7 * * * * /home/purgito/purgito-bot/deploy/export_ledger.sh >> ~/purgito-bot-backups/ledger.log 2>&1`.
@@ -292,12 +292,11 @@ purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no l
 - Los backups de la generación anterior (clave perdida) y cualquier backup restaurado
   **nunca** se restauran sobre producción sin pasar por este paso; para inspeccionarlos,
   usa una base aislada.
-- **Limitación pendiente (mensajes individuales).** El registro externo solo cubre
-  lápidas de usuario y de servidor y exclusiones. Un mensaje suelto que alguien borra,
-  edita o que desaparece en un borrado masivo o con su canal se quita del corpus de la
-  base viva, pero **no** deja lápida ni va al registro: si se restaura un backup anterior,
-  ese mensaje reaparece hasta que se vuelva a limpiar a mano. Está aceptado de forma
-  explícita y sin resolver.
+- **Mensajes sueltos y canales.** Un mensaje borrado, editado o dentro de un borrado masivo, y un canal
+  eliminado, dejan una lápida (solo ids y fechas, 15 días) **si estaban en el corpus**, y el registro externo
+  las lleva (con un tope de 100 000; si se supera, el restore exige `--aceptar-truncado`). Límite que sigue
+  abierto: un mensaje que ya no estaba en el corpus (recortado por tamaño) pero sí en un backup antiguo no
+  tiene lápida. Detalle y demás límites en `docs/PRIVACY_CENTER.md`.
 - **Restaurar sin registro.** `reapply_deletions.py` exige `--ledger`: sin él termina con
   código 1 y sin tocar la base. Solo `--sin-registro` (explícito) permite correr con las
   lápidas del propio backup. Si la instantánea falta o es inválida también falla sin tocar

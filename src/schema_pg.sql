@@ -556,6 +556,31 @@ CREATE TABLE IF NOT EXISTS purged_guild_tombstones (
 
 CREATE INDEX IF NOT EXISTS idx_purged_guild_tombstones_expires ON purged_guild_tombstones(expires_at);
 
+-- Lápidas de MENSAJES sueltos (borrados, editados o dentro de un borrado masivo) y de CANALES
+-- eliminados: solo ids y fechas, sin contenido. Mismo fin y misma duración que las de usuario:
+-- que un backup anterior no devuelva al corpus un mensaje que su autor ya retiró. Se anotan solo
+-- si el mensaje o el canal estaba realmente en el corpus (ver docs/PRIVACY_CENTER.md § Límites).
+-- Las columnas SÍ se llaman guild_id: si el servidor se purga, estas filas se van con él.
+CREATE TABLE IF NOT EXISTS deleted_message_tombstones (
+    guild_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    deleted_at TEXT NOT NULL DEFAULT utc_now(),
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, message_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_message_tombstones_expires ON deleted_message_tombstones(expires_at);
+
+CREATE TABLE IF NOT EXISTS deleted_channel_tombstones (
+    guild_id BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    deleted_at TEXT NOT NULL DEFAULT utc_now(),
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_channel_tombstones_expires ON deleted_channel_tombstones(expires_at);
+
 -- Solicitudes de eliminación del Centro de Privacidad (API). Persisten en la base
 -- (sobreviven a reinicios), se procesan de forma diferida con reintentos y vencen a
 -- los 7 días naturales (due_at). La columna de usuario se llama user_id y NO guild_id

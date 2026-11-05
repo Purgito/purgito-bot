@@ -13,7 +13,14 @@ Qué contiene (solo identificadores y fechas, nada de contenido de mensajes):
     preferencias del usuario, y un restore anterior a su elección las perdería;
   - las solicitudes de eliminación del Centro de Privacidad que siguen ABIERTAS
     (privacy_requests): usuario y fechas, para que un restore no pierda una solicitud
-    que aún no se había procesado. Las completadas ya están en la lápida del usuario.
+    que aún no se había procesado. Las completadas ya están en la lápida del usuario;
+  - las lápidas vigentes de MENSAJES sueltos y de CANALES eliminados (solo ids y fechas), con
+    un tope de MAX_MESSAGE_TOMBSTONES: si se supera, se exportan los más recientes y el pie
+    marca `truncated`, y la restauración exige aceptarlo de forma explícita;
+  - el ANCLA del registro encadenado de solicitudes (`log_anchor`: último seq y su hash). La
+    instantánea se guarda fuera del servidor con credenciales que el bot no tiene, así que quien
+    reescriba toda la cadena en la base no puede reescribir también las anclas ya exportadas
+    (scripts/verify_privacy_log.py las compara).
 
 Cuánto dura cada cosa (justificación en docs/PRIVACY.md):
   - una lápida, 15 días (DELETION_TOMBSTONE_RETENTION_DAYS): 14 de antigüedad
@@ -61,6 +68,20 @@ REQUESTS_SQL = (
 )
 
 
+# Tope de lápidas de mensajes por instantánea (~80 bytes cada una: unos 8 MB sin comprimir).
+MAX_MESSAGE_TOMBSTONES = 100_000
+
+MESSAGES_SQL = (
+    "SELECT guild_id, message_id, deleted_at, expires_at FROM deleted_message_tombstones "
+    "WHERE expires_at > {now} ORDER BY deleted_at DESC, message_id LIMIT " + str(MAX_MESSAGE_TOMBSTONES + 1)
+)
+CHANNELS_SQL = (
+    "SELECT guild_id, channel_id, deleted_at, expires_at FROM deleted_channel_tombstones "
+    "WHERE expires_at > {now} ORDER BY guild_id, channel_id"
+)
+ANCHOR_SQL = "SELECT seq, hash FROM privacy_request_log ORDER BY seq DESC LIMIT 1"
+
+
 def build_snapshot(conn, now: datetime | None = None) -> list[dict]:
     """Registros de la instantánea a partir de una conexión síncrona de pgsync (tests y
     herramientas del checkout). Solo lápidas vigentes (`expires_at > ahora`)."""
@@ -72,11 +93,21 @@ def build_snapshot(conn, now: datetime | None = None) -> list[dict]:
         conn.execute(EXCLUSIONS_SQL).fetchall(),
         now,
         conn.execute(REQUESTS_SQL).fetchall(),
+        conn.execute(MESSAGES_SQL.format(now="?"), (now_text,)).fetchall(),
+        conn.execute(CHANNELS_SQL.format(now="?"), (now_text,)).fetchall(),
+        conn.execute(ANCHOR_SQL).fetchall(),
     )
 
 
 def snapshot_from_rows(
-    users, guilds, exclusions, now: datetime | None = None, requests=()
+    users,
+    guilds,
+    exclusions,
+    now: datetime | None = None,
+    requests=(),
+    messages=(),
+    channels=(),
+    anchor=(),
 ) -> list[dict]:
     """Registros de la instantánea (header, datos, footer) a partir de las filas de las
     tres consultas (USERS_SQL, GUILDS_SQL, EXCLUSIONS_SQL). No depende de ningún driver:
@@ -124,17 +155,47 @@ def snapshot_from_rows(
         }
         for r in requests
     ]
-    out.append(
+    # La consulta pide TOPE + 1 filas: si llegó la de más, se omiten las más antiguas y se marca.
+    truncated = len(messages) > MAX_MESSAGE_TOMBSTONES
+    messages = list(messages)[:MAX_MESSAGE_TOMBSTONES]
+    out += [
         {
-            "type": "footer",
-            "counts": {
-                "user_tombstone": len(users),
-                "guild_tombstone": len(guilds),
-                "exclusion": len(exclusions),
-                "deletion_request": len(requests),
-            },
+            "type": "message_tombstone",
+            "guild_id": int(r[0]),
+            "message_id": int(r[1]),
+            "deleted_at": str(r[2]),
+            "expires_at": str(r[3]),
         }
-    )
+        for r in messages
+    ]
+    out += [
+        {
+            "type": "channel_tombstone",
+            "guild_id": int(r[0]),
+            "channel_id": int(r[1]),
+            "deleted_at": str(r[2]),
+            "expires_at": str(r[3]),
+        }
+        for r in channels
+    ]
+    out += [
+        {"type": "log_anchor", "seq": int(r[0]), "hash": str(r[1])} for r in anchor
+    ]
+    footer = {
+        "type": "footer",
+        "counts": {
+            "user_tombstone": len(users),
+            "guild_tombstone": len(guilds),
+            "exclusion": len(exclusions),
+            "deletion_request": len(requests),
+            "message_tombstone": len(messages),
+            "channel_tombstone": len(channels),
+            "log_anchor": len(anchor),
+        },
+    }
+    if truncated:
+        footer["truncated"] = ["message_tombstone"]
+    out.append(footer)
     return out
 
 
@@ -163,7 +224,12 @@ def loads(text: str) -> dict:
         "guild_tombstone": [],
         "exclusion": [],
         "deletion_request": [],
+        "message_tombstone": [],
+        "channel_tombstone": [],
+        "log_anchor": [],
     }
+    # Tipos añadidos después de la versión 1: una instantánea anterior no trae su conteo (vale 0).
+    optional = {"deletion_request", "message_tombstone", "channel_tombstone", "log_anchor"}
     for rec in records[1:-1]:
         kind = rec.get("type")
         if kind not in kinds:
@@ -171,7 +237,7 @@ def loads(text: str) -> dict:
         kinds[kind].append(rec)
     for kind, items in kinds.items():
         # Las instantáneas anteriores a las solicitudes no traen ese conteo: valen 0.
-        default = 0 if kind == "deletion_request" else None
+        default = 0 if kind in optional else None
         if foot.get("counts", {}).get(kind, default) != len(items):
             raise LedgerError(f"el pie no coincide con los registros de {kind}")
     for rec in kinds["user_tombstone"]:
@@ -184,12 +250,22 @@ def loads(text: str) -> dict:
         )
     for rec in kinds["deletion_request"]:
         _require_int(rec, "user_id")
+    for rec in kinds["message_tombstone"]:
+        _require_int(rec, "guild_id", "message_id")
+    for rec in kinds["channel_tombstone"]:
+        _require_int(rec, "guild_id", "channel_id")
+    for rec in kinds["log_anchor"]:
+        _require_int(rec, "seq")
     return {
         "exported_at": head.get("exported_at", ""),
         "user_tombstones": kinds["user_tombstone"],
         "guild_tombstones": kinds["guild_tombstone"],
         "exclusions": kinds["exclusion"],
         "deletion_requests": kinds["deletion_request"],
+        "message_tombstones": kinds["message_tombstone"],
+        "channel_tombstones": kinds["channel_tombstone"],
+        "log_anchors": kinds["log_anchor"],
+        "truncated": list(foot.get("truncated", [])),
     }
 
 

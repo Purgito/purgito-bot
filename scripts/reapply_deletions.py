@@ -51,6 +51,8 @@ def merge_ledger(conn, ledger: dict) -> dict:
         "lapidas_servidor": 0,
         "exclusiones": 0,
         "solicitudes": 0,
+        "mensajes_registrados": 0,
+        "canales_registrados": 0,
     }
     for rec in ledger["user_tombstones"]:
         if rec["expires_at"] <= now:
@@ -92,6 +94,34 @@ def merge_ledger(conn, ledger: dict) -> dict:
             ),
         )
         stats["exclusiones"] += 1
+    # Lápidas de mensajes sueltos y de canales eliminados (solo vigentes, y no de servidores que
+    # se purgan enteros).
+    msg_rows = [
+        (r["guild_id"], r["message_id"], r["deleted_at"], r["expires_at"])
+        for r in ledger.get("message_tombstones", [])
+        if r["expires_at"] > now and r["guild_id"] not in live_guilds
+    ]
+    if msg_rows:
+        conn.executemany(
+            "INSERT INTO deleted_message_tombstones (guild_id, message_id, deleted_at, expires_at) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, message_id) DO UPDATE SET "
+            "expires_at=GREATEST(deleted_message_tombstones.expires_at, excluded.expires_at)",
+            msg_rows,
+        )
+    chan_rows = [
+        (r["guild_id"], r["channel_id"], r["deleted_at"], r["expires_at"])
+        for r in ledger.get("channel_tombstones", [])
+        if r["expires_at"] > now and r["guild_id"] not in live_guilds
+    ]
+    if chan_rows:
+        conn.executemany(
+            "INSERT INTO deleted_channel_tombstones (guild_id, channel_id, deleted_at, expires_at) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, channel_id) DO UPDATE SET "
+            "expires_at=GREATEST(deleted_channel_tombstones.expires_at, excluded.expires_at)",
+            chan_rows,
+        )
+    stats["mensajes_registrados"] = len(msg_rows)
+    stats["canales_registrados"] = len(chan_rows)
     # Solicitudes del Centro de Privacidad que seguían abiertas al exportar: se recrean (con
     # su fecha límite original) para que el trabajador las procese al arrancar el bot.
     for rec in ledger.get("deletion_requests", []):
@@ -145,7 +175,8 @@ def reapply(conn, *, apply: bool) -> dict:
             ).rowcount
             conn.execute(db._SQL_DELETE_GIF_SENDERS_OF_USER, (user_id,))
             conn.execute(db._SQL_DELETE_BOOSTS_OF_USER, (user_id,))
-            conn.execute(db._SQL_DELETE_FRASES_OF_USER, (user_id,))
+            for sql, repeat in db._PSEUDONYMIZE_STATEMENTS:
+                conn.execute(sql, (user_id,) * repeat)
         else:
             stats["user_corpus"] += conn.execute(
                 "SELECT count(*) FROM user_corpus WHERE author_id=?", (user_id,)
@@ -156,6 +187,24 @@ def reapply(conn, *, apply: bool) -> dict:
                 "AND uc.guild_id=cm.guild_id AND uc.message_id=cm.message_id)",
                 (user_id,),
             ).fetchone()[0]
+    stats["mensajes_sueltos"] = 0
+    stats["canales"] = 0
+    for table, key in (("deleted_message_tombstones", "message_id"), ("deleted_channel_tombstones", "channel_id")):
+        stat = "mensajes_sueltos" if key == "message_id" else "canales"
+        for corpus in ("corpus_messages", "user_corpus"):
+            if apply:
+                n = conn.execute(
+                    f"DELETE FROM {corpus} c USING {table} t WHERE t.expires_at > ? "
+                    f"AND c.guild_id = t.guild_id AND c.{key} = t.{key}",
+                    (now,),
+                ).rowcount
+            else:
+                n = conn.execute(
+                    f"SELECT count(*) FROM {corpus} c JOIN {table} t ON t.expires_at > ? "
+                    f"AND c.guild_id = t.guild_id AND c.{key} = t.{key}",
+                    (now,),
+                ).fetchone()[0]
+            stats[stat] += n
     live_guilds = [
         r[0]
         for r in conn.execute(
@@ -179,6 +228,8 @@ def reapply(conn, *, apply: bool) -> dict:
         conn.execute(
             "DELETE FROM deleted_user_tombstones WHERE expires_at <= ?", (now,)
         )
+        conn.execute("DELETE FROM deleted_message_tombstones WHERE expires_at <= ?", (now,))
+        conn.execute("DELETE FROM deleted_channel_tombstones WHERE expires_at <= ?", (now,))
         conn.execute(
             "DELETE FROM purged_guild_tombstones WHERE expires_at <= ?", (now,)
         )
@@ -201,6 +252,11 @@ def main(argv=None) -> int:
         help="restaurar SIN el registro externo (solo lápidas del propio backup); "
         "por defecto se exige --ledger: sin él se pueden resucitar borrados",
     )
+    ap.add_argument(
+        "--aceptar-truncado",
+        action="store_true",
+        help="seguir aunque el registro marque lápidas de mensajes truncadas por el tope",
+    )
     args = ap.parse_args(argv)
     if not args.ledger and not args.sin_registro:
         print(
@@ -222,6 +278,14 @@ def main(argv=None) -> int:
         except (OSError, privacy_ledger.LedgerError) as e:
             print(f"ERROR: instantánea inválida: {e}", file=sys.stderr)
             return 1
+        if ledger["truncated"] and not args.aceptar_truncado:
+            print(
+                "ERROR: el registro está TRUNCADO (hubo más lápidas de mensajes que el tope): "
+                "algunos mensajes borrados podrían reaparecer. No se tocó nada. Si lo aceptas, "
+                "repite con --aceptar-truncado.",
+                file=sys.stderr,
+            )
+            return 1
     conn = pgsync.connect(args.dsn)
     try:
         if ledger is not None:
@@ -231,7 +295,8 @@ def main(argv=None) -> int:
                 f"lápidas de usuario={merged['lapidas_usuario']} "
                 f"de servidor={merged['lapidas_servidor']} "
                 f"exclusiones restauradas={merged['exclusiones']} "
-                f"solicitudes recreadas={merged['solicitudes']}"
+                f"solicitudes recreadas={merged['solicitudes']} "
+                f"mensajes={merged['mensajes_registrados']} canales={merged['canales_registrados']}"
                 f"{'' if args.apply else ' (dry-run: no se guarda)'}"
             )
         stats = reapply(conn, apply=args.apply)
@@ -250,6 +315,10 @@ def main(argv=None) -> int:
     print(
         f"filas {verbo}: user_corpus={stats['user_corpus']} "
         f"corpus_messages={stats['corpus_messages']}"
+    )
+    print(
+        f"mensajes sueltos {verbo}: {stats['mensajes_sueltos']} | "
+        f"canales eliminados {verbo}: {stats['canales']}"
     )
     print(
         f"servidores purgados vigentes: {stats['lapidas_servidor_vigentes']} | "

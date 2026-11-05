@@ -80,6 +80,10 @@ def test_procesar_borra_todo_y_registra_sin_ids(memory_db):
         for table, col in (("user_corpus", "author_id"), ("gif_senders", "user_id"),
                            ("member_boost_records", "user_id"), ("frases_especiales", "user_id")):
             assert await _count(table, col) == 0, table
+        # La frase es del servidor: se queda, sin el nombre de quien la agregó.
+        conn = await db.get_db()
+        async with conn.execute("SELECT user_id, user_name, frase FROM frases_especiales") as c:
+            assert await c.fetchall() == [(0, "[eliminado]", "f")]
         assert await _count("deleted_user_tombstones") == 1  # lápida para el registro externo
         assert (await pr.user_requests(77))[0]["status"] == "completed"
         log = await pr.request_log(req["id"])
@@ -301,4 +305,232 @@ def test_un_restore_antiguo_vuelve_a_borrar_todo_con_el_registro_externo(memory_
     _sync(_restaurar)
     for table, col in (("user_corpus", "author_id"), ("gif_senders", "user_id"),
                        ("member_boost_records", "user_id"), ("frases_especiales", "user_id")):
-        assert asyncio.run(_count(table, col)) == 0, table
+        assert asyncio.run(_count(table, col)) == 0, table  # frases: ya sin su autor (user_id=0)
+
+
+# ─── Mensajes sueltos y canales: no reaparecen tras restaurar un backup antiguo ───────────────
+
+
+async def _corpus_count(table, where, params=()):
+    conn = await db.get_db()
+    async with conn.execute(f"SELECT count(*) FROM {table} WHERE {where}", params) as c:
+        return (await c.fetchone())[0]
+
+
+def _clean_tombstones():
+    _sync(lambda c: c.execute("DELETE FROM deleted_message_tombstones"))
+    _sync(lambda c: c.execute("DELETE FROM deleted_channel_tombstones"))
+
+
+def test_borrar_un_mensaje_o_un_canal_deja_lapida_solo_si_estaba_en_el_corpus(memory_db):
+    _clean_tombstones()
+
+    async def _run():
+        await db.save_corpus_and_user_message(10, 1, 5, "n", "mensaje uno largo", message_id=100)
+        await db.save_corpus_and_user_message(10, 2, 5, "n", "mensaje dos largo", message_id=200)
+        assert (await db.delete_message_from_corpus(10, 999))["corpus_messages"] == 0  # no estaba
+        assert await _corpus_count("deleted_message_tombstones", "1=1") == 0
+        assert (await db.delete_message_from_corpus(10, 100))["corpus_messages"] == 1
+        assert await _corpus_count("deleted_message_tombstones", "guild_id=10 AND message_id=100") == 1
+        await db.delete_channel_corpus(10, 2)
+        assert await _corpus_count("deleted_channel_tombstones", "guild_id=10 AND channel_id=2") == 1
+
+    asyncio.run(_run())
+
+
+def test_un_restore_antiguo_no_devuelve_mensajes_ni_canales_borrados(memory_db):
+    _clean_tombstones()
+
+    async def _antes():
+        await db.save_corpus_and_user_message(10, 1, 5, "n", "mensaje borrado a mano", message_id=100)
+        await db.save_corpus_and_user_message(10, 2, 6, "n", "mensaje del canal borrado", message_id=200)
+        await db.save_corpus_and_user_message(10, 3, 7, "n", "mensaje que se queda aqui", message_id=300)
+        await db.delete_message_from_corpus(10, 100)
+        await db.delete_channel_corpus(10, 2)
+
+    asyncio.run(_antes())
+    ledger = privacy_ledger.loads(
+        privacy_ledger.dumps(_sync(lambda c: privacy_ledger.build_snapshot(c, T0)))
+    )
+    # build_snapshot usa "ahora" real para las lápidas vigentes; con T0 en el futuro cercano valen igual
+    assert len(ledger["message_tombstones"]) == 1 and len(ledger["channel_tombstones"]) == 1
+
+    # "Backup antiguo": vuelven los tres mensajes y no hay lápidas.
+    async def _restore():
+        await db.save_corpus_and_user_message(10, 1, 5, "n", "mensaje borrado a mano", message_id=100)
+        await db.save_corpus_and_user_message(10, 2, 6, "n", "mensaje del canal borrado", message_id=200)
+
+    asyncio.run(_restore())
+    _clean_tombstones()
+    assert asyncio.run(_corpus_count("corpus_messages", "guild_id=10")) == 3
+
+    def _aplicar(c):
+        reapply_deletions.merge_ledger(c, ledger)
+        return reapply_deletions.reapply(c, apply=True)
+
+    stats = _sync(_aplicar)
+    assert stats["mensajes_sueltos"] >= 1 and stats["canales"] >= 1
+    assert asyncio.run(_corpus_count("corpus_messages", "guild_id=10 AND message_id=100")) == 0
+    assert asyncio.run(_corpus_count("corpus_messages", "guild_id=10 AND channel_id=2")) == 0
+    assert asyncio.run(_corpus_count("user_corpus", "guild_id=10 AND channel_id=2")) == 0
+    assert asyncio.run(_corpus_count("corpus_messages", "guild_id=10 AND message_id=300")) == 1  # intacto
+
+
+def test_un_servidor_purgado_se_lleva_sus_lapidas_de_mensajes(memory_db):
+    _clean_tombstones()
+
+    async def _run():
+        await db.save_corpus_and_user_message(77, 1, 5, "n", "mensaje del servidor", message_id=1)
+        await db.delete_message_from_corpus(77, 1)
+        assert await _corpus_count("deleted_message_tombstones", "guild_id=77") == 1
+        await db.purge_guild_data(77)
+        assert await _corpus_count("deleted_message_tombstones", "guild_id=77") == 0
+
+    asyncio.run(_run())
+
+
+def test_el_tope_de_lapidas_marca_truncado_y_el_restore_lo_exige_aceptar(memory_db, tmp_path, capsys):
+    rows = [(1, i, "2026-11-06 12:00:00", "2099-01-01 00:00:00") for i in range(privacy_ledger.MAX_MESSAGE_TOMBSTONES + 1)]
+    records = privacy_ledger.snapshot_from_rows([], [], [], T0, messages=rows)
+    assert records[-1]["truncated"] == ["message_tombstone"]
+    assert records[-1]["counts"]["message_tombstone"] == privacy_ledger.MAX_MESSAGE_TOMBSTONES
+    path = tmp_path / "snap.jsonl"
+    path.write_text(privacy_ledger.dumps(records))
+    dsn = os.environ["TEST_DATABASE_URL"]
+    assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(path)]) == 1
+    assert "TRUNCADO" in capsys.readouterr().err
+    # un registro sin truncar no pide nada
+    ok = tmp_path / "ok.jsonl"
+    ok.write_text(privacy_ledger.dumps(privacy_ledger.snapshot_from_rows([], [], [], T0)))
+    assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(ok)]) == 0
+
+
+# ─── Datos administrativos: seudonimizar, no borrar ───────────────────────────────────────────
+
+
+def test_borrar_mis_datos_seudonimiza_audit_log_y_anuncios_sin_perder_integridad(memory_db):
+    async def _run():
+        import generation
+
+        conn = await db.get_db()
+        async with db._db_lock:
+            for t in ("audit_log", "scheduled_announcements"):
+                await conn.execute(f"DELETE FROM {t}")
+            await conn.execute("INSERT INTO audit_log (guild_id, user_id, user_name, action, detail) VALUES (10, 12, 'Ana', 'gifs.add', 'u')")
+            await conn.execute("INSERT INTO audit_log (guild_id, user_id, user_name, action, detail) VALUES (10, 99, 'Otro', 'excluded_users.add', 'user_id=12 interaction=True learning=True')")
+            await conn.execute("INSERT INTO audit_log (guild_id, user_id, user_name, action, detail, previous_detail) VALUES (10, 99, 'Otro', 'excluded_users.update', 'user_id=123 interaction=True', 'user_id=12')")
+            await conn.execute("INSERT INTO scheduled_announcements (guild_id, channel_id, message, mode, created_by) VALUES (10, 1, 'hola', 'once', 12)")
+            await conn.commit()
+
+        # Exportación: ve sus acciones (actor) y las que lo mencionan (target), no las de id 123.
+        data = await db.build_user_export(12)
+        assert sorted(e["role"] for e in data["audit_log"]) == ["actor", "target", "target"]
+        assert len(data["scheduled_announcements"]) == 1
+        assert data["scheduled_announcements"][0]["message"] == "hola"
+        exported = str(data["audit_log"])
+        assert "user_id=123" not in exported and "otra persona" in exported  # nunca el id de otra persona
+
+        report = await generation.forget_user(12)
+        assert report["admin_rows_pseudonymized"] >= 4
+
+        async with conn.execute("SELECT user_id, user_name, action, detail, previous_detail FROM audit_log ORDER BY id") as c:
+            rows = await c.fetchall()
+        assert rows[0][:3] == (0, "[eliminado]", "gifs.add")  # la acción y su fecha se conservan
+        assert rows[1][3] == "user_id=[eliminado] interaction=True learning=True"
+        assert rows[1][0] == 99  # el admin que actuó sobre ella NO se toca
+        assert rows[2][3] == "user_id=123 interaction=True"  # un id más largo no se toca
+        assert rows[2][4] == "user_id=[eliminado]"
+        async with conn.execute("SELECT created_by, message FROM scheduled_announcements") as c:
+            assert await c.fetchall() == [(0, "hola")]  # el anuncio sigue siendo del servidor
+        assert (await db.build_user_export(12))["audit_log"] == []
+
+    asyncio.run(_run())
+
+
+# ─── Ancla externa del registro encadenado ────────────────────────────────────────────────────
+
+
+def _log_rows():
+    return _sync(lambda c: c.execute(
+        "SELECT seq, request_id, at, event, detail, prev_hash, hash FROM privacy_request_log ORDER BY seq"
+    ).fetchall())
+
+
+def _rewrite_whole_chain():
+    """Un atacante con control de la base reescribe una fila Y recalcula toda la cadena."""
+    rows = _log_rows()
+    prev = pr.GENESIS_HASH
+    stmts = []
+    for i, (seq, rid, at, event, detail, _p, _h) in enumerate(rows):
+        if i == 0:
+            event = "completed"  # historia falsa
+        h = pr.chain_hash(prev, rid, at, event, detail)
+        stmts.append((event, prev, h, seq))
+        prev = h
+
+    def _apply(c):
+        for event, p, h, seq in stmts:
+            c.execute("UPDATE privacy_request_log SET event=?, prev_hash=?, hash=? WHERE seq=?", (event, p, h, seq))
+
+    _sync(_apply)
+
+
+def test_el_ancla_detecta_una_cadena_reescrita_entera(memory_db):
+    asyncio.run(pr.create_request(1, now=T0))
+    asyncio.run(pr.create_request(2, now=T0))
+    snap = privacy_ledger.loads(privacy_ledger.dumps(_sync(lambda c: privacy_ledger.build_snapshot(c, T0))))
+    anchors = [(a["seq"], a["hash"]) for a in snap["log_anchors"]]
+    assert len(anchors) == 1
+
+    assert pr.check_anchors(_log_rows(), anchors)["ok"] is True
+    # Sin ancla, la cadena reescrita parece perfecta...
+    _rewrite_whole_chain()
+    assert asyncio.run(pr.verify_log())["ok"] is True
+    # ...con ancla externa, no.
+    res = pr.check_anchors(_log_rows(), anchors)
+    assert res["ok"] is False and res["altered"] and res["chain_ok"] is True
+
+
+def test_ancla_posterior_a_la_base_es_un_aviso_no_una_alteracion(memory_db):
+    asyncio.run(pr.create_request(1, now=T0))
+    rows = _log_rows()
+    res = pr.check_anchors(rows, [(rows[-1][0] + 5, "f" * 64)])
+    assert res["ahead"] and res["ok"] is True
+
+
+def test_el_script_de_verificacion_usa_las_instantaneas(memory_db, tmp_path):
+    verify = importlib.util.module_from_spec(
+        importlib.util.spec_from_file_location("verify_privacy_log", _ROOT / "scripts" / "verify_privacy_log.py")
+    )
+    verify.__spec__.loader.exec_module(verify)
+    asyncio.run(pr.create_request(1, now=T0))
+    snap = tmp_path / "ancla.jsonl"
+    snap.write_text(privacy_ledger.dumps(_sync(lambda c: privacy_ledger.build_snapshot(c, T0))))
+    dsn = os.environ["TEST_DATABASE_URL"]
+    assert verify.main(["--dsn", dsn, "--anchor", str(snap)]) == 0
+    _rewrite_whole_chain()
+    assert verify.main(["--dsn", dsn, "--anchor", str(snap)]) == 1
+    assert verify.main(["--dsn", dsn, "--anchor", str(tmp_path / "no-existe")]) == 3
+
+
+# ─── Idempotencia: un trabajador retrasado no pisa al que retomó la solicitud ─────────────────
+
+
+def test_un_intento_zombi_no_cierra_ni_degrada_lo_que_otro_retomo(memory_db):
+    async def _run():
+        req, _ = await pr.create_request(41, now=T0)
+        a = (await pr.claim_due(now=T0))[0]  # intento 1 (se retrasa)
+        later = T0 + timedelta(minutes=pr.LEASE_MINUTES + 1)
+        b = (await pr.claim_due(now=later))[0]  # intento 2 retoma
+        assert (a["attempts"], b["attempts"]) == (1, 2)
+        # El intento 1 despierta tarde: ni completa ni falla.
+        assert await pr.complete(req["id"], {"guild_ids": []}, later, a["attempts"]) is False
+        assert await pr.fail(req["id"], RuntimeError("x"), later, a["attempts"]) is False
+        assert (await pr.user_requests(41))[0]["status"] == "processing"
+        # El intento 2 sí cierra, una sola vez.
+        assert await pr.complete(req["id"], {"guild_ids": []}, later, b["attempts"]) is True
+        assert await pr.complete(req["id"], {"guild_ids": []}, later, b["attempts"]) is False
+        events = [e["event"] for e in await pr.request_log(req["id"])]
+        assert events.count("completed") == 1 and (await pr.verify_log())["ok"] is True
+
+    asyncio.run(_run())

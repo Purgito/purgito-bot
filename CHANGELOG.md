@@ -17,6 +17,11 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 - Registro externo de eliminaciones: nuevo registro `deletion_request` (solicitudes abiertas); `reapply_deletions.py` las recrea y ahora EXIGE `--ledger` (o `--sin-registro`).
 - Avisos por Gmail (`privacy_alerts.py`, `deploy/set_privacy_alert_credentials.sh`) para solicitudes fallidas, próximas a vencer y vencidas; sin credenciales el aviso queda pendiente.
 - Se retiran el sistema de memes y la integración con Groq (sin tocar las tablas).
+- Pestaña Privacidad en el perfil (`/es/perfil/privacidad`, `/en/perfil/privacidad`; `perfil.js`, `core/privacy.js`, `test_privacy.mjs` en CI): exclusión global, descarga de datos y solicitud de eliminación con su estado.
+- Lápidas de mensajes sueltos y canales (`deleted_message_tombstones`, `deleted_channel_tombstones`) en el registro externo, con tope de 100 000 y marca `truncated`; `reapply_deletions.py --aceptar-truncado`.
+- `log_anchor` en cada instantánea del registro externo + `scripts/verify_privacy_log.py` (detecta una cadena reescrita entera); `privacy_requests.complete/fail` con token de intento (un trabajador retrasado no pisa al que retomó).
+- Seudonimización (no borrado) de `audit_log`, `scheduled_announcements.created_by` y `frases_especiales` al pedir la eliminación; `/mis_datos` y la API los exportan con ids ajenos enmascarados.
+- `deploy/check_encryption_at_rest.sh` y `docs/CIFRADO_EN_REPOSO.md` (cifrado en reposo sigue ABIERTO).
 - Backups: token de R2 propio (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`, `r2.get_backup_client`) sin fallback al de imágenes/GIFs; `delete_backup_sync` solo acepta keys `purgito-*`, `bot-*` y `ledger/*` sin `..`.
 - Registro de eliminaciones fuera de la base: `purged_guild_tombstones` (lápida de servidores purgados, 15 días), `src/privacy_ledger.py`, `scripts/export_privacy_ledger.py` + `deploy/export_ledger.sh` (instantánea cifrada con age en `ledger/` de R2, ids y fechas) y `reapply_deletions.py --ledger` (funde el registro, purga servidores, restaura exclusiones sin quitar ninguna).
 

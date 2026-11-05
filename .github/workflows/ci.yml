@@ -208,6 +208,8 @@ jobs:
 
       - name: Historial
         run: node landing/test_historial.mjs
+      - name: Privacidad
+        run: node landing/test_privacy.mjs
 
       # Studio (UI privada, fuera de landing/): módulos ES nativos, sin bundler ni dependencias.
       # Se comprueba la sintaxis de todos y se ejecutan las pruebas de la lógica pura (formato,

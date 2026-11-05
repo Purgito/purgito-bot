@@ -71,6 +71,8 @@ def _wrap(fake):
             "boosts": [],
             "special_phrases": [],
             "exclusions": [],
+            "audit_log": [],
+            "scheduled_announcements": [],
             "deletion_requests": [],
         }
 

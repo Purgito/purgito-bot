@@ -539,6 +539,14 @@ async def save_corpus_and_user_message(
     return corpus_inserted, user_inserted
 
 
+def _tombstone_window() -> tuple[str, str]:
+    """(ahora, caducidad) en el formato de texto de la base, para una lápida nueva."""
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(days=_tombstone_retention_days())
+    fmt = "%Y-%m-%d %H:%M:%S"
+    return now.strftime(fmt), expires.strftime(fmt)
+
+
 async def delete_message_from_corpus(guild_id: int, message_id: int) -> dict:
     """Borra un mensaje específico de corpus_messages y user_corpus al ser
     eliminado en Discord (on_raw_message_delete)."""
@@ -552,6 +560,15 @@ async def delete_message_from_corpus(guild_id: int, message_id: int) -> dict:
             "DELETE FROM user_corpus WHERE guild_id=? AND message_id=?",
             (guild_id, message_id),
         )
+        if cur1.rowcount > 0 or cur2.rowcount > 0:
+            # Lápida en la MISMA transacción: un backup anterior no debe devolver este mensaje.
+            now, expires = _tombstone_window()
+            await db.execute(
+                "INSERT INTO deleted_message_tombstones (guild_id, message_id, deleted_at, expires_at) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, message_id) DO UPDATE SET "
+                "deleted_at=excluded.deleted_at, expires_at=excluded.expires_at",
+                (guild_id, message_id, now, expires),
+            )
         await db.commit()
     return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
 
@@ -569,6 +586,14 @@ async def delete_channel_corpus(guild_id: int, channel_id: int) -> dict:
             "DELETE FROM user_corpus WHERE guild_id=? AND channel_id=?",
             (guild_id, channel_id),
         )
+        if cur1.rowcount > 0 or cur2.rowcount > 0:
+            now, expires = _tombstone_window()
+            await db.execute(
+                "INSERT INTO deleted_channel_tombstones (guild_id, channel_id, deleted_at, expires_at) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, channel_id) DO UPDATE SET "
+                "deleted_at=excluded.deleted_at, expires_at=excluded.expires_at",
+                (guild_id, channel_id, now, expires),
+            )
         await db.commit()
     return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
 
@@ -620,11 +645,38 @@ _SQL_DELETE_CORPUS_OF_AUTHOR = (
     ")"
 )
 _SQL_DELETE_USER_CORPUS_OF_AUTHOR = "DELETE FROM user_corpus WHERE author_id=?"
-# Otros datos personales atribuibles (quién envió un GIF, desde cuándo impulsa un
-# servidor). También los usa scripts/reapply_deletions.py tras una restauración.
+# Otros datos personales atribuibles que SÍ se borran (quién envió un GIF, desde cuándo impulsa
+# un servidor). También los usa scripts/reapply_deletions.py tras una restauración.
 _SQL_DELETE_GIF_SENDERS_OF_USER = "DELETE FROM gif_senders WHERE user_id=?"
 _SQL_DELETE_BOOSTS_OF_USER = "DELETE FROM member_boost_records WHERE user_id=?"
-_SQL_DELETE_FRASES_OF_USER = "DELETE FROM frases_especiales WHERE user_id=?"
+
+# Datos administrativos que NO se borran (integridad del historial del servidor) sino que se
+# SEUDONIMIZAN: la acción, la fecha y el servidor se conservan; desaparece quién fue.
+#  - audit_log.user_id / user_name: el admin que actuó.
+#  - audit_log.detail / previous_detail: el id de la persona afectada en acciones sobre
+#    exclusiones ("user_id=<id> ..."). El lookahead evita tocar ids más largos que empiecen igual.
+#  - scheduled_announcements.created_by: el admin que programó el anuncio (el anuncio es del servidor).
+#  - frases_especiales.user_id / user_name: quien agregó la frase (la frase es del servidor; la
+#    política publica que la atribución dura mientras la frase exista, salvo que la persona pida su
+#    eliminación: entonces se quita el nombre y la frase se queda).
+# Cada entrada es (SQL, cuántas veces se repite el id como parámetro). Justificación y límites:
+# docs/PRIVACY_CENTER.md § Datos administrativos.
+_PSEUDONYMIZE_STATEMENTS: tuple[tuple[str, int], ...] = (
+    ("UPDATE audit_log SET user_id=0, user_name='[eliminado]' WHERE user_id=?", 1),
+    (
+        "UPDATE audit_log SET detail=regexp_replace(detail, 'user_id=' || ?::text || '(?![0-9])', "
+        "'user_id=[eliminado]', 'g') WHERE detail ~ ('user_id=' || ?::text || '(?![0-9])')",
+        2,
+    ),
+    (
+        "UPDATE audit_log SET previous_detail=regexp_replace(previous_detail, "
+        "'user_id=' || ?::text || '(?![0-9])', 'user_id=[eliminado]', 'g') "
+        "WHERE previous_detail ~ ('user_id=' || ?::text || '(?![0-9])')",
+        2,
+    ),
+    ("UPDATE scheduled_announcements SET created_by=0 WHERE created_by=?", 1),
+    ("UPDATE frases_especiales SET user_id=0, user_name='[eliminado]' WHERE user_id=?", 1),
+)
 
 
 def _tombstone_retention_days() -> int:
@@ -702,8 +754,10 @@ async def delete_user_data(author_id: int) -> dict:
         gif_senders_deleted = cur_gs.rowcount
         cur_bo = await db.execute(_SQL_DELETE_BOOSTS_OF_USER, (author_id,))
         boosts_deleted = cur_bo.rowcount
-        cur_fr = await db.execute(_SQL_DELETE_FRASES_OF_USER, (author_id,))
-        frases_deleted = cur_fr.rowcount
+        admin_rows_pseudonymized = 0
+        for sql, repeat in _PSEUDONYMIZE_STATEMENTS:
+            cur_ps = await db.execute(sql, (author_id,) * repeat)
+            admin_rows_pseudonymized += max(cur_ps.rowcount, 0)
 
         # Lápida (solo el id y dos fechas), en la MISMA transacción: o se borra y
         # queda anotado, o no pasó nada. Se escribe aunque no hubiera filas
@@ -733,7 +787,7 @@ async def delete_user_data(author_id: int) -> dict:
         "unknown_deleted": unknown_deleted,
         "gif_senders_deleted": gif_senders_deleted,
         "boosts_deleted": boosts_deleted,
-        "frases_deleted": frases_deleted,
+        "admin_rows_pseudonymized": admin_rows_pseudonymized,
         "guild_ids": guild_ids,
     }
     log.info(
@@ -761,8 +815,17 @@ async def purge_expired_deletion_tombstones() -> int:
         cursor_guilds = await db.execute(
             "DELETE FROM purged_guild_tombstones WHERE expires_at <= utc_now()"
         )
+        cursor_msgs = await db.execute(
+            "DELETE FROM deleted_message_tombstones WHERE expires_at <= utc_now()"
+        )
+        cursor_chans = await db.execute(
+            "DELETE FROM deleted_channel_tombstones WHERE expires_at <= utc_now()"
+        )
         await db.commit()
-    return max(cursor.rowcount, 0) + max(cursor_guilds.rowcount, 0)
+    return sum(
+        max(c.rowcount, 0)
+        for c in (cursor, cursor_guilds, cursor_msgs, cursor_chans)
+    )
 
 
 async def export_user_data(author_id: int) -> dict[int, list[dict]]:
@@ -811,8 +874,8 @@ async def build_user_export(author_id: int) -> dict:
     by_guild = await export_user_data(author_id)
     conn = await get_db()
 
-    async def _rows(sql: str) -> list:
-        async with conn.execute(sql, (author_id,)) as cur:
+    async def _rows(sql: str, repeat: int = 1) -> list:
+        async with conn.execute(sql, (author_id,) * repeat) as cur:
             return await cur.fetchall()
 
     gifs = [
@@ -860,6 +923,47 @@ async def build_user_export(author_id: int) -> dict:
             "FROM excluded_users WHERE user_id=? ORDER BY guild_id"
         )
     ]
+    def _mask_others(text):
+        """En la copia de una persona no debe aparecer el id de OTRA: se enmascara."""
+        if not text:
+            return text
+        return re.sub(
+            r"user_id=(\d+)",
+            lambda m: m.group(0) if int(m.group(1)) == author_id else "user_id=[otra persona]",
+            text,
+        )
+
+    audit = [
+        {
+            "guild_id": str(r[0]),
+            "role": "actor" if r[1] else "target",
+            "action": r[2],
+            "detail": _mask_others(r[3]),
+            "previous_detail": _mask_others(r[4]),
+            "created_at": r[5],
+        }
+        for r in await _rows(
+            "SELECT guild_id, (user_id = ?), action, detail, previous_detail, created_at "
+            "FROM audit_log WHERE user_id = ? "
+            "OR detail ~ ('user_id=' || ?::text || '(?![0-9])') "
+            "OR previous_detail ~ ('user_id=' || ?::text || '(?![0-9])') ORDER BY id",
+            4,
+        )
+    ]
+    announcements = [
+        {
+            "id": r[0],
+            "guild_id": str(r[1]),
+            "channel_id": str(r[2]),
+            "message": r[3],
+            "mode": r[4],
+            "created_at": r[5],
+        }
+        for r in await _rows(
+            "SELECT id, guild_id, channel_id, message, mode, created_at "
+            "FROM scheduled_announcements WHERE created_by=? ORDER BY id"
+        )
+    ]
     requests = [
         {
             "id": r[0],
@@ -879,6 +983,8 @@ async def build_user_export(author_id: int) -> dict:
         "boosts": boosts,
         "special_phrases": frases,
         "exclusions": exclusions,
+        "audit_log": audit,
+        "scheduled_announcements": announcements,
         "deletion_requests": requests,
     }
 
@@ -902,6 +1008,8 @@ def export_payload(user_id: int, data: dict, exported_at: str, guild_name=None) 
         "boosts": data["boosts"],
         "special_phrases": data["special_phrases"],
         "exclusions": data["exclusions"],
+        "audit_log": data["audit_log"],
+        "scheduled_announcements": data["scheduled_announcements"],
         "deletion_requests": data["deletion_requests"],
     }
 
@@ -5416,6 +5524,8 @@ _GUILD_PURGE_TABLES = (
     "gif_senders",
     "guild_bot_style",
     "embed_uploaded_images",
+    "deleted_message_tombstones",
+    "deleted_channel_tombstones",
 )
 
 

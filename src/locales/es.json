@@ -339,7 +339,7 @@
   "privacy.export.error": "No se pudo generar el archivo. Intenta de nuevo más tarde.",
   "privacy.export.empty": "No encontramos datos tuyos almacenados por Purgito.",
   "privacy.export.result": "{count} mensaje(s) de tu estilo guardado en {guilds} servidor(es).",
-  "privacy.export.result_extra": "También: {gifs} GIF(s), {boosts} boost(s), {phrases} frase(s) especial(es) y {exclusions} exclusión(es).",
+  "privacy.export.result_extra": "También: {gifs} GIF(s), {boosts} boost(s), {phrases} frase(s) especial(es), {exclusions} exclusión(es) y {admin} registro(s) administrativo(s).",
   "privacy.exclude.status_on": "Estás excluido en todos los servidores: Purgito no aprende de tus mensajes ni te responde, reacciona o activa triggers contigo. Lo que ya guardó sigue ahí hasta que uses /borrar_mis_datos.",
   "privacy.exclude.status_off": "No estás excluido: Purgito puede aprender de tus mensajes en los canales donde está activado el aprendizaje.",
   "privacy.exclude.on_done": "Listo. Desde ahora Purgito no aprende de tus mensajes ni interactúa contigo, en ningún servidor. Para borrar lo que ya guardó usa /borrar_mis_datos.",

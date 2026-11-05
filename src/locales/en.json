@@ -339,7 +339,7 @@
   "privacy.export.error": "Couldn't generate the file. Try again later.",
   "privacy.export.empty": "We couldn't find any data of yours stored by Purgito.",
   "privacy.export.result": "{count} message(s) of your saved style across {guilds} server(s).",
-  "privacy.export.result_extra": "Also: {gifs} GIF(s), {boosts} boost(s), {phrases} special phrase(s) and {exclusions} exclusion(s).",
+  "privacy.export.result_extra": "Also: {gifs} GIF(s), {boosts} boost(s), {phrases} special phrase(s), {exclusions} exclusion(s) and {admin} administrative record(s).",
   "privacy.exclude.status_on": "You are excluded on every server: Purgito does not learn from your messages and does not reply to you, react to you or fire triggers on you. What it already stored stays until you use /borrar_mis_datos.",
   "privacy.exclude.status_off": "You are not excluded: Purgito can learn from your messages in channels where learning is enabled.",
   "privacy.exclude.on_done": "Done. From now on Purgito does not learn from your messages or interact with you, on any server. To delete what it already stored, use /borrar_mis_datos.",

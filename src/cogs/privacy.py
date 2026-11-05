@@ -291,6 +291,7 @@ class Privacy(commands.Cog):
             "boosts": len(data["boosts"]),
             "phrases": len(data["special_phrases"]),
             "exclusions": len(data["exclusions"]),
+            "admin": len(data["audit_log"]) + len(data["scheduled_announcements"]),
         }
         if total_messages == 0 and not any(extras.values()):
             await interaction.followup.send(

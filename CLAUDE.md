@@ -42,11 +42,12 @@ ruff format --check .
 .venv/bin/python landing/build_docs.py
 .venv/bin/python landing/build_docs.py --check
 
-# Tests de JS de la landing (selector de idioma, dashboard, historial) -- solo
+# Tests de JS de la landing (selector de idioma, dashboard, historial, Centro de Privacidad) -- solo
 # necesitan Node; corren en CI (job landing-js).
 node landing/test_lang.mjs
 node landing/test_dash.mjs
 node landing/test_historial.mjs
+node landing/test_privacy.mjs
 
 # Scripts de deploy: shellcheck + self-check de backup/restauración (corren en
 # CI, job scripts). Necesitan TEST_DATABASE_URL y los clientes de PostgreSQL (pg_dump/pg_restore).

@@ -279,6 +279,15 @@ HTML_PAGES = [
         "noindex": True,
     },
     {
+        "slug": "perfil/privacidad",
+        "src": "perfil.html",
+        "title": "Privacidad",
+        "meta": "Centro de Privacidad de Purgito: exclusión global, copia de tus datos y "
+        "solicitud de eliminación.",
+        "app": "perfil.js",
+        "noindex": True,
+    },
+    {
         "slug": "dashboard",
         "src": "dashboard.html",
         "title": "Dashboard",
@@ -422,6 +431,15 @@ HTML_PAGES_EN = [
         "src": "en/perfil.html",
         "title": "Billing",
         "meta": "The status of your Purgito Premium subscriptions and billing management.",
+        "app": "perfil.js",
+        "noindex": True,
+    },
+    {
+        "slug": en_slug("perfil/privacidad"),
+        "src": "en/perfil.html",
+        "title": "Privacy",
+        "meta": "Purgito Privacy Center: global opt-out, a copy of your data and "
+        "deletion requests.",
         "app": "perfil.js",
         "noindex": True,
     },

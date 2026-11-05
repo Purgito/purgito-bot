@@ -189,37 +189,63 @@ async def claim_due(limit: int = 5, now: datetime | None = None) -> list[dict]:
     return claimed
 
 
-async def complete(request_id: int, report: dict, now: datetime | None = None) -> None:
+async def complete(
+    request_id: int, report: dict, now: datetime | None = None, attempt: int | None = None
+) -> bool:
+    """Cierra la solicitud. `attempt` es el intento que la tomó (token de control): si otro
+    intento la retomó mientras tanto (arrendamiento vencido) o ya está cerrada, no hace nada y
+    devuelve False. El borrado es idempotente, así que el intento perdedor no deja daño."""
     now_t = _ts(_now(now))
     counts = {
         k: v
         for k, v in report.items()
-        if k.endswith("_deleted") and isinstance(v, int)
+        if k.endswith(("_deleted", "_pseudonymized")) and isinstance(v, int)
     }
     counts["guilds"] = len(report.get("guild_ids", []))
     conn = await db.get_db()
     async with db._db_lock:
-        await conn.execute(
-            "UPDATE privacy_requests SET status='completed', completed_at=?, "
-            "locked_until=NULL, last_error=NULL WHERE id=?",
-            (now_t, request_id),
-        )
+        if attempt is None:
+            cur = await conn.execute(
+                "UPDATE privacy_requests SET status='completed', completed_at=?, "
+                "locked_until=NULL, last_error=NULL WHERE id=? AND status='processing'",
+                (now_t, request_id),
+            )
+        else:
+            cur = await conn.execute(
+                "UPDATE privacy_requests SET status='completed', completed_at=?, "
+                "locked_until=NULL, last_error=NULL "
+                "WHERE id=? AND status='processing' AND attempts=?",
+                (now_t, request_id, attempt),
+            )
+        if cur.rowcount != 1:
+            await conn.commit()
+            return False
         await _append_log(conn, request_id, "completed", counts, now_t)
         await conn.commit()
+    return True
 
 
-async def fail(request_id: int, error: Exception, now: datetime | None = None) -> None:
+async def fail(
+    request_id: int,
+    error: Exception,
+    now: datetime | None = None,
+    attempt: int | None = None,
+) -> bool:
     """Registra un intento fallido y programa el siguiente con espera creciente. Solo se
-    guarda el NOMBRE de la excepción: su mensaje podría llevar datos."""
+    guarda el NOMBRE de la excepción: su mensaje podría llevar datos. Con `attempt`, un intento
+    desplazado por otro (o una solicitud ya cerrada) no la degrada: devuelve False."""
     now = _now(now)
     name = type(error).__name__[:80]
     conn = await db.get_db()
     async with db._db_lock:
         async with conn.execute(
-            "SELECT attempts FROM privacy_requests WHERE id=?", (request_id,)
+            "SELECT attempts, status FROM privacy_requests WHERE id=?", (request_id,)
         ) as cur:
             row = await cur.fetchone()
-        attempts = int(row[0]) if row else 1
+        if not row or row[1] != "processing" or (attempt is not None and int(row[0]) != attempt):
+            await conn.commit()
+            return False
+        attempts = int(row[0])
         wait = BACKOFF_MINUTES[min(attempts, len(BACKOFF_MINUTES)) - 1]
         nxt = _ts(now + timedelta(minutes=wait))
         await conn.execute(
@@ -235,6 +261,7 @@ async def fail(request_id: int, error: Exception, now: datetime | None = None) -
             _ts(now),
         )
         await conn.commit()
+    return True
 
 
 async def process_due(forget, *, limit: int = 5, now: datetime | None = None) -> dict:
@@ -246,11 +273,11 @@ async def process_due(forget, *, limit: int = 5, now: datetime | None = None) ->
             report = await forget(req["user_id"])
         except Exception as e:
             log.exception("privacy_requests: falló el intento de la solicitud %s", req["id"])
-            await fail(req["id"], e, now)
-            failed += 1
+            if await fail(req["id"], e, now, req["attempts"]):
+                failed += 1
         else:
-            await complete(req["id"], report, now)
-            done += 1
+            if await complete(req["id"], report, now, req["attempts"]):
+                done += 1
     return {"completed": done, "failed": failed}
 
 
@@ -335,21 +362,59 @@ async def request_log(request_id: int) -> list[dict]:
     ]
 
 
-async def verify_log() -> dict:
-    """Recalcula la cadena completa. {"ok", "rows", "bad_seq"}: bad_seq es la primera fila
-    cuyo hash o enlace no coincide (cambiada, quitada o intercalada)."""
-    conn = await db.get_db()
-    async with conn.execute(
-        "SELECT seq, request_id, at, event, detail, prev_hash, hash "
-        "FROM privacy_request_log ORDER BY seq"
-    ) as cur:
-        rows = await cur.fetchall()
+def verify_chain(rows) -> dict:
+    """Recalcula la cadena sobre filas (seq, request_id, at, event, detail, prev_hash, hash)
+    ordenadas por seq. {"ok", "rows", "bad_seq"}: bad_seq es la primera fila cuyo hash o
+    enlace no coincide (cambiada, quitada o intercalada)."""
     prev = GENESIS_HASH
     for seq, request_id, at, event, detail, prev_hash, h in rows:
         if prev_hash != prev or h != chain_hash(prev, request_id, at, event, detail):
             return {"ok": False, "rows": len(rows), "bad_seq": seq}
         prev = h
     return {"ok": True, "rows": len(rows), "bad_seq": None}
+
+
+def check_anchors(rows, anchors) -> dict:
+    """Compara la cadena de la base con ANCLAS (seq, hash) exportadas fuera del servidor.
+
+    Una cadena reescrita entera es internamente coherente (verify_chain no lo ve), pero cambia
+    el hash de las filas anteriores a la reescritura: no coincidirá con lo que ya se exportó.
+      - altered: la fila ancla falta o su hash difiere, o la cadena no cierra.
+      - ahead:   el ancla es posterior al final de la base (restauración antigua o cola borrada;
+                 no se puede distinguir, hay que mirar el contexto).
+    Una fila posterior al último ancla exportado queda sin cubrir hasta la siguiente instantánea
+    (como máximo, una hora)."""
+    chain = verify_chain(rows)
+    by_seq = {r[0]: r[6] for r in rows}
+    last = max(by_seq) if by_seq else 0
+    altered, ahead, matched = [], [], 0
+    for seq, h in anchors:
+        if seq > last:
+            ahead.append(seq)
+        elif by_seq.get(seq) != h:
+            altered.append(seq)
+        else:
+            matched += 1
+    return {
+        "chain_ok": chain["ok"],
+        "chain_bad_seq": chain["bad_seq"],
+        "anchors": len(anchors),
+        "matched": matched,
+        "altered": altered,
+        "ahead": ahead,
+        "ok": chain["ok"] and not altered,
+    }
+
+
+async def verify_log() -> dict:
+    """Recalcula la cadena completa de la base (ver verify_chain)."""
+    conn = await db.get_db()
+    async with conn.execute(
+        "SELECT seq, request_id, at, event, detail, prev_hash, hash "
+        "FROM privacy_request_log ORDER BY seq"
+    ) as cur:
+        rows = await cur.fetchall()
+    return verify_chain(rows)
 
 
 async def purge_old(now: datetime | None = None) -> int:

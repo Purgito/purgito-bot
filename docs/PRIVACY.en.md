@@ -76,6 +76,8 @@ This log covers changes made from the web dashboard. Actions an admin runs direc
 
 This log is visible only to that same server's admins, in the panel's History tab, and exists so the community can see what changes were made and by whom. It's kept for a maximum of 90 days and then deleted automatically (see "Data retention").
 
+When a person requests deletion of their data (with `/borrar_mis_datos` or from their account), this log is **not deleted**, because it is the server's history: only who did it is removed. Their ID and name are replaced with `[eliminado]` in the entries where they acted, and their ID disappears from the detail of entries that mention them. The same applies to the special phrases and scheduled announcements they created: they stay on the server, without their name. Their data copy includes these entries, with other people's identifiers hidden.
+
 ---
 
 The bot **does not collect**:
@@ -200,6 +202,8 @@ Besides the command, a person can **request deletion of their data from their ac
 Your original Discord messages aren't affected: this only deletes the copy Purgito saved to learn your writing style. Since this is irreversible, the command asks for explicit confirmation before running the deletion.
 
 **The real limit of the deletion: backups.** Backups made before your deletion may still contain that data until they expire (at most 14 days, see above). They aren't read or restored unless the service has to be recovered after a disaster. If that ever happened, the deletion would be applied again before the bot is brought back up. To make that possible, each time you use `/borrar_mis_datos` Purgito stores a **tombstone**: only your Discord user ID and two dates (when you requested the deletion and when the tombstone expires). It carries no message content and not the servers you were in. It lasts 15 days (the 14 of the backups plus one day of margin) and removes itself; it's personal data and is handled under this same policy. The same applies when Purgito leaves a server and, after the 30-day grace period, deletes all of its data: the server ID and two dates are kept for 15 days. So that this record isn't lost if the server is lost, every hour an encrypted copy is saved in the same private R2 space containing only those current tombstones and the list of people who opted out of learning (IDs and dates, no messages); each of those copies is deleted after 15 days at most, and an opt-out is kept for as long as the person doesn't remove it. Only whoever administers the server where Purgito runs can see it.
+
+The same goes for messages you delete or edit on Discord and for channels that are deleted: Purgito removes them from what it learned and, if a backup ever had to be restored, that removal is applied again (only the message identifier is kept, with no content, for 15 days).
 
 This deletion is specifically for the message-learning data described above, and doesn't automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server's pool, your entry as a sender in the GIF catalog, or your own entries in the panel's audit log if you're an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see "Contact").
 
