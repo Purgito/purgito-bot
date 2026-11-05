@@ -285,6 +285,41 @@ def get_client():
     return _client
 
 
+_backup_client = None
+_backup_checked = False
+
+
+def get_backup_client():
+    """Cliente S3 SOLO para el bucket de backups, con su propio token
+    (R2_BACKUP_ACCESS_KEY_ID / R2_BACKUP_SECRET_ACCESS_KEY), restringido en
+    Cloudflare a ese bucket. A propósito NO cae en R2_ACCESS_KEY_ID: el token de
+    imágenes y GIFs no debe poder leer ni borrar los backups, y el de backups no
+    debe poder tocar imágenes ni GIFs. Sin las dos variables propias no hay
+    cliente (y los backups a R2 fallan en vez de usar otra credencial)."""
+    global _backup_client, _backup_checked
+    if not _backup_checked:
+        _backup_checked = True
+        endpoint = _env("R2_ENDPOINT_URL")
+        key_id = _env("R2_BACKUP_ACCESS_KEY_ID")
+        secret = _env("R2_BACKUP_SECRET_ACCESS_KEY")
+        if endpoint and key_id and secret:
+            try:
+                import boto3
+                from botocore.config import Config
+
+                _backup_client = boto3.client(
+                    "s3",
+                    endpoint_url=endpoint,
+                    aws_access_key_id=key_id,
+                    aws_secret_access_key=secret,
+                    config=Config(signature_version="s3v4"),
+                    region_name="auto",
+                )
+            except Exception:
+                _backup_client = None
+    return _backup_client
+
+
 def _store_ready(store: Store) -> bool:
     """Hay cliente, bucket y (si el bucket es público) URL pública. Sin la URL
     no se puede armar el link que se guarda en la DB, así que una subida
@@ -303,7 +338,7 @@ def gifs_available() -> bool:
 
 
 def backups_available() -> bool:
-    return _store_ready(BACKUPS)
+    return get_backup_client() is not None and bool(bucket_for(BACKUPS))
 
 
 def legacy_vars_set() -> list[str]:
@@ -983,12 +1018,13 @@ class BackupError(Exception):
 
 
 def _backup_client_and_bucket():
-    client = get_client()
+    client = get_backup_client()
     bucket = bucket_for(BACKUPS)
     if client is None:
         raise BackupError(
-            "R2 no está configurado (faltan R2_ENDPOINT_URL, R2_ACCESS_KEY_ID "
-            "o R2_SECRET_ACCESS_KEY)"
+            "R2 de backups no está configurado (faltan R2_ENDPOINT_URL, "
+            "R2_BACKUP_ACCESS_KEY_ID o R2_BACKUP_SECRET_ACCESS_KEY; el token de "
+            "imágenes/GIFs no se usa para los backups)"
         )
     if not bucket:
         raise BackupError("falta R2_BACKUP_BUCKET")
@@ -1051,11 +1087,20 @@ def list_backups_sync() -> list[tuple[str, int, object]]:
     return sorted(out)
 
 
+_BACKUP_DELETABLE_PREFIXES = ("purgito-", "bot-", "ledger/")
+
+
 def delete_backup_sync(key: str) -> None:
-    """Borra UN backup del bucket de backups (poda por antigüedad, ver
-    scripts/r2_backup.py prune). Solo keys `purgito-*` / `bot-*` de ese bucket:
-    nunca toca los buckets de imágenes ni de GIFs."""
-    if "/" in key or not key.startswith(("purgito-", "bot-")):
+    """Borra UN objeto del bucket de backups (poda por antigüedad, ver
+    scripts/r2_backup.py prune): un backup `purgito-*` / `bot-*` o una
+    instantánea del registro de eliminaciones `ledger/*`. Nunca toca los
+    buckets de imágenes ni de GIFs (este cliente ni siquiera tiene permiso)."""
+    ok = key.startswith(_BACKUP_DELETABLE_PREFIXES) and ".." not in key
+    if key.startswith("ledger/"):
+        ok = ok and key.count("/") == 1 and len(key) > len("ledger/")
+    else:
+        ok = ok and "/" not in key
+    if not ok:
         raise BackupError(f"no se borra {key!r}: no parece un backup")
     client, bucket = _backup_client_and_bucket()
     try:

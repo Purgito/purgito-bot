@@ -32,6 +32,7 @@ _spec.loader.exec_module(r2_backup)
 def s3(monkeypatch):
     fake = FakeS3(BACKUP_BUCKET, "purgito-images", "purgito-gifs")
     monkeypatch.setattr(r2, "get_client", lambda: fake)
+    monkeypatch.setattr(r2, "get_backup_client", lambda: fake)
     monkeypatch.setenv("R2_BACKUP_BUCKET", BACKUP_BUCKET)
     return fake
 
@@ -182,7 +183,7 @@ def test_el_script_real_arranca_y_falla_fuerte_sin_configuracion(tmp_path):
     )
 
     assert proc.returncode == 1
-    assert "R2 no está configurado" in proc.stderr
+    assert "R2 de backups no está configurado" in proc.stderr
 
 
 # ─── deploy/backup_db.sh: un backup solo local no cuenta como exitoso ─────────
@@ -578,12 +579,14 @@ def test_delete_backup_solo_acepta_keys_de_backup(s3):
 
 
 @needs_shell_tools
-def test_backup_db_poda_r2_con_keep_last_y_falla_si_la_poda_falla(tmp_path, age_keys):
+def test_backup_db_poda_r2_diaria_y_semanal_y_falla_si_la_poda_falla(
+    tmp_path, age_keys
+):
     log = tmp_path / "args.log"
     # el stub es el intérprete: recibe (uploader, subcomando, ...)
     stub = (
         f'#!/bin/bash\nprintf "%s\\n" "$@" >> "{log}"\n'
-        '[ "$2" = prune ] && { echo "poda caída" >&2; exit 1; }\nexit 0\n'
+        '[ "$2" = prune-gfs ] && { echo "poda caída" >&2; exit 1; }\nexit 0\n'
     )
 
     proc = _run_backup(tmp_path, stub, recipients=age_keys[1])
@@ -592,10 +595,87 @@ def test_backup_db_poda_r2_con_keep_last_y_falla_si_la_poda_falla(tmp_path, age_
     assert "no se pudo podar" in proc.stderr
     assert "OK backup -> " in proc.stdout  # el de hoy sí quedó subido
     llamadas = log.read_text().splitlines()
-    i = llamadas.index("prune")
-    # por cantidad (default 2), no por días
-    assert llamadas[i : i + 4] == ["prune", "--keep", "2", "--apply"]
-    assert "--days" not in llamadas
+    i = llamadas.index("prune-gfs")
+    # 7 diarios + 2 semanales, nada de 14 días o más; ya no es "los N últimos"
+    assert llamadas[i : i + 8] == [
+        "prune-gfs",
+        "--daily",
+        "7",
+        "--weekly",
+        "2",
+        "--max-age-days",
+        "14",
+        "--apply",
+    ]
+    assert "--keep" not in llamadas
+
+
+@needs_shell_tools
+@pytest.mark.parametrize(
+    "var,valor",
+    [
+        ("R2_KEEP_DAILY", "0"),
+        ("R2_KEEP_DAILY", "x"),
+        ("BACKUP_MAX_AGE_DAYS", "0"),
+        ("R2_KEEP_WEEKLY", "-1"),
+        ("R2_KEEP_DAILY", "15"),
+    ],
+)
+def test_backup_db_rechaza_retencion_r2_invalida_sin_hacer_backup(
+    tmp_path, age_keys, var, valor
+):
+    proc = _run_backup(
+        tmp_path, "#!/bin/bash\nexit 0\n", recipients=age_keys[1], **{var: valor}
+    )
+    assert proc.returncode != 0
+    assert "No se hizo backup" in proc.stderr
+    assert not list((tmp_path / "backups").glob("purgito-2*"))
+
+
+@needs_shell_tools
+def test_backup_db_avisa_por_webhook_cuando_falla_y_no_filtra_la_url(
+    tmp_path, age_keys
+):
+    """BACKUP_ALERT_WEBHOOK recibe un aviso (sin secretos) si el backup falla; si el
+    webhook está caído el resultado del backup no cambia."""
+    curl_log = tmp_path / "curl.log"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake_curl = bindir / "curl"
+    fake_curl.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" >> "{curl_log}"\nexit 22\n')
+    fake_curl.chmod(0o755)
+    url = "https://discord.example/api/webhooks/123/SECRETO"
+
+    proc = _run_backup(
+        tmp_path,
+        "#!/bin/bash\necho 'R2 caído' >&2\nexit 1\n",
+        recipients=age_keys[1],
+        BACKUP_ALERT_WEBHOOK=url,
+        PATH=f"{bindir}:{os.environ['PATH']}",
+    )
+
+    assert proc.returncode == 1  # el curl roto no lo cambia
+    assert "FALLÓ" in curl_log.read_text()
+    assert "SECRETO" not in proc.stdout + proc.stderr
+
+
+@needs_shell_tools
+def test_backup_db_no_avisa_si_todo_sale_bien(tmp_path, age_keys):
+    curl_log = tmp_path / "curl.log"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake_curl = bindir / "curl"
+    fake_curl.write_text(f'#!/bin/bash\nprintf "x" >> "{curl_log}"\n')
+    fake_curl.chmod(0o755)
+    proc = _run_backup(
+        tmp_path,
+        "#!/bin/bash\nexit 0\n",
+        recipients=age_keys[1],
+        BACKUP_ALERT_WEBHOOK="https://discord.example/api/webhooks/1/x",
+        PATH=f"{bindir}:{os.environ['PATH']}",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert not curl_log.exists()
 
 
 # ─── deploy/backup_db.sh: retención local KEEP_LAST=2 y logs ──────────────────
@@ -730,3 +810,176 @@ def test_backup_db_avisa_si_queda_un_retention_days_viejo(tmp_path, age_keys):
 
     assert proc.returncode == 0, proc.stderr
     assert "RETENTION_DAYS ya no se usa" in proc.stderr
+
+
+# ─── token de backups independiente ──────────────────────────────────────────
+
+
+def _reset_backup_client(monkeypatch):
+    monkeypatch.setattr(r2, "_backup_client", None)
+    monkeypatch.setattr(r2, "_backup_checked", False)
+
+
+def test_el_token_de_imagenes_no_sirve_para_los_backups(monkeypatch):
+    """Sin R2_BACKUP_ACCESS_KEY_ID/SECRET no hay cliente de backups, aunque estén las
+    credenciales de imágenes y GIFs: nunca se cae en ellas."""
+    _reset_backup_client(monkeypatch)
+    monkeypatch.setenv("R2_ENDPOINT_URL", "https://example.r2.cloudflarestorage.com")
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "img-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "img-secret")
+    monkeypatch.delenv("R2_BACKUP_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("R2_BACKUP_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.setenv("R2_BACKUP_BUCKET", BACKUP_BUCKET)
+    assert r2.get_backup_client() is None
+    assert r2.backups_available() is False
+    with pytest.raises(r2.BackupError, match="no se usa para los backups"):
+        r2.list_backups_sync()
+
+
+def test_el_cliente_de_backups_usa_solo_sus_credenciales(monkeypatch):
+    _reset_backup_client(monkeypatch)
+    monkeypatch.setenv("R2_ENDPOINT_URL", "https://example.r2.cloudflarestorage.com")
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "img-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "img-secret")
+    monkeypatch.setenv("R2_BACKUP_ACCESS_KEY_ID", "bak-key")
+    monkeypatch.setenv("R2_BACKUP_SECRET_ACCESS_KEY", "bak-secret")
+    client = r2.get_backup_client()
+    assert client is not None
+    assert client._request_signer._credentials.access_key == "bak-key"
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["../x", "purgito-1/../2", "ledger/", "ledger/a/b", "images/a.png", "/purgito-x"],
+)
+def test_delete_backup_rechaza_keys_que_no_son_backups(s3, key):
+    with pytest.raises(r2.BackupError):
+        r2.delete_backup_sync(key)
+
+
+# ─── retención diaria + semanal (política de privacidad: máximo 14 días) ─────
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+_NOW = datetime(2026, 11, 12, 10, 0, tzinfo=timezone.utc)  # jueves
+
+
+def _dump(dt, ext=".dump.age"):
+    return _b("purgito-" + dt.strftime("%Y%m%d-%H%M%S") + ext)
+
+
+def _diarios(dias, hora=3):
+    return [
+        _dump((_NOW - timedelta(days=d)).replace(hour=hora, minute=17, second=1))
+        for d in range(dias)
+    ]
+
+
+def test_gfs_con_backups_diarios_deja_7_diarios_y_2_domingos_y_nada_de_14_dias():
+    backups = _diarios(30)
+    valid, kept, victims = r2_backup.prune_plan_gfs(backups, _NOW)
+    ages = [(_NOW - r2_backup.backup_time(k)).days for k in kept]
+    assert max(ages) < 14
+    assert len(kept) <= 9
+    # los 7 días más recientes están
+    assert all(
+        _dump(_NOW.replace(hour=3, minute=17, second=1) - timedelta(days=d))[0] in kept
+        for d in range(7)
+    )
+    # los dos domingos (8 y 1 de noviembre)
+    assert "purgito-20261108-031701.dump.age" in kept
+    assert "purgito-20261101-031701.dump.age" in kept
+    assert set(kept) | set(victims) == set(valid)
+    assert not set(kept) & set(victims)
+
+
+def test_gfs_nunca_conserva_nada_de_14_dias_o_mas_aunque_sea_domingo():
+    backups = _diarios(20)
+    _valid, kept, _victims = r2_backup.prune_plan_gfs(backups, _NOW)
+    for k in kept:
+        assert _NOW - r2_backup.backup_time(k) < timedelta(days=14)
+
+
+def test_gfs_se_niega_a_podar_si_el_mas_nuevo_ya_es_viejo():
+    backups = [_dump(_NOW - timedelta(days=15)), _dump(_NOW - timedelta(days=20))]
+    with pytest.raises(r2_backup.PrunePlanError):
+        r2_backup.prune_plan_gfs(backups, _NOW)
+
+
+def test_gfs_el_mas_nuevo_siempre_se_conserva_y_pocos_backups_no_borran_nada():
+    backups = _diarios(3)
+    _valid, kept, victims = r2_backup.prune_plan_gfs(backups, _NOW)
+    assert victims == [] and len(kept) == 3
+
+
+def test_gfs_con_varios_backups_el_mismo_dia_deja_el_mas_reciente():
+    a = _dump(_NOW.replace(hour=1, minute=0))
+    b = _dump(_NOW.replace(hour=2, minute=0))
+    _valid, kept, victims = r2_backup.prune_plan_gfs([a, b], _NOW)
+    assert kept == [b[0]] and victims == [a[0]]
+
+
+def test_gfs_no_toca_lo_que_no_es_un_backup_de_purgito_ni_los_sin_fecha():
+    backups = _diarios(10) + [
+        _b("privacy-prefs.csv.age"),
+        _b("luks-header-20261105.img.age"),
+        _b("purgito-sin-fecha.dump.age"),
+    ]
+    valid, kept, victims = r2_backup.prune_plan_gfs(backups, _NOW)
+    assert "privacy-prefs.csv.age" not in valid
+    assert "purgito-sin-fecha.dump.age" in kept
+    assert "purgito-sin-fecha.dump.age" not in victims
+
+
+@pytest.mark.parametrize(
+    "daily,weekly,age", [(0, 2, 14), (7, -1, 14), (7, 2, 0), (15, 2, 14)]
+)
+def test_gfs_parametros_invalidos_se_rechazan(daily, weekly, age):
+    with pytest.raises(ValueError):
+        r2_backup.prune_plan_gfs(_diarios(3), _NOW, daily, weekly, age)
+
+
+def test_gfs_cli_apply_borra_solo_los_victimas_y_dry_run_no_borra(s3, capsys):
+    ahora = datetime.now(timezone.utc)
+    for d in range(20):
+        s3.seed(BACKUP_BUCKET, _dump(ahora - timedelta(days=d))[0])
+    s3.seed(BACKUP_BUCKET, "privacy-prefs.csv.age")
+    antes = len(s3.keys(BACKUP_BUCKET))
+    assert r2_backup.main(["prune-gfs"]) == 0
+    assert len(s3.keys(BACKUP_BUCKET)) == antes
+    assert r2_backup.main(["prune-gfs", "--apply"]) == 0
+    quedan = s3.keys(BACKUP_BUCKET)
+    assert "privacy-prefs.csv.age" in quedan
+    assert len(quedan) <= 9 + 1
+
+
+def test_check_falla_si_el_ultimo_backup_es_viejo(s3):
+    ahora = datetime.now(timezone.utc)
+    s3.seed(BACKUP_BUCKET, _dump(ahora - timedelta(hours=60))[0])
+    assert r2_backup.main(["check", "--max-age-hours", "36"]) == 1
+    s3.seed(BACKUP_BUCKET, _dump(ahora - timedelta(hours=2))[0])
+    assert r2_backup.main(["check", "--max-age-hours", "36"]) == 0
+
+
+def test_check_falla_sin_backups(s3):
+    assert r2_backup.main(["check"]) == 1
+
+
+def _ledger_key(dt):
+    return "ledger/privacy-ledger-" + dt.strftime("%Y%m%dT%H%M%S") + "Z.jsonl.age"
+
+
+def test_ledger_prune_borra_lo_vencido_pero_conserva_las_3_mas_nuevas():
+    viejos = [
+        (_ledger_key(_NOW - timedelta(days=20, hours=h)), 5, None) for h in range(6)
+    ]
+    keys, kept, victims = r2_backup.prune_plan_ledger(viejos, _NOW)
+    assert len(kept) == 3 and len(victims) == 3
+    assert set(kept) == set(sorted(k for k, _s, _m in viejos)[-3:])
+
+
+def test_ledger_prune_no_borra_lo_reciente_ni_otras_keys():
+    items = [(_ledger_key(_NOW - timedelta(hours=h)), 5, None) for h in range(48)]
+    items += [("privacy-prefs.csv.age", 5, None), ("ledger/otra-cosa.txt", 5, None)]
+    _keys, _kept, victims = r2_backup.prune_plan_ledger(items, _NOW)
+    assert victims == []

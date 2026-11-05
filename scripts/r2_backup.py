@@ -7,6 +7,9 @@ desde un backup"). No lo usa el bot.
     python scripts/r2_backup.py upload purgito-X.dump
     python scripts/r2_backup.py list
     python scripts/r2_backup.py prune [--keep 2] [--apply]   # retención de R2: los N más recientes
+    python scripts/r2_backup.py prune-gfs [--daily 7 --weekly 2 --max-age-days 14] [--apply]
+    python scripts/r2_backup.py check [--max-age-hours 36]    # ¿el último backup es reciente?
+    python scripts/r2_backup.py prune-ledger [--max-age-days 15] [--apply]
     python scripts/r2_backup.py download latest --dest ~/restore
     python scripts/r2_backup.py download purgito-20261001-031700.dump --dest ~/restore
 
@@ -30,6 +33,7 @@ resto de la configuración del bot.
 
 import argparse
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -126,6 +130,122 @@ def prune_plan(backups, keep: int = DEFAULT_KEEP_LAST, prefix: str = BACKUP_PREF
     return valid, kept, valid[: len(valid) - len(kept)]
 
 
+class PrunePlanError(Exception):
+    """El plan de poda no es seguro (p. ej. el backup más nuevo es demasiado viejo)."""
+
+
+DEFAULT_KEEP_DAILY = 7
+DEFAULT_KEEP_WEEKLY = 2
+DEFAULT_MAX_AGE_DAYS = 14
+
+
+def backup_time(key: str):
+    """Fecha (UTC) que lleva el nombre `purgito-YYYYMMDD-HHMMSS[.dump[.age]]`, o None."""
+    from datetime import datetime, timezone
+
+    m = re.match(r"purgito-(\d{8})-(\d{6})\.", key)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return None
+
+
+def prune_plan_gfs(
+    backups,
+    now,
+    daily: int = DEFAULT_KEEP_DAILY,
+    weekly: int = DEFAULT_KEEP_WEEKLY,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    prefix: str = BACKUP_PREFIX,
+):
+    """(válidos, conservados, a borrar) con la retención de la política de privacidad:
+
+    - diarios: el backup más reciente de cada uno de los últimos `daily` días UTC;
+    - semanales: el backup de los últimos `weekly` domingos (UTC);
+    - todo con menos de `max_age_days` días: lo más viejo se borra siempre;
+    - el backup más nuevo nunca se borra.
+
+    Falla (PrunePlanError) en vez de borrar si el más nuevo ya supera `max_age_days`
+    o si algún parámetro es inválido: si los backups dejaron de salir, podar sería
+    quedarse sin ninguno. Los `purgito-*` con nombre sin fecha parseable no se tocan."""
+    from datetime import timedelta
+
+    if daily < 1 or weekly < 0 or max_age_days < 1:
+        raise ValueError("daily >= 1, weekly >= 0 y max_age_days >= 1")
+    if daily > max_age_days:
+        raise ValueError("daily no puede ser mayor que max_age_days")
+    valid = valid_backups(backups, prefix)
+    dated = {k: backup_time(k) for k in valid}
+    undated = [k for k, t in dated.items() if t is None]
+    stamped = sorted((k for k, t in dated.items() if t is not None), key=dated.get)
+    if not stamped:
+        return valid, list(valid), []
+    cap = timedelta(days=max_age_days)
+    if now - dated[stamped[-1]] >= cap:
+        raise PrunePlanError(
+            f"el backup más nuevo ({stamped[-1]}) tiene {max_age_days} días o más: "
+            "no se poda nada (¿dejaron de salir los backups?)"
+        )
+    kept = {stamped[-1]}
+    today = now.date()
+    for i in range(daily):
+        day = today - timedelta(days=i)
+        same = [k for k in stamped if dated[k].date() == day]
+        if same:
+            kept.add(same[-1])
+    sundays = []
+    for k in reversed(stamped):
+        if dated[k].weekday() == 6 and now - dated[k] < cap:
+            if all(dated[k].date() != dated[x].date() for x in sundays):
+                sundays.append(k)
+    kept.update(sundays[:weekly])
+    victims = [k for k in stamped if k not in kept]
+    return valid, sorted(kept | set(undated)), victims
+
+
+LEDGER_PREFIX = "ledger/"
+DEFAULT_LEDGER_MAX_AGE_DAYS = 15
+LEDGER_KEEP_NEWEST = 3
+
+
+def ledger_time(key: str):
+    from datetime import datetime, timezone
+
+    m = re.match(r"ledger/privacy-ledger-(\d{8}T\d{6})Z\.jsonl\.age$", key)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), "%Y%m%dT%H%M%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
+        return None
+
+
+def prune_plan_ledger(
+    backups,
+    now,
+    max_age_days: int = DEFAULT_LEDGER_MAX_AGE_DAYS,
+    keep_newest: int = LEDGER_KEEP_NEWEST,
+):
+    """Instantáneas `ledger/privacy-ledger-*.jsonl.age` a borrar: las de más de
+    `max_age_days` días, salvo las `keep_newest` más recientes (siempre quedan)."""
+    from datetime import timedelta
+
+    keys = sorted(
+        (k for k, size, _m in backups if ledger_time(k) is not None and size > 0),
+        key=ledger_time,
+    )
+    protected = set(keys[-keep_newest:]) if keep_newest > 0 else set()
+    cap = timedelta(days=max_age_days)
+    victims = [k for k in keys if k not in protected and now - ledger_time(k) >= cap]
+    return keys, [k for k in keys if k not in victims], victims
+
+
 def _log(msg: str) -> None:
     from datetime import datetime
 
@@ -159,6 +279,99 @@ def cmd_prune(args) -> int:
     verb = "borrados" if args.apply else "a borrar"
     _log(f"R2 PRUNE: {len(kept)} conservado(s), {len(victims)} {verb}")
     return 0
+
+
+def _now():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)
+
+
+def cmd_prune_gfs(args) -> int:
+    """Retención diaria + semanal con tope de edad (política de privacidad)."""
+    try:
+        valid, kept, victims = prune_plan_gfs(
+            r2.list_backups_sync(),
+            _now(),
+            args.daily,
+            args.weekly,
+            args.max_age_days,
+            args.prefix,
+        )
+    except (ValueError, PrunePlanError) as e:
+        _err(str(e))
+        return 1
+    except r2.BackupError as e:
+        _err(str(e))
+        return 1
+    _log(
+        f"R2 PRUNE-GFS: {len(valid)} backup(s) válido(s); política: {args.daily} diarios "
+        f"+ {args.weekly} semanales, máximo {args.max_age_days} días"
+    )
+    for key in kept:
+        _log(f"R2 PRUNE-GFS: conservo {key}")
+    failed = 0
+    for key in victims:
+        if not args.apply:
+            _log(f"R2 PRUNE-GFS: borraría {key} (dry-run, sin --apply)")
+            continue
+        try:
+            r2.delete_backup_sync(key)
+            _log(f"R2 PRUNE-GFS: borrado {key}")
+        except r2.BackupError as e:
+            _err(str(e))
+            failed += 1
+    _log(
+        f"R2 PRUNE-GFS: {len(kept)} conservado(s), {len(victims)} a borrar, {failed} fallo(s)"
+    )
+    return 1 if failed else 0
+
+
+def cmd_check(args) -> int:
+    """Sale 1 si no hay backup válido o el más reciente tiene más de --max-age-hours."""
+    from datetime import timedelta
+
+    try:
+        valid = valid_backups(r2.list_backups_sync(), args.prefix)
+    except r2.BackupError as e:
+        _err(str(e))
+        return 1
+    stamped = [(backup_time(k), k) for k in valid if backup_time(k)]
+    if not stamped:
+        _err("no hay ningún backup válido con fecha en el bucket de backups")
+        return 1
+    when, key = max(stamped)
+    age = _now() - when
+    print(f"último backup: {key} ({age.total_seconds() / 3600:.1f} h)")
+    if age > timedelta(hours=args.max_age_hours):
+        _err(f"el último backup tiene más de {args.max_age_hours} h")
+        return 1
+    return 0
+
+
+def cmd_prune_ledger(args) -> int:
+    try:
+        keys, kept, victims = prune_plan_ledger(
+            r2.list_backups_sync(), _now(), args.max_age_days
+        )
+    except r2.BackupError as e:
+        _err(str(e))
+        return 1
+    _log(
+        f"R2 PRUNE-LEDGER: {len(keys)} instantánea(s); máximo {args.max_age_days} días"
+    )
+    failed = 0
+    for key in victims:
+        if not args.apply:
+            _log(f"R2 PRUNE-LEDGER: borraría {key} (dry-run, sin --apply)")
+            continue
+        try:
+            r2.delete_backup_sync(key)
+            _log(f"R2 PRUNE-LEDGER: borrado {key}")
+        except r2.BackupError as e:
+            _err(str(e))
+            failed += 1
+    return 1 if failed else 0
 
 
 def _flags_key_for(key: str) -> str | None:
@@ -228,6 +441,32 @@ def main(argv=None) -> int:
     )
     pr.add_argument("--apply", action="store_true", help="borra de verdad")
     pr.set_defaults(func=cmd_prune)
+
+    pg = sub.add_parser(
+        "prune-gfs",
+        help="retención diaria+semanal con tope de edad (dry-run sin --apply)",
+    )
+    pg.add_argument("--daily", type=int, default=DEFAULT_KEEP_DAILY)
+    pg.add_argument("--weekly", type=int, default=DEFAULT_KEEP_WEEKLY)
+    pg.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_AGE_DAYS)
+    pg.add_argument("--prefix", default=BACKUP_PREFIX)
+    pg.add_argument("--apply", action="store_true", help="borra de verdad")
+    pg.set_defaults(func=cmd_prune_gfs)
+
+    ck = sub.add_parser(
+        "check", help="falla si el último backup es más viejo que N horas"
+    )
+    ck.add_argument("--max-age-hours", type=int, default=36)
+    ck.add_argument("--prefix", default=BACKUP_PREFIX)
+    ck.set_defaults(func=cmd_check)
+
+    pl = sub.add_parser(
+        "prune-ledger",
+        help="borra instantáneas del registro de eliminaciones vencidas (dry-run sin --apply)",
+    )
+    pl.add_argument("--max-age-days", type=int, default=DEFAULT_LEDGER_MAX_AGE_DAYS)
+    pl.add_argument("--apply", action="store_true", help="borra de verdad")
+    pl.set_defaults(func=cmd_prune_ledger)
 
     dl = sub.add_parser("download", help="baja un backup (y su tar de flags)")
     dl.add_argument("name", help="key del backup, o 'latest' para el más reciente")
