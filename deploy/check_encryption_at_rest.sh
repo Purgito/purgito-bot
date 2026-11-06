@@ -34,7 +34,8 @@ bad() { rc=1; }
 check() { # etiqueta ruta
     local label="$1" path="$2" src chain fstype
     if [ ! -e "$path" ]; then printf '%-36s %-12s (no existe: %s)\n' "$label" "n/a" "$path"; return; fi
-    src="$(findmnt -no SOURCE -T "$path" 2>/dev/null | head -1)"
+    if [ -b "$path" ]; then src="$path"; else src="$(findmnt -no SOURCE -T "$path" 2>/dev/null | head -1)"; fi
+    src="${src%%\[*}"   # un `bind` se muestra como /dev/mapper/volumen[/subcarpeta]
     if [ -z "$src" ]; then printf '%-36s %-12s (sin dispositivo)\n' "$label" "?"; bad; return; fi
     chain="$(lsblk -nso TYPE "$src" 2>/dev/null | tr '\n' ' ')"
     fstype="$(findmnt -no FSTYPE -T "$path" 2>/dev/null | head -1)"
@@ -91,7 +92,10 @@ if [ "$(id -u)" = 0 ]; then
         fi
     done
     umount "$under"; rmdir "$under"
-    if [ -f /swapfile ] && ! swapon --noheadings --show=NAME 2>/dev/null | grep -qx /swapfile; then
+    # El archivo de swap sirve ahora de almacén del swap CIFRADO (contiene texto cifrado): solo es un
+    # resto en claro si NO lo respalda un dispositivo cifrado.
+    if [ -f /swapfile ] && ! swapon --noheadings --show=NAME 2>/dev/null | grep -qx /swapfile \
+        && [ -z "$(losetup -j /swapfile 2>/dev/null)" ]; then
         if [ -s /swapfile ] && [ -n "$(head -c 1048576 /swapfile | tr -d '\0' | head -c 1)" ]; then
             printf '%-36s %-12s %s\n' "/swapfile" "RESTO EN CLARO" "el archivo de swap conserva datos sin sobrescribir"; bad
         fi
