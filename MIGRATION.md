@@ -67,7 +67,7 @@ Instala PostgreSQL 18, crea el rol y la base, restaura el último backup y
 **reaplica los borrados** siguiendo [`docs/POSTGRES.md`](docs/POSTGRES.md)
 (§ Preparar una base nueva y § Restaurar). El paso de
 `scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` es obligatorio antes de arrancar el
-bot: sin él, un backup anterior a un `/borrar_mis_datos` resucita los datos de
+bot: sin él, un backup anterior a un la eliminación de datos (Centro de Privacidad) resucita los datos de
 ese usuario.
 
 Si no hay `.env` de la instancia vieja (se perdió sin aviso) y hay que

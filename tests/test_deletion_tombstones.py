@@ -1,4 +1,4 @@
-"""Lápidas de /borrar_mis_datos y reaplicación de borrados tras un restore.
+"""Lápidas de eliminación de datos (Centro de Privacidad) y reaplicación de borrados tras un restore.
 
 Una lápida es solo (user_id, deleted_at, expires_at): sin contenido y sin
 servidores. Existe para que un backup anterior al borrado no "resucite" los

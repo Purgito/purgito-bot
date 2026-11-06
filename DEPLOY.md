@@ -87,7 +87,7 @@ explicación, ver `MIGRATION.md`.
       § Restaurar. La clave privada de age se trae temporalmente desde fuera
       del servidor. **Siempre** termina con
       `scripts/reapply_deletions.py --ledger - --apply < registro.jsonl` antes de arrancar el bot: vuelve a
-      aplicar los borrados (`/borrar_mis_datos`) posteriores al backup.
+      aplicar los borrados (la eliminación de datos (Centro de Privacidad)) posteriores al backup.
 - [ ] Poner `DATABASE_URL`, `R2_BACKUP_BUCKET` y `BACKUP_AGE_RECIPIENTS` en el
       `.env` e instalar el cron de backups (ver § Backups de PostgreSQL).
 

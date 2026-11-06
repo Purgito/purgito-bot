@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-4yeqeQ5mGowb4gxFPvbAl8UvuIhwXt1DpwqVMfdUTN0=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9f8ZK5epjuMsYtXFjPqrgJI0L4QOAUYmJdHtT+RSH/c=' 'sha256-uHnzZdoBeA8QhQo9pAiIG4QTYLZ3o1hEppo4N8A6sio=' 'sha256-rANW25S5kX9LCcDXFsQqgEx0v0xS+i3aolppPCDxpVo=' 'sha256-H86goo5RIgsuTTwTbBgyLQ5PmlLz0K1GsTfIWDtZJ80=' 'sha256-ixoTPmVMyorMFiTtUn3riQcN2eeEOcwB8fdhl1vEDW4='; style-src 'self'; font-src 'self'; img-src 'self' https: data:; frame-src https://tenor.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discord — Technical Documentation — Purgito</title>
 <meta name="description" content="Cogs, events, permissions, and interactions of Purgito&#x27;s bot.">
@@ -410,7 +410,7 @@
 <tr><td><code>imagefx</code></td><td><code>src/cogs/imagefx.py</code></td><td>NotSoBot-style image and GIF filters (<code>!deepfry</code>, <code>!caption</code>, <code>!triggered</code>, <code>!wasted</code>, <code>!gif</code>, etc.), with cascading source resolution (attachments, embeds, Components V2, direct URLs, social media links).</td></tr>
 <tr><td><code>settings</code></td><td><code>src/cogs/settings.py</code></td><td>Native in-Discord interactive panel (views, selects, buttons) and onboarding greeting upon joining new servers.</td></tr>
 <tr><td><code>layout_buttons</code></td><td><code>src/cogs/layout_buttons.py</code></td><td>Interactive components controller (Layout V2): role assignment/removal, external URLs, and modal dialogs.</td></tr>
-<tr><td><code>privacy</code></td><td><code>src/cogs/privacy.py</code></td><td><code>/mis_datos</code> and <code>/borrar_mis_datos</code> commands: portability and deletion (right to be forgotten) of a user's personal data.</td></tr>
+<tr><td><code>privacy</code></td><td><code>src/cogs/privacy.py</code></td><td>Background worker of the Privacy Center (deletion requests and alerts). Personal data is managed at purgito.app/privacidad; there are no longer Discord commands for it.</td></tr>
 <tr><td><code>updates</code></td><td><code>src/cogs/updates.py</code></td><td>Relays the bot's official updates to servers subscribed to the updates channel.</td></tr>
 <tr><td><code>quota_alerts</code></td><td><code>src/cogs/quota_alerts.py</code></td><td>Alerts in the updates channel when a server approaches or reaches a quota that blocks adding more content (GIFs, special phrases).</td></tr>
 <tr><td><code>events</code></td><td><code>src/cogs/events.py</code></td><td>Server events: Welcome, Goodbye, and Boosts with dynamic variable resolution ({user}, {server_membercount_ordinal}, etc.), 3 content modes, and secure channel dispatching.</td></tr>

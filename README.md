@@ -59,8 +59,6 @@ cifrados, restauración y seguridad del servidor: [`docs/POSTGRES.md`](docs/POST
 | `/setup` | Asistente de configuración inicial | Gestionar servidor |
 | `/help` | Comandos y enlaces al dashboard | Todos |
 | `/vote` | Link para votar por Purgito en top.gg | Todos |
-| `/mis_datos` | Descarga en un JSON lo que Purgito guardó de tu estilo de escritura | Todos |
-| `/borrar_mis_datos` | Elimina tus datos guardados por Purgito | Todos |
 | `/dl <link>`, `/gif` | Descargan un video de Instagram, TikTok, X o Facebook / convierten un video o imagen a GIF (también como `!dl` y `!gif`) | Todos |
 
 ⭐ Requiere suscripción Premium en el servidor.

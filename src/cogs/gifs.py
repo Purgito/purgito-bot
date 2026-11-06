@@ -164,9 +164,26 @@ async def _save_one_gif(
     return inserted
 
 
+def channel_allows_gif_capture(channel) -> bool:
+    """Un GIF solo se guarda de canales que cualquiera del servidor puede ver: no de canales NSFW ni de
+    canales restringidos (los que @everyone no puede ver, p. ej. canales de staff). Sin clasificar
+    contenido: solo los metadatos del canal. Ante cualquier duda, no se guarda."""
+    try:
+        if getattr(channel, "is_nsfw", lambda: False)():
+            return False
+        guild = getattr(channel, "guild", None)
+        if guild is None:
+            return False
+        return bool(channel.permissions_for(guild.default_role).view_channel)
+    except Exception:
+        return False
+
+
 async def save_gif_candidates(guild_id: int, message: discord.Message) -> int:
     """Guarda en la colección los GIFs (tenor/giphy/cdn) del contenido y adjuntos de un mensaje.
     Retorna cuántos GIFs nuevos (no duplicados) se guardaron."""
+    if not channel_allows_gif_capture(message.channel):
+        return 0
     saved = 0
     if message.content:
         for m in GIF_RE.finditer(message.content):

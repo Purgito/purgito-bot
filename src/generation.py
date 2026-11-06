@@ -397,7 +397,7 @@ async def forget_user(author_id: int) -> dict:
     cachés -- el borrado de SQLite en sí vive en db.delete_user_data (db.py
     no puede importar este módulo, generation.py ya importa de db, sería un
     ciclo). Esta es la función pensada como punto único que un futuro
-    comando de Discord (/borrar_mis_datos) y un futuro endpoint del
+    comando de Discord (eliminación de datos (Centro de Privacidad)) y un futuro endpoint del
     dashboard/API deberían llamar -- ninguno de los dos existe todavía.
 
     Invalida reset_guild_caches() para TODOS los guilds que devuelva

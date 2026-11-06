@@ -114,7 +114,7 @@ webhook desde Discord en cada canal afectado invalida el token viejo.
    `python scripts/r2_backup.py download latest --dest <carpeta>`. Luego
    `AGE_IDENTITY=<clave> deploy/restore_check.sh <ruta-al-backup>` y el procedimiento de
    `docs/POSTGRES.md` § "Restaurar" (incluye `scripts/reapply_deletions.py --ledger - --apply`,
-   obligatorio antes de arrancar: vuelve a borrar a quien pidió `/borrar_mis_datos`
+   obligatorio antes de arrancar: vuelve a borrar a quien pidió la eliminación de datos (Centro de Privacidad)
    y los servidores purgados después del backup, y restaura las exclusiones, con el
    registro externo `ledger/` de R2).
 5. `sudo systemctl start bot-purg` y revisa el log.

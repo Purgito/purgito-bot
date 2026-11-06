@@ -1,7 +1,7 @@
-"""Vuelve a aplicar los /borrar_mis_datos después de restaurar un backup.
+"""Vuelve a aplicar los eliminación de datos (Centro de Privacidad) después de restaurar un backup.
 
 Un backup anterior a un borrado todavía tiene los datos del usuario. Cada
-/borrar_mis_datos deja una "lápida" (deleted_user_tombstones: solo el id del
+eliminación de datos (Centro de Privacidad) deja una "lápida" (deleted_user_tombstones: solo el id del
 usuario y dos fechas, sin contenido) que dura DELETION_TOMBSTONE_RETENTION_DAYS,
 más que la vida de los backups. Tras un restore, este script:
 
@@ -214,7 +214,7 @@ def reapply(conn, *, apply: bool, cutoffs=()) -> dict:
     for user_id in live:
         if apply:
             stats["corpus_messages"] += conn.execute(
-                db._SQL_DELETE_CORPUS_OF_AUTHOR, (user_id,)
+                db._SQL_DELETE_CORPUS_OF_AUTHOR, (user_id, user_id)
             ).rowcount
             stats["user_corpus"] += conn.execute(
                 db._SQL_DELETE_USER_CORPUS_OF_AUTHOR, (user_id,)
@@ -228,10 +228,10 @@ def reapply(conn, *, apply: bool, cutoffs=()) -> dict:
                 "SELECT count(*) FROM user_corpus WHERE author_id=?", (user_id,)
             ).fetchone()[0]
             stats["corpus_messages"] += conn.execute(
-                "SELECT count(*) FROM corpus_messages cm WHERE EXISTS ("
+                "SELECT count(*) FROM corpus_messages cm WHERE cm.author_id=? OR EXISTS ("
                 "SELECT 1 FROM user_corpus uc WHERE uc.author_id=? "
                 "AND uc.guild_id=cm.guild_id AND uc.message_id=cm.message_id)",
-                (user_id,),
+                (user_id, user_id),
             ).fetchone()[0]
     stats["mensajes_sueltos"] = 0
     stats["canales"] = 0
@@ -251,6 +251,23 @@ def reapply(conn, *, apply: bool, cutoffs=()) -> dict:
                     (now,),
                 ).fetchone()[0]
             stats[stat] += n
+    # Un backup anterior a author_id devuelve mensajes sin autor: se atribuyen SOLO por el vínculo exacto con
+    # user_corpus y los que no se puedan atribuir se eliminan (mismo criterio que db.reconcile_corpus_authors).
+    stats["sin_autor"] = 0
+    if apply:
+        conn.execute(
+            "UPDATE corpus_messages SET author_id = uc.author_id FROM user_corpus uc "
+            "WHERE corpus_messages.author_id IS NULL AND uc.guild_id = corpus_messages.guild_id "
+            "AND uc.message_id = corpus_messages.message_id"
+        )
+        stats["sin_autor"] = conn.execute(
+            "DELETE FROM corpus_messages WHERE author_id IS NULL"
+        ).rowcount
+    else:
+        stats["sin_autor"] = conn.execute(
+            "SELECT count(*) FROM corpus_messages cm WHERE cm.author_id IS NULL AND NOT EXISTS ("
+            "SELECT 1 FROM user_corpus uc WHERE uc.guild_id = cm.guild_id AND uc.message_id = cm.message_id)"
+        ).fetchone()[0]
     # Cortes por servidor (desbordamiento del registro): se borra TODO lo aprendido antes del corte.
     stats["servidores_cortados"] = len(cutoffs)
     stats["filas_cortadas"] = 0
@@ -403,6 +420,7 @@ def main(argv=None) -> int:
         f"filas {verbo}: user_corpus={stats['user_corpus']} "
         f"corpus_messages={stats['corpus_messages']}"
     )
+    print(f"mensajes sin autor atribuible {verbo}: {stats['sin_autor']}")
     if stats["servidores_cortados"]:
         print(
             f"servidores con corte (registro desbordado): {stats['servidores_cortados']} | "

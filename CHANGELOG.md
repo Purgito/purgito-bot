@@ -10,6 +10,13 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Privacidad (Fase 2, 2026-11)
+- Los comandos `/borrar_mis_datos`, `/mis_datos` y `/privacidad` se retiran: el Centro de Privacidad (https://purgito.app/privacidad) es la única interfaz de autoservicio. Nuevo formulario de «otros derechos» (`privacy_rights_requests`, `POST /api/me/privacy/rights`, plazo interno 30 días), bandeja del operador `scripts/privacy_inbox.py` y contacto alternativo.
+- `corpus_messages.author_id`: cada mensaje nuevo lleva su autor y se borra al atender una eliminación; `scripts/migrate_corpus_authors.py` atribuye los heredados por el vínculo exacto con `user_corpus` y elimina los que no se pueden atribuir.
+- GIFs: se retiran al borrar el mensaje, el canal o los datos de la persona cuando no queda otro remitente independiente (referencias de R2 respetadas); no se capturan de canales NSFW ni restringidos.
+- Políticas ES/EN reescritas; `docs/DISCORD_INTENTS.md` con la justificación de intents.
+
+
 ### Security
 - Centro de Privacidad (backend): `privacy_requests` (cola persistente de solicitudes de eliminación, plazo de 7 días, reintentos con espera creciente, arrendamiento que sobrevive a caídas) y `privacy_request_log` (solo-añadir, encadenado por hash, sin ids de persona; `privacy_requests.verify_log`). API: `GET /api/me/privacy`, `PUT /api/me/privacy/exclusion`, `POST /api/me/privacy/requests`, `GET /api/me/privacy/export`. Trabajador cada 60 s en `cogs/privacy.py`.
 - Exclusión global: fila `excluded_users.guild_id = 0` (`db.GLOBAL_EXCLUSION_GUILD_ID`), comando `/privacidad`; `save_corpus_and_user_message` la comprueba como última barrera.

@@ -263,12 +263,12 @@ shred -u ~/restore/restore.dump ~/clave-privada.txt
 sudo systemctl start bot-purg
 ```
 
-El paso 3 existe por privacidad: un backup anterior a un `/borrar_mis_datos` o a la
+El paso 3 existe por privacidad: un backup anterior a un la eliminación de datos (Centro de Privacidad) o a la
 purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no la tiene.
 
 ### Registro de eliminaciones (lápidas + copia externa)
 
-- Cada `/borrar_mis_datos` deja una lápida en `deleted_user_tombstones` y cada purga de
+- Cada la eliminación de datos (Centro de Privacidad) deja una lápida en `deleted_user_tombstones` y cada purga de
   servidor (`purge_guild_data`) una en `purged_guild_tombstones` (solo el id y dos fechas;
   sin contenido). Duran `DELETION_TOMBSTONE_RETENTION_DAYS`=**15** días: los 14 de
   antigüedad máxima de un backup + 1 de margen. Pasado ese plazo ya no existe ningún
@@ -445,7 +445,7 @@ PostgreSQL y no vuelve a la SQLite con este procedimiento.
   `landing/test_*.mjs`). Necesitan `TEST_DATABASE_URL` y el puerto de la web app
   libre (8 tests levantan la app real). Con el bot corriendo en la misma máquina,
   no lo pares: `WEB_PORT=18080 .venv/bin/python -m pytest tests -q`.
-- `/borrar_mis_datos`, exclusiones y separación por servidor/usuario están
+- la eliminación de datos (Centro de Privacidad), exclusiones y separación por servidor/usuario están
   cubiertos por `tests/test_delete_user_data.py`, `test_excluded_users.py` y
   `test_channel_scope_authorization.py`.
 

@@ -8,14 +8,23 @@ nuevo: la API está lista para que `landing/` la consuma cuando se diseñe.
 
 | Pieza | Dónde |
 |---|---|
-| Exclusión global (aprendizaje + interacción) | `/privacidad` y `PUT /api/me/privacy/exclusion`; fila `excluded_users.guild_id = 0` |
+| Exclusión global (aprendizaje + interacción) | `PUT /api/me/privacy/exclusion`; fila `excluded_users.guild_id = 0` |
 | Solicitud de eliminación diferida | `POST /api/me/privacy/requests`; tabla `privacy_requests`; trabajador en `cogs/privacy.py` |
-| Copia de los datos | `/mis_datos` y `GET /api/me/privacy/export` (misma función: `db.build_user_export`) |
+| Copia de los datos | `GET /api/me/privacy/export` (`db.build_user_export`) |
+| Otros derechos (acceso, rectificación, oposición, portabilidad, limitación) | `POST /api/me/privacy/rights`; tabla `privacy_rights_requests`; plazo interno 30 días; la atiende una persona con `scripts/privacy_inbox.py` |
 | Estado | `GET /api/me/privacy` |
 | Registro verificable | `privacy_request_log` (hash encadenado, sin ids de persona) |
 | Avisos al titular (Gmail) | `privacy_alerts.py`: fallo, menos de 48 h, vencida (se repite cada 24 h) |
 
 Todos los endpoints actúan solo sobre la persona de la sesión; ninguno acepta un `user_id`.
+
+**Los comandos de Discord `/borrar_mis_datos`, `/mis_datos` y `/privacidad` se retiraron (2026-11):** el Centro (https://purgito.app/privacidad, con Discord OAuth2) es la única interfaz de autoservicio. El cog `Privacy` solo conserva el trabajador de fondo. Contacto alternativo para quien no pueda iniciar sesión: contacto@purgito.app.
+
+**Operación:** `scripts/privacy_inbox.py list|who|answer|check` (bandeja de derechos; `check` sale con 1 si hay algo vencido o por vencer, también de eliminaciones). El trabajador registra un ERROR cada hora si hay solicitudes de derechos vencidas. Los avisos por Gmail siguen requiriendo `PRIVACY_ALERT_*`.
+
+**Atribución del corpus:** `corpus_messages.author_id` (desde 2026-11). Las filas heredadas se atribuyen solo por el vínculo exacto (guild_id, message_id) con `user_corpus`; las que no tienen vínculo se eliminan con `scripts/migrate_corpus_authors.py --apply` (dry-run por defecto; hacer un respaldo antes). `reapply_deletions.py` repite esa regla al restaurar un backup anterior.
+
+**GIFs:** cada GIF lleva su remitente (usuario, servidor, canal, mensaje). Al borrar el mensaje o al eliminar los datos de la persona, si no queda otro remitente independiente se elimina la fila y, por el conteo de referencias de `gif_objects`, el archivo de R2. Solo se capturan GIFs de canales que `@everyone` puede ver y que no son NSFW.
 
 ## Frontend
 
@@ -103,7 +112,7 @@ hay nada vencido (lo más antiguo tiene 61 días). Convive con la cuota por cana
 
 ### Datos administrativos: política
 
-Qué contienen y qué se hace cuando la persona pide su eliminación (`/borrar_mis_datos` o el Centro):
+Qué contienen y qué se hace cuando la persona pide su eliminación (la eliminación de datos (Centro de Privacidad) o el Centro):
 
 | Dato | Información personal | Eliminación | Exportación | Por qué |
 |---|---|---|---|---|
@@ -124,8 +133,8 @@ Precondición: autorización explícita del titular y snapshot reciente de la VM
    `dev/privacidad-p0p1`, o la que se acuerde). Sin push desde la VM.
 2. `sudo systemctl restart bot-purg`. `init_db()` crea `privacy_requests` y `privacy_request_log`
    (esquema idempotente); no hay migración destructiva. Comprobar en el log que arranca el cog
-   `Privacy` y que `/privacidad` queda registrado (si no, sincronizar comandos como en cada deploy).
-3. Verificar: `GET /api/me/privacy` con sesión devuelve 200; `/privacidad accion:Ver mi estado`.
+   `Privacy` (sin comandos). Tras el despliegue los comandos antiguos desaparecen del registro global de Discord.
+3. Verificar: `GET /api/me/privacy` con sesión devuelve 200 y https://purgito.app/privacidad redirige al Centro.
 4. **Después** de que las tablas existan, reinstalar el runner de backups para que el exportador del
    registro incluya las solicitudes: `sudo deploy/install_backup_runner.sh` (el exportador viejo sigue
    funcionando sin ellas; el nuevo falla si la tabla no existe, por eso va en segundo lugar).

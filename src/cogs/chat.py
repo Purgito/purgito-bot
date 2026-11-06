@@ -805,7 +805,9 @@ class Chat(commands.Cog):
         if not payload.guild_id or "content" not in payload.data:
             return
         try:
-            res = await delete_message_from_corpus(payload.guild_id, payload.message_id)
+            res = await delete_message_from_corpus(
+                payload.guild_id, payload.message_id, include_gifs=False
+            )
             if res.get("corpus_messages", 0) > 0 or res.get("user_corpus", 0) > 0:
                 generation.reset_guild_caches(payload.guild_id)
         except Exception:

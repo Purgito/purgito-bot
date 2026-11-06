@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 2 de octubre de 2026
+**Última actualización:** 6 de noviembre de 2026
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena, comparte y protege la información necesaria para ofrecer sus funcionalidades.
 
@@ -56,6 +56,10 @@ El nombre visible (Display Name) del usuario puede almacenarse junto con determi
 
 ---
 
+## Impulsos (boosts) del servidor
+
+Para agradecer un impulso y no repetir el aviso, Purgito guarda el ID de quien impulsa un servidor, el ID del servidor y la fecha desde la que impulsa. Se usa solo para esa función, se incluye en la descarga de tus datos y se elimina cuando solicitas la eliminación.
+
 ## Frases especiales
 
 Cuando un administrador agrega una frase especial desde el panel (pestaña Chat → Frases), Purgito guarda el ID de Discord y el nombre visible de quien la agregó, junto con el texto de la frase. A diferencia del registro de auditoría (ver más abajo), esta atribución no tiene fecha de vencimiento: se conserva mientras la frase exista.
@@ -76,7 +80,7 @@ Este registro cubre los cambios hechos desde el dashboard web. Las acciones que 
 
 Este registro es visible únicamente para los administradores de ese mismo servidor, en la pestaña Historial del panel, y existe para que la comunidad pueda ver qué cambios se hicieron y quién los hizo. Se conserva un máximo de 90 días y luego se elimina automáticamente (ver "Retención de datos").
 
-Cuando una persona pide la eliminación de sus datos (con `/borrar_mis_datos` o desde su cuenta), este registro **no se borra**, porque es el historial del servidor: se quita quién fue. Su ID y su nombre se reemplazan por `[eliminado]` en las entradas donde actuó, y su ID desaparece del detalle de las entradas que la mencionan. Lo mismo ocurre con las frases especiales y los anuncios programados que creó: se quedan en el servidor, sin su nombre. Su copia de datos incluye estas entradas, con los identificadores de otras personas ocultos.
+Cuando una persona pide la eliminación de sus datos (desde el Centro de Privacidad), este registro **no se borra**, porque es el historial del servidor: se quita quién fue. Su ID y su nombre se reemplazan por `[eliminado]` en las entradas donde actuó, y su ID desaparece del detalle de las entradas que la mencionan. Lo mismo ocurre con las frases especiales y los anuncios programados que creó: se quedan en el servidor, sin su nombre. Su copia de datos incluye estas entradas, con los identificadores de otras personas ocultos.
 
 ---
 
@@ -138,6 +142,19 @@ Los datos **no se venden** ni se utilizan por Purgito para publicidad.
 
 ---
 
+## Aprendizaje a partir de mensajes (cadenas de Markov)
+
+Purgito genera texto con **cadenas de Markov**, un método estadístico simple (secuencias de palabras) calculado en el propio servidor de Purgito sobre una muestra de los mensajes aprendidos **de cada servidor por separado**. No usa servicios de inteligencia artificial de terceros ni envía el contenido de los mensajes a ningún tercero para generar texto (la integración con Groq y los memes automáticos se retiraron). Los modelos se reconstruyen en memoria a partir de lo guardado y se descartan cuando los datos se eliminan. Si no quieres que Purgito aprenda de tus mensajes, puedes excluirte desde el Centro de Privacidad.
+
+## Permisos privilegiados de Discord que usa Purgito
+
+- **Message Content (contenido de mensajes):** necesario para aprender de los mensajes de los canales habilitados (corpus y estilo para la imitación), para activar *triggers* por texto, para detectar los GIFs que se comparten y para releer el historial de un canal cuando un administrador lo pide. Los canales NSFW y los canales que `@everyone` no puede ver quedan fuera de la captura de GIFs; los NSFW, además, fuera del aprendizaje.
+- **Server Members (miembros del servidor):** necesario para los mensajes de bienvenida y despedida, para detectar un nuevo impulso (boost) del servidor y para buscar miembros en el panel de administración.
+
+Si Discord no concediera alguno de estos permisos, las funciones que dependen de él dejarían de estar disponibles.
+
+---
+
 # 3. Servicios de terceros
 
 Purgito utiliza servicios externos para determinadas funciones. Cada proveedor procesa únicamente la información necesaria para prestar su servicio.
@@ -176,6 +193,8 @@ Además de la cuota, hay un **plazo máximo de 180 días**: los mensajes aprendi
 
 Los administradores del servidor pueden además eliminar el contenido recopilado en cualquier momento usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
 
+Los **GIFs** guardados en la galería llevan asociado quién los envió (usuario, servidor, canal y mensaje) para poder retirarlos. Si borras el mensaje en Discord, ese registro se elimina y, si nadie más compartió ese mismo GIF de forma independiente, el GIF se quita de la colección y su archivo se elimina de nuestro almacenamiento (Cloudflare R2). Si otras personas lo compartieron, el archivo se conserva mientras exista alguna referencia independiente. Al cumplirse los 180 días se elimina el registro de quién lo envió; el GIF puede seguir en la galería del servidor sin esa atribución hasta que un administrador lo quite.
+
 El registro de auditoría del panel (ver sección 1) se conserva un máximo de 90 días desde cada entrada y luego se purga automáticamente, sin intervención manual.
 
 Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse de la base de datos activa (las copias de seguridad caducan aparte, ver más abajo). Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin necesidad de configurarlo nuevamente desde el principio. Durante ese período, mientras el bot no esté en el servidor, no es posible acceder al panel de administración para gestionar esos datos. Actualmente no existe una vía de autoservicio para acelerar este borrado a nivel de servidor antes de que se cumplan los 30 días; si eres administrador de un servidor y quieres que sus datos se eliminen antes de ese plazo, puedes solicitarlo contactando al desarrollador (ver "Contacto" más abajo).
@@ -184,52 +203,39 @@ Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de 
 
 ## Dónde se guardan los datos y copias de seguridad
 
-Toda la información que Purgito guarda (configuración de cada servidor, mensajes aprendidos, registro de auditoría, etc.) vive en una base de datos PostgreSQL en el servidor donde corre el bot. La base de datos solo acepta conexiones desde ese mismo servidor; no está expuesta a Internet. Las imágenes y los GIFs viven en Cloudflare R2.
+Toda la información que Purgito guarda (configuración de cada servidor, mensajes aprendidos, registro de auditoría, etc.) vive en una base de datos PostgreSQL en el servidor donde corre el bot. La base de datos solo acepta conexiones desde ese mismo servidor; no está expuesta a Internet. Los datos de la base y los secretos del servicio se guardan en un volumen cifrado (LUKS2). Las imágenes y los GIFs viven en Cloudflare R2.
 
-Para poder recuperar el servicio ante una falla grave, cada día se hace una copia de seguridad de toda la base de datos. Esa copia contiene lo mismo que la base activa, incluidos los mensajes que Purgito aprendió. Se cifra antes de salir del servidor y se guarda en un espacio privado de Cloudflare R2 (sin acceso público), además de una copia cifrada en el propio servidor. **En R2 se conservan las copias de los últimos 7 días y las de los 2 últimos domingos; en el servidor, solo las 2 más recientes. Ninguna copia llega a los 14 días: cada una se elimina automáticamente antes de cumplirlos.** Para comprobar que una copia se puede restaurar, el responsable del proyecto la descarga a un equipo propio, la restaura en una base aislada y la borra al terminar. Solo se usan para recuperar el servicio después de un desastre y para esa comprobación; no se consultan ni se usan para ninguna otra cosa.
-
----
-
-## Borrado de tus propios datos (derecho al olvido individual)
-
-Independientemente de lo anterior, cualquier usuario puede solicitar en cualquier momento que se elimine su propia información, sin depender de ser administrador de ningún servidor ni de esperar los 30 días del punto anterior.
-
-El comando `/borrar_mis_datos`, disponible para cualquier persona en cualquier servidor donde esté Purgito, borra de forma permanente e inmediata de la base de datos activa, en **todos** los servidores donde hayas escrito:
-
-Además del comando, la persona puede **solicitar la eliminación de sus datos desde su cuenta en purgito.app** (Centro de Privacidad). La solicitud queda registrada de inmediato y se procesa en un plazo máximo de **7 días naturales**; si un intento falla, se reintenta hasta completarla. El registro de cada solicitud (número, fechas, intentos y resultado) se conserva 90 días y **no contiene tu identificador ni contenido**; pasado ese plazo la solicitud se elimina. Desde la misma cuenta puedes activar o quitar la exclusión global y descargar una copia de tus datos (que incluye mensajes de estilo, GIFs enviados, boosts, frases especiales a tu nombre y tus exclusiones).
-
-- Tu estilo de escritura guardado para la función de imitación (`/imitar`).
-- Los mensajes que Purgito aprendió de ti para generar texto.
-
-Tus mensajes originales de Discord no se ven afectados: esto borra únicamente la copia que Purgito guardó para aprender de tu forma de escribir. Por tratarse de una acción irreversible, el comando solicita una confirmación explícita antes de ejecutar el borrado.
-
-**Límite real del borrado: las copias de seguridad.** Las copias de seguridad que ya se habían hecho antes de tu borrado pueden seguir conteniendo esos datos hasta que caduquen (máximo 14 días, ver arriba). No se leen ni se restauran, salvo que haya que recuperar el servicio tras un desastre. Si eso ocurriera, el borrado se vuelve a aplicar antes de volver a poner el bot en marcha. Para poder hacerlo, cada vez que usas `/borrar_mis_datos` Purgito guarda una **lápida**: únicamente tu ID de usuario de Discord y dos fechas (cuándo pediste el borrado y cuándo caduca la lápida). No lleva contenido de mensajes ni los servidores donde estabas. La lápida dura 15 días (los 14 de las copias de seguridad más uno de margen) y se elimina sola; es un dato personal y se trata con esta misma política. Lo mismo ocurre cuando Purgito sale de un servidor y, pasados los 30 días de gracia, borra todos sus datos: se guarda el ID del servidor y dos fechas durante 15 días. Para que este registro no se pierda si se pierde el servidor, cada hora se guarda en el mismo espacio privado de R2 una copia cifrada que contiene únicamente esas lápidas vigentes y la lista de personas que se excluyeron del aprendizaje (IDs y fechas, sin mensajes); cada una de esas copias se elimina a los 15 días como máximo, y una exclusión se conserva mientras la persona no la quite. Solo puede verlo quien administra el servidor donde corre Purgito.
-
-Lo mismo vale para los mensajes que borras o editas en Discord y para los canales que se eliminan: Purgito los retira de lo que aprendió y, si alguna vez hiciera falta restaurar una copia, esa retirada se vuelve a aplicar (se conserva solo el identificador del mensaje, sin contenido, durante 15 días).
-
-Este borrado está pensado específicamente para los datos de aprendizaje de mensajes descritos arriba, y no cubre automáticamente otras categorías que puedas haber generado en un servidor — por ejemplo, GIFs o imágenes que hayas aportado al pool del servidor, tu registro como remitente en el catálogo de GIFs, o tu propia aparición en el registro de auditoría del panel si eres administrador — ya que esas quedan asociadas al servidor donde se generaron, no solo a tu cuenta. Si quieres solicitar la eliminación de alguna de ellas, puedes contactar al desarrollador (ver "Contacto").
+Para poder recuperar el servicio ante una falla grave, cada día se hace una copia de seguridad de toda la base de datos. Esa copia contiene lo mismo que la base activa, incluidos los mensajes que Purgito aprendió. Se cifra con age antes de salir del servidor y se guarda en un espacio privado de Cloudflare R2 (sin acceso público), además de una copia cifrada en el propio servidor. **En R2 se conservan las copias de los últimos 7 días y las de los 2 últimos domingos; en el servidor, solo las 2 más recientes. Ninguna copia llega a los 14 días: cada una se elimina automáticamente antes de cumplirlos.** No existen otras copias de la base con una retención mayor: el disco de Purgito está excluido de las copias automáticas del equipo anfitrión. Para comprobar que una copia se puede restaurar, el responsable del proyecto la descarga a un equipo propio, la restaura en una base aislada y la borra al terminar. Solo se usan para recuperar el servicio después de un desastre y para esa comprobación; no se consultan ni se usan para aprendizaje ni para ninguna otra función.
 
 ---
 
-## Descargar tus propios datos (portabilidad)
+## Centro de Privacidad: gestiona tus datos
 
-Cualquier usuario puede además solicitar una copia de su propia información con el comando `/mis_datos`, disponible en cualquier servidor donde esté Purgito. Genera un archivo JSON con tu estilo de escritura guardado y los mensajes que Purgito aprendió de ti, agrupados por servidor, y te lo envía de forma privada. Es el complemento de solo lectura de `/borrar_mis_datos`: no borra nada.
+Toda la gestión de tus datos personales se hace desde **https://purgito.app/privacidad**, iniciando sesión con Discord. No hay comandos de Discord para esto. Purgito solo actúa sobre la persona que inició sesión: la identidad sale de la sesión, nunca de un dato que envíe el navegador. Desde ahí puedes:
 
-Cualquier usuario puede también **excluirse** con el comando `/privacidad`, en cualquier servidor donde esté Purgito: desde ese momento Purgito deja de aprender de sus mensajes y de interactuar con esa persona en **todos** los servidores, y la preferencia se conserva hasta que la persona decida volver a participar con el mismo comando. La exclusión no borra lo que ya estaba guardado: para eso sirve `/borrar_mis_datos`. Además, si editas o eliminas un mensaje en Discord, o se borra el canal que lo contenía, Purgito lo retira de lo que aprendió.
+- **Descargar tus datos:** un archivo JSON con tus mensajes aprendidos por servidor, los GIFs que enviaste, tus boosts, las frases especiales a tu nombre, tus exclusiones y el estado de tus solicitudes.
+- **Solicitar la eliminación de tus datos.** La solicitud queda registrada de inmediato y se completa en un plazo máximo de **7 días naturales**; si un intento falla, se reintenta hasta completarla, y puedes consultar su estado en la misma página.
+- **Activar o quitar la exclusión global:** desde ese momento Purgito deja de aprender de tus mensajes y de interactuar contigo en **todos** los servidores (tampoco guarda tus GIFs ni al releer el historial). La exclusión no borra lo que ya estaba guardado; para eso sirve la eliminación.
+- **Hacer otras solicitudes de derechos** (acceso a la información que tenemos de ti más allá de la descarga, rectificación, oposición, portabilidad, limitación del tratamiento u otra consulta) con el formulario del mismo Centro. Pedimos solo el tipo de solicitud y un comentario opcional breve, y respondemos en un máximo de **30 días corridos**.
+- Si **no puedes iniciar sesión con Discord**, escribe a contacto@purgito.app; te pediremos únicamente lo necesario para comprobar que la cuenta es tuya.
+
+**Qué elimina la solicitud de eliminación**, en la base de datos activa y en **todos** los servidores donde hayas escrito: tu estilo de escritura guardado para la función de imitación; los mensajes que Purgito aprendió de ti (incluida la copia colectiva del servidor, que lleva el ID de su autor); tu registro como remitente de GIFs y, si nadie más compartió ese GIF de forma independiente, el GIF y su archivo en R2; tus boosts; y tus solicitudes de derechos. Tu nombre y tu ID se quitan de las frases especiales, los anuncios programados y el registro de auditoría del panel (ver sección 1), que se conservan porque son historial del servidor. Tus mensajes originales de Discord no se ven afectados: esto borra únicamente lo que Purgito guardó.
+
+La solicitud, con tu ID, se conserva 90 días tras completarse para poder rendir cuentas y luego se elimina. El registro verificable de sus pasos no contiene tu identificador ni contenido.
+
+**Límite real del borrado: las copias de seguridad.** Las copias que ya se habían hecho antes de tu eliminación pueden seguir conteniendo esos datos, cifrados, hasta que caduquen (máximo 14 días, ver arriba). No se leen ni se restauran, salvo que haya que recuperar el servicio tras un desastre; si eso ocurriera, la eliminación se vuelve a aplicar antes de volver a poner el bot en marcha. Para poder hacerlo se guarda una **lápida**: únicamente tu ID de usuario de Discord y dos fechas (cuándo pediste la eliminación y cuándo caduca la lápida), sin contenido ni servidores. La lápida dura 15 días (los 14 de las copias más uno de margen) y se elimina sola. Lo mismo ocurre cuando Purgito sale de un servidor y, pasados los 30 días de gracia, borra todos sus datos: se guarda el ID del servidor y dos fechas durante 15 días. Para que este registro no se pierda si se pierde el servidor, cada 5 minutos se guarda en el mismo espacio privado de R2 una copia cifrada con esas lápidas vigentes y la lista de personas excluidas del aprendizaje (IDs y fechas, sin mensajes); cada copia se elimina a los 15 días como máximo, y una exclusión se conserva mientras la persona no la quite.
+
+Lo mismo vale para los mensajes que borras en Discord y para los canales que se eliminan o pasan a ser NSFW: Purgito los retira de lo que aprendió (también los GIFs asociados) y, si alguna vez hiciera falta restaurar una copia, esa retirada se vuelve a aplicar (se conserva solo el identificador del mensaje, sin contenido, durante 15 días).
+
+**Lo que no prometemos.** La eliminación opera sobre la base de datos activa y sobre los archivos en R2 mediante borrado lógico; no podemos garantizar la destrucción física inmediata de los bloques en el almacenamiento subyacente. El cifrado de los volúmenes y de las copias reduce ese riesgo, pero no lo elimina.
 
 ---
 
 # 5. Derechos de los usuarios
 
-Cualquier usuario puede eliminar su propia información en cualquier momento usando el comando `/borrar_mis_datos`, y descargar una copia con `/mis_datos` (ver sección 4) — ambos sin necesidad de ser administrador de ningún servidor.
+Puedes ejercer tus derechos sobre tus datos personales —acceso, rectificación, eliminación, oposición y portabilidad, y pedir la limitación del tratamiento— desde el Centro de Privacidad (**https://purgito.app/privacidad**) o, si no puedes iniciar sesión con Discord, escribiendo a contacto@purgito.app (ver sección 4). La Ley N.º 21.719 sobre protección de datos personales de Chile reconoce derechos a las personas titulares de datos; Purgito ofrece estos canales para ejercerlos. Esta política describe prácticas actuales y no es asesoría legal.
 
 Los administradores del servidor además disponen de herramientas propias para controlar la recopilación de datos de su comunidad (ver sección 4), incluyendo la posibilidad de excluir a usuarios específicos: de forma independiente, pueden marcar que Purgito no interactúe con ese usuario (no le responda, reaccione ni dispare triggers) y/o que no aprenda de sus mensajes (no los use para el corpus ni para la función de imitación).
-
-Si consideras que existe información que debería eliminarse y no está cubierta por estas herramientas de autoservicio, o tienes dudas sobre el tratamiento de los datos, puedes contactar al desarrollador.
-
-Cuando sea técnicamente posible, se atenderán las solicitudes razonables de eliminación de información.
-
----
 
 # 6. Menores de edad
 
@@ -243,7 +249,7 @@ Para contratar Premium se requiere tener capacidad legal para contratar, o conta
 
 Se adoptan medidas razonables para proteger la información almacenada: la base de datos no es accesible desde Internet, el acceso de administración al servidor está restringido, las copias de seguridad se cifran antes de salir del servidor y las contraseñas y tokens se guardan fuera de la base de datos.
 
-No obstante, ningún sistema puede garantizar una seguridad absoluta frente a incidentes o accesos no autorizados.
+El volumen donde viven la base de datos y los secretos está cifrado en reposo (LUKS2), lo que protege copias del disco; no protege frente a quien tenga acceso administrativo al servidor con el volumen abierto. El acceso a los datos de las personas está limitado a la operación del servicio. Ningún sistema puede garantizar una seguridad absoluta frente a incidentes o accesos no autorizados.
 
 ---
 

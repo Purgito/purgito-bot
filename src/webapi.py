@@ -40,6 +40,7 @@ import aiohttp
 import discord
 import generation
 import privacy_requests
+import privacy_rights
 import regex
 from aiohttp import web
 from aiohttp_session import get_session, setup as setup_session
@@ -6229,6 +6230,10 @@ async def _privacy_state(user_id: int) -> dict:
         },
         "requests": reqs,
         "deadline_days": privacy_requests.REQUEST_DEADLINE_DAYS,
+        "rights": await privacy_rights.user_requests(user_id),
+        "rights_deadline_days": privacy_rights.DEADLINE_DAYS,
+        "rights_kinds": list(privacy_rights.RIGHT_KINDS),
+        "rights_note_max": privacy_rights.NOTE_MAX,
     }
 
 
@@ -6275,6 +6280,28 @@ async def _api_me_privacy_requests_post(request: web.Request) -> web.Response:
     }
     return web.json_response(
         body, status=201 if created else 200, headers={"Cache-Control": "no-store"}
+    )
+
+
+async def _api_me_privacy_rights_post(request: web.Request) -> web.Response:
+    """Otras solicitudes de derechos (acceso, rectificación, oposición, portabilidad, limitación...).
+    La identidad sale SIEMPRE de la sesión; el cuerpo solo trae `right` y un `note` opcional corto."""
+    user_id = await _privacy_user_id(request)
+    if user_id is None:
+        return web.json_response({"error": "no autenticado"}, status=401)
+    data = await _json_body(request) or {}
+    right = data.get("right")
+    note = data.get("note", "")
+    if not isinstance(right, str) or not isinstance(note, str):
+        return web.json_response({"error": "datos no válidos"}, status=400)
+    try:
+        req = await privacy_rights.create(user_id, right, note)
+    except privacy_rights.RightsError as e:
+        return web.json_response({"error": str(e)}, status=400)
+    return web.json_response(
+        {"request": req, "deadline_days": privacy_rights.DEADLINE_DAYS},
+        status=201,
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -6886,6 +6913,7 @@ async def start_web_server(bot: commands.Bot) -> None:
         app.router.add_get("/api/me/privacy", _api_me_privacy_get)
         app.router.add_put("/api/me/privacy/exclusion", _api_me_privacy_exclusion_put)
         app.router.add_post("/api/me/privacy/requests", _api_me_privacy_requests_post)
+        app.router.add_post("/api/me/privacy/rights", _api_me_privacy_rights_post)
         app.router.add_get("/api/me/privacy/export", _api_me_privacy_export_get)
         # Público (sin scope de guild): el editor de embeds lo pide antes de
         # saber en qué servidor va a pegar el contenido compartido.

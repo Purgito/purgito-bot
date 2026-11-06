@@ -110,7 +110,24 @@ addStrings({
     'perfil.priv.req.due': 'Plazo máximo',
     'perfil.priv.req.completedAt': 'Completada',
     'perfil.priv.req.daysLeft': 'Quedan {n} día(s) de plazo',
-    'perfil.priv.req.overdue': 'Está tardando más de lo previsto. Ya se avisó para revisarla.',
+    'perfil.priv.req.overdue': 'Está tardando más de lo previsto. Escríbenos a contacto@purgito.app si necesitas una respuesta.',
+    'perfil.priv.rights.title': 'Otras solicitudes de derechos',
+    'perfil.priv.rights.desc': 'Para lo que los controles de arriba no cubren: acceso a la información que tenemos de ti, rectificación, oposición, portabilidad, limitación del tratamiento u otra consulta. Respondemos en un máximo de {days} días corridos. No incluyas contraseñas ni datos que no sean necesarios.',
+    'perfil.priv.rights.kind': 'Qué quieres solicitar',
+    'perfil.priv.rights.note': 'Comentario (opcional, hasta {max} caracteres)',
+    'perfil.priv.rights.send': 'Enviar solicitud',
+    'perfil.priv.rights.sent': 'Solicitud registrada',
+    'perfil.priv.rights.error': 'No se pudo registrar la solicitud, intenta de nuevo',
+    'perfil.priv.rights.list': 'Tus solicitudes de derechos',
+    'perfil.priv.rights.open': 'Abierta',
+    'perfil.priv.rights.answered': 'Contestada',
+    'perfil.priv.rights.kind.access': 'Acceso',
+    'perfil.priv.rights.kind.rectification': 'Rectificación',
+    'perfil.priv.rights.kind.objection': 'Oposición',
+    'perfil.priv.rights.kind.portability': 'Portabilidad',
+    'perfil.priv.rights.kind.restriction': 'Limitación del tratamiento',
+    'perfil.priv.rights.kind.other': 'Otra consulta',
+    'perfil.priv.contact': '¿No puedes iniciar sesión con Discord? Escribe a contacto@purgito.app y te atendemos igual.',
     'perfil.priv.state.queued': 'En cola',
     'perfil.priv.state.processing': 'Procesando',
     'perfil.priv.state.retrying': 'Reintentando',
@@ -214,7 +231,24 @@ addStrings({
     'perfil.priv.req.due': 'Deadline',
     'perfil.priv.req.completedAt': 'Completed',
     'perfil.priv.req.daysLeft': '{n} day(s) left',
-    'perfil.priv.req.overdue': 'This is taking longer than expected. We have already been alerted to review it.',
+    'perfil.priv.req.overdue': 'This is taking longer than expected. Write to contacto@purgito.app if you need an answer.',
+    'perfil.priv.rights.title': 'Other rights requests',
+    'perfil.priv.rights.desc': 'For anything the controls above do not cover: access to the information we hold about you, rectification, objection, portability, restriction of processing or any other question. We answer within {days} calendar days at most. Do not include passwords or unnecessary data.',
+    'perfil.priv.rights.kind': 'What do you want to request',
+    'perfil.priv.rights.note': 'Comment (optional, up to {max} characters)',
+    'perfil.priv.rights.send': 'Send request',
+    'perfil.priv.rights.sent': 'Request registered',
+    'perfil.priv.rights.error': 'The request could not be registered, try again',
+    'perfil.priv.rights.list': 'Your rights requests',
+    'perfil.priv.rights.open': 'Open',
+    'perfil.priv.rights.answered': 'Answered',
+    'perfil.priv.rights.kind.access': 'Access',
+    'perfil.priv.rights.kind.rectification': 'Rectification',
+    'perfil.priv.rights.kind.objection': 'Objection',
+    'perfil.priv.rights.kind.portability': 'Portability',
+    'perfil.priv.rights.kind.restriction': 'Restriction of processing',
+    'perfil.priv.rights.kind.other': 'Other question',
+    'perfil.priv.contact': 'Cannot sign in with Discord? Write to contacto@purgito.app and we will help you anyway.',
     'perfil.priv.state.queued': 'Queued',
     'perfil.priv.state.processing': 'Processing',
     'perfil.priv.state.retrying': 'Retrying',
@@ -500,6 +534,46 @@ function copyCard() {
     el('div', { class: 'pf-actions' }, btn));
 }
 
+function rightsCard(state, refresh) {
+  const kinds = state.rights_kinds || [];
+  const days = state.rights_deadline_days || 30;
+  const max = state.rights_note_max || 1000;
+  const select = el('select', { class: 'pf-priv-input', id: 'pf-rights-kind', 'aria-label': t('perfil.priv.rights.kind') },
+    kinds.map((k) => el('option', { value: k }, t(`perfil.priv.rights.kind.${k}`))));
+  const note = el('textarea', {
+    class: 'pf-priv-input', id: 'pf-rights-note', rows: '3', maxlength: String(max),
+    'aria-label': t('perfil.priv.rights.note', { max }),
+    placeholder: t('perfil.priv.rights.note', { max }),
+  });
+  const btn = el('button', { class: 'btn btn-secondary', type: 'button' }, t('perfil.priv.rights.send'));
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await apiFetch('/api/me/privacy/rights', { method: 'POST', body: { right: select.value, note: note.value } });
+      toast(t('perfil.priv.rights.sent'), 'ok');
+      await refresh();
+    } catch (e) {
+      btn.disabled = false;
+      toast(t('perfil.priv.rights.error'), 'err');
+    }
+  };
+  const mine = state.rights || [];
+  return privCard(t('perfil.priv.rights.title'),
+    el('p', { class: 'pf-priv-desc dim' }, t('perfil.priv.rights.desc', { days })),
+    el('div', { class: 'pf-priv-form' }, select, note, el('div', { class: 'pf-actions' }, btn)),
+    mine.length
+      ? el('div', { class: 'pf-priv-history' },
+        el('h3', { class: 'pf-priv-sub' }, t('perfil.priv.rights.list')),
+        mine.map((r) => el('div', { class: 'pf-priv-req pf-priv-req--compact' },
+          el('div', { class: 'pf-priv-req-head' },
+            el('span', { class: 'pf-priv-req-id' },
+              `#${r.id} · ${t(`perfil.priv.rights.kind.${r.right}`)}`),
+            el('span', { class: 'pf-pill ' + (r.status === 'answered' ? 'pf-pill--ok' : 'pf-pill--accent') },
+              t(r.status === 'answered' ? 'perfil.priv.rights.answered' : 'perfil.priv.rights.open'))),
+          el('p', { class: 'dim pf-priv-small' }, privDate(parseUtc(r.created_at), true)))))
+      : null);
+}
+
 function requestRow(req, { compact = false } = {}) {
   const v = describeRequest(req);
   const rows = [[t('perfil.priv.req.created'), privDate(v.created, true)]];
@@ -580,6 +654,8 @@ async function tabPrivacidad(box, locale) {
       exclusionCard(state, render),
       copyCard(),
       deleteCard(state, render),
+      rightsCard(state, render),
+      el('p', { class: 'pf-priv-desc dim pf-priv-small' }, t('perfil.priv.contact')),
       el('a', { class: 'link-accent pf-priv-policy', href: policy }, t('perfil.priv.policy'))));
     clearTimeout(timer);
     // Mientras haya una solicitud abierta, el estado se refresca solo.

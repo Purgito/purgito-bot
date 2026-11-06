@@ -8,7 +8,7 @@ también las lápidas. Esta instantánea se exporta cifrada FUERA del servidor
 la vuelve a aplicar después de un restore, antes de arrancar el bot.
 
 Qué contiene (solo identificadores y fechas, nada de contenido de mensajes):
-  - lápidas vigentes de usuarios (/borrar_mis_datos) y de servidores purgados;
+  - lápidas vigentes de usuarios (eliminación de datos (Centro de Privacidad)) y de servidores purgados;
   - las exclusiones activas (excluded_users), incluida la global (guild_id = 0): son
     preferencias del usuario, y un restore anterior a su elección las perdería;
   - las solicitudes de eliminación del Centro de Privacidad que siguen ABIERTAS

@@ -123,7 +123,10 @@ with open(SCHEMA_PATH, encoding="utf-8") as _f:
 # ALTER TABLE para bases creadas con una versión vieja del esquema. Con
 # ADD COLUMN IF NOT EXISTS corren en cada arranque sin ruido. Vacío mientras el
 # esquema de arriba ya trae todas las columnas.
-_SCHEMA_UPGRADES: tuple[str, ...] = ()
+_SCHEMA_UPGRADES: tuple[str, ...] = (
+    "ALTER TABLE corpus_messages ADD COLUMN IF NOT EXISTS author_id BIGINT",
+    "CREATE INDEX IF NOT EXISTS idx_corpus_messages_author ON corpus_messages(guild_id, author_id)",
+)
 
 
 def database_url() -> str:
@@ -526,8 +529,9 @@ async def save_corpus_and_user_message(
     db = await get_db()
     async with _db_lock:
         cur1 = await db.execute(
-            "INSERT OR IGNORE INTO corpus_messages (guild_id, channel_id, message_id, content) VALUES (?, ?, ?, ?)",
-            (guild_id, channel_id, message_id, text),
+            "INSERT OR IGNORE INTO corpus_messages (guild_id, channel_id, message_id, content, author_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (guild_id, channel_id, message_id, text, author_id),
         )
         corpus_inserted = _was_inserted(cur1)
         cur2 = await db.execute(
@@ -547,7 +551,9 @@ def _tombstone_window() -> tuple[str, str]:
     return now.strftime(fmt), expires.strftime(fmt)
 
 
-async def delete_message_from_corpus(guild_id: int, message_id: int) -> dict:
+async def delete_message_from_corpus(
+    guild_id: int, message_id: int, *, include_gifs: bool = True
+) -> dict:
     """Borra un mensaje específico de corpus_messages y user_corpus al ser
     eliminado en Discord (on_raw_message_delete)."""
     db = await get_db()
@@ -570,7 +576,149 @@ async def delete_message_from_corpus(guild_id: int, message_id: int) -> dict:
                 (guild_id, message_id, now, expires),
             )
         await db.commit()
-    return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
+    gifs = (
+        await remove_gif_traces_of_message(guild_id, message_id)
+        if include_gifs
+        else {"senders": 0, "gifs_deleted": 0}
+    )
+    return {
+        "corpus_messages": cur1.rowcount,
+        "user_corpus": cur2.rowcount,
+        "gif_senders": gifs["senders"],
+        "gifs_deleted": gifs["gifs_deleted"],
+    }
+
+
+async def _remove_gif_senders(where: str, params: tuple) -> dict:
+    db = await get_db()
+    async with db.execute(
+        f"SELECT DISTINCT gif_id FROM gif_senders WHERE {where}", params
+    ) as cursor:
+        gif_ids = [r[0] for r in await cursor.fetchall()]
+    if not gif_ids:
+        return {"senders": 0, "gifs_deleted": 0}
+    async with _db_lock:
+        cur = await db.execute(f"DELETE FROM gif_senders WHERE {where}", params)
+        senders = max(cur.rowcount, 0)
+        await db.commit()
+    return {"senders": senders, "gifs_deleted": await _delete_gifs_without_senders(gif_ids)}
+
+
+async def remove_gif_traces_of_message(guild_id: int, message_id: int) -> dict:
+    """Quien mandó un GIF borró ese mensaje en Discord: se quita su registro como remitente y, si el GIF
+    se queda SIN ninguna otra referencia independiente (otro remitente), se elimina de la colección y,
+    por el conteo de referencias (release_gif_reference), de R2 cuando ya nadie lo usa. Un GIF sin
+    remitentes que nunca los tuvo (lo añadió un administrador) no se toca: solo se evalúan los GIF a los
+    que este mensaje estaba ligado. Llamar fuera de _db_lock."""
+    return await _remove_gif_senders("guild_id=? AND message_id=?", (guild_id, message_id))
+
+
+async def remove_gif_traces_of_channel(guild_id: int, channel_id: int) -> dict:
+    """Igual que remove_gif_traces_of_message pero para todo un canal (eliminado, o que pasó a ser NSFW)."""
+    return await _remove_gif_senders("guild_id=? AND channel_id=?", (guild_id, channel_id))
+
+
+async def _delete_gifs_without_senders(gif_ids: list[int]) -> int:
+    """Elimina (fila + referencia en R2) los GIF de `gif_ids` que ya no tienen ningún remitente."""
+    db = await get_db()
+    deleted = 0
+    for gif_id in gif_ids:
+        async with db.execute(
+            "SELECT cg.guild_id, (SELECT COUNT(*) FROM gif_senders gs WHERE gs.gif_id = cg.id) "
+            "FROM corpus_gifs cg WHERE cg.id=?",
+            (gif_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row and row[1] == 0 and await delete_gif_url_by_id(row[0], gif_id):
+            deleted += 1
+    return deleted
+
+
+async def prune_gifs_of_user(user_id: int) -> int:
+    """Antes de borrar los datos de una persona: elimina los GIF cuyo ÚNICO remitente es ella (con su
+    referencia en R2). Los que otra persona compartió de forma independiente se conservan; el registro
+    de remitente de ella lo borra delete_user_data. Se hace ANTES de quitar sus filas para que un
+    reintento tras un fallo vuelva a calcular lo mismo. Llamar fuera de _db_lock."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT gs.gif_id FROM gif_senders gs WHERE gs.user_id=? AND NOT EXISTS ("
+        "  SELECT 1 FROM gif_senders o WHERE o.gif_id = gs.gif_id AND o.user_id <> gs.user_id)",
+        (user_id,),
+    ) as cursor:
+        sole = [r[0] for r in await cursor.fetchall()]
+    deleted = 0
+    for gif_id in sole:
+        async with db.execute(
+            "SELECT guild_id FROM corpus_gifs WHERE id=?", (gif_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row and await delete_gif_url_by_id(row[0], gif_id):
+            deleted += 1
+    return deleted
+
+
+async def reconcile_corpus_authors(apply: bool = False) -> dict:
+    """Mensajes heredados de corpus_messages sin author_id. Solo se atribuyen por el vínculo EXACTO
+    (guild_id, message_id) con user_corpus -- nunca por el contenido ni por heurísticas. Los que no
+    tienen ese vínculo no se pueden atribuir de forma verificable y se eliminan (decisión del titular,
+    2026-11). Con apply=False solo cuenta. Devuelve conteos antes/después."""
+    db = await get_db()
+
+    async def one(sql: str) -> int:
+        async with db.execute(sql) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0] if row else 0)
+
+    link = (
+        "EXISTS (SELECT 1 FROM user_corpus uc WHERE uc.guild_id = cm.guild_id "
+        "AND uc.message_id = cm.message_id)"
+    )
+    res = {
+        "total": await one("SELECT COUNT(*) FROM corpus_messages"),
+        "con_autor": await one("SELECT COUNT(*) FROM corpus_messages WHERE author_id IS NOT NULL"),
+        "atribuibles": await one(
+            f"SELECT COUNT(*) FROM corpus_messages cm WHERE cm.author_id IS NULL AND {link}"
+        ),
+        "no_atribuibles": await one(
+            f"SELECT COUNT(*) FROM corpus_messages cm WHERE cm.author_id IS NULL AND NOT {link}"
+        ),
+        "atribuidos": 0,
+        "eliminados": 0,
+    }
+    if not apply:
+        return res
+    while True:  # atribución por lotes
+        async with _db_lock:
+            cur = await db.execute(
+                "UPDATE corpus_messages SET author_id = uc.author_id FROM user_corpus uc "
+                "WHERE corpus_messages.id IN (SELECT id FROM corpus_messages WHERE author_id IS NULL "
+                "  AND EXISTS (SELECT 1 FROM user_corpus x WHERE x.guild_id = corpus_messages.guild_id "
+                "  AND x.message_id = corpus_messages.message_id) LIMIT ?) "
+                "AND uc.guild_id = corpus_messages.guild_id AND uc.message_id = corpus_messages.message_id",
+                (_PURGE_BATCH,),
+            )
+            n = max(cur.rowcount, 0)
+            await db.commit()
+        res["atribuidos"] += n
+        if n < _PURGE_BATCH:
+            break
+    while True:  # lo que queda sin autor no es atribuible: fuera
+        async with _db_lock:
+            cur = await db.execute(
+                "DELETE FROM corpus_messages WHERE id IN "
+                "(SELECT id FROM corpus_messages WHERE author_id IS NULL LIMIT ?)",
+                (_PURGE_BATCH,),
+            )
+            n = max(cur.rowcount, 0)
+            await db.commit()
+        res["eliminados"] += n
+        if n < _PURGE_BATCH:
+            break
+    res["total_despues"] = await one("SELECT COUNT(*) FROM corpus_messages")
+    res["sin_autor_despues"] = await one(
+        "SELECT COUNT(*) FROM corpus_messages WHERE author_id IS NULL"
+    )
+    return res
 
 
 async def delete_channel_corpus(guild_id: int, channel_id: int) -> dict:
@@ -595,7 +743,13 @@ async def delete_channel_corpus(guild_id: int, channel_id: int) -> dict:
                 (guild_id, channel_id, now, expires),
             )
         await db.commit()
-    return {"corpus_messages": cur1.rowcount, "user_corpus": cur2.rowcount}
+    gifs = await remove_gif_traces_of_channel(guild_id, channel_id)
+    return {
+        "corpus_messages": cur1.rowcount,
+        "user_corpus": cur2.rowcount,
+        "gif_senders": gifs["senders"],
+        "gifs_deleted": gifs["gifs_deleted"],
+    }
 
 
 async def delete_recent_corpus(guild_id: int, hours: int = 24) -> dict:
@@ -637,7 +791,7 @@ DELETION_TOMBSTONE_RETENTION_DAYS = 15
 # SQL del borrado de un autor, compartido por delete_user_data y por
 # reapply_deletion_tombstones (scripts/reapply_deletions.py): una sola definición.
 _SQL_DELETE_CORPUS_OF_AUTHOR = (
-    "DELETE FROM corpus_messages WHERE EXISTS ("
+    "DELETE FROM corpus_messages WHERE author_id = ? OR EXISTS ("
     "  SELECT 1 FROM user_corpus uc"
     "  WHERE uc.author_id = ?"
     "    AND uc.guild_id = corpus_messages.guild_id"
@@ -735,6 +889,7 @@ async def delete_user_data(author_id: int) -> dict:
     ningún parámetro de guild ni de permisos de administrador a propósito:
     el derecho es del usuario, no depende de quién administre el servidor.
     """
+    gifs_deleted = await prune_gifs_of_user(author_id)
     db = await get_db()
     async with _db_lock:
         async with db.execute(
@@ -744,7 +899,7 @@ async def delete_user_data(author_id: int) -> dict:
             guild_rows = await cursor.fetchall()
         guild_ids = sorted(r[0] for r in guild_rows)
 
-        cur_cm = await db.execute(_SQL_DELETE_CORPUS_OF_AUTHOR, (author_id,))
+        cur_cm = await db.execute(_SQL_DELETE_CORPUS_OF_AUTHOR, (author_id, author_id))
         corpus_messages_deleted = cur_cm.rowcount
 
         cur_uc = await db.execute(_SQL_DELETE_USER_CORPUS_OF_AUTHOR, (author_id,))
@@ -754,6 +909,7 @@ async def delete_user_data(author_id: int) -> dict:
         gif_senders_deleted = cur_gs.rowcount
         cur_bo = await db.execute(_SQL_DELETE_BOOSTS_OF_USER, (author_id,))
         boosts_deleted = cur_bo.rowcount
+        await db.execute("DELETE FROM privacy_rights_requests WHERE user_id=?", (author_id,))
         admin_rows_pseudonymized = 0
         for sql, repeat in _PSEUDONYMIZE_STATEMENTS:
             cur_ps = await db.execute(sql, (author_id,) * repeat)
@@ -786,6 +942,7 @@ async def delete_user_data(author_id: int) -> dict:
         "traceable_deleted": corpus_messages_deleted,
         "unknown_deleted": unknown_deleted,
         "gif_senders_deleted": gif_senders_deleted,
+        "gifs_deleted": gifs_deleted,
         "boosts_deleted": boosts_deleted,
         "admin_rows_pseudonymized": admin_rows_pseudonymized,
         "guild_ids": guild_ids,
@@ -1028,8 +1185,24 @@ async def build_user_export(author_id: int) -> dict:
             "FROM privacy_requests WHERE user_id=? ORDER BY id"
         )
     ]
+    rights = [
+        {
+            "id": r[0],
+            "right": r[1],
+            "note": r[2],
+            "status": r[3],
+            "created_at": r[4],
+            "due_at": r[5],
+            "answered_at": r[6],
+        }
+        for r in await _rows(
+            "SELECT id, right_kind, note, status, created_at, due_at, answered_at "
+            "FROM privacy_rights_requests WHERE user_id=? ORDER BY id"
+        )
+    ]
     return {
         "messages_by_guild": by_guild,
+        "rights_requests": rights,
         "gifs": gifs,
         "boosts": boosts,
         "special_phrases": frases,
@@ -1062,6 +1235,7 @@ def export_payload(user_id: int, data: dict, exported_at: str, guild_name=None) 
         "audit_log": data["audit_log"],
         "scheduled_announcements": data["scheduled_announcements"],
         "deletion_requests": data["deletion_requests"],
+        "rights_requests": data.get("rights_requests", []),
     }
 
 

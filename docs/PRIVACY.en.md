@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** October 2, 2026
+**Last updated:** November 6, 2026
 
 This Policy describes how **Purgito** collects, uses, stores, shares, and protects the information it needs to provide its features.
 
@@ -56,6 +56,10 @@ A user's Display Name may be stored alongside certain messages to enable feature
 
 ---
 
+## Server boosts
+
+To thank a boost and avoid repeating the notice, Purgito stores the ID of the person boosting a server, the server ID and the date since which they boost. It is used only for that feature, it is included in the download of your data and it is deleted when you request deletion.
+
 ## Special phrases
 
 When an admin adds a special phrase from the panel (Chat tab → Phrases), Purgito stores the Discord ID and display name of whoever added it, along with the phrase's text. Unlike the audit log (see below), this attribution has no expiration date: it's kept for as long as the phrase exists.
@@ -76,7 +80,7 @@ This log covers changes made from the web dashboard. Actions an admin runs direc
 
 This log is visible only to that same server's admins, in the panel's History tab, and exists so the community can see what changes were made and by whom. It's kept for a maximum of 90 days and then deleted automatically (see "Data retention").
 
-When a person requests deletion of their data (with `/borrar_mis_datos` or from their account), this log is **not deleted**, because it is the server's history: only who did it is removed. Their ID and name are replaced with `[eliminado]` in the entries where they acted, and their ID disappears from the detail of entries that mention them. The same applies to the special phrases and scheduled announcements they created: they stay on the server, without their name. Their data copy includes these entries, with other people's identifiers hidden.
+When a person requests deletion of their data (from the Privacy Center), this log is **not deleted**, because it is the server's history: only who did it is removed. Their ID and name are replaced with `[eliminado]` in the entries where they acted, and their ID disappears from the detail of entries that mention them. The same applies to the special phrases and scheduled announcements they created: they stay on the server, without their name. Their data copy includes these entries, with other people's identifiers hidden.
 
 ---
 
@@ -138,6 +142,19 @@ Data is **never sold**, nor used by Purgito for advertising.
 
 ---
 
+## Learning from messages (Markov chains)
+
+Purgito generates text with **Markov chains**, a simple statistical method (word sequences) computed on Purgito's own server over a sample of the messages learned **from each server separately**. It does not use third-party artificial intelligence services and does not send message content to any third party to generate text (the Groq integration and automatic memes were retired). Models are rebuilt in memory from what is stored and are discarded when the data is deleted. If you do not want Purgito to learn from your messages, you can opt out from the Privacy Center.
+
+## Discord privileged permissions used by Purgito
+
+- **Message Content:** needed to learn from messages in enabled channels (corpus and writing style for imitation), to fire text *triggers*, to detect shared GIFs and to re-read a channel's history when an administrator asks for it. NSFW channels and channels that `@everyone` cannot view are left out of GIF capture; NSFW channels are also left out of learning.
+- **Server Members:** needed for welcome and goodbye messages, to detect a new server boost and to search members in the admin panel.
+
+If Discord did not grant any of these permissions, the features that depend on it would become unavailable.
+
+---
+
 # 3. Third-party services
 
 Purgito uses external services for certain features. Each provider processes only the information necessary to provide its service.
@@ -176,6 +193,8 @@ On top of the quota there is a **hard limit of 180 days**: learned messages (the
 
 Server admins can also delete collected content at any time using the interactive settings panel (`/settings` command), which includes buttons to clear the learned message corpus and to delete saved GIFs.
 
+**GIFs** saved in the gallery are linked to who sent them (user, server, channel and message) so they can be removed. If you delete the message in Discord, that record is deleted and, if nobody else shared that same GIF independently, the GIF is removed from the collection and its file is deleted from our storage (Cloudflare R2). If other people shared it, the file is kept as long as any independent reference exists. After 180 days the record of who sent it is deleted; the GIF may remain in the server's gallery without that attribution until an administrator removes it.
+
 The panel's audit log (see section 1) is kept for a maximum of 90 days from each entry and then purged automatically, with no manual intervention.
 
 When the bot leaves a server (for example, if it's kicked), that server's data is kept for a 30-day grace period before being deleted from the live database (backups expire separately, see below). This is so that, if the bot is re-invited within that window, the server gets its configuration and content back without having to be set up again from the beginning. During that period, while the bot isn't in the server, it isn't possible to access the admin panel to manage that data. There's currently no self-service way to speed up this deletion at the server level before the 30 days are up; if you're a server admin and want its data deleted sooner, you can request it by contacting the developer (see "Contact" below).
@@ -184,52 +203,39 @@ When the bot leaves a server (for example, if it's kicked), that server's data i
 
 ## Where data is stored, and backups
 
-Everything Purgito stores (each server's configuration, learned messages, the audit log, etc.) lives in a PostgreSQL database on the server where the bot runs. The database only accepts connections from that same server; it isn't exposed to the Internet. Images and GIFs live in Cloudflare R2.
+All the information Purgito stores (each server's settings, learned messages, audit log, etc.) lives in a PostgreSQL database on the server where the bot runs. The database only accepts connections from that same server; it is not exposed to the Internet. The database data and the service secrets are stored on an encrypted volume (LUKS2). Images and GIFs live in Cloudflare R2.
 
-To be able to recover the service after a serious failure, a backup of the whole database is made every day. It contains the same as the live database, including the messages Purgito learned. It's encrypted before leaving the server and stored in a private Cloudflare R2 space (no public access), plus an encrypted copy on the server itself. **R2 keeps the backups of the last 7 days and of the last 2 Sundays; the server keeps only the 2 most recent. No backup reaches 14 days: each one is deleted automatically before then.** To check that a backup can be restored, the project owner downloads it to their own machine, restores it into an isolated database and deletes it when done. They're only used to recover the service after a disaster and for that check; they aren't read or used for anything else.
-
----
-
-## Deleting your own data (individual right to be forgotten)
-
-Regardless of the above, any user can request at any time that their own information be deleted, without needing to be a server admin or wait for the 30-day period above.
-
-The `/borrar_mis_datos` command, available to anyone on any server where Purgito is present, permanently and immediately deletes from the live database, across **every** server where you've written:
-
-Besides the command, a person can **request deletion of their data from their account on purgito.app** (Privacy Center). The request is recorded immediately and processed within a maximum of **7 calendar days**; if an attempt fails, it is retried until it completes. The record of each request (number, dates, attempts and result) is kept for 90 days and **contains neither your identifier nor any content**; after that period the request is deleted. From the same account you can turn the global opt-out on or off and download a copy of your data (saved style messages, GIFs you sent, boosts, special phrases in your name and your exclusions).
-
-- Your writing style saved for the impersonation feature (`/imitar`).
-- The messages Purgito learned from you to generate text.
-
-Your original Discord messages aren't affected: this only deletes the copy Purgito saved to learn your writing style. Since this is irreversible, the command asks for explicit confirmation before running the deletion.
-
-**The real limit of the deletion: backups.** Backups made before your deletion may still contain that data until they expire (at most 14 days, see above). They aren't read or restored unless the service has to be recovered after a disaster. If that ever happened, the deletion would be applied again before the bot is brought back up. To make that possible, each time you use `/borrar_mis_datos` Purgito stores a **tombstone**: only your Discord user ID and two dates (when you requested the deletion and when the tombstone expires). It carries no message content and not the servers you were in. It lasts 15 days (the 14 of the backups plus one day of margin) and removes itself; it's personal data and is handled under this same policy. The same applies when Purgito leaves a server and, after the 30-day grace period, deletes all of its data: the server ID and two dates are kept for 15 days. So that this record isn't lost if the server is lost, every hour an encrypted copy is saved in the same private R2 space containing only those current tombstones and the list of people who opted out of learning (IDs and dates, no messages); each of those copies is deleted after 15 days at most, and an opt-out is kept for as long as the person doesn't remove it. Only whoever administers the server where Purgito runs can see it.
-
-The same goes for messages you delete or edit on Discord and for channels that are deleted: Purgito removes them from what it learned and, if a backup ever had to be restored, that removal is applied again (only the message identifier is kept, with no content, for 15 days).
-
-This deletion is specifically for the message-learning data described above, and doesn't automatically cover other categories you may have generated on a server — for example, GIFs or images you contributed to the server's pool, your entry as a sender in the GIF catalog, or your own entries in the panel's audit log if you're an admin — since those are tied to the server where they were generated, not just to your account. If you want to request deletion of any of those, you can contact the developer (see "Contact").
+To be able to recover the service after a serious failure, a backup of the whole database is made every day. That backup contains the same as the live database, including the messages Purgito learned. It is encrypted with age before leaving the server and stored in a private Cloudflare R2 space (no public access), plus an encrypted copy on the server itself. **R2 keeps the backups of the last 7 days and those of the last 2 Sundays; the server keeps only the 2 most recent. No backup reaches 14 days: each one is deleted automatically before then.** There are no other copies of the database with longer retention: Purgito's disk is excluded from the host machine's automatic backups. To check that a backup can be restored, the project owner downloads it to their own machine, restores it into an isolated database and deletes it afterwards. They are used only to recover the service after a disaster and for that check; they are not consulted or used for learning or any other function.
 
 ---
 
-## Downloading your own data (portability)
+## Privacy Center: manage your data
 
-Any user can also request a copy of their own information with the `/mis_datos` command, available on any server where Purgito is present. It generates a JSON file with your saved writing style and the messages Purgito learned from you, grouped by server, and sends it to you privately. It's the read-only counterpart to `/borrar_mis_datos`: it doesn't delete anything.
+All management of your personal data is done at **https://purgito.app/privacidad**, signing in with Discord. There are no Discord commands for this. Purgito only acts on the person who signed in: identity comes from the session, never from data sent by the browser. From there you can:
 
-Any user can also **opt out** with the `/privacidad` command, on any server where Purgito is present: from then on Purgito stops learning from their messages and stops interacting with that person on **every** server, and the preference is kept until the person chooses to participate again with the same command. Opting out does not delete what was already stored: use `/borrar_mis_datos` for that. In addition, if you edit or delete a message on Discord, or the channel that contained it is deleted, Purgito removes it from what it learned.
+- **Download your data:** a JSON file with your learned messages by server, the GIFs you sent, your boosts, special phrases in your name, your exclusions and the status of your requests.
+- **Request deletion of your data.** The request is registered immediately and completed within a maximum of **7 calendar days**; if an attempt fails it is retried until completed, and you can check its status on the same page.
+- **Turn the global exclusion on or off:** from then on Purgito stops learning from your messages and interacting with you on **all** servers (it also does not store your GIFs, nor when re-reading history). The exclusion does not delete what was already stored; deletion does that.
+- **Make other rights requests** (access to the information we hold about you beyond the download, rectification, objection, portability, restriction of processing or any other question) with the form in the same Center. We ask only for the type of request and an optional short comment, and answer within a maximum of **30 calendar days**.
+- If you **cannot sign in with Discord**, write to contacto@purgito.app; we will ask only for what is needed to verify the account is yours.
+
+**What the deletion request removes**, from the live database and across **all** servers where you have written: your saved writing style for the imitation feature; the messages Purgito learned from you (including the server's collective copy, which carries its author's ID); your record as a GIF sender and, if nobody else shared that GIF independently, the GIF and its file in R2; your boosts; and your rights requests. Your name and ID are removed from special phrases, scheduled announcements and the panel audit log (see section 1), which are kept because they are the server's history. Your original Discord messages are not affected: this only deletes what Purgito stored.
+
+The request, with your ID, is kept for 90 days after completion so we can account for it and is then deleted. The verifiable log of its steps contains neither your identifier nor content.
+
+**The real limit of deletion: backups.** Backups made before your deletion may still contain that data, encrypted, until they expire (at most 14 days, see above). They are not read or restored unless the service has to be recovered after a disaster; if that happened, the deletion is re-applied before the bot is put back into operation. To do that, a **tombstone** is stored: only your Discord user ID and two dates (when you requested deletion and when the tombstone expires), with no content or servers. The tombstone lasts 15 days (the 14 of the backups plus one of margin) and deletes itself. The same happens when Purgito leaves a server and, after the 30-day grace period, deletes all its data: the server ID and two dates are kept for 15 days. So that this record is not lost if the server is lost, every 5 minutes an encrypted copy with those current tombstones and the list of people excluded from learning (IDs and dates, no messages) is stored in the same private R2 space; each copy is deleted after 15 days at most, and an exclusion is kept as long as the person does not remove it.
+
+The same applies to messages you delete in Discord and to channels that are deleted or become NSFW: Purgito removes them from what it learned (including associated GIFs) and, if a backup ever had to be restored, that removal is re-applied (only the message identifier, with no content, is kept for 15 days).
+
+**What we do not promise.** Deletion works on the live database and on the files in R2 by logical deletion; we cannot guarantee immediate physical destruction of blocks in the underlying storage. Encryption of volumes and backups reduces that risk but does not eliminate it.
 
 ---
 
 # 5. User rights
 
-Any user can delete their own information at any time using the `/borrar_mis_datos` command, and download a copy with `/mis_datos` (see section 4) — both without needing to be a server admin.
+You can exercise your rights over your personal data —access, rectification, deletion, objection and portability, and ask for restriction of processing— from the Privacy Center (**https://purgito.app/privacidad**) or, if you cannot sign in with Discord, by writing to contacto@purgito.app (see section 4). Chile's Law No. 21.719 on personal data protection recognizes rights for data subjects; Purgito offers these channels to exercise them. This policy describes current practices and is not legal advice.
 
-Server admins also have their own tools to control data collection for their community (see section 4), including the ability to exclude specific users: independently, they can mark that Purgito shouldn't interact with a user (no replies, reactions, or triggers) and/or shouldn't learn from their messages (not used for the corpus or the impersonation feature).
-
-If you believe there's information that should be deleted and isn't covered by these self-service tools, or you have questions about how data is handled, you can contact the developer.
-
-Where technically possible, reasonable deletion requests will be honored.
-
----
+Server administrators also have their own tools to control data collection for their community (see section 4), including the ability to exclude specific users: independently, they can mark that Purgito should not interact with that user (not reply, react or fire triggers) and/or not learn from their messages (not use them for the corpus or the imitation feature).
 
 # 6. Minors
 
@@ -243,7 +249,7 @@ Purchasing Premium requires having the legal capacity to enter into a contract, 
 
 Reasonable measures are taken to protect stored information: the database isn't reachable from the Internet, administrative access to the server is restricted, backups are encrypted before leaving the server, and passwords and tokens are kept outside the database.
 
-That said, no system can guarantee absolute security against incidents or unauthorized access.
+The volume holding the database and the secrets is encrypted at rest (LUKS2), which protects copies of the disk; it does not protect against someone with administrative access to the server while the volume is open. Access to people's data is limited to operating the service. No system can guarantee absolute security against incidents or unauthorized access.
 
 ---
 
