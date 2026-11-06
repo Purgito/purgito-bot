@@ -22,6 +22,8 @@ set -uo pipefail
 
 BOT_DIR="${BOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PGDATA="${PGDATA:-$(sudo -n -u postgres psql -Atc 'show data_directory' 2>/dev/null || echo /var/lib/postgresql)}"
+CONF="${PV_CONF:-/etc/purgito-vault.conf}"
+[ -f "$CONF" ] && [ "$(stat -c %U "$CONF")" = root ] && [ -z "$(find "$CONF" -perm /022 2>/dev/null)" ] && . "$CONF"
 VAULT_IMG="${PV_IMG:-/var/lib/purgito-vault/vault.img}"
 KEYFILE="${PV_KEYFILE:-/root/.purgito-vault-interim.key}"
 ROOT_OPTIONAL="${CHECK_ROOT_OPTIONAL:-0}"
