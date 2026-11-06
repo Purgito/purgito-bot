@@ -28,6 +28,14 @@
 set -euo pipefail
 umask 077
 
+# Configuracion de root (/etc/purgito-vault.conf): fija PV_IMG (dispositivo del volumen, p. ej. una particion
+# /dev/disk/by-partuuid/...). Solo se lee si es de root y no escribible por otros.
+CONF="${PV_CONF:-/etc/purgito-vault.conf}"
+if [ -f "$CONF" ] && [ "$(stat -c %U "$CONF")" = root ] && [ -z "$(find "$CONF" -perm /022 2>/dev/null)" ]; then
+    # shellcheck disable=SC1090
+    . "$CONF"
+fi
+
 IMG="${PV_IMG:-/var/lib/purgito-vault/vault.img}"
 SIZE="${PV_SIZE:-8G}"
 MAPPER="${PV_MAPPER:-purgito-vault}"
@@ -330,6 +338,7 @@ cmd_status() {
 # ── enroll: contraseñas del titular, sin clave provisional, encabezado respaldado ───────────────
 cmd_enroll() {
     need_root; guard_install_dir
+    die "'enroll' esta deshabilitado: el volumen v2 (LUKS2 directo sobre particion) se configura por fases con cryptsetup (ver docs/CIFRADO_EN_REPOSO.md)"
     [ -t 0 ] || die "hace falta una terminal interactiva (entra por SSH; NO lo ejecutes desde un asistente)"
     [ -e "$KEYFILE" ] || die "no hay clave provisional: ya se hizo 'enroll'"
     is_open && is_mounted || die "abre antes el volumen: purgito-vault open --keyfile"
