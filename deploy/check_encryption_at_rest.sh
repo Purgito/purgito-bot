@@ -39,7 +39,9 @@ check() { # etiqueta ruta
     if [ -z "$src" ]; then printf '%-36s %-12s (sin dispositivo)\n' "$label" "?"; bad; return; fi
     chain="$(lsblk -nso TYPE "$src" 2>/dev/null | tr '\n' ' ')"
     fstype="$(findmnt -no FSTYPE -T "$path" 2>/dev/null | head -1)"
-    if [ "$fstype" = tmpfs ] || [ "$fstype" = ramfs ]; then
+    if [[ "$src" == /dev/zram* ]]; then
+        printf '%-36s %-12s %s\n' "$label" "RAM" "zram: swap comprimido en memoria, nunca toca el disco"
+    elif [ "$fstype" = tmpfs ] || [ "$fstype" = ramfs ]; then
         printf '%-36s %-12s %s\n' "$label" "RAM" "$fstype: no persiste en disco"
     elif [[ " $chain " == *" crypt "* ]]; then
         printf '%-36s %-12s %s\n' "$label" "CIFRADO" "$src"
@@ -118,7 +120,18 @@ if [ "$(id -u)" = 0 ]; then
     if [ -f /swapfile ] && ! swapon --noheadings --show=NAME 2>/dev/null | grep -qx /swapfile \
         && [ -z "$(losetup -j /swapfile 2>/dev/null)" ]; then
         if [ -s /swapfile ] && [ -n "$(head -c 1048576 /swapfile | tr -d '\0' | head -c 1)" ]; then
-            printf '%-36s %-12s %s\n' "/swapfile" "RESTO EN CLARO" "el archivo de swap conserva datos sin sobrescribir"; bad
+            # Texto cifrado de un swap cifrado anterior (clave aleatoria ya descartada) es incompresible; datos
+            # en claro (texto, tablas) se comprimen. Se muestrean 3 trozos de 1 MiB.
+            sz=$(stat -c %s /swapfile); worst=0
+            for off in 0 $((sz/2/1048576)) $((sz/1048576-1)); do
+                n=$(dd if=/swapfile bs=1M skip="$off" count=1 2>/dev/null | gzip -c | wc -c)
+                [ "$n" -gt "$worst" ] || worst=$n; [ "${min:-9999999}" -le "$n" ] || min=$n
+            done
+            if [ "${min:-0}" -ge 1040000 ]; then
+                printf '%-36s %-12s %s\n' "/swapfile" "CIFRADO*" "contenido aleatorio (almacén del swap cifrado anterior, clave descartada); *heurística por entropía"
+            else
+                printf '%-36s %-12s %s\n' "/swapfile" "RESTO EN CLARO" "el archivo de swap conserva datos sin sobrescribir"; bad
+            fi
         fi
     fi
 else
