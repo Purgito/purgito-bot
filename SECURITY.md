@@ -54,7 +54,7 @@ Todo vive en una base PostgreSQL local (solo accesible desde el propio servidor)
 - **Premium:** IDs de servidor, IDs de cliente y suscripción de Polar e ID de quien compró.
 - **Registro de auditoría:** quién cambió qué desde el dashboard; se conserva 90 días.
 
-`bot.db` y los backups se crean con permisos `0600` (solo el usuario del bot). **No se cifran en disco** (P0 abierto: estado, opciones y criterio de cierre en `docs/CIFRADO_EN_REPOSO.md`; `deploy/check_encryption_at_rest.sh` lo mide).
+`bot.db` y los backups se crean con permisos `0600` (solo el usuario del bot). Los datos sensibles viven en un volumen LUKS2 aparte (`purgito-vault`), y el swap, el journal y los logs en texto están protegidos o en RAM. El P0 de cifrado en reposo sigue abierto hasta completar los pasos del titular: estado y criterio de cierre en `docs/CIFRADO_EN_REPOSO.md`; `deploy/check_encryption_at_rest.sh` lo mide.
 
 La sesión del dashboard es una cookie cifrada que incluye el token de acceso OAuth de Discord de la persona; en el servidor solo se guardan los identificadores de sesión ya cerrados.
 

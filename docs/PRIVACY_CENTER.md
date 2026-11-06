@@ -56,18 +56,50 @@ distingue) · 3 entrada inválida. **Límites:** una fila posterior al último a
 siguiente instantánea (≤ 1 h); un ancla solo existe mientras viva su instantánea (15 días); y un atacante que
 también controlara las credenciales del runner o el bucket podría falsear anclas.
 
-### Límites del registro externo
+### Restauración segura (falla antes que aparentar éxito)
 
-- **Frescura:** se exporta cada hora. Una eliminación, exclusión, solicitud o lápida hecha en la última hora antes
-  de perder TODO el servidor no está en el registro.
-- **Mensajes sueltos y canales:** se anotan (id + fecha, sin contenido) **solo si estaban realmente en el corpus**
-  en el momento de borrarlos/editarlos. Un mensaje ya recortado del corpus por el límite de tamaño pero presente
-  en un backup antiguo no tiene lápida y reaparecería. Tope de 100 000 lápidas de mensaje por instantánea
-  (~8 MB); si se supera se exportan las más recientes, el pie marca `truncated` y `reapply_deletions.py` se niega
-  a seguir sin `--aceptar-truncado`. Un canal limpiado a propósito (NSFW, purga) también deja lápida: si luego
-  vuelve a aprenderse, una restauración dentro de los 15 días lo borraría otra vez.
-- **Vigencia:** 15 días por lápida (14 de vida máxima de un backup + 1), como las de usuario y servidor.
-- **Solo ids y fechas:** nada de contenido; la instantánea va cifrada con age.
+Ningún backup puede volver a poner en marcha el bot sin reconciliación válida:
+
+- **Guardián de arranque** (`src/privacy_guard.py`): el bot escribe cada minuto un latido en la base y en un
+  archivo local (`data/privacy_watermark`, dentro del volumen cifrado). Si al arrancar la base es **más antigua**
+  que lo último que este servidor vio (o carece de latido, o el servidor no tiene archivo y el latido de la base
+  tiene más de 10 minutos), el bot **se niega a arrancar** (código 78; systemd no lo reintenta). Lo único que
+  pone la base al día es `scripts/reapply_deletions.py --apply` con un registro válido.
+- **El registro se valida**: es obligatorio (`--ledger`; `--sin-registro` es un acto explícito), no puede tener
+  más de 2 h ni ser anterior al latido de la base, y se rechaza si está marcado `truncated`. Se puede forzar solo
+  con `--aceptar-registro-antiguo` / `--aceptar-truncado`, dejando constancia en pantalla.
+- Un backup anterior a estas tablas no las tiene: `reapply_deletions.py` crea el esquema antes de reconciliar.
+
+Procedimiento: parar el bot → `pg_restore` → `reapply_deletions.py --ledger - --apply < registro.jsonl` (el
+registro descifrado más reciente de `gen2/ledger/`) → arrancar el bot. Sin el último paso del medio, el paso
+final se rechaza.
+
+### Límites del registro externo (revisados)
+
+- **Frescura:** se exporta **cada 5 minutos** (`purgito-ledger.timer`; antes cada hora) y `purgito-backup-check`
+  avisa si no hay instantánea de menos de 1 h. Queda irreducible la ventana entre una eliminación y la siguiente
+  exportación (≤ 5 min): si se perdiera TODO el servidor en ese lapso, esa eliminación no está en el registro.
+- **Vigencia de lápidas: 15 días**, un día más que la vida máxima de un backup (14). Un backup nunca es más viejo
+  que la lápida que lo corrige; uno de más de 14 días ya no existe (Lifecycle) y, si apareciera, el registro
+  exigido no podría cubrirlo: la restauración lo rechaza por antigüedad.
+- **Desbordamiento (antes: tope de 100 000)**: pasado `MAX_MESSAGE_TOMBSTONES` lápidas de mensaje, las de los
+  servidores que más acumulan se **sustituyen por un corte por servidor** ("borra todo lo aprendido antes de esta
+  fecha"). Sobre-borra a propósito: pierde corpus de ese servidor en el restore, nunca deja reaparecer un
+  mensaje. Solo se marca `truncated` (y el restore se niega) si hay más de 1 000 000 de filas.
+- **Mensajes sueltos y canales:** se anotan solo si estaban en el corpus al borrarse/editarse. Un mensaje ya
+  recortado por tamaño pero presente en un backup antiguo no tiene lápida: es el límite que queda.
+- **Ancla:** ver arriba; cubre hasta la última instantánea y mientras viva (15 días).
+
+### Retención por antigüedad del corpus (P0 de retención)
+
+Separada de los 90 días de las solicitudes terminadas. `CORPUS_RETENTION_DAYS=180` (`limits.env`, mínimo 30):
+cada día se borran, en lotes de 20 000, los mensajes del corpus (`corpus_messages`), el estilo por usuario
+(`user_corpus`) y el registro de remitentes de GIF (`gif_senders`) aprendidos hace más de 180 días, y se
+invalidan las cachés de Markov afectadas. No deja lápidas: es el paso normal del tiempo y, si un backup
+devolviera filas vencidas, la purga siguiente las quita. Compatible con Markov: entrena con una muestra
+aleatoria de ≤ 5 000 mensajes del servidor (≤ 2 000 por persona), que un servidor activo repone en días. Se
+cuenta desde que Purgito aprendió el mensaje (`created_at`), no desde que se escribió en Discord. A 2026-11-06 no
+hay nada vencido (lo más antiguo tiene 61 días). Convive con la cuota por canal (15 000/50 000) y la total.
 
 ### Datos administrativos: política
 

@@ -297,6 +297,7 @@ purga de un servidor aún tiene esos datos, y uno anterior a una exclusión no l
   las lleva (con un tope de 100 000; si se supera, el restore exige `--aceptar-truncado`). Límite que sigue
   abierto: un mensaje que ya no estaba en el corpus (recortado por tamaño) pero sí en un backup antiguo no
   tiene lápida. Detalle y demás límites en `docs/PRIVACY_CENTER.md`.
+- **Guardián de arranque y registro fresco.** Tras restaurar, el bot no arranca (código 78) hasta que `reapply_deletions.py --apply` reconcilie con un registro de ≤ 2 h y posterior a la base; ver `docs/PRIVACY_CENTER.md` § Restauración segura.
 - **Restaurar sin registro.** `reapply_deletions.py` exige `--ledger`: sin él termina con
   código 1 y sin tocar la base. Solo `--sin-registro` (explícito) permite correr con las
   lápidas del propio backup. Si la instantánea falta o es inválida también falla sin tocar

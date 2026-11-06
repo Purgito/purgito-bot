@@ -22,6 +22,9 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 - `log_anchor` en cada instantánea del registro externo + `scripts/verify_privacy_log.py` (detecta una cadena reescrita entera); `privacy_requests.complete/fail` con token de intento (un trabajador retrasado no pisa al que retomó).
 - Seudonimización (no borrado) de `audit_log`, `scheduled_announcements.created_by` y `frases_especiales` al pedir la eliminación; `/mis_datos` y la API los exportan con ids ajenos enmascarados.
 - `deploy/check_encryption_at_rest.sh` y `docs/CIFRADO_EN_REPOSO.md` (cifrado en reposo sigue ABIERTO).
+- Cifrado en reposo: `deploy/purgito-vault.sh` (volumen LUKS2 en archivo, binds sobre PostgreSQL/WAL, secretos, datos y copias; swap con clave aleatoria; journald volátil sin reenvío a syslog; `open/close/enroll/wipe-*`); el comprobador cubre WAL, logs, syslog, volcados, restos bajo montajes y la clave provisional.
+- Retención: `CORPUS_RETENTION_DAYS=180` (`db.purge_expired_corpus`, diaria, por lotes); índices por `created_at`.
+- Restauración segura: `privacy_guard` (el bot no arranca con una base restaurada sin reconciliar), registro externo cada 5 min, frescura y orden exigidos en `reapply_deletions.py`, cortes por servidor en lugar de truncar.
 - Backups: token de R2 propio (`R2_BACKUP_ACCESS_KEY_ID`/`R2_BACKUP_SECRET_ACCESS_KEY`, `r2.get_backup_client`) sin fallback al de imágenes/GIFs; `delete_backup_sync` solo acepta keys `purgito-*`, `bot-*` y `ledger/*` sin `..`.
 - Registro de eliminaciones fuera de la base: `purged_guild_tombstones` (lápida de servidores purgados, 15 días), `src/privacy_ledger.py`, `scripts/export_privacy_ledger.py` + `deploy/export_ledger.sh` (instantánea cifrada con age en `ledger/` de R2, ids y fechas) y `reapply_deletions.py --ledger` (funde el registro, purga servidores, restaura exclusiones sin quitar ninguna).
 
