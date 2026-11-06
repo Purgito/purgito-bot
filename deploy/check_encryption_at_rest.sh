@@ -77,6 +77,26 @@ else
     printf '%-36s %-12s %s\n' "Journal" "EN CLARO" "Storage=${storage:-auto}: /var/log/journal persiste en el disco"; bad
 fi
 
+echo "-- 2b. Logs de texto y volcados"
+if [ "$(id -u)" = 0 ]; then
+    fwd="$(systemd-analyze cat-config systemd/journald.conf 2>/dev/null | sed -n 's/^ForwardToSyslog=//p' | tail -1)"
+    n="$(cat /var/log/syslog /var/log/syslog.1 2>/dev/null | grep -cE 'python\[[0-9]+\]|bot-purg|studio-purg' || true)"
+    if [ "$fwd" != no ]; then
+        printf '%-36s %-12s %s\n' "syslog (rsyslog)" "EN CLARO" "journald sigue reenviando los logs a /var/log/syslog"; bad
+    elif [ "${n:-0}" -gt 0 ]; then
+        printf '%-36s %-12s %s\n' "syslog (rsyslog)" "RESTO EN CLARO" "${n} línea(s) de servicios en /var/log/syslog*: wipe-plaintext"; bad
+    else
+        printf '%-36s %-12s\n' "syslog (rsyslog)" "limpio"
+    fi
+    if find /var/crash -type f 2>/dev/null | grep -q .; then
+        printf '%-36s %-12s %s\n' "Volcados (/var/crash)" "RESTO EN CLARO" "hay volcados de fallos con memoria de procesos"; bad
+    else
+        printf '%-36s %-12s\n' "Volcados (/var/crash)" "limpio"
+    fi
+elif [ "$ROOT_OPTIONAL" != 1 ]; then
+    printf '%-36s %-12s %s\n' "syslog y volcados" "NO COMPROBADO" "ejecuta con sudo"; unverified=1
+fi
+
 echo "-- 3. Restos en claro bajo los montajes"
 if [ "$(id -u)" = 0 ]; then
     under="$(mktemp -d)"; mount --bind / "$under"

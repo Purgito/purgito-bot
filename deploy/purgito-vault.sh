@@ -213,6 +213,8 @@ EOF
 [Journal]
 Storage=volatile
 RuntimeMaxUse=64M
+# rsyslog copia el journal a /var/log/syslog (en la raíz, sin cifrar): se corta el reenvío.
+ForwardToSyslog=no
 EOF
     systemctl daemon-reload
     systemctl restart systemd-journald
@@ -414,6 +416,20 @@ cmd_wipe() {
         systemctl restart systemd-journald
         find /var/log/journal -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
         say "journal persistente anterior sobrescrito"
+    fi
+    # Logs de texto del sistema (reenviados antes por journald) y volcados de fallos: llevan ids de Discord.
+    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/purgito-volatile.conf ]; then
+        if ls /var/log/syslog* >/dev/null 2>&1; then
+            for f in /var/log/syslog*; do shred -n 1 -z "$f" 2>/dev/null || true; done
+            rm -f /var/log/syslog.[0-9]* 
+            : > /var/log/syslog
+            systemctl restart rsyslog 2>/dev/null || true
+            say "syslog y rotados sobrescritos"
+        fi
+        if ls /var/crash/* >/dev/null 2>&1; then
+            find /var/crash -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
+            say "volcados en /var/crash sobrescritos"
+        fi
     fi
     if [ -f "$SWAPFILE" ] && ! swapon --noheadings --show=NAME | grep -qx "$SWAPFILE"; then
         say "el swap en claro ya está sobrescrito con ceros (swap-encrypt)"
