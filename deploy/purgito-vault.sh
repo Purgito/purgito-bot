@@ -377,7 +377,7 @@ cmd_header_backup() {
     [[ "$recipient" =~ ^age1[a-z0-9]{50,}$ ]] || die "BACKUP_AGE_RECIPIENTS no es una clave age válida"
     mkdir -p "$STATE"; chmod 0700 "$STATE"
     local stamp out tmp; stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-    out="$STATE/luks-header-$stamp.img.age"; tmp="$(mktemp)"
+    out="$STATE/luks-header-$stamp.img.age"; tmp="$(mktemp -u /root/.pv-hdr.XXXXXX)"  # -u: cryptsetup exige que el archivo NO exista
     cryptsetup luksHeaderBackup "$IMG" --header-backup-file "$tmp"
     age -r "$recipient" -o "$out" "$tmp"; shred -u "$tmp"
     say "encabezado cifrado con age: $out"
