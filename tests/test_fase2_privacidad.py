@@ -114,7 +114,7 @@ def test_eliminar_los_datos_de_una_persona_retira_sus_gifs_exclusivos_y_respeta_
         await _x("INSERT INTO corpus_gifs (id, guild_id, url) VALUES (3, 10, 'admin')")  # añadido por un admin, sin remitentes
         with patch("db.r2.delete_gif_key", new=AsyncMock()) as del_key, patch("db.r2.delete_gif_url", new=AsyncMock()):
             report = await db.delete_user_data(77)
-            assert report["gifs_deleted"] == 1 and report["gif_senders_deleted"] == 2
+            assert report["gifs_deleted"] == 1 and report["gif_senders_deleted"] == 1  # el otro registro cayó con el GIF exclusivo
             assert [c.args[0] for c in del_key.await_args_list] == ["gifs/h1.gif"]
             # idempotente: repetir no borra nada más
             again = await db.delete_user_data(77)
