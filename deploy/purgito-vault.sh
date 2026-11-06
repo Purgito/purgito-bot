@@ -386,6 +386,32 @@ cmd_header_backup() {
     fi
 }
 
+# Logs viejos en claro (syslog y rotados, volcados de fallos, journal persistente anterior): llevan ids
+# de Discord y no dependen de la clave del volumen, así que se pueden sobrescribir en cuanto journald es
+# volátil y ya no reenvía a syslog. Nunca en modo ensayo.
+cmd_wipe_logs() {
+    need_root; guard_install_dir
+    [ "$SKIP_UNITS" != 1 ] || { say "(modo ensayo: no se tocan logs del sistema)"; return 0; }
+    [ -f /etc/systemd/journald.conf.d/zz-purgito-volatile.conf ] || die "journald aún no es volátil: ejecuta 'units' primero"
+    systemctl restart systemd-journald
+    if [ -d /var/log/journal ]; then
+        find /var/log/journal -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
+        say "journal persistente anterior sobrescrito"
+    fi
+    if ls /var/log/syslog* >/dev/null 2>&1; then
+        local f
+        for f in /var/log/syslog*; do shred -n 1 -z "$f" 2>/dev/null || true; done
+        rm -f /var/log/syslog.[0-9]*
+        : > /var/log/syslog
+        systemctl restart rsyslog 2>/dev/null || true
+        say "syslog y rotados sobrescritos"
+    fi
+    if ls /var/crash/* >/dev/null 2>&1; then
+        find /var/crash -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
+        say "volcados en /var/crash sobrescritos"
+    fi
+}
+
 # ── wipe-plaintext: sobrescribe lo que quedó EN CLARO debajo de los montajes ─────────────────────
 cmd_wipe() {
     need_root; guard_install_dir
@@ -410,27 +436,7 @@ cmd_wipe() {
         say "sobrescrito el contenido en claro de $BDST"
     done
     umount "$under"; rmdir "$under"
-    # El journal persistente anterior solo se sobrescribe cuando journald YA es volátil (si no, lo
-    # sigue escribiendo) y nunca en modo ensayo (PV_SKIP_UNITS=1).
-    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/zz-purgito-volatile.conf ] && [ -d /var/log/journal ]; then
-        systemctl restart systemd-journald
-        find /var/log/journal -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
-        say "journal persistente anterior sobrescrito"
-    fi
-    # Logs de texto del sistema (reenviados antes por journald) y volcados de fallos: llevan ids de Discord.
-    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/zz-purgito-volatile.conf ]; then
-        if ls /var/log/syslog* >/dev/null 2>&1; then
-            for f in /var/log/syslog*; do shred -n 1 -z "$f" 2>/dev/null || true; done
-            rm -f /var/log/syslog.[0-9]* 
-            : > /var/log/syslog
-            systemctl restart rsyslog 2>/dev/null || true
-            say "syslog y rotados sobrescritos"
-        fi
-        if ls /var/crash/* >/dev/null 2>&1; then
-            find /var/crash -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
-            say "volcados en /var/crash sobrescritos"
-        fi
-    fi
+    cmd_wipe_logs
     if [ -f "$SWAPFILE" ] && ! swapon --noheadings --show=NAME | grep -qx "$SWAPFILE"; then
         say "el swap en claro ya está sobrescrito con ceros (swap-encrypt)"
     fi
@@ -449,6 +455,7 @@ case "${1:-}" in
     status)         shift; cmd_status "$@" ;;
     enroll)         shift; cmd_enroll "$@" ;;
     header-backup)  shift; cmd_header_backup "$@" ;;
+    wipe-logs)      shift; cmd_wipe_logs "$@" ;;
     wipe-plaintext) shift; cmd_wipe "$@" ;;
     *) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
