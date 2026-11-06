@@ -121,14 +121,26 @@ if [ "$(id -u)" = 0 ]; then
         && [ -z "$(losetup -j /swapfile 2>/dev/null)" ]; then
         if [ -s /swapfile ] && [ -n "$(head -c 1048576 /swapfile | tr -d '\0' | head -c 1)" ]; then
             # Texto cifrado de un swap cifrado anterior (clave aleatoria ya descartada) es incompresible; datos
-            # en claro (texto, tablas) se comprimen. Se muestrean 3 trozos de 1 MiB.
-            sz=$(stat -c %s /swapfile); worst=0
-            for off in 0 $((sz/2/1048576)) $((sz/1048576-1)); do
-                n=$(dd if=/swapfile bs=1M skip="$off" count=1 2>/dev/null | gzip -c | wc -c)
-                [ "$n" -gt "$worst" ] || worst=$n; [ "${min:-9999999}" -le "$n" ] || min=$n
-            done
+            # en claro (texto, tablas) se comprimen. Se examinan las paginas de 4 KiB NO nulas de todo el archivo.
+            comp=$(python3 -I - <<"PYEOF"
+import zlib
+n = c = 0
+with open("/swapfile", "rb") as f:
+    while True:
+        b = f.read(4096)
+        if not b:
+            break
+        if b.count(0) == len(b):
+            continue
+        n += 1
+        if len(zlib.compress(b, 1)) < len(b) - 64:
+            c += 1
+print(c, n)
+PYEOF
+)
+            set -- $comp; min=$(( ${1:-1} == 0 ? 2000000 : 0 ))
             if [ "${min:-0}" -ge 1040000 ]; then
-                printf '%-36s %-12s %s\n' "/swapfile" "CIFRADO*" "contenido aleatorio (almacén del swap cifrado anterior, clave descartada); *heurística por entropía"
+                printf '%-36s %-12s %s\n' "/swapfile" "CIFRADO*" "${2:-0} páginas no nulas, ninguna compresible: texto cifrado del swap anterior (clave descartada); *heurística por entropía"
             else
                 printf '%-36s %-12s %s\n' "/swapfile" "RESTO EN CLARO" "el archivo de swap conserva datos sin sobrescribir"; bad
             fi
