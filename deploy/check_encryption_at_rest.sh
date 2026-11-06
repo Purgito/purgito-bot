@@ -100,7 +100,8 @@ fi
 echo "-- 3. Restos en claro bajo los montajes"
 if [ "$(id -u)" = 0 ]; then
     under="$(mktemp -d)"; mount --bind / "$under"
-    for p in "$PGDATA" /var/log/postgresql "$BOT_DIR/data" /etc/purgito /etc/cloudflared /var/backups/purgito "$HOME/purgito-bot-backups" "$BOT_DIR/.env"; do
+    pg_mount="$(findmnt -no TARGET -T "$PGDATA" 2>/dev/null | head -1)"   # el bind es /var/lib/postgresql, no .../18/main
+    for p in "${pg_mount:-$PGDATA}" /var/log/postgresql "$BOT_DIR/data" /etc/purgito /etc/cloudflared /var/backups/purgito "$HOME/purgito-bot-backups" "$BOT_DIR/.env"; do
         if findmnt -rn --mountpoint "$p" >/dev/null 2>&1; then
             if [ -d "$under$p" ] && find "$under$p" -xdev -type f -size +0 2>/dev/null | grep -q .; then
                 printf '%-36s %-12s %s\n' "$p" "RESTO EN CLARO" "queda contenido sin cifrar bajo el montaje (purgito-vault wipe-plaintext)"; bad
