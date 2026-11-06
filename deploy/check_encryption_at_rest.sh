@@ -61,7 +61,7 @@ check "Copias locales de backup"   "/var/backups/purgito"
 check "Copias antiguas del bot"    "$HOME/purgito-bot-backups"
 tmpdir="$(systemctl show -p Environment bot-purg 2>/dev/null | tr ' ' '\n' | sed -n 's/^\(Environment=\)\?TMPDIR=//p' | head -1)"
 if [ -n "$tmpdir" ]; then check "Temporales del bot (TMPDIR)" "$tmpdir"; else check "Temporales del bot (/tmp)" "/tmp"; fi
-if swapon --noheadings --show=NAME 2>/dev/null | grep -q .; then
+if [ -n "$(swapon --noheadings --show=NAME 2>/dev/null)" ]; then
     while read -r sw; do check "Swap ($sw)" "$sw"; done < <(swapon --noheadings --show=NAME 2>/dev/null)
 else
     printf '%-36s %-12s\n' "Swap" "sin swap"
@@ -69,7 +69,7 @@ fi
 
 echo "-- 2. Journal del sistema"
 storage="$(systemd-analyze cat-config systemd/journald.conf 2>/dev/null | sed -n 's/^Storage=//p' | tail -1)"
-if [ "$storage" = volatile ] && ! find "$JOURNAL_DIR" -type f 2>/dev/null | grep -q .; then
+if [ "$storage" = volatile ] && [ -z "$(find "$JOURNAL_DIR" -type f -print -quit 2>/dev/null)" ]; then
     printf '%-36s %-12s\n' "Journal" "VOLÁTIL (RAM)"
 elif [ "$storage" = volatile ]; then
     printf '%-36s %-12s %s\n' "Journal" "RESTO EN CLARO" "volátil, pero quedan archivos en $JOURNAL_DIR"; bad
@@ -88,7 +88,7 @@ if [ "$(id -u)" = 0 ]; then
     else
         printf '%-36s %-12s\n' "syslog (rsyslog)" "limpio"
     fi
-    if find /var/crash -type f 2>/dev/null | grep -q .; then
+    if [ -n "$(find /var/crash -type f -print -quit 2>/dev/null)" ]; then
         printf '%-36s %-12s %s\n' "Volcados (/var/crash)" "RESTO EN CLARO" "hay volcados de fallos con memoria de procesos"; bad
     else
         printf '%-36s %-12s\n' "Volcados (/var/crash)" "limpio"
@@ -103,7 +103,7 @@ if [ "$(id -u)" = 0 ]; then
     pg_mount="$(findmnt -no TARGET -T "$PGDATA" 2>/dev/null | head -1)"   # el bind es /var/lib/postgresql, no .../18/main
     for p in "${pg_mount:-$PGDATA}" /var/log/postgresql "$BOT_DIR/data" /etc/purgito /etc/cloudflared /var/backups/purgito "$HOME/purgito-bot-backups" "$BOT_DIR/.env"; do
         if findmnt -rn --mountpoint "$p" >/dev/null 2>&1; then
-            if [ -d "$under$p" ] && find "$under$p" -xdev -type f -size +0 2>/dev/null | grep -q .; then
+            if [ -d "$under$p" ] && [ -n "$(find "$under$p" -xdev -type f -size +0 -print -quit 2>/dev/null)" ]; then
                 printf '%-36s %-12s %s\n' "$p" "RESTO EN CLARO" "queda contenido sin cifrar bajo el montaje (purgito-vault wipe-plaintext)"; bad
             elif [ -f "$under$p" ] && [ -s "$under$p" ]; then
                 printf '%-36s %-12s %s\n' "$p" "RESTO EN CLARO" "el archivo original sigue sin sobrescribir"; bad
