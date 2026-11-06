@@ -18,7 +18,7 @@ def memory_db():
         conn = await db.get_db()
         async with db._db_lock:
             for t in ("privacy_requests", "privacy_request_log", "excluded_users",
-                      "user_corpus", "corpus_messages", "gif_senders"):
+                      "user_corpus", "corpus_messages", "gif_senders", "privacy_rights_requests"):
                 await conn.execute(f"DELETE FROM {t}")
             await conn.commit()
 
@@ -63,6 +63,7 @@ def _body(resp):
         webapi._api_me_privacy_exclusion_put,
         webapi._api_me_privacy_requests_post,
         webapi._api_me_privacy_export_get,
+        webapi._api_me_privacy_rights_post,
     ],
 )
 def test_sin_sesion_responde_401(memory_db, monkeypatch, handler):
@@ -122,3 +123,28 @@ def test_la_exportacion_incluye_todo_y_es_descargable(memory_db, monkeypatch):
     assert data["user_id"] == "7"
     assert len(data["servers"][0]["messages"]) == 1 and len(data["gifs"]) == 1
     assert {"boosts", "special_phrases", "exclusions", "deletion_requests"} <= data.keys()
+
+
+def test_otras_solicitudes_de_derechos_usan_solo_la_identidad_de_la_sesion(memory_db, monkeypatch):
+    import privacy_rights
+
+    _as(monkeypatch, "100")
+    resp = asyncio.run(
+        webapi._api_me_privacy_rights_post(_Req({"right": "access", "note": "hola", "user_id": 200}))
+    )
+    assert resp.status == 201 and _body(resp)["request"]["right"] == "access"
+    assert asyncio.run(privacy_rights.user_requests(200)) == []  # un user_id enviado se ignora
+    assert len(asyncio.run(privacy_rights.user_requests(100))) == 1
+    state = _body(asyncio.run(webapi._api_me_privacy_get(_Req())))
+    assert len(state["rights"]) == 1 and state["rights_deadline_days"] == 30
+    _as(monkeypatch, "200")
+    assert _body(asyncio.run(webapi._api_me_privacy_get(_Req())))["rights"] == []  # y no la ve otra persona
+
+
+@pytest.mark.parametrize(
+    "body",
+    [None, {}, {"right": "borrar_todo"}, {"right": 5}, {"right": "access", "note": 5}, {"right": "access", "note": "x" * 2000}],
+)
+def test_derechos_rechaza_entradas_invalidas(memory_db, monkeypatch, body):
+    _as(monkeypatch, "100")
+    assert asyncio.run(webapi._api_me_privacy_rights_post(_Req(body))).status == 400

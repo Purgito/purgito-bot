@@ -84,7 +84,7 @@ def test_editar_un_mensaje_lo_quita_del_corpus_pero_un_embed_no():
         dele.assert_not_called()
         payload.data = {"content": "nuevo"}
         asyncio.run(cog.on_raw_message_edit(payload))
-        dele.assert_awaited_once_with(1, 9)
+        dele.assert_awaited_once_with(1, 9, include_gifs=False)  # editar no retira los GIFs
         reset.assert_called_once_with(1)
 
 

@@ -730,7 +730,12 @@ def test_gif_collection_continues_when_below_min_threshold(memory_db, monkeypatc
                 content=f"Mira este gif: https://tenor.com/view/cat-meme-{i}",
                 attachments=[],
                 author=SimpleNamespace(id=55),
-                channel=SimpleNamespace(id=10),
+                channel=SimpleNamespace(
+                    id=10,
+                    is_nsfw=lambda: False,
+                    guild=SimpleNamespace(default_role=None),
+                    permissions_for=lambda role: SimpleNamespace(view_channel=True),
+                ),
                 id=100 + i,
             )
             saved = await gifs_mod.save_gif_candidates(_GUILD, fake_msg)
@@ -745,7 +750,12 @@ def test_gif_collection_continues_when_below_min_threshold(memory_db, monkeypatc
             content="El décimo https://tenor.com/view/cat-meme-9",
             attachments=[],
             author=SimpleNamespace(id=55),
-            channel=SimpleNamespace(id=10),
+            channel=SimpleNamespace(
+                id=10,
+                is_nsfw=lambda: False,
+                guild=SimpleNamespace(default_role=None),
+                permissions_for=lambda role: SimpleNamespace(view_channel=True),
+            ),
             id=200,
         )
         saved_10 = await gifs_mod.save_gif_candidates(_GUILD, msg_10)

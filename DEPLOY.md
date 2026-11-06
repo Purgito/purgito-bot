@@ -1196,3 +1196,17 @@ dumps locales ocupan ~60 MB y `pg_wal` puede llegar a 1 GB.
 | `ModuleNotFoundError` | venv no activado o `pip install` no corrió | `source .venv/bin/activate && pip install -r requirements.txt` |
 | Bot se cae y no reinicia | `Restart=always` no está en el `.service` | Verificar el `.service` y `systemctl daemon-reload` |
 | Servicio falla con `status=203/EXEC` aunque el binario anda bien a mano | `ProtectHome`/`ReadOnlyPaths`/`ReadWritePaths`/`ProtectSystem=strict` activados -- combinación no resuelta en systemd real (ver nota en `deploy/bot-purg.service.template`) | Comentar esas 4 directivas en el unit generado, `daemon-reload` + `restart` |
+
+## Centro de Privacidad: entrada https://purgito.app/privacidad
+
+nginx redirige `/privacidad` (sin idioma) al Centro según `Accept-Language`; las políticas siguen en `/es/privacidad` y `/en/privacy`.
+Añadir dentro del `server` de purgito.app (antes de `location /`) y recargar nginx:
+
+    location = /privacidad {
+        if ($http_accept_language ~* "^en") { return 302 /en/perfil/privacidad; }
+        return 302 /es/perfil/privacidad;
+    }
+
+Despliegue de la Fase 2 (orden): respaldo (`systemctl start purgito-backup`) → `git merge --ff-only` → reiniciar `bot-purg`
+(crea `privacy_rights_requests` y `corpus_messages.author_id`) → `scripts/migrate_corpus_authors.py` (dry-run y luego `--apply`) →
+reiniciar `bot-purg` otra vez para reconstruir las cachés de Markov → comprobar el Centro.
