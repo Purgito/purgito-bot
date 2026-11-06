@@ -207,7 +207,7 @@ EOF
 RestartPreventExitStatus=78
 EOF
     mkdir -p /etc/systemd/journald.conf.d
-    cat > /etc/systemd/journald.conf.d/purgito-volatile.conf <<'EOF'
+    cat > /etc/systemd/journald.conf.d/zz-purgito-volatile.conf <<'EOF'
 # Gestionado por purgito-vault: los logs del sistema llevan ids de Discord y no pueden quedar en un
 # disco sin cifrar; se guardan solo en RAM (se pierden al reiniciar).
 [Journal]
@@ -412,13 +412,13 @@ cmd_wipe() {
     umount "$under"; rmdir "$under"
     # El journal persistente anterior solo se sobrescribe cuando journald YA es volátil (si no, lo
     # sigue escribiendo) y nunca en modo ensayo (PV_SKIP_UNITS=1).
-    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/purgito-volatile.conf ] && [ -d /var/log/journal ]; then
+    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/zz-purgito-volatile.conf ] && [ -d /var/log/journal ]; then
         systemctl restart systemd-journald
         find /var/log/journal -type f -exec shred -n 1 -z -u {} + 2>/dev/null || true
         say "journal persistente anterior sobrescrito"
     fi
     # Logs de texto del sistema (reenviados antes por journald) y volcados de fallos: llevan ids de Discord.
-    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/purgito-volatile.conf ]; then
+    if [ "$SKIP_UNITS" != 1 ] && [ -f /etc/systemd/journald.conf.d/zz-purgito-volatile.conf ]; then
         if ls /var/log/syslog* >/dev/null 2>&1; then
             for f in /var/log/syslog*; do shred -n 1 -z "$f" 2>/dev/null || true; done
             rm -f /var/log/syslog.[0-9]* 
