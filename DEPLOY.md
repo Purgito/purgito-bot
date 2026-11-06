@@ -1203,8 +1203,8 @@ nginx redirige `/privacidad` (sin idioma) al Centro según `Accept-Language`; la
 Añadir dentro del `server` de purgito.app (antes de `location /`) y recargar nginx:
 
     location = /privacidad {
-        if ($http_accept_language ~* "^en") { return 302 /en/perfil/privacidad; }
-        return 302 /es/perfil/privacidad;
+        if ($http_accept_language ~* "^en") { return 302 https://$host/en/perfil/privacidad/; }
+        return 302 https://$host/es/perfil/privacidad/;
     }
 
 Despliegue de la Fase 2 (orden): respaldo (`systemctl start purgito-backup`) → `git merge --ff-only` → reiniciar `bot-purg`
