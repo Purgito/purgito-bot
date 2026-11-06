@@ -1,5 +1,20 @@
 # Cifrado en reposo (P0): qué hay, cómo se usa y cómo se recupera
 
+> **ACTUALIZACIÓN 2026-11-06 (volumen v2).** El volumen ya NO es un archivo con loop: es **LUKS2 directo sobre la
+> partición `/dev/vda2`** (PARTUUID `77c31911-5f42-4702-a3ec-c85adc9a8b1e`, 12 GiB, ext4), sin loop ni swap sobre loop.
+> Motivo: tres congelamientos de la VM el 06-11 con la pila loop→dm-crypt sobre `vda1` (causa raíz NO demostrada;
+> pista: ranuras añadidas con `luksAddKey` usan Argon2id ≈1 GiB de memoria por defecto en una VM de 2 GB: pasar
+> SIEMPRE `--pbkdf-memory 131072 --iter-time 2000`). El dispositivo se fija en `/etc/purgito-vault.conf` (`PV_IMG=`).
+> Swap: zram de 1 GB (`purgito-zramswap.service`), sin disco. `enroll` está deshabilitado.
+>
+> **Desbloqueo tras cada reinicio (manual, a propósito):** `ssh -t purgito@<vm> "sudo purgito-vault open"` y teclear la
+> contraseña PRINCIPAL (ranura 3). Ranura 4 = RECUPERACIÓN. Ninguna contraseña ni clave está en el disco de la VM.
+> Equilibrio: el arranque automático exigiría guardar o servir la clave junto al volumen (Tang en el mismo host solo
+> protege contra copias del disco, no contra el host comprometido); se descartó por ahora. Tras un corte de luz o
+> actualización, Purgito queda caído hasta que el titular desbloquee.
+> Encabezado: copia age en R2 (`gen2/luks-header-*.img.age`) y local; recuperación: descifrar con la clave age (Proton
+> Pass) y `cryptsetup luksHeaderRestore`. Marcha atrás al v1 (archivo + loop, clave provisional): ver informe de migración.
+
 **Estado a 2026-11-06: implementado y desplegado; el P0 sigue ABIERTO hasta completar tres pasos que solo puede
 hacer el titular** (contraseñas, comprobación de desbloqueo y borrado de las copias en claro). Lo mide
 `sudo deploy/check_encryption_at_rest.sh`: sale con código 0 únicamente cuando todo está cifrado, no quedan
