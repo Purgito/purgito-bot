@@ -1,6 +1,6 @@
 # Exporta, cifrada con age, la instantánea del registro de eliminaciones y exclusiones a
 # gen2/ledger/ de R2 y poda las instantáneas vencidas (> 15 días; siempre quedan las 3 últimas).
-# Lo lanza purgito-ledger.timer cada hora. Mismo usuario aislado y mismo sandbox que el backup.
+# Lo lanza purgito-ledger.timer cada 5 minutos. Mismo usuario aislado y mismo sandbox que el backup.
 [Unit]
 Description=Registro externo de eliminaciones de Purgito (gen2/ledger)
 After=postgresql.service

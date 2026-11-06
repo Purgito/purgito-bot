@@ -16,6 +16,7 @@ from discord.ext import commands
 import config  # ejecuta load_dotenv() al importarse
 import i18n
 import r2
+import privacy_guard
 import webapi
 from studio import runtime as studio_runtime
 from observability import events as obs_events
@@ -72,6 +73,10 @@ class PurgitoBot(commands.Bot):
         except Exception as exc:
             obs_hooks.db_connection_failed(exc, "init_db")
             raise
+        # Antes de cargar nada: una base restaurada sin reconciliar NO arranca (ver privacy_guard).
+        reason = await privacy_guard.check_startup()
+        log.info("privacy_guard: %s", reason)
+        await privacy_guard.beat()
         await self.tree.set_translator(i18n.CommandTranslator())
         for extension in EXTENSIONS:
             await self.load_extension(extension)
@@ -324,6 +329,14 @@ if __name__ == "__main__":
         sys.exit(1)
     try:
         asyncio.run(_main())
+    except privacy_guard.RestoreNotReconciled as exc:
+        log.critical(
+            "ARRANQUE RECHAZADO por la guardia de privacidad: %s. "
+            "No se reintenta solo (código %d).",
+            exc,
+            privacy_guard.EXIT_CODE,
+        )
+        sys.exit(privacy_guard.EXIT_CODE)
     except discord.errors.LoginFailure:
         log.critical("Token inválido. Verifica DISCORD_TOKEN en .env.")
         sys.exit(1)

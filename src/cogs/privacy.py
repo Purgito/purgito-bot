@@ -15,6 +15,7 @@ from discord.ext import commands, tasks
 
 import generation
 import privacy_alerts
+import privacy_guard
 import privacy_requests
 from db import (
     GLOBAL_EXCLUSION_GUILD_ID,
@@ -188,6 +189,10 @@ class Privacy(commands.Cog):
         """Procesa las solicitudes de eliminación del Centro de Privacidad (API) y envía los
         avisos pendientes. Todo el estado vive en la base: si el bot se reinicia, el próximo
         ciclo retoma lo que haya quedado (ver privacy_requests)."""
+        try:
+            await privacy_guard.beat()
+        except Exception:
+            log.exception("privacy_worker: no se pudo escribir el latido")
         try:
             await privacy_requests.process_due(generation.forget_user)
             if privacy_alerts.configured():

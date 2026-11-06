@@ -3,6 +3,7 @@
 import logging
 
 import discord
+import generation
 from discord import app_commands
 from discord.ext import commands, tasks
 
@@ -22,6 +23,7 @@ from db import (
     purge_expired_revoked_sessions,
     purge_expired_shared_embeds,
     purge_guild_data,
+    purge_expired_corpus,
     purge_expired_deletion_tombstones,
     purge_old_audit_log_entries,
     release_gif_reference,
@@ -235,6 +237,20 @@ class General(commands.Cog):
                     "guild_cleanup: %d entrada(s) de audit_log vencidas borradas",
                     stale_audit,
                 )
+            corpus_days = env_int("CORPUS_RETENTION_DAYS", 180)
+            aged = await purge_expired_corpus(corpus_days)
+            if aged["guild_ids"]:
+                log.info(
+                    "guild_cleanup: retención del corpus (%d días): %d mensaje(s), %d de estilo "
+                    "y %d remitente(s) de GIF vencidos borrados en %d servidor(es)",
+                    corpus_days,
+                    aged["corpus_messages"],
+                    aged["user_corpus"],
+                    aged["gif_senders"],
+                    len(aged["guild_ids"]),
+                )
+                for gid in aged["guild_ids"]:
+                    generation.reset_guild_caches(gid)
             retention = env_int("GUILD_DATA_RETENTION_DAYS", 30)
             expired = await get_expired_departures(retention)
             if not expired:

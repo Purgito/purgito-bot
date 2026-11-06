@@ -15,7 +15,7 @@
 #   - /var/backups/purgito   dumps cifrados, purgito_backup 0700 (el bot no puede leerlos);
 #   - rol PostgreSQL `purgito_backup` de SOLO LECTURA (pg_read_all_data + CONNECT), por socket local con
 #     autenticación peer: no hay contraseña de base de datos para este usuario;
-#   - purgito-backup (backup diario), purgito-ledger (registro de privacidad, cada hora) y
+#   - purgito-backup (backup diario), purgito-ledger (registro de privacidad, cada 5 minutos) y
 #     purgito-backup-check (vigilancia cada 6 h): .service y .timer en /etc/systemd/system.
 #     Ningún timer se habilita al instalar.
 #

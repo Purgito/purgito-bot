@@ -14,9 +14,10 @@ Qué contiene (solo identificadores y fechas, nada de contenido de mensajes):
   - las solicitudes de eliminación del Centro de Privacidad que siguen ABIERTAS
     (privacy_requests): usuario y fechas, para que un restore no pierda una solicitud
     que aún no se había procesado. Las completadas ya están en la lápida del usuario;
-  - las lápidas vigentes de MENSAJES sueltos y de CANALES eliminados (solo ids y fechas), con
-    un tope de MAX_MESSAGE_TOMBSTONES: si se supera, se exportan los más recientes y el pie
-    marca `truncated`, y la restauración exige aceptarlo de forma explícita;
+  - las lápidas vigentes de MENSAJES sueltos y de CANALES eliminados (solo ids y fechas). Si un
+    servidor acumula más de lo que cabe (MAX_MESSAGE_TOMBSTONES en total), sus lápidas individuales se
+    SUSTITUYEN por un corte por servidor (`guild_cutoff`): al restaurar se borra todo el corpus de ese
+    servidor aprendido antes del corte. Sobre-borra a propósito: nunca deja reaparecer un mensaje;
   - el ANCLA del registro encadenado de solicitudes (`log_anchor`: último seq y su hash). La
     instantánea se guarda fuera del servidor con credenciales que el bot no tiene, así que quien
     reescriba toda la cadena en la base no puede reescribir también las anclas ya exportadas
@@ -68,12 +69,16 @@ REQUESTS_SQL = (
 )
 
 
-# Tope de lápidas de mensajes por instantánea (~80 bytes cada una: unos 8 MB sin comprimir).
+# Tope de lápidas de mensajes individuales por instantánea (~80 bytes cada una: unos 8 MB sin
+# comprimir). Lo que exceda se resuelve con cortes por servidor, no se trunca.
 MAX_MESSAGE_TOMBSTONES = 100_000
+# Defensa final de la consulta: si se alcanza, la instantánea se marca `truncated` y la restauración
+# se niega a seguir (no debería ocurrir: son 15 días de borrados de mensajes).
+HARD_MESSAGE_ROWS = 1_000_000
 
 MESSAGES_SQL = (
     "SELECT guild_id, message_id, deleted_at, expires_at FROM deleted_message_tombstones "
-    "WHERE expires_at > {now} ORDER BY deleted_at DESC, message_id LIMIT " + str(MAX_MESSAGE_TOMBSTONES + 1)
+    "WHERE expires_at > {now} ORDER BY guild_id, message_id LIMIT " + str(HARD_MESSAGE_ROWS + 1)
 )
 CHANNELS_SQL = (
     "SELECT guild_id, channel_id, deleted_at, expires_at FROM deleted_channel_tombstones "
@@ -155,9 +160,22 @@ def snapshot_from_rows(
         }
         for r in requests
     ]
-    # La consulta pide TOPE + 1 filas: si llegó la de más, se omiten las más antiguas y se marca.
-    truncated = len(messages) > MAX_MESSAGE_TOMBSTONES
-    messages = list(messages)[:MAX_MESSAGE_TOMBSTONES]
+    # Más filas que el tope duro: no se puede garantizar nada -> se marca y la restauración se niega.
+    truncated = len(messages) > HARD_MESSAGE_ROWS
+    messages = list(messages)[:HARD_MESSAGE_ROWS]
+    # Desbordamiento: los servidores con más lápidas pasan a un corte por servidor hasta caber.
+    per_guild: dict[int, int] = {}
+    for r in messages:
+        per_guild[int(r[0])] = per_guild.get(int(r[0]), 0) + 1
+    cut_guilds: set[int] = set()
+    total = len(messages)
+    for gid, n in sorted(per_guild.items(), key=lambda kv: (-kv[1], kv[0])):
+        if total <= MAX_MESSAGE_TOMBSTONES:
+            break
+        cut_guilds.add(gid)
+        total -= n
+    cutoff_at = _now_text(now)
+    kept = [r for r in messages if int(r[0]) not in cut_guilds]
     out += [
         {
             "type": "message_tombstone",
@@ -166,8 +184,13 @@ def snapshot_from_rows(
             "deleted_at": str(r[2]),
             "expires_at": str(r[3]),
         }
-        for r in messages
+        for r in kept
     ]
+    cutoffs = [
+        {"type": "guild_cutoff", "guild_id": gid, "cutoff": cutoff_at}
+        for gid in sorted(cut_guilds)
+    ]
+    out += cutoffs
     out += [
         {
             "type": "channel_tombstone",
@@ -188,7 +211,8 @@ def snapshot_from_rows(
             "guild_tombstone": len(guilds),
             "exclusion": len(exclusions),
             "deletion_request": len(requests),
-            "message_tombstone": len(messages),
+            "message_tombstone": len(kept),
+            "guild_cutoff": len(cutoffs),
             "channel_tombstone": len(channels),
             "log_anchor": len(anchor),
         },
@@ -226,10 +250,17 @@ def loads(text: str) -> dict:
         "deletion_request": [],
         "message_tombstone": [],
         "channel_tombstone": [],
+        "guild_cutoff": [],
         "log_anchor": [],
     }
     # Tipos añadidos después de la versión 1: una instantánea anterior no trae su conteo (vale 0).
-    optional = {"deletion_request", "message_tombstone", "channel_tombstone", "log_anchor"}
+    optional = {
+        "deletion_request",
+        "message_tombstone",
+        "channel_tombstone",
+        "guild_cutoff",
+        "log_anchor",
+    }
     for rec in records[1:-1]:
         kind = rec.get("type")
         if kind not in kinds:
@@ -254,6 +285,10 @@ def loads(text: str) -> dict:
         _require_int(rec, "guild_id", "message_id")
     for rec in kinds["channel_tombstone"]:
         _require_int(rec, "guild_id", "channel_id")
+    for rec in kinds["guild_cutoff"]:
+        _require_int(rec, "guild_id")
+        if not isinstance(rec.get("cutoff"), str):
+            raise LedgerError("guild_cutoff: falta la fecha de corte")
     for rec in kinds["log_anchor"]:
         _require_int(rec, "seq")
     return {
@@ -264,6 +299,7 @@ def loads(text: str) -> dict:
         "deletion_requests": kinds["deletion_request"],
         "message_tombstones": kinds["message_tombstone"],
         "channel_tombstones": kinds["channel_tombstone"],
+        "guild_cutoffs": kinds["guild_cutoff"],
         "log_anchors": kinds["log_anchor"],
         "truncated": list(foot.get("truncated", [])),
     }

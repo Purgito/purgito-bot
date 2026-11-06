@@ -383,7 +383,7 @@ def test_dry_run_con_registro_no_guarda_nada(conn, tmp_path, capsys):
     f.write_text(
         privacy_ledger.dumps(
             [
-                {"type": "header", "version": 1, "exported_at": "x"},
+                {"type": "header", "version": 1, "exported_at": _ts(0)},
                 {
                     "type": "user_tombstone",
                     "user_id": 10,

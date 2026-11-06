@@ -803,6 +803,57 @@ async def delete_user_data(author_id: int) -> dict:
     return report
 
 
+# Retención por antigüedad del corpus (P0 de retención): ver limits.env y docs/PRIVACY.md.
+CORPUS_RETENTION_MIN_DAYS = 30
+_PURGE_BATCH = 20_000
+
+
+async def purge_expired_corpus(days: int, now: datetime | None = None) -> dict:
+    """Borra lo aprendido hace más de `days` días: corpus colectivo, estilo por usuario y registro
+    de remitentes de GIFs. En lotes (cada uno es su transacción) para no bloquear la base. NO deja
+    lápidas: es el paso normal del tiempo; si un backup antiguo devolviera estas filas, la purga de
+    mañana las vuelve a quitar. Devuelve los conteos y los guilds afectados (para invalidar cachés)."""
+    days = max(int(days), CORPUS_RETENTION_MIN_DAYS)
+    cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=days)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    db = await get_db()
+    async with db.execute(
+        "SELECT DISTINCT guild_id FROM corpus_messages WHERE created_at < ? "
+        "UNION SELECT DISTINCT guild_id FROM user_corpus WHERE created_at < ?",
+        (cutoff, cutoff),
+    ) as cursor:
+        guild_ids = sorted(r[0] for r in await cursor.fetchall())
+    totals = {"corpus_messages": 0, "user_corpus": 0, "gif_senders": 0}
+    batches = (
+        (
+            "corpus_messages",
+            "DELETE FROM corpus_messages WHERE id IN "
+            "(SELECT id FROM corpus_messages WHERE created_at < ? ORDER BY id LIMIT ?)",
+        ),
+        (
+            "user_corpus",
+            "DELETE FROM user_corpus WHERE id IN "
+            "(SELECT id FROM user_corpus WHERE created_at < ? ORDER BY id LIMIT ?)",
+        ),
+        (
+            "gif_senders",
+            "DELETE FROM gif_senders WHERE (gif_id, user_id) IN "
+            "(SELECT gif_id, user_id FROM gif_senders WHERE last_seen < ? LIMIT ?)",
+        ),
+    )
+    for name, sql in batches:
+        while True:
+            async with _db_lock:
+                cur = await db.execute(sql, (cutoff, _PURGE_BATCH))
+                n = max(cur.rowcount, 0)
+                await db.commit()
+            totals[name] += n
+            if n < _PURGE_BATCH:
+                break
+    return {**totals, "guild_ids": guild_ids if sum(totals.values()) else []}
+
+
 async def purge_expired_deletion_tombstones() -> int:
     """Borra las lápidas (de /borrar_mis_datos y de servidores purgados) que ya
     cumplieron su plazo (ningún backup anterior al borrado puede seguir

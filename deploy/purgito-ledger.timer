@@ -1,9 +1,9 @@
-# Cada hora, al minuto 7. NO se habilita al instalar.
+# Cada 5 minutos (ventana máxima de pérdida del registro externo: 5 min; antes 1 h). NO se habilita al instalar.
 [Unit]
 Description=Exportación horaria del registro de eliminaciones de Purgito
 
 [Timer]
-OnCalendar=*-*-* *:07:00 UTC
+OnCalendar=*-*-* *:00/5:00 UTC
 Persistent=true
 
 [Install]

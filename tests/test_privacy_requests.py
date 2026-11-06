@@ -399,20 +399,79 @@ def test_un_servidor_purgado_se_lleva_sus_lapidas_de_mensajes(memory_db):
     asyncio.run(_run())
 
 
-def test_el_tope_de_lapidas_marca_truncado_y_el_restore_lo_exige_aceptar(memory_db, tmp_path, capsys):
-    rows = [(1, i, "2026-11-06 12:00:00", "2099-01-01 00:00:00") for i in range(privacy_ledger.MAX_MESSAGE_TOMBSTONES + 1)]
+def _rows_msgs(guild_counts):
+    out = []
+    for gid, n in guild_counts.items():
+        out += [(gid, i, "2026-11-06 12:00:00", "2099-01-01 00:00:00") for i in range(n)]
+    return out
+
+
+def test_el_desbordamiento_se_resuelve_con_cortes_por_servidor_no_con_truncado(memory_db):
+    cap = privacy_ledger.MAX_MESSAGE_TOMBSTONES
+    # El servidor 1 es enorme; los otros dos caben juntos con holgura.
+    rows = _rows_msgs({1: cap + 10, 2: 5, 3: 7})
     records = privacy_ledger.snapshot_from_rows([], [], [], T0, messages=rows)
+    foot = records[-1]
+    assert "truncated" not in foot
+    assert foot["counts"]["guild_cutoff"] == 1 and foot["counts"]["message_tombstone"] == 12
+    snap = privacy_ledger.loads(privacy_ledger.dumps(records))
+    assert [c["guild_id"] for c in snap["guild_cutoffs"]] == [1]
+    assert {r["guild_id"] for r in snap["message_tombstones"]} == {2, 3}  # nada se pierde en silencio
+
+
+def test_el_corte_por_servidor_borra_todo_lo_aprendido_antes_del_corte(memory_db):
+    snap = privacy_ledger.loads(
+        privacy_ledger.dumps(
+            privacy_ledger.snapshot_from_rows(
+                [], [], [], datetime.now(timezone.utc),
+                messages=_rows_msgs({4242: privacy_ledger.MAX_MESSAGE_TOMBSTONES + 1}),
+            )
+        )
+    )
+
+    async def _seed():
+        await db.save_corpus_and_user_message(4242, 1, 5, "n", "mensaje viejo del servidor", message_id=1)
+        await db.save_corpus_and_user_message(4343, 1, 5, "n", "mensaje de otro servidor", message_id=2)
+
+    asyncio.run(_seed())
+    # La instantánea se tomó "después" de aprender esos mensajes.
+    snap["guild_cutoffs"][0]["cutoff"] = "2099-01-01 00:00:00"
+    stats = _sync(lambda c: reapply_deletions.reapply(c, apply=True, cutoffs=snap["guild_cutoffs"]))
+    assert stats["servidores_cortados"] == 1 and stats["filas_cortadas"] >= 2
+    assert asyncio.run(_corpus_count("corpus_messages", "guild_id=4242")) == 0
+    assert asyncio.run(_corpus_count("user_corpus", "guild_id=4242")) == 0
+    assert asyncio.run(_corpus_count("corpus_messages", "guild_id=4343")) == 1  # otros servidores, intactos
+
+
+def test_un_registro_marcado_truncado_hace_fallar_el_restore(memory_db, tmp_path, capsys):
+    rows = _rows_msgs({1: privacy_ledger.HARD_MESSAGE_ROWS + 1})
+    records = privacy_ledger.snapshot_from_rows([], [], [], datetime.now(timezone.utc), messages=rows)
     assert records[-1]["truncated"] == ["message_tombstone"]
-    assert records[-1]["counts"]["message_tombstone"] == privacy_ledger.MAX_MESSAGE_TOMBSTONES
     path = tmp_path / "snap.jsonl"
     path.write_text(privacy_ledger.dumps(records))
     dsn = os.environ["TEST_DATABASE_URL"]
     assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(path)]) == 1
     assert "TRUNCADO" in capsys.readouterr().err
-    # un registro sin truncar no pide nada
-    ok = tmp_path / "ok.jsonl"
-    ok.write_text(privacy_ledger.dumps(privacy_ledger.snapshot_from_rows([], [], [], T0)))
-    assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(ok)]) == 0
+
+
+def test_el_restore_rechaza_un_registro_viejo_o_anterior_a_la_base(memory_db, tmp_path, capsys):
+    dsn = os.environ["TEST_DATABASE_URL"]
+    old = privacy_ledger.dumps(privacy_ledger.snapshot_from_rows([], [], [], datetime.now(timezone.utc) - timedelta(hours=5)))
+    f = tmp_path / "old.jsonl"
+    f.write_text(old)
+    assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(f)]) == 1
+    assert "más de 2 h" in capsys.readouterr().err
+    # aceptándolo de forma explícita sí sigue (dry-run)
+    assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(f), "--aceptar-registro-antiguo"]) == 0
+    # un registro anterior al latido de la base tampoco sirve
+    _sync(lambda c: c.execute(
+        "INSERT INTO privacy_state (key, value) VALUES ('heartbeat_at', '2099-01-01 00:00:00') "
+        "ON CONFLICT (key) DO UPDATE SET value=excluded.value"))
+    fresh = tmp_path / "fresh.jsonl"
+    fresh.write_text(privacy_ledger.dumps(privacy_ledger.snapshot_from_rows([], [], [], datetime.now(timezone.utc))))
+    assert reapply_deletions.main(["--dsn", dsn, "--ledger", str(fresh)]) == 1
+    assert "ANTERIOR a la base" in capsys.readouterr().err
+    _sync(lambda c: c.execute("DELETE FROM privacy_state"))
 
 
 # ─── Datos administrativos: seudonimizar, no borrar ───────────────────────────────────────────

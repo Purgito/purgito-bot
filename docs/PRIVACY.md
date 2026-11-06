@@ -172,6 +172,8 @@ Los datos recopilados se conservan únicamente mientras sean necesarios para el 
 
 El historial de mensajes no se guarda de forma indefinida ni siquiera mientras el servidor está activo: cada servidor tiene una cuota máxima de mensajes guardados (mayor en servidores con Premium). Al alcanzarse esa cuota, los mensajes más antiguos se descartan automáticamente a medida que se guardan mensajes nuevos, sin que un administrador tenga que hacerlo manualmente.
 
+Además de la cuota, hay un **plazo máximo de 180 días**: los mensajes aprendidos (el corpus del servidor, el estilo guardado de cada persona para `/imitar` y el registro de quién envió cada GIF) se eliminan automáticamente cuando pasan 180 días desde que Purgito los aprendió, aunque la cuota no se haya alcanzado. La purga corre a diario, no depende de ningún administrador y se aplica también a los servidores inactivos. Ese plazo está pensado para no perjudicar el funcionamiento: Purgito genera texto con una muestra aleatoria de como máximo 5 000 mensajes del servidor (2 000 por persona), de modo que un servidor activo repone ese material mucho antes de seis meses y uno inactivo solo pierde lo que ya no refleja cómo conversa.
+
 Los administradores del servidor pueden además eliminar el contenido recopilado en cualquier momento usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
 
 El registro de auditoría del panel (ver sección 1) se conserva un máximo de 90 días desde cada entrada y luego se purga automáticamente, sin intervención manual.

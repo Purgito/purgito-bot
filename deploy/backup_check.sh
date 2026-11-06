@@ -20,8 +20,8 @@ if ! "$PYTHON" -I "$R2B" check --max-age-hours "${CHECK_BACKUP_MAX_HOURS:-36}"; 
     alert "no hay un backup de la base de las últimas ${CHECK_BACKUP_MAX_HOURS:-36} h"
     rc=1
 fi
-if ! "$PYTHON" -I "$R2B" check --ledger --max-age-hours "${CHECK_LEDGER_MAX_HOURS:-3}"; then
-    alert "no hay una instantánea del registro de privacidad de las últimas ${CHECK_LEDGER_MAX_HOURS:-3} h"
+if ! "$PYTHON" -I "$R2B" check --ledger --max-age-hours "${CHECK_LEDGER_MAX_HOURS:-1}"; then
+    alert "no hay una instantánea del registro de privacidad de las últimas ${CHECK_LEDGER_MAX_HOURS:-1} h"
     rc=1
 fi
 exit "$rc"

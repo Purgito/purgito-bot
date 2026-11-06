@@ -21,6 +21,8 @@ def _fake_bin(tmp_path, chains):
         'case "$last" in\n' + "".join(f'  {d}) echo "{c}";;\n' for d, c in {v[0]: v[1] for v in chains.values()}.items()) + '  *) printf "disk\\npart\\n";;\nesac\n'
     )
     (b / "swapon").write_text("#!/bin/bash\nexit 0\n")
+    (b / "systemd-analyze").write_text("#!/bin/bash\necho Storage=volatile\n")
+    (b / "systemctl").write_text("#!/bin/bash\necho Environment=TMPDIR=/srv/vault-tmp\n")
     for f in b.iterdir():
         f.chmod(0o755)
     return b
@@ -30,7 +32,18 @@ def _run(tmp_path, chains):
     bot = tmp_path / "bot"
     bot.mkdir()
     (bot / ".env").write_text("X=1\n")
-    env = {**os.environ, "PATH": f"{_fake_bin(tmp_path, chains)}:{os.environ['PATH']}", "BOT_DIR": str(bot), "PGDATA": str(tmp_path)}
+    env = {
+        **os.environ,
+        "PATH": f"{_fake_bin(tmp_path, chains)}:{os.environ['PATH']}",
+        "BOT_DIR": str(bot),
+        "PGDATA": str(tmp_path),
+        "CHECK_ROOT_OPTIONAL": "1",
+        "CHECK_JOURNAL_DIR": str(tmp_path / "sin-journal"),
+        "PV_KEYFILE": str(tmp_path / "sin-clave"),
+        "PV_IMG": str(tmp_path / "sin-imagen"),
+        "HOME": str(tmp_path / "home"),
+    }
+    (tmp_path / "home" / "purgito-bot-backups").mkdir(parents=True, exist_ok=True)
     return subprocess.run(["bash", str(SCRIPT)], capture_output=True, text=True, env=env)
 
 
@@ -41,13 +54,20 @@ def test_todo_en_claro_sale_con_error_y_dice_que_el_p0_sigue_abierto(tmp_path):
 
 
 def test_si_las_rutas_estan_sobre_dm_crypt_sale_bien(tmp_path):
-    cripto = (
-        {str(tmp_path): ("/dev/mapper/datos", "crypt part disk")}
-        | {str(tmp_path / "bot" / ".env"): ("/dev/mapper/datos", "crypt part disk")}
-        | {"/etc/purgito": ("/dev/mapper/datos", "crypt part disk")}
-        | {"/var/backups/purgito": ("/dev/mapper/datos", "crypt part disk")}
-        | {"/": ("/dev/mapper/datos", "crypt part disk")}
-    )
-    p = _run(tmp_path, cripto)
+    c = ("/dev/mapper/datos", "crypt part disk")
+    paths = [str(tmp_path), str(tmp_path / "bot" / ".env"), str(tmp_path / "bot" / "data"), "/etc/purgito",
+             "/etc/cloudflared", "/var/backups/purgito", "/var/log/postgresql", "/srv/vault-tmp",
+             str(tmp_path / "home" / "purgito-bot-backups")]
+    p = _run(tmp_path, {x: c for x in paths})
     assert "EN CLARO" not in p.stdout, p.stdout
     assert p.returncode == 0 and "todo lo comprobado está en dispositivos cifrados" in p.stdout
+
+
+def test_una_clave_provisional_o_un_journal_persistente_impiden_el_cierre(tmp_path):
+    c = ("/dev/mapper/datos", "crypt part disk")
+    paths = [str(tmp_path), str(tmp_path / "bot" / ".env"), str(tmp_path / "bot" / "data"), "/etc/purgito",
+             "/etc/cloudflared", "/var/backups/purgito", "/var/log/postgresql", "/srv/vault-tmp",
+             str(tmp_path / "home" / "purgito-bot-backups")]
+    (tmp_path / "sin-clave").write_text("k")  # la clave provisional sigue en el disco
+    p = _run(tmp_path, {x: c for x in paths})
+    assert p.returncode == 1 and "PROVISIONAL" in p.stdout and "ABIERTO" in p.stdout

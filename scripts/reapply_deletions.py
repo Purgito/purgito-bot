@@ -32,6 +32,7 @@ solo cantidades: las lápidas son datos personales y tampoco van a los logs.
 import argparse
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
@@ -39,6 +40,51 @@ import db  # noqa: E402
 import pgsync  # noqa: E402
 import privacy_ledger  # noqa: E402
 import privacy_requests  # noqa: E402
+
+
+# Frescura exigida al registro externo: se exporta cada pocos minutos, así que uno más viejo que
+# esto indica que el exportador falló y puede faltar algo reciente. Se prefiere fallar.
+MAX_LEDGER_AGE_HOURS = 2
+_TS = "%Y-%m-%d %H:%M:%S"
+
+
+def _parse_ts(text):
+    try:
+        return datetime.strptime(str(text), _TS).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def check_ledger_freshness(conn, ledger: dict, now: datetime | None = None) -> str | None:
+    """Motivo por el que el registro NO sirve para reconciliar esta base, o None si sirve."""
+    now = now or datetime.now(timezone.utc)
+    exported = _parse_ts(ledger.get("exported_at"))
+    if exported is None:
+        return "el registro no trae una fecha de exportación válida"
+    if now - exported > timedelta(hours=MAX_LEDGER_AGE_HOURS):
+        return (
+            f"el registro tiene más de {MAX_LEDGER_AGE_HOURS} h ({ledger['exported_at']} UTC): "
+            "faltarían las eliminaciones posteriores"
+        )
+    row = conn.execute("SELECT value FROM privacy_state WHERE key='heartbeat_at'").fetchone()
+    db_hb = _parse_ts(row[0]) if row else None
+    if db_hb is not None and exported < db_hb - timedelta(minutes=5):
+        return (
+            f"el registro ({ledger['exported_at']}) es ANTERIOR a la base ({row[0]}): "
+            "no puede contener lo que ocurrió después"
+        )
+    return None
+
+
+def stamp_reconciled(conn, how: str) -> None:
+    """Marca la base como reconciliada: el latido que lee privacy_guard pasa a 'ahora'."""
+    now = datetime.now(timezone.utc).strftime(_TS)
+    for key, value in (("heartbeat_at", now), ("reconciled_at", now), ("reconciled_with", how)):
+        conn.execute(
+            "INSERT INTO privacy_state (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT (key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (key, value, now),
+        )
 
 
 def merge_ledger(conn, ledger: dict) -> dict:
@@ -148,7 +194,7 @@ def merge_ledger(conn, ledger: dict) -> dict:
     return stats
 
 
-def reapply(conn, *, apply: bool) -> dict:
+def reapply(conn, *, apply: bool, cutoffs=()) -> dict:
     now = conn.execute("SELECT utc_now()").fetchone()[0]
     live = [
         r[0]
@@ -205,6 +251,21 @@ def reapply(conn, *, apply: bool) -> dict:
                     (now,),
                 ).fetchone()[0]
             stats[stat] += n
+    # Cortes por servidor (desbordamiento del registro): se borra TODO lo aprendido antes del corte.
+    stats["servidores_cortados"] = len(cutoffs)
+    stats["filas_cortadas"] = 0
+    for rec in cutoffs:
+        for corpus in ("corpus_messages", "user_corpus"):
+            if apply:
+                stats["filas_cortadas"] += conn.execute(
+                    f"DELETE FROM {corpus} WHERE guild_id=? AND created_at <= ?",
+                    (rec["guild_id"], rec["cutoff"]),
+                ).rowcount
+            else:
+                stats["filas_cortadas"] += conn.execute(
+                    f"SELECT count(*) FROM {corpus} WHERE guild_id=? AND created_at <= ?",
+                    (rec["guild_id"], rec["cutoff"]),
+                ).fetchone()[0]
     live_guilds = [
         r[0]
         for r in conn.execute(
@@ -257,6 +318,12 @@ def main(argv=None) -> int:
         action="store_true",
         help="seguir aunque el registro marque lápidas de mensajes truncadas por el tope",
     )
+    ap.add_argument(
+        "--aceptar-registro-antiguo",
+        action="store_true",
+        help=f"aceptar un registro de más de {MAX_LEDGER_AGE_HOURS} h o anterior a la base "
+        "(se pueden haber perdido eliminaciones recientes)",
+    )
     args = ap.parse_args(argv)
     if not args.ledger and not args.sin_registro:
         print(
@@ -288,7 +355,22 @@ def main(argv=None) -> int:
             return 1
     conn = pgsync.connect(args.dsn)
     try:
+        # Un backup anterior a las tablas nuevas (privacy_state, lápidas de mensajes...) no las
+        # tiene y el bot, que las crearía, no puede arrancar hasta reconciliar: se crean acá
+        # (el esquema es idempotente: CREATE ... IF NOT EXISTS).
+        conn.executescript(db.SCHEMA)
         if ledger is not None:
+            reason = check_ledger_freshness(conn, ledger)
+            if reason and not args.aceptar_registro_antiguo:
+                conn.rollback()
+                print(
+                    f"ERROR: {reason}. No se tocó nada. Si lo aceptas conscientemente, repite con "
+                    "--aceptar-registro-antiguo.",
+                    file=sys.stderr,
+                )
+                return 1
+            if reason:
+                print(f"AVISO (aceptado): {reason}", file=sys.stderr)
             merged = merge_ledger(conn, ledger)
             print(
                 f"registro externo ({ledger['exported_at']}): "
@@ -299,8 +381,13 @@ def main(argv=None) -> int:
                 f"mensajes={merged['mensajes_registrados']} canales={merged['canales_registrados']}"
                 f"{'' if args.apply else ' (dry-run: no se guarda)'}"
             )
-        stats = reapply(conn, apply=args.apply)
+        stats = reapply(
+            conn,
+            apply=args.apply,
+            cutoffs=(ledger or {}).get("guild_cutoffs", []),
+        )
         if args.apply:
+            stamp_reconciled(conn, "ledger" if ledger is not None else "none")
             conn.commit()
     except Exception:
         conn.rollback()
@@ -316,6 +403,11 @@ def main(argv=None) -> int:
         f"filas {verbo}: user_corpus={stats['user_corpus']} "
         f"corpus_messages={stats['corpus_messages']}"
     )
+    if stats["servidores_cortados"]:
+        print(
+            f"servidores con corte (registro desbordado): {stats['servidores_cortados']} | "
+            f"filas {verbo}: {stats['filas_cortadas']}"
+        )
     print(
         f"mensajes sueltos {verbo}: {stats['mensajes_sueltos']} | "
         f"canales eliminados {verbo}: {stats['canales']}"

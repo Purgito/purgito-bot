@@ -172,6 +172,8 @@ Collected data is kept only for as long as it's needed for the bot to function.
 
 Message history isn't kept indefinitely, even while a server stays active: each server has a maximum quota of stored messages (higher on Premium servers). Once that quota is reached, the oldest messages are discarded automatically as new ones are saved, with no admin needing to do it manually.
 
+On top of the quota there is a **hard limit of 180 days**: learned messages (the server corpus, each person's saved style for `/imitar`, and the record of who sent each GIF) are deleted automatically once 180 days have passed since Purgito learned them, even if the quota was not reached. The purge runs daily, does not depend on any admin, and also applies to inactive servers. The limit is chosen so it does not hurt how the bot works: Purgito generates text from a random sample of at most 5,000 messages of the server (2,000 per person), so an active server replaces that material long before six months pass, and an inactive one only loses what no longer reflects how it talks.
+
 Server admins can also delete collected content at any time using the interactive settings panel (`/settings` command), which includes buttons to clear the learned message corpus and to delete saved GIFs.
 
 The panel's audit log (see section 1) is kept for a maximum of 90 days from each entry and then purged automatically, with no manual intervention.
