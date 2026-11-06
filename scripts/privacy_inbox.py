@@ -1,13 +1,15 @@
 """Bandeja del operador para las solicitudes de derechos del Centro de Privacidad.
 
     .venv/bin/python scripts/privacy_inbox.py list            # abiertas (derecho, fechas, comentario)
-    .venv/bin/python scripts/privacy_inbox.py who ID          # id de Discord de quien la envió (para contestarle)
-    .venv/bin/python scripts/privacy_inbox.py answer ID       # la marca como contestada
+    .venv/bin/python scripts/privacy_inbox.py who ID          # id de Discord (y correo opcional) de quien la envió
+    .venv/bin/python scripts/privacy_inbox.py answer ID --text "..." [--deny]   # guarda la respuesta y cierra
+    .venv/bin/python scripts/privacy_inbox.py answer ID --text-file respuesta.txt [--deny]
     .venv/bin/python scripts/privacy_inbox.py check           # código 1 si hay algo vencido o por vencer (erasure o derechos)
 
 `check` está pensado para vigilarlo desde fuera (cron/monitor). Plazos: eliminación 7 días,
-otros derechos 30 días corridos. Se contesta por Discord (mensaje directo desde la cuenta de la
-persona identificada) o por contacto@purgito.app; nunca se publica el contenido de la solicitud.
+otros derechos 30 días corridos, bloqueo temporal 2 días (Ley 21.719 art. 11). La respuesta se guarda en
+la solicitud (la persona la ve en el Centro) y se envía al correo que indicó, si lo hizo, o por Discord.
+--deny añade el aviso del plazo para reclamar ante la Agencia. Nunca se publica el contenido de la solicitud.
 """
 
 import argparse
@@ -45,12 +47,16 @@ async def _run(args) -> int:
                     print(f"    comentario: {r['note']}")
             return 0
         if args.cmd == "who":
-            uid = await privacy_rights.requester_of(args.id)
-            print(uid if uid else "no existe")
-            return 0 if uid else 2
+            who = await privacy_rights.requester_of(args.id)
+            if not who:
+                print("no existe")
+                return 2
+            print(f"discord_id={who[0]} correo={who[1] or '-'}")
+            return 0
         if args.cmd == "answer":
-            ok = await privacy_rights.mark_answered(args.id)
-            print("contestada" if ok else "no existe o ya estaba contestada")
+            text = args.text if args.text is not None else open(args.text_file, encoding="utf-8").read()
+            ok = await privacy_rights.mark_answered(args.id, text, denied=args.deny)
+            print("contestada y guardada" if ok else "no existe o ya estaba contestada")
             return 0 if ok else 2
         # check
         soon = datetime.now(timezone.utc) + timedelta(hours=48)
@@ -79,9 +85,14 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list")
     sub.add_parser("check")
-    for name in ("who", "answer"):
-        p = sub.add_parser(name)
-        p.add_argument("id", type=int)
+    p = sub.add_parser("who")
+    p.add_argument("id", type=int)
+    p = sub.add_parser("answer")
+    p.add_argument("id", type=int)
+    grp = p.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--text")
+    grp.add_argument("--text-file")
+    p.add_argument("--deny", action="store_true", help="la solicitud se deniega (añade el aviso para reclamar ante la Agencia)")
     sys.exit(asyncio.run(_run(ap.parse_args())))
 
 

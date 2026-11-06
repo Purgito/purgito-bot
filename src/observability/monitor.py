@@ -70,6 +70,11 @@ _INTERNAL_MAP = {
     "database.health_failed": "database.failure",
     "security.alert_opened": "security.alert",
     "system.background_task_failed": "system.warning",
+    # Plazos de privacidad: el monitor avisa por Discord cuando la gravedad es critical.
+    "privacy.request_failed": "system.warning",
+    "privacy.request_due_soon": "system.warning",
+    "privacy.request_overdue": "system.warning",
+    "privacy.rights_overdue": "system.warning",
 }
 # Mínimo entre dos eventos del mismo tipo hacia el monitor (anti-ruido).
 _THROTTLE_SECONDS = {"database.failure": 60.0, "system.warning": 300.0}
@@ -465,6 +470,8 @@ class MonitorClient:
             return
         gap = _THROTTLE_SECONDS.get(mapped)
         now = time.monotonic()
+        if event["event_type"].startswith("privacy."):
+            gap = None  # ya están espaciados por su estado en la base; descartar uno perdería el aviso
         if gap is not None:
             last = self._last_sent_type.get(mapped)
             if last is not None and now - last < gap:

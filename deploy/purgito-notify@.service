@@ -1,0 +1,23 @@
+[Unit]
+Description=Aviso a Purgito Monitor: falló %i
+# Lo dispara OnFailure= de purgito-backup, purgito-ledger y purgito-backup-check (ver deploy/install_monitor_notify.sh).
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/purgito/monitor.env
+ExecStart=/usr/bin/python3 -I /opt/purgito-backup/scripts/monitor_notify.py %i
+TimeoutStartSec=60
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

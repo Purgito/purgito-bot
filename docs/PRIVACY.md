@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 6 de noviembre de 2026
+**Última actualización:** 6 de noviembre de 2026 (versión 2.1)
 
 Esta Política describe cómo **Purgito** recopila, utiliza, almacena, comparte y protege la información necesaria para ofrecer sus funcionalidades.
 
@@ -183,6 +183,12 @@ Purgito utiliza servicios externos para determinadas funciones. Cada proveedor p
 
 ---
 
+## Fuente de los datos y proveedores fuera de Chile
+
+Los datos que Purgito guarda provienen de Discord (los mensajes, identificadores y nombres visibles que Discord entrega a Purgito en los servidores donde está) y de lo que las personas hacen en el panel o en el Centro de Privacidad. Los proveedores descritos en esta sección (Cloudflare, Polar.sh y Discord) pueden tratar datos fuera de Chile.
+
+---
+
 # 4. Retención de datos
 
 Los datos recopilados se conservan únicamente mientras sean necesarios para el funcionamiento del bot.
@@ -216,7 +222,7 @@ Toda la gestión de tus datos personales se hace desde **https://purgito.app/pri
 - **Descargar tus datos:** un archivo JSON con tus mensajes aprendidos por servidor, los GIFs que enviaste, tus boosts, las frases especiales a tu nombre, tus exclusiones y el estado de tus solicitudes.
 - **Solicitar la eliminación de tus datos.** La solicitud queda registrada de inmediato y se completa en un plazo máximo de **7 días naturales**; si un intento falla, se reintenta hasta completarla, y puedes consultar su estado en la misma página.
 - **Activar o quitar la exclusión global:** desde ese momento Purgito deja de aprender de tus mensajes y de interactuar contigo en **todos** los servidores (tampoco guarda tus GIFs ni al releer el historial). La exclusión no borra lo que ya estaba guardado; para eso sirve la eliminación.
-- **Hacer otras solicitudes de derechos** (acceso a la información que tenemos de ti más allá de la descarga, rectificación, oposición, portabilidad, limitación del tratamiento u otra consulta) con el formulario del mismo Centro. Pedimos solo el tipo de solicitud y un comentario opcional breve, y respondemos en un máximo de **30 días corridos**.
+- **Hacer otras solicitudes de derechos** (acceso a la información que tenemos de ti más allá de la descarga, rectificación, oposición, portabilidad, bloqueo temporal del tratamiento u otra consulta) con el formulario del mismo Centro. Pedimos solo el tipo de solicitud, un comentario opcional breve y, si quieres recibir también la respuesta por correo, una dirección que se borra al contestar. Recibes un **acuse de recibo** al instante (número y fecha) y la **respuesta por escrito** queda disponible en el Centro. Respondemos en un máximo de **30 días corridos** (la ley permite prorrogar el plazo una sola vez por hasta 30 días corridos más; Purgito no prevé usarlo y, si tuviera que hacerlo, te lo comunicaría antes de que venza el primer plazo). Las solicitudes de **bloqueo temporal** se responden en 2 días. Si denegamos una solicitud, la respuesta explica el motivo y te informa que dispones de treinta días hábiles para reclamar ante la Agencia de Protección de Datos Personales.
 - Si **no puedes iniciar sesión con Discord**, escribe a contacto@purgito.app; te pediremos únicamente lo necesario para comprobar que la cuenta es tuya.
 
 **Qué elimina la solicitud de eliminación**, en la base de datos activa y en **todos** los servidores donde hayas escrito: tu estilo de escritura guardado para la función de imitación; los mensajes que Purgito aprendió de ti (incluida la copia colectiva del servidor, que lleva el ID de su autor); tu registro como remitente de GIFs y, si nadie más compartió ese GIF de forma independiente, el GIF y su archivo en R2; tus boosts; y tus solicitudes de derechos. Tu nombre y tu ID se quitan de las frases especiales, los anuncios programados y el registro de auditoría del panel (ver sección 1), que se conservan porque son historial del servidor. Tus mensajes originales de Discord no se ven afectados: esto borra únicamente lo que Purgito guardó.
@@ -233,9 +239,13 @@ Lo mismo vale para los mensajes que borras en Discord y para los canales que se 
 
 # 5. Derechos de los usuarios
 
-Puedes ejercer tus derechos sobre tus datos personales —acceso, rectificación, eliminación, oposición y portabilidad, y pedir la limitación del tratamiento— desde el Centro de Privacidad (**https://purgito.app/privacidad**) o, si no puedes iniciar sesión con Discord, escribiendo a contacto@purgito.app (ver sección 4). La Ley N.º 21.719 sobre protección de datos personales de Chile reconoce derechos a las personas titulares de datos; Purgito ofrece estos canales para ejercerlos. Esta política describe prácticas actuales y no es asesoría legal.
+Puedes ejercer tus derechos sobre tus datos personales —acceso, rectificación, supresión (eliminación), oposición y portabilidad, y solicitar el bloqueo temporal del tratamiento— desde el Centro de Privacidad (**https://purgito.app/privacidad**) o, si no puedes iniciar sesión con Discord, escribiendo a contacto@purgito.app (ver sección 4). Acusamos recibo de cada solicitud y respondemos por escrito dentro de los plazos de la sección 4. Si rechazamos una solicitud o no la respondemos a tiempo, puedes reclamar ante la Agencia de Protección de Datos Personales.
+
+La Ley N.º 21.719 sobre protección de datos personales de Chile (publicada el 13 de diciembre de 2024) reconoce estos derechos y, según su disposición transitoria primera, su régimen entra en vigencia el 1 de diciembre de 2026. Purgito ofrece estos canales desde ya. Esta política describe prácticas actuales y no es asesoría legal.
 
 Los administradores del servidor además disponen de herramientas propias para controlar la recopilación de datos de su comunidad (ver sección 4), incluyendo la posibilidad de excluir a usuarios específicos: de forma independiente, pueden marcar que Purgito no interactúe con ese usuario (no le responda, reaccione ni dispare triggers) y/o que no aprenda de sus mensajes (no los use para el corpus ni para la función de imitación).
+
+---
 
 # 6. Menores de edad
 

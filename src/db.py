@@ -126,6 +126,8 @@ with open(SCHEMA_PATH, encoding="utf-8") as _f:
 _SCHEMA_UPGRADES: tuple[str, ...] = (
     "ALTER TABLE corpus_messages ADD COLUMN IF NOT EXISTS author_id BIGINT",
     "CREATE INDEX IF NOT EXISTS idx_corpus_messages_author ON corpus_messages(guild_id, author_id)",
+    "ALTER TABLE privacy_rights_requests ADD COLUMN IF NOT EXISTS reply_email TEXT",
+    "ALTER TABLE privacy_rights_requests ADD COLUMN IF NOT EXISTS response_text TEXT",
 )
 
 
@@ -1194,9 +1196,10 @@ async def build_user_export(author_id: int) -> dict:
             "created_at": r[4],
             "due_at": r[5],
             "answered_at": r[6],
+            "response": r[7],
         }
         for r in await _rows(
-            "SELECT id, right_kind, note, status, created_at, due_at, answered_at "
+            "SELECT id, right_kind, note, status, created_at, due_at, answered_at, response_text "
             "FROM privacy_rights_requests WHERE user_id=? ORDER BY id"
         )
     ]

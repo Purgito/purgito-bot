@@ -2386,6 +2386,7 @@ iframe.gif-media { pointer-events: none; }
 .pf-priv-req-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pf-priv-req-id { font-weight: 600; }
 .pf-priv-history { display: flex; flex-direction: column; gap: 8px; }
+.pf-priv-response { margin-top: 4px; padding: 10px 12px; border-left: 3px solid var(--accent); white-space: pre-wrap; }
 .pf-priv-form { display: flex; flex-direction: column; gap: 10px; }
 .pf-priv-input {
   width: 100%; box-sizing: border-box; padding: 10px 12px; font: inherit; color: var(--text);

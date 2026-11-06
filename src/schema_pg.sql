@@ -692,6 +692,10 @@ CREATE TABLE IF NOT EXISTS privacy_rights_requests (
     created_at TEXT NOT NULL DEFAULT utc_now(),
     due_at TEXT NOT NULL,
     answered_at TEXT,
+    -- Dirección opcional que la persona indica para recibir la respuesta; se borra al contestar.
+    reply_email TEXT,
+    -- Copia de la respuesta (fecha en answered_at): Ley 21.719 art. 11 exige poder demostrar su remisión y contenido.
+    response_text TEXT,
     PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS idx_privacy_rights_user ON privacy_rights_requests(user_id);

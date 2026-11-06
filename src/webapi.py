@@ -6234,6 +6234,7 @@ async def _privacy_state(user_id: int) -> dict:
         "rights_deadline_days": privacy_rights.DEADLINE_DAYS,
         "rights_kinds": list(privacy_rights.RIGHT_KINDS),
         "rights_note_max": privacy_rights.NOTE_MAX,
+        "rights_blocking_days": privacy_rights.BLOCKING_DEADLINE_DAYS,
     }
 
 
@@ -6292,14 +6293,20 @@ async def _api_me_privacy_rights_post(request: web.Request) -> web.Response:
     data = await _json_body(request) or {}
     right = data.get("right")
     note = data.get("note", "")
-    if not isinstance(right, str) or not isinstance(note, str):
+    email = data.get("email")
+    if not isinstance(right, str) or not isinstance(note, str) or not isinstance(email, (str, type(None))):
         return web.json_response({"error": "datos no válidos"}, status=400)
     try:
-        req = await privacy_rights.create(user_id, right, note)
+        req = await privacy_rights.create(user_id, right, note, email)
     except privacy_rights.RightsError as e:
         return web.json_response({"error": str(e)}, status=400)
     return web.json_response(
-        {"request": req, "deadline_days": privacy_rights.DEADLINE_DAYS},
+        {
+            "request": req,
+            # Acuse de recibo (Ley 21.719 art. 11): número, fecha de recepción y plazo de respuesta.
+            "receipt": {"id": req["id"], "received_at": req["created_at"], "due_at": req["due_at"]},
+            "deadline_days": privacy_rights.deadline_days(right),
+        },
         status=201,
         headers={"Cache-Control": "no-store"},
     )

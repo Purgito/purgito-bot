@@ -133,6 +133,8 @@ def test_otras_solicitudes_de_derechos_usan_solo_la_identidad_de_la_sesion(memor
         webapi._api_me_privacy_rights_post(_Req({"right": "access", "note": "hola", "user_id": 200}))
     )
     assert resp.status == 201 and _body(resp)["request"]["right"] == "access"
+    rec = _body(resp)["receipt"]  # acuse de recibo inmediato
+    assert rec["id"] == _body(resp)["request"]["id"] and rec["received_at"] and rec["due_at"]
     assert asyncio.run(privacy_rights.user_requests(200)) == []  # un user_id enviado se ignora
     assert len(asyncio.run(privacy_rights.user_requests(100))) == 1
     state = _body(asyncio.run(webapi._api_me_privacy_get(_Req())))

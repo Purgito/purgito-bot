@@ -182,7 +182,12 @@ def test_solicitud_de_derechos_valida_y_limita(memory_db):
         from datetime import datetime, timedelta, timezone
         late = datetime.now(timezone.utc) + timedelta(days=31)
         assert any(x["overdue"] for x in await privacy_rights.open_requests(late))
-        assert await privacy_rights.mark_answered(r["id"]) and not await privacy_rights.mark_answered(r["id"])
+        with pytest.raises(privacy_rights.RightsError):
+            await privacy_rights.mark_answered(r["id"], "   ")
+        assert await privacy_rights.mark_answered(r["id"], "Aquí está tu información.")
+        assert not await privacy_rights.mark_answered(r["id"], "otra vez")
+        mine = [x for x in await privacy_rights.user_requests(5) if x["id"] == r["id"]][0]
+        assert mine["status"] == "answered" and mine["response"] == "Aquí está tu información."
         # eliminar los datos de la persona borra también sus solicitudes
         await db.delete_user_data(5)
         assert await privacy_rights.user_requests(5) == []
@@ -194,3 +199,30 @@ def test_el_cog_de_privacidad_ya_no_registra_comandos_de_barra():
     cog = Privacy(MagicMock())
     assert cog.get_app_commands() == []
     assert not hasattr(cog, "borrar_mis_datos") and not hasattr(cog, "mis_datos")
+
+
+def test_bloqueo_temporal_vence_en_dos_dias_y_la_denegacion_informa_el_reclamo_ante_la_agencia(memory_db):
+    async def run():
+        from datetime import datetime, timedelta, timezone
+        now = datetime(2026, 12, 1, 12, 0, tzinfo=timezone.utc)
+        b = await privacy_rights.create(9, "blocking", "", None, now)
+        a = await privacy_rights.create(9, "access", "", None, now)
+        assert b["due_at"] == (now + timedelta(days=2)).strftime(privacy_rights.FMT)
+        assert a["due_at"] == (now + timedelta(days=30)).strftime(privacy_rights.FMT)
+        assert await privacy_rights.mark_answered(a["id"], "No procede por X.", denied=True)
+        got = [x for x in await privacy_rights.user_requests(9) if x["id"] == a["id"]][0]
+        assert got["status"] == "denied" and "treinta días hábiles" in got["response"] and "Agencia" in got["response"]
+
+    asyncio.run(run())
+
+
+def test_el_correo_para_la_respuesta_es_opcional_se_valida_y_se_borra_al_contestar(memory_db):
+    async def run():
+        with pytest.raises(privacy_rights.RightsError):
+            await privacy_rights.create(3, "access", "", "no-es-un-correo")
+        r = await privacy_rights.create(3, "access", "", "persona@example.org")
+        assert await privacy_rights.requester_of(r["id"]) == (3, "persona@example.org")
+        await privacy_rights.mark_answered(r["id"], "ok")
+        assert await privacy_rights.requester_of(r["id"]) == (3, None)
+
+    asyncio.run(run())

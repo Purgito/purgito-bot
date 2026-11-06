@@ -112,7 +112,11 @@ addStrings({
     'perfil.priv.req.daysLeft': 'Quedan {n} día(s) de plazo',
     'perfil.priv.req.overdue': 'Está tardando más de lo previsto. Escríbenos a contacto@purgito.app si necesitas una respuesta.',
     'perfil.priv.rights.title': 'Otras solicitudes de derechos',
-    'perfil.priv.rights.desc': 'Para lo que los controles de arriba no cubren: acceso a la información que tenemos de ti, rectificación, oposición, portabilidad, limitación del tratamiento u otra consulta. Respondemos en un máximo de {days} días corridos. No incluyas contraseñas ni datos que no sean necesarios.',
+    'perfil.priv.rights.desc': 'Para lo que los controles de arriba no cubren: acceso a la información que tenemos de ti, rectificación, oposición, portabilidad, bloqueo temporal u otra consulta. Te damos un acuse de recibo al instante y respondemos por escrito aquí, en esta página, en un máximo de {days} días corridos (2 días para el bloqueo temporal). Si quieres la respuesta también por correo, indícalo. No incluyas contraseñas ni datos que no sean necesarios.',
+    'perfil.priv.rights.email': 'Correo para la respuesta (opcional; se borra al contestar)',
+    'perfil.priv.rights.receipt': 'Acuse de recibo: solicitud #{id} recibida el {date}. Plazo de respuesta: {due}.',
+    'perfil.priv.rights.denied': 'Respondida (denegada)',
+    'perfil.priv.rights.response': 'Respuesta',
     'perfil.priv.rights.kind': 'Qué quieres solicitar',
     'perfil.priv.rights.note': 'Comentario (opcional, hasta {max} caracteres)',
     'perfil.priv.rights.send': 'Enviar solicitud',
@@ -125,7 +129,7 @@ addStrings({
     'perfil.priv.rights.kind.rectification': 'Rectificación',
     'perfil.priv.rights.kind.objection': 'Oposición',
     'perfil.priv.rights.kind.portability': 'Portabilidad',
-    'perfil.priv.rights.kind.restriction': 'Limitación del tratamiento',
+    'perfil.priv.rights.kind.blocking': 'Bloqueo temporal del tratamiento',
     'perfil.priv.rights.kind.other': 'Otra consulta',
     'perfil.priv.contact': '¿No puedes iniciar sesión con Discord? Escribe a contacto@purgito.app y te atendemos igual.',
     'perfil.priv.state.queued': 'En cola',
@@ -233,7 +237,11 @@ addStrings({
     'perfil.priv.req.daysLeft': '{n} day(s) left',
     'perfil.priv.req.overdue': 'This is taking longer than expected. Write to contacto@purgito.app if you need an answer.',
     'perfil.priv.rights.title': 'Other rights requests',
-    'perfil.priv.rights.desc': 'For anything the controls above do not cover: access to the information we hold about you, rectification, objection, portability, restriction of processing or any other question. We answer within {days} calendar days at most. Do not include passwords or unnecessary data.',
+    'perfil.priv.rights.desc': 'For anything the controls above do not cover: access to the information we hold about you, rectification, objection, portability, temporary blocking of processing or any other question. You get an acknowledgement of receipt immediately and we answer in writing here, on this page, within {days} calendar days at most (2 days for temporary blocking). If you also want the answer by email, say so. Do not include passwords or unnecessary data.',
+    'perfil.priv.rights.email': 'Email for the answer (optional; deleted once answered)',
+    'perfil.priv.rights.receipt': 'Acknowledgement of receipt: request #{id} received on {date}. Answer due by: {due}.',
+    'perfil.priv.rights.denied': 'Answered (denied)',
+    'perfil.priv.rights.response': 'Answer',
     'perfil.priv.rights.kind': 'What do you want to request',
     'perfil.priv.rights.note': 'Comment (optional, up to {max} characters)',
     'perfil.priv.rights.send': 'Send request',
@@ -246,7 +254,7 @@ addStrings({
     'perfil.priv.rights.kind.rectification': 'Rectification',
     'perfil.priv.rights.kind.objection': 'Objection',
     'perfil.priv.rights.kind.portability': 'Portability',
-    'perfil.priv.rights.kind.restriction': 'Restriction of processing',
+    'perfil.priv.rights.kind.blocking': 'Temporary blocking of processing',
     'perfil.priv.rights.kind.other': 'Other question',
     'perfil.priv.contact': 'Cannot sign in with Discord? Write to contacto@purgito.app and we will help you anyway.',
     'perfil.priv.state.queued': 'Queued',
@@ -545,12 +553,21 @@ function rightsCard(state, refresh) {
     'aria-label': t('perfil.priv.rights.note', { max }),
     placeholder: t('perfil.priv.rights.note', { max }),
   });
+  const email = el('input', {
+    class: 'pf-priv-input', id: 'pf-rights-email', type: 'email', maxlength: '254', autocomplete: 'email',
+    'aria-label': t('perfil.priv.rights.email'), placeholder: t('perfil.priv.rights.email'),
+  });
   const btn = el('button', { class: 'btn btn-secondary', type: 'button' }, t('perfil.priv.rights.send'));
   btn.onclick = async () => {
     btn.disabled = true;
     try {
-      await apiFetch('/api/me/privacy/rights', { method: 'POST', body: { right: select.value, note: note.value } });
-      toast(t('perfil.priv.rights.sent'), 'ok');
+      const res = await apiFetch('/api/me/privacy/rights', {
+        method: 'POST', body: { right: select.value, note: note.value, email: email.value.trim() || null },
+      });
+      const r = res.receipt || {};
+      toast(t('perfil.priv.rights.receipt', {
+        id: r.id, date: privDate(parseUtc(r.received_at), true), due: privDate(parseUtc(r.due_at), true),
+      }), 'ok');
       await refresh();
     } catch (e) {
       btn.disabled = false;
@@ -560,7 +577,7 @@ function rightsCard(state, refresh) {
   const mine = state.rights || [];
   return privCard(t('perfil.priv.rights.title'),
     el('p', { class: 'pf-priv-desc dim' }, t('perfil.priv.rights.desc', { days })),
-    el('div', { class: 'pf-priv-form' }, select, note, el('div', { class: 'pf-actions' }, btn)),
+    el('div', { class: 'pf-priv-form' }, select, note, email, el('div', { class: 'pf-actions' }, btn)),
     mine.length
       ? el('div', { class: 'pf-priv-history' },
         el('h3', { class: 'pf-priv-sub' }, t('perfil.priv.rights.list')),
@@ -568,9 +585,13 @@ function rightsCard(state, refresh) {
           el('div', { class: 'pf-priv-req-head' },
             el('span', { class: 'pf-priv-req-id' },
               `#${r.id} · ${t(`perfil.priv.rights.kind.${r.right}`)}`),
-            el('span', { class: 'pf-pill ' + (r.status === 'answered' ? 'pf-pill--ok' : 'pf-pill--accent') },
-              t(r.status === 'answered' ? 'perfil.priv.rights.answered' : 'perfil.priv.rights.open'))),
-          el('p', { class: 'dim pf-priv-small' }, privDate(parseUtc(r.created_at), true)))))
+            el('span', { class: 'pf-pill ' + (r.status === 'open' ? 'pf-pill--accent' : 'pf-pill--ok') },
+              t(r.status === 'open' ? 'perfil.priv.rights.open'
+                : r.status === 'denied' ? 'perfil.priv.rights.denied' : 'perfil.priv.rights.answered'))),
+          el('p', { class: 'dim pf-priv-small' },
+            t('perfil.priv.rights.receipt', { id: r.id, date: privDate(parseUtc(r.created_at), true), due: privDate(parseUtc(r.due_at), true) })),
+          r.response ? el('div', { class: 'pf-priv-response' },
+            el('strong', {}, t('perfil.priv.rights.response')), el('p', { class: 'pf-priv-desc' }, r.response)) : null)))
       : null);
 }
 

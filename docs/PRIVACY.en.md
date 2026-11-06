@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** November 6, 2026
+**Last updated:** November 6, 2026 (version 2.1)
 
 This Policy describes how **Purgito** collects, uses, stores, shares, and protects the information it needs to provide its features.
 
@@ -183,6 +183,12 @@ Purgito uses external services for certain features. Each provider processes onl
 
 ---
 
+## Source of the data and providers outside Chile
+
+The data Purgito stores comes from Discord (the messages, identifiers and display names Discord delivers to Purgito on the servers where it is present) and from what people do in the panel or the Privacy Center. The providers described in this section (Cloudflare, Polar.sh and Discord) may process data outside Chile.
+
+---
+
 # 4. Data retention
 
 Collected data is kept only for as long as it's needed for the bot to function.
@@ -216,7 +222,7 @@ All management of your personal data is done at **https://purgito.app/privacidad
 - **Download your data:** a JSON file with your learned messages by server, the GIFs you sent, your boosts, special phrases in your name, your exclusions and the status of your requests.
 - **Request deletion of your data.** The request is registered immediately and completed within a maximum of **7 calendar days**; if an attempt fails it is retried until completed, and you can check its status on the same page.
 - **Turn the global exclusion on or off:** from then on Purgito stops learning from your messages and interacting with you on **all** servers (it also does not store your GIFs, nor when re-reading history). The exclusion does not delete what was already stored; deletion does that.
-- **Make other rights requests** (access to the information we hold about you beyond the download, rectification, objection, portability, restriction of processing or any other question) with the form in the same Center. We ask only for the type of request and an optional short comment, and answer within a maximum of **30 calendar days**.
+- **Make other rights requests** (access to the information we hold about you beyond the download, rectification, objection, portability, temporary blocking of processing or any other question) with the form in the same Center. We ask only for the type of request, an optional short comment and, if you also want the answer by email, an address that is deleted once answered. You get an **acknowledgement of receipt** immediately (number and date) and the **written answer** is available in the Center. We answer within a maximum of **30 calendar days** (the law allows the period to be extended once by up to 30 more calendar days; Purgito does not plan to use it and, if it had to, would tell you before the first period expires). **Temporary blocking** requests are answered within 2 days. If we deny a request, the answer explains why and tells you that you have thirty business days to complain to the Personal Data Protection Agency.
 - If you **cannot sign in with Discord**, write to contacto@purgito.app; we will ask only for what is needed to verify the account is yours.
 
 **What the deletion request removes**, from the live database and across **all** servers where you have written: your saved writing style for the imitation feature; the messages Purgito learned from you (including the server's collective copy, which carries its author's ID); your record as a GIF sender and, if nobody else shared that GIF independently, the GIF and its file in R2; your boosts; and your rights requests. Your name and ID are removed from special phrases, scheduled announcements and the panel audit log (see section 1), which are kept because they are the server's history. Your original Discord messages are not affected: this only deletes what Purgito stored.
@@ -233,9 +239,13 @@ The same applies to messages you delete in Discord and to channels that are dele
 
 # 5. User rights
 
-You can exercise your rights over your personal data —access, rectification, deletion, objection and portability, and ask for restriction of processing— from the Privacy Center (**https://purgito.app/privacidad**) or, if you cannot sign in with Discord, by writing to contacto@purgito.app (see section 4). Chile's Law No. 21.719 on personal data protection recognizes rights for data subjects; Purgito offers these channels to exercise them. This policy describes current practices and is not legal advice.
+You can exercise your rights over your personal data —access, rectification, deletion, objection and portability, and request temporary blocking of processing— from the Privacy Center (**https://purgito.app/privacidad**) or, if you cannot sign in with Discord, by writing to contacto@purgito.app (see section 4). We acknowledge receipt of every request and answer in writing within the periods in section 4. If we reject a request or do not answer it on time, you can complain to the Personal Data Protection Agency.
+
+Chile's Law No. 21.719 on personal data protection (published on December 13, 2024) recognizes these rights and, under its first transitional provision, its regime enters into force on December 1, 2026. Purgito offers these channels from now on. This policy describes current practices and is not legal advice.
 
 Server administrators also have their own tools to control data collection for their community (see section 4), including the ability to exclude specific users: independently, they can mark that Purgito should not interact with that user (not reply, react or fire triggers) and/or not learn from their messages (not use them for the corpus or the imitation feature).
+
+---
 
 # 6. Minors
 
