@@ -667,12 +667,14 @@ def _pinned_dns(hostname: str, ip: str):
     por su cuenta al conectar -- una ventana de milisegundos después de la
     validación en la que un DNS rebinding attack (el mismo hostname resuelve
     distinto la segunda vez) haría inútil el chequeo de arriba."""
-    real_getaddrinfo = socket.getaddrinfo
-
     def _pinned(host, *args, **kwargs):
         return real_getaddrinfo(ip if host == hostname else host, *args, **kwargs)
 
     with _dns_pin_lock:
+        # Capturar el original DENTRO del lock: si se lee antes, un hilo que
+        # espera el lock guarda el parche del hilo anterior como "original" y
+        # lo restaura al salir, dejando el parche filtrado y apilado.
+        real_getaddrinfo = socket.getaddrinfo
         socket.getaddrinfo = _pinned
         try:
             yield
