@@ -16,6 +16,7 @@ import asyncio
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
@@ -40,8 +41,11 @@ async def main_async(apply: bool, report: str | None) -> int:
     days = config.env_int("CORPUS_RETENTION_DAYS", 30)
     gif_days = config.env_int("GIF_SENDER_RETENTION_DAYS", 180)
     await db.init_db()
+    # Un único "ahora" para el recuento, la purga y la verificación: el corte es móvil y, con mensajes
+    # entrando y venciendo mientras corre, medir en instantes distintos no cuadraría.
+    now = datetime.now(timezone.utc)
     try:
-        before = await db.count_expired_corpus(days, gif_days)
+        before = await db.count_expired_corpus(days, gif_days, now=now)
         before["oldest_corpus_messages"] = await _oldest(
             "corpus_messages", "created_at"
         )
@@ -54,8 +58,8 @@ async def main_async(apply: bool, report: str | None) -> int:
             print(f"  antes.{k}: {v}")
         rc = 0
         if apply:
-            res = await db.purge_expired_corpus(days, gif_days=gif_days)
-            after = await db.count_expired_corpus(days, gif_days)
+            res = await db.purge_expired_corpus(days, now=now, gif_days=gif_days)
+            after = await db.count_expired_corpus(days, gif_days, now=now)
             after["oldest_corpus_messages"] = await _oldest(
                 "corpus_messages", "created_at"
             )
@@ -82,9 +86,9 @@ async def main_async(apply: bool, report: str | None) -> int:
                 rc = 1
             if (
                 after["corpus_messages_total"]
-                != before["corpus_messages_total"] - before["corpus_messages"]
+                < before["corpus_messages_total"] - before["corpus_messages"]
             ):
-                print("ERROR: el total de mensajes no cuadra con lo borrado")
+                print("ERROR: se borraron más mensajes de los vencidos")
                 rc = 1
         if report:
             fd = os.open(report, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
