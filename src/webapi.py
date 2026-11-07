@@ -39,6 +39,7 @@ from urllib.parse import urlencode, urlparse
 import aiohttp
 import discord
 import generation
+import learning_notice
 import privacy_requests
 import privacy_rights
 import regex
@@ -2066,7 +2067,12 @@ async def _api_corpus_get(request: web.Request, guild_id: int) -> web.Response:
         for cid in await list_corpus_channels(guild_id)
     ]
     return web.json_response(
-        {"channels": channels, "ignored": [str(cid) for cid in sorted(ignored)]}
+        {
+            "channels": channels,
+            "ignored": [str(cid) for cid in sorted(ignored)],
+            "retention_days": learning_notice.retention_days(),
+            "notice_version": learning_notice.NOTICE_VERSION,
+        }
     )
 
 
@@ -2088,10 +2094,23 @@ async def _api_corpus_post(request: web.Request, guild_id: int) -> web.Response:
         )
     if not await _member_can_view_channel(request, guild, channel):
         return web.json_response({"error": "no tienes acceso a ese canal"}, status=403)
+    # Activar el aprendizaje exige confirmar el aviso vigente (el dashboard lo muestra antes de llamar).
+    if data.get("confirm_learning") != learning_notice.NOTICE_VERSION:
+        return web.json_response(
+            {
+                "error": "hace falta confirmar el aviso de aprendizaje",
+                "code": "learning_confirmation_required",
+                "notice_version": learning_notice.NOTICE_VERSION,
+            },
+            status=409,
+        )
     added = await add_corpus_channel(guild_id, channel_id)
     if added:
         await _log_audit(
-            request, guild_id, "corpus.add", detail=f"channel_id={channel_id}"
+            request,
+            guild_id,
+            "corpus.add",
+            detail=learning_notice.audit_detail(channel_id, "dashboard"),
         )
     return web.json_response({"added": added})
 

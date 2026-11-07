@@ -998,6 +998,49 @@ function confirmDiscardUnsaved() {
   return ok;
 }
 
+// ---------------- AVISO AL ACTIVAR EL APRENDIZAJE ----------------
+
+class LearningCancelled extends Error {}
+
+// Muestra el aviso y resuelve true solo si el administrador confirma (cerrar o cancelar = false).
+// No es el consentimiento de los miembros ni resuelve la base jurídica: ver docs/LEGITIMIDAD_APRENDIZAJE.md.
+function confirmLearningNotice(ch, notice) {
+  return new Promise(resolve => {
+    const loc = currentLocale();
+    const center = `${window.location.origin}/privacidad`;
+    let modal = null;
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      if (modal) modal.remove();
+      resolve(value);
+    };
+    const body = el('div', { class: 'learning-notice' },
+      el('p', {}, t('dash.canalesModule.learnNoticeIntro', { channel: ch.name || ch.id })),
+      el('ul', {},
+        el('li', {}, t('dash.canalesModule.learnNoticeStores')),
+        el('li', {}, t('dash.canalesModule.learnNoticeDays', { days: notice.days })),
+        el('li', {}, t('dash.canalesModule.learnNoticeRights') + ' ',
+          el('a', { href: center, target: '_blank', rel: 'noopener' }, center)),
+        el('li', {}, t('dash.canalesModule.learnNoticeInform'))),
+      el('p', { class: 'dim note' }, t('dash.canalesModule.learnNoticeAudit')),
+      el('p', { class: 'dim note' },
+        el('a', { href: `/${loc}/${loc === 'en' ? 'terms' : 'terminos'}`, target: '_blank', rel: 'noopener' }, t('dash.canalesModule.learnNoticeTerms')),
+        ' · ',
+        el('a', { href: `/${loc}/${loc === 'en' ? 'privacy' : 'privacidad'}`, target: '_blank', rel: 'noopener' }, t('dash.canalesModule.learnNoticePrivacy'))),
+      el('div', { class: 'modal-actions' },
+        el('button', { type: 'button', class: 'btn btn-primary', onclick: () => finish(true) }, t('dash.canalesModule.learnNoticeConfirm')),
+        el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => finish(false) }, t('dash.canalesModule.learnNoticeCancel'))));
+    modal = panelModal(t('dash.canalesModule.learnNoticeTitle'), body);
+    // Cerrar con la ✗, Escape o haciendo clic fuera retira el modal sin pasar por los botones: eso es "no".
+    const watcher = new MutationObserver(() => {
+      if (modal && !modal.isConnected) { watcher.disconnect(); finish(false); }
+    });
+    watcher.observe(document.body, { childList: true });
+  });
+}
+
 // ---------------- RENDERIZADO DE SIDEBAR ----------------
 
 addStrings({
@@ -3440,6 +3483,17 @@ addStrings({
     'dash.canalesModule.colLearnOn': 'aprende de aquí',
     'dash.canalesModule.colLearnOff': 'ya no aprende de aquí',
     'dash.canalesModule.colLearnHelp': 'Purgito guarda los mensajes de este canal para armar su estilo. Sin ningún canal marcado, no aprende de nada.',
+    'dash.canalesModule.learnNoticeTitle': 'Activar el aprendizaje de mensajes',
+    'dash.canalesModule.learnNoticeIntro': 'Vas a activar el aprendizaje en #{channel}.',
+    'dash.canalesModule.learnNoticeStores': 'Purgito guardará los mensajes nuevos de ese canal para generar respuestas mediante cadenas de Markov y permitir las funciones de aprendizaje.',
+    'dash.canalesModule.learnNoticeDays': 'Los mensajes se conservan como máximo {days} días.',
+    'dash.canalesModule.learnNoticeRights': 'Las personas pueden excluirse y pedir la eliminación de sus datos en',
+    'dash.canalesModule.learnNoticeInform': 'Como administrador, debes informar a los miembros del servidor de que activas el aprendizaje.',
+    'dash.canalesModule.learnNoticeAudit': 'Tu confirmación queda registrada en el historial de auditoría del servidor.',
+    'dash.canalesModule.learnNoticeTerms': 'Términos del Servicio',
+    'dash.canalesModule.learnNoticePrivacy': 'Política de Privacidad',
+    'dash.canalesModule.learnNoticeConfirm': 'Confirmar y activar',
+    'dash.canalesModule.learnNoticeCancel': 'Cancelar',
     'dash.canalesModule.settingsLabel': 'Ajustes',
     'dash.canalesModule.ovrEvery': 'Cada cuántos mensajes',
     'dash.canalesModule.ovrEverySuffix': 'mensajes',
@@ -3472,6 +3526,17 @@ addStrings({
     'dash.canalesModule.colLearnOn': 'learns from here',
     'dash.canalesModule.colLearnOff': 'no longer learns from here',
     'dash.canalesModule.colLearnHelp': "Purgito saves messages from this channel to build its style. With no channel checked, it doesn't learn from any.",
+    'dash.canalesModule.learnNoticeTitle': 'Turn on message learning',
+    'dash.canalesModule.learnNoticeIntro': 'You are about to turn on learning in #{channel}.',
+    'dash.canalesModule.learnNoticeStores': 'Purgito will store new messages from that channel to generate replies using Markov chains and enable the learning features.',
+    'dash.canalesModule.learnNoticeDays': 'Messages are kept for {days} days at most.',
+    'dash.canalesModule.learnNoticeRights': 'People can exclude themselves and request deletion of their data at',
+    'dash.canalesModule.learnNoticeInform': 'As an administrator, you must tell the server\'s members that you are turning learning on.',
+    'dash.canalesModule.learnNoticeAudit': 'Your confirmation is recorded in the server\'s audit log.',
+    'dash.canalesModule.learnNoticeTerms': 'Terms of Service',
+    'dash.canalesModule.learnNoticePrivacy': 'Privacy Policy',
+    'dash.canalesModule.learnNoticeConfirm': 'Confirm and turn on',
+    'dash.canalesModule.learnNoticeCancel': 'Cancel',
     'dash.canalesModule.settingsLabel': 'Settings',
     'dash.canalesModule.ovrEvery': 'Every how many messages',
     'dash.canalesModule.ovrEverySuffix': 'messages',
@@ -3516,6 +3581,10 @@ async function loadCanalesModule() {
     const mentionSelected = new Set(((mentionChans && mentionChans.channels) || []).map(c => c.id));
     const corpusSelected = new Set(((corpus && corpus.channels) || []).map(c => c.id));
     const ignoredSet = new Set((corpus && corpus.ignored) || []);
+    const learnNotice = {
+      days: (corpus && corpus.retention_days) || 30,
+      version: (corpus && corpus.notice_version) || '',
+    };
 
     const cols = [
       {
@@ -3556,8 +3625,11 @@ async function loadCanalesModule() {
         help: t('dash.canalesModule.colLearnHelp'),
         isSelected: id => corpusSelected.has(id),
         add: async ch => {
+          // Activar el aprendizaje es explícito: el administrador confirma el aviso antes de guardar el canal.
+          const accepted = await confirmLearningNotice(ch, learnNotice);
+          if (!accepted) throw new LearningCancelled();
           await apiFetch(`/api/server/${GUILD_ID}/settings/corpus`, {
-            method: 'POST', body: { channel_id: ch.id },
+            method: 'POST', body: { channel_id: ch.id, confirm_learning: learnNotice.version },
           });
           corpusSelected.add(ch.id);
         },
@@ -4012,7 +4084,7 @@ function channelMatrix({ channels, cols, openOverrides, ignoredSet }) {
             toast(`#${ch.name}: ${on ? c.onLabel : c.offLabel}`, 'ok');
           } catch (e) {
             box.checked = !on;
-            toast('No se pudo guardar, intenta de nuevo', 'err');
+            if (!(e instanceof LearningCancelled)) toast('No se pudo guardar, intenta de nuevo', 'err');
           }
           applyFilter();
         };

@@ -981,15 +981,64 @@ CORPUS_RETENTION_MIN_DAYS = 30
 _PURGE_BATCH = 20_000
 
 
-async def purge_expired_corpus(days: int, now: datetime | None = None) -> dict:
-    """Borra lo aprendido hace más de `days` días: corpus colectivo, estilo por usuario y registro
-    de remitentes de GIFs. En lotes (cada uno es su transacción) para no bloquear la base. NO deja
-    lápidas: es el paso normal del tiempo; si un backup antiguo devolviera estas filas, la purga de
-    mañana las vuelve a quitar. Devuelve los conteos y los guilds afectados (para invalidar cachés)."""
+GIF_SENDER_RETENTION_DEFAULT_DAYS = 180
+
+
+def corpus_cutoff(days: int, now: datetime | None = None) -> str:
+    """Instante (UTC, texto) anterior al cual lo aprendido está vencido. Un único criterio para la purga
+    diaria, el recuento previo y el aprendizaje/relectura (que no admiten mensajes más viejos)."""
     days = max(int(days), CORPUS_RETENTION_MIN_DAYS)
-    cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=days)).strftime(
+    return ((now or datetime.now(timezone.utc)) - timedelta(days=days)).strftime(
         "%Y-%m-%d %H:%M:%S"
     )
+
+
+async def count_expired_corpus(
+    days: int,
+    gif_days: int = GIF_SENDER_RETENTION_DEFAULT_DAYS,
+    now: datetime | None = None,
+) -> dict:
+    """Solo conteos (nunca contenido) de lo que `purge_expired_corpus` borraría con los mismos plazos."""
+    cutoff = corpus_cutoff(days, now)
+    gif_cutoff = corpus_cutoff(gif_days, now)
+    db = await get_db()
+    out = {"cutoff": cutoff, "gif_cutoff": gif_cutoff}
+    for name, sql, params in (
+        (
+            "corpus_messages",
+            "SELECT COUNT(*) FROM corpus_messages WHERE created_at < ?",
+            (cutoff,),
+        ),
+        (
+            "user_corpus",
+            "SELECT COUNT(*) FROM user_corpus WHERE created_at < ?",
+            (cutoff,),
+        ),
+        (
+            "gif_senders",
+            "SELECT COUNT(*) FROM gif_senders WHERE last_seen < ?",
+            (gif_cutoff,),
+        ),
+        ("corpus_messages_total", "SELECT COUNT(*) FROM corpus_messages", ()),
+        ("user_corpus_total", "SELECT COUNT(*) FROM user_corpus", ()),
+    ):
+        async with db.execute(sql, params) as cur:
+            out[name] = (await cur.fetchone())[0]
+    return out
+
+
+async def purge_expired_corpus(
+    days: int,
+    now: datetime | None = None,
+    gif_days: int = GIF_SENDER_RETENTION_DEFAULT_DAYS,
+) -> dict:
+    """Borra lo aprendido hace más de `days` días (corpus colectivo y estilo por usuario) y el registro
+    de remitentes de GIFs con más de `gif_days` (plazo propio). En lotes (cada uno es su transacción)
+    para no bloquear la base. NO deja lápidas: es el paso normal del tiempo; si un backup antiguo
+    devolviera estas filas, la purga de mañana las vuelve a quitar. Devuelve los conteos y los guilds
+    afectados por mensajes/estilo (para invalidar cachés de Markov)."""
+    cutoff = corpus_cutoff(days, now)
+    gif_cutoff = corpus_cutoff(gif_days, now)
     db = await get_db()
     async with db.execute(
         "SELECT DISTINCT guild_id FROM corpus_messages WHERE created_at < ? "
@@ -1016,15 +1065,17 @@ async def purge_expired_corpus(days: int, now: datetime | None = None) -> dict:
         ),
     )
     for name, sql in batches:
+        param = gif_cutoff if name == "gif_senders" else cutoff
         while True:
             async with _db_lock:
-                cur = await db.execute(sql, (cutoff, _PURGE_BATCH))
+                cur = await db.execute(sql, (param, _PURGE_BATCH))
                 n = max(cur.rowcount, 0)
                 await db.commit()
             totals[name] += n
             if n < _PURGE_BATCH:
                 break
-    return {**totals, "guild_ids": guild_ids if sum(totals.values()) else []}
+    learned = totals["corpus_messages"] + totals["user_corpus"]
+    return {**totals, "guild_ids": guild_ids if learned else []}
 
 
 async def purge_expired_deletion_tombstones() -> int:

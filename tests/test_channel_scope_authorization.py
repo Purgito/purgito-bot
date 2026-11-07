@@ -33,6 +33,7 @@ import pytest
 
 import db
 import webapi
+from learning_notice import NOTICE_VERSION as NOTICE
 
 _GUILD = 42
 _USER_ID = "777"
@@ -106,7 +107,11 @@ def sesion(monkeypatch):
 
 def _run_corpus_post(monkeypatch, guild, channel_id):
     monkeypatch.setattr(webapi, "_bot_guild", lambda request, gid: guild)
-    return asyncio.run(webapi._api_corpus_post(FakeRequest({"channel_id": channel_id})))
+    return asyncio.run(
+        webapi._api_corpus_post(
+            FakeRequest({"channel_id": channel_id, "confirm_learning": NOTICE})
+        )
+    )
 
 
 # ── _member_can_view_channel: el helper en aislamiento ───────────────────────

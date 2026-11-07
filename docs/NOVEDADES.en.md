@@ -11,6 +11,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 ## Recent updates
 
 ### New
+- Turning learning on for a channel (from `/settings`, `/setup` or the dashboard) now requires confirming a notice: it explains what Purgito stores, that it keeps it for 30 days at most, that anyone can exclude themselves and request deletion of their data in the Privacy Center, and that you must tell the server's members. Channels that were already learning are unchanged.
 - Privacy Center (https://purgito.app/privacidad): anyone can download their data, request its deletion (7 days at most), stop being learned from and imitated on every server, and make other requests about their data. It replaces the `/privacidad`, `/mis_datos` and `/borrar_mis_datos` commands, which are retired.
 - `!dl` now also downloads YouTube Shorts (`youtube.com/shorts/...` links). Regular YouTube videos still don't work.
 - Visible usage limits per server: learned messages, GIFs, and meme images each have a cap, and the dashboard warns when a server is getting close to it.
@@ -37,6 +38,7 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 - `/dl` now also exists as a slash command, installable on your Discord account: usable in a direct message with Purgito or a group DM, without being in a server. `/gif` is also a slash command now, but stays server-only, with the option to upload a video or image directly, on top of a link.
 
 ### Improved
+- Learned messages and each person's writing style are now kept for 30 days at most (previously 180). Anything older than that was deleted. GIFs and the other retention periods are unchanged.
 - Memes (`/momo`, `/meme`, automatic memes and the 🎯 reaction) and the Groq integration are retired: Purgito no longer sends messages or images from your server to any external AI service. The Premium limits and perks that depended on memes are removed too.
 - Privacy: Purgito's backups are now encrypted and delete themselves; the limit is that none exceeds 14 days. If a backup ever had to be restored, the deletions already requested are applied again before the bot starts. Full details are in the privacy policy.
 - Privacy: backups are now made every day (they used to be weekly). If one ever had to be restored, servers that had already been deleted and learning opt-outs are also re-applied.

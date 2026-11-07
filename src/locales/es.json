@@ -369,5 +369,11 @@
   "help.cat.imagen.cmd.gifcaption": "Agrega texto arriba y abajo a un GIF",
   "help.cat.imagen.cmd.gifspeed": "Cambia la velocidad de reproducción de un GIF",
   "help.cat.imagen.cmd.gifreverse": "Reproduce un GIF al revés",
-  "help.cat.imagen.cmd.gifwide": "Estira un GIF horizontalmente"
+  "help.cat.imagen.cmd.gifwide": "Estira un GIF horizontalmente",
+  "learning.confirm.title": "Activar el aprendizaje de mensajes",
+  "learning.confirm.body": "Vas a activar el aprendizaje en {channels}.\n\n• Purgito guardará los mensajes **nuevos** de ese canal para generar respuestas mediante cadenas de Markov y permitir las funciones de aprendizaje.\n• Los mensajes se conservan como máximo **{days} días**.\n• Las personas pueden excluirse y pedir la eliminación de sus datos en {center}.\n• Como administrador, debes informar a los miembros del servidor de que activas el aprendizaje.\n\nTu confirmación queda registrada en el historial de auditoría del servidor.",
+  "learning.confirm.btn_ok": "Confirmar y activar",
+  "learning.confirm.btn_cancel": "Cancelar",
+  "learning.confirm.btn_terms": "Términos del Servicio",
+  "learning.confirm.btn_privacy": "Política de Privacidad"
 }

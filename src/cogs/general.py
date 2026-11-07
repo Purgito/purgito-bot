@@ -237,13 +237,16 @@ class General(commands.Cog):
                     "guild_cleanup: %d entrada(s) de audit_log vencidas borradas",
                     stale_audit,
                 )
-            corpus_days = env_int("CORPUS_RETENTION_DAYS", 180)
-            aged = await purge_expired_corpus(corpus_days)
-            if aged["guild_ids"]:
+            corpus_days = env_int("CORPUS_RETENTION_DAYS", 30)
+            gif_days = env_int("GIF_SENDER_RETENTION_DAYS", 180)
+            aged = await purge_expired_corpus(corpus_days, gif_days=gif_days)
+            if aged["guild_ids"] or aged["gif_senders"]:
                 log.info(
-                    "guild_cleanup: retención del corpus (%d días): %d mensaje(s), %d de estilo "
-                    "y %d remitente(s) de GIF vencidos borrados en %d servidor(es)",
+                    "guild_cleanup: retención (%d días mensajes, %d días remitentes de GIF): "
+                    "%d mensaje(s), %d de estilo y %d remitente(s) de GIF vencidos borrados "
+                    "(mensajes/estilo en %d servidor(es))",
                     corpus_days,
+                    gif_days,
                     aged["corpus_messages"],
                     aged["user_corpus"],
                     aged["gif_senders"],

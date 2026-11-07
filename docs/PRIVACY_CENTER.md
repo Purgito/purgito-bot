@@ -105,10 +105,12 @@ final se rechaza.
 
 ### Retención por antigüedad del corpus (P0 de retención)
 
-Separada de los 90 días de las solicitudes terminadas. `CORPUS_RETENTION_DAYS=180` (`limits.env`, mínimo 30):
+Separada de los 90 días de las solicitudes terminadas. `CORPUS_RETENTION_DAYS=30` (`limits.env`, mínimo 30; era 180 hasta el 2026-11-07):
 cada día se borran, en lotes de 20 000, los mensajes del corpus (`corpus_messages`), el estilo por usuario
-(`user_corpus`) y el registro de remitentes de GIF (`gif_senders`) aprendidos hace más de 180 días, y se
-invalidan las cachés de Markov afectadas. No deja lápidas: es el paso normal del tiempo y, si un backup
+(`user_corpus`) aprendidos hace más de 30 días y, con su plazo propio (`GIF_SENDER_RETENTION_DAYS=180`), el
+registro de remitentes de GIF (`gif_senders`), y se invalidan las cachés de Markov afectadas. El aprendizaje
+nuevo y la relectura del historial tampoco admiten mensajes con más de 30 días (`_save_message_to_corpus`). La primera
+purga con el plazo de 30 días se hizo el 2026-11-07 con `scripts/corpus_retention.py` (conteos en el informe, sin contenido). No deja lápidas: es el paso normal del tiempo y, si un backup
 devolviera filas vencidas, la purga siguiente las quita. Compatible con Markov: entrena con una muestra
 aleatoria de ≤ 5 000 mensajes del servidor (≤ 2 000 por persona), que un servidor activo repone en días. Se
 cuenta desde que Purgito aprendió el mensaje (`created_at`), no desde que se escribió en Discord. A 2026-11-06 no

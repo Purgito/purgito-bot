@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** November 7, 2026 (version 2.4)
+**Last updated:** November 7, 2026 (version 2.5)
 
 This Policy explains what personal data Purgito processes, what it uses it for, who it shares it with, how long it keeps it, and how you can exercise your rights. It applies to the Discord bot and to the purgito.app website and dashboard.
 
@@ -12,7 +12,7 @@ The data comes from Discord and from what you do in the dashboard and the Privac
 
 **Identifiers.** Purgito stores the IDs of users, servers and channels, and the display name of whoever writes, so that the bot works and so that we can handle your requests.
 
-**Messages.** In the channels where an administrator turns learning on, Purgito stores the text of messages together with the ID and display name of their author. It uses them to generate replies and spontaneous messages with Markov chains, a statistical method computed on our own server, and it can imitate the writing style of a member of the server. What is learned in a server is used only in that server. Messages are not sent to third-party artificial intelligence services or used to generate text outside our own server; they reach Cloudflare only inside the encrypted backups (see section 5).
+**Messages.** In the channels where an administrator turns learning on, Purgito stores the text of messages together with the ID and display name of their author. The administrator turns learning on channel by channel and, in doing so, confirms a notice asking them to tell the server's members. It uses them to generate replies and spontaneous messages with Markov chains, a statistical method computed on our own server, and it can imitate the writing style of a member of the server. What is learned in a server is used only in that server. Messages are not sent to third-party artificial intelligence services or used to generate text outside our own server; they reach Cloudflare only inside the encrypted backups (see section 5).
 
 NSFW channels are always excluded from learning; if a channel that was already enabled becomes NSFW, its stored history is deleted immediately. Administrators can also ignore channels and exclude specific people, and if you delete a message on Discord, Purgito removes it from what it has learned.
 
@@ -22,7 +22,7 @@ NSFW channels are always excluded from learning; if a channel that was already e
 
 **Dashboard.** When you sign in with Discord, we ask for access to your identity, your email and the list of your servers (`identify`, `email` and `guilds`), to show you your profile and only the servers you administer. A session cookie keeps you signed in; it is not used for advertising or tracking. Your Discord email is kept only inside that encrypted cookie, not in our database.
 
-When an administrator changes settings from the dashboard, an audit record is kept with their ID and display name, the action taken and, sometimes, a detail they wrote. Only the administrators of that server can see it, in the History tab. Changes made with `/settings` on Discord are not recorded there.
+When an administrator changes settings from the dashboard, an audit record is kept with their ID and display name, the action taken and, sometimes, a detail they wrote. Only the administrators of that server can see it, in the History tab. Changes made with `/settings` on Discord are not recorded there, except the confirmation given when learning is turned on for a channel.
 
 **Special phrases and boosts.** Special phrases keep the ID and name of whoever added them. Boosts store who boosts, the server and the date, so that we can thank them.
 
@@ -56,7 +56,7 @@ Discord, Cloudflare, Polar.sh and Railway may process data outside Chile, so som
 
 Data is kept only as long as it is needed, for these periods:
 
-- **Learned messages, each person's writing style and the record of who sent each GIF:** up to 180 days from when Purgito learned them. Earlier than that, if a server reaches its message limit (higher with Premium), the oldest are discarded. The purge runs daily and also covers inactive servers.
+- **Learned messages and each person's writing style:** up to 30 days from when Purgito learned them. Earlier than that, if a server reaches its message limit (higher with Premium), the oldest are discarded. The purge runs daily and also covers inactive servers.
 - **GIFs:** if you delete the original message on Discord, the sender record is deleted and, if nobody else shared the GIF independently, so are the GIF and its file. After 180 days that record is deleted as well, but the GIF may stay in the gallery without attribution until an administrator removes it.
 - **Audit log and usage statistics:** 90 days.
 - **Special phrases and scheduled announcements:** as long as they exist.

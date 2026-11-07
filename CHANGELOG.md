@@ -10,6 +10,12 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Retención de mensajes a 30 días y aviso al activar el aprendizaje (2026-11-07)
+- `CORPUS_RETENTION_DAYS=30` (antes 180) para `corpus_messages` y `user_corpus`; el registro de remitentes de GIF conserva su plazo (`GIF_SENDER_RETENTION_DAYS=180`). Un único criterio (`db.corpus_cutoff`) para la purga diaria, el recuento previo (`db.count_expired_corpus`), el aprendizaje nuevo y la relectura del historial (`_save_message_to_corpus`, backfill). `scripts/corpus_retention.py` cuenta y purga de forma controlada (informe sin contenido).
+- Activar el aprendizaje de un canal exige confirmar un aviso (`src/learning_notice.py`): `/settings`, `/setup` y dashboard; la API rechaza `POST /settings/corpus` sin `confirm_learning` (409). La confirmación queda en `audit_log` (`corpus.add`, con versión del aviso y origen). No sustituye el consentimiento individual ni resuelve la base de licitud.
+- `prune-ledger` solo borra lo vencido por defecto; el adelgazamiento pasó a ser opt-in (`--thin` / `LEDGER_THIN=1`) por borrar miles de objetos de R2.
+- CI: `ruff format` en todo el repo, F811/F401 corregidos y `test_obs_events` reconoce los eventos `privacy.*`.
+
 ### Despliegue seguro de la landing (2026-11-07)
 - `deploy/publish_landing.sh` (+ `publish_landing_test.sh`): releases en `/var/www/purgito/releases` y symlink `current`; nginx dejará de servir el árbol de trabajo (incidente del 2026-11-07: `build_docs.py` publicó textos aún no ciertos). `build_docs.py` se niega a escribir en el `landing/` que sirve nginx sin `--allow-live`.
 - `deploy/landing_hotfix.sh` + `docs/provisional/`: corrige solo `es/privacidad` y `en/privacy` en un staging aparte.

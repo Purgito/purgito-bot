@@ -17,6 +17,7 @@ import i18n
 from cogs.gifs import get_live_gif, save_gif_candidates
 from config import (
     BOT_TRIGGER_NAME,
+    env_int,
     REFEED_ALL_MAX_MESSAGES,
     REFEED_GUILD_COOLDOWN_SECONDS,
     REFEED_MAX_MESSAGES,
@@ -25,6 +26,7 @@ from config import (
 from tasks import get_task_manager
 from db import (
     DEFAULT_COMMAND_PREFIX,
+    corpus_cutoff,
     bump_counter,
     count_corpus_messages,
     count_user_messages,
@@ -750,6 +752,12 @@ class Chat(commands.Cog):
         Retorna "saved", "discarded" (filtrado por clean_for_corpus o exclusión) o
         "duplicate" (ya estaba en el corpus, UNIQUE(guild_id, message_id))."""
         if await is_user_excluded_from_learning(guild_id, message.author.id):
+            return "discarded"
+        # Retención: ni el aprendizaje nuevo ni la relectura del historial admiten mensajes que ya
+        # estarían vencidos (la purga diaria los borraría de inmediato).
+        if message.created_at.strftime("%Y-%m-%d %H:%M:%S") < corpus_cutoff(
+            env_int("CORPUS_RETENTION_DAYS", 30)
+        ):
             return "discarded"
         cleaned = generation.clean_for_corpus(message.content or "")
         if cleaned is None:
@@ -1726,6 +1734,7 @@ class Chat(commands.Cog):
         newest_seen = status["newest_message_id"] if status else None
         oldest = status["oldest_message_id"] if status else None
         complete = False
+        retention_cutoff = corpus_cutoff(env_int("CORPUS_RETENTION_DAYS", 30))
 
         while fetched < max_messages:
             before_obj = discord.Object(id=oldest) if oldest else None
@@ -1768,6 +1777,10 @@ class Chat(commands.Cog):
                     duplicate += 1
 
             oldest = batch[-1].id
+            if batch[-1].created_at.strftime("%Y-%m-%d %H:%M:%S") < retention_cutoff:
+                # Lo que sigue hacia atrás es más viejo que el plazo de retención: no se lee.
+                complete = True
+                break
 
         log.info(
             "_refeed_channel: %s (backfill) fetched=%d saved=%d gifs_saved=%d discarded=%d duplicate=%d complete=%s",

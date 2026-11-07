@@ -258,3 +258,82 @@ def test_la_ventana_del_restaurador_es_la_vida_de_una_lapida():
     assert (
         reapply_deletions.TOMBSTONE_WINDOW_DAYS == db.DELETION_TOMBSTONE_RETENTION_DAYS
     )
+
+
+# ─── Retención de 30 días para mensajes/estilo; los remitentes de GIF conservan su plazo ───────
+
+
+def test_los_mensajes_vencen_a_los_30_dias_pero_los_remitentes_de_gif_a_los_180(mem):
+    async def go():
+        conn = await db.get_db()
+        d40 = (NOW - timedelta(days=40)).strftime(FMT)
+        d10 = (NOW - timedelta(days=10)).strftime(FMT)
+        d200 = (NOW - timedelta(days=200)).strftime(FMT)
+        async with db._db_lock:
+            for i, ts in enumerate((d40, d10)):
+                await conn.execute(
+                    "INSERT INTO corpus_messages (guild_id, channel_id, message_id, content, created_at) VALUES (1, 1, ?, 'x', ?)",
+                    (i, ts),
+                )
+                await conn.execute(
+                    "INSERT INTO user_corpus (guild_id, author_id, author_name, message_id, content, created_at) VALUES (1, 5, 'n', ?, 'x', ?)",
+                    (i, ts),
+                )
+            await conn.execute(
+                "INSERT INTO gif_senders (gif_id, guild_id, user_id, last_seen) VALUES (1, 1, 5, ?), (2, 1, 5, ?)",
+                (d40, d200),
+            )
+            await conn.commit()
+        antes = await db.count_expired_corpus(30, 180, now=NOW)
+        assert (
+            antes["corpus_messages"],
+            antes["user_corpus"],
+            antes["gif_senders"],
+        ) == (1, 1, 1)
+        assert (antes["corpus_messages_total"], antes["user_corpus_total"]) == (2, 2)
+        # contar no borra nada
+        assert (await db.count_expired_corpus(30, 180, now=NOW))["corpus_messages"] == 1
+
+        res = await db.purge_expired_corpus(30, now=NOW, gif_days=180)
+        assert (res["corpus_messages"], res["user_corpus"], res["gif_senders"]) == (
+            1,
+            1,
+            1,
+        )
+        assert res["guild_ids"] == [1]
+        async with conn.execute("SELECT count(*) FROM corpus_messages") as c:
+            assert (await c.fetchone())[0] == 1
+        async with conn.execute("SELECT gif_id FROM gif_senders") as c:
+            assert [r[0] for r in await c.fetchall()] == [
+                1
+            ]  # el de 40 días sigue: su plazo es 180
+
+    asyncio.run(go())
+
+
+def test_el_aprendizaje_y_la_relectura_no_admiten_mensajes_de_mas_de_30_dias(mem):
+    from types import SimpleNamespace
+
+    from cogs import chat
+
+    def msg(days_old, mid):
+        return SimpleNamespace(
+            id=mid,
+            content="una frase suficientemente larga para entrar al corpus",
+            created_at=datetime.now(timezone.utc) - timedelta(days=days_old),
+            author=SimpleNamespace(id=7, display_name="ana"),
+            channel=SimpleNamespace(id=3),
+        )
+
+    async def go():
+        save = chat.Chat._save_message_to_corpus
+        assert await save(None, 1, msg(45, 1001)) == "discarded"
+        assert await save(None, 1, msg(31, 1002)) == "discarded"
+        assert await save(None, 1, msg(5, 1003)) == "saved"
+        conn = await db.get_db()
+        async with conn.execute(
+            "SELECT message_id FROM corpus_messages WHERE guild_id=1"
+        ) as c:
+            assert [r[0] for r in await c.fetchall()] == [1003]
+
+    asyncio.run(go())

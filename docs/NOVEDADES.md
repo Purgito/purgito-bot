@@ -11,6 +11,7 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 ## Novedades recientes
 
 ### Nuevo
+- Al activar el aprendizaje de un canal (desde `/settings`, `/setup` o el dashboard) hay que confirmar un aviso: explica qué guarda Purgito, que lo guarda como máximo 30 días, que cada persona puede excluirse y pedir la eliminación de sus datos en el Centro de Privacidad, y que debes avisar a los miembros del servidor. Los canales que ya aprendían no cambian.
 - Centro de Privacidad (https://purgito.app/privacidad): cada persona puede descargar sus datos, pedir su eliminación (plazo máximo de 7 días), dejar de ser aprendida e imitada en todos los servidores y hacer otras solicitudes sobre sus datos. Reemplaza a los comandos `/privacidad`, `/mis_datos` y `/borrar_mis_datos`, que se retiran.
 - `!dl` ahora también descarga YouTube Shorts (links `youtube.com/shorts/...`). Los videos normales de YouTube siguen sin funcionar.
 - Límites de uso visibles por servidor: mensajes aprendidos, GIFs e imágenes de memes tienen un tope, y el dashboard avisa cuando un servidor se acerca a agotarlo.
@@ -37,6 +38,7 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 - `/dl` ahora existe también como comando de barra, instalable en tu cuenta de Discord: se puede usar en un mensaje directo con Purgito o en un grupo de DM, sin estar en un servidor. `/gif` también es comando de barra ahora, pero se queda solo en servidores, con la opción de subir directamente un video o imagen además del link.
 
 ### Mejorado
+- Los mensajes aprendidos y el estilo de cada persona se conservan ahora como máximo 30 días (antes, 180). Lo que ya pasaba de ese plazo se eliminó. Los GIF y el resto de los plazos no cambian.
 - Se retiran los memes (`/momo`, `/meme`, los memes automáticos y la reacción 🎯) y la integración con Groq: Purgito ya no envía mensajes ni imágenes de tu servidor a ningún servicio de IA externo. Los límites y beneficios de Premium que dependían de los memes también se quitan.
 - Privacidad: las copias de seguridad de Purgito ahora van cifradas y se eliminan solas; el límite es que ninguna supere los 14 días. Si algún día hubiera que restaurar una copia, las eliminaciones ya pedidas se vuelven a aplicar antes de arrancar. Todo el detalle está en la política de privacidad.
 - Privacidad: las copias de seguridad ahora se hacen todos los días (antes, cada semana). Si hubiera que restaurar una, también se vuelven a aplicar los servidores que ya se habían borrado y las exclusiones del aprendizaje.

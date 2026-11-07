@@ -7,7 +7,7 @@ oficial en leychile.cl (idNorma=1209272). Falta la decisión del titular y su re
 ## 1. Qué se trata y de quién
 
 - **Datos:** el contenido de mensajes de canales habilitados (texto libre), con ID del autor y nombre visible
-  (`corpus_messages`, `user_corpus`), hasta 180 días; GIFs con su remitente. Nunca de canales NSFW.
+  (`corpus_messages`, `user_corpus`), hasta 30 días (desde 2026-11-07); GIFs con su remitente, hasta 180 días. Nunca de canales NSFW.
 - **Titulares:** las personas que escriben en el servidor. **No tienen ninguna relación con Purgito**: quien
   invita al bot es un administrador, no ellas.
 - **Dos tratamientos distintos:**
@@ -48,7 +48,7 @@ la recolección no es necesaria.
 El interés legítimo **no justifica automáticamente** guardar los mensajes de todas las personas de un servidor: depende de una ponderación concreta que hoy no existe por escrito.
 Requiere un **análisis de ponderación documentado** (finalidad, necesidad, expectativas razonables, impacto)
 y que «no se afecten los derechos y libertades del titular»; el titular puede exigir saber qué interés se invoca
-(art. 13 d y 14 ter d). Hoy ya existen salvaguardas: exclusión global, sin NSFW, 180 días, borrado por solicitud.
+(art. 13 d y 14 ter d). Hoy ya existen salvaguardas: exclusión global, sin NSFW, 30 días, borrado por solicitud y confirmación del administrador al activar un canal.
 - *Límites que no se pueden resolver con técnica:*
   - No habilita datos **sensibles** (art. 16 exige consentimiento expreso salvo excepciones estrechas): el
     riesgo del texto libre queda abierto.
@@ -56,7 +56,7 @@ y que «no se afecten los derechos y libertades del titular»; el titular puede 
   - El perfil individual (`/imitar`) difícilmente supera la ponderación para quien no lo espera.
 - *Implicaciones técnicas:* documento de ponderación versionado; aviso de transparencia donde la gente lo vea
   (mensaje del bot al unirse a un servidor y en el canal habilitado, además de la Política); mantener la
-  oposición fácil y efectiva; revisar retención (¿180 días es necesario?).
+  oposición fácil y efectiva; la retención ya se redujo a 30 días.
 
 ### C. Híbrida (alternativa de diseño para evaluación jurídica; no está decidida)
 Corpus colectivo bajo **interés legítimo con salvaguardas** + estilo por persona (`user_corpus`, `/imitar`) bajo

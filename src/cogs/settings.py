@@ -23,7 +23,6 @@ from db import (
     TWITCH_ERROR_NO_PERMISSION,
     YOUTUBE_ERROR_CHANNEL_NOT_FOUND,
     YOUTUBE_ERROR_NO_PERMISSION,
-    add_corpus_channel,
     add_scheduled_announcement,
     add_twitch_sub,
     add_youtube_sub,
@@ -46,6 +45,7 @@ from db import (
     wipe_gifs,
 )
 from i18n import t
+from learning_notice import request_learning_activation
 from tasks import get_task_manager
 from utils import SafeModal, SafeView
 
@@ -289,11 +289,17 @@ class CanalesCategory(SettingsCategory):
             current_set = set(await list_corpus_channels(panel.guild.id))
             for cid in current_set - selected_ids:
                 await remove_corpus_channel(panel.guild.id, cid)
-            for cid in selected_ids - current_set:
-                await add_corpus_channel(panel.guild.id, cid)
 
             if problems:
                 panel.channels_feedback = "\n".join(problems)
+
+            # Activar el aprendizaje de un canal nuevo exige confirmar el aviso (nunca es automático).
+            to_add = selected_ids - current_set
+            if to_add:
+                await request_learning_activation(
+                    interaction, panel, sorted(to_add), "settings"
+                )
+                return
 
             await panel.refresh(interaction)
 
@@ -1277,11 +1283,16 @@ class SetupView(SafeView):
             current_set = set(await list_corpus_channels(self.guild.id))
             for cid in current_set - selected_ids:
                 await remove_corpus_channel(self.guild.id, cid)
-            for cid in selected_ids - current_set:
-                await add_corpus_channel(self.guild.id, cid)
 
             if problems:
                 self.feedback_msg = "\n".join(problems)
+
+            to_add = selected_ids - current_set
+            if to_add:
+                await request_learning_activation(
+                    interaction, self, sorted(to_add), "setup"
+                )
+                return
 
             await self.refresh(interaction)
 

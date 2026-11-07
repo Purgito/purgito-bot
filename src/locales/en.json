@@ -369,5 +369,11 @@
   "help.cat.imagen.cmd.gifcaption": "Adds text on top and bottom to a GIF",
   "help.cat.imagen.cmd.gifspeed": "Changes a GIF's playback speed",
   "help.cat.imagen.cmd.gifreverse": "Plays a GIF backwards",
-  "help.cat.imagen.cmd.gifwide": "Stretches a GIF horizontally"
+  "help.cat.imagen.cmd.gifwide": "Stretches a GIF horizontally",
+  "learning.confirm.title": "Turn on message learning",
+  "learning.confirm.body": "You are about to turn on learning in {channels}.\n\n• Purgito will store **new** messages from that channel to generate replies using Markov chains and enable the learning features.\n• Messages are kept for **{days} days** at most.\n• People can exclude themselves and request deletion of their data at {center}.\n• As an administrator, you must tell the server's members that you are turning learning on.\n\nYour confirmation is recorded in the server's audit log.",
+  "learning.confirm.btn_ok": "Confirm and turn on",
+  "learning.confirm.btn_cancel": "Cancel",
+  "learning.confirm.btn_terms": "Terms of Service",
+  "learning.confirm.btn_privacy": "Privacy Policy"
 }

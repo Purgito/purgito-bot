@@ -1,6 +1,6 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 7 de noviembre de 2026 (versión 2.4)
+**Última actualización:** 7 de noviembre de 2026 (versión 2.5)
 
 Esta Política explica qué datos personales trata Purgito, para qué los usa, con quién los comparte, cuánto tiempo los conserva y cómo puedes ejercer tus derechos. Se aplica al bot de Discord y al sitio y panel de purgito.app.
 
@@ -12,7 +12,7 @@ Los datos provienen de Discord y de lo que haces en el panel y en el Centro de P
 
 **Identificadores.** Purgito guarda los IDs de usuarios, servidores y canales, y el nombre visible de quien escribe, para que el bot funcione y para atender tus solicitudes.
 
-**Mensajes.** En los canales donde un administrador activa el aprendizaje, Purgito guarda el texto de los mensajes junto con el ID y el nombre visible de su autor. Con ellos genera respuestas y mensajes espontáneos mediante cadenas de Markov, un método estadístico que se calcula en nuestro propio servidor, y puede imitar el estilo de escritura de una persona del servidor. Lo aprendido en un servidor se usa solo en ese servidor. Los mensajes no se envían a servicios de inteligencia artificial de terceros ni se usan para generar texto fuera de nuestro servidor; solo llegan a Cloudflare dentro de las copias de seguridad cifradas (ver sección 5).
+**Mensajes.** En los canales donde un administrador activa el aprendizaje, Purgito guarda el texto de los mensajes junto con el ID y el nombre visible de su autor. El administrador activa el aprendizaje canal por canal y, al hacerlo, confirma un aviso en el que se le pide informar a los miembros del servidor. Con ellos genera respuestas y mensajes espontáneos mediante cadenas de Markov, un método estadístico que se calcula en nuestro propio servidor, y puede imitar el estilo de escritura de una persona del servidor. Lo aprendido en un servidor se usa solo en ese servidor. Los mensajes no se envían a servicios de inteligencia artificial de terceros ni se usan para generar texto fuera de nuestro servidor; solo llegan a Cloudflare dentro de las copias de seguridad cifradas (ver sección 5).
 
 Los canales NSFW quedan siempre fuera del aprendizaje; si un canal ya habilitado pasa a ser NSFW, su historial guardado se elimina de inmediato. Los administradores pueden además ignorar canales y excluir a personas concretas, y si borras un mensaje en Discord, Purgito lo retira de lo aprendido.
 
@@ -22,7 +22,7 @@ Los canales NSFW quedan siempre fuera del aprendizaje; si un canal ya habilitado
 
 **Panel de administración.** Al iniciar sesión con Discord pedimos acceso a tu identidad, tu correo y la lista de tus servidores (`identify`, `email` y `guilds`), para mostrarte tu perfil y solo los servidores que administras. Una cookie de sesión mantiene tu sesión abierta; no se usa para publicidad ni para seguimiento. Tu correo de Discord solo se guarda dentro de esa cookie cifrada, no en nuestra base de datos.
 
-Cuando un administrador cambia la configuración desde el panel, queda un registro de auditoría con su ID y nombre visible, la acción realizada y, a veces, un detalle escrito por él. Solo lo ven los administradores de ese servidor, en la pestaña Historial. Los cambios hechos con `/settings` en Discord no se registran ahí.
+Cuando un administrador cambia la configuración desde el panel, queda un registro de auditoría con su ID y nombre visible, la acción realizada y, a veces, un detalle escrito por él. Solo lo ven los administradores de ese servidor, en la pestaña Historial. Los cambios hechos con `/settings` en Discord no se registran ahí, salvo la confirmación que se da al activar el aprendizaje de un canal.
 
 **Frases especiales e impulsos.** Las frases especiales conservan el ID y el nombre de quien las agregó. Los impulsos (boosts) guardan quién impulsa, el servidor y la fecha, para poder agradecerlo.
 
@@ -56,7 +56,7 @@ Discord, Cloudflare, Polar.sh y Railway pueden tratar datos fuera de Chile, de m
 
 Los datos se conservan solo mientras son necesarios, con estos plazos:
 
-- **Mensajes aprendidos, estilo de escritura por persona y registro de quién envió cada GIF:** hasta 180 días desde que Purgito los aprendió. Antes, si el servidor llega a su límite de mensajes (mayor con Premium), se descartan los más antiguos. La purga es diaria y alcanza también a los servidores inactivos.
+- **Mensajes aprendidos y estilo de escritura por persona:** hasta 30 días desde que Purgito los aprendió. Antes, si el servidor llega a su límite de mensajes (mayor con Premium), se descartan los más antiguos. La purga es diaria y alcanza también a los servidores inactivos.
 - **GIFs:** si borras el mensaje original en Discord, se elimina el registro del remitente y, si nadie más lo compartió de forma independiente, también el GIF y su archivo. Al cumplirse los 180 días se elimina igualmente ese registro, pero el GIF puede seguir en la galería sin atribución hasta que un administrador lo quite.
 - **Registro de auditoría y estadísticas de uso:** 90 días.
 - **Frases especiales y anuncios programados:** mientras existan.

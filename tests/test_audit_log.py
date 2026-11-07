@@ -16,6 +16,7 @@ import pytest
 
 import db
 import webapi
+from learning_notice import NOTICE_VERSION as NOTICE
 
 _GUILD = 123
 _USER_ID = "999888777"
@@ -221,7 +222,7 @@ def test_list_audit_log_page_guild_sin_acciones_todavia(memory_db):
 
 
 def test_corpus_post_loguea_con_el_user_id_de_la_sesion(memory_db):
-    req = FakeRequest(body={"channel_id": "555"})
+    req = FakeRequest(body={"channel_id": "555", "confirm_learning": NOTICE})
 
     resp = _run(webapi._api_corpus_post, req)
 
@@ -232,13 +233,20 @@ def test_corpus_post_loguea_con_el_user_id_de_la_sesion(memory_db):
     assert entries[0]["user_name"] == _USERNAME
     assert entries[0]["action"] == "corpus.add"
     assert "555" in entries[0]["detail"]
+    assert (
+        f"notice={NOTICE}" in entries[0]["detail"]
+        and "source=dashboard" in entries[0]["detail"]
+    )
 
 
 def test_corpus_post_no_loguea_si_el_canal_ya_estaba(memory_db):
-    req = FakeRequest(body={"channel_id": "555"})
+    req = FakeRequest(body={"channel_id": "555", "confirm_learning": NOTICE})
     _run(webapi._api_corpus_post, req)
 
-    resp = _run(webapi._api_corpus_post, FakeRequest(body={"channel_id": "555"}))
+    resp = _run(
+        webapi._api_corpus_post,
+        FakeRequest(body={"channel_id": "555", "confirm_learning": NOTICE}),
+    )
 
     assert _json(resp)["added"] is False
     # Una sola entrada -- la del alta real, no un segundo intento sin efecto.
@@ -503,3 +511,21 @@ def test_purge_old_audit_log_entries_no_toca_nada_dentro_de_la_retencion(memory_
     deleted, remaining = asyncio.run(run())
     assert deleted == 0
     assert len(remaining) == 1
+
+
+def test_corpus_post_sin_confirmar_el_aviso_no_activa_el_aprendizaje(memory_db):
+    resp = _run(webapi._api_corpus_post, FakeRequest(body={"channel_id": "555"}))
+    assert resp.status == 409
+    body = _json(resp)
+    assert (
+        body["code"] == "learning_confirmation_required"
+        and body["notice_version"] == NOTICE
+    )
+    # tampoco con una versión vieja del aviso
+    resp = _run(
+        webapi._api_corpus_post,
+        FakeRequest(body={"channel_id": "555", "confirm_learning": "1999-01-01"}),
+    )
+    assert resp.status == 409
+    assert asyncio.run(db.list_corpus_channels(_GUILD)) == []
+    assert asyncio.run(db.list_audit_log(_GUILD)) == []
