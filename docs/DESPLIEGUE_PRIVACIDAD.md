@@ -4,11 +4,13 @@
 (pasos 3 y 6) son irreversibles y requieren autorización expresa del titular. Verificación de solo lectura:
 `sudo deploy/verify_privacy_release.sh pre|post [--web]`.
 
-> **Estado (2026-11-07, 19:5x UTC): migración hecha.** nginx sirve `/var/www/purgito/current` (release
-> `20261107T195651Z-dir`, construido desde el staging provisional: Política v2.2.1). El árbol de trabajo
-> `landing/` ya NO es público; `build_docs.py` puede ejecutarse en él sin efecto en producción. El `root` anterior
-> está en `/etc/nginx/purgito.conf.pre-releases-20261107` (rollback: restaurarlo y `nginx -t && systemctl reload nginx`).
-> La Política objetivo (v2.3, `docs/PRIVACY*.md`) se publica con el paso 7, no antes.
+> **Estado desplegado (2026-11-07 ~23:55 UTC).** Código en producción: commit `27a92bb` (tag `deployed-2026-11-07`;
+> rollback del código: `pre-cierre-privacidad-2026-11-07` = `326c1e2` + reinicio de `bot-purg`). Landing publicada por releases:
+> `20261107T234141Z-b7d8965` (Política v2.5; rollback: `sudo deploy/publish_landing.sh rollback --yes`). nginx sirve
+> `/var/www/purgito/current` y escribe el access log con el formato `purgito` (`/etc/nginx/purgito-logging.conf`; copias previas
+> en `/etc/nginx/*.pre-*`). Runner de backups instalado desde `b7d8965`; timers `backup-check` y `vault-watch` habilitados.
+> Sin aplicar a propósito: adelgazamiento del registro en R2 (`--thin`), reglas de Cloudflare (`docs/R2_REGLAS.md`), alta de
+> `purgito-vault-watch` en el agente de Purgito Monitor, y cualquier cambio en los snapshots del anfitrión.
 
 ## A. Contención inmediata y aislamiento definitivo (primero; requiere autorización)
 1. **Corregir lo que ya es público** (solo las afirmaciones aún no ciertas; `docs/provisional/`):
