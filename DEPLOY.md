@@ -946,8 +946,10 @@ El `access_log` por defecto (`combined`) guarda la petición completa y el callb
 un nginx de prueba en un puerto alto):
 
 ```bash
-sudo install -m 0644 deploy/nginx-logging.conf /etc/nginx/conf.d/00-purgito-logging.conf
-# en /etc/nginx/nginx.conf, dentro de http {}:  access_log /var/log/nginx/access.log purgito;
+sudo install -m 0644 deploy/nginx-logging.conf /etc/nginx/purgito-logging.conf
+# en /etc/nginx/nginx.conf, dentro de http {} y ANTES del access_log:
+#   include /etc/nginx/purgito-logging.conf;
+#   access_log /var/log/nginx/access.log purgito;
 sudo nginx -t && sudo systemctl reload nginx
 ```
 

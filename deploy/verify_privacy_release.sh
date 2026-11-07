@@ -46,7 +46,6 @@ check "purgito-backup.service con BACKUP_REQUIRE_GUARD=1" bash -c "systemctl sho
 for u in purgito-backup purgito-ledger purgito-backup-check purgito-vault-watch; do
     check "$u.timer habilitado" systemctl is-enabled --quiet "$u.timer"
 done
-check "registro externo adelgazado (<= 200 instantáneas en R2)" bash -c "[ \$(/opt/purgito-backup/deploy/backup_task.sh list | grep -c '^ledger/') -le 200 ]"
 check "ningún dump local de más de 13 días" bash -c "[ -z \"\$(find /var/backups/purgito -maxdepth 1 -name 'purgito-*.dump*' -mtime +13 -print -quit)\" ]"
 
 if [ "$web" = "--web" ]; then

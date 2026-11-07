@@ -54,8 +54,8 @@ logs heredados (> `LOG_RETENTION_DAYS` = 30). Comprobar `journalctl -u bot-purg 
 
 ## 2. nginx (reversible: quitar el `include` y recargar)
 ```bash
-sudo install -m 0644 deploy/nginx-logging.conf /etc/nginx/conf.d/00-purgito-logging.conf
-# en /etc/nginx/nginx.conf: access_log /var/log/nginx/access.log purgito;
+sudo install -m 0644 deploy/nginx-logging.conf /etc/nginx/purgito-logging.conf
+# en /etc/nginx/nginx.conf, antes del access_log: include /etc/nginx/purgito-logging.conf;  y  access_log ... purgito;
 sudo nginx -t && sudo systemctl reload nginx
 sudo logrotate -f /etc/logrotate.d/nginx      # el access.log antiguo pasa a access.log.1 (ya no es el activo)
 ```
