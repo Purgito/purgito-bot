@@ -44,6 +44,8 @@
 #   R2_KEEP_DAILY / R2_KEEP_WEEKLY       retención en R2: diarios y domingos (default: 7 y 2)
 #   R2_MIN_AGE_DAYS                      no propone borrar en R2 nada más joven (Bucket Lock de 6 días; default 6)
 #   BACKUP_MAX_AGE_DAYS                  antigüedad máxima en R2 (default: 14; la de la política de privacidad)
+#   BACKUP_REQUIRE_GUARD=1               activa las guardas de backup_guard.sh (lo pone el servicio systemd)
+#   BACKUP_MIN_INTERVAL_HOURS            horas mínimas entre copias completas con las guardas activas (default 12)
 #   SKIP_PRUNE=1                         no poda nada (ni R2 ni disco); solo para el primer backup manual
 #   MIN_FREE_MB / BACKUP_EST_MB          reserva de disco que debe quedar libre (default 400) y estimación del dump sin backups previos (150)
 #   BACKUP_ALERT_WEBHOOK                 webhook de Discord al que avisar si el backup falla (default: el del .env)
@@ -160,6 +162,12 @@ fi
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
+# Exclusión mutua, intervalo mínimo y trazabilidad (solo con BACKUP_REQUIRE_GUARD=1; ver backup_guard.sh).
+# shellcheck source=backup_guard.sh
+. "$script_dir/backup_guard.sh"
+guard_rc=0
+guard_enter "$BACKUP_DIR" || guard_rc=$?
+if [ "$guard_rc" -ne 0 ]; then exit "$guard_rc"; fi
 stamp="$(date +%Y%m%d-%H%M%S)"
 plain="$BACKUP_DIR/.purgito-$stamp.dump.plain"
 dest="$BACKUP_DIR/purgito-$stamp.dump.age"
@@ -286,8 +294,9 @@ fi
 # cronológico. Con KEEP_LAST o menos backups no se borra nada. No toca nada más
 # de BACKUP_DIR (backups de rollback, .bak, el log).
 prune_local() {
-    local keep="$1" f n i kept=0 deleted=0
+    local keep="$1" f n i kept=0 deleted=0 stamp_s age_days now_s
     local -a found=()
+    now_s="$(date +%s)"
     while IFS= read -r f; do
         found+=("$f")
     done < <(
@@ -299,7 +308,15 @@ prune_local() {
     n=${#found[@]}
     log "LOCAL PRUNE: $n backup(s) válido(s) en $BACKUP_DIR; política: conservar los $keep más recientes"
     for ((i = 0; i < n; i++)); do
-        if [ "$i" -ge $((n - keep)) ]; then
+        # Tope de EDAD además del de cantidad (política de privacidad): si el servidor estuvo apagado o la
+        # bóveda cerrada, las 2 copias locales de antes pueden tener más de BACKUP_MAX_AGE_DAYS - 1 días.
+        # Solo se llega acá tras una copia NUEVA y completa, así que nunca deja el disco sin ninguna.
+        age_days=-1
+        if [[ "${found[$i]}" =~ ^purgito-([0-9]{4})([0-9]{2})([0-9]{2})-([0-9]{2})([0-9]{2})([0-9]{2}) ]]; then
+            stamp_s="$(date -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}" +%s 2>/dev/null || echo "")"
+            [ -z "$stamp_s" ] || age_days=$(( (now_s - stamp_s) / 86400 ))
+        fi
+        if [ "$i" -ge $((n - keep)) ] && { [ "$i" -eq $((n - 1)) ] || [ "$age_days" -lt $((BACKUP_MAX_AGE_DAYS - 1)) ]; }; then
             log "LOCAL PRUNE: conservo ${found[$i]}"
             kept=$((kept + 1))
         else
@@ -316,5 +333,6 @@ else
     prune_local "$KEEP_LAST"
 fi
 
+guard_mark_ok "$BACKUP_DIR"
 log "BACKUP COMPLETE: OK backup -> $dest (pg_restore --list ok, $tables tablas con datos, $state, $remote)"
 [ "$prune_failed" -eq 0 ] || exit 1

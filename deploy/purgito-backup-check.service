@@ -1,4 +1,4 @@
-# Comprueba (solo lectura) que existe un backup de menos de 36 h y una instantánea del registro de menos de 3 h;
+# Comprueba (solo lectura) que existe un backup de menos de 26 h y una instantánea del registro de menos de 1 h;
 # si no, avisa por BACKUP_ALERT_WEBHOOK. Lo lanza purgito-backup-check.timer cada 6 h.
 [Unit]
 Description=Vigilancia de backups y registro de Purgito (dead-man)

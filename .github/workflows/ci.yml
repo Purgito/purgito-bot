@@ -188,6 +188,7 @@ jobs:
         run: |
           pg_dump --version
           RESTORE_CHECK_DB=purgito_restorecheck bash deploy/backup_db_test.sh
+          bash deploy/backup_guard_test.sh
 
   # Tests de JS del dashboard y del selector de idioma de la landing: solo
   # necesitan Node (ya viene en ubuntu-latest), sin instalar dependencias.

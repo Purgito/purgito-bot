@@ -12,6 +12,7 @@ import shutil
 import stat
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fake_s3 import FakeS3
@@ -703,10 +704,10 @@ def _dump_age(d):
     return sorted(p.name for p in d.glob("purgito-*.dump.age"))
 
 
+# Fechas relativas a hoy (1 a 3 días): el tope de edad de la poda local (13 días) no entra en juego.
 PREVIOS = [
-    "purgito-20260101-000000.dump.age",
-    "purgito-20260108-000000.dump.age",
-    "purgito-20260115-000000.dump.age",
+    f"purgito-{(datetime.now(timezone.utc) - timedelta(days=d)).strftime('%Y%m%d')}-000000.dump.age"
+    for d in (3, 2, 1)
 ]
 
 
@@ -732,7 +733,11 @@ def test_backup_db_local_conserva_como_maximo_2_con_el_nuevo(
 
 @needs_shell_tools
 def test_backup_db_local_nunca_deja_mas_de_2_ni_siquiera_con_muchos(tmp_path, age_keys):
-    nombres = [f"purgito-2026{m:02d}01-000000.dump.age" for m in range(1, 10)]
+    hoy = datetime.now(timezone.utc)
+    nombres = [
+        f"purgito-{(hoy - timedelta(days=d)).strftime('%Y%m%d')}-000000.dump.age"
+        for d in range(9, 0, -1)  # 9 copias de hace 1 a 9 días: dentro del tope de edad
+    ]
     d = _backups_previos(tmp_path, nombres)
 
     proc = _run_backup(tmp_path, "#!/bin/bash\nexit 0\n", recipients=age_keys[1])
@@ -867,7 +872,6 @@ def test_delete_backup_rechaza_keys_que_no_son_backups(s3, key):
 
 # ─── retención diaria + semanal (política de privacidad: máximo 14 días) ─────
 
-from datetime import datetime, timedelta, timezone  # noqa: E402
 
 _NOW = datetime(2026, 11, 12, 10, 0, tzinfo=timezone.utc)  # jueves
 
@@ -984,6 +988,45 @@ def test_ledger_prune_borra_lo_vencido_pero_conserva_las_3_mas_nuevas():
     keys, kept, victims = r2_backup.prune_plan_ledger(viejos, _NOW)
     assert len(kept) == 3 and len(victims) == 3
     assert set(kept) == set(sorted(k for k, _s, _m in viejos)[-3:])
+
+
+def test_ledger_prune_adelgaza_conservando_recientes_una_por_hora_y_una_por_dia():
+    items = [
+        (_ledger_key(_NOW - timedelta(minutes=5 * n)), 5, None)
+        for n in range(12 * 24 * 14)  # 14 días a ritmo de 5 min
+    ]
+    keys, kept, victims = r2_backup.prune_plan_ledger(items, _NOW)
+    assert len(keys) == len(kept) + len(victims)
+    ages = sorted(_NOW - r2_backup.ledger_time(k) for k in kept)
+    assert len(kept) <= 140
+    # las últimas 6 h, completas (cada 5 min)
+    assert sum(1 for a in ages if a < timedelta(hours=6)) == 72
+    # entre 6 y 48 h: a lo sumo una por hora UTC; después, a lo sumo una por día UTC
+    horas = {}
+    for k in kept:
+        t = r2_backup.ledger_time(k)
+        if timedelta(hours=6) <= _NOW - t < timedelta(hours=48):
+            horas[(t.date(), t.hour)] = horas.get((t.date(), t.hour), 0) + 1
+    assert horas and max(horas.values()) == 1
+    # siempre quedan las 3 más recientes y la más nueva de cada día
+    assert set(sorted(keys)[-3:]) <= set(kept)
+    # lo conservado es siempre lo más nuevo de su franja: ninguna víctima es más nueva que su sustituta
+    assert max(r2_backup.ledger_time(k) for k in victims) < _NOW - timedelta(hours=6)
+
+
+def test_ledger_prune_max_delete_acota_cada_pasada(s3):
+    for n in range(40):
+        s3.seed(
+            BACKUP_BUCKET,
+            G
+            + _ledger_key(
+                datetime.now(timezone.utc) - timedelta(days=3, minutes=5 * n)
+            ),
+            b"x",
+        )
+    antes = len(s3.ops("delete_object"))
+    assert r2_backup.main(["prune-ledger", "--apply", "--max-delete", "5"]) == 0
+    assert len(s3.ops("delete_object")) - antes == 5
 
 
 def test_ledger_prune_no_borra_lo_reciente_ni_otras_keys():

@@ -9,7 +9,7 @@ desde un backup"). No lo usa el bot.
     python scripts/r2_backup.py prune [--keep 2] [--apply]   # retención de R2: los N más recientes
     python scripts/r2_backup.py prune-gfs [--daily 7 --weekly 2 --max-age-days 14] [--apply]
     python scripts/r2_backup.py check [--max-age-hours 36]    # ¿el último backup es reciente?
-    python scripts/r2_backup.py prune-ledger [--max-age-days 15] [--apply]
+    python scripts/r2_backup.py prune-ledger [--max-age-days 15] [--max-delete 300] [--apply]
     python scripts/r2_backup.py preflight                    # solo lectura: ¿es seguro correr un backup?
     python scripts/r2_backup.py access-check                 # solo lectura: ¿los tokens están separados?
     python scripts/r2_backup.py media-check                  # solo lectura: ¿el token de imágenes/GIFs funciona y no ve los backups?
@@ -151,6 +151,11 @@ DEFAULT_MAX_AGE_DAYS = 14
 # Bucket Lock de Cloudflare sobre gen2/purgito-: R2 rechaza (HTTP 409) borrar algo más joven. La poda
 # no lo intenta: lo deja para la pasada en que ya tenga esta edad (sigue siendo < 14 días).
 DEFAULT_MIN_AGE_DAYS = 6
+# La poda corre una vez al día (tras el backup de las 03:17). Un domingo con 13 d 23 h hoy entra en
+# "menos de 14 días" y se conserva, pero mañana ya tendría casi 15: sería la única forma de que una
+# copia superara el tope de la política. Por eso los domingos solo se conservan si la poda de HOY
+# garantiza que mañana seguirán por debajo de max_age_days.
+DEFAULT_PRUNE_GRACE_DAYS = 1
 
 
 def backup_time(key: str):
@@ -176,12 +181,14 @@ def prune_plan_gfs(
     max_age_days: int = DEFAULT_MAX_AGE_DAYS,
     prefix: str = BACKUP_PREFIX,
     min_age_days: float = 0,
+    grace_days: float = DEFAULT_PRUNE_GRACE_DAYS,
 ):
     """(válidos, conservados, a borrar) con la retención de la política de privacidad:
 
     - diarios: el backup más reciente de cada uno de los últimos `daily` días UTC;
     - semanales: el backup de los últimos `weekly` domingos (UTC);
-    - todo con menos de `max_age_days` días: lo más viejo se borra siempre;
+    - todo con menos de `max_age_days` días al SIGUIENTE paso de la poda (`grace_days`): ninguna copia
+      llega a vivir `max_age_days` días; lo más viejo se borra siempre;
     - el backup más nuevo nunca se borra;
     - nada con menos de `min_age_days` se propone para borrar (lo protege el Bucket Lock: p. ej.
       un backup manual el mismo día que el del timer deja dos del mismo día; el más viejo se
@@ -217,7 +224,9 @@ def prune_plan_gfs(
             kept.add(same[-1])
     sundays = []
     for k in reversed(stamped):
-        if dated[k].weekday() == 6 and now - dated[k] < cap:
+        if dated[k].weekday() == 6 and now - dated[k] < cap - timedelta(
+            days=grace_days
+        ):
             if all(dated[k].date() != dated[x].date() for x in sundays):
                 sundays.append(k)
     kept.update(sundays[:weekly])
@@ -249,24 +258,56 @@ def ledger_time(key: str):
         return None
 
 
+# Cada instantánea es el estado completo del registro (no un incremental): para restaurar solo
+# hace falta la más reciente, y las viejas son un respaldo por si esa estuviera dañada. Se sube una
+# cada 5 minutos (ventana máxima de pérdida), pero conservarlas todas 15 días eran ~4 300 objetos.
+# Con el adelgazamiento quedan ~130: todas las de las últimas 6 h, una por hora hasta 48 h y una por
+# día hasta el tope de 15 días (el compromiso de la política de privacidad sigue siendo ese tope).
+LEDGER_FULL_HOURS = 6
+LEDGER_HOURLY_HOURS = 48
+DEFAULT_LEDGER_MAX_DELETE = 300
+
+
 def prune_plan_ledger(
     backups,
     now,
     max_age_days: int = DEFAULT_LEDGER_MAX_AGE_DAYS,
     keep_newest: int = LEDGER_KEEP_NEWEST,
+    full_hours: float = LEDGER_FULL_HOURS,
+    hourly_hours: float = LEDGER_HOURLY_HOURS,
 ):
-    """Instantáneas `ledger/privacy-ledger-*.jsonl.age` a borrar: las de más de
-    `max_age_days` días, salvo las `keep_newest` más recientes (siempre quedan)."""
+    """(todas, conservadas, a borrar) de las instantáneas `ledger/privacy-ledger-*.jsonl.age`.
+
+    Se conservan: las `keep_newest` más recientes (siempre), todas las de menos de `full_hours`,
+    la más nueva de cada hora UTC hasta `hourly_hours` y la más nueva de cada día UTC hasta
+    `max_age_days`. Lo de `max_age_days` o más se borra. Nunca toca otras keys."""
     from datetime import timedelta
 
     keys = sorted(
         (k for k, size, _m in backups if ledger_time(k) is not None and size > 0),
         key=ledger_time,
     )
-    protected = set(keys[-keep_newest:]) if keep_newest > 0 else set()
+    kept = set(keys[-keep_newest:]) if keep_newest > 0 else set()
     cap = timedelta(days=max_age_days)
-    victims = [k for k in keys if k not in protected and now - ledger_time(k) >= cap]
-    return keys, [k for k in keys if k not in victims], victims
+    full = timedelta(hours=full_hours)
+    hourly = timedelta(hours=hourly_hours)
+    seen: set[tuple] = set()
+    for k in reversed(
+        keys
+    ):  # de la más nueva a la más vieja: gana la más nueva de cada franja
+        t = ledger_time(k)
+        age = now - t
+        if age >= cap:
+            continue
+        if age < full:
+            kept.add(k)
+            continue
+        slot = ("h", t.date(), t.hour) if age < hourly else ("d", t.date())
+        if slot not in seen:
+            seen.add(slot)
+            kept.add(k)
+    victims = [k for k in keys if k not in kept]
+    return keys, [k for k in keys if k in kept], victims
 
 
 def _log(msg: str) -> None:
@@ -396,9 +437,14 @@ def cmd_prune_ledger(args) -> int:
         _err(str(e))
         return 1
     _log(
-        f"R2 PRUNE-LEDGER: {len(keys)} instantánea(s); máximo {args.max_age_days} días"
+        f"R2 PRUNE-LEDGER: {len(keys)} instantánea(s), {len(kept)} a conservar y "
+        f"{len(victims)} a borrar; máximo {args.max_age_days} días"
     )
     failed = 0
+    pending = max(len(victims) - args.max_delete, 0)
+    victims = victims[: args.max_delete]
+    if pending:
+        _log(f"R2 PRUNE-LEDGER: {pending} pendiente(s) para las próximas pasadas")
     for key in victims:
         if not args.apply:
             _log(f"R2 PRUNE-LEDGER: borraría {key} (dry-run, sin --apply)")
@@ -725,6 +771,13 @@ def main(argv=None) -> int:
         help="borra instantáneas del registro de eliminaciones vencidas (dry-run sin --apply)",
     )
     pl.add_argument("--max-age-days", type=int, default=DEFAULT_LEDGER_MAX_AGE_DAYS)
+    pl.add_argument(
+        "--max-delete",
+        type=int,
+        default=DEFAULT_LEDGER_MAX_DELETE,
+        help="tope de borrados por pasada (la primera pasada tras activar el adelgazamiento "
+        "tiene miles pendientes; se vacían en varias pasadas de 5 min)",
+    )
     pl.add_argument("--apply", action="store_true", help="borra de verdad")
     pl.set_defaults(func=cmd_prune_ledger)
 

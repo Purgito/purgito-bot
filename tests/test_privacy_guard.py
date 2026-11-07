@@ -175,3 +175,32 @@ def test_la_retencion_tiene_un_minimo_de_30_dias(mem):
         assert (await db.purge_expired_corpus(1, now=NOW))["corpus_messages"] == 0
 
     asyncio.run(go())
+
+
+class _Conn:
+    """Solo lo que usa check_ledger_freshness: execute(...).fetchone() del latido de la base."""
+
+    def __init__(self, heartbeat):
+        self.heartbeat = heartbeat
+
+    def execute(self, *_a):
+        hb = self.heartbeat
+
+        class _Cur:
+            def fetchone(self):
+                return (hb,) if hb else None
+
+        return _Cur()
+
+
+def test_el_registro_rechaza_una_base_mas_vieja_que_la_ventana_de_lapidas():
+    ledger = {"exported_at": "2026-11-20 12:00:00"}
+    now = datetime(2026, 11, 20, 12, 30, tzinfo=timezone.utc)
+    check = reapply_deletions.check_ledger_freshness
+    assert check(_Conn("2026-11-10 03:17:00"), ledger, now) is None  # 10 días: las lápidas llegan
+    motivo = check(_Conn("2026-11-04 03:17:00"), ledger, now)  # 16 días: se perdería lo intermedio
+    assert motivo and "más de 15 días" in motivo
+
+
+def test_la_ventana_del_restaurador_es_la_vida_de_una_lapida():
+    assert reapply_deletions.TOMBSTONE_WINDOW_DAYS == db.DELETION_TOMBSTONE_RETENTION_DAYS

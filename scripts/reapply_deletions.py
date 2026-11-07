@@ -45,6 +45,11 @@ import privacy_requests  # noqa: E402
 # Frescura exigida al registro externo: se exporta cada pocos minutos, así que uno más viejo que
 # esto indica que el exportador falló y puede faltar algo reciente. Se prefiere fallar.
 MAX_LEDGER_AGE_HOURS = 2
+# Una lápida dura 15 días (db.DELETION_TOMBSTONE_RETENTION_DAYS; un test lo vigila). Si la base
+# restaurada es más vieja que eso respecto al registro, las eliminaciones intermedias ya no están
+# en él y se podrían resucitar: los backups no deberían superar 14 días, así que esto solo salta si
+# se restaura una copia que no cumple esa regla (p. ej. una local olvidada tras una parada larga).
+TOMBSTONE_WINDOW_DAYS = 15
 _TS = "%Y-%m-%d %H:%M:%S"
 
 
@@ -72,6 +77,12 @@ def check_ledger_freshness(conn, ledger: dict, now: datetime | None = None) -> s
         return (
             f"el registro ({ledger['exported_at']}) es ANTERIOR a la base ({row[0]}): "
             "no puede contener lo que ocurrió después"
+        )
+    if db_hb is not None and exported - db_hb > timedelta(days=TOMBSTONE_WINDOW_DAYS):
+        return (
+            f"la base ({row[0]}) es más de {TOMBSTONE_WINDOW_DAYS} días anterior al registro "
+            f"({ledger['exported_at']}): las eliminaciones intermedias ya no figuran en él y se "
+            "podrían resucitar datos borrados"
         )
     return None
 
@@ -338,8 +349,8 @@ def main(argv=None) -> int:
     ap.add_argument(
         "--aceptar-registro-antiguo",
         action="store_true",
-        help=f"aceptar un registro de más de {MAX_LEDGER_AGE_HOURS} h o anterior a la base "
-        "(se pueden haber perdido eliminaciones recientes)",
+        help=f"aceptar un registro de más de {MAX_LEDGER_AGE_HOURS} h, anterior a la base o con una base "
+        f"más de {TOMBSTONE_WINDOW_DAYS} días anterior al registro (se pueden haber perdido eliminaciones)",
     )
     args = ap.parse_args(argv)
     if not args.ledger and not args.sin_registro:

@@ -1,0 +1,12 @@
+# Primera comprobación 25 min después de arrancar (de sobra para el reinicio + `purgito-vault open`
+# de una operación planificada; el aviso de "Purgito caído" del monitor externo ya cubre ese
+# intervalo) y luego cada 10 min. NO se habilita al instalar.
+[Unit]
+Description=Comprobación periódica de la bóveda cifrada de Purgito
+
+[Timer]
+OnBootSec=25min
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

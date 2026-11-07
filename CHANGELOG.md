@@ -10,6 +10,12 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Backups (2026-11-07)
+- `prune-ledger` adelgaza `gen2/ledger/` (3 últimas + todas las de 6 h + 1 por hora hasta 48 h + 1 por día hasta 15 días; `--max-delete 300` por pasada). El tope de 15 días y la restauración con `reapply_deletions.py --ledger` no cambian.
+- `backup_db.sh`: guardas opcionales (`BACKUP_REQUIRE_GUARD=1`, activas en `purgito-backup.service`): `flock`, 12 h mínimas entre copias completas, rastro de origen/motivo; `deploy/backup_now.sh` para copias manuales con motivo. `SuccessExitStatus=75` en el servicio.
+- Nueva `purgito-vault-watch` (`.service`/`.timer`, sin dependencias de la bóveda): falla si `/srv/purgito` no está montada. `backup_check.sh`: umbral de 26 h (antes 36).
+- Pruebas: `deploy/backup_guard_test.sh` (sin PostgreSQL ni R2) y pruebas del adelgazamiento con un S3 simulado.
+
 ### Privacidad (Fase 2, 2026-11)
 - Los comandos `/borrar_mis_datos`, `/mis_datos` y `/privacidad` se retiran: el Centro de Privacidad (https://purgito.app/privacidad) es la única interfaz de autoservicio. Nuevo formulario de «otros derechos» (`privacy_rights_requests`, `POST /api/me/privacy/rights`, plazo interno 30 días), bandeja del operador `scripts/privacy_inbox.py` y contacto alternativo.
 - `corpus_messages.author_id`: cada mensaje nuevo lleva su autor y se borra al atender una eliminación; `scripts/migrate_corpus_authors.py` atribuye los heredados por el vínculo exacto con `user_corpus` y elimina los que no se pueden atribuir.

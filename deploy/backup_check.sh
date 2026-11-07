@@ -16,8 +16,8 @@ alert() {
 }
 
 rc=0
-if ! "$PYTHON" -I "$R2B" check --max-age-hours "${CHECK_BACKUP_MAX_HOURS:-36}"; then
-    alert "no hay un backup de la base de las últimas ${CHECK_BACKUP_MAX_HOURS:-36} h"
+if ! "$PYTHON" -I "$R2B" check --max-age-hours "${CHECK_BACKUP_MAX_HOURS:-26}"; then
+    alert "no hay un backup de la base de las últimas ${CHECK_BACKUP_MAX_HOURS:-26} h"
     rc=1
 fi
 if ! "$PYTHON" -I "$R2B" check --ledger --max-age-hours "${CHECK_LEDGER_MAX_HOURS:-1}"; then

@@ -53,6 +53,8 @@ FILES=(
     "src/backup_recipients.py:0644"
     "scripts/r2_backup.py:0755"
     "deploy/backup_db.sh:0755"
+    "deploy/backup_guard.sh:0755"
+    "deploy/backup_now.sh:0755"
     "deploy/age-revoked-recipients.txt:0644"
     "deploy/set_backup_credentials.sh:0755"
     "deploy/backup_task.sh:0755"
@@ -61,12 +63,12 @@ FILES=(
     "src/privacy_ledger.py:0644"
     "scripts/export_privacy_ledger.py:0755"
 )
-UNITS=(purgito-backup purgito-ledger purgito-backup-check)
+UNITS=(purgito-backup purgito-ledger purgito-backup-check purgito-vault-watch)
 
 if [ "$remove" = 1 ]; then
     say "desinstalar: $OPT y las unidades systemd (se conservan usuario, rol, $ENVF y $BKDIR)"
     for u in "${UNITS[@]}"; do run systemctl disable --now "$u.timer" 2>/dev/null || true; done
-    run rm -rf "$OPT" /etc/systemd/system/purgito-backup.* /etc/systemd/system/purgito-ledger.* /etc/systemd/system/purgito-backup-check.*
+    run rm -rf "$OPT" /etc/systemd/system/purgito-backup.* /etc/systemd/system/purgito-ledger.* /etc/systemd/system/purgito-backup-check.* /etc/systemd/system/purgito-vault-watch.*
     run systemctl daemon-reload
     [ "$apply" = 1 ] || echo "(dry-run: añade --apply)"
     exit 0

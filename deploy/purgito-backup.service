@@ -18,6 +18,10 @@ StandardOutput=append:/var/backups/purgito/backup.log
 StandardError=append:/var/backups/purgito/backup.log
 UMask=0077
 TimeoutStartSec=30min
+# Guardas de backup_guard.sh (exclusión mutua, 12 h mínimas entre copias, origen en el log).
+# Código 75 = "omitida a propósito" (otra copia en curso o una reciente): no es un fallo y no avisa.
+Environment=BACKUP_REQUIRE_GUARD=1
+SuccessExitStatus=75
 Nice=10
 IOSchedulingClass=idle
 MemoryMax=768M

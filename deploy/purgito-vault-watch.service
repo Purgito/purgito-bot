@@ -1,0 +1,15 @@
+# Falla (queda "failed") si la bóveda cifrada NO está montada. Sin dependencias del volumen: no usa
+# EnvironmentFile ni ficheros de /srv/purgito, así que sigue funcionando justo cuando la bóveda
+# está cerrada (que es cuando purgito-backup, purgito-ledger y el propio comprobador se omiten o no
+# pueden arrancar sin avisar). Lo observa el agente externo de Purgito Monitor como cualquier
+# unidad systemd "failed" (ver docs/POSTGRES.md § Vigilancia de backups).
+[Unit]
+Description=Vigila que la bóveda cifrada de Purgito esté montada
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'mountpoint -q /srv/purgito || { echo "la boveda /srv/purgito NO esta montada: backups y registro de privacidad omitidos" >&2; exit 1; }'
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

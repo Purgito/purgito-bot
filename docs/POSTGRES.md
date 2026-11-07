@@ -161,7 +161,7 @@ En producción el cron es (`crontab -l`):
 bash deploy/backup_db.sh                          # a mano
 .venv/bin/python scripts/r2_backup.py list        # ver los de R2
 .venv/bin/python scripts/r2_backup.py prune-gfs         # dry-run de la retención de R2 (7 diarios + 2 domingos, < 14 días)
-.venv/bin/python scripts/r2_backup.py check             # falla si el último backup tiene más de 36 h
+.venv/bin/python scripts/r2_backup.py check             # falla si el último backup tiene más de 26 h
 .venv/bin/python scripts/r2_backup.py download latest --dest ~/restore
 AGE_IDENTITY=~/clave-privada.txt bash deploy/restore_check.sh r2:latest   # baja de R2, descifra, restaura, verifica
 ```
@@ -227,7 +227,7 @@ dashboard.
 | Backups (`R2_BACKUP_ACCESS_KEY_ID`) | Object Read & Write | solo `purgito-backups` | `/etc/purgito/backup.env` (root:root 0600), **no** en el `.env` del bot | subir y podar `gen2/` |
 | Restauración (solo en tu PC) | **Object Read only** | solo `purgito-backups` | Proton Pass, tu PC | bajar dumps para probarlos; no puede escribir ni borrar |
 
-**Reglas en el dashboard de `purgito-backups`** (todas por prefijo; ninguna regla sin prefijo,
+**Reglas en el dashboard de `purgito-backups`** (la versión vigente y exacta, con segundos y salvedades, está en `docs/R2_REGLAS.md`) (todas por prefijo; ninguna regla sin prefijo,
 porque un bloqueo de todo el bucket frenaría la poda de `gen2/`):
 
 | Regla | Prefijo | Valor | Por qué |
@@ -237,8 +237,9 @@ porque un bloqueo de todo el bucket frenaría la poda de `gen2/`):
 | *Bucket Lock* | `gen2/purgito-` | **6 días** como máximo | protege los backups nuevos de un borrado masivo; los diarios se podan a los 7 días, un bloqueo mayor haría fallar la poda (HTTP 409 `ObjectLockedByBucketPolicy`) |
 
 `prune-gfs` no propone borrar nada con menos de `R2_MIN_AGE_DAYS` (6) días: un backup manual el mismo día que el del timer deja dos del mismo día, y el más viejo se conserva unos días más en vez de provocar un 409 en cada pasada (`tests/test_retention_lock_compat.py` simula 400 días contra estas reglas).
-| *Object lifecycle*: borrar | `gen2/purgito-` | 14 días | tope de la política por si el script no corre |
-| *Object lifecycle*: borrar | `gen2/ledger/` | 15 días | idem para el registro de eliminaciones |
+| *Object lifecycle*: borrar | `gen2/purgito-` | **13 días** | tope de la política por si el script no corre. 13 y no 14: R2 borra «típicamente dentro de las 24 h» posteriores a la fecha de expiración (documentación de Cloudflare), así que el peor caso real es ~14 días. El Bucket Lock **prevalece** sobre el lifecycle (no se borra nada antes de los 6 días) |
+| *Object lifecycle*: borrar | `gen2/ledger/` | **14 días** | idem (peor caso real ~15 días = la vida de una lápida). Expira **después** que los dumps (13 d): con el servidor apagado nunca queda un dump sin su registro |
+| *Sin* lifecycle | `gen2/luks-header-`, `gen2/secretos-` | — | un lifecycle borraría también la única cabecera o paquete vigente; se podan a mano (o con una poda propia) conservando siempre el último |
 | *Object lifecycle*: borrar (opcional) | `purgito-`, `luks-header`, `privacy-prefs` | 14 días | hace que la generación 1 caduque sola a los 14 días, como promete la política. Si prefieres decidir a mano, no la actives y bórralos tú antes de cumplir los 14 días (o cambia la política) |
 
 Nada de bloqueos indefinidos ni de más de 14 días: incumplirían la política publicada. El
@@ -355,8 +356,45 @@ Otras piezas del runner (todas con el mismo usuario y sandbox; **ningún timer s
 | Unidad | Qué hace | Frecuencia |
 |---|---|---|
 | `purgito-backup.timer` → `.service` | dump cifrado a `gen2/` y poda | diario 03:17 UTC |
-| `purgito-ledger.timer` → `.service` | exporta el registro de eliminaciones a `gen2/ledger/` y poda las vencidas | cada hora (:07) |
-| `purgito-backup-check.timer` → `.service` | avisa por `BACKUP_ALERT_WEBHOOK` si el último backup tiene más de 36 h o el último registro más de 3 h | cada 6 h (:40) |
+| `purgito-ledger.timer` → `.service` | exporta el registro de eliminaciones a `gen2/ledger/` y lo adelgaza (ver abajo) | cada 5 min |
+| `purgito-backup-check.timer` → `.service` | falla (y `OnFailure` avisa a Purgito Monitor) si el último backup tiene más de 26 h o el último registro más de 1 h | cada 6 h (:40) |
+| `purgito-vault-watch.timer` → `.service` | falla si `/srv/purgito` (la bóveda) no está montada; no depende de ningún fichero de la bóveda | 25 min tras arrancar y cada 10 min |
+
+**Si la VM queda apagada (o la bóveda cerrada) varios días.** Nada del servidor corre: ni el backup, ni la
+poda, ni la exportación del registro. Qué ocurre de verdad:
+- *R2:* solo actúa el lifecycle de Cloudflare (independiente de la VM), **si está configurado** (verificación
+  pendiente en el dashboard). Borra «típicamente dentro de las 24 h» de la expiración, no exactamente; el Bucket
+  Lock tiene prioridad (nada antes de 6 días). Con las reglas recomendadas (dumps 13 d, registro 14 d) los
+  dumps desaparecen antes que el registro. Sin esas reglas, **nada** borra en R2 hasta que el servicio vuelve.
+- *Disco local:* las 2 últimas copias quedan donde están (el cifrado de la bóveda protege el contenido, no el
+  plazo). Al reanudarse, la primera copia nueva elimina las locales de 13 días o más
+  (`backup_db.sh`, `prune_local`); hasta entonces el plazo de 14 días se puede superar. Al reabrir la bóveda tras
+  una parada: `sudo /opt/purgito-backup/deploy/backup_now.sh "tras apagado"` (las guardas lo omiten si ya hay una
+  copia de menos de 12 h).
+- *Restauración tras una parada larga:* `reapply_deletions.py` se niega si la base es más de 15 días anterior al
+  registro; y si el registro ya expiró (>14–15 d) hay que restaurar con `--sin-registro` bajo decisión expresa.
+- *Política de privacidad:* por eso promete el límite «mientras el servicio funcione con normalidad».
+
+**Vigilancia sin fallos silenciosos.** Con la bóveda cerrada, `purgito-backup`, `purgito-ledger` y el bot se
+*omiten* por `ConditionPathIsMountPoint` (no fallan, así que `OnFailure` no avisa) y los ficheros que usa el
+aviso (`/etc/purgito/*.env`) tampoco están. Por eso `purgito-vault-watch` no usa nada de la bóveda: queda
+`failed` y el agente externo de Purgito Monitor lo trata como cualquier unidad en fallo (hay que añadirla a su
+configuración como `kind: systemd`). Un backup omitido se detecta además con `purgito-backup-check`
+(26 h; un `Persistent=true` no recupera una ejecución omitida por una Condition). Para no duplicar el aviso de
+disponibilidad, `purgito-vault-watch` empieza a comprobar 25 min después de arrancar.
+
+**Copias manuales.** `purgito-backup.service` lleva `BACKUP_REQUIRE_GUARD=1` (`deploy/backup_guard.sh`):
+un solo backup a la vez (`flock`), no empieza otro si hay una copia completa de hace menos de 12 h
+(sale con 75, que el servicio acepta: no es un fallo) y cada corrida deja una línea `BACKUP ORIGEN`
+(timer o manual, usuario, motivo). A mano: `sudo /opt/purgito-backup/deploy/backup_now.sh "motivo" [--forzar]`.
+Cada copia que sube a R2 son ~62 MB que no se pueden borrar hasta pasados 6 días (Bucket Lock): para probar
+scripts usa `deploy/backup_db_test.sh` y `deploy/backup_guard_test.sh`, que no tocan R2.
+
+**Adelgazamiento del registro.** Cada instantánea de `gen2/ledger/` es el estado completo; para restaurar
+basta la más reciente (`reapply_deletions.py --ledger` exige además que tenga menos de 2 h y no sea anterior a
+la base). Se sigue subiendo una cada 5 min, pero `prune-ledger` conserva solo: las 3 últimas, todas las de
+las últimas 6 h, una por hora hasta 48 h y una por día hasta el tope de 15 días (~130 objetos en vez de
+~4 300). Cada pasada borra como máximo 300 (`--max-delete`).
 
 El webhook de alertas se guarda sin eco: `sudo /opt/purgito-backup/deploy/set_backup_credentials.sh --webhook`.
 

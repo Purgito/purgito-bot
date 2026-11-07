@@ -23,7 +23,7 @@ r2_backup = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(r2_backup)
 
 LOCK_DAYS = 6
-LIFECYCLE_DAYS = 14
+LIFECYCLE_DAYS = 13
 LEDGER_LIFECYCLE_DAYS = 15
 
 
@@ -114,11 +114,15 @@ def test_el_lifecycle_de_14_dias_no_se_lleva_nada_que_la_poda_quiera_conservar()
         assert ahora - r2_backup.backup_time(k) < timedelta(days=LIFECYCLE_DAYS)
 
 
-def test_registro_horario_poda_y_lifecycle_de_15_dias_son_compatibles():
-    inicio = datetime(2026, 1, 1, 0, 7, 0, tzinfo=timezone.utc)
+def test_registro_cada_5_min_poda_y_lifecycle_de_15_dias_son_compatibles():
+    """60 días a ritmo real (una instantánea cada 5 min): el adelgazamiento deja pocos objetos,
+    siempre quedan las 3 últimas, nada supera el tope de 15 días y la regla de lifecycle (que
+    borraría a los 15 días) nunca se lleva algo que la poda quisiera conservar."""
+    inicio = datetime(2026, 1, 1, 0, 2, 0, tzinfo=timezone.utc)
     objetos: dict[str, datetime] = {}
-    for h in range(24 * 60):  # 60 días de instantáneas horarias
-        t = inicio + timedelta(hours=h)
+    maximo = 0
+    for i in range(24 * 12 * 60):
+        t = inicio + timedelta(minutes=5 * i)
         objetos[
             "ledger/privacy-ledger-" + t.strftime("%Y%m%dT%H%M%S") + "Z.jsonl.age"
         ] = t
@@ -128,14 +132,16 @@ def test_registro_horario_poda_y_lifecycle_de_15_dias_son_compatibles():
             if t - c >= timedelta(days=LEDGER_LIFECYCLE_DAYS)
         ]:
             del objetos[k]
-        _keys, _kept, victims = r2_backup.prune_plan_ledger(
+        _keys, kept, victims = r2_backup.prune_plan_ledger(
             [(k, 1, None) for k in objetos], t
         )
+        for k in kept:  # lo conservado nunca llega al tope que borraría el lifecycle
+            assert t - objetos[k] < timedelta(days=LEDGER_LIFECYCLE_DAYS)
         for k in victims:
-            assert t - objetos[k] >= timedelta(days=15)  # nunca antes de su plazo
             del objetos[k]
-        assert len(objetos) >= min(3, h + 1)  # siempre quedan las últimas
-        assert all(t - c <= timedelta(days=15, hours=1) for c in objetos.values())
+        assert len(objetos) >= min(3, i + 1)  # siempre quedan las últimas
+        maximo = max(maximo, len(objetos))
+    assert maximo <= 150  # ~72 (6 h) + 42 (por hora) + 15 (por día) + margen, no ~4 300
 
 
 def test_la_poda_solo_ve_gen2_aunque_el_historico_cumpla_los_14_dias(monkeypatch):
@@ -164,3 +170,27 @@ def test_la_poda_solo_ve_gen2_aunque_el_historico_cumpla_los_14_dias(monkeypatch
         "luks-header-20261105.img.age",
         "privacy-prefs.csv.age",
     }
+
+
+def test_ninguna_copia_llega_a_vivir_14_dias_con_una_poda_diaria():
+    """Simula 90 días con poda diaria a las 03:17 y un dump cada día: la edad máxima que alcanza
+    cualquier copia (justo antes de borrarse) es < 14 días, aunque sea de un domingo."""
+    inicio = datetime(2026, 1, 1, 3, 17, 9, tzinfo=timezone.utc)
+    vivos: dict[str, datetime] = {}
+    maxima = timedelta(0)
+    for d in range(90):
+        ahora = inicio + timedelta(days=d)
+        vivos[_name(ahora)] = ahora
+        _v, _kept, victims = r2_backup.prune_plan_gfs(
+            [(k, 1, None) for k in vivos],
+            ahora,
+            min_age_days=r2_backup.DEFAULT_MIN_AGE_DAYS,
+        )
+        for k in victims:
+            maxima = max(maxima, ahora - vivos[k])
+            del vivos[k]
+        for c in vivos.values():
+            maxima = max(maxima, ahora - c)
+    assert maxima + timedelta(days=1) < timedelta(days=14, hours=1), (
+        maxima
+    )  # y mañana también
