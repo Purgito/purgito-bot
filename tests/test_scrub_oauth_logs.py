@@ -100,3 +100,15 @@ def test_informe_sin_valores_y_con_las_lineas_afectadas(tmp_path):
         "state": 1,
     }
     assert oct(rep.stat().st_mode & 0o777) == "0o600"
+
+
+def test_es_idempotente_un_archivo_ya_saneado_no_cuenta_como_pendiente(
+    tmp_path, capsys
+):
+    f = tmp_path / "access.log.1"
+    f.write_text(OTRA + LINE, encoding="utf-8")
+    _viejo(f)
+    assert scrub.main(["--apply", str(f)]) == 0
+    capsys.readouterr()
+    assert scrub.main([str(f)]) == 0
+    assert "sin parámetros sensibles" in capsys.readouterr().out

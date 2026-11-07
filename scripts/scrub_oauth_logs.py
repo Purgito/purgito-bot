@@ -73,6 +73,8 @@ def scrub_text(text: str) -> tuple[str, Counter]:
     found: Counter = Counter()
 
     def _sub(m: re.Match) -> str:
+        if m.group(2) == REDACTED:  # ya saneado: idempotente, no se cuenta
+            return m.group(0)
         found[m.group(1)[1:-1].lower()] += 1
         return m.group(1) + REDACTED
 
