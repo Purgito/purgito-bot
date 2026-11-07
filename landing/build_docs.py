@@ -108,7 +108,7 @@ PAGES = [
         "contenido generado, suscripciones y límites de responsabilidad.",
         "toc": [
             "Qué se puede y qué no se puede hacer con el bot.",
-            "Licencia MIT y ausencia de garantías sobre el software.",
+            "Licencia del código (MIT con Commons Clause) y ausencia de garantías sobre el software.",
             "Qué implica que el texto lo genere una máquina y quién modera.",
             "Premium, precios, prueba gratuita, cancelación y reembolsos.",
             "El servicio se ofrece sin garantía de disponibilidad continua.",
@@ -121,18 +121,18 @@ PAGES = [
         "slug": "privacidad",
         "src": "PRIVACY.md",
         "title": "Política de Privacidad",
-        "meta": "Qué datos recopila Purgito, para qué los usa, con qué servicios "
-        "los comparte y cómo eliminarlos.",
+        "meta": "Qué datos trata Purgito, para qué los usa, con quién los comparte, "
+        "cuánto tiempo los conserva y cómo ejercer tus derechos.",
         "toc": [
-            "Qué datos guarda el bot: IDs, mensajes, multimedia, sesión y pagos.",
-            "Para qué se usan esos datos — nunca para publicidad ni venta.",
-            "Proveedores externos que intervienen en alguna función.",
-            "Cuánto tiempo se conservan los datos y cómo borrarlos.",
-            "Qué puedes pedir sobre la información recopilada.",
-            "Edad mínima y capacidad para contratar premium.",
-            "Medidas para proteger la información almacenada.",
-            "Cómo se avisan las actualizaciones de esta Política.",
-            "Dónde escribir para preguntar o pedir una eliminación.",
+            "Qué datos tratamos: mensajes, GIFs, sesión, pagos y registros técnicos.",
+            "Para qué se usan — nunca para publicidad ni venta.",
+            "Con quién se comparten y qué pasa fuera de Chile.",
+            "Cuánto tiempo se conserva cada dato.",
+            "Copias de seguridad y límites de la eliminación.",
+            "Tus derechos y cómo ejercerlos en el Centro de Privacidad.",
+            "Medidas para proteger la información.",
+            "Edad mínima y capacidad para contratar Premium.",
+            "Cambios de esta Política y dónde escribir.",
         ],
     },
     {
@@ -144,7 +144,7 @@ PAGES = [
         "toc": [
             "La prueba gratuita de 7 días y sus condiciones.",
             "Cómo cancelar la suscripción desde el portal de Polar.",
-            "Por qué no se ofrecen reembolsos por el período ya pagado.",
+            "Cuándo no se reembolsa el período ya pagado y qué derechos de consumidor se mantienen.",
             "Cuándo se puede revocar el acceso premium.",
             "Qué pasa con tu contenido guardado si el servidor pierde Premium.",
             "A quién queda asociado el premium: al servidor, no a la cuenta.",
@@ -184,18 +184,18 @@ PAGES_EN = [
         "slug": en_slug("privacidad"),
         "src": "PRIVACY.en.md",
         "title": "Privacy Policy",
-        "meta": "What data Purgito collects, what it's used for, which services "
-        "it's shared with, and how to delete it.",
+        "meta": "What data Purgito processes, what it is used for, who it is shared "
+        "with, how long it is kept and how to exercise your rights.",
         "toc": [
-            "What data the bot stores: IDs, messages, media, session, and payments.",
-            "What that data is used for — never for advertising or sale.",
-            "External providers involved in certain features.",
-            "How long data is kept, and how to delete it.",
-            "What you can request about the information collected.",
+            "What data we process: messages, GIFs, sign-in, payments and technical logs.",
+            "What it is used for — never for advertising or sale.",
+            "Who it is shared with and what happens outside Chile.",
+            "How long each kind of data is kept.",
+            "Backups and the limits of deletion.",
+            "Your rights and how to exercise them in the Privacy Center.",
+            "Measures to protect the information.",
             "Minimum age and eligibility to purchase Premium.",
-            "Measures to protect stored information.",
-            "How updates to this Policy are announced.",
-            "Where to write with questions or a deletion request.",
+            "Changes to this Policy and where to write.",
         ],
     },
     {
@@ -207,7 +207,7 @@ PAGES_EN = [
         "toc": [
             "The 7-day free trial and its conditions.",
             "How to cancel your subscription from the Polar portal.",
-            "Why refunds aren't offered for an already-paid period.",
+            "When an already-paid period isn't refunded and which consumer rights remain.",
             "When Premium access can be revoked.",
             "What happens to your saved content if the server loses Premium.",
             "Who Premium is tied to: the server, not the account.",
@@ -1642,7 +1642,7 @@ def main():
     # que si cambia (o el convertidor se rompe) esto falla acá y no en prod.
     title, date, intro, sections = parse((DOCS / "TERMS.md").read_text("utf-8"))
     assert title == "Condiciones del Servicio (Terms of Service)", title
-    assert date == "14 de septiembre de 2026", date
+    assert date == "7 de noviembre de 2026", date
     assert "<p>" in intro and "Última actualización" not in intro, intro
     assert len(sections) == 8, len(sections)
     assert sections[0][0] == "1. Uso Aceptable"
@@ -1651,7 +1651,7 @@ def main():
     # REFUNDS no tiene `# N.`: sus `## ` son las secciones.
     refunds = parse((DOCS / "REFUNDS.md").read_text("utf-8"))
     assert refunds[0] == "Políticas de reembolsos", refunds[0]
-    assert refunds[1] == "21 de septiembre de 2026", refunds[1]
+    assert refunds[1] == "7 de noviembre de 2026", refunds[1]
     assert len(refunds[3]) == 6, len(refunds[3])
     assert refunds[3][0][0] == "Prueba gratuita (trial)", refunds[3][0][0]
     assert "<h3>" not in refunds[3][0][1], refunds[3][0][1]

@@ -1,8 +1,8 @@
 # Terms of Service
 
-**Last updated:** September 14, 2026
+**Last updated:** November 7, 2026
 
-By inviting **Purgito** to a Discord server or interacting with it, you accept these Terms of Service, as well as Discord's [Terms of Service](https://discord.com/terms) and [Privacy Policy](https://discord.com/privacy).
+By inviting **Purgito** to a Discord server or interacting with it, you accept these Terms of Service, as well as Discord's [Terms of Service](https://discord.com/terms) and [Privacy Policy](https://discord.com/privacy). These Terms are read together with Purgito's [Privacy Policy](/en/privacy) and [Refund Policy](/en/refunds). Purgito is operated by its owner; contact details are in section 8.
 
 Purgito is a public Discord bot used by multiple servers. Purgatory is one of those servers: these Terms, the acceptable use rules, and moderation apply there the same as on any other server.
 
@@ -21,11 +21,11 @@ By using the bot you agree that you **must not**:
 
 ---
 
-# 2. Open Source
+# 2. Source Code
 
-Purgito's source code is distributed under the **MIT License**.
+Purgito's source code is published under the **MIT License with the Commons Clause**: you may use, modify and redistribute it, but not sell it or offer it as a paid service. The full text is in the repository's `LICENSE` file.
 
-The software is provided **"as is"**, without warranties of any kind, express or implied, including, among others, warranties of continuous operation, availability, merchantability, or fitness for a particular purpose.
+The software is provided **"as is"**, without warranties of any kind, express or implied, including, among others, warranties of continuous operation, availability, merchantability, or fitness for a particular purpose. This does not limit the rights the law grants to those who purchase Premium as consumers.
 
 ---
 
@@ -81,7 +81,9 @@ The subscription is canceled from the Polar customer portal, access to which is 
 
 ## Refunds
 
-Refunds aren't offered for a period already started or paid for. Canceling the subscription only stops future renewal: Premium access stays active until the end of the period already paid for.
+As a general rule, the money for a period already started or paid for isn't refunded; the 7-day free trial exists so you can decide before paying. Canceling the subscription only stops future renewal: Premium access stays active until the end of the period already paid for.
+
+This rule does not limit the rights the law grants you as a consumer, and we do not exclude the right of withdrawal where the law recognizes it for you. If you believe you are entitled to a refund or want to exercise that right, write to contacto@purgito.app (more detail in the [Refund Policy](/en/refunds)).
 
 ## Revocation
 
@@ -108,6 +110,8 @@ The developer may, at any time and without prior notice:
 - Modify functionality.
 - Temporarily or permanently suspend certain features.
 
+This does not limit the rights the law grants to those who purchase Premium.
+
 ---
 
 # 6. Limitation of Liability
@@ -120,6 +124,8 @@ To the maximum extent permitted by applicable law, the developer will not be lia
 - Issues arising from third-party services used by the bot.
 - Direct or indirect damages arising from use of the software.
 
+Nothing in these Terms excludes or limits the non-waivable rights that Law No. 19.496 on consumer protection or any other mandatory rule grants to those who purchase Premium, or any liability the law does not allow to be excluded.
+
 ---
 
 # 7. Changes
@@ -128,13 +134,12 @@ These Terms may be modified to reflect new features, technical changes, or legal
 
 The "Last updated" date will indicate the most recent version.
 
-Continued use of the bot after such changes constitutes acceptance of the new terms.
+Continued use of the bot after such changes constitutes acceptance of the new terms, without prejudice to the rights the law grants consumers regarding changes to a contract already entered into.
 
 ---
 
-# 8. Contact
+# 8. Governing Law and Contact
 
-If you have questions about these Terms or want to report an issue related to the service, you can contact the developer through:
+These Terms are governed by Chilean law. This does not exclude the mandatory rights that the law of the country where you live grants you as a consumer, or the complaint channels the law gives you.
 
-- GitHub Issues on the official repository.
-- The project's official Discord server (where applicable).
+If you have questions about these Terms or a charge, or want to report an issue, write to **contacto@purgito.app**. You can also use the support server on Discord (https://discord.gg/5U7HKyxnBv) or open a GitHub issue if it concerns the code.

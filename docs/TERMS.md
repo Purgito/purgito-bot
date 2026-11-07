@@ -1,8 +1,8 @@
 # Condiciones del Servicio (Terms of Service)
 
-**Última actualización:** 14 de septiembre de 2026
+**Última actualización:** 7 de noviembre de 2026
 
-Al invitar **Purgito** a un servidor de Discord o interactuar con él, aceptas los presentes Términos del Servicio, así como los [Términos de Servicio](https://discord.com/terms) y la [Política de Privacidad](https://discord.com/privacy) de Discord.
+Al invitar **Purgito** a un servidor de Discord o interactuar con él, aceptas los presentes Términos del Servicio, así como los [Términos de Servicio](https://discord.com/terms) y la [Política de Privacidad](https://discord.com/privacy) de Discord. Estos Términos se leen junto con la [Política de Privacidad](/es/privacidad) y las [Políticas de Reembolso](/es/reembolsos) de Purgito. Purgito lo opera su titular; sus datos de contacto están en la sección 8.
 
 Purgito es un bot público de Discord, usado por múltiples servidores. Purgatory es uno de esos servidores: estos Términos, las reglas de uso aceptable y la moderación se aplican igual ahí que en cualquier otro servidor.
 
@@ -21,11 +21,11 @@ Al utilizar el bot aceptas que **no debes**:
 
 ---
 
-# 2. Código Abierto
+# 2. Código fuente
 
-El código fuente de Purgito se distribuye bajo la **Licencia MIT**.
+El código fuente de Purgito está publicado bajo la licencia **MIT con la cláusula Commons Clause**: puedes usarlo, modificarlo y redistribuirlo, pero no venderlo ni ofrecerlo como servicio de pago. El texto completo está en el archivo `LICENSE` del repositorio.
 
-El software se proporciona **"tal cual"**, sin garantías de ningún tipo, expresas o implícitas, incluyendo, entre otras, garantías de funcionamiento continuo, disponibilidad, comerciabilidad o idoneidad para un propósito específico.
+El software se proporciona **"tal cual"**, sin garantías de ningún tipo, expresas o implícitas, incluyendo, entre otras, garantías de funcionamiento continuo, disponibilidad, comerciabilidad o idoneidad para un propósito específico. Esto no limita los derechos que la ley reconoce a quienes contratan Premium como consumidores.
 
 ---
 
@@ -81,7 +81,9 @@ La suscripción se cancela desde el portal de cliente de Polar, cuyo acceso se e
 
 ## Reembolsos
 
-No se ofrecen reembolsos por el período ya iniciado o pagado. Cancelar la suscripción detiene únicamente la renovación futura: el acceso premium permanece activo hasta el final del período ya pagado.
+Como regla general no se devuelve el dinero del período ya iniciado o pagado; para decidir antes de pagar existe la prueba gratuita de 7 días. Cancelar la suscripción detiene únicamente la renovación futura: el acceso premium permanece activo hasta el final del período ya pagado.
+
+Esta regla no limita los derechos que la ley te reconoce como consumidor, y no excluimos el derecho de retracto cuando la ley te lo reconozca. Si crees que te corresponde un reembolso o quieres ejercer ese derecho, escribe a contacto@purgito.app (más detalle en las [Políticas de Reembolso](/es/reembolsos)).
 
 ## Revocación
 
@@ -108,6 +110,8 @@ El desarrollador podrá, en cualquier momento y sin previo aviso:
 - Modificar características.
 - Suspender temporal o permanentemente determinadas funciones.
 
+Esto no limita los derechos que la ley reconoce a quienes contratan Premium.
+
 ---
 
 # 6. Limitación de Responsabilidad
@@ -120,6 +124,8 @@ En la máxima medida permitida por la legislación aplicable, el desarrollador n
 - Problemas derivados de servicios de terceros utilizados por el bot.
 - Daños directos o indirectos derivados del uso del software.
 
+Nada en estos Términos excluye ni limita los derechos irrenunciables que la Ley N.º 19.496 sobre protección de los derechos de los consumidores u otra norma imperativa reconocen a quienes contratan Premium, ni la responsabilidad que la ley no permite excluir.
+
 ---
 
 # 7. Modificaciones
@@ -128,13 +134,12 @@ Estos Términos podrán modificarse para reflejar nuevas funciones, cambios téc
 
 La fecha de "Última actualización" indicará la versión más reciente.
 
-El uso continuado del bot después de dichos cambios constituirá la aceptación de los nuevos términos.
+El uso continuado del bot después de dichos cambios constituirá la aceptación de los nuevos términos, sin perjuicio de los derechos que la ley reconoce al consumidor frente a cambios en un contrato ya celebrado.
 
 ---
 
-# 8. Contacto
+# 8. Ley aplicable y contacto
 
-Si tienes dudas sobre estos Términos o deseas reportar un problema relacionado con el servicio, puedes contactar al desarrollador mediante:
+Estos Términos se rigen por la ley chilena. Esto no excluye los derechos imperativos que te reconozca la ley del país donde resides como consumidor, ni las vías de reclamo que la ley te otorgue.
 
-- GitHub Issues del repositorio oficial.
-- Servidor oficial de Discord del proyecto (cuando corresponda).
+Si tienes dudas sobre estos Términos, sobre un cobro o quieres reportar un problema, escribe a **contacto@purgito.app**. También puedes usar el servidor de soporte en Discord (https://discord.gg/5U7HKyxnBv) o abrir un issue en GitHub si se trata del código.

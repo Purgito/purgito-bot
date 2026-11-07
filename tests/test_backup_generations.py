@@ -327,9 +327,10 @@ def test_la_lapida_dura_mas_que_el_backup_mas_viejo():
 def test_la_politica_de_privacidad_dice_lo_mismo_que_el_codigo():
     es = (ROOT / "docs" / "PRIVACY.md").read_text(encoding="utf-8")
     en = (ROOT / "docs" / "PRIVACY.en.md").read_text(encoding="utf-8")
-    assert "últimos 7 días" in es and "2 últimos domingos" in es
+    assert r2_backup.DEFAULT_KEEP_DAILY == 7 and r2_backup.DEFAULT_MAX_AGE_DAYS == 14
+    assert "últimos 7 días" in es and "domingos" in es
     assert "14 días" in es and "15 días" in es
-    assert "last 7 days" in en and "last 2 Sundays" in en
+    assert "last 7 days" in en and "Sundays" in en
     assert "14 days" in en and "15 days" in en
 
 

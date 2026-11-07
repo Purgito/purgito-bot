@@ -1,6 +1,6 @@
 # Políticas de reembolsos
 
-**Última actualización:** 21 de septiembre de 2026
+**Última actualización:** 7 de noviembre de 2026
 
 Esta página resume cómo funcionan la prueba gratuita, la cancelación y
 los reembolsos del plan Premium de Purgito.
@@ -19,21 +19,25 @@ suscribirse. No se cancela desde el dashboard de Purgito.
 
 ## Reembolsos
 
-Purgito no ofrece reembolsos por períodos ya iniciados o pagados, ya sean
-mensuales o anuales.
+Como regla general, Purgito no devuelve el dinero de períodos ya iniciados o
+pagados, sean mensuales o anuales. Para eso existe la prueba gratuita de 7
+días del plan mensual: sirve para decidir si Premium vale la pena antes de
+pagar. Por eso, una vez iniciado el período pagado, no se hacen devoluciones
+por el tiempo restante ni por una decisión posterior de dejar de usar el servicio.
 
-Antes de pagar, cada servidor tiene acceso a una prueba gratuita de 7
-días en el plan mensual, pensada específicamente para decidir si Premium
-vale la pena antes de comprometer un pago. Por eso, una vez iniciado el
-período pagado, no se realizan devoluciones parciales ni totales — ni por
-el tiempo restante, ni por el uso que se le haya dado al servicio, ni por
-una decisión posterior de dejar de usarlo.
+Esta regla no limita los derechos que la ley te reconoce como consumidor,
+y no excluimos el derecho de retracto cuando la ley te lo reconozca. Si
+crees que en tu caso corresponde un reembolso o quieres ejercer ese derecho (por ejemplo,
+un cobro duplicado o por error, o un servicio que no funciona como se
+ofreció), escribe a contacto@purgito.app indicando el servidor y la fecha
+del cobro, y lo revisamos. Como Polar.sh procesa los pagos, el reembolso, si
+procede, se tramita a través de Polar.
 
 Cancelar la suscripción es distinto de pedir un reembolso: cancelar solo
 detiene la renovación automática del siguiente período. El acceso premium
 que ya pagaste sigue activo con normalidad hasta que ese período termine
 — no se interrumpe antes, y tampoco se devuelve el dinero de lo que quede
-de ese período si cancelas antes de que termine.
+de ese período si cancelas antes de que termine, salvo que la ley disponga otra cosa.
 
 Como los pagos los procesa Polar.sh como Merchant of Record, cualquier
 disputa de cobro (contracargo/chargeback) se gestiona directamente entre
@@ -79,4 +83,4 @@ En la práctica:
   asociado a esa compra — normalmente, quien pagó originalmente. Si esa
   persona pierde acceso a su email o a su cuenta de Polar, nadie más en
   el servidor puede gestionar la suscripción directamente; hay que
-  contactar al desarrollador para resolverlo caso por caso.
+  escribir a contacto@purgito.app para resolverlo caso por caso.

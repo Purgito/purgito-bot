@@ -1,6 +1,6 @@
 # Novedades
 
-**Última actualización:** 2 de octubre de 2026
+**Última actualización:** 7 de noviembre de 2026
 
 Un resumen de las funciones nuevas, mejoras y arreglos de Purgito, en
 lenguaje simple. El detalle técnico completo, para quien quiera leerlo,
@@ -11,15 +11,12 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 ## Novedades recientes
 
 ### Nuevo
-- Comando `/privacidad`: cada persona puede excluirse de que Purgito aprenda de sus mensajes e interactúe con ella, en todos los servidores a la vez.
-- Solicitud de eliminación de datos desde la cuenta en purgito.app, con plazo máximo de 7 días.
-- `/mis_datos` ahora incluye también los GIFs que enviaste, tus boosts, tus frases especiales y tus exclusiones.
+- Centro de Privacidad (https://purgito.app/privacidad): cada persona puede descargar sus datos, pedir su eliminación (plazo máximo de 7 días), dejar de ser aprendida e imitada en todos los servidores y hacer otras solicitudes sobre sus datos. Reemplaza a los comandos `/privacidad`, `/mis_datos` y `/borrar_mis_datos`, que se retiran.
 - `!dl` ahora también descarga YouTube Shorts (links `youtube.com/shorts/...`). Los videos normales de YouTube siguen sin funcionar.
 - Límites de uso visibles por servidor: mensajes aprendidos, GIFs e imágenes de memes tienen un tope, y el dashboard avisa cuando un servidor se acerca a agotarlo.
 - Categoría **Frases** en `/settings`: agregar, ver y borrar frases especiales desde Discord, sin pasar por el dashboard.
 - **YouTube** y **Memes automáticos** ampliados en `/settings`: ahora se pueden agregar suscripciones y activar memes automáticos directo desde el panel de Discord, no solo quitarlos.
 - Botón para vaciar el corpus de un servidor desde `/settings`, con confirmación obligatoria antes de borrar.
-- `/mis_datos`: descarga en un archivo todo lo que Purgito guardó de tu estilo de escritura.
 - `/imitar_mezcla`: combina el estilo de dos miembros del servidor en un solo mensaje generado.
 - Exportar e importar plantillas de embeds como archivo, para reutilizarlas entre servidores.
 - Anuncios programados: modo semanal (elegir días de la semana y una hora fija), además de por intervalo o diario.
@@ -41,8 +38,8 @@ vive en el [repositorio en GitHub](https://github.com/Purgito/purgito-bot).
 
 ### Mejorado
 - Se retiran los memes (`/momo`, `/meme`, los memes automáticos y la reacción 🎯) y la integración con Groq: Purgito ya no envía mensajes ni imágenes de tu servidor a ningún servicio de IA externo. Los límites y beneficios de Premium que dependían de los memes también se quitan.
-- Privacidad: las copias de seguridad de Purgito ahora van cifradas y se eliminan solas a los 14 días. `/borrar_mis_datos` sigue borrando al instante de la base activa; si algún día hubiera que restaurar una copia, el borrado se vuelve a aplicar antes de arrancar. Todo el detalle está en la política de privacidad.
-- Privacidad: las copias de seguridad ahora se hacen todos los días (antes, cada semana) y siguen sin llegar nunca a los 14 días. Si hubiera que restaurar una, también se vuelven a aplicar los servidores que ya se habían borrado y las exclusiones del aprendizaje.
+- Privacidad: las copias de seguridad de Purgito ahora van cifradas y se eliminan solas; el límite es que ninguna supere los 14 días. Si algún día hubiera que restaurar una copia, las eliminaciones ya pedidas se vuelven a aplicar antes de arrancar. Todo el detalle está en la política de privacidad.
+- Privacidad: las copias de seguridad ahora se hacen todos los días (antes, cada semana). Si hubiera que restaurar una, también se vuelven a aplicar los servidores que ya se habían borrado y las exclusiones del aprendizaje.
 - Los comandos de texto que suben un archivo (`!dl`, `!gif`, los de edición de imagen como `!deepfry` o `!caption`, y `purgito generar`) ahora agregan «Enviado por @usuario» al mensaje, así se sabe quién lo pidió aunque borre su comando. Con los comandos de barra (`/dl`, `/gif`) no hace falta: Discord ya muestra quién los usó.
 - El scroll de la barra lateral en la Guía de Purgito ya no usa el color por defecto del navegador.
 - El selector para cambiar de servidor en el dashboard ya no se ve apretado contra el borde del menú.

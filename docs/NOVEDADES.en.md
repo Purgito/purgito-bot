@@ -1,6 +1,6 @@
 # Changelog
 
-**Last updated:** October 2, 2026
+**Last updated:** November 7, 2026
 
 A plain-language summary of Purgito's new features, improvements, and
 fixes. The full technical detail, for anyone who wants to read it, lives
@@ -11,15 +11,12 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 ## Recent updates
 
 ### New
-- `/privacidad` command: anyone can opt out of Purgito learning from their messages and interacting with them, on every server at once.
-- Data deletion requests from your account on purgito.app, with a maximum of 7 days to complete.
-- `/mis_datos` now also includes the GIFs you sent, your boosts, your special phrases and your exclusions.
+- Privacy Center (https://purgito.app/privacidad): anyone can download their data, request its deletion (7 days at most), stop being learned from and imitated on every server, and make other requests about their data. It replaces the `/privacidad`, `/mis_datos` and `/borrar_mis_datos` commands, which are retired.
 - `!dl` now also downloads YouTube Shorts (`youtube.com/shorts/...` links). Regular YouTube videos still don't work.
 - Visible usage limits per server: learned messages, GIFs, and meme images each have a cap, and the dashboard warns when a server is getting close to it.
 - **Phrases** category in `/settings`: add, view, and delete special phrases straight from Discord, without opening the dashboard.
 - **YouTube** and **Automatic memes** expanded in `/settings`: you can now add subscriptions and turn on automatic memes right from the Discord panel, not just remove them.
 - Button to wipe a server's corpus from `/settings`, with a required confirmation before deleting.
-- `/mis_datos`: download everything Purgito saved of your writing style as a file.
 - `/imitar_mezcla`: blends two members' styles into a single generated message.
 - Export and import embed templates as a file, to reuse them across servers.
 - Scheduled announcements: weekly mode (pick specific weekdays and a fixed time), in addition to interval or daily.
@@ -41,8 +38,8 @@ in the [GitHub repository](https://github.com/Purgito/purgito-bot).
 
 ### Improved
 - Memes (`/momo`, `/meme`, automatic memes and the 🎯 reaction) and the Groq integration are retired: Purgito no longer sends messages or images from your server to any external AI service. The Premium limits and perks that depended on memes are removed too.
-- Privacy: Purgito's backups are now encrypted and delete themselves after 14 days. `/borrar_mis_datos` still deletes instantly from the live database; if a backup ever had to be restored, your deletion is applied again before the bot starts. Full details are in the privacy policy.
-- Privacy: backups are now made every day (they used to be weekly) and still never reach 14 days. If one ever had to be restored, servers that had already been deleted and learning opt-outs are also re-applied.
+- Privacy: Purgito's backups are now encrypted and delete themselves; the limit is that none exceeds 14 days. If a backup ever had to be restored, the deletions already requested are applied again before the bot starts. Full details are in the privacy policy.
+- Privacy: backups are now made every day (they used to be weekly). If one ever had to be restored, servers that had already been deleted and learning opt-outs are also re-applied.
 - Text commands that upload a file (`!dl`, `!gif`, image-editing ones like `!deepfry` or `!caption`, and `purgito generar`) now add “Sent by @user” to the message, so it's clear who requested it even if they delete their command. Slash commands (`/dl`, `/gif`) don't need it: Discord already shows who used them.
 - The sidebar scrollbar on the Purgito Guide no longer uses the browser's default color.
 - The server switcher in the dashboard no longer looks cramped against the sidebar's edge.

@@ -1,6 +1,6 @@
 # Refund Policy
 
-**Last updated:** September 21, 2026
+**Last updated:** November 7, 2026
 
 This page summarizes how the free trial, cancellation, and refunds work
 for Purgito's Premium plan.
@@ -19,21 +19,27 @@ canceled from the Purgito dashboard.
 
 ## Refunds
 
-Purgito doesn't offer refunds for periods already started or paid for,
-whether monthly or annual.
+As a general rule, Purgito doesn't refund periods already started or paid
+for, whether monthly or annual. That is what the 7-day free trial on the
+monthly plan is for: it lets you decide whether Premium is worth it before
+paying. Because of that, once a paid period has started, refunds aren't
+issued for the remaining time or for a later decision to stop using the
+service.
 
-Before paying, every server has access to a 7-day free trial on the
-monthly plan, specifically meant for deciding whether Premium is worth
-it before committing to a payment. Because of that, once a paid period
-has started, no partial or full refunds are issued — not for the
-remaining time, not for how much the service was used, and not for a
-later decision to stop using it.
+This rule does not limit the rights the law grants you as a consumer, and
+we do not exclude the right of withdrawal where the law recognizes it for
+you. If you believe a refund is due in your case or want to exercise that
+right (for example, a duplicate or
+mistaken charge, or a service that doesn't work as offered), write to
+contacto@purgito.app with the server and the date of the charge, and we
+will review it. Since Polar.sh processes the payments, a refund, if it is
+due, is handled through Polar.
 
 Canceling the subscription is different from requesting a refund:
 canceling only stops the next period's automatic renewal. The Premium
 access you already paid for stays active as normal until that period
 ends — it isn't cut short, and you also don't get money back for the
-remainder of that period if you cancel before it ends.
+remainder of that period if you cancel before it ends, unless the law provides otherwise.
 
 Since payments are processed by Polar.sh as Merchant of Record, any
 payment dispute (chargeback) is handled directly between whoever paid
@@ -76,4 +82,4 @@ In practice:
   portal tied to that purchase — normally, whoever originally paid. If
   that person loses access to their email or Polar account, no one else
   on the server can manage the subscription directly; you'll need to
-  contact the developer to resolve it case by case.
+  write to contacto@purgito.app to resolve it case by case.

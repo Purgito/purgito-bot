@@ -33,10 +33,10 @@ var T = {
     dashboard: 'Dashboard',
     planMonthlyCta: 'Comenzar prueba gratis',
     planMonthlyHeroCta: 'Comenzar 7 días gratis',
-    planMonthlyNotes: 'La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo.',
+    planMonthlyNotes: 'La prueba gratis de 7 días está disponible para suscripciones mensuales. La suscripción se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. Puedes cancelar en cualquier momento antes de que termine el periodo de prueba sin ningún cargo. Pasada la prueba se cobra el primer período y la suscripción se renueva automáticamente hasta que la canceles. Como regla general no se reembolsa un período ya iniciado, sin perjuicio de los derechos que la ley te reconoce como consumidor.',
     planAnnualCta: 'Suscribirse al plan anual',
     planAnnualHeroCta: 'Elegir plan anual',
-    planAnnualNotes: 'La suscripción anual se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. El primer cobro se realiza al suscribirte.',
+    planAnnualNotes: 'La suscripción anual se factura de forma segura mediante Polar y se vincula al servidor de Discord que selecciones en tu panel. El primer cobro se realiza al suscribirte y la suscripción se renueva automáticamente cada año hasta que la canceles. Como regla general no se reembolsa un período ya iniciado, sin perjuicio de los derechos que la ley te reconoce como consumidor.',
     perMonthly: '/mensual',
     perAnnual: '/anual'
   },
@@ -53,10 +53,10 @@ var T = {
     dashboard: 'Dashboard',
     planMonthlyCta: 'Start free trial',
     planMonthlyHeroCta: 'Start your free 7 days',
-    planMonthlyNotes: 'The 7-day free trial is available for monthly subscriptions. The subscription is billed securely through Polar and tied to the Discord server you select in your panel. You can cancel anytime before the trial period ends at no charge.',
+    planMonthlyNotes: 'The 7-day free trial is available for monthly subscriptions. The subscription is billed securely through Polar and tied to the Discord server you select in your panel. You can cancel anytime before the trial period ends at no charge. After the trial the first period is charged and the subscription renews automatically until you cancel it. As a general rule a period that has already started is not refunded, without prejudice to the rights the law grants you as a consumer.',
     planAnnualCta: 'Subscribe to the annual plan',
     planAnnualHeroCta: 'Choose annual plan',
-    planAnnualNotes: 'The annual subscription is billed securely through Polar and tied to the Discord server you select in your panel. The first charge happens when you subscribe.',
+    planAnnualNotes: 'The annual subscription is billed securely through Polar and tied to the Discord server you select in your panel. The first charge happens when you subscribe and the subscription renews automatically every year until you cancel it. As a general rule a period that has already started is not refunded, without prejudice to the rights the law grants you as a consumer.',
     perMonthly: '/monthly',
     perAnnual: '/annual'
   }

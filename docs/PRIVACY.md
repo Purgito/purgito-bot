@@ -1,281 +1,118 @@
 # Política de Privacidad (Privacy Policy)
 
-**Última actualización:** 6 de noviembre de 2026 (versión 2.1)
+**Última actualización:** 7 de noviembre de 2026 (versión 2.4)
 
-Esta Política describe cómo **Purgito** recopila, utiliza, almacena, comparte y protege la información necesaria para ofrecer sus funcionalidades.
+Esta Política explica qué datos personales trata Purgito, para qué los usa, con quién los comparte, cuánto tiempo los conserva y cómo puedes ejercer tus derechos. Se aplica al bot de Discord y al sitio y panel de purgito.app.
 
-Purgito es un bot público de Discord, usado por múltiples servidores. Los datos que recopilamos y cómo los tratamos son los mismos para todos los servidores donde el bot está presente.
+El responsable del tratamiento es el titular de Purgito. Puedes escribirle a contacto@purgito.app o usar el Centro de Privacidad: https://purgito.app/privacidad.
 
----
+# 1. Datos que tratamos
 
-# 1. Información recopilada
+Los datos provienen de Discord y de lo que haces en el panel y en el Centro de Privacidad.
 
-Para funcionar correctamente, el bot puede almacenar la siguiente información:
+**Identificadores.** Purgito guarda los IDs de usuarios, servidores y canales, y el nombre visible de quien escribe, para que el bot funcione y para atender tus solicitudes.
 
-## Información de Discord
+**Mensajes.** En los canales donde un administrador activa el aprendizaje, Purgito guarda el texto de los mensajes junto con el ID y el nombre visible de su autor. Con ellos genera respuestas y mensajes espontáneos mediante cadenas de Markov, un método estadístico que se calcula en nuestro propio servidor, y puede imitar el estilo de escritura de una persona del servidor. Lo aprendido en un servidor se usa solo en ese servidor. Los mensajes no se envían a servicios de inteligencia artificial de terceros ni se usan para generar texto fuera de nuestro servidor; solo llegan a Cloudflare dentro de las copias de seguridad cifradas (ver sección 5).
 
-- IDs de usuarios.
-- IDs de servidores.
-- IDs de canales.
+Los canales NSFW quedan siempre fuera del aprendizaje; si un canal ya habilitado pasa a ser NSFW, su historial guardado se elimina de inmediato. Los administradores pueden además ignorar canales y excluir a personas concretas, y si borras un mensaje en Discord, Purgito lo retira de lo aprendido.
 
-Estos identificadores son utilizados únicamente para el funcionamiento interno del bot.
+**GIFs e imágenes.** Purgito guarda en Cloudflare R2 los GIFs de la galería de cada servidor y las imágenes de las plantillas de anuncios y embeds. De cada GIF registra quién lo envió (usuario, canal y mensaje de origen) y cuántas veces se compartió; los administradores del servidor ven este dato en el catálogo del panel, con un enlace al mensaje y un filtro por persona. No se capturan GIFs de canales NSFW ni de canales que `@everyone` no puede ver.
 
----
+**Descargas con `!dl`.** El comando descarga el video del enlace que pegas y lo sube al mismo canal. El archivo se borra del servidor de inmediato, no se guarda ni se sube a R2, y quien lo usa es responsable de tener derecho a redistribuirlo (ver los Términos del Servicio).
 
-## Contenido de mensajes
+**Panel de administración.** Al iniciar sesión con Discord pedimos acceso a tu identidad, tu correo y la lista de tus servidores (`identify`, `email` y `guilds`), para mostrarte tu perfil y solo los servidores que administras. Una cookie de sesión mantiene tu sesión abierta; no se usa para publicidad ni para seguimiento. Tu correo de Discord solo se guarda dentro de esa cookie cifrada, no en nuestra base de datos.
 
-Cuando las funciones de aprendizaje están habilitadas, el bot almacena el contenido de mensajes de texto enviados en canales permitidos.
+Cuando un administrador cambia la configuración desde el panel, queda un registro de auditoría con su ID y nombre visible, la acción realizada y, a veces, un detalle escrito por él. Solo lo ven los administradores de ese servidor, en la pestaña Historial. Los cambios hechos con `/settings` en Discord no se registran ahí.
 
-Estos mensajes pueden utilizarse para:
+**Frases especiales e impulsos.** Las frases especiales conservan el ID y el nombre de quien las agregó. Los impulsos (boosts) guardan quién impulsa, el servidor y la fecha, para poder agradecerlo.
 
-- Entrenar cadenas de Markov locales.
-- Generar respuestas automáticas en el chat.
-- Imitar el estilo de escritura de los usuarios.
+**Pagos.** Los pagos de Premium los procesa Polar.sh, que actúa como Merchant of Record y trata tu tarjeta y tus datos de facturación según su [Política de Privacidad](https://polar.sh/legal/privacy). Purgito guarda qué servidor tiene Premium, desde cuándo y con qué plan, además del ID de Discord de quien compró, los identificadores de cliente y de suscripción de Polar, su estado y fechas, y si hay una cancelación programada. Quien pagó puede verlo en `/perfil/facturacion`; nadie más del servidor. No guardamos tarjeta, datos de facturación, correo ni nombre del comprador.
 
-Los canales marcados como **NSFW** en Discord quedan siempre fuera de este aprendizaje: Purgito nunca guarda mensajes de un canal NSFW, sin excepción ni forma de habilitarlo manualmente para el corpus. Si un canal que ya estaba habilitado para el corpus se marca como NSFW más adelante, el historial que ya se había guardado de ese canal se purga de inmediato.
+**Dirección IP y registros técnicos.** purgito.app funciona detrás de Cloudflare, que ve la IP de quienes navegan. En nuestro servidor la IP se usa solo para limitar el abuso y no se guarda en la base de datos. Si se detecta actividad sospechosa, el registro de seguridad guarda un código derivado de la IP, que permite reconocer un mismo origen sin mostrarla. Los registros de acceso del servidor web guardan la ruta visitada y el navegador, pero no la IP.
 
----
+**Estadísticas de uso.** Para medir el uso y la calidad del bot, el operador usa una herramienta interna que guarda recuentos por hora de funciones, comandos y resultados, sin texto de mensajes, argumentos, usuarios ni canales. Los servidores se identifican con códigos que no revelan su ID de Discord. Solo acceden operadores autorizados y los datos no se envían a servicios de analítica externos.
 
-## Multimedia
+No solicitamos tu contraseña de Discord ni almacenamos datos de tarjetas bancarias.
 
-El bot puede almacenar:
+# 2. Para qué usamos los datos
 
-- URLs de imágenes.
-- URLs de GIFs.
-- Archivos multimedia necesarios para las funciones de la galería de GIFs y las plantillas de anuncios/embeds.
+Usamos los datos para que el bot funcione: generar texto con cadenas de Markov, mantener la galería de GIFs, ejecutar las automatizaciones y la configuración de cada servidor, gestionar Premium y atender tus solicitudes. No vendemos datos personales ni los usamos para publicidad.
 
-Cuando corresponde, dichos archivos pueden almacenarse de forma persistente mediante Cloudflare R2.
+Para ello Purgito usa dos permisos privilegiados de Discord. El de contenido de mensajes sirve para aprender de los canales habilitados, activar disparadores por texto, detectar GIFs y releer el historial de un canal cuando un administrador lo pide. El de miembros del servidor sirve para los mensajes de bienvenida y despedida, detectar impulsos y buscar miembros en el panel. Sin estos permisos, las funciones que dependen de ellos dejarían de estar disponibles.
 
-Para cada GIF guardado en la galería, el bot registra además quién lo mandó: ID de usuario, canal y mensaje de origen, y cuántas veces lo compartió (incluye el caso de volver a compartir un GIF que otra persona ya había guardado). El catálogo de GIFs del panel de administración, visible para los administradores del servidor, muestra este dato con link directo al mensaje original y un filtro para ver los GIFs de una persona en particular.
+# 3. Con quién compartimos los datos
 
----
+Purgito se apoya en proveedores que tratan datos solo en la medida necesaria para prestar su servicio:
 
-## Nombre visible
+- **Discord**, la plataforma en la que opera el bot y que entrega los mensajes y nombres que Purgito trata.
+- **Cloudflare**, que provee la red y la protección de purgito.app, gestiona el reenvío del correo de contacto y aloja en R2 los GIFs, las imágenes y las copias de seguridad cifradas.
+- **Polar.sh**, que procesa los pagos de Premium.
+- **Railway**, donde se aloja Purgito Monitor, un servicio propio de vigilancia que recibe señales de estado y avisos de fallo sin identificadores de usuarios, servidores ni canales.
+- **Twitch**, solo si un administrador configura avisos de transmisiones: el bot consulta datos públicos y no envía datos de las personas del servidor.
 
-El nombre visible (Display Name) del usuario puede almacenarse junto con determinados mensajes para permitir funciones como la imitación de usuarios.
+Discord, Cloudflare, Polar.sh y Railway pueden tratar datos fuera de Chile, de modo que parte de la información puede procesarse en otros países. Todavía no hemos evaluado el nivel de protección de datos de cada uno de ellos; limitamos lo que enviamos a cada proveedor a lo que necesita para su servicio.
 
----
+# 4. Cuánto tiempo conservamos los datos
 
-## Impulsos (boosts) del servidor
+Los datos se conservan solo mientras son necesarios, con estos plazos:
 
-Para agradecer un impulso y no repetir el aviso, Purgito guarda el ID de quien impulsa un servidor, el ID del servidor y la fecha desde la que impulsa. Se usa solo para esa función, se incluye en la descarga de tus datos y se elimina cuando solicitas la eliminación.
+- **Mensajes aprendidos, estilo de escritura por persona y registro de quién envió cada GIF:** hasta 180 días desde que Purgito los aprendió. Antes, si el servidor llega a su límite de mensajes (mayor con Premium), se descartan los más antiguos. La purga es diaria y alcanza también a los servidores inactivos.
+- **GIFs:** si borras el mensaje original en Discord, se elimina el registro del remitente y, si nadie más lo compartió de forma independiente, también el GIF y su archivo. Al cumplirse los 180 días se elimina igualmente ese registro, pero el GIF puede seguir en la galería sin atribución hasta que un administrador lo quite.
+- **Registro de auditoría y estadísticas de uso:** 90 días.
+- **Frases especiales y anuncios programados:** mientras existan.
+- **Registros técnicos del servidor, incluido el código derivado de la IP:** hasta 30 días. Los registros de acceso del servidor web, unos 14 días.
+- **Solicitudes de derechos y de eliminación:** 90 días después de resolverse.
+- **Datos de un servidor del que el bot sale:** se conservan 30 días por si el bot es invitado de nuevo y se borran después. Mientras tanto no es posible administrarlos desde el panel; si eres administrador y quieres que se eliminen antes, escríbenos.
 
-## Frases especiales
+Los administradores pueden además vaciar los mensajes aprendidos o borrar los GIFs guardados en cualquier momento con `/settings`.
 
-Cuando un administrador agrega una frase especial desde el panel (pestaña Chat → Frases), Purgito guarda el ID de Discord y el nombre visible de quien la agregó, junto con el texto de la frase. A diferencia del registro de auditoría (ver más abajo), esta atribución no tiene fecha de vencimiento: se conserva mientras la frase exista.
+# 5. Copias de seguridad y eliminación
 
----
+Para poder recuperar el servicio ante una falla grave, cada día se hace una copia de seguridad de toda la base de datos, incluidos los mensajes aprendidos. La copia se cifra antes de salir del servidor y se guarda en un espacio privado de Cloudflare R2 y, además, en el propio servidor. Solo se usa para recuperar el servicio y para comprobar que puede restaurarse, y no para ninguna otra función.
 
-## Inicio de sesión en el panel web
+Nuestro límite es que ninguna de estas copias supere los 14 días mientras el servicio funcione con normalidad. En R2 se conservan las de los últimos 7 días y las de los domingos de las dos últimas semanas, y en el servidor las dos más recientes. Una copia adicional hecha por mantenimiento puede conservarse unos días más, siempre dentro de ese límite. Si el servidor estuviera apagado o el servicio interrumpido, una copia podría superar ese plazo hasta que se reanude; se elimina con las copias siguientes.
 
-Al iniciar sesión en purgito.app con Discord, se solicitan los permisos (scopes) `identify`, `email` y `guilds`. Esto permite mostrarte tu nombre de usuario, avatar y correo dentro de tu propia sesión, y asociar tu cuenta de Discord con los servidores que administras (el scope `guilds` es lo que permite saber en qué servidores tienes permisos de administración, para mostrarte solo esos en tu panel). Se guarda una cookie de sesión para mantener tu sesión iniciada mientras navegas el sitio; esta cookie no se usa con fines publicitarios ni de rastreo entre sitios.
+Todavía existen algunas copias anteriores al 5 de noviembre de 2026, cifradas con una clave que se perdió: no pueden leerse ni restaurarse, y se eliminan a partir del 19 de noviembre de 2026.
 
----
+Las copias hechas antes de una eliminación pueden seguir conteniendo esos datos, cifrados, hasta que caduquen. No se leen ni se restauran salvo para recuperar el servicio y, si eso ocurriera, las eliminaciones ya solicitadas se aplican de nuevo antes de volver a ponerlo en marcha.
 
-## Registro de auditoría del panel
+Para ello guardamos durante 15 días un registro mínimo, sin mensajes ni otro contenido: tu ID de Discord (o el del servidor) con las fechas de la solicitud, y los IDs de los mensajes y canales eliminados. Guardamos también la lista de personas excluidas del aprendizaje, hasta que retiren la exclusión. Una copia cifrada de este registro se conserva además en el espacio privado de R2 y se elimina a los 15 días o, si el servicio estuviera interrumpido, en cuanto se reanude.
 
-Cuando un administrador realiza un cambio de configuración desde el dashboard web (purgito.app), Purgito guarda un registro de auditoría propio de ese servidor: el ID de Discord y el nombre visible de quien hizo el cambio, qué tipo de acción fue (por ejemplo, agregar una frase especial, añadir un GIF o sacar un canal de los canales de aprendizaje) y, en algunos casos, un detalle en texto libre que puede incluir contenido escrito literalmente por quien hizo el cambio.
+La eliminación se hace sobre la base de datos activa y los archivos en R2 mediante borrado lógico. No podemos garantizar la destrucción física inmediata de los bloques del almacenamiento; el cifrado reduce ese riesgo, pero no lo elimina.
 
-Este registro cubre los cambios hechos desde el dashboard web. Las acciones que un administrador ejecuta directamente desde el comando `/settings` en Discord —incluyendo los botones para vaciar el corpus completo o borrar todos los GIFs guardados (ver "Retención de datos")— se aplican de inmediato pero no quedan registradas en este historial.
+# 6. Tus derechos y cómo ejercerlos
 
-Este registro es visible únicamente para los administradores de ese mismo servidor, en la pestaña Historial del panel, y existe para que la comunidad pueda ver qué cambios se hicieron y quién los hizo. Se conserva un máximo de 90 días y luego se elimina automáticamente (ver "Retención de datos").
+Puedes ejercer tus derechos de acceso, rectificación, supresión, oposición y portabilidad, y pedir el bloqueo temporal del tratamiento, desde el Centro de Privacidad (https://purgito.app/privacidad), iniciando sesión con Discord (el bot no tiene comandos para esto). Allí puedes:
 
-Cuando una persona pide la eliminación de sus datos (desde el Centro de Privacidad), este registro **no se borra**, porque es el historial del servidor: se quita quién fue. Su ID y su nombre se reemplazan por `[eliminado]` en las entradas donde actuó, y su ID desaparece del detalle de las entradas que la mencionan. Lo mismo ocurre con las frases especiales y los anuncios programados que creó: se quedan en el servidor, sin su nombre. Su copia de datos incluye estas entradas, con los identificadores de otras personas ocultos.
+- **Descargar tus datos** en un archivo JSON: mensajes aprendidos por servidor, GIFs enviados, impulsos, frases especiales, exclusiones y estado de tus solicitudes.
+- **Pedir la eliminación de tus datos.** La solicitud queda registrada de inmediato y nos proponemos completarla en 7 días naturales. Es un objetivo operativo, no una garantía absoluta: si falla, se retrasa o se acerca al plazo, el sistema avisa al responsable para que intervenga; si el servicio estuviera interrumpido, se completa en cuanto se reanude. Puedes seguir su estado en la misma página.
+- **Excluirte del aprendizaje y de la interacción con Purgito** en todos los servidores, incluidos tus GIFs y la relectura del historial. La exclusión no borra lo ya guardado; para eso sirve la eliminación.
+- **Hacer otras solicitudes** (acceso adicional, rectificación, oposición, portabilidad, bloqueo temporal u otras consultas) con el formulario del Centro. Pedimos solo el tipo de solicitud, un comentario opcional y, si quieres la respuesta por correo, una dirección que se borra al contestar.
 
----
+Cada solicitud recibe un acuse de recibo inmediato, con número y fecha, y la respuesta escrita queda disponible en el Centro. Respondemos dentro de 30 días corridos; la ley permite prorrogar ese plazo una sola vez por hasta 30 días más, algo que no prevemos hacer y que, de ser necesario, te comunicaríamos antes de que venza el primero. Las solicitudes de bloqueo temporal se responden en 2 días.
 
-El bot **no recopila**:
+Si rechazamos una solicitud, la respuesta explica el motivo e informa que dispones de treinta días hábiles para reclamar ante la Agencia de Protección de Datos Personales, a la que también puedes acudir si no respondemos a tiempo.
 
-- Contraseñas.
-- Correos electrónicos, salvo el que Discord entrega al iniciar sesión en el panel web (purgito.app) — ese correo se usa únicamente para identificarte dentro de tu propia sesión y no se comparte con terceros.
-- Datos personales ajenos a los proporcionados por la API oficial de Discord.
+La eliminación borra, en todos los servidores donde hayas escrito, tu estilo de escritura, los mensajes que Purgito aprendió de ti (incluida la copia colectiva del servidor), tu registro como remitente de GIFs (y el GIF y su archivo, si nadie más lo compartió de forma independiente), tus impulsos y tus solicitudes de derechos. Tu nombre y tu ID se quitan de las frases especiales, los anuncios programados y el registro de auditoría, que se conservan como historial del servidor con tu identificación reemplazada por `[eliminado]`. Tus mensajes originales en Discord no se ven afectados. La solicitud de eliminación, con tu ID, se conserva 90 días tras completarse para poder rendir cuentas.
 
-**Direcciones IP:** el dashboard (purgito.app) procesa tu dirección IP de forma transitoria y acotada, únicamente para prevenir abuso (límites de frecuencia de solicitudes). Esa IP vive solo en memoria del proceso durante una ventana corta (segundos a minutos), nunca se guarda en la base de datos ni en ningún registro persistente, y no se comparte con terceros.
+Si no puedes iniciar sesión con Discord, escribe a contacto@purgito.app; te pediremos solo lo necesario para comprobar que la cuenta es tuya. Los administradores de un servidor, por su parte, pueden excluir a personas concretas de la interacción con el bot, del aprendizaje o de ambos.
 
-Sobre datos de pago, ver la sección **"Pagos y suscripciones"** más abajo.
-
----
-
-## Pagos y suscripciones
-
-Cuando un servidor contrata Premium a través del dashboard (purgito.app), el pago lo procesa **Polar.sh**, no Purgito.
-
-**Purgito almacena:**
-
-- El ID del servidor (guild_id) que tiene Premium activo, la fecha en que se activó y una nota de texto identificando el plan (por ejemplo, "Polar — mensual" o "Polar — anual").
-- El ID de Discord de quien inició la compra, junto con identificadores internos de la suscripción en Polar (IDs de cliente y de suscripción) y su estado (activa, en prueba, cancelada), sus fechas de período y de prueba, y si tiene una cancelación programada. Esto permite a quien pagó ver el estado de su propia suscripción en `/perfil/facturacion` — nadie más del servidor puede ver esta información.
-
-Purgito **no almacena** número de tarjeta, datos de facturación, ni el email o nombre del comprador.
-
-**Polar.sh sí recolecta** los datos necesarios para procesar el pago (tarjeta, email, datos de facturación) bajo su propia [Política de Privacidad](https://polar.sh/legal/privacy). Esa relación es entre quien compra y Polar.sh, en su carácter de procesador de pagos y Merchant of Record.
-
----
-
-## Analítica agregada de producto (opcional)
-
-El operador puede habilitar Purgito Studio para medir uso y calidad del bot.
-Este módulo guarda conteos horarios por función, comando registrado, resultado
-y versión, inventarios de instalación y movimientos observados. Para distinguir
-comunidades y medir cohortes usa claves HMAC de servidor, sin exponer el ID de
-Discord en el panel. Estas claves son pseudónimos, no identificadores de personas.
-No recopila texto, argumentos de comandos, IDs de usuarios ni canales.
-
-Los datos nuevos de Studio se mantienen en el PostgreSQL del bot y no se envían
-a servicios de analítica externos. Solo operadores autorizados acceden al panel
-privado. La retención es de 90 días por defecto (configurable entre 7 y 365), con
-limpieza diaria mientras el colector está activo; los backups mantienen su
-política propia. Estas condiciones se refieren a Studio: las demás funcionalidades
-e integraciones del bot siguen las secciones anteriores.
-
----
-
-# 2. Uso de la información
-
-La información recopilada se utiliza exclusivamente para proporcionar las funciones del bot, incluyendo:
-
-- Generación de texto mediante cadenas de Markov locales.
-- Galería de GIFs.
-- Automatizaciones del servidor.
-- Configuración de comandos y preferencias.
-
-Los datos **no se venden** ni se utilizan por Purgito para publicidad.
-
----
-
-## Aprendizaje a partir de mensajes (cadenas de Markov)
-
-Purgito genera texto con **cadenas de Markov**, un método estadístico simple (secuencias de palabras) calculado en el propio servidor de Purgito sobre una muestra de los mensajes aprendidos **de cada servidor por separado**. No usa servicios de inteligencia artificial de terceros ni envía el contenido de los mensajes a ningún tercero para generar texto (la integración con Groq y los memes automáticos se retiraron). Los modelos se reconstruyen en memoria a partir de lo guardado y se descartan cuando los datos se eliminan. Si no quieres que Purgito aprenda de tus mensajes, puedes excluirte desde el Centro de Privacidad.
-
-## Permisos privilegiados de Discord que usa Purgito
-
-- **Message Content (contenido de mensajes):** necesario para aprender de los mensajes de los canales habilitados (corpus y estilo para la imitación), para activar *triggers* por texto, para detectar los GIFs que se comparten y para releer el historial de un canal cuando un administrador lo pide. Los canales NSFW y los canales que `@everyone` no puede ver quedan fuera de la captura de GIFs; los NSFW, además, fuera del aprendizaje.
-- **Server Members (miembros del servidor):** necesario para los mensajes de bienvenida y despedida, para detectar un nuevo impulso (boost) del servidor y para buscar miembros en el panel de administración.
-
-Si Discord no concediera alguno de estos permisos, las funciones que dependen de él dejarían de estar disponibles.
-
----
-
-# 3. Servicios de terceros
-
-Purgito utiliza servicios externos para determinadas funciones. Cada proveedor procesa únicamente la información necesaria para prestar su servicio.
-
-## Discord y almacenamiento
-
-- **Discord**: Para la comunicación, recepción de eventos, autenticación y envío de mensajes en la plataforma.
-- **Cloudflare R2**: Para el almacenamiento persistente de archivos multimedia (GIFs subidos a la galería e imágenes subidas desde el editor de embeds) y, en un espacio privado aparte, de las copias de seguridad cifradas descritas en la sección 4.
-
-## Twitch API (avisos de transmisiones en vivo)
-
-- **Qué es y para qué se utiliza**: Twitch es la plataforma de streaming cuya API se consulta, de forma opcional, para avisar en un canal de Discord cuando un canal de Twitch configurado por un administrador empieza una transmisión en vivo.
-- **Qué se envía**: Ninguna información de los usuarios del servidor. El bot usa credenciales propias de la aplicación (no de ningún usuario de Discord) para consultar datos públicos de Twitch, como si el canal está en vivo y el título del stream.
-- **Cuándo interviene**: Únicamente si el operador del bot configuró `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET`; si no, la función queda desactivada.
-
-## Descarga de video de redes sociales (`!dl`)
-
-- **Qué es y para qué se utiliza**: El comando `!dl` descarga un video público de Instagram, TikTok, Twitter/X o Facebook a partir de un link que pega un usuario, y lo sube al mismo canal de Discord.
-- **Qué se procesa**: Únicamente la URL pegada y el video descargado de esa URL. El archivo se guarda en un directorio temporal del proceso y se borra inmediatamente después de enviarlo al canal — no se almacena de forma persistente ni se sube a Cloudflare R2.
-- **Responsabilidad**: Purgito no verifica si quien pega el link tiene derecho a redistribuir ese contenido (ver "Contenido de terceros redistribuido" en las Condiciones del Servicio).
-
-## Pagos e infraestructura
-
-- **Polar.sh**: Procesador de pagos y Merchant of Record para las suscripciones premium. Ver su [Política de Privacidad](https://polar.sh/legal/privacy).
-- Otros servicios de infraestructura estrictamente necesarios para el funcionamiento del bot.
-
----
-
-## Fuente de los datos y proveedores fuera de Chile
-
-Los datos que Purgito guarda provienen de Discord (los mensajes, identificadores y nombres visibles que Discord entrega a Purgito en los servidores donde está) y de lo que las personas hacen en el panel o en el Centro de Privacidad. Los proveedores descritos en esta sección (Cloudflare, Polar.sh y Discord) pueden tratar datos fuera de Chile.
-
----
-
-# 4. Retención de datos
-
-Los datos recopilados se conservan únicamente mientras sean necesarios para el funcionamiento del bot.
-
-El historial de mensajes no se guarda de forma indefinida ni siquiera mientras el servidor está activo: cada servidor tiene una cuota máxima de mensajes guardados (mayor en servidores con Premium). Al alcanzarse esa cuota, los mensajes más antiguos se descartan automáticamente a medida que se guardan mensajes nuevos, sin que un administrador tenga que hacerlo manualmente.
-
-Además de la cuota, hay un **plazo máximo de 180 días**: los mensajes aprendidos (el corpus del servidor, el estilo guardado de cada persona para `/imitar` y el registro de quién envió cada GIF) se eliminan automáticamente cuando pasan 180 días desde que Purgito los aprendió, aunque la cuota no se haya alcanzado. La purga corre a diario, no depende de ningún administrador y se aplica también a los servidores inactivos. Ese plazo está pensado para no perjudicar el funcionamiento: Purgito genera texto con una muestra aleatoria de como máximo 5 000 mensajes del servidor (2 000 por persona), de modo que un servidor activo repone ese material mucho antes de seis meses y uno inactivo solo pierde lo que ya no refleja cómo conversa.
-
-Los administradores del servidor pueden además eliminar el contenido recopilado en cualquier momento usando el panel interactivo de configuración (comando `/settings`), que incluye botones para vaciar el corpus de mensajes aprendidos y para borrar los GIFs guardados.
-
-Los **GIFs** guardados en la galería llevan asociado quién los envió (usuario, servidor, canal y mensaje) para poder retirarlos. Si borras el mensaje en Discord, ese registro se elimina y, si nadie más compartió ese mismo GIF de forma independiente, el GIF se quita de la colección y su archivo se elimina de nuestro almacenamiento (Cloudflare R2). Si otras personas lo compartieron, el archivo se conserva mientras exista alguna referencia independiente. Al cumplirse los 180 días se elimina el registro de quién lo envió; el GIF puede seguir en la galería del servidor sin esa atribución hasta que un administrador lo quite.
-
-El registro de auditoría del panel (ver sección 1) se conserva un máximo de 90 días desde cada entrada y luego se purga automáticamente, sin intervención manual.
-
-Cuando el bot abandona un servidor (por ejemplo, si es expulsado), los datos de ese servidor se conservan durante un período de gracia de 30 días antes de borrarse de la base de datos activa (las copias de seguridad caducan aparte, ver más abajo). Esto es para que, si el bot es reinvitado dentro de ese plazo, el servidor recupere su configuración y su contenido sin necesidad de configurarlo nuevamente desde el principio. Durante ese período, mientras el bot no esté en el servidor, no es posible acceder al panel de administración para gestionar esos datos. Actualmente no existe una vía de autoservicio para acelerar este borrado a nivel de servidor antes de que se cumplan los 30 días; si eres administrador de un servidor y quieres que sus datos se eliminen antes de ese plazo, puedes solicitarlo contactando al desarrollador (ver "Contacto" más abajo).
-
----
-
-## Dónde se guardan los datos y copias de seguridad
-
-Toda la información que Purgito guarda (configuración de cada servidor, mensajes aprendidos, registro de auditoría, etc.) vive en una base de datos PostgreSQL en el servidor donde corre el bot. La base de datos solo acepta conexiones desde ese mismo servidor; no está expuesta a Internet. Los datos de la base y los secretos del servicio se guardan en un volumen cifrado (LUKS2). Las imágenes y los GIFs viven en Cloudflare R2.
-
-Para poder recuperar el servicio ante una falla grave, cada día se hace una copia de seguridad de toda la base de datos. Esa copia contiene lo mismo que la base activa, incluidos los mensajes que Purgito aprendió. Se cifra con age antes de salir del servidor y se guarda en un espacio privado de Cloudflare R2 (sin acceso público), además de una copia cifrada en el propio servidor. **En R2 se conservan las copias de los últimos 7 días y las de los 2 últimos domingos; en el servidor, solo las 2 más recientes. Ninguna copia llega a los 14 días: cada una se elimina automáticamente antes de cumplirlos.** No existen otras copias de la base con una retención mayor: el disco de Purgito está excluido de las copias automáticas del equipo anfitrión. Para comprobar que una copia se puede restaurar, el responsable del proyecto la descarga a un equipo propio, la restaura en una base aislada y la borra al terminar. Solo se usan para recuperar el servicio después de un desastre y para esa comprobación; no se consultan ni se usan para aprendizaje ni para ninguna otra función.
-
----
-
-## Centro de Privacidad: gestiona tus datos
-
-Toda la gestión de tus datos personales se hace desde **https://purgito.app/privacidad**, iniciando sesión con Discord. No hay comandos de Discord para esto. Purgito solo actúa sobre la persona que inició sesión: la identidad sale de la sesión, nunca de un dato que envíe el navegador. Desde ahí puedes:
-
-- **Descargar tus datos:** un archivo JSON con tus mensajes aprendidos por servidor, los GIFs que enviaste, tus boosts, las frases especiales a tu nombre, tus exclusiones y el estado de tus solicitudes.
-- **Solicitar la eliminación de tus datos.** La solicitud queda registrada de inmediato y se completa en un plazo máximo de **7 días naturales**; si un intento falla, se reintenta hasta completarla, y puedes consultar su estado en la misma página.
-- **Activar o quitar la exclusión global:** desde ese momento Purgito deja de aprender de tus mensajes y de interactuar contigo en **todos** los servidores (tampoco guarda tus GIFs ni al releer el historial). La exclusión no borra lo que ya estaba guardado; para eso sirve la eliminación.
-- **Hacer otras solicitudes de derechos** (acceso a la información que tenemos de ti más allá de la descarga, rectificación, oposición, portabilidad, bloqueo temporal del tratamiento u otra consulta) con el formulario del mismo Centro. Pedimos solo el tipo de solicitud, un comentario opcional breve y, si quieres recibir también la respuesta por correo, una dirección que se borra al contestar. Recibes un **acuse de recibo** al instante (número y fecha) y la **respuesta por escrito** queda disponible en el Centro. Respondemos en un máximo de **30 días corridos** (la ley permite prorrogar el plazo una sola vez por hasta 30 días corridos más; Purgito no prevé usarlo y, si tuviera que hacerlo, te lo comunicaría antes de que venza el primer plazo). Las solicitudes de **bloqueo temporal** se responden en 2 días. Si denegamos una solicitud, la respuesta explica el motivo y te informa que dispones de treinta días hábiles para reclamar ante la Agencia de Protección de Datos Personales.
-- Si **no puedes iniciar sesión con Discord**, escribe a contacto@purgito.app; te pediremos únicamente lo necesario para comprobar que la cuenta es tuya.
-
-**Qué elimina la solicitud de eliminación**, en la base de datos activa y en **todos** los servidores donde hayas escrito: tu estilo de escritura guardado para la función de imitación; los mensajes que Purgito aprendió de ti (incluida la copia colectiva del servidor, que lleva el ID de su autor); tu registro como remitente de GIFs y, si nadie más compartió ese GIF de forma independiente, el GIF y su archivo en R2; tus boosts; y tus solicitudes de derechos. Tu nombre y tu ID se quitan de las frases especiales, los anuncios programados y el registro de auditoría del panel (ver sección 1), que se conservan porque son historial del servidor. Tus mensajes originales de Discord no se ven afectados: esto borra únicamente lo que Purgito guardó.
-
-La solicitud, con tu ID, se conserva 90 días tras completarse para poder rendir cuentas y luego se elimina. El registro verificable de sus pasos no contiene tu identificador ni contenido.
-
-**Límite real del borrado: las copias de seguridad.** Las copias que ya se habían hecho antes de tu eliminación pueden seguir conteniendo esos datos, cifrados, hasta que caduquen (máximo 14 días, ver arriba). No se leen ni se restauran, salvo que haya que recuperar el servicio tras un desastre; si eso ocurriera, la eliminación se vuelve a aplicar antes de volver a poner el bot en marcha. Para poder hacerlo se guarda una **lápida**: únicamente tu ID de usuario de Discord y dos fechas (cuándo pediste la eliminación y cuándo caduca la lápida), sin contenido ni servidores. La lápida dura 15 días (los 14 de las copias más uno de margen) y se elimina sola. Lo mismo ocurre cuando Purgito sale de un servidor y, pasados los 30 días de gracia, borra todos sus datos: se guarda el ID del servidor y dos fechas durante 15 días. Para que este registro no se pierda si se pierde el servidor, cada 5 minutos se guarda en el mismo espacio privado de R2 una copia cifrada con esas lápidas vigentes y la lista de personas excluidas del aprendizaje (IDs y fechas, sin mensajes); cada copia se elimina a los 15 días como máximo, y una exclusión se conserva mientras la persona no la quite.
-
-Lo mismo vale para los mensajes que borras en Discord y para los canales que se eliminan o pasan a ser NSFW: Purgito los retira de lo que aprendió (también los GIFs asociados) y, si alguna vez hiciera falta restaurar una copia, esa retirada se vuelve a aplicar (se conserva solo el identificador del mensaje, sin contenido, durante 15 días).
-
-**Lo que no prometemos.** La eliminación opera sobre la base de datos activa y sobre los archivos en R2 mediante borrado lógico; no podemos garantizar la destrucción física inmediata de los bloques en el almacenamiento subyacente. El cifrado de los volúmenes y de las copias reduce ese riesgo, pero no lo elimina.
-
----
-
-# 5. Derechos de los usuarios
-
-Puedes ejercer tus derechos sobre tus datos personales —acceso, rectificación, supresión (eliminación), oposición y portabilidad, y solicitar el bloqueo temporal del tratamiento— desde el Centro de Privacidad (**https://purgito.app/privacidad**) o, si no puedes iniciar sesión con Discord, escribiendo a contacto@purgito.app (ver sección 4). Acusamos recibo de cada solicitud y respondemos por escrito dentro de los plazos de la sección 4. Si rechazamos una solicitud o no la respondemos a tiempo, puedes reclamar ante la Agencia de Protección de Datos Personales.
-
-La Ley N.º 21.719 sobre protección de datos personales de Chile (publicada el 13 de diciembre de 2024) reconoce estos derechos y, según su disposición transitoria primera, su régimen entra en vigencia el 1 de diciembre de 2026. Purgito ofrece estos canales desde ya. Esta política describe prácticas actuales y no es asesoría legal.
-
-Los administradores del servidor además disponen de herramientas propias para controlar la recopilación de datos de su comunidad (ver sección 4), incluyendo la posibilidad de excluir a usuarios específicos: de forma independiente, pueden marcar que Purgito no interactúe con ese usuario (no le responda, reaccione ni dispare triggers) y/o que no aprenda de sus mensajes (no los use para el corpus ni para la función de imitación).
-
----
-
-# 6. Menores de edad
-
-Purgito está destinado a usuarios que cumplen con los requisitos mínimos de edad establecidos por Discord.
-
-Para contratar Premium se requiere tener capacidad legal para contratar, o contar con la autorización de un adulto responsable. Purgito no verifica esto activamente; es responsabilidad de quien realiza la compra.
-
----
+La Ley N.º 21.719, sobre protección de datos personales, publicada el 13 de diciembre de 2024, entra en vigencia el 1 de diciembre de 2026; hasta entonces rige la Ley N.º 19.628. Ofrecemos estos canales desde ahora.
 
 # 7. Seguridad
 
-Se adoptan medidas razonables para proteger la información almacenada: la base de datos no es accesible desde Internet, el acceso de administración al servidor está restringido, las copias de seguridad se cifran antes de salir del servidor y las contraseñas y tokens se guardan fuera de la base de datos.
+Aplicamos medidas razonables para proteger la información. La base de datos no es accesible desde Internet, el acceso de administración al servidor está restringido y se limita a lo necesario para operar el servicio, y las contraseñas y tokens se guardan fuera de la base. Las copias de seguridad se cifran antes de salir del servidor.
 
-El volumen donde viven la base de datos y los secretos está cifrado en reposo (LUKS2), lo que protege copias del disco; no protege frente a quien tenga acceso administrativo al servidor con el volumen abierto. El acceso a los datos de las personas está limitado a la operación del servicio. Ningún sistema puede garantizar una seguridad absoluta frente a incidentes o accesos no autorizados.
+Los datos y los secretos del servicio viven en un volumen cifrado, que protege frente a copias del disco pero no frente a quien tenga acceso administrativo con el volumen abierto. Ningún sistema ofrece seguridad absoluta frente a incidentes o accesos no autorizados.
 
----
+# 8. Menores de edad
 
-# 8. Cambios en esta Política
+Purgito está destinado a personas que cumplen la edad mínima que exige Discord. Si eres madre, padre o tutor y crees que Purgito guarda datos de un menor, escribe a contacto@purgito.app y lo revisaremos.
 
-Esta Política podrá actualizarse para reflejar nuevas funcionalidades, mejoras técnicas o cambios legales.
+Para contratar Premium se requiere capacidad legal para contratar o la autorización de un adulto responsable. Purgito no lo verifica activamente: corresponde a quien compra.
 
-La fecha de "Última actualización" indicará siempre la versión vigente.
+# 9. Cambios y contacto
 
-El código de Purgito está alojado en GitHub, donde se mantiene un control de versiones público.
+Podemos actualizar esta Política para reflejar nuevas funciones, cambios técnicos o cambios legales. La fecha y la versión indican siempre el texto vigente, y el historial de cambios del código es público en GitHub.
 
----
-
-# 9. Contacto
-
-Si tienes preguntas sobre esta Política o deseas solicitar la eliminación de información relacionada con el bot, puedes contactar al desarrollador mediante:
-
-- Correo: contacto@purgito.app.
-- Servidor oficial de Discord del proyecto (cuando esté disponible).
+Para preguntas sobre esta Política o para pedir la eliminación de tus datos, escribe a contacto@purgito.app o usa el Centro de Privacidad. También puedes pasar por el servidor de soporte en Discord (https://discord.gg/5U7HKyxnBv), pero para asuntos sobre tus datos usa el correo o el Centro de Privacidad, no el chat público.
