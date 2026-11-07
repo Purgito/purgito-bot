@@ -39,7 +39,7 @@ arriba, y fallos de validación de input.
 
 ### Privacidad
 
-- No se guarda la IP: `source_id` es un HMAC-SHA256 truncado (12 hex) con `SESSION_SECRET`. Sirve para agrupar ("10 denegados del mismo origen"), no para identificar a nadie, y no se puede revertir sin el secreto.
+- No se guarda la IP: `source_id` es un HMAC-SHA256 truncado (12 hex) con `SESSION_SECRET`. Sigue siendo un dato derivado de la IP: los logs que lo contienen se conservan como máximo `LOG_RETENTION_DAYS` (30) días (`logging_setup.RetainedFileHandler`). Sirve para agrupar ("10 denegados del mismo origen"), no para identificar a nadie, y no se puede revertir sin el secreto.
 - `user_id` es el id de Discord (ya presente en `audit_log`).
 - Nunca se guarda contenido de mensajes, corpus, cookies, tokens ni el `detail` del audit log.
 

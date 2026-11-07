@@ -10,6 +10,23 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Despliegue seguro de la landing (2026-11-07)
+- `deploy/publish_landing.sh` (+ `publish_landing_test.sh`): releases en `/var/www/purgito/releases` y symlink `current`; nginx dejará de servir el árbol de trabajo (incidente del 2026-11-07: `build_docs.py` publicó textos aún no ciertos). `build_docs.py` se niega a escribir en el `landing/` que sirve nginx sin `--allow-live`.
+- `deploy/landing_hotfix.sh` + `docs/provisional/`: corrige solo `es/privacidad` y `en/privacy` en un staging aparte.
+- `docs/R2_REGLAS.md`: reglas exactas de Bucket Lock y Lifecycle; `tests/test_outage_compat.py`: dumps, registro y lápidas tras apagones largos.
+
+### Cierre de privacidad (2026-11-07)
+- `scripts/scrub_oauth_logs.py`: sanea los valores de `code`/`state`/tokens en logs históricos (ensayo por defecto, sin `.bak`, informe sin valores).
+- `backup_db.sh`: tope de edad para las copias locales (≥ 13 días se eliminan tras una copia nueva y completa).
+- `deploy/verify_privacy_release.sh` (solo lectura) y `docs/DESPLIEGUE_PRIVACIDAD.md`: despliegue coordinado; `docs/LEGITIMIDAD_APRENDIZAJE.md`: análisis de la base de licitud.
+- Lifecycle recomendado: 13 d en `gen2/purgito-`, 14 d en `gen2/ledger/` (R2 borra «típicamente dentro de las 24 h»).
+
+### Retención de logs y registro de nginx (2026-11-07)
+- `logging_setup.RetainedFileHandler`: `bot.log`, `events.jsonl` y `security.jsonl` rotan a medianoche UTC o a 5 MB y borran segmentos de más de `LOG_RETENTION_DAYS` (30, en `limits.env`); al arrancar se recortan los logs heredados. Motivo: llevan `source_id`, un HMAC derivado de la IP, que no tenía plazo en días.
+- `QueryStringFilter` quita la query string del access log de aiohttp (el callback OAuth dejaba `code=` en `bot.log`).
+- `deploy/nginx-logging.conf`: formato `purgito` sin query ni Referer para el `access_log` de nginx (ver DEPLOY.md § Logs de nginx).
+- Poda: `prune_plan_gfs(grace_days=1)` evita que un domingo de casi 14 días llegue a vivir 15; `reapply_deletions.py` se niega a reconciliar una base más de 15 días anterior al registro (la vida de una lápida) salvo `--aceptar-registro-antiguo`.
+
 ### Backups (2026-11-07)
 - `prune-ledger` adelgaza `gen2/ledger/` (3 últimas + todas las de 6 h + 1 por hora hasta 48 h + 1 por día hasta 15 días; `--max-delete 300` por pasada). El tope de 15 días y la restauración con `reapply_deletions.py --ledger` no cambian.
 - `backup_db.sh`: guardas opcionales (`BACKUP_REQUIRE_GUARD=1`, activas en `purgito-backup.service`): `flock`, 12 h mínimas entre copias completas, rastro de origen/motivo; `deploy/backup_now.sh` para copias manuales con motivo. `SuccessExitStatus=75` en el servicio.

@@ -107,9 +107,9 @@ Los prefijos `system`, `service`, `discord`, `database`, `auth`, `permission`,
 | Destino | Formato | Contenido | Rotación |
 |---|---|---|---|
 | stderr → journald | texto legible | todo, con `event=<tipo> k=v …` para eventos | journald |
-| `data/bot.log` | texto legible | igual que siempre | 5 MB × 4 |
-| `data/events.jsonl` | JSON por línea | eventos `app` | 5 MB × 4 |
-| `data/security.jsonl` | JSON por línea | eventos `security` | 5 MB × 4 |
+| `data/bot.log` | texto legible | igual que siempre | 30 días (`LOG_RETENTION_DAYS`), segmentos de 5 MB |
+| `data/events.jsonl` | JSON por línea | eventos `app` | 30 días, segmentos de 5 MB |
+| `data/security.jsonl` | JSON por línea | eventos `security` | 30 días, segmentos de 5 MB |
 
 Tope de disco añadido: ~40 MB (los dos JSONL). El JSONL es la fuente canónica
 para el collector; la línea de texto del evento existe para humanos.
@@ -323,7 +323,7 @@ collector local (este VM)  ->  destino EXTERNO (otro host)
 | journald `bot-purg`, `nginx`, `postgresql@18-main` | logs de aplicación/servicio | sobre compatible con el schema (`event_type: log.journal`, severidad desde `PRIORITY`); las líneas `purgito.event:` se **descartan** (ya llegan por el JSONL → sin duplicados) |
 | journald `purgito-runbook` | rastro de runbooks | `deployment.runbook_executed` |
 | `/var/log/nginx/error.log` | errores de nginx | `log.nginx_error` |
-| `/var/log/nginx/access.log` | accesos | IP **hasheada**, sin query string (el callback OAuth trae `?code=`) |
+| `/var/log/nginx/access.log` | accesos | el archivo en disco ya se escribe sin query string ni Referer (`deploy/nginx-logging.conf`; el callback OAuth trae `?code=`); la IP **hasheada** la aplica Vector al enviarlo |
 | `GET 127.0.0.1:8080/metrics` | métricas | `prometheus_scrape` cada 30 s con Bearer |
 
 Después: `redact` (segunda barrera de secretos, porque journald/nginx no pasan

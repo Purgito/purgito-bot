@@ -286,10 +286,12 @@ La config de nginx vive FUERA de este repo, en
 Ubuntu/Debian cargan `conf.d/*.conf` por default, sin `sites-enabled`). Un
 solo server block cubre `purgito.app` + `www.purgito.app` y distingue **por
 ruta**: `/auth/*`, `/api/*`, `/webhooks/*` y `/health` proxean a esta app en
-el puerto 8080; todo lo demás sale estático de `/var/www/purgito-landing`
-(symlink a `landing/` dentro del clon real — no una copia separada: un
-`git pull` alcanza para publicar cambios de la landing, sin paso de sync
-aparte). Cloudflare está delante de todo — si algo
+el puerto 8080; todo lo demás sale estático de `/var/www/purgito/current`
+(symlink a un **release** publicado en `/var/www/purgito/releases/`). El checkout
+**ya no se sirve**: un `git pull`, `build_docs.py` o editar `landing/` NO cambian la
+web. Para publicar: `sudo deploy/publish_landing.sh publish --ref HEAD --yes`
+(solo lo commiteado; `rollback --yes` deshace; ver DEPLOY.md § Releases de la
+landing). Cloudflare está delante de todo — si algo
 "no cambia" después de un deploy, sospecha primero de caché antes de
 asumir que el código está mal.
 

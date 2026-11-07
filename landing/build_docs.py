@@ -1566,8 +1566,27 @@ PAGES_BY_LANG = {"es": PAGES, "en": PAGES_EN}
 HTML_PAGES_BY_LANG = {"es": HTML_PAGES, "en": HTML_PAGES_EN}
 
 
+def refuse_if_served_by_nginx() -> None:
+    """Escribir en landing/ cuando nginx lo sirve directamente publica al instante (pasó el 2026-11-07).
+    Si el nginx de este servidor tiene ESTE landing/ como `root`, se niega a escribir salvo `--allow-live`.
+    Sin /etc/nginx legible (CI, otros equipos) no hace nada. Ver deploy/publish_landing.sh."""
+    try:
+        conf = Path("/etc/nginx/conf.d/purgito.conf").read_text("utf-8")
+    except OSError:
+        return
+    served = re.search(rf"^\s*root\s+{re.escape(str(LANDING))}/?\s*;", conf, re.M)
+    if served and "--allow-live" not in sys.argv:
+        sys.exit(
+            "ERROR: nginx sirve este landing/ directamente: escribir acá publica al instante.\n"
+            "Construye en un directorio aparte (deploy/landing_hotfix.sh build) o publica por releases\n"
+            "(deploy/publish_landing.sh). Si de verdad quieres publicar ahora, repite con --allow-live."
+        )
+
+
 def main():
     check = "--check" in sys.argv
+    if not check:
+        refuse_if_served_by_nginx()
 
     for lang in LANGS:
         index_path = LANDING / INDEX_FILE[lang]

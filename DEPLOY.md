@@ -930,6 +930,33 @@ sudo systemctl status bot-purg
 > Verifica `<usuario>` y `<ruta-del-checkout>` contra el servidor real
 > (`whoami`, `pwd`): cambiaron en cada migración y van a volver a cambiar.
 
+### Releases de la landing (nginx NO sirve el árbol de trabajo)
+
+`root /var/www/purgito/current;` es un symlink a `/var/www/purgito/releases/<UTC>-<sha>/`. Publicar:
+`sudo deploy/publish_landing.sh publish --ref HEAD --yes` (solo lo commiteado; comprueba antes
+`build_docs.py --check`; excluye `build_docs.py`, los `.mjs`, `pages/` y notas de diseño, que hasta ahora eran
+públicos). Deshacer: `sudo deploy/publish_landing.sh rollback --yes`. Se conservan 5 releases. Self-check sin
+root ni nginx: `bash deploy/publish_landing_test.sh`. Migración desde el árbol servido: `docs/DESPLIEGUE_PRIVACIDAD.md` § A.
+
+### Logs de nginx sin query string ni Referer
+
+El `access_log` por defecto (`combined`) guarda la petición completa y el callback OAuth llega como
+`/auth/callback?code=…&state=…`: el código de autorización quedaría 14 días en `/var/log/nginx/access.log`.
+`deploy/nginx-logging.conf` define el formato `purgito` (ruta sin parámetros, sin Referer; comprobado con
+un nginx de prueba en un puerto alto):
+
+```bash
+sudo install -m 0644 deploy/nginx-logging.conf /etc/nginx/conf.d/00-purgito-logging.conf
+# en /etc/nginx/nginx.conf, dentro de http {}:  access_log /var/log/nginx/access.log purgito;
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Lo ya escrito no se reescribe solo: los `access.log*` anteriores conservan sus query strings hasta que `logrotate`
+los elimine (`rotate 14`, ~15 días). Para quitarlos antes hay que borrar o rotar esos archivos a mano
+(decisión del titular). Después de recargar, `sudo grep -c -E '[?&]code=' /var/log/nginx/access.log` debe dar 0.
+El bot filtra además la query string de su propio access log (`QueryStringFilter`) y todos sus logs
+(`bot.log`, `events.jsonl`, `security.jsonl`) se conservan `LOG_RETENTION_DAYS` días (30 por defecto).
+
 ### Desplegar un cambio de infraestructura (systemd, nginx-adjacente)
 
 Un cambio a `deploy/bot-purg.service.template` (o a cualquier archivo que se
