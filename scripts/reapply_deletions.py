@@ -60,7 +60,9 @@ def _parse_ts(text):
         return None
 
 
-def check_ledger_freshness(conn, ledger: dict, now: datetime | None = None) -> str | None:
+def check_ledger_freshness(
+    conn, ledger: dict, now: datetime | None = None
+) -> str | None:
     """Motivo por el que el registro NO sirve para reconciliar esta base, o None si sirve."""
     now = now or datetime.now(timezone.utc)
     exported = _parse_ts(ledger.get("exported_at"))
@@ -71,7 +73,9 @@ def check_ledger_freshness(conn, ledger: dict, now: datetime | None = None) -> s
             f"el registro tiene más de {MAX_LEDGER_AGE_HOURS} h ({ledger['exported_at']} UTC): "
             "faltarían las eliminaciones posteriores"
         )
-    row = conn.execute("SELECT value FROM privacy_state WHERE key='heartbeat_at'").fetchone()
+    row = conn.execute(
+        "SELECT value FROM privacy_state WHERE key='heartbeat_at'"
+    ).fetchone()
     db_hb = _parse_ts(row[0]) if row else None
     if db_hb is not None and exported < db_hb - timedelta(minutes=5):
         return (
@@ -90,7 +94,11 @@ def check_ledger_freshness(conn, ledger: dict, now: datetime | None = None) -> s
 def stamp_reconciled(conn, how: str) -> None:
     """Marca la base como reconciliada: el latido que lee privacy_guard pasa a 'ahora'."""
     now = datetime.now(timezone.utc).strftime(_TS)
-    for key, value in (("heartbeat_at", now), ("reconciled_at", now), ("reconciled_with", how)):
+    for key, value in (
+        ("heartbeat_at", now),
+        ("reconciled_at", now),
+        ("reconciled_with", how),
+    ):
         conn.execute(
             "INSERT INTO privacy_state (key, value, updated_at) VALUES (?, ?, ?) "
             "ON CONFLICT (key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
@@ -246,7 +254,10 @@ def reapply(conn, *, apply: bool, cutoffs=()) -> dict:
             ).fetchone()[0]
     stats["mensajes_sueltos"] = 0
     stats["canales"] = 0
-    for table, key in (("deleted_message_tombstones", "message_id"), ("deleted_channel_tombstones", "channel_id")):
+    for table, key in (
+        ("deleted_message_tombstones", "message_id"),
+        ("deleted_channel_tombstones", "channel_id"),
+    ):
         stat = "mensajes_sueltos" if key == "message_id" else "canales"
         for corpus in ("corpus_messages", "user_corpus"):
             if apply:
@@ -317,8 +328,12 @@ def reapply(conn, *, apply: bool, cutoffs=()) -> dict:
         conn.execute(
             "DELETE FROM deleted_user_tombstones WHERE expires_at <= ?", (now,)
         )
-        conn.execute("DELETE FROM deleted_message_tombstones WHERE expires_at <= ?", (now,))
-        conn.execute("DELETE FROM deleted_channel_tombstones WHERE expires_at <= ?", (now,))
+        conn.execute(
+            "DELETE FROM deleted_message_tombstones WHERE expires_at <= ?", (now,)
+        )
+        conn.execute(
+            "DELETE FROM deleted_channel_tombstones WHERE expires_at <= ?", (now,)
+        )
         conn.execute(
             "DELETE FROM purged_guild_tombstones WHERE expires_at <= ?", (now,)
         )

@@ -603,7 +603,10 @@ async def _remove_gif_senders(where: str, params: tuple) -> dict:
         cur = await db.execute(f"DELETE FROM gif_senders WHERE {where}", params)
         senders = max(cur.rowcount, 0)
         await db.commit()
-    return {"senders": senders, "gifs_deleted": await _delete_gifs_without_senders(gif_ids)}
+    return {
+        "senders": senders,
+        "gifs_deleted": await _delete_gifs_without_senders(gif_ids),
+    }
 
 
 async def remove_gif_traces_of_message(guild_id: int, message_id: int) -> dict:
@@ -612,12 +615,16 @@ async def remove_gif_traces_of_message(guild_id: int, message_id: int) -> dict:
     por el conteo de referencias (release_gif_reference), de R2 cuando ya nadie lo usa. Un GIF sin
     remitentes que nunca los tuvo (lo añadió un administrador) no se toca: solo se evalúan los GIF a los
     que este mensaje estaba ligado. Llamar fuera de _db_lock."""
-    return await _remove_gif_senders("guild_id=? AND message_id=?", (guild_id, message_id))
+    return await _remove_gif_senders(
+        "guild_id=? AND message_id=?", (guild_id, message_id)
+    )
 
 
 async def remove_gif_traces_of_channel(guild_id: int, channel_id: int) -> dict:
     """Igual que remove_gif_traces_of_message pero para todo un canal (eliminado, o que pasó a ser NSFW)."""
-    return await _remove_gif_senders("guild_id=? AND channel_id=?", (guild_id, channel_id))
+    return await _remove_gif_senders(
+        "guild_id=? AND channel_id=?", (guild_id, channel_id)
+    )
 
 
 async def _delete_gifs_without_senders(gif_ids: list[int]) -> int:
@@ -677,7 +684,9 @@ async def reconcile_corpus_authors(apply: bool = False) -> dict:
     )
     res = {
         "total": await one("SELECT COUNT(*) FROM corpus_messages"),
-        "con_autor": await one("SELECT COUNT(*) FROM corpus_messages WHERE author_id IS NOT NULL"),
+        "con_autor": await one(
+            "SELECT COUNT(*) FROM corpus_messages WHERE author_id IS NOT NULL"
+        ),
         "atribuibles": await one(
             f"SELECT COUNT(*) FROM corpus_messages cm WHERE cm.author_id IS NULL AND {link}"
         ),
@@ -831,7 +840,10 @@ _PSEUDONYMIZE_STATEMENTS: tuple[tuple[str, int], ...] = (
         2,
     ),
     ("UPDATE scheduled_announcements SET created_by=0 WHERE created_by=?", 1),
-    ("UPDATE frases_especiales SET user_id=0, user_name='[eliminado]' WHERE user_id=?", 1),
+    (
+        "UPDATE frases_especiales SET user_id=0, user_name='[eliminado]' WHERE user_id=?",
+        1,
+    ),
 )
 
 
@@ -911,7 +923,9 @@ async def delete_user_data(author_id: int) -> dict:
         gif_senders_deleted = cur_gs.rowcount
         cur_bo = await db.execute(_SQL_DELETE_BOOSTS_OF_USER, (author_id,))
         boosts_deleted = cur_bo.rowcount
-        await db.execute("DELETE FROM privacy_rights_requests WHERE user_id=?", (author_id,))
+        await db.execute(
+            "DELETE FROM privacy_rights_requests WHERE user_id=?", (author_id,)
+        )
         admin_rows_pseudonymized = 0
         for sql, repeat in _PSEUDONYMIZE_STATEMENTS:
             cur_ps = await db.execute(sql, (author_id,) * repeat)
@@ -1033,8 +1047,7 @@ async def purge_expired_deletion_tombstones() -> int:
         )
         await db.commit()
     return sum(
-        max(c.rowcount, 0)
-        for c in (cursor, cursor_guilds, cursor_msgs, cursor_chans)
+        max(c.rowcount, 0) for c in (cursor, cursor_guilds, cursor_msgs, cursor_chans)
     )
 
 
@@ -1133,13 +1146,16 @@ async def build_user_export(author_id: int) -> dict:
             "FROM excluded_users WHERE user_id=? ORDER BY guild_id"
         )
     ]
+
     def _mask_others(text):
         """En la copia de una persona no debe aparecer el id de OTRA: se enmascara."""
         if not text:
             return text
         return re.sub(
             r"user_id=(\d+)",
-            lambda m: m.group(0) if int(m.group(1)) == author_id else "user_id=[otra persona]",
+            lambda m: (
+                m.group(0) if int(m.group(1)) == author_id else "user_id=[otra persona]"
+            ),
             text,
         )
 

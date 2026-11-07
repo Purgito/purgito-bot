@@ -76,7 +76,10 @@ def _chat():
 def test_editar_un_mensaje_lo_quita_del_corpus_pero_un_embed_no():
     cog = _chat()
     with (
-        patch("cogs.chat.delete_message_from_corpus", new=AsyncMock(return_value={"corpus_messages": 1, "user_corpus": 1})) as dele,
+        patch(
+            "cogs.chat.delete_message_from_corpus",
+            new=AsyncMock(return_value={"corpus_messages": 1, "user_corpus": 1}),
+        ) as dele,
         patch("cogs.chat.generation.reset_guild_caches") as reset,
     ):
         payload = MagicMock(guild_id=1, message_id=9, data={"embeds": []})
@@ -84,20 +87,32 @@ def test_editar_un_mensaje_lo_quita_del_corpus_pero_un_embed_no():
         dele.assert_not_called()
         payload.data = {"content": "nuevo"}
         asyncio.run(cog.on_raw_message_edit(payload))
-        dele.assert_awaited_once_with(1, 9, include_gifs=False)  # editar no retira los GIFs
+        dele.assert_awaited_once_with(
+            1, 9, include_gifs=False
+        )  # editar no retira los GIFs
         reset.assert_called_once_with(1)
 
 
 def test_borrado_masivo_y_canal_eliminado_limpian_el_corpus():
     cog = _chat()
     with (
-        patch("cogs.chat.delete_message_from_corpus", new=AsyncMock(return_value={"corpus_messages": 1, "user_corpus": 0})) as dele,
-        patch("cogs.chat.delete_channel_corpus", new=AsyncMock(return_value={"corpus_messages": 3, "user_corpus": 3})) as chan,
+        patch(
+            "cogs.chat.delete_message_from_corpus",
+            new=AsyncMock(return_value={"corpus_messages": 1, "user_corpus": 0}),
+        ) as dele,
+        patch(
+            "cogs.chat.delete_channel_corpus",
+            new=AsyncMock(return_value={"corpus_messages": 3, "user_corpus": 3}),
+        ) as chan,
         patch("cogs.chat.generation.reset_guild_caches"),
     ):
-        asyncio.run(cog.on_raw_bulk_message_delete(MagicMock(guild_id=1, message_ids={1, 2, 3})))
+        asyncio.run(
+            cog.on_raw_bulk_message_delete(MagicMock(guild_id=1, message_ids={1, 2, 3}))
+        )
         assert dele.await_count == 3
-        asyncio.run(cog.on_guild_channel_delete(MagicMock(guild=MagicMock(id=1), id=55)))
+        asyncio.run(
+            cog.on_guild_channel_delete(MagicMock(guild=MagicMock(id=1), id=55))
+        )
         asyncio.run(cog.on_raw_thread_delete(MagicMock(guild_id=1, thread_id=66)))
         assert [c.args for c in chan.await_args_list] == [(1, 55), (1, 66)]
 
@@ -126,16 +141,24 @@ def test_privacidad_bloquea_el_aprendizaje_por_todas_las_rutas(memory_db):
             assert await cog._save_message_to_corpus(guild, msg) == "discarded"
         assert await generation.generate_markov_for_user(900, 31) is None
         conn = await db.get_db()
-        for table, col in (("user_corpus", "author_id"), ("corpus_messages", "guild_id")):
+        for table, col in (
+            ("user_corpus", "author_id"),
+            ("corpus_messages", "guild_id"),
+        ):
             if table == "user_corpus":
-                async with conn.execute(f"SELECT count(*) FROM {table} WHERE {col}=31") as c:
+                async with conn.execute(
+                    f"SELECT count(*) FROM {table} WHERE {col}=31"
+                ) as c:
                     assert (await c.fetchone())[0] == 0
-        async with conn.execute("SELECT count(*) FROM corpus_messages WHERE guild_id IN (900, 901)") as c:
+        async with conn.execute(
+            "SELECT count(*) FROM corpus_messages WHERE guild_id IN (900, 901)"
+        ) as c:
             assert (await c.fetchone())[0] == 0
         # Al volver a participar, el mismo mensaje sí se guarda.
         await db.set_user_exclusion(db.GLOBAL_EXCLUSION_GUILD_ID, 31, False, False)
         msg = SimpleNamespace(
-            id=1, channel=SimpleNamespace(id=5),
+            id=1,
+            channel=SimpleNamespace(id=5),
             author=SimpleNamespace(id=31, display_name="x"),
             content="una frase larga suficiente para entrar al corpus",
         )

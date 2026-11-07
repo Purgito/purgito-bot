@@ -19,6 +19,8 @@ from observability import events as obs_events
 log = logging.getLogger(__name__)
 
 # Aviso -> (evento interno, severidad). El mensaje no lleva ids de persona; solo el número de solicitud.
+# Emite (el nombre se pasa por variable; tests/test_obs_events.py lo busca por este formato):
+# event=privacy.request_failed event=privacy.request_due_soon event=privacy.request_overdue
 _ALERT_EVENTS = {
     "failed": ("privacy.request_failed", "error", "falló un intento y se reintenta"),
     "due_soon": ("privacy.request_due_soon", "warning", "vence en menos de 48 h"),
@@ -75,7 +77,9 @@ class Privacy(commands.Cog):
                 await privacy_requests.purge_old()
                 await privacy_rights.purge_old()
             if self._worker_cycles % 1440 == 1:
-                overdue = [r for r in await privacy_rights.open_requests() if r["overdue"]]
+                overdue = [
+                    r for r in await privacy_rights.open_requests() if r["overdue"]
+                ]
                 if overdue:
                     obs_events.log_event(
                         "privacy.rights_overdue",

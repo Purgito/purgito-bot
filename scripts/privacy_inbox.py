@@ -42,7 +42,9 @@ async def _run(args) -> int:
                 print("Sin solicitudes de derechos abiertas.")
             for r in rows:
                 flag = "VENCIDA" if r["overdue"] else "abierta"
-                print(f"#{r['id']} [{flag}] {r['right']} | creada {r['created_at']} | plazo {r['due_at']}")
+                print(
+                    f"#{r['id']} [{flag}] {r['right']} | creada {r['created_at']} | plazo {r['due_at']}"
+                )
                 if r["note"]:
                     print(f"    comentario: {r['note']}")
             return 0
@@ -54,7 +56,11 @@ async def _run(args) -> int:
             print(f"discord_id={who[0]} correo={who[1] or '-'}")
             return 0
         if args.cmd == "answer":
-            text = args.text if args.text is not None else open(args.text_file, encoding="utf-8").read()
+            text = (
+                args.text
+                if args.text is not None
+                else open(args.text_file, encoding="utf-8").read()
+            )
             ok = await privacy_rights.mark_answered(args.id, text, denied=args.deny)
             print("contestada y guardada" if ok else "no existe o ya estaba contestada")
             return 0 if ok else 2
@@ -64,7 +70,9 @@ async def _run(args) -> int:
         for r in await privacy_rights.open_requests():
             if r["overdue"] or r["due_at"] <= soon.strftime(privacy_rights.FMT):
                 bad += 1
-                print(f"derechos #{r['id']} {'VENCIDA' if r['overdue'] else 'vence en <48 h'} ({r['due_at']})")
+                print(
+                    f"derechos #{r['id']} {'VENCIDA' if r['overdue'] else 'vence en <48 h'} ({r['due_at']})"
+                )
         conn = await db.get_db()
         now_s = datetime.now(timezone.utc).strftime(privacy_requests.FMT)
         async with conn.execute(
@@ -74,7 +82,9 @@ async def _run(args) -> int:
             for rid, due in await cur.fetchall():
                 bad += 1
                 print(f"eliminación #{rid} VENCIDA ({due})")
-        print("OK: nada vencido" if not bad else f"{bad} solicitud(es) requieren atención")
+        print(
+            "OK: nada vencido" if not bad else f"{bad} solicitud(es) requieren atención"
+        )
         return 1 if bad else 0
     finally:
         await db.close_db()
@@ -92,7 +102,11 @@ def main() -> None:
     grp = p.add_mutually_exclusive_group(required=True)
     grp.add_argument("--text")
     grp.add_argument("--text-file")
-    p.add_argument("--deny", action="store_true", help="la solicitud se deniega (añade el aviso para reclamar ante la Agencia)")
+    p.add_argument(
+        "--deny",
+        action="store_true",
+        help="la solicitud se deniega (añade el aviso para reclamar ante la Agencia)",
+    )
     sys.exit(asyncio.run(_run(ap.parse_args())))
 
 

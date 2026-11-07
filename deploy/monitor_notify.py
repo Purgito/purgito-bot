@@ -25,13 +25,24 @@ from datetime import datetime, timezone
 
 REASONS = {
     "purgito-backup.service": ("backup_failed", "El backup diario de la base falló"),
-    "purgito-ledger.service": ("ledger_export_failed", "La exportación del registro de eliminaciones falló"),
-    "purgito-backup-check.service": ("backup_stale", "No hay un backup o un registro de privacidad recientes"),
+    "purgito-ledger.service": (
+        "ledger_export_failed",
+        "La exportación del registro de eliminaciones falló",
+    ),
+    "purgito-backup-check.service": (
+        "backup_stale",
+        "No hay un backup o un registro de privacidad recientes",
+    ),
 }
 
 
 def sign(secret: str, timestamp: str, body: bytes) -> str:
-    return "sha256=" + hmac.new(secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256).hexdigest()
+    return (
+        "sha256="
+        + hmac.new(
+            secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256
+        ).hexdigest()
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -43,11 +54,18 @@ def main(argv: list[str]) -> int:
     node = os.environ.get("MONITOR_NODE_ID", "").strip()
     secret = "".join(os.environ.get("MONITOR_SHARED_SECRET", "").split())
     if not (base.startswith("https://") and node and secret):
-        print("monitor_notify: falta MONITOR_BASE_URL (https), MONITOR_NODE_ID o MONITOR_SHARED_SECRET", file=sys.stderr)
+        print(
+            "monitor_notify: falta MONITOR_BASE_URL (https), MONITOR_NODE_ID o MONITOR_SHARED_SECRET",
+            file=sys.stderr,
+        )
         return 2
     reason, text = REASONS.get(unit, ("unit_failed", "Una unidad de respaldo falló"))
     host = os.uname().nodename
-    message = (f"PRUEBA de alerta de respaldos (sin incidencia real): {unit}" if test else f"{text}: {unit} en {host}") + "."
+    message = (
+        f"PRUEBA de alerta de respaldos (sin incidencia real): {unit}"
+        if test
+        else f"{text}: {unit} en {host}"
+    ) + "."
     event = {
         "event_id": uuid.uuid4().hex,
         "node_id": node,
@@ -76,7 +94,9 @@ def main(argv: list[str]) -> int:
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                print(f"monitor_notify: evento {event['event_id'][:8]} entregado (HTTP {resp.status})")
+                print(
+                    f"monitor_notify: evento {event['event_id'][:8]} entregado (HTTP {resp.status})"
+                )
                 return 0
         except urllib.error.HTTPError as e:
             last = f"HTTP {e.code}"

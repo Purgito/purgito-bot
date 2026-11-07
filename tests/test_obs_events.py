@@ -169,6 +169,7 @@ def test_categoria_de_cada_tipo_es_valida():
             "rate_limit",
             "security",
             "deployment",
+            "privacy",
         }, name
 
 

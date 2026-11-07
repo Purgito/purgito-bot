@@ -93,7 +93,6 @@ from db import (
     build_user_export,
     export_payload,
     get_user_exclusion,
-    set_user_exclusion,
     get_db,
     CHAT_TUNABLES,
     DEFAULT_COMMAND_PREFIX,
@@ -6225,7 +6224,9 @@ async def _privacy_state(user_id: int) -> dict:
     reqs = await privacy_requests.user_requests(user_id)
     return {
         "exclusion": {
-            "enabled": bool(excl and (excl["exclude_learning"] or excl["exclude_interaction"])),
+            "enabled": bool(
+                excl and (excl["exclude_learning"] or excl["exclude_interaction"])
+            ),
             "since": excl["created_at"] if excl else None,
         },
         "requests": reqs,
@@ -6294,7 +6295,11 @@ async def _api_me_privacy_rights_post(request: web.Request) -> web.Response:
     right = data.get("right")
     note = data.get("note", "")
     email = data.get("email")
-    if not isinstance(right, str) or not isinstance(note, str) or not isinstance(email, (str, type(None))):
+    if (
+        not isinstance(right, str)
+        or not isinstance(note, str)
+        or not isinstance(email, (str, type(None)))
+    ):
         return web.json_response({"error": "datos no válidos"}, status=400)
     try:
         req = await privacy_rights.create(user_id, right, note, email)
@@ -6304,7 +6309,11 @@ async def _api_me_privacy_rights_post(request: web.Request) -> web.Response:
         {
             "request": req,
             # Acuse de recibo (Ley 21.719 art. 11): número, fecha de recepción y plazo de respuesta.
-            "receipt": {"id": req["id"], "received_at": req["created_at"], "due_at": req["due_at"]},
+            "receipt": {
+                "id": req["id"],
+                "received_at": req["created_at"],
+                "due_at": req["due_at"],
+            },
             "deadline_days": privacy_rights.deadline_days(right),
         },
         status=201,

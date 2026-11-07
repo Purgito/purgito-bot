@@ -30,7 +30,14 @@ RETENTION_DAYS = 90
 NOTE_MAX = 1000
 EMAIL_MAX = 254
 MAX_OPEN_PER_USER = 5
-RIGHT_KINDS = ("access", "rectification", "objection", "portability", "blocking", "other")
+RIGHT_KINDS = (
+    "access",
+    "rectification",
+    "objection",
+    "portability",
+    "blocking",
+    "other",
+)
 FMT = "%Y-%m-%d %H:%M:%S"
 _COLS = "id, right_kind, note, status, created_at, due_at, answered_at, response_text"
 _EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,189}\.[^@\s]{2,}$")
@@ -75,7 +82,9 @@ async def create(
     if len(note) > NOTE_MAX:
         raise RightsError("comentario demasiado largo")
     reply_email = (reply_email or "").strip() or None
-    if reply_email is not None and (len(reply_email) > EMAIL_MAX or not _EMAIL_RE.match(reply_email)):
+    if reply_email is not None and (
+        len(reply_email) > EMAIL_MAX or not _EMAIL_RE.match(reply_email)
+    ):
         raise RightsError("correo no válido")
     now = now or datetime.now(timezone.utc)
     conn = await db.get_db()
@@ -113,7 +122,8 @@ async def create(
 async def user_requests(user_id: int) -> list[dict]:
     conn = await db.get_db()
     async with conn.execute(
-        f"SELECT {_COLS} FROM privacy_rights_requests WHERE user_id=? ORDER BY id", (user_id,)
+        f"SELECT {_COLS} FROM privacy_rights_requests WHERE user_id=? ORDER BY id",
+        (user_id,),
     ) as cur:
         return [_row(r) for r in await cur.fetchall()]
 
@@ -135,7 +145,8 @@ async def requester_of(request_id: int) -> tuple[int, str | None] | None:
     """(id de Discord, correo opcional) para que el operador conteste; nunca se expone por la API."""
     conn = await db.get_db()
     async with conn.execute(
-        "SELECT user_id, reply_email FROM privacy_rights_requests WHERE id=?", (request_id,)
+        "SELECT user_id, reply_email FROM privacy_rights_requests WHERE id=?",
+        (request_id,),
     ) as cur:
         row = await cur.fetchone()
     return (int(row[0]), row[1]) if row else None
@@ -168,7 +179,9 @@ async def mark_answered(
 
 
 async def purge_old(now: datetime | None = None) -> int:
-    cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=RETENTION_DAYS)).strftime(FMT)
+    cutoff = (
+        (now or datetime.now(timezone.utc)) - timedelta(days=RETENTION_DAYS)
+    ).strftime(FMT)
     conn = await db.get_db()
     async with db._db_lock:
         cur = await conn.execute(
@@ -183,6 +196,8 @@ async def delete_of_user(user_id: int) -> int:
     """Al eliminar los datos de una persona también se borran sus solicitudes de derechos."""
     conn = await db.get_db()
     async with db._db_lock:
-        cur = await conn.execute("DELETE FROM privacy_rights_requests WHERE user_id=?", (user_id,))
+        cur = await conn.execute(
+            "DELETE FROM privacy_rights_requests WHERE user_id=?", (user_id,)
+        )
         await conn.commit()
     return max(cur.rowcount, 0)

@@ -115,10 +115,18 @@ EVENT_TYPES: dict[str, EventSpec] = {
     ),
     "security.alert_opened": _sec("warning", "Una regla de detección abrió una alerta"),
     # privacy.* -- plazos del Centro de Privacidad (sin ids de persona; viajan al monitor)
-    "privacy.request_failed": _app("error", "Una solicitud de eliminación falló y se reintenta"),
-    "privacy.request_due_soon": _app("warning", "Una solicitud de eliminación vence en menos de 48 h"),
-    "privacy.request_overdue": _app("critical", "Una solicitud de eliminación superó su plazo"),
-    "privacy.rights_overdue": _app("critical", "Hay solicitudes de derechos sin contestar fuera de plazo"),
+    "privacy.request_failed": _app(
+        "error", "Una solicitud de eliminación falló y se reintenta"
+    ),
+    "privacy.request_due_soon": _app(
+        "warning", "Una solicitud de eliminación vence en menos de 48 h"
+    ),
+    "privacy.request_overdue": _app(
+        "critical", "Una solicitud de eliminación superó su plazo"
+    ),
+    "privacy.rights_overdue": _app(
+        "critical", "Hay solicitudes de derechos sin contestar fuera de plazo"
+    ),
     # deployment.*
     "deployment.runbook_executed": _app("info", "Se ejecutó un runbook allowlisted"),
 }

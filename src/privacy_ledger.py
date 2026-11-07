@@ -78,7 +78,8 @@ HARD_MESSAGE_ROWS = 1_000_000
 
 MESSAGES_SQL = (
     "SELECT guild_id, message_id, deleted_at, expires_at FROM deleted_message_tombstones "
-    "WHERE expires_at > {now} ORDER BY guild_id, message_id LIMIT " + str(HARD_MESSAGE_ROWS + 1)
+    "WHERE expires_at > {now} ORDER BY guild_id, message_id LIMIT "
+    + str(HARD_MESSAGE_ROWS + 1)
 )
 CHANNELS_SQL = (
     "SELECT guild_id, channel_id, deleted_at, expires_at FROM deleted_channel_tombstones "
@@ -201,9 +202,7 @@ def snapshot_from_rows(
         }
         for r in channels
     ]
-    out += [
-        {"type": "log_anchor", "seq": int(r[0]), "hash": str(r[1])} for r in anchor
-    ]
+    out += [{"type": "log_anchor", "seq": int(r[0]), "hash": str(r[1])} for r in anchor]
     footer = {
         "type": "footer",
         "counts": {

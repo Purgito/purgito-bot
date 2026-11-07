@@ -667,6 +667,7 @@ def _pinned_dns(hostname: str, ip: str):
     por su cuenta al conectar -- una ventana de milisegundos después de la
     validación en la que un DNS rebinding attack (el mismo hostname resuelve
     distinto la segunda vez) haría inútil el chequeo de arriba."""
+
     def _pinned(host, *args, **kwargs):
         return real_getaddrinfo(ip if host == hostname else host, *args, **kwargs)
 

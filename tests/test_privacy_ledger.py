@@ -181,7 +181,10 @@ def test_la_instantanea_lleva_solo_lapidas_vigentes_y_las_exclusiones(conn):
     assert tipos[0] == "header" and tipos[-1] == "footer"
     counts = records[-1]["counts"]
     # El ancla del registro depende de lo que haya en privacy_request_log (0 o 1): se comprueba aparte.
-    assert {k: counts[k] for k in ("user_tombstone", "guild_tombstone", "exclusion", "deletion_request")} == {
+    assert {
+        k: counts[k]
+        for k in ("user_tombstone", "guild_tombstone", "exclusion", "deletion_request")
+    } == {
         "user_tombstone": 1,
         "guild_tombstone": 1,
         "exclusion": 1,

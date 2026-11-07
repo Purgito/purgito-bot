@@ -140,7 +140,11 @@ def run(args) -> int:
         f"{counts['deletion_request']} solicitud(es) abierta(s), "
         f"{counts['message_tombstone']} mensaje(s) y {counts['channel_tombstone']} canal(es) "
         f"eliminados, ancla del registro: {counts['log_anchor']}"
-        + (" -- AVISO: lápidas de mensajes TRUNCADAS al tope" if records[-1].get("truncated") else "")
+        + (
+            " -- AVISO: lápidas de mensajes TRUNCADAS al tope"
+            if records[-1].get("truncated")
+            else ""
+        )
     )
     if args.dry_run:
         return 0

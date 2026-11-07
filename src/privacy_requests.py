@@ -51,7 +51,9 @@ def _now(now: datetime | None) -> datetime:
     return now or datetime.now(timezone.utc)
 
 
-def chain_hash(prev_hash: str, request_id: int, at: str, event: str, detail: str) -> str:
+def chain_hash(
+    prev_hash: str, request_id: int, at: str, event: str, detail: str
+) -> str:
     return hashlib.sha256(
         f"{prev_hash}|{request_id}|{at}|{event}|{detail}".encode()
     ).hexdigest()
@@ -73,7 +75,14 @@ async def _append_log(conn, request_id: int, event: str, data: dict | None, at: 
     await conn.execute(
         "INSERT INTO privacy_request_log (request_id, at, event, detail, prev_hash, hash) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        (request_id, at, event, detail, prev, chain_hash(prev, request_id, at, event, detail)),
+        (
+            request_id,
+            at,
+            event,
+            detail,
+            prev,
+            chain_hash(prev, request_id, at, event, detail),
+        ),
     )
 
 
@@ -88,7 +97,14 @@ def append_log_sync(conn, request_id: int, event: str, data: dict | None, at: st
     conn.execute(
         "INSERT INTO privacy_request_log (request_id, at, event, detail, prev_hash, hash) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        (request_id, at, event, detail, prev, chain_hash(prev, request_id, at, event, detail)),
+        (
+            request_id,
+            at,
+            event,
+            detail,
+            prev,
+            chain_hash(prev, request_id, at, event, detail),
+        ),
     )
 
 
@@ -182,7 +198,9 @@ async def claim_due(limit: int = 5, now: datetime | None = None) -> list[dict]:
                 "locked_until=? WHERE id=?",
                 (attempt, _ts(now + timedelta(minutes=LEASE_MINUTES)), req["id"]),
             )
-            await _append_log(conn, req["id"], "attempt_started", {"attempt": attempt}, now_t)
+            await _append_log(
+                conn, req["id"], "attempt_started", {"attempt": attempt}, now_t
+            )
             req["attempts"] = attempt
             claimed.append(req)
         await conn.commit()
@@ -190,7 +208,10 @@ async def claim_due(limit: int = 5, now: datetime | None = None) -> list[dict]:
 
 
 async def complete(
-    request_id: int, report: dict, now: datetime | None = None, attempt: int | None = None
+    request_id: int,
+    report: dict,
+    now: datetime | None = None,
+    attempt: int | None = None,
 ) -> bool:
     """Cierra la solicitud. `attempt` es el intento que la tomó (token de control): si otro
     intento la retomó mientras tanto (arrendamiento vencido) o ya está cerrada, no hace nada y
@@ -242,7 +263,11 @@ async def fail(
             "SELECT attempts, status FROM privacy_requests WHERE id=?", (request_id,)
         ) as cur:
             row = await cur.fetchone()
-        if not row or row[1] != "processing" or (attempt is not None and int(row[0]) != attempt):
+        if (
+            not row
+            or row[1] != "processing"
+            or (attempt is not None and int(row[0]) != attempt)
+        ):
             await conn.commit()
             return False
         attempts = int(row[0])
@@ -272,7 +297,9 @@ async def process_due(forget, *, limit: int = 5, now: datetime | None = None) ->
         try:
             report = await forget(req["user_id"])
         except Exception as e:
-            log.exception("privacy_requests: falló el intento de la solicitud %s", req["id"])
+            log.exception(
+                "privacy_requests: falló el intento de la solicitud %s", req["id"]
+            )
             if await fail(req["id"], e, now, req["attempts"]):
                 failed += 1
         else:
@@ -310,7 +337,9 @@ _ALERT_UPDATE = {
 }
 
 
-async def mark_alert_sent(request_id: int, kind: str, now: datetime | None = None) -> None:
+async def mark_alert_sent(
+    request_id: int, kind: str, now: datetime | None = None
+) -> None:
     now_t = _ts(_now(now))
     conn = await db.get_db()
     async with db._db_lock:
@@ -327,7 +356,9 @@ async def dispatch_alerts(send, now: datetime | None = None) -> int:
         try:
             ok = await send(alert)
         except Exception:
-            log.exception("privacy_requests: falló el envío del aviso %s", alert["kind"])
+            log.exception(
+                "privacy_requests: falló el envío del aviso %s", alert["kind"]
+            )
             ok = False
         if ok:
             await mark_alert_sent(alert["id"], alert["kind"], now)

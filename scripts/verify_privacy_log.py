@@ -51,7 +51,10 @@ def main(argv=None) -> int:
             return 3
         anchors |= {(a["seq"], a["hash"]) for a in snap["log_anchors"]}
     if not anchors:
-        print("ERROR: ninguna de las instantáneas trae ancla (¿anteriores al registro?)", file=sys.stderr)
+        print(
+            "ERROR: ninguna de las instantáneas trae ancla (¿anteriores al registro?)",
+            file=sys.stderr,
+        )
         return 3
 
     conn = pgsync.connect(args.dsn)
@@ -73,7 +76,9 @@ def main(argv=None) -> int:
         f"alteradas: {len(res['altered'])} | posteriores a la base: {len(res['ahead'])}"
     )
     if res["altered"]:
-        print(f"ALTERADO: el hash difiere en las filas {res['altered']}", file=sys.stderr)
+        print(
+            f"ALTERADO: el hash difiere en las filas {res['altered']}", file=sys.stderr
+        )
     if res["ahead"]:
         print(
             f"AVISO: hay anclas más allá de la fila {rows[-1][0] if rows else 0}: "

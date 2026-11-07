@@ -80,7 +80,9 @@ async def send_alert(alert: dict) -> bool:
     """True solo si el correo salió. Nunca lanza ni registra la contraseña."""
     cfg = _settings()
     if cfg is None:
-        log.warning("privacy_alerts: sin credenciales de correo; el aviso queda pendiente")
+        log.warning(
+            "privacy_alerts: sin credenciales de correo; el aviso queda pendiente"
+        )
         return False
     subject, body = format_alert(alert)
     try:
