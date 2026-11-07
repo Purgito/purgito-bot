@@ -9,4 +9,4 @@ umask 077
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON="${PYTHON:-$script_dir/../.venv/bin/python}"
 "$PYTHON" "$script_dir/../scripts/export_privacy_ledger.py"
-"$PYTHON" "$script_dir/../scripts/r2_backup.py" prune-ledger --apply
+"$PYTHON" "$script_dir/../scripts/r2_backup.py" prune-ledger --apply ${LEDGER_THIN:+--thin}

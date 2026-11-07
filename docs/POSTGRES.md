@@ -390,7 +390,7 @@ un solo backup a la vez (`flock`), no empieza otro si hay una copia completa de 
 Cada copia que sube a R2 son ~62 MB que no se pueden borrar hasta pasados 6 días (Bucket Lock): para probar
 scripts usa `deploy/backup_db_test.sh` y `deploy/backup_guard_test.sh`, que no tocan R2.
 
-**Adelgazamiento del registro.** Cada instantánea de `gen2/ledger/` es el estado completo; para restaurar
+**Adelgazamiento del registro (opt-in: `--thin` o `LEDGER_THIN=1`, no activo por defecto).** Cada instantánea de `gen2/ledger/` es el estado completo; para restaurar
 basta la más reciente (`reapply_deletions.py --ledger` exige además que tenga menos de 2 h y no sea anterior a
 la base). Se sigue subiendo una cada 5 min, pero `prune-ledger` conserva solo: las 3 últimas, todas las de
 las últimas 6 h, una por hora hasta 48 h y una por día hasta el tope de 15 días (~130 objetos en vez de

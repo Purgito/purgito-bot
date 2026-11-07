@@ -275,12 +275,15 @@ def prune_plan_ledger(
     keep_newest: int = LEDGER_KEEP_NEWEST,
     full_hours: float = LEDGER_FULL_HOURS,
     hourly_hours: float = LEDGER_HOURLY_HOURS,
+    thin: bool = True,
 ):
     """(todas, conservadas, a borrar) de las instantáneas `ledger/privacy-ledger-*.jsonl.age`.
 
     Se conservan: las `keep_newest` más recientes (siempre), todas las de menos de `full_hours`,
     la más nueva de cada hora UTC hasta `hourly_hours` y la más nueva de cada día UTC hasta
-    `max_age_days`. Lo de `max_age_days` o más se borra. Nunca toca otras keys."""
+    `max_age_days`. Lo de `max_age_days` o más se borra. Nunca toca otras keys.
+
+    Con `thin=False` (el valor del CLI mientras no se autorice el adelgazamiento) solo se borra lo vencido."""
     from datetime import timedelta
 
     keys = sorted(
@@ -292,6 +295,8 @@ def prune_plan_ledger(
     full = timedelta(hours=full_hours)
     hourly = timedelta(hours=hourly_hours)
     seen: set[tuple] = set()
+    if not thin:
+        full = hourly = cap
     for k in reversed(
         keys
     ):  # de la más nueva a la más vieja: gana la más nueva de cada franja
@@ -431,7 +436,7 @@ def cmd_check(args) -> int:
 def cmd_prune_ledger(args) -> int:
     try:
         keys, kept, victims = prune_plan_ledger(
-            r2.list_backups_sync(), _now(), args.max_age_days
+            r2.list_backups_sync(), _now(), args.max_age_days, thin=args.thin
         )
     except r2.BackupError as e:
         _err(str(e))
@@ -777,6 +782,13 @@ def main(argv=None) -> int:
         default=DEFAULT_LEDGER_MAX_DELETE,
         help="tope de borrados por pasada (la primera pasada tras activar el adelgazamiento "
         "tiene miles pendientes; se vacían en varias pasadas de 5 min)",
+    )
+    pl.add_argument(
+        "--thin",
+        action="store_true",
+        help="adelgaza también las instantáneas vigentes (3 últimas + 6 h + 1/h hasta 48 h + 1/día); "
+        "sin esto solo se borra lo que supera --max-age-days. Borra miles de objetos la primera vez: "
+        "requiere autorización expresa",
     )
     pl.add_argument("--apply", action="store_true", help="borra de verdad")
     pl.set_defaults(func=cmd_prune_ledger)

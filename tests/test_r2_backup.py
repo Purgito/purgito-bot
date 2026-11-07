@@ -1025,7 +1025,9 @@ def test_ledger_prune_max_delete_acota_cada_pasada(s3):
             b"x",
         )
     antes = len(s3.ops("delete_object"))
-    assert r2_backup.main(["prune-ledger", "--apply", "--max-delete", "5"]) == 0
+    assert (
+        r2_backup.main(["prune-ledger", "--apply", "--thin", "--max-delete", "5"]) == 0
+    )
     assert len(s3.ops("delete_object")) - antes == 5
 
 
