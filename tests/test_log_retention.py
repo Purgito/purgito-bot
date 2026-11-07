@@ -115,3 +115,27 @@ def test_el_access_log_pierde_la_query_string_y_la_del_referer():
     otro = logging.LogRecord("bot", logging.INFO, "", 0, "pregunta? sí", None, None)
     f.filter(otro)
     assert otro.msg == "pregunta? sí"  # solo toca aiohttp.access
+
+
+def test_trim_mira_el_timestamp_aunque_la_linea_sea_larga_y_recorta_segmentos_por_fecha(
+    tmp_path,
+):
+    def ts(days_ago):
+        d = datetime.now(timezone.utc) - timedelta(days=days_ago)
+        return d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    largo = (
+        '{"data": {"x": "' + "a" * 900 + '"}, "event_type": "x.y", "timestamp": "%s"}\n'
+    )
+    base = tmp_path / "events.jsonl"
+    seg = tmp_path / "events.jsonl.2026-11-06_000000"
+    base.write_text(largo % ts(40) + largo % ts(2), encoding="utf-8")
+    seg.write_text(largo % ts(45) + largo % ts(3), encoding="utf-8")
+    ls.trim_legacy_logs(str(base), 30)
+    for f in (base, seg):
+        left = f.read_text(encoding="utf-8")
+        assert (
+            left.count("\n") == 1
+            and ts(40)[:10] not in left
+            and ts(45)[:10] not in left
+        ), f

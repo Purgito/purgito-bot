@@ -96,9 +96,16 @@ _JSON_TS = re.compile(r'"timestamp": "(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})')
 
 
 def _line_time(line: str) -> datetime | None:
-    m = _LINE_TS.match(line) or _JSON_TS.search(line[:400])
+    m = _LINE_TS.match(line)
     if not m:
-        return None
+        # En los JSONL con claves ordenadas el "timestamp" es la última clave: puede estar muy adentro
+        # de una línea larga, así que se mira la línea entera y se toma la última coincidencia.
+        found = _JSON_TS.findall(line)
+        if not found:
+            return None
+        return datetime.strptime(
+            f"{found[-1][0]} {found[-1][1]}", "%Y-%m-%d %H:%M:%S"
+        ).replace(tzinfo=timezone.utc)
     return datetime.strptime(f"{m.group(1)} {m.group(2)}", "%Y-%m-%d %H:%M:%S").replace(
         tzinfo=timezone.utc
     )
@@ -130,12 +137,15 @@ def trim_old_lines(path: str, retention_days: int, now: datetime | None = None) 
 
 
 def trim_legacy_logs(path: str, retention_days: int) -> None:
-    """`path` y sus copias numeradas del esquema anterior (`path.1`, `path.2`, …)."""
+    """`path`, sus copias numeradas del esquema anterior (`path.1`, …) y sus segmentos por fecha."""
     trim_old_lines(path, retention_days)
     dirname, base = os.path.split(path)
     cutoff = datetime.now(timezone.utc).timestamp() - retention_days * 86400
     for name in os.listdir(dirname or "."):
-        if name.startswith(base + ".") and name[len(base) + 1 :].isdigit():
+        suffix = name[len(base) + 1 :] if name.startswith(base + ".") else ""
+        if suffix.isdigit() or _SEGMENT_RE.match(
+            suffix
+        ):  # numeradas (esquema viejo) o por fecha
             full = os.path.join(dirname, name)
             if os.path.getmtime(full) < cutoff:
                 os.unlink(full)
