@@ -1,0 +1,64 @@
+# Plantilla del unit de systemd del panel privado de Purgito Studio. NO copiar tal cual a
+# /etc/systemd/system/: tiene marcadores sin resolver. Generar el unit real con:
+#
+#   deploy/render_studio_service.sh <usuario> </ruta/al/checkout> > /tmp/studio-purg.service
+#   sudo cp /tmp/studio-purg.service /etc/systemd/system/studio-purg.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now studio-purg
+#
+# Procedimiento completo (entorno, Cloudflare Access, comprobaciones y reversión):
+# docs/STUDIO_ACCESS.md.
+#
+# Mínimo privilegio: el panel NO lee el .env del bot (tiene el token de Discord, la base de datos,
+# Polar...). Recibe solo lo que necesita desde /etc/purgito/studio.env: OBSERVABILITY_TOKEN (acceso de
+# servicio al backend en 127.0.0.1), WEB_PORT y, si hay acceso remoto, STUDIO_ACCESS_* / STUDIO_PUBLIC_HOST.
+#
+# Sandboxing moderado a propósito: sin ProtectHome ni ProtectSystem=strict (en esta infraestructura
+# el unit del bot falló con 203/EXEC al combinarlos; ver bot-purg.service.template). Lo que sí se activa
+# no toca rutas, así que no puede repetir ese problema. Verificar con `systemd-analyze security`.
+
+[Unit]
+Description=Purgito Studio (panel privado de analítica)
+After=network-online.target
+Wants=network-online.target
+# Debe volver solo aunque el fallo persista; RestartSec espacia los reintentos.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User={{DEPLOY_USER}}
+WorkingDirectory={{DEPLOY_PATH}}
+EnvironmentFile=/etc/purgito/studio.env
+ExecStart={{DEPLOY_PATH}}/.venv/bin/python scripts/studio.py --port 18081
+Restart=always
+RestartSec=5
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+
+# Un fallo de Studio nunca debe afectar al bot: son procesos y unidades independientes.
+# Recursos acotados (el panel es ligero: ~40 MB).
+MemoryMax=256M
+TasksMax=64
+
+# Endurecimiento que no depende de rutas.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+# Solo TCP/UDP (loopback y la descarga de claves de Access); sin sockets raw ni netlink.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

@@ -10,6 +10,13 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 
 ## [Unreleased]
 
+### Added
+- Studio: vista **Comandos**, un explorador completo del uso real de cada comando (`!gif`, `!dl`, `/imitar`…): ranking con búsqueda, filtro por tipo, varios órdenes y cambio frente al período anterior, y ficha con historial por hora/día (con los huecos de cobertura sin rellenar), resultado, latencia y de cuántos servidores depende. Nuevo endpoint de solo lectura `GET /internal/studio/commands` (mismo gate, período y filtros que `/report`) que aprovecha la tabla `studio_usage` existente: sin esquema nuevo, sin métricas nuevas y sin identificar servidores (solo cuántos son y qué fracción aporta cada uno). El panel lo reenvía con la misma autenticación de servicio y las mismas protecciones de Access que `/report`. El explorador antiguo de Funciones se sustituye por los cinco comandos más usados y un acceso a la vista nueva.
+
+### Fixed
+- Studio: un fallo puntual al descargar las claves públicas de Cloudflare Access dejaba a todo el mundo fuera 5 minutos (403 `keys-unavailable` y luego `kid`), porque el límite contra descargas forzadas también se aplicaba tras un error. Ahora la descarga se reintenta enseguida una vez y, si vuelve a fallar, a los 10 s; si ya había claves, una renovación fallida sigue usando las anteriores hasta 24 h; las claves se cargan al arrancar el panel, y se registra la causa del fallo. El límite de 5 minutos para `kid` desconocidos con claves válidas no cambia.
+- Studio: tras introducir el código de un solo uso de Cloudflare Access, el panel respondía 403 (y seguía así al recargar) porque la vuelta desde `<equipo>.cloudflareaccess.com` es una navegación entre sitios y el origen rechazaba todo `Sec-Fetch-Site: cross-site`, aun con un JWT válido. Ahora se admite solo la navegación de nivel superior que lee el documento (`GET`/`HEAD` a `/`, modo `navigate`, destino `document`); la validación del JWT, la lista de correos, la puerta de loopback/Host y las protecciones CSRF de las escrituras no cambian. Los rechazos registran método, ruta y cabeceras `Sec-Fetch-*` (nunca el token), y el rechazo de escrituras sin JSON/`X-Studio-Request` deja de ser silencioso.
+
 ### Removed
 - Avisos de arranque/apagado y de loops caídos al canal de Discord del proyecto: se eliminan `LIFECYCLE_ANNOUNCE_CHANNEL_ID`, `bot._send_lifecycle_notice` y `utils.notify_ops`. `lifecycle_state` se conserva porque alimenta `previous_shutdown` del monitor externo; los loops que fallan siguen dejando `log.critical`.
 
@@ -17,6 +24,20 @@ un servidor de Discord, en lenguaje simple, vive en `docs/NOVEDADES.md`
 - `github/codeql-action` (`init` y `analyze`) sube a 4.39.0 en un solo cambio, y Dependabot los agrupa (`.github/dependabot.yml`): con versiones distintas entre ambos pasos el análisis de CodeQL falla con "configuration error".
 
 ### Added
+- Purgito Studio privado y opt-in: agregados horarios de uso, inventarios observados, movimientos y cohortes; siete vistas HTML/CSS/JS, comparación y anotaciones. Reutiliza el pool PostgreSQL y OBSERVABILITY_TOKEN sin exportar la telemetría de producto. Incluye buffer acotado, lotes idempotentes, retención y pruebas con PostgreSQL 18. Ver docs/STUDIO.md.
+- Purgito Studio, segunda etapa: frontend rediseñado (navegación lateral, portada con estado y cifra principal, gráficos con tooltip y teclado, vista de tabla, mapa de cohortes, estados vacíos con hitos, accesibilidad verificada con axe-core) en módulos ES nativos sin dependencias; las ventanas de más de 72 h terminan en la medianoche UTC y las de hasta 72 h se miden por horas (`hourly`, campo nuevo y aditivo del informe); las anotaciones se listan hasta ahora. Los tests de la lógica pura de JS (`studio/js/test_*.mjs`) y la sintaxis de todos los módulos corren en el job de Node del CI.
+- Purgito Studio, tercera etapa (rediseño de la interfaz, sin cambios de backend ni del contrato del informe):
+  - Shell nuevo: navegación agrupada, regla del período con cobertura y anotaciones integradas, filtros
+    secundarios en un desplegable con chips y estado de la medición en la barra lateral.
+  - Una composición propia por vista.
+  - Gráficos SVG nuevos (`charts.mjs`): tira de reparto, escala logarítmica de latencia con el p95 como
+    intervalo, rejilla de comunidades, carriles de versiones y minicolumnas.
+  - Paleta de datos semántica y categórica (`palette.mjs`).
+  - Porcentajes sin redondeo engañoso (`fmtShare`/`fmtRate`); sin «▲ 0 pp».
+  - Tipografías: IBM Plex Sans 400/600 sustituye a Outfit; Fira Code se reutiliza de la landing.
+  - Lógica pura nueva en `derive.mjs` con sus pruebas.
+  - `tests/test_studio_browser.py` se adapta a los selectores nuevos.
+- Acceso remoto opcional a Studio por Cloudflare Tunnel + Access: el panel verifica en el origen el JWT de Access (RS256, emisor, audiencia, vigencia y correo autorizado) con `cryptography`, sin dependencias nuevas; entrada local con token intacta; falla cerrado y sin configuración no existe. Unit de systemd `deploy/studio-purg.service.template` (+ `render_studio_service.sh`, `studio.env.example`) que no lee el `.env` del bot. Sin aplicar en producción: ver docs/STUDIO_ACCESS.md.
 - Capa de observabilidad del nodo (`src/observability/`, ver `docs/OBSERVABILITY.md`, `docs/SECURITY_EVENTS.md`, `docs/RUNBOOKS.md`): eventos estructurados con schema v1 (`data/events.jsonl` y `data/security.jsonl`, 5 MB × 4 cada uno), redacción de secretos en logs de texto y JSON, request ids (`X-Request-ID`), heartbeat y estado del servicio sin PostgreSQL (`data/service_state.json`), `/health/ready`, y `/health/details`, `/metrics` (Prometheus) e `/internal/alerts` protegidos por `OBSERVABILITY_TOKEN` (nginx solo publica `/health`). Reglas de detección declarativas y modelo de alertas (`data/alerts.json`); solo detectan, no actúan.
 - Monitor externo opcional (`src/observability/monitor.py`, `MONITOR_*`): heartbeat y eventos importantes hacia `purgito-monitor` (Railway) firmados con HMAC-SHA256, best-effort con backoff y outbox acotado para eventos críticos; `/health` ahora devuelve `{"ok": true, "status": "ok"}` con `Cache-Control: no-store`. Métricas `purgito_monitor_*`.
 - `deploy/runbooks/purgito_runbooks.py`: runbooks allowlisted (diagnóstico de solo lectura + `restart_purgito` con confirmación), sin shell, con timeout y salida JSON.

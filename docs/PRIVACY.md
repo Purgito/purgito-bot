@@ -106,6 +106,24 @@ Purgito **no almacena** número de tarjeta, datos de facturación, ni el email o
 
 ---
 
+## Analítica agregada de producto (opcional)
+
+El operador puede habilitar Purgito Studio para medir uso y calidad del bot.
+Este módulo guarda conteos horarios por función, comando registrado, resultado
+y versión, inventarios de instalación y movimientos observados. Para distinguir
+comunidades y medir cohortes usa claves HMAC de servidor, sin exponer el ID de
+Discord en el panel. Estas claves son pseudónimos, no identificadores de personas.
+No recopila texto, argumentos de comandos, IDs de usuarios ni canales.
+
+Los datos nuevos de Studio se mantienen en el PostgreSQL del bot y no se envían
+a servicios de analítica externos. Solo operadores autorizados acceden al panel
+privado. La retención es de 90 días por defecto (configurable entre 7 y 365), con
+limpieza diaria mientras el colector está activo; los backups mantienen su
+política propia. Estas condiciones se refieren a Studio: las demás funcionalidades
+e integraciones del bot siguen las secciones anteriores.
+
+---
+
 # 2. Uso de la información
 
 La información recopilada se utiliza exclusivamente para proporcionar las funciones del bot, incluyendo:

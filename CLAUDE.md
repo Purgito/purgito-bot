@@ -214,6 +214,18 @@ Las probabilidades y frecuencias del chat (`auto_generate_every`,
 servidor. Las constantes de `config.py` quedaron solo como fallback. Rango
 válido en un único lugar: `db.CHAT_TUNABLES`.
 
+## Analítica privada de producto
+
+`src/studio/` guarda solo agregados y pseudónimos de servidor en el pool existente.
+`studio/` es una UI privada separada de `landing/`, servida por loopback con
+`scripts/studio.py` y el token de observabilidad existente. No publicar sus rutas
+ni enviar sus datos al flujo de eventos/exportadores. Desactivada por defecto:
+ver `docs/STUDIO.md` para métricas, retención y pruebas aisladas.
+El frontend (`studio/`) son módulos ES nativos sin bundler (`js/`, `css/`, `fonts/`); su lógica pura se
+prueba con `node studio/js/test_*.mjs` y no debe usar innerHTML ni estilos en línea (CSP). El acceso por
+Internet es Cloudflare Tunnel + Access con el JWT verificado en el origen (`src/studio/access.py`): ver
+`docs/STUDIO_ACCESS.md`. El servicio del panel no lee el `.env` del bot.
+
 ## Observabilidad (docs/OBSERVABILITY.md)
 
 Nodo observable; el control plane, el almacén central de logs y el monitor de

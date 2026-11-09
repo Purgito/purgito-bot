@@ -17,6 +17,7 @@ import config  # ejecuta load_dotenv() al importarse
 import i18n
 import r2
 import webapi
+from studio import runtime as studio_runtime
 from observability import events as obs_events
 from observability import hooks as obs_hooks
 from observability import logging_setup as obs_logging
@@ -76,8 +77,10 @@ class PurgitoBot(commands.Bot):
         for extension in EXTENSIONS:
             await self.load_extension(extension)
             log.info("Extensión cargada: %s", extension)
+        await studio_runtime.start(self)
 
     async def close(self) -> None:
+        await studio_runtime.stop()
         await webapi.stop_web_server()
         log.info("Cerrando conexión a la base de datos...")
         await close_db()
@@ -111,7 +114,9 @@ async def get_prefix(_bot: commands.Bot, message: discord.Message) -> list[str]:
     return [symbol, word_prefix]
 
 
-bot = PurgitoBot(command_prefix=get_prefix, intents=intents)
+bot = PurgitoBot(
+    command_prefix=get_prefix, intents=intents, tree_cls=studio_runtime.StudioTree
+)
 bot.remove_command("help")
 
 

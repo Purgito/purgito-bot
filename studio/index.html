@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Purgito Studio</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/plex-sans-latin-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/lexend-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/css/studio.css" />
+    <script type="module" src="/js/main.mjs"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Saltar al contenido</a>
+    <div class="app">
+      <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
+        <div class="brand">
+          <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+            <rect x="1" y="1" width="26" height="26" rx="8" class="brand-mark-bg" />
+            <path d="M9 21V8h5.2a4.3 4.3 0 010 8.6H9" class="brand-mark-p" />
+          </svg>
+          <span class="brand-name">Purgito<span class="brand-sub">Studio</span></span>
+          <button type="button" class="icon-btn only-narrow" id="close-menu" aria-label="Cerrar menú"></button>
+        </div>
+        <nav aria-label="Secciones">
+          <ul id="nav"></ul>
+        </nav>
+        <div class="sidebar-foot">
+          <p id="freshness" class="freshness" role="status"><span class="dot" aria-hidden="true"></span><span id="freshness-text">Conectando…</span></p>
+          <p class="running" id="running" hidden></p>
+          <div class="foot-actions">
+            <button type="button" class="btn btn-quiet" id="refresh">Actualizar</button>
+            <button type="button" class="btn btn-quiet" id="open-glossary" aria-haspopup="dialog">Glosario</button>
+          </div>
+          <p class="private">Acceso privado. Solo agregados, sin mensajes ni perfiles.</p>
+        </div>
+      </aside>
+      <div class="scrim" id="scrim" hidden></div>
+
+      <div class="main-col">
+        <header class="masthead" id="masthead">
+          <div class="mast-row">
+            <button type="button" class="icon-btn only-narrow" id="menu" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir menú"></button>
+            <h1 id="title" tabindex="-1">Resumen</h1>
+            <form id="filters" class="period" aria-label="Período y filtros" novalidate></form>
+          </div>
+          <section id="quality" class="context" aria-label="Contexto del período"></section>
+        </header>
+        <div id="notice" class="notice-slot" role="status" aria-live="polite"></div>
+
+        <main id="main" tabindex="-1">
+          <div id="content" aria-busy="true"></div>
+        </main>
+        <footer class="foot">Studio mide uso y adopción. La salud del servidor la siguen midiendo Prometheus y el monitor operativo.</footer>
+      </div>
+    </div>
+
+    <dialog id="glossary" class="dlg" aria-labelledby="glossary-title"></dialog>
+    <dialog id="coverage-dialog" class="dlg" aria-labelledby="coverage-title"></dialog>
+    <dialog id="sheet" class="dlg dlg-sheet" aria-labelledby="sheet-title"></dialog>
+    <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  </body>
+</html>

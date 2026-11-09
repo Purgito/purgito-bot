@@ -6757,6 +6757,9 @@ async def start_web_server(bot: commands.Bot) -> None:
     app.router.add_get("/health/details", _api_health_details)
     app.router.add_get("/metrics", _api_metrics)
     app.router.add_get("/internal/alerts", _api_internal_alerts)
+    from studio.http import register as register_studio
+
+    register_studio(app, _internal_gate)
     # Fuera del bloque DASHBOARD_ENABLED: Polar le pega sin sesión OAuth
     # y el premium debe poder activarse aunque la auth esté apagada.
     app.router.add_post("/webhooks/polar", _webhook_polar)

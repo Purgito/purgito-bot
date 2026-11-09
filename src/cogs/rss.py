@@ -6,6 +6,8 @@ import logging
 import discord
 import feedparser
 import requests
+from studio import runtime as studio_runtime
+
 from discord.ext import commands, tasks
 
 import r2
@@ -214,23 +216,28 @@ class RSS(commands.Cog):
                     mention = f"<@&{role_id}> " if role_id else ""
                     locale = await guild_locale(sub["guild_id"])
                     feed_title = sub.get("feed_title") or item.get("feed_title") or ""
-                    await channel.send(
-                        mention
-                        + t(
-                            "rss.new_item",
-                            locale,
-                            feed_title=feed_title,
-                            title=item["title"],
-                            url=item["url"],
-                        ),
-                        # El título y resumen del post provienen del feed externo.
-                        # Se restringen las menciones para evitar que mencione @everyone.
-                        allowed_mentions=discord.AllowedMentions(
-                            everyone=False,
-                            users=False,
-                            roles=[discord.Object(id=role_id)] if role_id else False,
-                        ),
-                    )
+                    with studio_runtime.measure_delivery(
+                        sub["guild_id"], "rss", source="background"
+                    ):
+                        await channel.send(
+                            mention
+                            + t(
+                                "rss.new_item",
+                                locale,
+                                feed_title=feed_title,
+                                title=item["title"],
+                                url=item["url"],
+                            ),
+                            # El título y resumen del post provienen del feed externo.
+                            # Se restringen las menciones para evitar que mencione @everyone.
+                            allowed_mentions=discord.AllowedMentions(
+                                everyone=False,
+                                users=False,
+                                roles=[discord.Object(id=role_id)]
+                                if role_id
+                                else False,
+                            ),
+                        )
                     await update_last_item_id(
                         sub["guild_id"], sub["feed_url"], item["id"]
                     )
