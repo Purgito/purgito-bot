@@ -23,4 +23,10 @@ regexes = [
   '''^unsecreto-largo-1$''',
   '''^abcdef0123456789$''',
   '''^ab12cd34ef56$''',
+  # Claves PÚBLICAS de age (destinatarios «age1…», 62 caracteres bech32) usadas
+  # como fixtures en tests/test_backup_*.py: por diseño son públicas y no
+  # permiten descifrar nada. Las privadas («AGE-SECRET-KEY-1…») NO se permiten.
+  '''^age1[02-9ac-hj-np-z]{58}$''',
+  # Fixture de tests/test_backup_isolation.py (SECRET64 = "0123456789abcdef" * 4).
+  '''^0123456789abcdef$''',
 ]
