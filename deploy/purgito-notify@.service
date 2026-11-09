@@ -4,7 +4,8 @@ Description=Aviso a Purgito Monitor: falló %i
 [Service]
 Type=oneshot
 User=root
-EnvironmentFile=/etc/purgito/monitor.env
+# Fuera de la bóveda (/etc/purgito es un bind del volumen cifrado): así el aviso sale aunque esté cerrada.
+EnvironmentFile=/etc/purgito-alertas/monitor.env
 ExecStart=/usr/bin/python3 -I /opt/purgito-backup/scripts/monitor_notify.py %i
 TimeoutStartSec=60
 UMask=0077

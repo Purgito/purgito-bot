@@ -1,0 +1,27 @@
+# Desbloqueo automático del volumen cifrado de Purgito tras cada arranque (Clevis + Tang en el host).
+# Instalar: sudo install -m 0644 deploy/purgito-vault-auto.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable purgito-vault-auto.service
+# Si Tang no responde (host recién arrancado, contenedor parado), reintenta con espera creciente
+# (20 s → 5 min) sin límite: es una consulta HTTP barata y no toca datos. Mientras tanto el volumen
+# sigue cerrado, los servicios no arrancan y purgito-salud avisa. El desbloqueo manual
+# (sudo purgito-vault open) sigue funcionando en paralelo con las contraseñas de siempre.
+# Quitar: sudo systemctl disable --now purgito-vault-auto.service
+[Unit]
+Description=Desbloqueo automatico del volumen cifrado de Purgito (Tang en el host)
+Wants=network-online.target
+After=network-online.target
+ConditionPathIsMountPoint=!/srv/purgito
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/opt/purgito-vault/purgito-vault open --auto
+Restart=on-failure
+RestartSec=20s
+RestartSteps=6
+RestartMaxDelaySec=5min
+TimeoutStartSec=10min
+Environment=PV_TANG_TIMEOUT=60
+
+[Install]
+WantedBy=multi-user.target

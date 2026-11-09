@@ -1,0 +1,24 @@
+# Vigilante de salud de Purgito (ver deploy/purgito_salud.py). No depende de la bóveda: sus credenciales
+# viven en /etc/purgito-alertas/monitor.env (root 0600). Instalación: deploy/install_purgito_salud.sh
+[Unit]
+Description=Vigilante de salud de Purgito (aviso a Purgito Monitor si no se recupera solo)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -I /opt/purgito-backup/scripts/purgito_salud.py
+TimeoutStartSec=5min
+UMask=0077
+StateDirectory=purgito-salud
+StateDirectoryMode=0700
+Nice=5
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_ALG

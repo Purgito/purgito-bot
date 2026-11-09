@@ -13,6 +13,9 @@
 #
 #   sudo purgito-vault status             # estado, sin cambiar nada
 #   sudo purgito-vault open               # tras un reinicio: pide la contraseña, monta, arranca servicios
+#   sudo purgito-vault open --auto        # sin terminal: pide la clave al servidor Tang del host (Clevis).
+#                                         #   Lo usa purgito-vault-auto.service en cada arranque.
+#   sudo purgito-vault tang-test          # comprueba que Tang abre su ranura SIN abrir ni cerrar nada
 #   sudo purgito-vault close              # para servicios, desmonta y cierra el volumen
 #   sudo purgito-vault enroll             # (una vez) pone TUS contraseñas, quita la clave provisional,
 #                                         #   respalda el encabezado cifrado con age y lo sube a R2
@@ -300,7 +303,15 @@ cmd_migrate() {
 cmd_open() {
     need_root; guard_install_dir
     if ! is_open; then
-        if [ "${1:-}" = "--keyfile" ]; then
+        if [ "${1:-}" = "--auto" ]; then
+            # Desbloqueo automático: Clevis reconstruye la clave de la ranura de Tang hablando con el
+            # servidor del host. La clave nunca toca el disco ni los argumentos; si Tang no responde,
+            # falla sin efectos y systemd reintenta. Las ranuras de contraseña siguen intactas.
+            command -v clevis >/dev/null || die "falta clevis (apt install clevis clevis-luks)"
+            [ -n "$(tang_slots)" ] || die "no hay ninguna ranura enlazada con Tang (clevis luks bind)"
+            timeout "${PV_TANG_TIMEOUT:-60}" clevis luks unlock -d "$IMG" -n "$MAPPER" \
+                || die "Tang no respondió o rechazó la clave: se reintentará (o desbloquea a mano: purgito-vault open)"
+        elif [ "${1:-}" = "--keyfile" ]; then
             [ -e "$KEYFILE" ] || die "no hay clave provisional (ya se hizo 'enroll'): usa la contraseña"
             cryptsetup open --key-file "$KEYFILE" "$IMG" "$MAPPER"
         else
@@ -311,6 +322,31 @@ cmd_open() {
     fi
     mount_vault; mount_binds; start_services
     say "volumen abierto y servicios arrancados"
+}
+
+# Ranuras LUKS2 con token de Clevis (Tang). Vacío si no hay ninguna.
+tang_slots() {
+    cryptsetup luksDump --dump-json-metadata "$IMG" 2>/dev/null | python3 -I -c '
+import json, sys
+m = json.load(sys.stdin)
+print(" ".join(s for t in m.get("tokens", {}).values() if t.get("type") == "clevis" for s in t.get("keyslots", [])))'
+}
+
+# Prueba SIN abrir ni cerrar nada: Tang debe devolver la clave de cada ranura enlazada y esa clave debe
+# abrir ESA ranura (cryptsetup --test-passphrase solo lee el encabezado; no crea ningún dispositivo).
+cmd_tang_test() {
+    need_root; guard_install_dir
+    local slots s ok=1; slots="$(tang_slots)"
+    [ -n "$slots" ] || die "no hay ninguna ranura enlazada con Tang"
+    for s in $slots; do
+        if timeout "${PV_TANG_TIMEOUT:-60}" clevis luks pass -d "$IMG" -s "$s" 2>/dev/null \
+            | cryptsetup open --test-passphrase --key-slot "$s" --key-file - "$IMG" 2>/dev/null; then
+            say "OK: Tang respondió y su clave abre la ranura $s"
+        else
+            say "FALLO: Tang no responde o su clave no abre la ranura $s"; ok=0
+        fi
+    done
+    [ "$ok" = 1 ]
 }
 
 cmd_close() {
@@ -460,6 +496,7 @@ case "${1:-}" in
     swap-encrypt)   shift; cmd_swap_encrypt "$@" ;;
     migrate)        shift; cmd_migrate "$@" ;;
     open)           shift; cmd_open "$@" ;;
+    tang-test)      shift; cmd_tang_test "$@" ;;
     close)          shift; cmd_close "$@" ;;
     status)         shift; cmd_status "$@" ;;
     enroll)         shift; cmd_enroll "$@" ;;
