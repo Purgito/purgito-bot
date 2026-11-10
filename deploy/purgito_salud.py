@@ -50,6 +50,12 @@ BOOT_GRACE_S = int(
     os.environ.get("SALUD_BOOT_GRACE_S", "360")
 )  # el desbloqueo automático tarda < 1 min
 REMIND_S = 6 * 3600
+# Problemas de RECUPERACIÓN (la bóveda no se abre sola, Tang no responde): nunca los silencia el modo mantenimiento,
+# solo la gracia de arranque (el desbloqueo automático tarda < 1 min con reintentos), y se recuerdan cada 30 min.
+CRITICAL = {"boveda", "autodesbloqueo", "tang"}
+CRIT_GRACE_S = int(os.environ.get("SALUD_CRIT_GRACE_S", "600"))
+CRIT_REMIND_S = 1800
+MAINT_MAX_MIN = 60  # un mantenimiento no puede silenciar más de una hora
 TANG_TEST_EVERY_S = 3600
 
 
@@ -97,13 +103,36 @@ def check(state: dict) -> dict[str, str]:
         auto = sh(
             "systemctl", "is-enabled", "purgito-vault-auto.service"
         ).stdout.strip()
-        tang = "responde" if tang_responde() else "NO responde"
+        tang_ok = tang_responde()
+        tang = "responde" if tang_ok else "NO responde"
         p["boveda"] = (
             "La bóveda cifrada sigue cerrada: PostgreSQL, bot, Studio y túnel no pueden arrancar. "
             f"Servidor Tang del host: {tang}. Desbloqueo automático: {auto or 'no instalado'}. "
             "Si Tang no responde: en el host `sudo bash ~/purgito-lab/host-setup.sh ensure`; "
             "si no, desbloqueo manual `sudo purgito-vault open`."
         )
+        if not tang_ok:
+            p["tang"] = (
+                "El servidor Tang del host (10.203.0.1:7500) no responde: el desbloqueo automático no puede abrir la bóveda."
+            )
+        if auto == "enabled":
+            show = dict(
+                ln.split("=", 1)
+                for ln in sh(
+                    "systemctl",
+                    "show",
+                    "purgito-vault-auto.service",
+                    "-p",
+                    "ActiveState,Result,NRestarts",
+                ).stdout.splitlines()
+                if "=" in ln
+            )
+            restarts = int(show.get("NRestarts", "0") or 0)
+            if show.get("ActiveState") == "failed" or restarts >= 3:
+                p["autodesbloqueo"] = (
+                    f"El desbloqueo automático ha fallado (estado {show.get('ActiveState')}, {restarts} reintentos). "
+                    "Revisar `journalctl -u purgito-vault-auto` y, si hace falta, abrir a mano con `sudo purgito-vault open`."
+                )
     else:
         for unit, name in UNITS.items():
             st = sh("systemctl", "is-active", unit).stdout.strip()
@@ -200,7 +229,7 @@ def send(
         "severity": "critical",
         "service": "purgito",
         "message": msg[:1000],
-        "reason": "vault_locked" if "boveda" in problems else "health_check_failed",
+        "reason": "vault_locked" if "boveda" in problems else ("tang_unreachable" if "tang" in problems else "health_check_failed"),
         "metadata": {
             "source": "purgito-salud",
             "problems": sorted(problems)[:20],
@@ -252,7 +281,7 @@ def main(argv: list[str]) -> int:
                 os.remove(MAINT)
             print("mantenimiento terminado")
         else:
-            until = time.time() + int(arg) * 60
+            until = time.time() + min(int(arg), MAINT_MAX_MIN) * 60
             with open(MAINT, "w") as f:
                 f.write(str(int(until)))
             print(
@@ -277,22 +306,31 @@ def main(argv: list[str]) -> int:
         maint_until = float(open(MAINT).read().strip())
     except (OSError, ValueError):
         maint_until = 0
-    quiet = uptime_s() < BOOT_GRACE_S or now < maint_until
+    try:  # un mantenimiento no dura más de MAINT_MAX_MIN desde que se creó, aunque el archivo diga otra cosa
+        maint_until = min(maint_until, os.path.getmtime(MAINT) + MAINT_MAX_MIN * 60)
+    except OSError:
+        pass
+
+    def quiet_for(code: str) -> bool:
+        if code in CRITICAL:
+            return uptime_s() < CRIT_GRACE_S
+        return uptime_s() < BOOT_GRACE_S or now < maint_until
 
     prev = set(state.get("seen", []))
     confirmed = {
         k: v for k, v in current.items() if k in prev
     }  # dos comprobaciones seguidas
     state["seen"] = sorted(current)
+    loud = {k: v for k, v in confirmed.items() if not quiet_for(k)}
+    quiet = len(loud) < len(confirmed) or not confirmed
     notified = set(state.get("notified", []))
-    new = {k: v for k, v in confirmed.items() if k not in notified}
-    remind = (
-        bool(confirmed) and not new and now - state.get("notified_at", 0) > REMIND_S
-    )
+    new = {k: v for k, v in loud.items() if k not in notified}
+    remind_s = CRIT_REMIND_S if CRITICAL & set(loud) else REMIND_S
+    remind = bool(loud) and not new and now - state.get("notified_at", 0) > remind_s
 
-    if confirmed and not quiet and (new or remind):
-        if send(confirmed, reminder=remind):
-            state["notified"] = sorted(confirmed)
+    if loud and (new or remind):
+        if send(loud, reminder=remind):
+            state["notified"] = sorted(loud)
             state["notified_at"] = now
     elif not current and notified:
         print("purgito_salud: recuperado (" + ", ".join(sorted(notified)) + ")")
@@ -309,7 +347,7 @@ def main(argv: list[str]) -> int:
         print(
             "purgito_salud: "
             + ", ".join(sorted(current))
-            + (" (silenciado)" if quiet else "")
+            + (" (silenciado)" if quiet and not loud else "")
         )
     return 0
 
